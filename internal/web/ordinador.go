@@ -121,7 +121,7 @@ func (s *Server) handleOrdinadorHost(m *ordinador.Manager, w http.ResponseWriter
 	writeJSONStatus(w, code, map[string]any{
 		"kind": "ordinador", "id": rep.ID, "owner": rep.Owner, "health": rep.Health,
 		"capabilities": rep.Capabilities, "controlOwner": rep.ControlOwner,
-		"leaseExpiry": nil, "lastSeenAt": rep.LastSeenAt, "browserMode": rep.BrowserMode,
+		"leaseExpiry": nilIfEmpty(rep.LeaseExpiry), "lastSeenAt": rep.LastSeenAt, "browserMode": rep.BrowserMode,
 		"power": rep.Power, "usage": rep.Usage, "checks": rep.Checks,
 	})
 }
@@ -148,6 +148,7 @@ func ordinadorID(ownerKey string) string {
 }
 
 func (s *Server) handleOrdinador(w http.ResponseWriter, r *http.Request) {
+	leases := s.ordinadorLeases() // B3: la lease de control entra a la salut
 	if m, err := ordinadorHost(); err != nil {
 		// Mai es cau al mode local: diria «running» d'una màquina que no és
 		// l'ordinador de ningú.
@@ -189,15 +190,19 @@ func (s *Server) handleOrdinador(w http.ResponseWriter, r *http.Request) {
 	}
 	ordinadorSeenMu.Unlock()
 
+	controlOwner, leaseExpiry := p.ControlOwner, any(nil)
+	if x := leases.Get(key); x != nil {
+		controlOwner, leaseExpiry = "user", x.Expires.UTC().Format(time.RFC3339)
+	}
 	writeJSON(w, map[string]any{
 		"kind":         "ordinador",
 		"id":           id,
 		"owner":        owner,
 		"health":       p.Health,
 		"capabilities": p.Capabilities,
-		"controlOwner": p.ControlOwner,
-		// La lease persona/agent és de B3: fins llavors, sense caducitat.
-		"leaseExpiry": nil,
+		"controlOwner": controlOwner,
+		// La lease de la persona (B3): quan caduca si no es renova.
+		"leaseExpiry": leaseExpiry,
 		"lastSeenAt":  lastSeen,
 		"browserMode": p.BrowserMode,
 		"checks":      p.Checks,
@@ -220,4 +225,11 @@ func (s *Server) ordinadorFilesDir(u *User) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.cwd
+}
+
+func nilIfEmpty(v string) any {
+	if v == "" {
+		return nil
+	}
+	return v
 }

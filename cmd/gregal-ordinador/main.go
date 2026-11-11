@@ -4,7 +4,7 @@
 // converses, avisos ni webs.
 //
 //	gregal-ordinador --listen 10.66.0.2:8098 --id pc-carla --owner carla \
-//	  --files /srv/ordinador/fitxers --token-file /etc/gregal-ordinador/token
+//	  --files /srv/ordinador/fitxers --token-file /etc/gregal-ordinador/token //	  --viewer 127.0.0.1:6080
 //
 // El navegador és el Chrome supervisat de la VM (GREGAL_BROWSER_CDP) amb el
 // perfil al volum (GREGAL_ORDINADOR_PROFILE). Vegeu deploy/ordinador.
@@ -28,6 +28,7 @@ func main() {
 	owner := flag.String("owner", "", "compte de Gregal propietari de l'ordinador")
 	files := flag.String("files", "", "carpeta de fitxers (camí absolut, al volum persistent)")
 	tokenFile := flag.String("token-file", "", "fitxer amb el testimoni compartit amb l'amfitrió")
+	viewer := flag.String("viewer", "", "noVNC de la VM a loopback (p. ex. 127.0.0.1:6080); l'amfitrió hi arriba per /v1/viewer/ (B3)")
 	flag.Parse()
 
 	die := func(f string, a ...any) {
@@ -49,6 +50,7 @@ func main() {
 	os.Setenv("GREGAL_ORDINADOR_OWNER", *owner)
 	h, err := ordinador.NewAgent(ordinador.AgentConfig{
 		ID: *id, Owner: *owner, FilesDir: *files, Token: strings.TrimSpace(string(tok)),
+		ViewerAddr: strings.TrimSpace(*viewer),
 	})
 	if err != nil {
 		die("%v", err)

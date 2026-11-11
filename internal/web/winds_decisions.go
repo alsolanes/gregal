@@ -364,6 +364,10 @@ func (s *Server) windWaitingText(rec *windDecisionRec) string {
 	if rec.Type == "question" {
 		return s.tr("Necessito la teva resposta per continuar: ", "I need your answer to carry on: ") + rec.Query
 	}
+	if rec.Type == "handoff" {
+		return s.tr("Et toca a tu a l'ordinador: ", "Your turn on the computer: ") + rec.What +
+			s.tr(" Obre l'ordinador, fes-ho tu i toca «Ja està»; continuaré l'encàrrec.", " Open the computer, do it yourself and tap «Done»; I will carry on with the task.")
+	}
 	return s.tr("Espero el teu permís per continuar: ", "Waiting for your permission to carry on: ") + firstNonEmpty(rec.What, rec.Name)
 }
 

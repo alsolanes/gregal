@@ -875,6 +875,10 @@ func BrowserActionFor(ctx context.Context, scope, action string, args map[string
 		a = browserArgs{}
 	}
 	action = strings.ToLower(strings.TrimSpace(action))
+	// La persona té el control (B3): l'agent espera, no actua ni captura.
+	if err := waitBrowserControl(ctx, scope); err != nil {
+		return "", nil, err
+	}
 	if action == "close" {
 		CloseBrowserFor(scope)
 		return "navegador tancat", nil, nil

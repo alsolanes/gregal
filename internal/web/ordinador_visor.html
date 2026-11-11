@@ -1,0 +1,116 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Gregal · Ordinador</title>
+<style>
+  :root { color-scheme: light dark; --bg:#0e1015; --ink:#f3f5fa; --muted:#a3adc2; --line:#ffffff22; --acc:#8193ff; --warn:#f2b45c; }
+  @media (prefers-color-scheme: light) { :root { --bg:#f6f7fb; --ink:#141824; --muted:#5b6476; --line:#14182422; --acc:#3d55e0; --warn:#a8650b; } }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); font:14px/1.4 system-ui, sans-serif; }
+  body { display:flex; flex-direction:column; }
+  #bar { display:flex; gap:10px; align-items:center; padding:8px 12px; border-bottom:1px solid var(--line); min-height:44px; box-sizing:border-box; }
+  #dot { width:10px; height:10px; border-radius:50%; background:var(--muted); flex:none; }
+  #dot.run { background:#4cc38a; } #dot.start { background:var(--warn); } #dot.user { background:var(--acc); }
+  #st { flex:1; min-width:0; }
+  #st b { display:block; font-weight:600; }
+  #st span { color:var(--muted); font-size:12px; }
+  button { font:600 14px system-ui, sans-serif; border-radius:12px; min-height:44px; padding:0 16px; cursor:pointer; border:1px solid var(--acc); background:var(--acc); color:#0e1015; }
+  button.sec { background:transparent; color:var(--ink); border-color:var(--line); }
+  button[hidden] { display:none; }
+  #wrap { flex:1; position:relative; }
+  iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
+  #msg { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:24px; color:var(--muted); }
+  #msg[hidden] { display:none; }
+</style>
+</head>
+<body>
+<div id="bar" role="status" aria-live="polite">
+  <span id="dot"></span>
+  <span id="st"><b></b><span></span></span>
+  <button id="ctl" type="button" hidden></button>
+</div>
+<div id="wrap">
+  <iframe id="vnc" title="" hidden></iframe>
+  <div id="msg"></div>
+</div>
+<script>
+(() => {
+  const en = new URLSearchParams(location.search).get('lang') === 'en' || (!/^ca\b/i.test(navigator.language || '') && new URLSearchParams(location.search).get('lang') !== 'ca');
+  const T = en ? {
+    starting: 'Starting your computer…', startingSub: 'It was saved to disk; it usually takes under 30 s.',
+    running: 'Gregal is working', runningSub: 'You are watching. Take control to use it yourself.',
+    idle: 'Your computer', idleSub: 'Nobody is using it. Take control to use it yourself.',
+    user: 'You have control', userSub: 'Gregal is paused until you give control back.',
+    stopped: 'Computer saved', stoppedSub: 'Opening the viewer starts it.',
+    unreachable: 'The computer does not answer', unreachableSub: 'Network or computer down. Gregal keeps the task waiting.',
+    expired: 'The viewer session has expired. Open the computer again from Gregal.',
+    take: 'Take control', give: 'Give control back', title: 'Computer screen',
+  } : {
+    starting: 'Engegant el teu ordinador…', startingSub: 'Estava desat a disc; sol trigar menys de 30 s.',
+    running: 'Gregal hi treballa', runningSub: 'Ho estàs veient. Pren el control per fer-lo servir tu.',
+    idle: 'El teu ordinador', idleSub: 'Ningú no l\'està fent servir. Pren el control per fer-lo servir tu.',
+    user: 'Tens el control', userSub: 'Gregal s\'espera fins que el tornis.',
+    stopped: 'Ordinador desat', stoppedSub: 'En obrir el visor s\'engega.',
+    unreachable: 'L\'ordinador no respon', unreachableSub: 'Xarxa o ordinador caigut. Gregal manté la feina en espera.',
+    expired: 'La sessió del visor ha caducat. Torna a obrir l\'ordinador des de Gregal.',
+    take: 'Pren el control', give: 'Torna el control', title: 'Pantalla de l\'ordinador',
+  };
+  const H = { 'X-Gregal-Visor': '1', 'Content-Type': 'application/json' };
+  const $ = id => document.getElementById(id);
+  const vnc = $('vnc'), msg = $('msg'), ctl = $('ctl'), dot = $('dot');
+  vnc.title = T.title;
+  let st = null, src = '', dead = false;
+
+  function expired() {
+    dead = true;
+    vnc.hidden = true; vnc.src = 'about:blank';
+    msg.hidden = false; msg.textContent = T.expired;
+    ctl.hidden = true;
+    dot.className = '';
+    $('st').querySelector('b').textContent = ''; $('st').querySelector('span').textContent = '';
+  }
+
+  function render() {
+    if (!st || dead) return;
+    const mine = st.controlOwner === 'user';
+    let k = st.health;
+    if (k === 'running') k = mine ? 'user' : (st.controlOwner === 'agent' ? 'running' : 'idle');
+    $('st').querySelector('b').textContent = T[k] || st.health;
+    $('st').querySelector('span').textContent = T[k + 'Sub'] || '';
+    dot.className = k === 'user' ? 'user' : (k === 'running' || k === 'idle') ? 'run' : k === 'starting' ? 'start' : '';
+    ctl.hidden = st.health !== 'running';
+    ctl.textContent = mine ? T.give : T.take;
+    ctl.className = mine ? 'sec' : '';
+    if (st.health === 'running') {
+      // Sense el control, el visor és de només lectura.
+      const want = 'vnc/vnc.html?path=ordinador/visor/vnc/websockify&autoconnect=1&reconnect=1&resize=remote&view_only=' + (mine ? '0' : '1');
+      if (want !== src) { src = want; vnc.src = want; }
+      vnc.hidden = false; msg.hidden = true;
+    } else {
+      vnc.hidden = true; msg.hidden = false;
+      msg.textContent = T[k + 'Sub'] || '';
+      if (src) { src = ''; vnc.src = 'about:blank'; }
+    }
+  }
+
+  async function call(path, body) {
+    if (dead) return;
+    try {
+      const r = await fetch(path, body === undefined ? { headers: H, credentials: 'same-origin' } : { method: 'POST', headers: H, credentials: 'same-origin', body: JSON.stringify(body) });
+      if (r.status === 401) { expired(); return; }
+      if (r.ok) { st = await r.json(); render(); }
+    } catch (e) { /* xarxa: es torna a provar al proper batec */ }
+  }
+
+  ctl.onclick = () => call('control', { action: st && st.controlOwner === 'user' ? 'release' : 'take' });
+  const beat = () => { if (document.visibilityState === 'visible') call('batec', {}); };
+  document.addEventListener('visibilitychange', beat);
+  call('estat');
+  setInterval(() => { if (st && st.health !== 'running') call('estat'); }, 3000);
+  setInterval(beat, 30000);
+  setInterval(() => { if (st && st.health === 'running') call('estat'); }, 10000);
+})();
+</script>
+</body>
+</html>

@@ -250,7 +250,7 @@ Environment=HOME=/var/lib/gregal
 Environment=GREGAL_BROWSER_CDP=127.0.0.1:$CDP_PORT
 Environment=GREGAL_ORDINADOR_VNC=127.0.0.1:$VNC_WEB_PORT
 Environment=GREGAL_ORDINADOR_PROFILE=$VOLUME/perfil
-ExecStart=/usr/local/bin/gregal-ordinador --listen $LISTEN --id $ID --owner $OWNER --files $VOLUME/fitxers --token-file $TOKEN_DIR/token
+ExecStart=/usr/local/bin/gregal-ordinador --listen $LISTEN --id $ID --owner $OWNER --files $VOLUME/fitxers --token-file $TOKEN_DIR/token --viewer 127.0.0.1:$VNC_WEB_PORT
 Restart=always
 RestartSec=3
 NoNewPrivileges=yes
