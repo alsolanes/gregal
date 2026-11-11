@@ -443,7 +443,33 @@ No: prometre capacitats que la secció 6 diu que no existeixen; desactivar gates
 - **B4:** persistir `windAskWait` (avui mapa en memòria, 20 min) a disc amb `id`, `runId`, `proposedEffect`, `revision`; test que reinicia el servidor entre pregunta i resposta.
 - **B2:** script reproduïble de la VM pilot (navegador visible + noVNC darrere del gateway + volum persistent) i un endpoint de salut del worker; cap canvi a Android.
 
-## 13. Estat d'aquesta revisió
+## 13. Llenguatges i llibreries
+
+Revisat l'11/11 a petició de l'usuari. **Conclusió: no es canvia de llenguatge. Sí cal posar al dia la pila d'Android i afegir tres llibreries concretes.**
+
+### Backend: continua en Go
+
+- Són ~144.000 línies de codi i ~75.000 de proves. Reescriure-les aturaria el producte mesos i no resol cap dels colls d'ampolla del pla (worker, esperes durables, push, aïllament).
+- Go és precisament el que permet el backend local d'Android: un sol binari que es compila creuat i s'executa dins l'app (`LocalServer.kt`). Amb Node, Python o la JVM això seria molt més pesat.
+- La concurrència del runner, de la cua i dels streams SSE encaixa bé amb Go. Les dependències són poques i estables.
+- **Canvi recomanat, fora de B4:** l'estat durable viu en fitxers JSON amb bloqueig entre processos (`crosslock.go`). Per a encàrrecs, decisions i connexions, quan creixin, convé SQLite amb `modernc.org/sqlite` (Go pur, sense cgo, compatible amb la compilació per a Android). B4 comença amb fitxers per no barrejar decisions; la migració a SQLite és un paquet a part, quan hi hagi tres o més entitats amb consultes per owner i estat.
+
+### Android: Kotlin + Compose es mantenen; la pila està endarrerida
+
+| Ara | Proposta | Per què |
+|---|---|---|
+| Kotlin 1.9.24, compilador Compose 1.5.14, AGP 8.5, Compose BOM 2024.05 | Kotlin 2.x amb el plugin del compilador de Compose, AGP actual, BOM actual | *Strong skipping* per defecte (menys recomposicions en streaming), `Modifier.animateItem` a `LazyColumn` (l'entrada de missatges de B1), transicions compartides, Material 3 recent |
+| `org.json` a mà (182 `optString` a `GregalApi.kt`; B0 ha hagut de tocar 6 llocs per afegir un camp) | `kotlinx.serialization` amb models `@Serializable` i camps opcionals per defecte | Un camp nou és una línia; les proves de contracte poden deserialitzar directament les fixtures de `docs/assistant-contract/fixtures` |
+| `HttpURLConnection` a mà | OkHttp (SSE amb `okhttp-sse`, WebSocket per al visor de B3) | Reconnexió, timeouts i streaming fiables; el visor remot el necessita igualment |
+| Fitxers JSON propis (`VentsOffline`, preferències) | Mantenir-los; DataStore només per a preferències noves (permís de notificació de B7) | No cal Room: la font de veritat és el servidor |
+| Sense push | Firebase Cloud Messaging (B7) | Únic transport de segon pla fiable en dispositius amb GMS |
+| `GregalViewModel.kt` de 6.000 línies | Dividir-lo per domini (conversa, feina, connexions, ordinador) a mesura que cada paquet hi toqui | Menys conflictes entre carrils; no cal una reescriptura de cop |
+
+Que no cal: Flutter/React Native (es perdria el backend Go incrustat i tota la UI actual), Room, Hilt/Koin (amb un sol ViewModel per domini n'hi ha prou) ni una llibreria de markdown externa (`Md.kt` ja gestiona streaming sense salts, i és fàcil regressar-hi).
+
+Ordre: l'actualització de Kotlin/Compose, kotlinx.serialization i OkHttp és un paquet propi (**B10**) que va **després de fusionar B1** i abans de B3/B7, que són els que en treuen més profit. Es fa en una sola branca, sense canvis de comportament, i passa els 500+ tests unitaris existents.
+
+## 14. Estat d'aquesta revisió
 
 - S'han revisat els referents sol·licitats, dues imatges oficials de dots i els punts de codi que condicionen autonomia, navegador, OAuth, esperes i notificacions.
 - S'ha substituït la direcció del pla anterior i definit feina concreta per a agents.
