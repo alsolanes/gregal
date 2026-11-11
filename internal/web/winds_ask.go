@@ -91,6 +91,10 @@ type windAskReq struct {
 	Reason  string       `json:"reason,omitempty"` // per què es pregunta
 	At      int64        `json:"at"`
 	Expires int64        `json:"expires"`
+	// Handoff (B3): la pàgina (origen + camí, sense query) i el lloc on la
+	// persona ha d'iniciar sessió des del visor.
+	Page string `json:"page,omitempty"`
+	Site string `json:"site,omitempty"`
 
 	// Contracte de decisió (docs/assistant-contract.ca.md).
 	ID             string      `json:"id"`
@@ -162,6 +166,9 @@ func (s *Server) windAskWait(ctx context.Context, emit func(kind, text string), 
 	if r.Type == "question" {
 		effect = &windEffect{Type: "question", Tool: "question", Summary: r.Query}
 	}
+	if r.Type == "handoff" {
+		effect = &windEffect{Type: "handoff", Tool: "browser", Kind: "login", Summary: r.What}
+	}
 	effect.Hash = windEffectHash(effect.Tool, firstNonEmpty(args, effect.Summary))
 
 	// Represa: la decisió que va aparcar aquest torn ja té resposta.
@@ -187,6 +194,9 @@ func (s *Server) windAskWait(ctx context.Context, emit func(kind, text string), 
 	ttl := windAskMax
 	if spot != nil {
 		ttl = windDecisionTTL
+		if r.Type == "handoff" {
+			ttl = windHandoffTTL
+		}
 		rec.Wind = spot.wind
 		rec.RunID = spot.runID
 		rec.Slot = spot.wind + "|" + spot.thread + "|" + effect.Tool + "|" + effect.Kind
@@ -217,7 +227,13 @@ func (s *Server) windAskWait(ctx context.Context, emit func(kind, text string), 
 	s.emitDecision(rec)
 	*r = rec.public()
 	if b, err := json.Marshal(r); err == nil && emit != nil {
-		emit(r.Type+"_request", string(b))
+		ev := r.Type + "_request"
+		if r.Type == "handoff" {
+			// Els clients que encara no coneixen handoff hi veuen una
+			// aprovació (Permet = ja està, Rebutja = cancel·la).
+			ev = "approve_request"
+		}
+		emit(ev, string(b))
 	}
 
 	live := ttl
@@ -422,7 +438,7 @@ func (s *Server) handleWindsAnswer(w http.ResponseWriter, r *http.Request) {
 			return nil
 		}
 		cur.State = "approved"
-		if cur.Type == "approve" && !ans.Approve {
+		if (cur.Type == "approve" || cur.Type == "handoff") && !ans.Approve {
 			cur.State = "rejected"
 		}
 		cur.Answer = &ans
@@ -464,6 +480,11 @@ func (s *Server) handleWindsAnswer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.emitDecision(rec)
+	if rec.Type == "handoff" {
+		// «Ja està» o «Cancel·la»: el control torna a l'agent abans que el
+		// torn es reprengui i comprovi la sessió.
+		s.releaseHandoffControl(rec)
+	}
 	if resume && !live {
 		s.resumeWindDecision(rec)
 	}

@@ -36,6 +36,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"gregal/internal/tools"
 )
 
 // Computer és una entrada del registre.
@@ -64,8 +66,10 @@ type Report struct {
 	Health       string   `json:"health"`
 	Capabilities []string `json:"capabilities"`
 	ControlOwner string   `json:"controlOwner"`
-	LastSeenAt   any      `json:"lastSeenAt"`
-	BrowserMode  string   `json:"browserMode,omitempty"`
+	// LeaseExpiry: quan caduca la lease de la persona (buit = cap).
+	LeaseExpiry string `json:"leaseExpiry,omitempty"`
+	LastSeenAt  any    `json:"lastSeenAt"`
+	BrowserMode string `json:"browserMode,omitempty"`
 	// Power és el que diu el hipervisor: running, saved (desat a disc),
 	// stopped, starting o unknown (sense "control" o si no respon).
 	Power  string  `json:"power"`
@@ -135,6 +139,9 @@ type Manager struct {
 	waking   map[string]time.Time
 	active   map[string]int
 	usage    map[string]*usageState
+
+	// leases: qui té el control (B3). Nil = ningú no el pot prendre.
+	leases *Leases
 }
 
 type usageState struct {
@@ -409,6 +416,7 @@ func (m *Manager) Status(ctx context.Context, c *Computer) Report {
 		r.Health = "stopped"
 		r.LastSeenAt = m.seen(c, false)
 		r.Usage = m.usageOf(c)
+		m.applyLease(c, &r)
 		return r
 	}
 	h, err := m.agentHealth(ctx, c)
@@ -423,6 +431,7 @@ func (m *Manager) Status(ctx context.Context, c *Computer) Report {
 		}
 		r.LastSeenAt = m.seen(c, false)
 		r.Usage = m.usageOf(c)
+		m.applyLease(c, &r)
 		return r
 	}
 	r.Checks = append(r.Checks, Check{Name: "agent", OK: true})
@@ -440,6 +449,7 @@ func (m *Manager) Status(ctx context.Context, c *Computer) Report {
 	}
 	r.LastSeenAt = m.seen(c, r.Health == "running")
 	r.Usage = m.usageOf(c)
+	m.applyLease(c, &r)
 	return r
 }
 
@@ -552,6 +562,11 @@ func (m *Manager) Exec(ctx context.Context, owner string, req ExecRequest) (Exec
 		return ExecResponse{}, err
 	}
 	req.Owner = owner
+	// La persona té el control: l'agent no toca el navegador ni en fa
+	// captures fins que el retorni (B3).
+	if req.Tool == "browser" && m.leases.HeldByUser(c.LeaseKey()) {
+		return ExecResponse{}, ErrUserHasControl
+	}
 	m.mu.Lock()
 	m.active[c.ID]++
 	m.lastUse[c.ID] = m.now()
@@ -614,7 +629,7 @@ func (m *Manager) ParkIdle(ctx context.Context) []string {
 			m.lastUse[c.ID] = m.now()
 			last = m.now()
 		}
-		busy := m.active[c.ID] > 0
+		busy := m.active[c.ID] > 0 || m.leases.HeldByUser(c.LeaseKey())
 		m.mu.Unlock()
 		if busy || m.now().Sub(last) < idle {
 			continue
@@ -648,4 +663,34 @@ func (m *Manager) RunIdleLoop(ctx context.Context) {
 // i integracions que no passen per una ordre externa).
 func (m *Manager) SetControlRunner(fn func(ctx context.Context, argv []string) (string, error)) {
 	m.runControl = fn
+}
+
+// LeaseKey és la clau del propietari per a la lease de control: la mateixa
+// que fa servir el navegador (tools.OwnerKeyFor).
+func (c *Computer) LeaseKey() string { return tools.OwnerKeyFor(c.Owner) }
+
+// SetLeases connecta el registre de leases de control (B3).
+func (m *Manager) SetLeases(l *Leases) { m.leases = l }
+
+// applyLease: si la persona té el control, la salut ho diu (controlOwner
+// user i la caducitat de la lease), digui el que digui l'agent.
+func (m *Manager) applyLease(c *Computer, r *Report) {
+	if x := m.leases.Get(c.LeaseKey()); x != nil {
+		r.ControlOwner = "user"
+		r.LeaseExpiry = x.Expires.UTC().Format(time.RFC3339)
+	}
+}
+
+// Touch apunta ús de l'ordinador (el visor és a la vista): compta com a
+// feina per al desat per inactivitat. Quan el visor es tanca o l'app passa a
+// segon pla, els batecs s'aturen i el compte enrere torna a córrer.
+func (m *Manager) Touch(c *Computer) { m.touch(c) }
+
+// ViewerProxy és el pont cap al visor noVNC de la VM, a través de l'agent
+// (/v1/viewer/, amb el testimoni de l'ordinador). prefix és el camí públic
+// que es treu abans de passar-ho a l'agent. Qui el munta ha d'haver
+// comprovat la sessió del visor i el propietari.
+func (m *Manager) ViewerProxy(c *Computer, prefix string) http.Handler {
+	target, _ := url.Parse(strings.TrimRight(c.AgentURL, "/"))
+	return newViewerProxy(target, "/v1/viewer/", prefix, "Bearer "+c.token)
 }

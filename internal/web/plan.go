@@ -179,6 +179,8 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 	// Respostes a les preguntes del lot, decidides abans d'executar-lo.
 	var answersMu sync.Mutex
 	answers := map[string]string{}
+	var handoffsMu sync.Mutex
+	handoffs := map[string]windHandoffOutcome{}
 	var temps loopTemps
 	loop := &agent.Loop{
 		MaxSteps: maxSteps,
@@ -246,6 +248,17 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 				answersMu.Unlock()
 				return ans, nil, nil
 			}
+			// Handoff durable (B3): ja decidit a Decide; aquí es comprova la
+			// sessió sense llegir cap camp, en comptes d'esperar al navegador.
+			if name == "browser" {
+				handoffsMu.Lock()
+				res, ok := handoffs[argsJSON]
+				delete(handoffs, argsJSON)
+				handoffsMu.Unlock()
+				if ok {
+					return s.windHandoffText(ctx, res), nil, nil
+				}
+			}
 			defer func(t0 time.Time) { temps.addEina(time.Since(t0)) }(time.Now())
 			// Apps, publicar: les fa el servidor web, no el paquet agent.
 			if name == "app" || name == "publish" || name == "tunnel" || name == "calendar" || name == "mail" || name == "notes" {
@@ -278,6 +291,18 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 					}
 				}
 				return "allow", "question"
+			}
+			// Iniciar sessió, contrasenyes, codis: un handoff durable (B3) en
+			// un torn aparcable. La resta de torns fan el «passa-m'ho» en
+			// directe de sempre.
+			if name == "browser" && canAsk && spot != nil && isBrowserHandoff(argsJSON) && s.handoffReachable() {
+				res, parked := s.windHandoffCall(ctx, emit, argsJSON)
+				if !parked {
+					handoffsMu.Lock()
+					handoffs[argsJSON] = res
+					handoffsMu.Unlock()
+				}
+				return "allow", "handoff"
 			}
 			// Els vents poden programar avisos (remind, eina validada); la
 			// resta usa la política compartida i el mode del torn.

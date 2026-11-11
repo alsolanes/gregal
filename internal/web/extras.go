@@ -53,6 +53,11 @@ func (h *Hub) extraRoutes(handle func(string, http.HandlerFunc)) {
 	handle("/api/server/powers", h.global(adminOnly((*Server).handleServerPowers)))
 	handle("/api/connections", h.route((*Server).handleConnections))
 	handle("/api/ordinador", h.global((*Server).handleOrdinador))
+	// B3: visor i control humà (ordinador_visor.go). El visor és fora de
+	// /api i s'autentica amb la sessió curta del visor.
+	handle("/api/ordinador/viewer", h.global((*Server).handleOrdinadorViewer))
+	handle("/api/ordinador/control", h.global((*Server).handleOrdinadorControl))
+	handle(visorPrefix, func(w http.ResponseWriter, r *http.Request) { h.def.handleVisor(w, r) })
 	handle("/api/register", h.global((*Server).handleServerRegister))
 	handle("/api/winds/library", h.route((*Server).handleWindLibrary))
 	handle("/api/winds/transfer", h.route((*Server).handleWindsTransfer))

@@ -627,13 +627,24 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  const choicesStrip=text=>root.gregalChoices?root.gregalChoices.strip(text):text;
  const askTitle=kind=>({install:t('Vol instal·lar programari','Wants to install software'),download:t('Vol baixar un paquet o un fitxer','Wants to download a package or file'),delete:t('Vol esborrar fora del projecte','Wants to delete outside the project'),system:t('Vol canviar un servei del sistema','Wants to change a system service')}[kind]||t('Et demana permís','Asks for your permission'));
  async function answerAsk(a,body){state.asks=state.asks.filter(x=>x.key!==a.key);paintAsks();try{await call('/api/winds/answer','POST',{key:a.key,...body});}catch(e){fail(e);}}
+ // Visor de l'ordinador (B3): la finestra s'obre al clic (si no, el navegador la bloqueja) i després hi va el testimoni d'un sol ús.
+ async function openComputer(handoff){const win=root.open('about:blank','gregal-ordinador');try{const r=await call('/api/ordinador/viewer','POST',{handoff:handoff||'',control:!!handoff});const lang=ca()?'ca':'en';if(win)win.location.href=r.url+(r.url.includes('?')?'&':'?')+'lang='+lang;}catch(e){if(win)win.close();const m=String(e&&e.message||'');if(/no computer|another account|unknown computer/.test(m))fail(new Error(t("El teu compte encara no té cap ordinador configurat. Les feines que en necessiten esperen fins que n'hi hagi.",'No computer is set up for your account yet. Tasks that need it wait until there is one.')));else if(/no_viewer/.test(m))fail(new Error(t('Aquest servidor no té visor remot.','This server has no remote viewer.')));else fail(e);}}
  async function loadAsks(){try{state.asks=(await call('/api/winds/pending')).pending||[];paintAsks();}catch(e){}}
  // Targetes d'aprovació i de pregunta: el torn del vent espera aquí.
  function paintAsks(){
   const box=page?.querySelector('.vw-asks');if(!box)return;box.replaceChildren();
   for(const a of state.asks){
    const card=el('section','vw-ask'+(a.type==='question'?' vw-ask-question':' vw-ask-approve'));card.setAttribute('role','group');
-   if(a.type==='question'){
+   if(a.type==='handoff'){
+    // B3: la feina espera que la persona faci una cosa a l'ordinador (iniciar sessió, 2FA). El visor s'obre amb un testimoni curt.
+    card.className='vw-ask vw-ask-approve vw-ask-handoff';
+    card.append(el('strong','',t("Et toca a tu a l'ordinador",'Your turn on the computer')),el('small','vw-ask-wait',t('Espera la teva resposta','Waiting for you')));
+    if(a.what)card.append(el('p','',a.what));
+    card.append(el('small','',t("Gregal no escriu mai contrasenyes ni codis: ho fas tu a l'ordinador i l'encàrrec continua.",'Gregal never types passwords or codes: you do it on the computer and the task carries on.')));
+    const row=el('div','vw-ask-actions');
+    row.append(btn(t('Cancel·la','Cancel'),()=>answerAsk(a,{approve:false}),'vw-ask-decline'),btn(t('Ja està','Done'),()=>answerAsk(a,{approve:true}),'vw-ask-decline'),btn(t("Obre l'ordinador",'Open the computer'),()=>openComputer(a.key),'vw-ask-allow'));
+    card.append(row);
+   }else if(a.type==='question'){
     card.append(el('strong','',a.query||''));
     for(const o of a.options||[]){const b=btn(o.label,()=>answerAsk(a,{answer:o.label}),'vw-ask-option');if(o.description)b.append(el('small','',o.description));card.append(b);}
     const free=el('input','vw-ask-free');free.placeholder=t('Una altra cosa…','Something else…');free.setAttribute('aria-label',free.placeholder);free.onkeydown=e=>{if(e.key==='Enter'&&free.value.trim()){e.preventDefault();answerAsk(a,{answer:free.value.trim()});}};card.append(free);

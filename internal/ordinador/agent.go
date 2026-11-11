@@ -71,6 +71,10 @@ type AgentConfig struct {
 	Owner    string
 	FilesDir string
 	Token    string
+	// ViewerAddr és el noVNC de la VM (loopback, p. ex. 127.0.0.1:6080).
+	// L'amfitrió hi arriba per /v1/viewer/ amb el mateix testimoni (B3).
+	// Buit = sense visor.
+	ViewerAddr string
 }
 
 // computerTools són les eines que l'ordinador executa. La resta (vents,
@@ -108,6 +112,13 @@ func NewAgent(cfg AgentConfig) (http.Handler, error) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/health", a.auth(a.health))
 	mux.HandleFunc("/v1/exec", a.auth(a.exec))
+	if cfg.ViewerAddr != "" {
+		vp, err := NewLocalViewerProxy(cfg.ViewerAddr, "/v1/viewer/")
+		if err != nil {
+			return nil, fmt.Errorf("ordinador: --viewer: %v", err)
+		}
+		mux.HandleFunc("/v1/viewer/", a.auth(vp.ServeHTTP))
+	}
 	return mux, nil
 }
 
