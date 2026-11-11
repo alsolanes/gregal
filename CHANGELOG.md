@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+## v1.71.0 - 2026-11-11 - Un assistent que treballa pel seu compte
+
+- **Gregal Vents per a Android (1.74.0) i escriptori: un xat nou.** Bombolles
+  suaus per a l'assistent i amb l'accent per a tu, ratxes sense repetir cara ni
+  nom, i taules, codi i respostes llargues per llegir sense caixa. Text a 16 px.
+- **Vigila coses per tu.** Digues «vigila…» en un xat i Gregal ho fa: una web,
+  la teva agenda, un calendari o una bústia connectats. Si res no canvia, no
+  gasta model ni t'avisa; quan canvia, prepara la feina i te la porta al fil.
+  Sota cada missatge així, «Per què ho has fet?» diu d'on ve. Les accions de
+  fora (enviar, comprar, publicar) només les proposa.
+- **Connexions de veritat.** Diversos comptes del mateix servei, amb l'estat
+  comprovat, secrets xifrats per compte (la contrasenya IMAP surt del fitxer en
+  clar) i connectors MCP amb OAuth. Una feina que espera un compte continua
+  sola quan el connectes. Un compte que no és administrador ja no pot fer
+  servir els servidors MCP globals que porten credencials.
+- **Recordatoris que no fallen.** Es disparen sense cridar el model, i es poden
+  editar, ajornar o cancel·lar sense perdre'ls. Les rutines es poden ensenyar
+  («fes-ho així la propera vegada») i una rutina pausada no corre.
+- **Avisos sense popups.** Les novetats arriben dins del fil; el permís de
+  notificacions es demana un cop i es respecta si dius que no; una notificació
+  obre el missatge exacte i el que llegeixes en un aparell queda llegit a tots.
+- **Decisions que sobreviuen.** Una pregunta o aprovació pendent aguanta un
+  reinici del servidor i no s'executa dues vegades.
+- **Ordinador personal (pilot).** Una VM per persona, desada a disc quan no
+  s'usa, amb visor remot, prendre i retornar el control, i iniciar sessió a un
+  lloc perquè l'encàrrec continuï. Cal muntar-la a part (`deploy/ordinador`).
+- **Webs pròpies.** Cada compte publica webs amb nom sota el domini que es
+  configuri (o només a la xarxa local), amb versions, «desfés» i comprovació
+  després de publicar. Funcionen amb l'ordinador apagat.
+- **Correccions.** Una colla ja no mostra dues vegades el mateix missatge a
+  l'escriptori; el cor dels vents no publica «(res)» quan no té res a dir.
+
 ## v1.70.0 - 2026-11-10 - Els vents, al centre
 
 - **Gregal Vents per a Android (1.73.0): els vents, al centre.** La portada
