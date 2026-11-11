@@ -295,7 +295,7 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			// Iniciar sessió, contrasenyes, codis: un handoff durable (B3) en
 			// un torn aparcable. La resta de torns fan el «passa-m'ho» en
 			// directe de sempre.
-			if name == "browser" && canAsk && spot != nil && isBrowserHandoff(argsJSON) {
+			if name == "browser" && canAsk && spot != nil && isBrowserHandoff(argsJSON) && s.handoffReachable() {
 				res, parked := s.windHandoffCall(ctx, emit, argsJSON)
 				if !parked {
 					handoffsMu.Lock()

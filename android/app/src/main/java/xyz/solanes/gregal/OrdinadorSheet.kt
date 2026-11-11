@@ -70,6 +70,8 @@ internal fun ordinadorCopy(lang: String, key: String): String {
         "unreachable" -> if (en) "The computer does not answer" else "L'ordinador no respon"
         "unreachableSub" -> if (en) "Network or computer down. Gregal keeps the task waiting." else "Xarxa o ordinador caigut. Gregal manté la feina en espera."
         "noViewer" -> if (en) "This server has no remote viewer." else "Aquest servidor no té visor remot."
+        "noComputer" -> if (en) "No computer is set up for your account yet. Tasks that need it wait until there is one."
+            else "El teu compte encara no té cap ordinador configurat. Les feines que en necessiten esperen fins que n'hi hagi."
         "error" -> if (en) "Could not open the computer." else "No s'ha pogut obrir l'ordinador."
         "take" -> if (en) "Take control" else "Pren el control"
         "give" -> if (en) "Give control back" else "Torna el control"
@@ -83,6 +85,13 @@ internal fun ordinadorCopy(lang: String, key: String): String {
         "open" -> if (en) "Open the computer" else "Obre l'ordinador"
         else -> key
     }
+}
+
+/** Quin text d'error toca segons la resposta del servidor (pura: testejable). */
+internal fun ordinadorErrorKey(message: String): String = when {
+    message.startsWith("HTTP 404") -> "noComputer"
+    message.startsWith("HTTP 503") -> "noViewer"
+    else -> "error"
 }
 
 /** L'estat del visor tal com el torna el servidor (/api/ordinador/viewer|control). */
@@ -150,7 +159,7 @@ internal fun OrdinadorSheet(
             url = viewerAbsoluteUrl(conn.api().base, v.url, lang)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            error = if (e.message.orEmpty().contains("503")) ordinadorCopy(lang, "noViewer") else ordinadorCopy(lang, "error")
+            error = ordinadorErrorKey(e.message.orEmpty()).let { ordinadorCopy(lang, it) }
         }
     }
     // Estat: mentre el full és a la vista (l'app en primer pla).

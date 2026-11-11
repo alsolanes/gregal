@@ -51,9 +51,15 @@ class OrdinadorSheetTest {
         assertEquals("", viewerAbsoluteUrl("http://x", "", "ca"))
     }
 
+    @Test fun withoutAComputerTheErrorSaysSo() {
+        assertEquals("noComputer", ordinadorErrorKey("HTTP 404: {\"error\":\"no computer for this account\"}"))
+        assertEquals("noViewer", ordinadorErrorKey("HTTP 503: {\"reason\":\"no_viewer\"}"))
+        assertEquals("error", ordinadorErrorKey("timeout"))
+    }
+
     @Test fun copyExistsInBothLanguages() {
         val keys = listOf("title", "starting", "startingSub", "running", "runningSub", "idle", "idleSub", "user", "userSub",
-            "stopped", "stoppedSub", "unreachable", "unreachableSub", "noViewer", "error", "take", "give", "done", "cancel",
+            "stopped", "stoppedSub", "unreachable", "unreachableSub", "noViewer", "noComputer", "error", "take", "give", "done", "cancel",
             "close", "screen", "handoffTitle", "handoffHint", "open")
         for (k in keys) {
             val ca = ordinadorCopy("ca", k)

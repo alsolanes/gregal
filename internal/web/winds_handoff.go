@@ -149,6 +149,23 @@ func (s *Server) windHandoffText(ctx context.Context, res windHandoffOutcome) st
 	return head + "No sign-in or code form is visible, so the session looks active. Continue the original task with the browser; never ask for or read back what they typed."
 }
 
+// handoffReachable diu si la persona pot fer el handoff des d'algun lloc:
+// té un ordinador amb visor (registre d'ordinadors: VM, contenidor o el que
+// hi hagi darrere de l'agent), aquest servidor té un visor local, o el
+// navegador és visible en aquesta màquina. Si no, el handoff durable no es
+// crea (ningú no el podria fer) i l'eina diu clarament que no hi ha cap
+// navegador que la persona pugui veure.
+func (s *Server) handoffReachable() bool {
+	if t, _, err := ordinadorTargetFor(s.remindOwner(), ""); err == nil && (t.c != nil || localVisorAddr() != "") {
+		return true
+	}
+	return windBrowserVisible()
+}
+
+// windBrowserVisible: el navegador d'aquesta màquina es veu (finestra,
+// Chrome de la persona o el panell de l'app). Variable per als tests.
+var windBrowserVisible = func() bool { return tools.EffectiveBrowserMode() != tools.BrowserModeHeadless }
+
 // releaseHandoffControl torna el control a l'agent quan la persona respon el
 // handoff (ja està o cancel·la).
 func (s *Server) releaseHandoffControl(rec *windDecisionRec) {

@@ -327,3 +327,28 @@ func TestWindHandoffIsolatedPerUser(t *testing.T) {
 		t.Fatalf("el de l'Anna continua: %+v", p)
 	}
 }
+
+// Sense ordinador, sense visor i amb el navegador invisible: no es crea cap
+// handoff que ningú no podria fer; l'eina de sempre respon (i diu que cal un
+// navegador visible) i res no peta.
+func TestWindHandoffWithoutAnyComputerFallsBack(t *testing.T) {
+	s, _, toolsRan := handoffServer(t)
+	t.Setenv("GREGAL_ORDINADOR_VISOR", "")
+	old := windBrowserVisible
+	windBrowserVisible = func() bool { return false }
+	t.Cleanup(func() { windBrowserVisible = old })
+	handoffPage(t, "")
+	fakeLoginCheck(t, tools.LoginCheck{})
+	windChat(t, s, "ENTRA")
+	if p := pendingWindAsks(s); len(p) != 0 {
+		t.Fatalf("sense ordinador no hi ha d'haver handoff pendent: %+v", p)
+	}
+	if got := toolsRan.commands(); len(got) != 1 {
+		t.Fatalf("l'eina de sempre respon: %q", got)
+	}
+	rec := httptest.NewRecorder()
+	s.handleOrdinadorViewer(rec, httptest.NewRequest("POST", "/api/ordinador/viewer", strings.NewReader(`{}`)))
+	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "no_viewer") {
+		t.Fatalf("sense visor ho diu clar: %d %s", rec.Code, rec.Body)
+	}
+}
