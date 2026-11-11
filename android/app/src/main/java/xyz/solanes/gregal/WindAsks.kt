@@ -90,7 +90,9 @@ internal fun WindAskCards(vm: GregalViewModel, lang: String, accent: Color, busy
     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).testTag("wind-asks"),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         asks.forEach { a ->
-            if (a.type == "question") QuestionCard(lang, a, accent) { ans -> vm.answerWindAsk(a.key, answer = ans) }
+            if (a.type == "handoff") HandoffCard(vm.conn.value, lang, a, accent,
+                onDone = { vm.answerWindAsk(a.key, approve = true) }, onCancel = { vm.answerWindAsk(a.key, approve = false) })
+            else if (a.type == "question") QuestionCard(lang, a, accent) { ans -> vm.answerWindAsk(a.key, answer = ans) }
             else ApproveCard(lang, a, accent, onAllow = { vm.answerWindAsk(a.key, approve = true) }, onDecline = { vm.answerWindAsk(a.key, approve = false) })
         }
     }
