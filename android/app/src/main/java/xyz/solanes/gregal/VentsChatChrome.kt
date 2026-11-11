@@ -10,7 +10,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.rounded.Computer
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Mic
@@ -35,6 +37,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -54,7 +59,17 @@ internal fun VentsChatHeader(
     onSessions: (() -> Unit)? = null,
     /** Quan hi ha on continuar (mòbil + servidor desat), el «…» obre menú en comptes d'anar directe al perfil. */
     onTransfer: (() -> Unit)? = null,
+    /** Capçalera del fil personal: avatar de 44 dp centrat amb el nom a sota i
+     *  botons circulars de 44 dp a banda i banda. */
+    centered: Boolean = false,
+    /** L'ordinador de l'assistent (dreta), quan n'hi ha. */
+    onComputer: (() -> Unit)? = null,
 ) {
+    if (centered) {
+        CenteredChatHeader(lang, title, subtitle, accent, style, mood, faces, onBack, onProfile, onComputer,
+            onWiki, onSessions, onTransfer)
+        return
+    }
     Column(Modifier.fillMaxWidth().background(Superficie)) {
     Row(Modifier.fillMaxWidth().heightIn(min = 62.dp).padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically) {
@@ -89,6 +104,87 @@ internal fun VentsChatHeader(
         }
     }
     // Sense línia de separació: la capçalera i el fil respiren junts, com l'inici.
+    }
+}
+
+/** Un botó rodó de 44 dp amb vora fina (el target tàctil arriba als 48). */
+@Composable
+internal fun ChatCircleButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String,
+    modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.minimumInteractiveComponentSize().size(GregalChat.control).clip(CircleShape)
+            .border(1.dp, Line, CircleShape).clickable(onClickLabel = label, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, null, tint = Ink, modifier = Modifier.size(20.dp)) }
+}
+
+/**
+ * La capçalera del fil personal: tornar a l'esquerra, l'avatar centrat amb el
+ * nom (15 sp) a sota i, a la dreta, l'ordinador o el «…» si n'hi ha. Les dues
+ * bandes fan el mateix ample perquè la cara quedi centrada de debò. El
+ * subtítol només surt amb feina real («Preparant l'itinerari»).
+ */
+@Composable
+private fun CenteredChatHeader(
+    lang: String, title: String, subtitle: String, accent: Color, style: WindStyle, mood: WindMood,
+    faces: List<Wind>, onBack: () -> Unit, onProfile: () -> Unit, onComputer: (() -> Unit)?,
+    onWiki: (() -> Unit)?, onSessions: (() -> Unit)?, onTransfer: (() -> Unit)?,
+) {
+    Row(
+        Modifier.fillMaxWidth().background(Superficie).padding(horizontal = 8.dp, vertical = 6.dp).testTag("chat-header-centered"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.width(52.dp), contentAlignment = Alignment.CenterStart) {
+            ChatCircleButton(Icons.AutoMirrored.Rounded.ArrowBack, tr(lang, "app.vents.back"), onClick = onBack)
+        }
+        Column(
+            Modifier.weight(1f).clip(GregalShape.card).clickable(onClick = onProfile, role = Role.Button)
+                .padding(vertical = 2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            WindHalo(accent, style, size = GregalChat.headerAvatar, mood = mood, stacked = faces.drop(1), online = false, showKit = faces.size <= 1)
+            Text(title, color = Ink, fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (subtitle.isNotBlank()) Text(subtitle, color = Muted, style = GregalType.chatMeta,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("chat-header-status"))
+        }
+        Box(Modifier.width(52.dp), contentAlignment = Alignment.CenterEnd) {
+            when {
+                onComputer != null -> ChatCircleButton(Icons.Rounded.Computer, threadCopy(lang, "computer"), onClick = onComputer)
+                onWiki != null || onSessions != null || onTransfer != null -> {
+                    var more by remember { mutableStateOf(false) }
+                    Box {
+                        ChatCircleButton(Icons.Rounded.MoreHoriz, tr(lang, "app.vents.more"), Modifier.testTag("chat-more")) { more = true }
+                        DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
+                            DropdownMenuItem(text = { Text(tr(lang, "app.vents.profile")) }, onClick = { more = false; onProfile() })
+                            if (onSessions != null) DropdownMenuItem(text = { Text(tr(lang, "app.wind.sessions")) }, onClick = { more = false; onSessions() })
+                            if (onWiki != null) DropdownMenuItem(text = { Text(tr(lang, "app.wiki.summarize")) }, onClick = { more = false; onWiki() })
+                            if (onTransfer != null) DropdownMenuItem(text = { Text(tr(lang, "app.vents.transferToServer")) }, onClick = { more = false; onTransfer() })
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * La franja «2 feines en marxa» just a sobre del compositor: 32 dp, discreta i
+ * tocable (obre la feina). No bloqueja res: es pot continuar escrivint.
+ */
+@Composable
+internal fun WorkStrip(lang: String, count: Int, onClick: () -> Unit) {
+    val label = if (count == 1) threadCopy(lang, "workingOne") else tr(lang, "app.feines.runningLine", count)
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = GregalChat.workStrip).padding(horizontal = 12.dp)
+            .clip(GregalShape.pill).clickable(onClickLabel = tr(lang, "app.vents.openWork"), role = Role.Button, onClick = onClick)
+            .padding(horizontal = 12.dp).testTag("work-strip"),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        CircularProgressIndicator(Modifier.size(12.dp), color = Sea, strokeWidth = 1.5.dp)
+        Text(label, color = Ink, style = GregalType.chatMeta, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = Muted, modifier = Modifier.size(18.dp))
     }
 }
 
@@ -150,12 +246,16 @@ internal fun VentsComposer(
     /** La píndola de mode (Actua/Planifica/Pregunta) sobre el camp. Amb Vents
      *  net no surt: el mode continua al «+», sense un xip que no s'entén. */
     showModePill: Boolean = true,
+    /** Feines en marxa: la franja de 32 dp sobre el camp, que les obre. */
+    workCount: Int = 0,
+    onWork: (() -> Unit)? = null,
     onSend: () -> Unit,
 ) {
     val hasTools = onAttachDoc != null || onAttachImage != null || onMode != null || onPerm != null || onWorkspace != null || onPreview != null
     var showPlus by remember { mutableStateOf(false) }
     val ringColor = if (accent != Color.Unspecified) accent else Sea
     Column(Modifier.fillMaxWidth().background(Superficie)) {
+        if (workCount > 0 && onWork != null) WorkStrip(lang, workCount, onWork)
         if (st != null && ((onMode != null && showModePill) || (onWorkspace != null && st.project.isNotBlank()))) {
             Row(
                 Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 6.dp),
@@ -304,13 +404,13 @@ internal fun VentsComposer(
                 // La pista va dins del camp (decorationBox): així el camp i la pista són un sol node.
                 BasicTextField(
                     value = field, onValueChange = onChange, maxLines = 5,
-                    textStyle = TextStyle(color = Ink, fontSize = 15.sp, lineHeight = 21.sp),
+                    textStyle = GregalType.chatBody.copy(color = Ink),
                     cursorBrush = SolidColor(Ink),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrect = true, keyboardType = KeyboardType.Text),
                     modifier = Modifier.fillMaxWidth().testTag("vents-composer-field"),
                     decorationBox = { inner ->
                         Box(contentAlignment = Alignment.CenterStart) {
-                            if (field.text.isEmpty()) Text(hint, color = Muted, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (field.text.isEmpty()) Text(hint, color = Muted, style = GregalType.chatBody, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             inner()
                         }
                     },
@@ -320,15 +420,15 @@ internal fun VentsComposer(
             // com a steer, sense aturar el torn); sense text, «atura».
             when {
                 busy && onStop != null && field.text.isBlank() -> IconButton(onClick = onStop,
-                    modifier = Modifier.minimumInteractiveComponentSize().size(42.dp).clip(CircleShape).background(Sand.copy(alpha = 0.9f))) {
+                    modifier = Modifier.minimumInteractiveComponentSize().size(GregalChat.send).clip(CircleShape).background(Sand.copy(alpha = 0.9f))) {
                     Icon(Icons.Rounded.Stop, tr(lang, "app.vents.stop"), tint = Superficie, modifier = Modifier.size(20.dp))
                 }
                 field.text.isBlank() && dictate != null -> IconButton(onClick = dictate,
-                    modifier = Modifier.minimumInteractiveComponentSize().size(42.dp).clip(CircleShape).background(Ink.copy(alpha = .08f))) {
+                    modifier = Modifier.minimumInteractiveComponentSize().size(GregalChat.send).clip(CircleShape).background(Ink.copy(alpha = .08f))) {
                     Icon(Icons.Rounded.Mic, voiceCopy(lang, "dictate"), tint = Ink, modifier = Modifier.size(21.dp))
                 }
                 else -> IconButton(onClick = onSend, enabled = canSend,
-                    modifier = Modifier.minimumInteractiveComponentSize().size(42.dp).clip(CircleShape).background(if (canSend) Ink else Ink.copy(alpha = .12f))) {
+                    modifier = Modifier.minimumInteractiveComponentSize().size(GregalChat.send).clip(CircleShape).background(if (canSend) Ink else Ink.copy(alpha = .12f))) {
                     Icon(Icons.Rounded.ArrowUpward, tr(lang, "app.vents.send"), tint = if (canSend) Superficie else Muted, modifier = Modifier.size(20.dp))
                 }
             }

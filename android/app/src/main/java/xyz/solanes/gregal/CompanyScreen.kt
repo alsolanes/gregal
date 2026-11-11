@@ -1756,7 +1756,11 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
     /** Avís opcional en copiar un enllaç (p. ex. «Enllaç copiat»). */
     onCopied: (() -> Unit)? = null,
     /** Missatge a la cua sense connexió: treu-lo abans que surti. */
-    onDiscard: (() -> Unit)? = null) {
+    onDiscard: (() -> Unit)? = null,
+    /** Última bombolla de la seva ratxa: porta la cua (cantonada de 6 dp). */
+    tail: Boolean = true,
+    /** L'hora (i l'altaveu) només una vegada per ratxa: a l'última. */
+    showMeta: Boolean = true) {
     // El bloc ```choices són botons de resposta ràpida, no text de la bombolla.
     val m = remember(raw) { if (raw.from == "user") raw else raw.copy(text = withoutChoices(raw.text)) }
     val mine = m.from == "user"
@@ -1800,15 +1804,14 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
     }
     if (mine) {
         Column(Modifier.fillMaxWidth().padding(start = indent), horizontalAlignment = Alignment.End) {
+            // Ample màxim 78 %: el Box el limita i la bombolla s'hi arrauleix a la dreta.
+            Box(Modifier.fillMaxWidth(GregalChat.userWidth), contentAlignment = Alignment.CenterEnd) {
             Surface(
-                shape = RoundedCornerShape(
-                    topStart = 20.dp, topEnd = 20.dp,
-                    bottomStart = 20.dp, bottomEnd = 6.dp,
-                ),
+                shape = if (tail) GregalShape.bubbleTail(mine = true) else GregalShape.bubble,
                 color = ownBackground,
                 shadowElevation = 0.dp,
                 // Prémer llarg copia el missatge en text pla (sense marques).
-                modifier = Modifier.widthIn(max = 300.dp).combinedClickable(
+                modifier = Modifier.combinedClickable(
                     onClick = {}, onLongClick = { onCopy?.invoke() },
                 ),
             ) {
@@ -1817,12 +1820,13 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                 val ownImages = remember(m.text) { richBlocks(m.text).filterIsInstance<Rich.Image>() }
                 val ownText2 = remember(m.text) { stripMarkdownImages(m.text) }
                 Column(
-                    Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    Modifier.padding(horizontal = GregalChat.bubblePadH, vertical = GregalChat.bubblePadV),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     for (img in ownImages) MdImage(img.url, img.alt, ownText, lang)
-                    if (ownText2.isNotBlank()) Text(ownText2, fontSize = 15.sp, color = ownText)
+                    if (ownText2.isNotBlank()) Text(ownText2, style = GregalType.chatBody, color = ownText)
                 }
+            }
             }
             // Rebut d'hora com el dots («Read 2:59 PM»): només als enviats
             // en aquesta sessió (l'historial antic no porta hora).
@@ -1836,35 +1840,35 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                         fontWeight = FontWeight.SemiBold, modifier = Modifier.clip(GregalShape.xs).clickable(onClick = onDiscard)
                             .padding(horizontal = 10.dp, vertical = 12.dp).testTag("discard-queued"))
                 }
-            } else if (receipt.isNotEmpty()) {
-                Text(receipt, fontSize = 11.sp, color = Ink.copy(alpha = 0.55f),
-                    modifier = Modifier.padding(top = 2.dp, end = 4.dp))
+            } else if (receipt.isNotEmpty() && showMeta) {
+                Text(receipt, style = GregalType.chatMeta, color = Muted,
+                    modifier = Modifier.padding(top = 3.dp, end = 4.dp))
             }
         }
         return
     }
+    // Bombolla o superfície de lectura (regla pura a ChatThread.kt): les
+    // respostes curtes van en bombolla suau com a qualsevol missatgeria; les
+    // taules, el codi i les respostes llargues, a tot l'ample i sense caixa,
+    // que dins d'una bombolla quedaven estretes i feixugues.
+    val blocks = remember(m.text, m.streaming) { if (m.streaming) richBlocksLive(m.text) else richBlocks(m.text) }
+    val reading = remember(m.text, blocks) { chatSurfaceFor(m.text, blocks) == ChatSurface.READING }
     Row(
         Modifier.fillMaxWidth().padding(start = indent),
         horizontalArrangement = Arrangement.Start,
     ) {
-        // La identitat del parlant queda dins la bombolla, sense avatar repetit ni etiqueta superposada.
-        val bubbleShape = RoundedCornerShape(
-            topStart = 20.dp, topEnd = 20.dp,
-            bottomStart = 20.dp, bottomEnd = 20.dp,
-        )
-        Box {
+        Box(
+            if (reading) Modifier.fillMaxWidth()
+            else Modifier.fillMaxWidth(GregalChat.assistantWidth).widthIn(max = GregalChat.assistantMax),
+            contentAlignment = Alignment.CenterStart,
+        ) {
             val dark = LocalPal.current.dark
-            // El vent escriu sobre el fons, sense caixa: com els grans
-            // assistents, el que és teu va en bombolla i el que respon és
-            // text net a tota l'amplada. Les caixes tenyides feien les
-            // respostes llargues (taules, receptes) feixugues i marrons amb els
-            // vents càlids. El color del vent és a la seva cara i als enllaços.
             Surface(
-                shape = bubbleShape,
-                color = Color.Transparent,
+                shape = if (tail) GregalShape.bubbleTail(mine = false) else GregalShape.bubble,
+                color = if (reading) Color.Transparent else SuperficieAlta,
                 shadowElevation = 0.dp,
                 // Prémer llarg copia la resposta en text pla (sense marques).
-                modifier = Modifier.fillMaxWidth().widthIn(max = 640.dp).combinedClickable(
+                modifier = (if (reading) Modifier.fillMaxWidth().widthIn(max = 640.dp) else Modifier).combinedClickable(
                     onClick = {}, onLongClick = { onCopy?.invoke() },
                 ),
             ) {
@@ -1874,10 +1878,11 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                 // El parse viu a més en cau global: en tornar a la pantalla no se'n
                 // refà ni un.
                 val link = remember(accent, dark) { readableLink(accent, dark) }
-                val codeBg = CodeDark
+                // El codi en línia, dins la bombolla (que ja és surfaceHi), sobre la superfície.
+                val codeBg = if (reading) CodeDark else Superficie
                 Column(
-                    Modifier.padding(horizontal = 6.dp)
-                        .padding(vertical = 6.dp),
+                    if (reading) Modifier.padding(horizontal = 6.dp, vertical = 6.dp)
+                    else Modifier.padding(horizontal = GregalChat.bubblePadH, vertical = GregalChat.bubblePadV),
                     verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (displayName.isNotBlank()) {
                         Text(displayName, color = link, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
@@ -1891,13 +1896,13 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                     // nou). Abans era text pla fins al done i, en canviar a
                     // markdown, títols, llistes i taules saltaven de mida de cop.
                     if (m.streaming && m.text.isBlank()) TypingCursor(accent)
-                    run { for (b in remember(m.text, m.streaming) { if (m.streaming) richBlocksLive(m.text) else richBlocks(m.text) }) {
+                    run { for (b in blocks) {
                         when (b) {
                             is Rich.Inline -> {
                                 val rich = remember(b, link, codeBg) { renderSegs(b.segs, codeBg, link = link) }
                                 ClickableText(
                                     rich,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp, lineHeight = 22.sp, color = Tinta),
+                                    style = MaterialTheme.typography.bodyMedium.merge(GregalType.chatBody).copy(color = Tinta),
                                     onClick = { off ->
                                         rich.getStringAnnotations("URL", off, off).firstOrNull()?.let { uri.openUri(it.item) }
                                     },
@@ -1939,8 +1944,8 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                     // Hora de la bombolla: tot missatge durador en porta una;
                     // els antics (ts=0) i els que estan en directe, no.
                     // L'hora i l'altaveu per escoltar la resposta (com els grans assistents).
-                    if (!m.streaming) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
-                        if (tsMillis > 0L) Text(receipt, fontSize = 10.sp, color = Tinta.copy(alpha = 0.55f))
+                    if (!m.streaming && showMeta) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+                        if (tsMillis > 0L) Text(receipt, style = GregalType.chatMeta, color = Muted)
                         Spacer(Modifier.weight(1f, fill = false).widthIn(min = 8.dp))
                         ReadAloudButton("msg:" + m.ts + ":" + m.text.hashCode(), m.text, lang, Tinta.copy(alpha = 0.6f))
                     }

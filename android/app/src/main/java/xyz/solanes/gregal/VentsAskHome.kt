@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Add
@@ -253,10 +254,11 @@ internal fun Modifier.landing(flip: ComposerFlip, scope: kotlinx.coroutines.Coro
     }.graphicsLayer { translationY = flip.offset }
 
 /**
- * La portada neta dels Vents: la salutació gran amb la lluïssor al darrere i el
- * compositor just a sota. Res més no hi competeix: el que és nou o en marxa
- * ([below]) surt a sota, discret, i s'amaga mentre escrius. En enviar, el
- * compositor baixa al seu lloc (a baix) i llavors s'obre la conversa.
+ * L'entrada dels Vents és sempre el fil de l'assistent, amb el camp a baix on
+ * arriba el polze. Amb historial ([chat]) és la conversa mateixa; sense (una
+ * instal·lació nova), el mateix fil amb un missatge de presentació i dos o tres
+ * suggeriments, no una pantalla a part. El que és nou o en marxa ([below]) surt
+ * sota la presentació, discret, i s'amaga mentre escrius.
  */
 @Composable
 internal fun VentsOpening(
@@ -269,73 +271,77 @@ internal fun VentsOpening(
     onDoc: (() -> Unit)?,
     onSend: (String) -> Unit,
     modifier: Modifier = Modifier,
-    /** El fil de la conversa: quan n'hi ha, la portada passa a ser el xat, amb la mateixa lluïssor. */
+    /** El fil de la conversa: quan n'hi ha, és el que s'obre directament. */
     chat: (@Composable () -> Unit)? = null,
     chatHeader: (@Composable () -> Unit)? = null,
-    /** A dalt de la portada: les cares dels teus vents. */
+    /** A dalt: les cares dels teus vents. */
     top: @Composable () -> Unit = {},
+    /** Qui es presenta al fil buit. */
+    assistant: String = "Gregal",
     below: @Composable ColumnScope.() -> Unit = {},
 ) {
     val p = LocalPal.current
-    val motion = LocalWindMotion.current
-    val scope = rememberCoroutineScope()
     var focused by remember { mutableStateOf(false) }
-    // 0: sota la salutació; 1: a baix de tot, on viu el compositor de la conversa.
-    val drop = remember { Animatable(0f) }
-    // On acaba l'àrea visible (sobre el teclat) i on acaba el compositor: la
-    // distància es calcula en dibuixar, així no depèn de l'ordre dels callbacks.
-    var composerBottom by remember { mutableFloatStateOf(0f) }
-    var areaBottom by remember { mutableFloatStateOf(0f) }
-    val gap = with(LocalDensity.current) { 10.dp.toPx() }
-    fun send() {
-        val t = text.trim()
-        if (t.isEmpty() || busy || drop.isRunning) return
-        scope.launch {
-            // Amb conversa ja no hi ha res a baixar: el camp ja és al seu lloc.
-            if (motion && chat == null) drop.animateTo(1f, tween(280, easing = FastOutSlowInEasing))
-            onSend(t)
-        }
+    fun send(t0: String = text) {
+        val t = t0.trim()
+        if (t.isEmpty() || busy) return
+        onSend(t)
     }
     Box(modifier.fillMaxSize().openingHalo(p.sea, p.lila).testTag("vents-opening")) {
-        if (chat != null) {
-            // Conversa a la portada: la lluïssor queda al darrere, el fil al mig
-            // i el camp a baix, sense canviar de pantalla.
-            Column(Modifier.fillMaxSize().imePadding().testTag("vents-home-chat")) {
-                // Les cares continuen a dalt amb conversa; escrivint, deixen lloc al fil.
-                if (!focused) top()
-                chatHeader?.invoke()
-                Box(Modifier.weight(1f).fillMaxWidth()) { chat() }
-                AskComposer(
-                    lang, text, onText, busy, onPhoto = onPhoto, onDoc = onDoc, onSend = ::send,
-                    onFocus = { focused = it },
-                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp, top = 4.dp),
-                )
+        Column(Modifier.fillMaxSize().imePadding().testTag(if (chat != null) "vents-home-chat" else "vents-home-intro")) {
+            // Les cares continuen a dalt; escrivint, deixen lloc al fil.
+            if (!focused) top()
+            chatHeader?.invoke()
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                if (chat != null) chat()
+                else OpeningIntro(lang, name, assistant, showBelow = !focused && text.isBlank(), onPick = { send(it) }, below = below)
             }
-        } else {
-            Column(
-                Modifier.fillMaxSize().imePadding().onGloballyPositioned { areaBottom = it.boundsInRoot().bottom },
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                // Les cares a dalt, la salutació al mig i el camp a baix, on hi
-                // arriba el polze (com a les apps de companys). Escrivint, les
-                // cares i el que hi ha a sota s'aparten.
-                if (!focused && text.isBlank()) top()
-                Spacer(Modifier.weight(1f))
-                OpeningGreeting(
-                    askGreeting(lang, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY), name),
-                    Modifier.graphicsLayer { alpha = 1f - drop.value },
-                )
-                if (!focused && text.isBlank() && drop.value == 0f) below()
-                Spacer(Modifier.weight(1f))
-                AskComposer(
-                    lang, text, onText, busy, onPhoto = onPhoto, onDoc = onDoc, onSend = ::send,
-                    onFocus = { focused = it },
-                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp, top = 4.dp)
-                        .onGloballyPositioned { composerBottom = it.boundsInRoot().bottom }
-                        .graphicsLayer { translationY = drop.value * (areaBottom - gap - composerBottom).coerceAtLeast(0f) },
-                )
+            AskComposer(
+                lang, text, onText, busy, onPhoto = onPhoto, onDoc = onDoc, onSend = { send() },
+                onFocus = { focused = it },
+                modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp, top = 4.dp),
+            )
+        }
+    }
+}
+
+/** Els suggeriments de la presentació (pura: testejable). */
+internal fun openingSuggestions(lang: String): List<String> =
+    listOf(threadCopy(lang, "suggest1"), threadCopy(lang, "suggest2"), threadCopy(lang, "suggest3"))
+
+/**
+ * El fil buit d'una instal·lació nova: la salutació i la presentació com a
+ * primer missatge de l'assistent, i tres suggeriments que s'envien d'un toc.
+ * Es llegeix de baix a dalt com qualsevol xat (enganxat al camp).
+ */
+@Composable
+private fun OpeningIntro(lang: String, name: String, assistant: String, showBelow: Boolean,
+    onPick: (String) -> Unit, below: @Composable ColumnScope.() -> Unit) {
+    val hello = askGreeting(lang, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY), name)
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    // Com un fil: enganxat a baix (al camp) i, si no hi cap, desplaçable.
+    Column(
+        Modifier.fillMaxWidth().verticalScroll(androidx.compose.foundation.rememberScrollState(), reverseScrolling = true)
+            .heightIn(min = maxHeight).padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(GregalChat.gapInRun, Alignment.Bottom),
+    ) {
+        if (showBelow) below()
+        Spacer(Modifier.height(GregalChat.gapBetween))
+        WindBubble(GregalViewModel.PetMsg("pet", hello), Sea, lang = lang, tail = false, showMeta = false)
+        WindBubble(GregalViewModel.PetMsg("pet", threadCopy(lang, "intro").format(assistant)), Sea, lang = lang, showMeta = false)
+        Spacer(Modifier.height(GregalChat.gapBetween))
+        Column(Modifier.fillMaxWidth().testTag("opening-suggestions"), horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            openingSuggestions(lang).forEach { q ->
+                Surface(onClick = { onPick(q) }, shape = GregalShape.bubble, color = Superficie,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, LineHi),
+                    modifier = Modifier.fillMaxWidth(GregalChat.userWidth).wrapContentWidth(Alignment.End)) {
+                    Text(q, color = Ink, style = GregalType.chatBody,
+                        modifier = Modifier.heightIn(min = 48.dp).wrapContentHeight().padding(horizontal = GregalChat.bubblePadH, vertical = GregalChat.bubblePadV))
+                }
             }
         }
+    }
     }
 }
 

@@ -1,5 +1,11 @@
 package xyz.solanes.gregal
 
+import android.content.Context
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,6 +22,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
@@ -39,6 +47,9 @@ internal fun VentetConversation(vm: GregalViewModel, lang: String, winds: List<W
     val accent = Color(st.argb)
     var field by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var profile by remember { mutableStateOf(false) }
+    var work by remember { mutableStateOf(false) }
+    val tasks by vm.windTasks.collectAsState()
+    val running = tasks.orEmpty().count { it.running }
     val listState = rememberLazyListState()
     LaunchedEffect(Unit) { vm.loadCap() }
     // El missatge que no ha arribat torna al camp: no es perd res.
@@ -48,26 +59,34 @@ internal fun VentetConversation(vm: GregalViewModel, lang: String, winds: List<W
     }
     val follow = rememberChatFollow(listState, "ventet")
     ReadReplyFromStart(listState, follow, ui.busy, capReplyKey(ui))
+    // Sense «tens novetats» a la cara: les novetats ja són al fil, amb el seu separador.
     val mood = when {
         ui.busy || ui.going -> WindMood.THINKING
         ui.pending != null -> WindMood.HAPPY
-        st.briefCount > 0 -> WindMood.NEWS
         else -> WindMood.IDLE
     }
     Box(Modifier.fillMaxSize().background(Superficie).testTag("ventet-chat")) {
         Column(Modifier.fillMaxSize()) {
+            // El subtítol només diu feina de debò: res de «coordinador» permanent.
             VentsChatHeader(lang, st.name,
-                if (ui.busy && ui.live.isBlank()) tr(lang, "app.cap.thinking") else tr(lang, "app.cap.role"),
-                accent, st.faceStyle, mood, onBack = onBack, onProfile = { profile = true })
+                when {
+                    ui.going -> tr(lang, "app.cap.going")
+                    ui.busy -> tr(lang, "app.cap.thinking")
+                    else -> ""
+                },
+                accent, st.faceStyle, mood, onBack = onBack, onProfile = { profile = true }, centered = true)
             VentetThread(vm, lang, winds, listState, accent, Modifier.weight(1f), showEmpty = true)
+            // Es pot escriure sempre (l'esborrany es conserva); enviar espera que acabi el torn.
             VentsComposer(lang, field, { field = it }, tr(lang, "app.cap.hint", st.name),
                 canSend = field.text.isNotBlank() && !ui.busy,
-                busy = ui.busy || ui.going, accent = accent) {
+                busy = ui.busy || ui.going, accent = accent,
+                workCount = running, onWork = { work = true }) {
                 follow.requestFollow(); vm.askCap(field.text); field = TextFieldValue("")
             }
         }
     }
     if (profile) VentetProfile(vm, lang) { profile = false }
+    if (work) FeinesDialog(vm, lang, onOpenThread = { vm.openVentsChat("rot:$it") }) { work = false }
 }
 
 /**
@@ -77,11 +96,38 @@ internal fun VentetConversation(vm: GregalViewModel, lang: String, winds: List<W
  * sigui exactament el mateix xat i no dues coses que s'assemblen.
  */
 
+/** Claus dels elements en directe del fil (la pregunta i la resposta que s'escriu). */
+internal const val CAP_KEY_ASKED = "live:asked"
+internal const val CAP_KEY_LIVE = "live:reply"
+
+/** La clau d'un missatge del fil del Ventet: l'id; l'índex només si el servidor no en dona. */
+internal fun capItemKey(history: List<CapMsg>, index: Int): String = threadItemKey(history[index].id, index)
+
 /** La resposta del torn del Ventet: en directe, la bombolla viva; en acabar, l'últim missatge seu. */
 internal fun capReplyKey(ui: GregalViewModel.CapUi): Any? = when {
-    ui.busy -> if (ui.live.isNotBlank()) ui.state.history.size + 1 else null
-    ui.state.history.lastOrNull()?.from == "cap" -> ui.state.history.lastIndex
+    ui.busy -> if (ui.live.isNotBlank()) CAP_KEY_LIVE else null
+    ui.state.history.lastOrNull()?.from == "cap" -> capItemKey(ui.state.history, ui.state.history.lastIndex)
     else -> null
+}
+
+/**
+ * On comencen les novetats d'aquest fil, per al separador local «Una novetat
+ * per a tu». La marca (l'id de l'últim missatge vist) viu al telèfon: no és un
+ * missatge del model ni passa pel servidor. Es llegeix un sol cop en obrir
+ * (sobreviu a girar la pantalla) i s'avança mentre el fil és a la vista.
+ */
+@Composable
+private fun rememberUnreadIndex(thread: String, history: List<CapMsg>): Int? {
+    val ctx = LocalContext.current
+    val prefs = remember { ctx.getSharedPreferences("vents_thread_seen", Context.MODE_PRIVATE) }
+    val seenAtOpen by rememberSaveable(thread) { mutableStateOf(prefs.getString(thread, "").orEmpty()) }
+    val lastId = history.lastOrNull()?.id.orEmpty()
+    LaunchedEffect(thread, lastId) {
+        if (lastId.isNotBlank()) prefs.edit().putString(thread, lastId).apply()
+    }
+    return remember(history, seenAtOpen) {
+        firstUnreadIndex(history.map { it.id }, history.map { it.from }, seenAtOpen)
+    }
 }
 
 @Composable
@@ -99,6 +145,11 @@ internal fun VentetThread(
     val rotllanes by vm.rotllanes.collectAsState()
     val st = ui.state
     val history = st.history
+    val slots = remember(history) { threadSlots(history.map { ThreadEntry(if (it.from == "user") "user" else "cap", it.ts) }) }
+    val unread = rememberUnreadIndex("cap", history)
+    // Només els missatges que arriben en directe entren amb moviment; en obrir, tot de cop.
+    var liveFrom by remember { mutableIntStateOf(Int.MAX_VALUE) }
+    LaunchedEffect(history.isNotEmpty()) { if (history.isNotEmpty() && liveFrom == Int.MAX_VALUE) liveFrom = history.size }
     LazyColumn(modifier.fillMaxWidth(), state = listState,
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) {
         if (history.isEmpty() && showEmpty) item {
@@ -109,40 +160,46 @@ internal fun VentetThread(
                 hint = tr(lang, "app.cap.hello"),
             )
         }
-        items(history.size, key = { it }) { i ->
+        items(history.size, key = { capItemKey(history, it) }, contentType = { history[it].from }) { i ->
             val m = history[i]
-            val gap = if (i > 0 && history[i - 1].from != m.from) 16.dp else 4.dp
-            Column(Modifier.padding(top = gap)) {
-                when {
-                    m.action == "link" -> CapLinkCard(lang, m, accent, winds, rotllanes) { vm.openVentsChat(m.link) }
-                    else -> {
-                        WindBubble(GregalViewModel.PetMsg(if (m.from == "user") "user" else "pet", m.text, ts = m.ts), accent, lang = lang)
-                        if (m.delegates) {
-                            val pending = ui.pending
-                            if (i == history.lastIndex && pending != null) {
-                                Surface(color = accent.copy(alpha = .10f), shape = RoundedCornerShape(18.dp),
-                                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
-                                    Box(Modifier.padding(12.dp)) { CapDecisionRow(vm, lang, pending, winds, ui.course, ui.going) }
-                                }
-                            } else CapDecisionDone(lang, m, winds)
+            val slot = slots[i]
+            Column(Modifier.padding(top = if (i == 0) 0.dp else if (slot.firstOfRun) GregalChat.gapBetween else GregalChat.gapInRun)) {
+                if (i == unread) ThreadDivider(threadCopy(lang, "unread"), accent = true)
+                slot.separatorAt?.let { ThreadDivider(threadSeparatorLabel(lang, it)) }
+                MessageIn(animate = i >= liveFrom) {
+                    when {
+                        m.action == "link" -> CapLinkCard(lang, m, accent, winds, rotllanes) { vm.openVentsChat(m.link) }
+                        else -> Column {
+                            WindBubble(GregalViewModel.PetMsg(if (m.from == "user") "user" else "pet", m.text, ts = m.ts, id = m.id), accent, lang = lang,
+                                tail = slot.lastOfRun, showMeta = slot.lastOfRun)
+                            if (m.delegates) {
+                                val pending = ui.pending
+                                if (i == history.lastIndex && pending != null) {
+                                    // La proposta: una targeta de 15 dp al mateix fil. En
+                                    // resoldre's queda com a rebut d'una línia (CapDecisionDone).
+                                    Surface(color = Superficie, shape = GregalShape.card,
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                                        Box(Modifier.padding(12.dp)) { CapDecisionRow(vm, lang, pending, winds, ui.course, ui.going) }
+                                    }
+                                } else CapDecisionDone(lang, m, winds)
+                            }
                         }
                     }
                 }
             }
         }
-        // Mentrestant: el que ha passat des de l'última visita, al final del fil.
-        if (st.briefCount > 0 && st.brief.isNotBlank()) item { CapNote(st.brief) }
         // Mentre respon: la teva pregunta ja al fil (abans no hi sortia fins a
         // tenir la resposta) i, quan arriba, el text en directe.
         if (ui.busy && ui.asked.isNotBlank() && history.lastOrNull()?.let { it.from == "user" && it.text == ui.asked } != true) {
-            item(key = history.size) {
-                Column(Modifier.padding(top = 16.dp)) {
-                    WindBubble(GregalViewModel.PetMsg("user", ui.asked), accent, lang = lang)
+            item(key = CAP_KEY_ASKED) {
+                Column(Modifier.padding(top = if (history.lastOrNull()?.from == "user") GregalChat.gapInRun else GregalChat.gapBetween)) {
+                    MessageIn(animate = true) { WindBubble(GregalViewModel.PetMsg("user", ui.asked), accent, lang = lang) }
                 }
             }
         }
-        if (ui.busy && ui.live.isNotBlank()) item(key = history.size + 1) {
-            Column(Modifier.padding(top = 16.dp)) {
+        if (ui.busy && ui.live.isNotBlank()) item(key = CAP_KEY_LIVE) {
+            Column(Modifier.padding(top = GregalChat.gapBetween)) {
                 WindBubble(GregalViewModel.PetMsg("pet", ui.live, streaming = true), accent, lang = lang)
             }
         }
@@ -193,7 +250,7 @@ private fun CapDecisionDone(lang: String, m: CapMsg, winds: List<Wind>) {
     }
 }
 
-/** On ha anat a parar una delegació: toca-la i s'obre aquella conversa. */
+/** On ha anat a parar una delegació: un resultat del fil que obre aquella conversa. */
 @Composable
 private fun CapLinkCard(lang: String, m: CapMsg, accent: Color, winds: List<Wind>, rotllanes: List<Rotllana>, onOpen: () -> Unit) {
     val id = m.link.substringAfter(':')
@@ -201,29 +258,43 @@ private fun CapLinkCard(lang: String, m: CapMsg, accent: Color, winds: List<Wind
     val rot = if (m.link.startsWith("rot:")) rotllanes.firstOrNull { it.id == id } else null
     val faces = wind?.let { listOf(it) } ?: rot?.members?.mapNotNull { mid -> winds.firstOrNull { it.id == mid } }.orEmpty()
     val exists = wind != null || rot != null
-    Surface(color = SuperficieAlta.copy(alpha = .5f), shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-            .clickable(enabled = exists, onClick = onOpen).testTag("cap-link")) {
-        Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            faces.firstOrNull()?.let { WindHalo(Color(it.argb), it.faceStyle, size = 30, stacked = faces.drop(1), online = false) }
-                ?: WindHalo(accent, windStyleOf("pso"), size = 30, online = false)
-            Column(Modifier.weight(1f)) {
-                Text(m.text, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(tr(lang, if (exists) "app.cap.openChat" else "app.cap.chatGone"), color = Muted, fontSize = 12.sp)
-            }
-            if (exists) Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = Muted)
-        }
+    ResultCard(
+        title = m.text,
+        subtitle = tr(lang, if (exists) "app.cap.openChat" else "app.cap.chatGone"),
+        kind = resultKindOf(m.link),
+        enabled = exists,
+        leading = {
+            faces.firstOrNull()?.let { WindHalo(Color(it.argb), it.faceStyle, size = 34, stacked = faces.drop(1), online = false) }
+                ?: WindHalo(accent, windStyleOf("pso"), size = 34, online = false)
+        },
+        modifier = Modifier.testTag("cap-link"),
+        onOpen = onOpen,
+    )
+}
+
+/**
+ * Un separador del fil: l'hora («Avui · 09:41») o, amb [accent], el local
+ * «Una novetat per a tu». Text 12 sp entre dues línies fines; no és un missatge.
+ */
+@Composable
+internal fun ThreadDivider(text: String, accent: Boolean = false) {
+    Row(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 10.dp).testTag(if (accent) "thread-unread" else "thread-time"),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        HorizontalDivider(Modifier.weight(1f), color = if (accent) Sea.copy(alpha = .45f) else Line)
+        Text(text, style = GregalType.chatMeta, color = if (accent) Ink else Muted,
+            fontWeight = if (accent) FontWeight.SemiBold else FontWeight.Normal, textAlign = TextAlign.Center)
+        HorizontalDivider(Modifier.weight(1f), color = if (accent) Sea.copy(alpha = .45f) else Line)
     }
 }
 
-/** Una nota del sistema al fil («mentrestant…»). */
+/**
+ * L'entrada d'un missatge nou: fos + 8 dp cap amunt en 180 ms. Respecta
+ * «reduir animacions» (LocalWindMotion) i no anima el que ja hi era en obrir.
+ */
 @Composable
-private fun CapNote(text: String) {
-    Box(Modifier.fillMaxWidth().padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
-        Surface(color = SuperficieAlta.copy(alpha = .5f), shape = RoundedCornerShape(12.dp)) {
-            Text(text, color = Muted, fontSize = 13.sp, textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
-        }
-    }
+internal fun MessageIn(animate: Boolean, content: @Composable () -> Unit) {
+    if (!animate || !LocalWindMotion.current) { content(); return }
+    val state = remember { MutableTransitionState(false).apply { targetState = true } }
+    val shift = with(LocalDensity.current) { 8.dp.roundToPx() }
+    AnimatedVisibility(state, enter = fadeIn(tween(180)) + slideInVertically(tween(180)) { shift }) { content() }
 }

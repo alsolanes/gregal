@@ -24,7 +24,7 @@ class VentsExperienceTest {
     @get:Rule val ui = createComposeRule()
     private fun vm() = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
 
-    @Test fun cleanOpeningIsGreetingAndComposerAndSendsWithoutMotion() {
+    @Test fun newInstallOpensTheThreadWithIntroAndSuggestions() {
         val text = mutableStateOf("")
         var sent = ""
         ui.setContent {
@@ -35,14 +35,46 @@ class VentsExperienceTest {
                 }
             }
         }
-        // La portada és la salutació i el camp: ni la cara, ni la colla, ni suggeriments.
-        ui.onNodeWithTag("opening-greeting").assertExists()
+        // B1: sense historial, el mateix fil amb la presentació com a primer
+        // missatge, tres suggeriments i el camp a baix; cap pantalla a part.
+        ui.onNodeWithTag("vents-home-intro").assertExists()
+        ui.onNodeWithTag("opening-greeting").assertDoesNotExist()
+        ui.onNodeWithText("Gregal", substring = true).assertExists()
+        ui.onNodeWithTag("opening-suggestions").assertExists()
         ui.onNodeWithTag("ask-input").assertExists()
         ui.onNodeWithTag("ask-crew").assertDoesNotExist()
         ui.onNodeWithTag("ask-portrait").assertDoesNotExist()
         ui.onNodeWithTag("ask-input").performTextInput("Organitza'm la setmana")
         ui.onNodeWithTag("ask-send").performClick()
         ui.runOnIdle { org.junit.Assert.assertEquals("Organitza'm la setmana", sent) }
+    }
+
+    @Test fun introSuggestionSendsInOneTap() {
+        var sent = ""
+        ui.setContent {
+            CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
+                MaterialTheme(colorScheme = LightPal.scheme()) {
+                    VentsOpening("ca", "Aleix", "", {}, busy = false, onPhoto = null, onDoc = null, onSend = { sent = it })
+                }
+            }
+        }
+        val q = openingSuggestions("ca").first()
+        ui.onNodeWithText(q).performClick()
+        ui.runOnIdle { org.junit.Assert.assertEquals(q, sent) }
+    }
+
+    @Test fun withHistoryTheThreadOpensDirectly() {
+        ui.setContent {
+            CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
+                MaterialTheme(colorScheme = LightPal.scheme()) {
+                    VentsOpening("ca", "Aleix", "", {}, busy = false, onPhoto = null, onDoc = null, onSend = {},
+                        chat = { androidx.compose.material3.Text("fil") })
+                }
+            }
+        }
+        ui.onNodeWithTag("vents-home-chat").assertExists()
+        ui.onNodeWithTag("vents-home-intro").assertDoesNotExist()
+        ui.onNodeWithTag("opening-suggestions").assertDoesNotExist()
     }
 
     @Test fun companionScreenActuallyDisplaysRequestErrors() {
