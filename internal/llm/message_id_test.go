@@ -29,3 +29,20 @@ func TestMessageIDPersistsWithoutProviderWire(t *testing.T) {
 		}
 	}
 }
+
+// B6: el lligam d'un missatge proactiu amb el seu run i resultats es desa
+// amb el fil però no arriba mai al provider.
+func TestProactiveLinksNeverReachProvider(t *testing.T) {
+	m := Message{Role: "assistant", Content: "canvi", ID: "m-x", RelatedRunID: 412, ResultRefs: []string{"res-1"}}
+	saved, _ := json.Marshal(m)
+	if !strings.Contains(string(saved), `"relatedRunId":412`) || !strings.Contains(string(saved), `"resultRefs":["res-1"]`) {
+		t.Fatalf("lligams perduts en desar: %s", saved)
+	}
+	wire, err := marshalMessage(m, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(wire), "relatedRunId") || strings.Contains(string(wire), "resultRefs") {
+		t.Fatalf("lligams filtrats al provider: %s", wire)
+	}
+}

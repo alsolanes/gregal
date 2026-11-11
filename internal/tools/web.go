@@ -580,6 +580,13 @@ func WebEnginesDisponibles(ctx context.Context) (ok []string, ko []string) {
 
 // ---- lectura de pàgines ----
 
+// WebBlockedHost és webBlockedHost per a qui llegeix fonts fora d'aquest
+// paquet (les responsabilitats, B6): el mateix criteri que web_fetch.
+func WebBlockedHost(host string) bool { return webBlockedHost(host) }
+
+// HTMLToText és htmlToText exportat (pàgina sencera en text pla).
+func HTMLToText(src string) string { return htmlToText(src) }
+
 // webBlockedHost rebutja loopback, 0.0.0.0, metadades cloud i noms locals.
 // El DNS rebinding queda fora d'abast (agent monousuari a xarxa domèstica).
 func webBlockedHost(host string) bool {

@@ -143,12 +143,22 @@ func recordNovetatJob(s *Server, w companion.Wind, source, job, text string) {
 
 // recordNovetatMsg és recordNovetatJob amb el missatge del fil que la novetat representa.
 func recordNovetatMsg(s *Server, w companion.Wind, source, job, messageID, text string) {
+	recordNovetatMsgHold(s, w, source, job, messageID, text, false)
+}
+
+// recordNovetatMsgHold és recordNovetatMsg amb la possibilitat de forçar el
+// silenci (B6: pressupost d'atenció esgotat): la novetat queda a la safata i
+// al fil, però no sona ni s'envia cap push.
+func recordNovetatMsgHold(s *Server, w companion.Wind, source, job, messageID, text string, hold bool) {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return
 	}
 	// Cada veu és també una targeta de la safata «Avui» (winds_avui.go).
 	card, ring := s.avuiFromVoice(w, source, job, text)
+	if hold {
+		ring = false
+	}
 	n := windNovetat{
 		Ts:        time.Now().Unix(),
 		Wind:      w.ID,

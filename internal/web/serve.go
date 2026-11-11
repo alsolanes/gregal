@@ -242,6 +242,7 @@ func New(cfg *config.Config, cfgPath string) *Server {
 	s.modelOverride = s.defaultModelOverrides()
 	s.registerRemindTool()
 	s.registerRutinaTeachTool()
+	s.registerRespWatchTool()
 	s.registerCalaixTool()
 	// Enviar fitxers al xat: l'eina viu a les eines i el servidor web és qui sap
 	// on publicar-los (enllaç amb clau pròpia, sense sessió).
@@ -1503,6 +1504,11 @@ func (s *Server) watchRun(run runs.Run) {
 			// tornarà a cridar watchRun.
 			s.appendRunEvent(fin, events.RunWaitingUser, "esperant una decisió")
 			return
+		case runs.WaitingComputer:
+			// Aparcat esperant que l'ordinador arrenqui (B6): qui el reprengui
+			// tornarà a cridar watchRun.
+			s.appendRunEvent(fin, events.RunWaitingComputer, "esperant l'ordinador")
+			return
 		case runs.Failed:
 			kind, text = "run_failed", "torn fallit: "+fin.Err
 		case runs.Cancelled:
@@ -1698,11 +1704,15 @@ func (s *Server) handleV2RunCancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cancelled := s.Hub().Queue().Cancel(id)
-	if cancelled && run.State == runs.WaitingUser {
+	if cancelled && run.State.Waiting() {
 		// Aparcat: cap executor no tancarà el cicle. Les decisions que
 		// esperava ja no tindran efecte.
 		s.appendRunEvent(run, "run_cancelled", "torn cancel·lat")
-		s.cancelParkedDecisions(id)
+		if run.State == runs.WaitingUser {
+			s.cancelParkedDecisions(id)
+		} else {
+			forgetComputerWait(id)
+		}
 	}
 	writeJSON(w, map[string]any{"ok": true, "cancelled": cancelled})
 }

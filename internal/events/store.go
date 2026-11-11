@@ -53,9 +53,12 @@ const maxLine = 16 << 20
 // Tipus d'event de les esperes durables (B4). RunWaitingUser: el torn s'ha
 // aparcat en un punt segur esperant una decisió. Decision: una decisió ha
 // canviat d'estat (payload = la decisió pública, amb id, revision i state).
+// RunWaitingComputer (B6): el torn s'ha aparcat esperant que l'ordinador
+// personal arrenqui; tampoc és orfe.
 const (
-	RunWaitingUser = "run_waiting_user"
-	Decision       = "decision"
+	RunWaitingUser     = "run_waiting_user"
+	RunWaitingComputer = "run_waiting_computer"
+	Decision           = "decision"
 )
 
 // terminal diu si l'event tanca un torn.
@@ -72,7 +75,7 @@ func (s *Store) track(e Event) {
 		s.runFirst[e.RunID] = e.ID
 	}
 	switch {
-	case terminal(e.Kind), e.Kind == RunWaitingUser:
+	case terminal(e.Kind), e.Kind == RunWaitingUser, e.Kind == RunWaitingComputer:
 		// Un torn aparcat esperant una decisió no és orfe: no té cap
 		// procés que l'executi, i un reinici no l'ha de donar per fallit.
 		// Quan es reprengui tornarà a escriure run_queued.

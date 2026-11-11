@@ -132,8 +132,31 @@ func windClampNext(at time.Time, ok bool, now time.Time) time.Time {
 }
 
 // executeWindHeartbeat és el pas del cor: cerca + (si cal) missatge al xat.
+//
+// Des de B6 el cor és una responsabilitat més (cor-<vent>): el mateix pas de
+// sempre, amb pressupost de compute i d'atenció, deduplicació i el registre
+// que respon «per què ho has fet?». La pausa és el job deshabilitat, com
+// abans (el programador no el dispara).
 func (s *Server) executeWindHeartbeat(ctx context.Context, job jobs.Job, queued runs.Run, w companion.Wind) (jobs.Run, error) {
 	start := time.Now()
+	stored := job
+	if j, ok := s.respFindJobSafe(job.ID); ok {
+		stored = j
+	} else {
+		stored.Enabled = true
+	}
+	resp := s.respEnsureHeartbeat(w, stored)
+	if !s.respHeartGate(resp, start) {
+		// Pressupost de compute esgotat: cap crida al model ni missatge.
+		// Torna a mirar demà.
+		y, m, d := start.Date()
+		next := time.Date(y, m, d+1, 0, 5, 0, 0, start.Location())
+		if s.jobs != nil {
+			_ = s.jobs.SetNextAt(job.ID, next)
+			_ = s.jobs.MarkRun(job.ID, start, "ok")
+		}
+		return jobs.Run{JobID: job.ID, JobName: job.Name, StartedAt: start, FinishedAt: start, Status: "ok"}, nil
+	}
 	brief := windHeartbeatSystem(w, s.personalMemory(), s.windUserName()) + windRemindBrief(w.ID)
 	brief += companion.WindBrainSystem(s.windBrain(w.ID)) + s.windMemorySystem(w.ID)
 	brief += windTradeBrief(w) + s.windCalaixBrief(w)
@@ -168,18 +191,35 @@ func (s *Server) executeWindHeartbeat(ctx context.Context, job jobs.Job, queued 
 	out = windStripNext(out)
 	// Silenci: res que valgui la pena. Job OK, sense missatge ni notificació.
 	if windIsSilence(out) {
+		s.respHeartAfter(resp, "", queued.ID, end)
 		run.Status = "ok"
 		run.Output = ""
 		_ = s.jobs.AddRun(run)
 		_ = s.jobs.MarkRun(job.ID, end, "ok")
 		return run, nil
 	}
-	// Hi ha algo a dir: entra al xat del vent com si hagués parlat ell.
-	postWindMessage(s, w, "heartbeat", out)
-
+	publish, hold, resultID := s.respHeartAfter(resp, out, queued.ID, end)
 	run.Status = "ok"
+	if !publish {
+		// El mateix que ja va dir fa poc: silenci.
+		_ = s.jobs.AddRun(run)
+		_ = s.jobs.MarkRun(job.ID, end, "ok")
+		return run, nil
+	}
+	// Hi ha algo a dir: entra al xat del vent com si hagués parlat ell,
+	// lligat al run i al resultat.
+	links := windMessageLinks{RunID: queued.ID, Learn: true, Hold: hold}
+	if resultID != "" {
+		links.Refs = []string{resultID}
+	}
+	msgID := postWindMessageLinked(s, w, "heartbeat", "", out, links)
+	s.respHeartMessage(resp, resultID, msgID)
+
 	// La sortida del job ÉS el missatge del vent: la notificació el porta.
-	run.Output = w.Name + ": " + out
+	// Amb el pressupost d'atenció esgotat, va al fil però no sona.
+	if !hold {
+		run.Output = w.Name + ": " + out
+	}
 	_ = s.jobs.AddRun(run)
 	_ = s.jobs.MarkRun(job.ID, end, "ok")
 	return run, nil

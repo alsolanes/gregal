@@ -106,6 +106,13 @@ func (s *Server) automationOf(j jobs.Job, winds map[string]companion.Wind, allWi
 			it.Kind = "followup"
 		}
 		it.NextAt = j.NextAt
+	case strings.HasPrefix(j.ID, respJobPrefix):
+		// Una responsabilitat (B6): vigilància incremental de fonts.
+		it.Kind, it.Repeat, it.CanPause = "watch", "watch", true
+		it.Detail = strings.TrimSpace(j.Prompt)
+		if nd := jobs.NextDue(j, now); !nd.IsZero() {
+			it.NextAt = &nd
+		}
 	case j.Kind == "event":
 		it.Kind, it.Repeat, it.CanPause = "watch", "watch", true
 		it.Title = strings.TrimSpace(w.Role)

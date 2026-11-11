@@ -165,7 +165,7 @@ func (s *Server) handleWindsRutines(w http.ResponseWriter, r *http.Request) {
 	for _, j := range list {
 		// Només rutines de vent (kind daily/interval amb Wind), no cors ni
 		// recordatoris: els dos primers tenen el seu lloc a Programats.
-		if j.Wind == "" || (j.Kind != "daily" && j.Kind != "interval") {
+		if j.Wind == "" || (j.Kind != "daily" && j.Kind != "interval") || strings.HasPrefix(j.ID, respJobPrefix) {
 			continue
 		}
 		if !s.canSeeWindRoutine(j) {

@@ -52,6 +52,12 @@ type Message struct {
 	// antics (qui el mostra en deriva un de determinista). Com Ts, no viatja
 	// mai al provider.
 	ID string `json:"id,omitempty"`
+	// RelatedRunID i ResultRefs lliguen un missatge proactiu (B6) al run que
+	// l'ha preparat i als resultats que en van sortir (contracte de
+	// l'assistent: relatedRunId, resultRefs). Com ID, no viatgen mai al
+	// provider.
+	RelatedRunID int64    `json:"relatedRunId,omitempty"`
+	ResultRefs   []string `json:"resultRefs,omitempty"`
 	// ReasoningContent és el raonament que el proveïdor ha tornat amb
 	// aquesta crida d'eina (reasoning_content). Els models de raonament que
 	// criden eines l'exigeixen de tornada dins de la mateixa cadena de
@@ -80,6 +86,8 @@ func marshalMessage(m Message, sanitize bool) ([]byte, error) {
 		w.SpeakerID, w.SpeakerName = "", ""
 		w.Ts = 0
 		w.ID = ""
+		w.RelatedRunID = 0
+		w.ResultRefs = nil
 		w.Kind = ""
 		w.CrewRunID = ""
 		w.ToolCalls = safeToolCalls(m.ToolCalls)
