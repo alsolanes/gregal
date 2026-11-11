@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## v1.71.1 - 2026-11-11 - Vents que no et paren a cada fitxer
+
+- **Un vent ja no demana permís fitxer a fitxer.** Si anaves a Codi i tornaves,
+  el torn reprès treballava a la carpeta del projecte de Codi i tot el que
+  escrivia a la seva queia «fora del projecte». Ara torna a la seva carpeta, i
+  dins del projecte el `write: ask` de la plantilla ja no l'atura (fora del
+  projecte, un `deny` i el que és perillós continuen preguntant).
+- **Després de «Permet», el fil diu que treballa** i ensenya la resposta quan
+  arriba, a l'escriptori i a Android. Aquesta feina ja no surt a Codi com una
+  sessió «Treballant» que no has començat.
+- **Veure on actua l'agent a l'ordinador.** Al visor, el cursor de l'agent en
+  color viu, un halo on clica, el camp on escriu i una franja amb el que fa;
+  «Últimes accions» repassa una feina que no miraves. Les contrasenyes surten
+  emmascarades.
+
 ## v1.71.0 - 2026-11-11 - Un assistent que treballa pel seu compte
 
 - **Gregal Vents per a Android (1.74.0) i escriptori: un xat nou.** Bombolles
