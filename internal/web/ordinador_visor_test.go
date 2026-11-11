@@ -32,6 +32,9 @@ type fakeViewerAgent struct {
 	verbs   []string
 	auths   []string
 	cookies []string
+	// wakeHold, si no és nil, reté el «wake» del hipervisor fins que es
+	// tanca: així el test veu l'estat mentre l'ordinador encara arrenca.
+	wakeHold chan struct{}
 }
 
 func (f *fakeViewerAgent) seen() (auths, cookies []string) {
@@ -92,9 +95,19 @@ func ambVisorHost(t *testing.T) *fakeViewerAgent {
 		t.Fatal(err)
 	}
 	m.SetControlRunner(func(ctx context.Context, argv []string) (string, error) {
+		verb := argv[len(argv)-1]
+		f.mu.Lock()
+		hold := f.wakeHold
+		f.mu.Unlock()
+		if verb == "wake" && argv[1] != "aleix" && hold != nil {
+			select {
+			case <-hold:
+			case <-ctx.Done():
+				return "", ctx.Err()
+			}
+		}
 		f.mu.Lock()
 		defer f.mu.Unlock()
-		verb := argv[len(argv)-1]
 		f.verbs = append(f.verbs, argv[1]+":"+verb)
 		if argv[1] == "aleix" {
 			return "saved", nil
@@ -172,8 +185,14 @@ func TestVisorSessionWakesAndProxiesOnlyWithSession(t *testing.T) {
 	}
 
 	// Obrir el visor amb l'ordinador desat: el desperta (motiu viewer) i
-	// diu starting, sense esperar-lo.
+	// diu starting, sense esperar-lo. El wake queda retingut fins després de
+	// la resposta: si el handler l'esperés, aquí es penjaria.
+	hold := make(chan struct{})
+	f.mu.Lock()
+	f.wakeHold = hold
+	f.mu.Unlock()
 	code, out := apiAs(t, h, carla, "POST", "/api/ordinador/viewer", `{}`)
+	close(hold)
 	if code != 200 || out["health"] != "starting" || !strings.HasPrefix(fmt.Sprint(out["url"]), visorPrefix+"entra?t=") || out["expiresAt"] == nil {
 		t.Fatalf("obrir el visor: %d %v", code, out)
 	}
