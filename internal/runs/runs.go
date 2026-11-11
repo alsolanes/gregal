@@ -39,10 +39,19 @@ const (
 	// No ocupa cap goroutine ni cap lloc a la cua; Resume el torna a encuar
 	// amb el mateix ID quan arriba la resposta.
 	WaitingUser State = "waiting_user"
+	// WaitingComputer: el torn necessita l'ordinador personal, que estava
+	// desat o aturat. S'ha demanat d'encendre'l i el torn s'ha aparcat igual
+	// que WaitingUser (cap goroutine, cap lloc a la cua): qui vigila
+	// l'ordinador el reprèn amb Resume quan respon, o el tanca amb Fail si
+	// no arrenca.
+	WaitingComputer State = "waiting_computer"
 )
 
 // Active diu si l'execució encara pot canviar d'estat.
-func (s State) Active() bool { return s == Queued || s == Running || s == WaitingUser }
+func (s State) Active() bool { return s == Queued || s == Running || s.Waiting() }
+
+// Waiting diu si el torn està aparcat (decisió o ordinador).
+func (s State) Waiting() bool { return s == WaitingUser || s == WaitingComputer }
 
 // Prioritats. Menor número = surt abans de la cua de la seva sessió. El
 // treball interactiu passa davant del desatès, però la serialització per
@@ -64,6 +73,11 @@ var ErrQueueFull = errors.New("runs: massa torns pendents per a aquesta conversa
 // segur esperant una decisió: la cua el passa a WaitingUser (no a completed)
 // i allibera el worker. Resume el reprèn.
 var ErrWaitingUser = errors.New("runs: torn aparcat esperant una decisió")
+
+// ErrWaitingComputer el retorna l'Executor quan el torn necessita
+// l'ordinador personal i encara no respon: la cua el passa a
+// WaitingComputer i allibera el worker.
+var ErrWaitingComputer = errors.New("runs: torn aparcat esperant l'ordinador")
 
 // maxPerSession és el topall de torns vius (pendents o en marxa) per sessió.
 const maxPerSession = 8
@@ -258,7 +272,9 @@ func (q *Queue) work(sess string) {
 
 		switch {
 		case errors.Is(execErr, ErrWaitingUser) && sl.ctx.Err() == nil:
-			q.park(sl)
+			q.park(sl, WaitingUser)
+		case errors.Is(execErr, ErrWaitingComputer) && sl.ctx.Err() == nil:
+			q.park(sl, WaitingComputer)
 		case execErr == nil:
 			q.finish(sl, Completed, "")
 		case errors.Is(execErr, ErrCancelled) || sl.ctx.Err() != nil:
@@ -318,21 +334,23 @@ func (q *Queue) finish(sl *slot, st State, msg string) {
 	sl.closeDone()
 }
 
-// park passa un torn en marxa a WaitingUser: allibera el worker i tanca done
-// (el torn ja no s'executa), però el context continua viu per a Resume.
-func (q *Queue) park(sl *slot) {
+// park passa un torn en marxa a una espera (WaitingUser o WaitingComputer):
+// allibera el worker i tanca done (el torn ja no s'executa), però el context
+// continua viu per a Resume.
+func (q *Queue) park(sl *slot, st State) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	if sl.run.State != Running {
 		return
 	}
-	sl.run.State = WaitingUser
+	sl.run.State = st
 	sl.exec = nil
 	sl.closeDone()
 }
 
 // Park registra un torn que ja ha començat fora de la cua (un xat en directe)
-// i que s'ha aparcat esperant una decisió. Si r.ID > 0 l'adopta amb aquest
+// i que s'ha aparcat esperant una decisió (o l'ordinador, si r.State és
+// WaitingComputer). Si r.ID > 0 l'adopta amb aquest
 // ID (després d'un reinici, el registre d'events ja el coneix); si no, en
 // dona un de nou. No crea cap goroutine.
 func (q *Queue) Park(r Run) Run {
@@ -351,7 +369,9 @@ func (q *Queue) Park(r Run) Run {
 	}
 	q.nextSeq++
 	r.Workspace = WorkspaceKey(r.Workspace)
-	r.State = WaitingUser
+	if r.State != WaitingComputer {
+		r.State = WaitingUser
+	}
 	if r.EnqueuedAt.IsZero() {
 		r.EnqueuedAt = time.Now().UTC()
 	}
@@ -362,9 +382,10 @@ func (q *Queue) Park(r Run) Run {
 	return r
 }
 
-// Resume torna a encuar un torn aparcat (WaitingUser) amb el mateix ID i un
-// executor nou. Torna fals si no hi era o ja no esperava (cancel·lat, o ja
-// reprès per una altra resposta): només una represa per espera.
+// Resume torna a encuar un torn aparcat (WaitingUser o WaitingComputer) amb
+// el mateix ID i un executor nou. Torna fals si no hi era o ja no esperava
+// (cancel·lat, o ja reprès per una altra resposta): només una represa per
+// espera.
 func (q *Queue) Resume(id int64, exec Executor) (Run, bool) {
 	if exec == nil {
 		return Run{}, false
@@ -372,7 +393,7 @@ func (q *Queue) Resume(id int64, exec Executor) (Run, bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	sl := q.byID[id]
-	if sl == nil || sl.run.State != WaitingUser {
+	if sl == nil || !sl.run.State.Waiting() {
 		return Run{}, false
 	}
 	q.nextSeq++
@@ -398,7 +419,7 @@ func (q *Queue) Cancel(id int64) bool {
 		q.mu.Unlock()
 		return false
 	}
-	wasQueued := sl.run.State == Queued || sl.run.State == WaitingUser
+	wasQueued := sl.run.State == Queued || sl.run.State.Waiting()
 	if wasQueued {
 		sl.run.State = Cancelled
 		sl.run.FinishedAt = time.Now().UTC()
@@ -410,6 +431,25 @@ func (q *Queue) Cancel(id int64) bool {
 		// En marxa: el ctx talla l'executor, i el worker marca l'estat final.
 		sl.cancel()
 	}
+	return true
+}
+
+// Fail tanca com a fallit un torn aparcat que ja no es pot reprendre (p. ex.
+// l'ordinador no ha arrencat dins del termini): estat honest amb el motiu,
+// en lloc de deixar-lo esperant per sempre. Només actua sobre torns en
+// espera; torna fals si no n'hi havia cap amb aquest ID.
+func (q *Queue) Fail(id int64, msg string) bool {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	sl := q.byID[id]
+	if sl == nil || !sl.run.State.Waiting() {
+		return false
+	}
+	sl.run.State = Failed
+	sl.run.Err = msg
+	sl.run.FinishedAt = time.Now().UTC()
+	sl.cancel()
+	sl.closeDone()
 	return true
 }
 
@@ -437,7 +477,7 @@ func (q *Queue) CancelSession(sess string) int {
 	// Els aparcats també: «talla-ho tot» no ha de deixar res que es
 	// reprengui sol quan arribi una resposta.
 	for _, sl := range q.byID {
-		if sl.run.Session == sess && sl.run.State == WaitingUser {
+		if sl.run.Session == sess && sl.run.State.Waiting() {
 			sl.run.State = Cancelled
 			sl.run.FinishedAt = time.Now().UTC()
 			sl.cancel()

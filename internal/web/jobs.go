@@ -206,6 +206,11 @@ func (s *Server) executeJob(ctx context.Context, job jobs.Job, queued runs.Run) 
 	if job.Kind == "remind" {
 		return s.executeWindRemind(jobCtx, job)
 	}
+	// Una responsabilitat (B6): comprovació incremental de les fonts; el
+	// model només entra si hi ha informació nova.
+	if strings.HasPrefix(job.ID, respJobPrefix) {
+		return s.executeResponsibility(jobCtx, job, queued)
+	}
 	// Els jobs de vent (id wind-<vent>) tenen consigna pròpia: el vent vigila
 	// el seu tema amb cerques web i només parla si troba algo que valgui la
 	// pena. El missatge entra al seu xat (company-<vent>).

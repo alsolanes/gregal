@@ -33,7 +33,7 @@ const (
 // isWindRutina: una rutina d'un vent (no el cor ni un recordatori).
 func isWindRutina(j jobs.Job) bool {
 	return j.Wind != "" && (j.Kind == "daily" || j.Kind == "interval") &&
-		!strings.HasPrefix(j.ID, remindJobPrefix)
+		!strings.HasPrefix(j.ID, remindJobPrefix) && !strings.HasPrefix(j.ID, respJobPrefix)
 }
 
 // rutinaHowtoBrief és el tros de consigna amb el que l'usuari ha ensenyat.

@@ -236,6 +236,9 @@ their current locations; this change does not migrate chat files.
 | `/api/winds/rutines/edit` | POST | `{id, name?, prompt?, howto?, kind?, time?, interval_h?, keep_refs?:[id]}` → `{job}`. Edita una rutina d'un vent propi **sense canviar-ne l'id**; camps absents = sense canvis; `keep_refs` tria quins exemples desats es queden (`[]` = cap). 404 si no és pròpia. (B8) |
 | `/api/winds/rutines/teach` | POST | `{id, instruction?, ref_run?, ref_message?, ref_last?}` → `{job}`. «Fes-ho així la propera vegada»: afegeix la indicació a `howto` (sense duplicar) i, si cal, desa un resultat (run de la rutina o missatge del fil del vent) com a exemple amb un extracte (màxim 3). Entra a la consigna només d'aquesta rutina. 404 si no és pròpia. (B8) |
 | `/api/winds/remind/edit` | POST | `{id, op, at?, text?, minutes?, tz?}` → `{ok, id, message, item?}`. `op`: `edit` (text i/o hora) · `snooze` (d'aquí a `minutes`, per defecte 10) · `reschedule` (`at`) · `pause` · `resume` · `cancel`. Sempre el mateix id; `at` com a RFC3339, `HH:MM`, `dd/mm HH:MM` o `+2h`, entès a la zona `tz` (IANA) de l'usuari. Ajornar un recordatori que ja ha sonat el torna a deixar pendent. Disparar-lo no crida cap model. 404 si no és del compte. (B8) |
+| `/api/winds/responsabilitats` | GET | → `{responsabilitats:[{id, wind, windName, kind, objective, sources:[{kind, url?, ref?, label, checkedAt?, changedAt?, error?}], allowed, askFirst, budget:{prepsPerDay, messagesPerDay, maxSteps}, spent:{day, preps, messages}, state, until?, everyMinutes?, origin, createdAt, updatedAt, pending, waitingComputer?, nextAt?, log:[…]}]}`. Responsabilitats del compte (B6): `kind` `watch` (fonts vigilades) o `heartbeat` (el cor d'un vent, `cor-<vent>`, migrat sense tocar el seu job). `state` `active` · `paused` · `done`. `sources[].kind` `web` · `agenda` · `page` (amb l'ordinador personal) · `connection` (B5) · `topic` (cor). `log` són les últimes actuacions, de més nova a més vella: `{at, kind, sources, changes, runId, messageId, resultId, result, proposal, held, note}`. Mai no porta instantànies de les fonts. |
+| `/api/winds/responsabilitats` | POST | `{action, id?, wind?, objective?, sources?, urls?, agenda?, allowed?, askFirst?, everyMinutes?, until?, budget?}` → `{ok, responsabilitat?}`. `action`: `create` (cal `wind`, `objective` i almenys una font) · `update` · `pause` · `resume` · `finish` · `delete`. `allowed` només admet `explore` i `prepare`; enviar, comprar o publicar sempre passen per una decisió. El cor es pausa i es reprèn (és el seu job `wind-<vent>`), no s'acaba ni s'esborra (400). 404 si no és del compte. La primera comprovació és la línia de base: no crida el model. (B6) |
+| `/api/winds/responsabilitats/why` | GET | `?message_id=` o `?result=` → `{responsabilitat, act}`: «per què ho has fet?» d'un missatge del fil (el missatge porta `relatedRunId` i `resultRefs`). 404 si el missatge no ve de cap responsabilitat del compte. (B6) |
 | `/api/profile` | GET/POST | The signed-in person's UI preferences, stored on the server so any device they log in from can restore them. GET → `{prefs:{key:{v,t}}, keys:[…]}` (`keys` = the syncable keys; `v` string or null = removed, `t` unix ms). POST the same shape with only the changed keys → the merged profile; per key the newest `t` wins, unknown keys and values over 512 characters are ignored. Per account (a state folder of its own, `profile.json`): nobody, admins included, can read another account's profile. Only a fixed list of keys travels (theme, language, density, font size, view…), never the token, open sessions or device state. |
 | `/api/image/normalize` | POST | `{image: data URL}` → `{image: data URL}`. Validates an image and returns it in a form models and browsers accept: HEIC/HEIF phone photos become JPEG (max 2560 px side). The web uses it when attaching a HEIC photo so the preview works; `/api/chat` images and `/api/office/upload` convert HEIC on their own too. |
 | `/api/think` | POST | `{level}` with level in default, auto, no, low, medium, high, max → `{think, levels}`. Sets the thinking (reasoning) level of the work roles (not the reviewer, not the winds); saved per user. `default` = whatever the role says in the config. `/api/state` carries `think`, `think_options` (what the current model admits, from the models.dev catalogue; empty = the model does not reason), `think_effective` and `model_name` (human name from the catalogue); `/api/models` carries `names` (id → name). |
@@ -549,14 +552,19 @@ All turns (web, delegated TUI and API v2) use the same service queue. A session
 can run at most one turn at a time; additional messages are queued (up to 8
 live entries per session). Turns sharing a workspace run serially. Interactive
 work takes priority over unattended work. Run states are `queued`, `running`,
-`waiting_user`, `completed`, `failed` and `cancelled`. `waiting_user` is a run
-parked on a durable wind decision: it holds no worker and is queued again (same
-id) when the decision is answered.
+`waiting_user`, `waiting_computer`, `completed`, `failed` and `cancelled`.
+`waiting_user` is a run parked on a durable wind decision: it holds no worker
+and is queued again (same id) when the decision is answered. `waiting_computer`
+(B6) is a run that needs the personal computer while it is saved or stopped: the
+computer has been asked to wake, the run holds no worker, and it is queued again
+(same id) when the computer reports `running`; if it does not start in time the
+run ends `failed` with the reason, and it can be cancelled like any parked run.
 
 The lifecycle is recorded durably with `run_queued`, `run_started`,
 `run_completed`, `run_failed` and `run_cancelled` events, each with its
-`run_id`, plus `run_waiting_user` when a run parks on a decision (a parked run
-is not closed as an orphan on restart). Every change of a wind decision is
+`run_id`, plus `run_waiting_user` when a run parks on a decision and
+`run_waiting_computer` when it parks waiting for the computer (a parked run is
+not closed as an orphan on restart). Every change of a wind decision is
 recorded as kind `decision`: `text` = the new state, `run_id` = its run when it
 has one, and `payload` = the same object `/api/winds/pending` returns
 (deduplicate by `id` + `revision` + `state`). A resumed wind run also records

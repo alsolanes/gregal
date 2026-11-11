@@ -435,22 +435,41 @@ func postWindMessage(s *Server, w companion.Wind, source, text string) {
 
 // postWindMessageJob és postWindMessage amb l'id del recordatori que parla.
 func postWindMessageJob(s *Server, w companion.Wind, source, job, text string) {
+	// Un recordatori simple és el text que l'usuari va dictar: no hi ha res
+	// a aprendre i disparar-lo no ha de cridar cap model (B8).
+	learn := source != "remind" || job == "" || !windRemindIsSimple(s, job)
+	postWindMessageLinked(s, w, source, job, text, windMessageLinks{Learn: learn})
+}
+
+// windMessageLinks és el que acompanya un missatge proactiu (B6): el run que
+// l'ha preparat, els resultats, si en cal aprendre i si ha de callar (el
+// pressupost d'atenció és esgotat: va al fil i a la safata, però no sona).
+type windMessageLinks struct {
+	RunID int64
+	Refs  []string
+	Learn bool
+	Hold  bool
+}
+
+// postWindMessageLinked fa parlar el vent amb el missatge lligat al seu run i
+// resultats. Torna l'id del missatge.
+func postWindMessageLinked(s *Server, w companion.Wind, source, job, text string, l windMessageLinks) string {
 	hist := windHistory(s, w.ID)
 	hist.mu.Lock()
-	msg := llm.Message{Role: "assistant", Content: text, Ts: time.Now().Unix(), ID: newMessageID()}
+	msg := llm.Message{Role: "assistant", Content: text, Ts: time.Now().Unix(), ID: newMessageID(),
+		RelatedRunID: l.RunID, ResultRefs: l.Refs}
 	history := append(append([]llm.Message(nil), hist.messages...), msg)
 	if err := saveWindHistoryTo(s, w, hist.name, history); err == nil {
 		hist.messages = podaHistorialVent(history)
 	}
 	hist.mu.Unlock()
-	// Un recordatori simple és el text que l'usuari va dictar: no hi ha res
-	// a aprendre i disparar-lo no ha de cridar cap model (B8).
-	if source != "remind" || job == "" || !windRemindIsSimple(s, job) {
+	if l.Learn {
 		goBackground(func() { s.windLearn(w, source, text) })
 	}
 	// Registre per a l'app (notificació local): el missatge és proactiu,
 	// l'usuari pot tenir l'app en segon pla. Best-effort, mai no bloqueja.
-	recordNovetatMsg(s, w, source, job, msg.ID, text)
+	recordNovetatMsgHold(s, w, source, job, msg.ID, text, l.Hold)
+	return msg.ID
 }
 
 // executeWindRemind dispara un recordatori: el text entra al xat del vent,
