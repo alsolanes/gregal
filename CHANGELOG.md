@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v1.71.2 - 2026-11-11 - La portada és el fil de Gregal
+
+- **Gregal Vents per a Android (1.74.2): la portada és el fil de Gregal.** A dalt
+  només hi ha la cara i el nom, amb el menú a l'esquerra i l'ordinador a la
+  dreta; sense lluïssor, pestanyes ni fila de cares. Quan hi ha feines en marxa,
+  una franja discreta sobre el camp les obre. Avui, Xats i Nova conversa són al
+  menú, amb Els meus vents i Explora.
+
 ## v1.71.1 - 2026-11-11 - Vents que no et paren a cada fitxer
 
 - **Un vent ja no demana permís fitxer a fitxer.** Si anaves a Codi i tornaves,

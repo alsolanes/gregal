@@ -69,9 +69,9 @@ android {
         manifestPlaceholders["gregalAppLabel"] = if (project.hasProperty("gregal.plotsPreview")) "Gregal Vents" else "Gregal"
         minSdk = 26
         targetSdk = 34
-        versionCode = if (project.hasProperty("gregal.plotsPreview")) 196 else 49
+        versionCode = if (project.hasProperty("gregal.plotsPreview")) 197 else 49
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        versionName = if (project.hasProperty("gregal.plotsPreview")) "1.74.1-vents" else "1.62.0"
+        versionName = if (project.hasProperty("gregal.plotsPreview")) "1.74.2-vents" else "1.62.0"
         manifestPlaceholders["gregalFcm"] = fcmOn.toString()
         if (fcmOn) fcmConfig.forEach { (k, v) -> buildConfigField("String", "FCM_" + k.uppercase(), "\"" + v.replace("\"", "") + "\"") }
     }
