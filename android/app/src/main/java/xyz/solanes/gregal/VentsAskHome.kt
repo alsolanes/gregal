@@ -279,6 +279,10 @@ internal fun VentsOpening(
     /** Qui es presenta al fil buit. */
     assistant: String = "Gregal",
     below: @Composable ColumnScope.() -> Unit = {},
+    /** La lluïssor de fons (la portada nova és un fil net, sense). */
+    halo: Boolean = true,
+    /** Just a sobre del camp: la franja «2 feines en marxa». */
+    aboveComposer: @Composable () -> Unit = {},
 ) {
     val p = LocalPal.current
     var focused by remember { mutableStateOf(false) }
@@ -287,7 +291,7 @@ internal fun VentsOpening(
         if (t.isEmpty() || busy) return
         onSend(t)
     }
-    Box(modifier.fillMaxSize().openingHalo(p.sea, p.lila).testTag("vents-opening")) {
+    Box((if (halo) modifier.fillMaxSize().openingHalo(p.sea, p.lila) else modifier.fillMaxSize()).testTag("vents-opening")) {
         Column(Modifier.fillMaxSize().imePadding().testTag(if (chat != null) "vents-home-chat" else "vents-home-intro")) {
             // Amb conversa oberta, el fil és l'únic protagonista: les cares són a
             // «Xats» i al calaix (main 48888fa). Sense conversa, escrivint s'aparten.
@@ -297,6 +301,7 @@ internal fun VentsOpening(
                 if (chat != null) chat()
                 else OpeningIntro(lang, name, assistant, showBelow = !focused && text.isBlank(), onPick = { send(it) }, below = below)
             }
+            aboveComposer()
             AskComposer(
                 lang, text, onText, busy, onPhoto = onPhoto, onDoc = onDoc, onSend = { send() },
                 onFocus = { focused = it },

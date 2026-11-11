@@ -13,6 +13,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Computer
+import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Mic
@@ -67,10 +68,12 @@ internal fun VentsChatHeader(
     onComputer: (() -> Unit)? = null,
     /** B6: el que aquest vent vigila (responsabilitats). */
     onWatch: (() -> Unit)? = null,
+    /** A la portada el botó de l'esquerra obre el menú (no torna enrere). */
+    menu: Boolean = false,
 ) {
     if (centered) {
         CenteredChatHeader(lang, title, subtitle, accent, style, mood, faces, onBack, onProfile, onComputer,
-            onWiki, onSessions, onTransfer)
+            onWiki, onSessions, onTransfer, menu)
         return
     }
     Column(Modifier.fillMaxWidth().background(Superficie)) {
@@ -135,13 +138,15 @@ private fun CenteredChatHeader(
     lang: String, title: String, subtitle: String, accent: Color, style: WindStyle, mood: WindMood,
     faces: List<Wind>, onBack: () -> Unit, onProfile: () -> Unit, onComputer: (() -> Unit)?,
     onWiki: (() -> Unit)?, onSessions: (() -> Unit)?, onTransfer: (() -> Unit)?,
+    menu: Boolean = false,
 ) {
     Row(
         Modifier.fillMaxWidth().background(Superficie).padding(horizontal = 8.dp, vertical = 6.dp).testTag("chat-header-centered"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.width(52.dp), contentAlignment = Alignment.CenterStart) {
-            ChatCircleButton(Icons.AutoMirrored.Rounded.ArrowBack, tr(lang, "app.vents.back"), onClick = onBack)
+            if (menu) ChatCircleButton(Icons.Rounded.Menu, tr(lang, "app.nav.menu"), Modifier.testTag("home-menu"), onClick = onBack)
+            else ChatCircleButton(Icons.AutoMirrored.Rounded.ArrowBack, tr(lang, "app.vents.back"), onClick = onBack)
         }
         Column(
             Modifier.weight(1f).clip(GregalShape.card).clickable(onClick = onProfile, role = Role.Button)

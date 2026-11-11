@@ -93,6 +93,9 @@ class VentsMessengerTest {
                 MaterialTheme(colorScheme = LightPal.scheme()) { VentsHome(vm, "ca", {}) {} }
             }
         }
+        ui.waitForIdle()
+        ui.runOnIdle { vm.openVentsPanel("chats") }
+        ui.waitForIdle()
         ui.onNodeWithText(tr("ca", "app.vents.localMode")).assertDoesNotExist()
         ui.onNodeWithContentDescription("Cerca converses i vents").assertExists().performClick()
         ui.onNodeWithText("Cerca per nom o missatge").assertIsDisplayed()

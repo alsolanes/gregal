@@ -117,6 +117,8 @@ fun CompanyScreen(vm: GregalViewModel, openDrawer: () -> Unit) {
 @Composable
 fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLibrary: () -> Unit = {}, openPet: (Pet?) -> Unit) {
     var feinesOpen by remember { mutableStateOf(false) }
+    var homeProfile by remember { mutableStateOf(false) }
+    var homeComputer by remember { mutableStateOf(false) }
     var cornerOpen by remember { mutableStateOf(false) }
     var gamesOpen by remember { mutableStateOf(false) }
     // Inici (preguntar primer) o Xats (la llista de converses).
@@ -222,6 +224,8 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
         when (panel) {
             "directory" -> { exploreOpen = false; searching = false; manage = true }
             "explore" -> { manage = false; searching = false; exploreOpen = true }
+            "today", "chats" -> { manage = false; searching = false; exploreOpen = false; tab = panel ?: "home" }
+            "new" -> { creation = "chat" }
         }
         panelShown = panel
     }
@@ -277,15 +281,32 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
             }
         }
     } else {
+        // La portada és el fil de Gregal (com la maqueta de l'assistent v2): capçalera
+        // centrada amb el menú a l'esquerra i l'ordinador a la dreta, res més a dalt.
+        // Les cares, Avui i Xats viuen al calaix.
+        val homeThread = !manage && !searching && tab == "home" && winds.isNotEmpty()
         Scaffold(containerColor = Superficie,
             topBar = {
-                Column {
+                if (homeThread) {
+                    val st = capUi.state
+                    VentsChatHeader(lang, st.name,
+                        when {
+                            capUi.going -> tr(lang, "app.cap.going")
+                            capUi.busy -> tr(lang, "app.cap.thinking")
+                            else -> ""
+                        },
+                        Color(st.argb), st.faceStyle,
+                        if (capUi.busy || capUi.going) WindMood.THINKING else WindMood.IDLE,
+                        onBack = openDrawer, onProfile = { homeProfile = true }, centered = true, menu = true,
+                        onComputer = { homeComputer = true })
+                } else Column {
                     TopAppBar(
-                        title = { Text(tr(lang, if (manage) "app.vents.myWinds" else "app.vents.title"), style = GregalType.title, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        title = { Text(if (!manage && tab != "home") askCopy(lang, tab) else tr(lang, if (manage) "app.vents.myWinds" else "app.vents.title"), style = GregalType.title, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         navigationIcon = {
-                            IconButton(onClick = { if (manage) manage = false else openDrawer() }) {
-                                Icon(if (manage) Icons.Rounded.ArrowBack else Icons.Rounded.Menu,
-                                    tr(lang, if (manage) "app.vents.back" else "app.nav.menu"), tint = Ink)
+                            val backHome = !manage && tab != "home"
+                            IconButton(onClick = { if (manage) manage = false else if (backHome) tab = "home" else openDrawer() }) {
+                                Icon(if (manage || backHome) Icons.Rounded.ArrowBack else Icons.Rounded.Menu,
+                                    tr(lang, if (manage || backHome) "app.vents.back" else "app.nav.menu"), tint = Ink)
                             }
                         },
                         actions = {
@@ -332,7 +353,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                         // («Vents») hi cap sencer en lloc de quedar tallat.
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.weight(1f)) {
-                                AskTabs(lang, tab, unread = newsCount.values.sum(), today = avui?.now?.count { it.state == "open" } ?: 0) { tab = it }
+                                if (tab == "home") AskTabs(lang, tab, unread = newsCount.values.sum(), today = avui?.now?.count { it.state == "open" } ?: 0) { tab = it }
                             }
                             if (!simple) {
                                 IconButton(onClick = { exploreOpen = !exploreOpen }) {
@@ -393,20 +414,13 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                     },
                     modifier = Modifier.fillMaxSize().padding(pad),
                     chat = if (chatting) ({ VentetThread(vm, lang, winds, homeList, Color(capSt.argb), showEmpty = false) }) else null,
-                    chatHeader = if (chatting) ({
-                        HomeThreadHeader(lang, capSt.name, Color(capSt.argb), capSt.faceStyle, (capUi.busy && capUi.live.isBlank()) || capUi.going)
-                    }) else null,
-                    top = { HomeFacesRow(lang, winds, news, busy, onTalk = { vm.openVentsChat("wind:" + it.id) }, onAll = { manage = true }) },
-                ) {
-                    val newsRows = inbox.filter { it.key.startsWith("wind:") && it.key.substringAfter(':') in news }
-                    TodaySection(lang, todayCards(lang, newsRows, news, windTasks.orEmpty().filter { it.running },
-                        emptyList(), null,
-                        onOpen = { vm.openVentsChat(it) }, onWork = { feinesOpen = true },
-                        onReminders = { vm.go(Screen.Automatitzacions) }, onBriefing = { vm.go(Screen.Automatitzacions) }).take(3),
-                        brief = todayBrief, briefWind = winds.firstOrNull { it.id == todayBrief?.windId },
-                        onBrief = { todayBrief?.windId?.takeIf { it.isNotBlank() }?.let { vm.openVentsChat("wind:$it") } })
-                    Spacer(Modifier.height(16.dp))
-                }
+                    halo = false,
+                    assistant = capSt.name.ifBlank { "Gregal" },
+                    aboveComposer = {
+                        val running = windTasks.orEmpty().count { it.running }
+                        if (running > 0) WorkStrip(lang, running) { feinesOpen = true }
+                    },
+                )
             } else if (!manage && !searching && tab == "today") {
                 val ww = remember(winds) { weatherWind(winds) }
                 val forecast = ww?.let { weatherMap[it.id] }?.takeIf { it.now != null }
@@ -530,6 +544,8 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     SharedInvitePopup(vm, lang) { vm.openVentsChat("shared:$it") }
     if (programatsOpen) ProgramatsDialog(vm, lang) { programatsOpen = false }
     if (feinesOpen) FeinesDialog(vm, lang, onOpenThread = { vm.openVentsChat("rot:$it") }) { feinesOpen = false }
+    if (homeProfile) VentetProfile(vm, lang) { homeProfile = false }
+    if (homeComputer) OrdinadorSheet(conn, lang, Color(capUi.state.argb)) { homeComputer = false }
     if (cornerOpen) CornerDialog(vm, lang) { cornerOpen = false }
     if (gamesOpen) GamesDialog(vm, lang) { gamesOpen = false }
     if (wikiOpen) WikiDialog(vm, lang) { wikiOpen = false }

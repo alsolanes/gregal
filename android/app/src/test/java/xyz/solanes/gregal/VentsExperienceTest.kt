@@ -109,6 +109,11 @@ class VentsExperienceTest {
         ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
             MaterialTheme(colorScheme = LightPal.scheme()) { CompanyScreen(vm) {} }
         } }
+        // La portada és el fil de Gregal; cerca, «Crea» i directori són a «Xats» (menú).
+        ui.waitForIdle()
+        if (vm.winds.value.isNotEmpty()) ui.onNodeWithTag("home-menu").assertExists()
+        ui.runOnIdle { vm.openVentsPanel("chats") }
+        ui.waitForIdle()
         val lang = vm.idioma.value
         ui.onNodeWithContentDescription(ventsCopy(lang, "explore")).performClick()
         // L'acció de clic directa: l'avís d'error (sense servidor a la prova) pot tapar el final del menú.
@@ -121,6 +126,11 @@ class VentsExperienceTest {
         ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
             MaterialTheme(colorScheme = LightPal.scheme()) { VentsHome(vm, "ca", {}) {} }
         } }
+        // La portada és el fil de Gregal; cerca, «Crea» i directori són a «Xats» (menú).
+        ui.waitForIdle()
+        if (vm.winds.value.isNotEmpty()) ui.onNodeWithTag("home-menu").assertExists()
+        ui.runOnIdle { vm.openVentsPanel("chats") }
+        ui.waitForIdle()
         // Les converses ocupen l'inici; gestionar els vents és una acció a part.
         // Buit o amb converses (si a la màquina hi ha un Gregal servint al
         // 8097, el model en carrega les reals), però mai el directori a dins.
@@ -144,6 +154,11 @@ class VentsExperienceTest {
         ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
             MaterialTheme(colorScheme = LightPal.scheme()) { VentsHome(vm, "ca", {}) {} }
         } }
+        // La portada és el fil de Gregal; cerca, «Crea» i directori són a «Xats» (menú).
+        ui.waitForIdle()
+        if (vm.winds.value.isNotEmpty()) ui.onNodeWithTag("home-menu").assertExists()
+        ui.runOnIdle { vm.openVentsPanel("chats") }
+        ui.waitForIdle()
         // Les converses són el primer pla per defecte; el Ventet continua al menú.
         ui.onNodeWithTag("ventet-row").assertDoesNotExist()
         ui.onNodeWithTag("where-chip").assertExists()
@@ -281,6 +296,11 @@ class VentsExperienceTest {
         ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
             MaterialTheme(colorScheme = LightPal.scheme()) { VentsHome(vm, "ca", {}) {} }
         } }
+        // La portada és el fil de Gregal; cerca, «Crea» i directori són a «Xats» (menú).
+        ui.waitForIdle()
+        if (vm.winds.value.isNotEmpty()) ui.onNodeWithTag("home-menu").assertExists()
+        ui.runOnIdle { vm.openVentsPanel("chats") }
+        ui.waitForIdle()
         ui.onNodeWithContentDescription(tr("ca", "app.vents.directory")).performClick()
         ui.onNodeWithText(tr("ca", "app.vents.myWinds")).assertExists()
         ui.onNodeWithText(tr("ca", "app.vents.defaultModel")).assertExists()

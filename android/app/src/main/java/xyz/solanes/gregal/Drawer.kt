@@ -34,6 +34,7 @@ import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Forum
+import androidx.compose.material.icons.rounded.Today
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Tag
@@ -168,6 +169,10 @@ private fun SimpleVentsDrawer(
             Spacer(Modifier.height(18.dp))
             val home = screen == Screen.Company || screen == Screen.Ventet
             DrawerRow(tr(lang, "nav.company"), home && panel == null, { vm.openVentsPanel(null); nav(Screen.Company) }) { DrawerWindIcon(vm) }
+            // La portada és el fil de Gregal: el que abans eren pestanyes i cares, aquí.
+            DrawerRow(askCopy(lang, "today"), false, { close(); vm.openVentsPanel("today") }, Icons.Rounded.Today)
+            DrawerRow(askCopy(lang, "chats"), false, { close(); vm.openVentsPanel("chats") }, Icons.Rounded.Forum)
+            DrawerRow(tr(lang, "app.vents.newChat"), false, { close(); vm.openVentsPanel("new") }, Icons.Rounded.Add)
             DrawerRow(tr(lang, "app.vents.myWinds"), home && panel == "directory", { close(); vm.openVentsPanel("directory") }, Icons.Rounded.Groups)
             DrawerRow(ventsCopy(lang, "explore"), home && panel == "explore", { close(); vm.openVentsPanel("explore") }, Icons.Rounded.AutoAwesome)
             DrawerRow(tr(lang, "nav.notes"), screen == Screen.Notes, { nav(Screen.Notes); vm.loadNotes() }, Icons.Rounded.EditNote)
