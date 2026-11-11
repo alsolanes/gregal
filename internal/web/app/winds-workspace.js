@@ -216,9 +216,14 @@
   copy.append(el('strong','',wind?.name||t('La colla','Your crew')));
   const phases={thinking:t('Preparant la resposta','Preparing a response'),searching:t('Cercant informació','Searching for information'),scheduling:t('Preparant el recordatori','Preparing the reminder'),working:t('Treballant en la resposta','Working on the response')};
   const activity=el('div','vw-thinking');activity.setAttribute('role',pending.text?'presentation':'status');const dots=el('span','vw-thinking-dots');dots.setAttribute('aria-hidden','true');for(let i=0;i<3;i++)dots.append(el('i'));
-  activity.append(el('span','',pending.text?t('Escrivint la resposta','Writing the response'):phases[pending.phase]||phases.thinking),dots);copy.append(activity);
+  // A crew posts each message to the thread (followCrew repaints it) and also streams it as tokens: if the
+  // history already shows this text, the live bubble keeps only the dots instead of a second copy.
+  const flat=x=>String(x||'').replace(/\s+/g,' ').trim();
+  const already=!!pending.text&&state.history.some(h=>h.from!=='user'&&flat(withoutSpeaker(h.text,wind?.name||h.speaker_name))===flat(withoutSpeaker(pending.text,wind?.name)));
+  const writing=!!pending.text&&!already;
+  activity.append(el('span','',writing?t('Escrivint la resposta','Writing the response'):phases[pending.phase]||phases.thinking),dots);copy.append(activity);
   // Streamed text is formatted as it arrives, like the finished message it becomes.
-  if(pending.text){const body=el('div','vw-message-text vw-stream-text'),shown=choicesStrip(withoutSpeaker(pending.text,wind?.name)).replace(/```(?:chart|gregal-plot)\n[\s\S]*?```/g,'\n_'+t('Preparant un gràfic…','Preparing a chart…')+'_\n');if(root.gregalMD)body.innerHTML=root.gregalMD.render(shown);else body.textContent=shown;copy.append(body);}
+  if(writing){const body=el('div','vw-message-text vw-stream-text'),shown=choicesStrip(withoutSpeaker(pending.text,wind?.name)).replace(/```(?:chart|gregal-plot)\n[\s\S]*?```/g,'\n_'+t('Preparant un gràfic…','Preparing a chart…')+'_\n');if(root.gregalMD)body.innerHTML=root.gregalMD.render(shown);else body.textContent=shown;copy.append(body);}
   row.append(copy);messages.append(row);if(follow)messages.scrollTop=messages.scrollHeight;
  }
  function schedulePending(){
