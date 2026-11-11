@@ -285,9 +285,13 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
         // centrada amb el menú a l'esquerra i l'ordinador a la dreta, res més a dalt.
         // Les cares, Avui i Xats viuen al calaix.
         val homeThread = !manage && !searching && tab == "home" && winds.isNotEmpty()
+        // B14: amb un servidor que té Gregal, la portada és el seu fil (fa la feina ell
+        // mateix); amb un servidor antic, el Ventet de sempre.
+        val gregalWind = winds.firstOrNull { it.id == "gregal" }
         Scaffold(containerColor = Superficie,
             topBar = {
-                if (homeThread) {
+                if (homeThread && gregalWind != null) Unit
+                else if (homeThread) {
                     val st = capUi.state
                     VentsChatHeader(lang, st.name,
                         when {
@@ -390,7 +394,11 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
             val inbox = if (manage) emptyList() else remember(winds, rotllanes, chats, rChats, inboxQuery, summaries) {
                 ventsInbox(winds, rotllanes, chats, rChats, inboxQuery, summaries)
             }
-            if (home) {
+            if (home && gregalWind != null) {
+                Box(Modifier.fillMaxSize().padding(pad)) {
+                    WindConversation(vm, lang, gregalWind, onBack = openDrawer, home = true)
+                }
+            } else if (home) {
                 // La portada: salutació, lluïssor i el compositor al mig. Quan hi ha
                 // conversa, aquesta mateixa pantalla passa a ser el xat —amb la
                 // lluïssor al darrere i el camp a baix— en lloc de saltar a una altra.
@@ -1091,7 +1099,9 @@ internal fun ConversationRow(
 
 /** El xat d'un vent a pantalla completa: capçalera amb la cara, bombolles, input. */
 @Composable
-internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onBack: () -> Unit, onWiki: () -> Unit = {}) {
+internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onBack: () -> Unit,
+    /** Portada de Gregal (B14): cara flotant amb menú i ordinador, i la lluïssor d'obertura. */
+    home: Boolean = false, onWiki: () -> Unit = {}) {
     val chats by vm.windChat.collectAsState()
     val loadingChat by vm.windChatLoading.collectAsState()
     val busy by vm.windBusy.collectAsState()
@@ -1154,10 +1164,15 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     val isBusy = busy.contains(wind.id)
     // Al fil, cada missatge és l'element del seu índex (l'estat buit només surt sense missatges).
     ReadReplyFromStart(listState, follow, isBusy, currentReplyKey(msgs))
-    Box(Modifier.fillMaxSize().background(Superficie)) {
+    val pal = LocalPal.current
+    Box(Modifier.fillMaxSize().background(Superficie).then(if (home) Modifier.openingBloom(accent, pal.lila, isBusy) else Modifier)) {
         Column(Modifier.fillMaxSize()) {
         // La capçalera diu qui és; «què està fent» es diu al final del fil.
-        VentsChatHeader(lang, wind.name,
+        if (home) VentsChatHeader(lang, wind.name, "", accent, wind.faceStyle,
+            if (isBusy) live[wind.id]?.mood ?: WindMood.THINKING else WindMood.IDLE,
+            onBack = onBack, onProfile = { profile = true }, centered = true, menu = true, compact = true,
+            onComputer = { computerOpen = true })
+        else VentsChatHeader(lang, wind.name,
             wind.role,
             accent, wind.faceStyle,
             if (isBusy) live[wind.id]?.mood ?: WindMood.THINKING else WindMood.IDLE,
@@ -1186,8 +1201,9 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                 item {
                     if (wind.id in loadingChat) ChatSkeleton(accent)
                     else ChatEmptyState(
-                        face = { WindHalo(size = 88, accent = accent, style = wind.faceStyle, mood = WindMood.HAPPY, tappable = true) },
-                        title = tr(lang, "app.vents.emptyChatTitle"),
+                        // A la portada de Gregal la cara ja és a dalt: aquí, només la salutació.
+                        face = { if (!home) WindHalo(size = 88, accent = accent, style = wind.faceStyle, mood = WindMood.HAPPY, tappable = true) },
+                        title = if (home) askGreeting(lang, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY), "") else tr(lang, "app.vents.emptyChatTitle"),
                         hint = tr(lang, "app.company.windHello", wind.name),
                         // Com al Grok: tres primeres frases a un toc, segons l'ofici del vent.
                         suggestions = windStarters(lang, wind.specialty),

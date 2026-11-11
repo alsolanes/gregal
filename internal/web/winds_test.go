@@ -51,6 +51,14 @@ func TestWindCatalogSaveListDelete(t *testing.T) {
 	if err := json.Unmarshal(body.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
 	}
+	// Gregal, l'assistent principal (B14), hi és sempre; aquí es miren els vents desats.
+	kept := out.Winds[:0]
+	for _, w := range out.Winds {
+		if w["id"] != gregalWindID {
+			kept = append(kept, w)
+		}
+	}
+	out.Winds = kept
 	if len(out.Winds) != 2 {
 		t.Fatalf("vull 2 vents, tinc %d", len(out.Winds))
 	}

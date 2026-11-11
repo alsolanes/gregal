@@ -200,6 +200,45 @@ internal fun Modifier.openingHalo(accent: Color, lila: Color, centerY: Float = .
     }
 }
 
+/**
+ * L'obertura de Gregal (B14): en obrir l'app, la lluïssor floreix al voltant de
+ * la cara (≈0,7 s) i s'assossega fins a un rastre suau que acompanya el fil;
+ * mentre treballa, respira una mica més. Sense animacions: el rastre suau, fix.
+ */
+@Composable
+internal fun Modifier.openingBloom(accent: Color, lila: Color, working: Boolean): Modifier {
+    val motion = LocalWindMotion.current
+    val bloom = remember { androidx.compose.animation.core.Animatable(if (motion) 0f else 1f) }
+    LaunchedEffect(Unit) {
+        if (!motion) return@LaunchedEffect
+        bloom.animateTo(1f, androidx.compose.animation.core.tween(700, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+    }
+    val settle = remember { androidx.compose.animation.core.Animatable(if (motion) 0f else 1f) }
+    LaunchedEffect(Unit) {
+        if (!motion) return@LaunchedEffect
+        kotlinx.coroutines.delay(650)
+        settle.animateTo(1f, androidx.compose.animation.core.tween(1400, easing = androidx.compose.animation.core.LinearOutSlowInEasing))
+    }
+    val work by androidx.compose.animation.core.animateFloatAsState(if (working) 1f else 0f, androidx.compose.animation.core.tween(600), label = "halo-work")
+    return drawWithCache {
+        val w = size.width
+        val h = size.height
+        val b = bloom.value
+        val rest = 1f - .78f * settle.value // 1 → 0,22
+        val strength = (b * rest + .12f * work).coerceIn(0f, 1f)
+        val c1 = Offset(w * .5f, h * .045f)
+        val r1 = w * (.35f + .55f * b)
+        val halo = Brush.radialGradient(0f to accent.copy(alpha = .55f * strength), .7f to Color.Transparent, center = c1, radius = r1)
+        val c2 = Offset(w * .66f, h * .1f)
+        val r2 = w * (.25f + .45f * b)
+        val lilaHalo = Brush.radialGradient(0f to lila.copy(alpha = .35f * strength), .7f to Color.Transparent, center = c2, radius = r2)
+        onDrawBehind {
+            scale(1f, .55f, pivot = c1) { drawCircle(halo, radius = r1, center = c1) }
+            scale(1f, .5f, pivot = c2) { drawCircle(lilaHalo, radius = r2, center = c2) }
+        }
+    }
+}
+
 /** La salutació gran de la portada, amb el degradat de l'escriptori (accent → lila → aqua en fosc; tinta en clar). */
 @Composable
 internal fun OpeningGreeting(text: String, modifier: Modifier = Modifier) {

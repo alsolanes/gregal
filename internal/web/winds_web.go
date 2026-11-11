@@ -180,6 +180,8 @@ func (s *Server) handleWinds(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "GET, POST or DELETE required", http.StatusMethodNotAllowed)
 		return
 	}
+	// Gregal, l'assistent principal (B14), hi és sempre.
+	s.ensureGregalWind()
 	list, err := s.winds.List()
 	if err != nil {
 		http.Error(w, err.Error(), 500)

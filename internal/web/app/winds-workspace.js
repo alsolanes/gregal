@@ -108,8 +108,14 @@
   renderNav();page.replaceChildren();messages=null;input=null;composer=null;
   const top=el('header','vw-top');const menu=iconOnly('menu',t('Obre la navegació','Open navigation'),()=>{if(matchMedia('(max-width:760px)').matches){setDrawer(!document.body.classList.contains('vw-drawer'));return;}const side=$('side');const reopen=side.classList.contains('closed')||side.classList.contains('compact');if(reopen&&root.setSideCompact)root.setSideCompact(false);if(root.setSide)root.setSide(reopen);},'vw-mobile-menu');menu.setAttribute('aria-expanded',String(document.body.classList.contains('vw-drawer')));top.append(menu,el('span','',t('Vents','Winds')),el('span','vw-separator','/'),state.view==='chat'?owner():el('span','',state.active?.name||squadName(state.squad)));
   // «La colla» ja és a la barra lateral (i a la de sota, al mòbil): aquí només hi van les accions del fil obert.
-  if(state.view==='chat'&&state.active?.legacyWind)top.append(btn(t('Fils','Threads'),windThreads,'vw-top-action'));
-  if(state.view==='chat'&&state.active?.id)top.append(btn(t('Desa a la wiki','Save to wiki'),summarizeToWiki,'vw-top-action'));
+  // Fil de Gregal (B14): a dalt només la seva cara, flotant, i l'ordinador; la lluïssor floreix en obrir.
+  const gregalHome=state.view==='chat'&&state.active?.wind==='gregal';page.classList.toggle('vw-gregal',gregalHome);
+  if(gregalHome){const g=state.winds.find(w=>w.id==='gregal');page.style.setProperty('--g-accent',g?.color||'var(--accent)');top.classList.add('vw-top-gregal');
+   const who=btn('',()=>profile(g),'vw-gregal-face');who.setAttribute('aria-label',g?.name||'Gregal');who.title=g?.name||'Gregal';who.append(face(g));
+   const pc=iconOnly('navegador',t("L'ordinador de Gregal","Gregal's computer"),()=>openComputer(),'vw-gregal-pc');
+   top.replaceChildren(top.firstChild,who,pc);}
+  if(state.view==='chat'&&state.active?.legacyWind&&!gregalHome)top.append(btn(t('Fils','Threads'),windThreads,'vw-top-action'));
+  if(state.view==='chat'&&state.active?.id&&!gregalHome)top.append(btn(t('Desa a la wiki','Save to wiki'),summarizeToWiki,'vw-top-action'));
   page.append(top);
   content=el('div','vw-content');page.append(content);status=el('div','vw-status');status.setAttribute('role','status');status.textContent=state.notice?.thread===state.active?.id?state.notice?.text||'':'';page.append(status);
   if(state.view==='home')home();else if(state.view==='crew')team();else if(state.view==='library')library();else if(state.view==='project')projectView();else if(state.view==='tasks')tasks();else if(state.view==='chat')chatView();else if(state.view==='task')taskView();else if(state.view==='wiki')wikiView();else if(state.view==='pati')patiView();else if(state.view==='saved')savedView();else if(state.view==='notes')notesView();else if(state.view==='shared')root.gregalShared?.view(content,{chat:state.active,back:()=>route('home')});
@@ -270,6 +276,9 @@
  // Inici, a l'estil de Grok i dots: salutació, compositor gran, la colla a un
  // toc i «Avui»: el que hi ha en marxa i el que ve, en targetes.
  function home(){
+  // B14: la portada és el fil de Gregal, l'assistent que fa la feina ell mateix (com dots/Duet).
+  const gregal=state.winds.find(w=>w.id==='gregal');
+  if(gregal&&!state.homeClassic){content.classList.add('vw-home');talkTo(gregal).catch(fail);return;}
   content.classList.add('vw-home');
   const hour=new Date().getHours(),greet=hour<6?t('Bona nit','Good night'):hour<13?t('Bon dia','Good morning'):hour<20?t('Bona tarda','Good afternoon'):t('Bon vespre','Good evening');
   const welcome=el('div','vw-welcome'),orb=el('div','vw-orb');orb.append(figure(crew()[0],true));

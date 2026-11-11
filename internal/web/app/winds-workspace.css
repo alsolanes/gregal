@@ -739,3 +739,26 @@ html body.shell-winds .vw-nav-item:focus-visible, html body.shell-winds .vw-send
   .vw-messages .vw-message.vw-run-last:last-of-type { animation:vw-in .18s ease-out; }
   @keyframes vw-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
 }
+
+/* ---- Fil de Gregal com a portada (B14) ----
+   A dalt, només la cara flotant (centrada) i l'ordinador; sense barra ni
+   rutes. En obrir, la lluïssor floreix al voltant de la cara (≈0,7 s) i
+   s'assossega fins a un rastre suau; mentre treballa, respira una mica. */
+.wind-workspace.vw-gregal { position:relative; isolation:isolate; }
+.wind-workspace.vw-gregal::before {
+  content:""; position:absolute; inset:-10% 0 auto 0; height:62%; z-index:-1; pointer-events:none;
+  background:
+    radial-gradient(42% 46% at 50% 6%, color-mix(in srgb, var(--g-accent) 55%, transparent), transparent 72%),
+    radial-gradient(30% 34% at 66% 14%, color-mix(in srgb, var(--lila, #B69CFF) 40%, transparent), transparent 72%);
+  opacity:.24; transform-origin:50% 0;
+  animation:vw-gregal-bloom 2.1s cubic-bezier(.2,.7,.2,1) both;
+}
+.wind-workspace.vw-gregal:has(.vw-pending)::before { animation:vw-gregal-breathe 3.2s ease-in-out infinite; }
+@keyframes vw-gregal-bloom { 0% { opacity:0; transform:scale(.55); } 33% { opacity:1; transform:scale(1.08); } 100% { opacity:.24; transform:scale(1); } }
+@keyframes vw-gregal-breathe { 0%,100% { opacity:.24; } 50% { opacity:.4; } }
+@media(prefers-reduced-motion:reduce) { .wind-workspace.vw-gregal::before { animation:none; opacity:.24; } }
+.vw-top.vw-top-gregal { display:grid; grid-template-columns:44px 1fr 44px; align-items:center; border:0; background:transparent; min-height:64px; padding-top:6px; }
+.vw-top.vw-top-gregal .vw-gregal-face { justify-self:center; display:grid; place-items:center; width:48px; height:48px; padding:0; border:0; border-radius:50%; background:transparent; cursor:pointer; }
+.vw-top.vw-top-gregal .vw-gregal-face .winds-face { width:40px; height:40px; }
+.vw-top.vw-top-gregal .vw-gregal-pc { justify-self:end; width:40px; height:40px; border:1px solid var(--line-hi); border-radius:50%; background:color-mix(in srgb, var(--surface) 70%, transparent); }
+.vw-top.vw-top-gregal > :first-child:not(.vw-mobile-menu) { visibility:hidden; }

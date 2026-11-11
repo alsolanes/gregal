@@ -112,6 +112,7 @@ func (s *Server) windSpecialists(task string) []specialistCard {
 }
 
 func (s *Server) rankWindSpecialists(winds []companion.Wind, task string) []specialistCard {
+	winds = withoutGregal(winds)
 	words := paraulesDe(task)
 	taskKit := inferKit(task)
 	out := make([]specialistCard, 0, len(winds))
@@ -275,7 +276,7 @@ func (s *Server) runWindTool(ctx context.Context, argsJSON string) (string, erro
 
 func mustWinds(s *Server) []companion.Wind {
 	w, _ := s.winds.List()
-	return w
+	return withoutGregal(w)
 }
 
 // windAskOnce pregunta a un vent sense tocar la seva conversa: la consulta

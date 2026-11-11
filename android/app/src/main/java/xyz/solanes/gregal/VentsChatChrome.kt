@@ -70,10 +70,12 @@ internal fun VentsChatHeader(
     onWatch: (() -> Unit)? = null,
     /** A la portada el botó de l'esquerra obre el menú (no torna enrere). */
     menu: Boolean = false,
+    /** Portada de Gregal: només la cara, petita i flotant, sense nom ni fons (B14). */
+    compact: Boolean = false,
 ) {
     if (centered) {
         CenteredChatHeader(lang, title, subtitle, accent, style, mood, faces, onBack, onProfile, onComputer,
-            onWiki, onSessions, onTransfer, menu)
+            onWiki, onSessions, onTransfer, menu, compact)
         return
     }
     Column(Modifier.fillMaxWidth().background(Superficie)) {
@@ -139,9 +141,11 @@ private fun CenteredChatHeader(
     faces: List<Wind>, onBack: () -> Unit, onProfile: () -> Unit, onComputer: (() -> Unit)?,
     onWiki: (() -> Unit)?, onSessions: (() -> Unit)?, onTransfer: (() -> Unit)?,
     menu: Boolean = false,
+    compact: Boolean = false,
 ) {
     Row(
-        Modifier.fillMaxWidth().background(Superficie).padding(horizontal = 8.dp, vertical = 6.dp).testTag("chat-header-centered"),
+        Modifier.fillMaxWidth().then(if (compact) Modifier else Modifier.background(Superficie))
+            .padding(horizontal = 8.dp, vertical = if (compact) 2.dp else 6.dp).testTag("chat-header-centered"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.width(52.dp), contentAlignment = Alignment.CenterStart) {
@@ -153,8 +157,8 @@ private fun CenteredChatHeader(
                 .padding(vertical = 2.dp),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            WindHalo(accent, style, size = GregalChat.headerAvatar, mood = mood, stacked = faces.drop(1), online = false, showKit = faces.size <= 1)
-            Text(title, color = Ink, fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold,
+            WindHalo(accent, style, size = if (compact) 38 else GregalChat.headerAvatar, mood = mood, stacked = faces.drop(1), online = false, showKit = faces.size <= 1)
+            if (!compact) Text(title, color = Ink, fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (subtitle.isNotBlank()) Text(subtitle, color = Muted, style = GregalType.chatMeta,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("chat-header-status"))

@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -485,6 +486,9 @@ func TestRespRestartKeepsCursors(t *testing.T) {
 // Pressupost de compute: passat el límit, cap crida i el canvi queda pendent.
 func TestRespBudgetsAreSeparate(t *testing.T) {
 	s := respTestServer(t)
+	// Les hores tranquil·les (22:00–08:00 per defecte) farien silenciós el primer
+	// avís si el test corre de nit: aquí se n'escullen unes que no inclouen ara.
+	quietAwayFromNow(t, s)
 	model := &respModel{}
 	model.install(t)
 	page := newRespPage(t, "v0")
@@ -735,5 +739,20 @@ func TestRespHistoryCarriesLinks(t *testing.T) {
 	}
 	if _, ok := rows[1]["relatedRunId"]; ok {
 		t.Fatalf("un missatge normal porta lligams: %+v", rows[1])
+	}
+}
+
+// quietAwayFromNow desa unes hores tranquil·les d'una hora que comencen d'aquí a
+// sis hores, perquè els tests d'atenció no depenguin de l'hora en què corren.
+func quietAwayFromNow(t *testing.T, s *Server) {
+	t.Helper()
+	from := time.Now().Add(6 * time.Hour)
+	to := from.Add(time.Hour)
+	raw, _ := json.Marshal(map[string]string{"quiet_from": from.Format("15:04"), "quiet_to": to.Format("15:04"), "level": "normal"})
+	if err := os.MkdirAll(filepath.Dir(avuiSettingsPath(s)), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(avuiSettingsPath(s), raw, 0o600); err != nil {
+		t.Fatal(err)
 	}
 }

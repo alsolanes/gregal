@@ -103,6 +103,11 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 	// només eines de lectura i els seus propis missatges.
 	planTurn := isPlanTurn(ctx)
 	specs, notRun := windSpecs(), windNotRun
+	// Gregal (l'assistent principal, B14) té, a més, l'eina wind per consultar
+	// els especialistes.
+	if windIsMainCtx(ctx) {
+		specs = agent.SpecsAll()
+	}
 	if planTurn {
 		specs, notRun = planSpecs(), planNotRun
 	}
@@ -273,6 +278,11 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 				}
 			}
 			defer func(t0 time.Time) { temps.addEina(time.Since(t0)) }(time.Now())
+			// Gregal consulta un especialista: el torn del vent corre a part.
+			if name == "wind" && windIsMainCtx(ctx) {
+				out, err := gregalWindTool(s, ctx, argsJSON)
+				return out, nil, err
+			}
 			// Apps, publicar: les fa el servidor web, no el paquet agent.
 			if name == "app" || name == "publish" || name == "tunnel" || name == "calendar" || name == "mail" || name == "notes" || name == "connector" {
 				out, err := s.runBuildTool(ctx, scope.workspace, name, argsJSON)
@@ -341,6 +351,10 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 					return decision, reason
 				}
 				return "allow", "eina del vent"
+			}
+			// Gregal pot consultar els especialistes (cada un fa servir els seus permisos).
+			if name == "wind" && windIsMainCtx(ctx) {
+				return "allow", "Gregal consulta un especialista"
 			}
 			// El calaix del vent: només escriu a les dades del mateix vent (cap fitxer
 			// de la persona), així que també el poden fer servir les vigilàncies.
