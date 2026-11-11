@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v1.72.1 - 2026-11-11 - Què pot fer Gregal
+
+- **«Què pot fer Gregal».** Una guia curta i bonica, al mòbil (Vents 1.75.1) i a
+  l'escriptori: encarregar feina, recordatoris, vigilar coses, connectar
+  comptes, el seu ordinador, especialistes i webs, amb exemples que s'envien al
+  fil d'un toc. S'obre la primera vegada i des del menú (✦ a l'escriptori).
+
 ## v1.72.0 - 2026-11-11 - Gregal fa la feina ell mateix
 
 - **Gregal fa la feina ell mateix.** L'assistent principal ja no només reparteix:

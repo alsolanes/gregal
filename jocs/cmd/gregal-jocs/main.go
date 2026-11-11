@@ -12,7 +12,7 @@ import (
 
 // version es fixa en compilar: go build -ldflags "-X main.version=vX.Y.Z".
 // scripts/release.cjs la puja alhora que la del main.go de l'arrel.
-var version = "v1.72.0"
+var version = "v1.72.1"
 
 // repoDir l'omple la compilació (-ldflags "-X main.repoDir=..."), com a
 // Gregal.
