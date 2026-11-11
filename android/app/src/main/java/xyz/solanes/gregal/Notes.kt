@@ -489,9 +489,10 @@ internal fun AgileNote(vm: GregalViewModel, lang: String, start: NoteInput, page
         }
     }
     // El cursor al cos: el Scaffold el compon en mesurar, així que s'espera un fotograma si cal.
+    // Des de Compose 1.8 requestFocus() torna false (en lloc de llançar) si encara no hi és.
     LaunchedEffect(Unit) {
         repeat(10) {
-            if (runCatching { focus.requestFocus() }.isSuccess) return@LaunchedEffect
+            if (runCatching { focus.requestFocus() }.getOrDefault(false)) return@LaunchedEffect
             withFrameNanos { }
         }
     }
