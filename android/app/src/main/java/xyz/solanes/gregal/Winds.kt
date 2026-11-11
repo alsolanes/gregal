@@ -175,12 +175,13 @@ internal fun windProgressTiming(lang: String, live: WindLive, now: Long): String
 /**
  * Veus proactives (cor, recordatoris) que encara no has obert. Un vent hi és
  * fins que n'obres el xat. La primera vegada només compta l'últim dia, perquè
- * un historial vell no desperti tota la colla.
+ * un historial vell no desperti tota la colla. Les llegides en un altre lloc
+ * (fil obert al web o a un altre mòbil, «Avui») ja no compten (B7).
  */
 object WindNewsLogic {
     const val FIRST_RUN_WINDOW = 86_400L
     fun unseen(novetats: List<WindNovetat>, seen: Map<String, Long>, floor: Long): Set<String> =
-        novetats.filter { it.wind.isNotBlank() && it.ts > maxOf(seen[it.wind] ?: 0L, floor) }.map { it.wind }.toSet()
+        novetats.filter { !it.read && it.wind.isNotBlank() && it.ts > maxOf(seen[it.wind] ?: 0L, floor) }.map { it.wind }.toSet()
 
     /**
      * Les mateixes veus que [unseen], però amb quants missatges pendents té
@@ -189,7 +190,7 @@ object WindNewsLogic {
      * no costa cap crida més.
      */
     fun unseenCounts(novetats: List<WindNovetat>, seen: Map<String, Long>, floor: Long): Map<String, Int> =
-        novetats.filter { it.wind.isNotBlank() && it.ts > maxOf(seen[it.wind] ?: 0L, floor) }
+        novetats.filter { !it.read && it.wind.isNotBlank() && it.ts > maxOf(seen[it.wind] ?: 0L, floor) }
             .groupingBy { it.wind }.eachCount()
 }
 

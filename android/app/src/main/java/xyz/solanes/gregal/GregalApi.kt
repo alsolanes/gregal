@@ -1391,12 +1391,17 @@ internal fun parseDirs(raw: String): DirsInfo {
 /** Lectura pura de les respostes de la safata «Avui» i de les novetats (es prova sense xarxa). */
 object AvuiJson {
     fun novetats(raw: String): List<WindNovetat> =
-        GregalJson.decodeFromString<NovetatsDto>(raw).novetats.mapNotNull { j ->
-            if (j.text.isBlank()) null else WindNovetat(
-                ts = j.ts, wind = j.wind, name = j.name, source = j.source, text = j.text,
-                job = j.job, card = j.card, quiet = j.quiet, messageId = j.messageId,
-            )
-        }
+        GregalJson.decodeFromString<NovetatsDto>(raw).novetats.mapNotNull(::novetat)
+
+    /** Resposta de GET /api/winds/novetats?id=… (lectura d'un push). */
+    fun novetat(raw: String): WindNovetat? = GregalJson.decodeFromString<NovetatDto1>(raw).novetat?.let(::novetat)
+
+    private fun novetat(j: NovetatDto): WindNovetat? =
+        if (j.text.isBlank()) null else WindNovetat(
+            ts = j.ts, wind = j.wind, name = j.name, source = j.source, text = j.text,
+            job = j.job, card = j.card, quiet = j.quiet, messageId = j.messageId,
+            id = j.id, owner = j.owner, read = j.read,
+        )
 
     private fun card(j: AvuiCardDto): AvuiCard = AvuiCard(
         id = j.id, wind = j.wind, windName = j.windName,
@@ -1835,7 +1840,10 @@ internal class NovetatDto(
     val ts: Long = 0L, val wind: String = "", val name: String = "", val source: String = "", val text: String = "",
     val job: String = "", val card: String = "", val quiet: Boolean = false,
     @SerialName("message_id") val messageId: String = "",
+    val id: String = "", val owner: String = "", val read: Boolean = false,
 )
+
+@Serializable internal class NovetatDto1(val novetat: NovetatDto? = null)
 
 @Serializable internal class NovetatsDto(val novetats: List<NovetatDto> = emptyList())
 

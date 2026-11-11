@@ -29,6 +29,15 @@ val backendAbis = if (onlyAbi == null) allBackendAbis
         require(it.isNotEmpty()) { "gregal.abi ha de ser un de: ${allBackendAbis.keys}" }
     }
 
+// Push FCM (B7): només amb la configuració de Firebase del client fora del
+// repositori (~/.gradle/gradle.properties o -P): gregal.fcm.projectId,
+// gregal.fcm.appId, gregal.fcm.apiKey i gregal.fcm.senderId. Sense totes
+// quatre, l'APK és la de sempre (sense Firebase) i els avisos de fons van pel
+// sondeig de WindWatch. El servidor necessita, a part, GREGAL_FCM_CREDENTIALS.
+val fcmConfig = listOf("projectId", "appId", "apiKey", "senderId")
+    .associateWith { (findProperty("gregal.fcm.$it") as String?)?.trim().orEmpty() }
+val fcmOn = fcmConfig.values.all { it.isNotEmpty() }
+
 android {
     namespace = "xyz.solanes.gregal"
     compileSdk = 36
@@ -41,6 +50,8 @@ android {
         versionCode = if (project.hasProperty("gregal.plotsPreview")) 194 else 49
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         versionName = if (project.hasProperty("gregal.plotsPreview")) "1.73.0-vents" else "1.62.0"
+        manifestPlaceholders["gregalFcm"] = fcmOn.toString()
+        if (fcmOn) fcmConfig.forEach { (k, v) -> buildConfigField("String", "FCM_" + k.uppercase(), "\"" + v.replace("\"", "") + "\"") }
     }
 
     // L'APK surt amb el nom de l'app i la versió: «Gregal-Vents-<versió>-arm64-v8a.apk» no
@@ -56,6 +67,7 @@ android {
     }
 
     sourceSets["main"].jniLibs.srcDir(backendOut)
+    if (fcmOn) sourceSets["main"].java.srcDir("src/fcm/java")
     // Un APK per ABI (app-<abi>-debug.apk) perquè cada mòbil només baixi el
     // seu backend, més l'universal (Gregal-Vents-<versió>.apk) per a qui no
     // sàpiga quin li toca. Tots comparteixen versionCode i signatura: el
@@ -104,6 +116,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = fcmOn
     }
 }
 
@@ -195,6 +208,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
     implementation("com.squareup.okhttp3:okhttp:5.4.0")
     implementation("com.squareup.okhttp3:okhttp-sse:5.4.0")
+    if (fcmOn) implementation("com.google.firebase:firebase-messaging:24.1.2")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")

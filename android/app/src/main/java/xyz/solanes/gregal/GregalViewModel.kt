@@ -5473,7 +5473,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         // Prova visible que el vent ha actuat de debò: només sona
                         // quan l'eina remind s'ha cridat (mai d'una promesa buida).
                         showTurnActions(windId, r)
-                        if (!source.local) WindWatch.expect(appContext, r.remindAt)
+                        WindWatch.reminded(appContext, r.remindAt, remote = !source.local) // B7: permís en context
                     }
                 } catch (_: WindStreamUnavailable) {
                     dropStreamingBubble(windId)
@@ -5485,7 +5485,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         answered = r.text.isNotBlank()
                         answer = r.text
                         showTurnActions(windId, r)
-                        if (!source.local) WindWatch.expect(appContext, r.remindAt)
+                        WindWatch.reminded(appContext, r.remindAt, remote = !source.local) // B7: permís en context
                     }
                 }
                 // El vent pot haver programat un avís (remind): posa al dia
@@ -5571,7 +5571,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         partial = r.parcial
                         if (r.text.isNotBlank()) { answered = true; answer = r.text }
                         showTurnActions(windId, r)
-                        if (!source.local) WindWatch.expect(appContext, r.remindAt)
+                        WindWatch.reminded(appContext, r.remindAt, remote = !source.local) // B7: permís en context
                     }
                 } catch (_: WindStreamUnavailable) {
                     dropStreamingBubble(windId)
@@ -5587,7 +5587,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         partial = r.parcial
                         if (r.text.isNotBlank()) { answered = true; answer = r.text }
                         showTurnActions(windId, r)
-                        if (!source.local) WindWatch.expect(appContext, r.remindAt)
+                        WindWatch.reminded(appContext, r.remindAt, remote = !source.local) // B7: permís en context
                     }
                 }
                 if (isCompanionOrigin(source, epoch)) loadJobs()

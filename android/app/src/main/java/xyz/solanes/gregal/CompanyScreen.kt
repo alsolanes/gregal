@@ -159,7 +159,8 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     // Veus proactives per obrir: es consulten en obrir els Vents i, amb l'app
     // oberta, cada 20 s (en segon pla, WindWatch cada 15 min). Un missatge nou
     // d'un vent arriba gairebé al moment, com als grans assistents.
-    LifecyclePoll(conn) { while (true) { vm.refreshWindNews(); kotlinx.coroutines.delay(20_000) } }
+    // B7: stream d'esdeveniments amb cursor (VentsStream.kt); si no hi és, sondeig de 20 s.
+    NovetatsLive(conn) { vm.refreshWindNews() }
     // La mascota: en obrir els Vents (o canviar de lloc) diu què ha passat mentrestant.
     LaunchedEffect(conn) { vm.loadCap() }
     // Racó, Partits i Arena són plugins: només surten si el servidor els té encesos.
@@ -179,25 +180,8 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     // Partits i l'Arena només viuen al servidor de Gregal Jocs (gregal-jocs).
     // Mentre no se sap (llista buida), tot es mostra com abans.
     fun pluginOn(id: String) = if (plugins.isEmpty()) true else plugins[id] == true
-    val ventJobs by vm.jobs.collectAsState()
-    // Les notificacions es demanen soles quan hi ha avisos (13+): sense el
-    // diàleg del sistema el permís queda denegat i no sona mai res.
-    val notifCtx = androidx.compose.ui.platform.LocalContext.current
-    var notifAsked by remember { mutableStateOf(false) }
-    val notifLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
-    ) { vm.loadJobs() }
-    LaunchedEffect(ventJobs) {
-        if (android.os.Build.VERSION.SDK_INT >= 33 && !notifAsked &&
-            ventJobs.any { it.enabled && (it.kind == "event" || it.kind == "remind") } &&
-            androidx.core.content.ContextCompat.checkSelfPermission(
-                notifCtx, android.Manifest.permission.POST_NOTIFICATIONS
-            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
-        ) {
-            notifAsked = true
-            notifLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-        }
-    }
+    // El permís d'avisos ja no es demana aquí (B7): una sola política
+    // contextual i durable a NotifPermission.kt.
     val open by vm.ventsOpen.collectAsState()
     var creation by remember { mutableStateOf<String?>(null) }
     var menu by remember { mutableStateOf(false) }
@@ -1138,6 +1122,10 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     val openNews by vm.windNewsCount.collectAsState()
     val openNewsTs = openNews[wind.id]
     LaunchedEffect(openNewsTs) { if (openNewsTs != null) { vm.loadWindChat(wind.id); vm.markWindNewsSeen(wind.id) } }
+    // B7: fil visible = novetats llegides a tot arreu; obrir des d'un avís porta al missatge exacte.
+    val chatConn by vm.conn.collectAsState()
+    ThreadReadEffect(chatConn, wind.id, openNewsTs)
+    FocusMessageEffect("wind:${wind.id}", listState, msgs.map { it.id })
     val follow = rememberChatFollow(listState, wind.id)
     var liveFrom by remember(wind.id) { mutableIntStateOf(Int.MAX_VALUE) }
     LaunchedEffect(wind.id, msgs.size) { if (msgs.isNotEmpty() && liveFrom == Int.MAX_VALUE) liveFrom = msgs.size }

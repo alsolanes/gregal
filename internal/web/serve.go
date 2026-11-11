@@ -1209,6 +1209,9 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	if s.hub != nil {
 		scope = s.hub.keyFor(s.user, scope)
 	}
+	if userWideScope(r) {
+		scope = ""
+	}
 	var got []events.Event
 	var err error
 	if raw := r.URL.Query().Get("run_id"); raw != "" {
@@ -1229,6 +1232,9 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	if len(got) > 0 {
 		next = got[len(got)-1].ID
 	}
+	// El cursor avança amb tot el llegit, encara que el filtre de tipus
+	// n'amagui una part: el client no torna a demanar el mateix tros.
+	got = filterEventKinds(got, eventKinds(r))
 	writeJSON(w, map[string]any{"events": got, "cursor": after, "next": next})
 }
 
@@ -1273,6 +1279,7 @@ func (s *Server) handleEventsStream(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	kinds := eventKinds(r)
 
 	fl, ok := w.(http.Flusher)
 	if !ok {
@@ -1306,8 +1313,10 @@ func (s *Server) handleEventsStream(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		for _, e := range got {
-			if err := writeEventSSE(w, fl, e); err != nil {
-				return
+			if kinds == nil || kinds[e.Kind] {
+				if err := writeEventSSE(w, fl, e); err != nil {
+					return
+				}
 			}
 			after = e.ID
 		}
@@ -1374,7 +1383,48 @@ func eventScope(s *Server, r *http.Request) (string, error) {
 	if s.hub != nil {
 		scope = s.hub.keyFor(s.user, scope)
 	}
+	if userWideScope(r) {
+		return "", nil
+	}
 	return scope, nil
+}
+
+// userWideScope: ?scope=user llegeix tots els events del compte, no només
+// els d'una sessió. És el que fa servir l'app per a les novetats (B7), que
+// no pertanyen a cap pestanya. El filtre per usuari continua igual.
+func userWideScope(r *http.Request) bool {
+	return strings.TrimSpace(r.URL.Query().Get("scope")) == "user"
+}
+
+// eventKinds llegeix ?kinds=a,b. Nil vol dir tots.
+func eventKinds(r *http.Request) map[string]bool {
+	raw := strings.TrimSpace(r.URL.Query().Get("kinds"))
+	if raw == "" {
+		return nil
+	}
+	out := map[string]bool{}
+	for _, k := range strings.Split(raw, ",") {
+		if k = strings.TrimSpace(k); k != "" {
+			out[k] = true
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func filterEventKinds(in []events.Event, kinds map[string]bool) []events.Event {
+	if kinds == nil {
+		return in
+	}
+	out := make([]events.Event, 0, len(in))
+	for _, e := range in {
+		if kinds[e.Kind] {
+			out = append(out, e)
+		}
+	}
+	return out
 }
 
 func writeEventSSE(w http.ResponseWriter, fl http.Flusher, e events.Event) error {

@@ -274,7 +274,8 @@
       const response = await root.api('/api/winds/novetats?des_de=' + seen.since);
       if (!response.ok) return;
       for (const n of (await response.json()).novetats || []) {
-        if (n.wind && n.ts > (seen[n.wind] || seen.since)) news.set(n.wind, Math.max(n.ts, news.get(n.wind) || 0));
+        // Read elsewhere (opened on the phone, «Avui»): no bubble here either (B7).
+        if (n.wind && !n.read && n.ts > (seen[n.wind] || seen.since)) news.set(n.wind, Math.max(n.ts, news.get(n.wind) || 0));
       }
       refreshNews();
     } catch (_) {}
@@ -289,6 +290,10 @@
     const seen = newsSeen();
     seen[id] = Math.max(news.get(id) || 0, Math.floor(Date.now() / 1000), seen[id] || 0);
     news.delete(id); saveSeen(seen); refreshNews();
+    // Same read state on every device: the phone drops its notification too (B7).
+    if (typeof root.api === 'function') {
+      root.api('/api/winds/novetats/read', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ wind:id }) }).catch(() => {});
+    }
   }
   const moodSince = new Map(), faceKeys = new WeakMap(), faceTones = new WeakMap();
   const clock = () => (root.performance?.now?.() ?? Date.now()) / 1000;
@@ -430,6 +435,7 @@
     const list = $('windsList'); list.replaceChildren();
     for (const w of state.winds) list.append(row(w.name, w.role || tr('winds.chatWithName', 'Conversa amb {name}', {name:w.name}), [w], () => openChat({ kind:'wind', id:w.id, name:w.name, members:[w.id] }), state.active?.kind === 'wind' && state.active.id === w.id));
     if (!state.winds.length) list.append(node('p', 'winds-empty', tr("winds.youDoNotHaveAnyWindsYetCreate", "La colla es prepara amb el teu primer encàrrec.")));
+    if (state.winds.length && messageFromHash()) setTimeout(openFromHash, 0);
     const chats = $('windsConversations'); chats.replaceChildren();
     for (const c of state.conversations) chats.append(row(c.name, c.members.length > 1 ? tr('winds.groupCount', 'En grup · {count} vents', {count:c.members.length}) : tr('winds.namedConversation', 'Conversa · {name}', {name:roster(c.members)[0]?.name || tr("winds.oneWind", "Un vent")}), roster(c.members), () => openChat({ ...c, kind:'rotllana' }), state.active?.kind === 'rotllana' && state.active.id === c.id));
     if (!state.conversations.length) chats.append(node('p', 'winds-empty', tr("winds.newConversationsWillAppearHere", "Les noves converses apareixeran aquí.")));
@@ -498,10 +504,38 @@
       avatar.setAttribute('aria-hidden', 'true');
       const content = node('div', 'winds-message-content');
       content.append(node('strong', 'winds-speaker', name), node('p', 'winds-message-text', text));
+      if (m.id) msg.dataset.messageId = m.id;
       msg.append(avatar, content); hist.append(msg);
     }
     hist.scrollTop = hist.scrollHeight;
+    // Opened for one message (#vent=…&missatge=…): land on it, not at the end (B7).
+    if (focusMessage && active.kind === 'wind' && focusMessage.wind === active.id) {
+      const target = [...hist.querySelectorAll('[data-message-id]')].find(el => el.dataset.messageId === focusMessage.id);
+      if (target) {
+        hist.scrollTop = Math.max(0, target.offsetTop - hist.offsetTop - 16);
+        target.classList.add('winds-message-focus');
+        focusMessage = null;
+      }
+    }
   }
+  // A link to one message of a wind's thread: #vent=<wind>&missatge=<message_id>.
+  let focusMessage = null;
+  function messageFromHash(hash = root.location?.hash || '') {
+    const p = new URLSearchParams(String(hash).replace(/^#/, ''));
+    const wind = p.get('vent'), id = p.get('missatge');
+    return wind ? { wind, id: id || '' } : null;
+  }
+  function openFromHash() {
+    const want = messageFromHash();
+    if (!want) return false;
+    const w = state.winds.find(x => x.id === want.wind);
+    if (!w) return false;
+    focusMessage = want.id ? want : null;
+    try { root.history?.replaceState(null, '', root.location.pathname + root.location.search); } catch (_) {}
+    openChat({ kind:'wind', id:w.id, name:w.name, members:[w.id] });
+    return true;
+  }
+  root.addEventListener?.('hashchange', () => { openFromHash(); });
   async function fetchHistory(active, version) {
     const d = await call(historyURL(active));
     if (chatVersion === version && state.active && chatKey(state.active) === chatKey(active)) drawHistory(d.history || [], active);
@@ -776,6 +810,6 @@
     })().finally(()=>{startingCrew=null;});
     return startingCrew;
   }};
-  root.gregalWinds={face, create:windGallery, mood:setMood, moodOf, watchNews, seen:seenNews};
+  root.gregalWinds={face, create:windGallery, mood:setMood, moodOf, watchNews, seen:seenNews, messageFromHash};
   root.loadWindsPage = function () { bind(); return load(); };
 })(window);

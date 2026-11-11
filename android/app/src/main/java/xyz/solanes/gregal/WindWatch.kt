@@ -60,6 +60,75 @@ object WindWatchLogic {
     fun toRing(novetats: List<WindNovetat>): List<WindNovetat> = novetats.filterNot { it.quiet }
 }
 
+/**
+ * Deduplicació dels avisos (B7): la mateixa novetat pot arribar pel push i
+ * pel sondeig, o tornar a sortir després d'un reinici. Es recorda per id
+ * opac (i per message_id, que és el mateix missatge) uns dies.
+ */
+object NoticeDedupe {
+    const val KEEP_MS = 7 * 24 * 3600_000L
+
+    /** Claus que identifiquen la novetat: l'id opac i el missatge; sense cap (servidor antic), ts + vent. */
+    fun keys(n: WindNovetat): List<String> = buildList {
+        if (n.id.isNotBlank()) add(n.id)
+        if (n.messageId.isNotBlank()) add("m:" + n.messageId)
+        if (isEmpty()) add("t:${n.ts}:${n.wind}")
+    }
+
+    /** D'aquest compte? Servidor sense comptes o novetat antiga sense owner: sí. */
+    fun ownedBy(n: WindNovetat, me: String): Boolean =
+        n.owner.isBlank() || me.isBlank() || n.owner.equals(me, ignoreCase = true)
+
+    /** Les que encara es poden anunciar: no llegides, no anunciades i del compte. */
+    fun announceable(list: List<WindNovetat>, announced: Map<String, Long>, me: String): List<WindNovetat> =
+        list.filter { n -> !n.read && ownedBy(n, me) && keys(n).none { it in announced } }
+
+    /** Afegeix les anunciades i oblida les velles. */
+    fun record(announced: Map<String, Long>, items: List<WindNovetat>, now: Long): Map<String, Long> =
+        (announced + items.flatMap(::keys).associateWith { now }).filterValues { now - it < KEEP_MS }
+
+    /** Vents amb l'última novetat ja llegida (en un altre lloc): el seu avís sobra. */
+    fun readWinds(list: List<WindNovetat>): Set<String> =
+        list.groupBy { it.wind }.mapNotNull { (w, l) -> w.takeIf { l.maxByOrNull { it.ts }?.read == true } }.toSet()
+}
+
+/** On es recorda què s'ha anunciat, per origen (servidor i compte). */
+object NoticeLedger {
+    private const val PREFS = "gregal_notice_ledger"
+
+    private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    @Synchronized
+    fun load(ctx: Context, origin: String): Map<String, Long> = try {
+        val o = org.json.JSONObject(prefs(ctx).getString(origin, "{}") ?: "{}")
+        o.keys().asSequence().associateWith { o.optLong(it) }
+    } catch (_: Exception) { emptyMap() }
+
+    @Synchronized
+    fun save(ctx: Context, origin: String, map: Map<String, Long>) {
+        val o = org.json.JSONObject()
+        map.forEach { (k, v) -> o.put(k, v) }
+        prefs(ctx).edit().putString(origin, o.toString()).apply()
+    }
+
+    /** Apunta ids ja vistos dins l'app (stream, push amb l'app oberta): no han de sonar després. */
+    @Synchronized
+    fun mark(ctx: Context, origin: String, ids: List<String>, now: Long = System.currentTimeMillis()) {
+        if (ids.isEmpty()) return
+        save(ctx, origin, (load(ctx, origin) + ids.filter { it.isNotBlank() }.associateWith { now })
+            .filterValues { now - it < NoticeDedupe.KEEP_MS })
+    }
+
+    /** Apunta [items] com a anunciades i torna les que eren noves (atòmic dins el procés). */
+    @Synchronized
+    fun claim(ctx: Context, origin: String, items: List<WindNovetat>, me: String, now: Long = System.currentTimeMillis()): List<WindNovetat> {
+        val before = load(ctx, origin)
+        val fresh = NoticeDedupe.announceable(items, before, me)
+        save(ctx, origin, NoticeDedupe.record(before, items.filter { NoticeDedupe.ownedBy(it, me) }, now))
+        return fresh
+    }
+}
+
 object WindWatch {
     const val ACTION_CHECK = "xyz.solanes.gregal.WIND_WATCH"
     private const val PREFS = "gregal_winds_watch"
@@ -113,6 +182,20 @@ object WindWatch {
         schedule(ctx)
     }
 
+    /**
+     * Un vent acaba de programar recordatoris (l'usuari li ho ha demanat):
+     * és el moment de demanar el permís d'avisos, una sola vegada
+     * (NotifPermission). Al servidor remot, a més, la passada s'avança.
+     */
+    fun reminded(ctx: Context, times: List<Long>, remote: Boolean) {
+        if (times.isEmpty()) return
+        NotifPermission.requestFor(ctx, NotifAskReason.REMINDER)
+        if (remote) expect(ctx, times)
+    }
+
+    /** Amb push actiu el sondeig només reconcilia: cada hora n'hi ha prou. */
+    const val PUSH_INTERVAL_MS = 60 * 60_000L
+
     /** Quan toca la passada: el primer avís pendent si arriba abans que l'interval. */
     fun nextCheckDelay(delayMs: Long, due: List<Long>, now: Long): Long {
         val first = due.firstOrNull { it + DUE_GRACE_MS > now } ?: return delayMs
@@ -122,9 +205,12 @@ object WindWatch {
     /** Programa la propera passada (exacta si es pot, si no inexacta). */
     fun schedule(ctx: Context, delayMs: Long = INTERVAL_MS) {
         if (!wanted(ctx)) return
+        // Registra (o refresca) el token de push si n'hi ha; si no, sondeig.
+        VentsPush.ensureRegistered(ctx)
         val am = ctx.getSystemService(AlarmManager::class.java)
         val now = System.currentTimeMillis()
-        val at = now + nextCheckDelay(delayMs, dueTimes(ctx, now), now)
+        val every = if (delayMs == INTERVAL_MS && VentsPush.active(ctx)) PUSH_INTERVAL_MS else delayMs
+        val at = now + nextCheckDelay(every, dueTimes(ctx, now), now)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && am.canScheduleExactAlarms())
                 am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending(ctx))
@@ -215,15 +301,21 @@ class WindWatchService : Service() {
                 }
                 // El cursor avança amb totes; només avisen les que el mòbil encara no ha mostrat.
                 val nouTs = WindWatchLogic.noves(noves, desDe).second
-                val perVent = WindWatchLogic.noves(WindWatchLogic.toRing(OfflineLogic.notYetShown(noves, shown)), desDe).first
+                val source = NotificationOrigins.remote(p)?.id.orEmpty()
+                // Llegides en un altre lloc (fil obert, web, «Avui»): l'avís d'aquí sobra.
+                for (w in NoticeDedupe.readWinds(noves)) WindNotifications.cancelWind(this, source, w)
+                val candidates = WindWatchLogic.toRing(OfflineLogic.notYetShown(noves, shown)).filter { it.ts > desDe }
                 WindWatch.saveTs(this, nouTs)
                 // Primera passada en aquest servidor/compte: només marca on som.
                 // Avisar de tot el que ja hi havia seria una ràfega de notificacions velles.
-                if (desDe == 0L) return
+                if (desDe == 0L) { NoticeLedger.claim(this, source, candidates, p.usuari); return }
                 aviat = try { api.windTasks().any { it.running } } catch (_: Exception) { false }
+                // Un sol registre per a push i sondeig: el que ja ha sonat no torna a sonar.
+                // Amb l'app oberta tampoc no sona: la novetat ja és al fil (stream).
+                val fresh = NoticeLedger.claim(this, source, candidates, p.usuari)
+                val perVent = WindWatchLogic.noves(fresh, desDe).first
                 if (perVent.isEmpty() || AppVisibility.foreground) return
                 if (!WindNotifications.canNotify(this)) return
-                val source = NotificationOrigins.remote(p)?.id.orEmpty()
                 for ((_, n) in perVent) WindNotifications.veu(this, n, source)
             } finally {
                 if (wake.isHeld) wake.release()
@@ -306,7 +398,8 @@ object WindNotifications {
             .setContentTitle(nom)
             .setContentText(cos.lineSequence().firstOrNull().orEmpty())
             .setStyle(Notification.BigTextStyle().bigText(cos))
-            .setContentIntent(NotificationNavigation.pending(ctx, source, target))
+            // Obre el missatge exacte del fil (message_id), no només el xat.
+            .setContentIntent(NotificationNavigation.pending(ctx, source, target, n.messageId))
             .setAutoCancel(true)
             .setVisibility(Notification.VISIBILITY_PRIVATE)
         // Glif, color i insígnia segons el que diu el vent (resum del matí, recordatori, temps…).
@@ -335,6 +428,16 @@ object WindNotifications {
             ctx.getSystemService(NotificationManager::class.java).notify(notifId, builder.build())
         } catch (_: Exception) {
         }
+    }
+
+    /** Treu l'avís d'un vent (el seu fil ja s'ha llegit, aquí o en un altre dispositiu). */
+    fun cancelWind(ctx: Context, origin: String, windId: String) {
+        if (windId.isBlank()) return
+        val source = NotificationOrigins.effective(ctx, origin)
+        try {
+            ctx.getSystemService(NotificationManager::class.java)
+                .cancel(NotificationNavigation.identity(source, "wind:$windId").hashCode())
+        } catch (_: Exception) {}
     }
 
     internal fun canNotify(ctx: Context): Boolean =
