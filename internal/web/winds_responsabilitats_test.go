@@ -15,6 +15,7 @@ import (
 	"gregal/internal/companion"
 	"gregal/internal/config"
 	"gregal/internal/jobs"
+	"gregal/internal/llm"
 	"gregal/internal/ordinador"
 	"gregal/internal/runs"
 )
@@ -719,5 +720,20 @@ func TestRespHeartbeatIsAResponsibility(t *testing.T) {
 	}
 	if j, _ := s.respFindJob("wind-xaloc"); !j.Enabled || jobs.NextDue(j, time.Now()).IsZero() {
 		t.Fatalf("el cor reprès no torna a mirar: %+v", j)
+	}
+}
+
+// L'historial del fil del vent (el que llegeixen la web i Android) porta els
+// lligams del missatge proactiu; els missatges normals no.
+func TestRespHistoryCarriesLinks(t *testing.T) {
+	rows := petHistoryJSON([]llm.Message{
+		{Role: "assistant", Content: "canvi", ID: "m-1", RelatedRunID: 412, ResultRefs: []string{"res-1"}},
+		{Role: "assistant", Content: "hola", ID: "m-2"},
+	})
+	if rows[0]["relatedRunId"] != int64(412) || len(rows[0]["resultRefs"].([]string)) != 1 {
+		t.Fatalf("lligams perduts: %+v", rows[0])
+	}
+	if _, ok := rows[1]["relatedRunId"]; ok {
+		t.Fatalf("un missatge normal porta lligams: %+v", rows[1])
 	}
 }

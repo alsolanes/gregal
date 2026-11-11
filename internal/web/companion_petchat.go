@@ -67,8 +67,8 @@ func petHistoryJSON(history []llm.Message) []map[string]any {
 		if m.Ts > 0 {
 			row["ts"] = m.Ts
 		}
-		// B6: un missatge proactiu porta el run i els resultats que el
-		// justifiquen («per què ho has fet?»).
+		// Un missatge proactiu (B6) porta el run que l'ha preparat i els
+		// resultats: les apps hi posen «per què ho has fet?».
 		if m.RelatedRunID > 0 {
 			row["relatedRunId"] = m.RelatedRunID
 		}
