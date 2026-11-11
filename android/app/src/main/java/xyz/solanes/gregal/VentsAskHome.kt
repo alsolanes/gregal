@@ -289,8 +289,9 @@ internal fun VentsOpening(
     }
     Box(modifier.fillMaxSize().openingHalo(p.sea, p.lila).testTag("vents-opening")) {
         Column(Modifier.fillMaxSize().imePadding().testTag(if (chat != null) "vents-home-chat" else "vents-home-intro")) {
-            // Les cares continuen a dalt; escrivint, deixen lloc al fil.
-            if (!focused) top()
+            // Amb conversa oberta, el fil és l'únic protagonista: les cares són a
+            // «Xats» i al calaix (main 48888fa). Sense conversa, escrivint s'aparten.
+            if (chat == null && !focused) top()
             chatHeader?.invoke()
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 if (chat != null) chat()

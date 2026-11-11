@@ -83,6 +83,7 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 
@@ -1138,8 +1139,9 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     ReadReplyFromStart(listState, follow, isBusy, currentReplyKey(msgs))
     Box(Modifier.fillMaxSize().background(Superficie)) {
         Column(Modifier.fillMaxSize()) {
+        // La capçalera diu qui és; «què està fent» es diu al final del fil.
         VentsChatHeader(lang, wind.name,
-            if (isBusy) tr(lang, "app.company.windThinking", wind.name) else wind.role,
+            wind.role,
             accent, wind.faceStyle,
             if (isBusy) live[wind.id]?.mood ?: WindMood.THINKING else WindMood.IDLE,
             onBack = onBack, onProfile = { profile = true },
@@ -1148,7 +1150,6 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             onTransfer = if (vm.canTransferToServer()) ({ askTransfer = true }) else null,
             onComputer = { computerOpen = true },
             onWatch = { watchOpen = true })
-        if (isBusy) live[wind.id]?.let { VentsWorkProgress(lang, it, onStop = { vm.cancelWindTurn(wind.id) }) }
         // Missatges
         // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
         // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
@@ -1218,23 +1219,19 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     for (a in turnActs) TurnActionCard(lang, a, accent) { vm.undoTurnAction(wind.id, a) }
                 }
             }
-            // Peu "hi pensa" només si no hi ha bombolla de directe: la
-            // bombolla ja mostra la fase (Cercant/Pensant…); si no, surten
-            // dos avisos apilats.
-            // Mentre la franja de dalt calla (només parla de feina visible), el
-            // vent «escriu» al fil: la seva cara petita i els punts, com un missatge.
+            // Un sol lloc per «què està fent»: la cara petita i els punts al final
+            // del fil, amb l'acció en marxa al costat («Cercant al web…»). La
+            // capçalera i la franja de dalt ja no en diuen res.
             val liveNow = live[wind.id]
-            if (busy.contains(wind.id) && msgs.lastOrNull()?.streaming != true &&
-                (liveNow == null || windVisibleWork(lang, liveNow) == null)) {
-                item(key = "typing") { WindTypingBubble(lang, wind, accent, liveNow?.mood ?: WindMood.THINKING) }
+            if (busy.contains(wind.id) && msgs.lastOrNull()?.streaming != true) {
+                item(key = "typing") {
+                    WindTypingBubble(lang, wind, accent, liveNow?.mood ?: WindMood.THINKING,
+                        label = liveNow?.let { l -> windVisibleWork(lang, l) ?: windStallNote(lang, l, quietNow(true)) })
+                }
             }
         }
-        if (awayFromLatest) {
-            Surface(
-                onClick = { follow.requestFollow(); scope.launch { listState.scrollToLatest() } },
-                shape = RoundedCornerShape(999.dp), color = Ink,
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = 14.dp),
-            ) { Text(if (lang == "en") "Latest ↓" else "Últims ↓", color = Superficie, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)) }
+        if (awayFromLatest) LatestPill(lang) {
+            follow.requestFollow(); scope.launch { listState.scrollToLatest() }
         }
         }
         // Aprovacions i preguntes del vent: el torn espera aquí la teva resposta.
@@ -1401,19 +1398,13 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
         val crewSteps by vm.crewStep.collectAsState()
         val crewStep = crewSteps[rot.id]
         VentsChatHeader(lang, rot.name,
-            when {
-                crewStep != null -> tr(lang, "app.crew.step.$crewStep")
-                // El títol de la rotllana és la primera pregunta: «Recomana'm… hi
-                // pensa» no deia res. Qui pensa és la colla.
-                rotBusy -> tr(lang, "app.company.groupThinking")
-                else -> faces.joinToString(", ") { it.name }
-            },
+            // El pas de la colla i «què està fent» es diuen al final del fil.
+            faces.joinToString(", ") { it.name },
             rotAccent, faces.firstOrNull()?.faceStyle ?: WindStyle(),
             if (rotBusy) live[rot.id]?.mood ?: WindMood.THINKING else WindMood.IDLE, faces,
             onBack = onBack, onProfile = { groupProfile = true },
             onWiki = onWiki,
             onTransfer = if (vm.canTransferToServer()) ({ askTransfer = true }) else null)
-        if (rotBusy) live[rot.id]?.let { VentsWorkProgress(lang, it, onStop = { vm.cancelRotllanaTurn(rot.id) }) }
         // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
         // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
         val scope = rememberCoroutineScope()
@@ -1489,30 +1480,27 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                     ChoiceChips(quick, rotAccent) { pick -> follow.requestFollow(); vm.sendRotllanaMessage(rot.id, pick, proposer?.speakerId.orEmpty()) }
                 }
             }
-            // Peu "hi pensa" només si no hi ha bombolla de directe (mateix
-            // motiu que al xat directe: evitar l'avís duplicat).
-            if (busy.contains(rot.id) && live[rot.id] == null && msgs.lastOrNull()?.streaming != true) {
+            // Un sol lloc per «què està fent» la colla: els punts al final del
+            // fil, amb el pas o l'acció al costat. La capçalera només diu qui hi és.
+            if (busy.contains(rot.id) && msgs.lastOrNull()?.streaming != true) {
+                val liveRot = live[rot.id]
                 item {
+                    // El rellotge del silenci només pot córrer dins del composable.
+                    val what = liveRot?.let { l -> windVisibleWork(lang, l) ?: windStallNote(lang, l, quietNow(true)) }
+                        ?: crewStep?.let { tr(lang, "app.crew.step.$it") }
                     Row(
                         Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         TypingDots(rotAccent)
-                        Text(
-                            "  " + tr(lang, "app.company.groupThinking"),
-                            fontSize = 12.sp, color = rotAccent,
-                        )
+                        if (what != null) Text("  " + what, fontSize = 12.sp, color = rotAccent)
                     }
                 }
             }
         }
-        if (awayFromLatest) {
-            Surface(
-                onClick = { follow.requestFollow(); scope.launch { listState.scrollToLatest() } },
-                shape = RoundedCornerShape(999.dp), color = Ink,
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = 14.dp),
-            ) { Text(if (lang == "en") "Latest ↓" else "Últims ↓", color = Superficie, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)) }
+        if (awayFromLatest) LatestPill(lang) {
+            follow.requestFollow(); scope.launch { listState.scrollToLatest() }
         }
         }
         // Aprovacions i preguntes dels vents del grup: el torn espera aquí la teva resposta.
@@ -2275,25 +2263,34 @@ internal class ChatFollowState {
         private set
     var dragging by mutableStateOf(false)
         private set
-    fun requestFollow() { following = true }
+    /**
+     * Si la persona vol el final. No és el mateix que [following]: en obrir un
+     * fil es «segueix» perquè el fil encara cap a la pantalla, però ningú no ha
+     * demanat que el portin a la cua quan creixi.
+     */
+    var wantsEnd by mutableStateOf(false)
+        private set
+    fun requestFollow() { following = true; wantsEnd = true }
     /** Deixa de seguir el final sense que hi hagi cap dit: per llegir una resposta des del principi. */
-    fun pause() { following = false }
-    fun startReading() { dragging = true; following = false }
+    fun pause() { following = false; wantsEnd = false }
+    fun startReading() { dragging = true; following = false; wantsEnd = false }
     fun stopDragging() { dragging = false }
 }
 
-private data class LatestChatLayout(
-    val atEnd: Boolean,
-    val count: Int = 0,
-    val viewportEnd: Int = 0,
-    val lastIndex: Int = -1,
-    val lastOffset: Int = 0,
-    val lastSize: Int = 0,
-)
+/**
+ * El fil s'allarga més que la pantalla per primer cop: fins ara no hi havia res
+ * a fer scroll i el que s'estava llegint era el final. Si la persona no ha
+ * demanat el final (no ha enviat res ni ha baixat a mà), no se la hi porta: es
+ * queda on és i surt «Últims ↓». Sense això, el primer creixement del fil
+ * arrencava la vista de cop —el «es torna a pintar» que es veia a la conversa.
+ */
+internal fun shouldFollowOnGrowth(wasScrollable: Boolean, scrollable: Boolean, wantsEnd: Boolean): Boolean =
+    !(!wasScrollable && scrollable && !wantsEnd)
 
 @Composable
 internal fun rememberChatFollow(list: LazyListState, key: Any): ChatFollowState {
     val follow = remember(list, key) { ChatFollowState() }
+    var wasScrollable by remember(list, key) { mutableStateOf(list.canScrollForward) }
     LaunchedEffect(list, follow) {
         list.interactionSource.interactions.collect { interaction ->
             when (interaction) {
@@ -2321,15 +2318,30 @@ internal fun rememberChatFollow(list: LazyListState, key: Any): ChatFollowState 
             }
         }.conflate().collect { layout ->
             if (layout == null || follow.dragging || list.isScrollInProgress) return@collect
+            val scrollable = list.canScrollForward
             if (!list.canScrollForward) follow.requestFollow()
             else if (follow.following) {
-                // A drag can cancel the scroll mutation without ending the observer.
-                kotlinx.coroutines.coroutineScope { launch { list.scrollToLatest() }.join() }
+                if (!shouldFollowOnGrowth(wasScrollable, scrollable, follow.wantsEnd)) follow.pause()
+                else {
+                    // A drag can cancel the scroll mutation without ending the observer.
+                    kotlinx.coroutines.coroutineScope { launch { list.scrollToLatest() }.join() }
+                }
             }
+            wasScrollable = scrollable
         }
     }
     return follow
 }
+
+private data class LatestChatLayout(
+    val atEnd: Boolean,
+    val count: Int = 0,
+    val viewportEnd: Int = 0,
+    val lastIndex: Int = -1,
+    val lastOffset: Int = 0,
+    val lastSize: Int = 0,
+)
+
 
 /**
  * En acabar un torn, una resposta que no cap a la pantalla es llegeix des del
@@ -2391,4 +2403,39 @@ internal suspend fun LazyListState.scrollToLatest(animate: Boolean = false) {
     val last = layoutInfo.totalItemsCount - 1
     if (last < 0) return
     if (animate) animateScrollToItem(last, Int.MAX_VALUE) else scrollToItem(last, Int.MAX_VALUE)
+}
+
+/** Píndola que apareix quan has pujat a llegir: un toc i tornes a l'últim missatge. */
+@Composable
+internal fun BoxScope.LatestPill(lang: String, onClick: () -> Unit) {
+    Surface(onClick = onClick, shape = RoundedCornerShape(999.dp), color = Ink,
+        modifier = Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = 14.dp)) {
+        Text(tr(lang, "app.vents.latest"), color = Superficie, fontSize = 12.sp,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp))
+    }
+}
+
+/**
+ * Claus per fila de xat. La posició no val: quan el fil es torna a omplir
+ * (o n'arriba un de més antic) totes les bombolles canvien de lloc, la llista
+ * sencera es recompon i l'scroll salta a una altra banda. Amb una clau
+ * d'identitat, el que ja es veia es queda on era.
+ *
+ * `idOf` ha de ser estable en el temps (una marca del servidor, no el text:
+ * un missatge en directe canvia a cada fragment). Si dues files coincideixen
+ * —mateix segon, mateix parlant— es desenmpalen amb un contador.
+ */
+internal fun <T> chatRowKeys(items: List<T>, idOf: (T) -> String): List<String> {
+    val used = HashSet<String>(items.size)
+    val seen = HashMap<String, Int>(items.size)
+    return items.map { item ->
+        val base = idOf(item)
+        var n = seen.merge(base, 1) { a, b -> a + b } ?: 1
+        var key = if (n == 1) base else "$base#$n"
+        // Un identificador que ja porta el sufix no pot xocar amb el d'una altra fila.
+        while (!used.add(key)) {
+            n++; seen[base] = n; key = "$base#$n"
+        }
+        key
+    }
 }

@@ -200,17 +200,20 @@ internal fun SharedChatConversation(vm: GregalViewModel, lang: String, chat: Sha
     androidx.activity.compose.BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().background(Superficie).imePadding()) {
         VentsChatHeader(lang, chat.name,
-            if (busy) tr(lang, "app.company.groupThinking") else (chat.humans + chat.winds.map { it.name }).joinToString(", "),
+            (chat.humans + chat.winds.map { it.name }).joinToString(", "),
             accent, chat.winds.firstOrNull()?.faceStyle ?: WindStyle(),
             if (busy) WindMood.THINKING else WindMood.IDLE, chat.winds,
             onBack = onBack, onProfile = { info = true })
+        // Claus d'identitat: el fil es rellegeix sovint i les posicions ballen.
+        val keys = remember(msgs) { chatRowKeys(msgs) { m -> "s" + m.ts + "|" + m.speakerId + "|" + m.author } }
+
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = listState,
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) {
             if (msgs.isEmpty()) item {
                 Text(tr(lang, "app.shared.empty", chat.humans.filter { it != SharedChatsStore.me.value }.joinToString(", ")), color = Muted, fontSize = 14.sp,
                     modifier = Modifier.fillMaxWidth().padding(24.dp))
             }
-            items(msgs.size, key = { it }) { idx ->
+            items(msgs.size, key = { i -> keys[i] }) { idx ->
                 val m = msgs[idx]
                 val wind = chat.winds.firstOrNull { it.id == m.speakerId }
                 val prev = msgs.getOrNull(idx - 1)

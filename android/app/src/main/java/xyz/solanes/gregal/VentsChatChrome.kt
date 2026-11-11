@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -189,36 +190,6 @@ internal fun WorkStrip(lang: String, count: Int, onClick: () -> Unit) {
         CircularProgressIndicator(Modifier.size(12.dp), color = Sea, strokeWidth = 1.5.dp)
         Text(label, color = Ink, style = GregalType.chatMeta, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
         Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = Muted, modifier = Modifier.size(18.dp))
-    }
-}
-
-/** One quiet, persistent status row. Timers measure observation, not completion. */
-@Composable
-internal fun VentsWorkProgress(lang: String, live: WindLive, modifier: Modifier = Modifier, onStop: (() -> Unit)? = null) {
-    // El temps del torn només avança mentre el torn viu: sense això el
-    // tic-tac seguia corrent per sempre encara que cap torn estigués en
-    // marxa (i amb l'app en segon pla, perquè produceState no s'atura).
-    val now = quietNow(live.startedAt > 0)
-    // Sense rellotge ni «Pas 3»: la franja només surt quan el vent fa una feina
-    // que es pot dir (cerca, llegeix, una eina) o quan fa estona que no arriba res.
-    // Esperar el model ho diuen la cara de la capçalera i el fil.
-    val work = windVisibleWork(lang, live)
-    val stall = windStallNote(lang, live, now)
-    if (work == null && stall == null) return
-    Column(modifier.fillMaxWidth().background(SuperficieAlta.copy(alpha = .35f)).padding(horizontal = 18.dp, vertical = 8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            // Estàtics quan les animacions estan desactivades.
-            TypingDots(accent = Ink)
-            // Interlínia de la caption: amb només fontSize heretava els 24 sp de
-            // bodyLarge i la franja ocupava el doble del que diu.
-            Text((if (live.speaker.isNotBlank()) live.speaker + " · " else "") + listOfNotNull(work, stall).joinToString(" · "),
-                color = Ink, style = GregalType.caption, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-            // Aturar és sempre possible mentre el torn corre, encara que el
-            // composer tingui un esborrany (allà el botó d'enviar fa steer).
-            if (onStop != null) TextButton(onClick = onStop, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)) {
-                Text(tr(lang, "app.vents.stop"), color = Muted, fontSize = 12.sp)
-            }
-        }
     }
 }
 
