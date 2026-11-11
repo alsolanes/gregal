@@ -170,6 +170,15 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 	// s'atura fins que respon (winds_ask.go). Sense flux (cor, plans, crides
 	// soltes) no hi ha ningú: es continua com sempre, sense fer l'acció.
 	canAsk := interactive && stream
+	// Torn aparcable (xat d'un vent, o la represa d'un d'aparcat): si una
+	// decisió no arriba en directe, el bucle s'atura al punt segur.
+	spot := windParkOf(ctx)
+	if !canAsk {
+		spot = nil
+	}
+	// Respostes a les preguntes del lot, decidides abans d'executar-lo.
+	var answersMu sync.Mutex
+	answers := map[string]string{}
 	var temps loopTemps
 	loop := &agent.Loop{
 		MaxSteps: maxSteps,
@@ -229,11 +238,13 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			defer activity("tool_done", tool) // returned, not necessarily succeeded
 			// Una pregunta del vent, amb opcions que la persona toca (o text lliure).
 			if name == "question" && canAsk {
-				q, opts, err := tools.ParseQuestion(argsJSON)
-				if err != nil {
+				if _, _, err := tools.ParseQuestion(argsJSON); err != nil {
 					return "", nil, err
 				}
-				return s.windQuestion(ctx, emit, q, opts), nil, nil
+				answersMu.Lock()
+				ans := answers[argsJSON]
+				answersMu.Unlock()
+				return ans, nil, nil
 			}
 			defer func(t0 time.Time) { temps.addEina(time.Since(t0)) }(time.Now())
 			// Apps, publicar: les fa el servidor web, no el paquet agent.
@@ -248,9 +259,26 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			if d := windDocsOf(ctx); d != "" && windDocTool(name) {
 				cwd = d
 			}
-			return agent.ExecCtx(agent.WithSkillsDirs(ctx, dirs...), s.id, cwd, name, argsJSON)
+			return windToolExec(agent.WithSkillsDirs(ctx, dirs...), s.id, cwd, name, argsJSON)
 		},
 		Decide: func(name, argsJSON string) (string, string) {
+			// Ja aparcat: la resta del lot no es pregunta ni s'executa.
+			if spot.parkedRec() != nil {
+				return "deny", "NOT RUN YET: waiting for the user's decision."
+			}
+			// La pregunta es fa aquí, abans d'executar res del lot: si s'ha
+			// d'aparcar, el punt segur no té cap eina a mig fer.
+			if name == "question" && canAsk {
+				if q, opts, err := tools.ParseQuestion(argsJSON); err == nil {
+					ans, parked := s.windQuestionCall(ctx, emit, q, opts, argsJSON)
+					if !parked {
+						answersMu.Lock()
+						answers[argsJSON] = ans
+						answersMu.Unlock()
+					}
+				}
+				return "allow", "question"
+			}
 			// Els vents poden programar avisos (remind, eina validada); la
 			// resta usa la política compartida i el mode del torn.
 			if agent.ReadOnlyMode(scope.mode) && (name == "bash" || name == "bash_background") {
@@ -327,7 +355,7 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 					what = strings.TrimSpace(name + " " + windAskArgsHint(argsJSON))
 				}
 				if canAsk {
-					if ok, msg := s.windApprove(ctx, emit, name, kind, what, reason); ok {
+					if ok, msg := s.windApproveCall(ctx, emit, name, argsJSON, kind, what, reason); ok {
 						return "allow", "approved by the user"
 					} else {
 						return "deny", msg
@@ -340,6 +368,16 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			return decision, reason
 		},
 	}
+	if spot != nil {
+		loop.Lot = spot.setHist
+		loop.Pausa = func() error {
+			if spot.parkedRec() != nil {
+				return errWindParked
+			}
+			return nil
+		}
+	}
+	resuming := windResumeOf(ctx) != nil && len(prev) > 0 && len(prev[0]) > 0
 	var out string
 	var err error
 	// Torn interactiu (xat del vent, colla): no hi ha cap UI d'aprovació i
@@ -357,6 +395,8 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 		last := round >= rounds
 		loop.SenseTancarPassos = interactive && !last
 		switch {
+		case first && resuming:
+			out, _, err = loop.Repren(ctx, prev[0])
 		case first && len(prev) > 0 && len(prev[0]) > 0:
 			out, _, err = loop.Continua(ctx, prev[0])
 		case first && len(windPromptOf(ctx)) > 0:
@@ -367,6 +407,9 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			out, _, err = loop.Continua(ctx, loop.Hist)
 		}
 		first = false
+		if errors.Is(err, errWindParked) {
+			break
+		}
 		if err != nil {
 			// Caiguda passatgera del proveïdor abans de fer res: un reintent.
 			if !retried && !errors.Is(ctx.Err(), context.Canceled) && ctx.Err() == nil && motiuPassatger(err.Error()) {
@@ -390,6 +433,10 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 	temps.mu.Unlock()
 	return res, err
 }
+
+// windToolExec executa una eina d'un torn de vent. Els tests el substitueixen
+// per comptar quantes vegades s'aplica un efecte.
+var windToolExec = agent.ExecCtx
 
 // planBrief munta la consigna d'exploració amb memòria del projecte.
 func (s *Server) planBrief(task string) string {

@@ -1406,6 +1406,15 @@ type Loop struct {
 	// agents que no pregunten res (Claude Code, Codex): primer s'acaba,
 	// després es resumeix.
 	SenseTancarPassos bool
+	// Lot, si hi és, rep l'historial just abans de decidir un lot de crides:
+	// acaba amb el missatge de l'assistent que les demana i encara no té cap
+	// resultat. És el punt segur on un torn es pot aparcar i reprendre
+	// (Repren) sense haver executat res del lot.
+	Lot func(hist []llm.Message)
+	// Pausa es consulta després de decidir el lot i abans d'executar-ne cap
+	// crida. Si torna un error, el bucle s'atura aquí: Hist és el punt segur
+	// (amb les crides pendents) i l'error es torna tal qual.
+	Pausa func() error
 	// Hist és l'historial sencer, amb la resposta final (per continuar).
 	Hist []llm.Message
 }
@@ -1433,6 +1442,25 @@ func (l *Loop) Continua(ctx context.Context, hist []llm.Message) (string, []llm.
 	}
 	h := append(append([]llm.Message(nil), hist...), llm.Message{Role: "user", Content: PromptContinuaExploracio})
 	return l.corre(ctx, h)
+}
+
+// Repren continua un torn aparcat al punt segur: hist acaba amb el missatge
+// de l'assistent que demana unes crides que encara no s'han executat. Les
+// decideix de nou (el permís es revalida ara, no quan es va aparcar), les
+// executa i segueix el bucle amb pressupost nou. Si l'últim missatge no té
+// crides pendents, és com RunMessages.
+func (l *Loop) Repren(ctx context.Context, hist []llm.Message) (string, []llm.Message, error) {
+	hist = append([]llm.Message(nil), hist...)
+	if n := len(hist); n > 0 && hist[n-1].Role == "assistant" && len(hist[n-1].ToolCalls) > 0 {
+		l.Parcial, l.Motiu, l.Esgotat, l.Hist = false, "", false, nil
+		var err error
+		hist, err = l.lot(ctx, hist, hist[n-1].ToolCalls, &DoomTracker{})
+		if err != nil {
+			l.Hist = hist
+			return "", hist, err
+		}
+	}
+	return l.corre(ctx, hist)
 }
 
 // podaPreventiva emmascara sortides d'eina velles quan l'historial s'acosta
@@ -1484,40 +1512,10 @@ func (l *Loop) corre(ctx context.Context, hist []llm.Message) (string, []llm.Mes
 			l.Hist = hist
 			return content, hist, nil
 		}
-		// Primer es decideix (permís i repetició, en ordre); després les
-		// lectures s'executen en paral·lel i la resta en seqüència.
-		type resultat struct {
-			out  string
-			imgs []string
-		}
-		fixos := make([]string, len(calls))
-		for i, c := range calls {
-			// El doom es comprova abans del permís: repetir una crida
-			// denegada també és encallar-se.
-			repetida := doom.Note(DoomSig(c.Function.Name, c.Function.Arguments))
-			dec, reason := l.Decide(c.Function.Name, c.Function.Arguments)
-			if dec == "deny" {
-				fixos[i] = "TOOL BLOCKED: " + reason
-			} else if repetida {
-				fixos[i] = DoomGuide
-			}
-		}
-		res := RunCalls(calls, func(i int) bool { return fixos[i] != "" }, func(_ int, c llm.ToolCall) resultat {
-			r, ri, rerr := l.RunTool(ctx, c.Function.Name, c.Function.Arguments)
-			if rerr != nil {
-				return resultat{out: "ERROR: " + rerr.Error()}
-			}
-			return resultat{out: r, imgs: ri}
-		})
-		for i, c := range calls {
-			out, outImgs := res[i].out, res[i].imgs
-			if fixos[i] != "" {
-				out, outImgs = fixos[i], nil
-			}
-			hist = append(hist, llm.Message{
-				Role: "tool", Content: out, Images: outImgs,
-				ToolCallID: c.ID, Name: c.Function.Name,
-			})
+		var perr error
+		if hist, perr = l.lot(ctx, hist, calls, doom); perr != nil {
+			l.Hist = hist
+			return "", hist, perr
 		}
 	}
 	if l.SenseTancarPassos {
@@ -1527,6 +1525,57 @@ func (l *Loop) corre(ctx context.Context, hist []llm.Message) (string, []llm.Mes
 		return "", hist, nil
 	}
 	return l.tanca(ctx, hist, MotiuPassos)
+}
+
+// lot decideix i executa les crides d'un pas. Si Pausa demana aturar-se
+// després de decidir, torna l'historial sense cap resultat (punt segur).
+func (l *Loop) lot(ctx context.Context, hist []llm.Message, calls []llm.ToolCall, doom *DoomTracker) ([]llm.Message, error) {
+	if l.Lot != nil {
+		l.Lot(append([]llm.Message(nil), hist...))
+	}
+	// Primer es decideix (permís i repetició, en ordre); després les
+	// lectures s'executen en paral·lel i la resta en seqüència.
+	type resultat struct {
+		out  string
+		imgs []string
+	}
+	fixos := make([]string, len(calls))
+	for i, c := range calls {
+		// El doom es comprova abans del permís: repetir una crida
+		// denegada també és encallar-se.
+		repetida := doom.Note(DoomSig(c.Function.Name, c.Function.Arguments))
+		dec, reason := l.Decide(c.Function.Name, c.Function.Arguments)
+		if dec == "deny" {
+			fixos[i] = "TOOL BLOCKED: " + reason
+		} else if repetida {
+			fixos[i] = DoomGuide
+		}
+	}
+	// Punt segur: tot decidit, res executat. Un torn aparcat en espera
+	// d'una decisió s'atura aquí i Repren el continuarà amb el mateix lot.
+	if l.Pausa != nil {
+		if err := l.Pausa(); err != nil {
+			return hist, err
+		}
+	}
+	res := RunCalls(calls, func(i int) bool { return fixos[i] != "" }, func(_ int, c llm.ToolCall) resultat {
+		r, ri, rerr := l.RunTool(ctx, c.Function.Name, c.Function.Arguments)
+		if rerr != nil {
+			return resultat{out: "ERROR: " + rerr.Error()}
+		}
+		return resultat{out: r, imgs: ri}
+	})
+	for i, c := range calls {
+		out, outImgs := res[i].out, res[i].imgs
+		if fixos[i] != "" {
+			out, outImgs = fixos[i], nil
+		}
+		hist = append(hist, llm.Message{
+			Role: "tool", Content: out, Images: outImgs,
+			ToolCallID: c.ID, Name: c.Function.Name,
+		})
+	}
+	return hist, nil
 }
 
 // tanca fa la crida final sense eines i torna la resposta parcial. Si la

@@ -35,10 +35,14 @@ const (
 	Completed State = "completed"
 	Failed    State = "failed"
 	Cancelled State = "cancelled"
+	// WaitingUser: el torn s'ha aparcat esperant una decisió de la persona.
+	// No ocupa cap goroutine ni cap lloc a la cua; Resume el torna a encuar
+	// amb el mateix ID quan arriba la resposta.
+	WaitingUser State = "waiting_user"
 )
 
 // Active diu si l'execució encara pot canviar d'estat.
-func (s State) Active() bool { return s == Queued || s == Running }
+func (s State) Active() bool { return s == Queued || s == Running || s == WaitingUser }
 
 // Prioritats. Menor número = surt abans de la cua de la seva sessió. El
 // treball interactiu passa davant del desatès, però la serialització per
@@ -55,6 +59,11 @@ var ErrCancelled = errors.New("runs: execució cancel·lada")
 // ErrQueueFull: massa torns pendents per a la mateixa conversa. El client
 // ha de mostrar-ho en comptes d'encuar a cegues.
 var ErrQueueFull = errors.New("runs: massa torns pendents per a aquesta conversa")
+
+// ErrWaitingUser el retorna l'Executor quan el torn s'ha aparcat en un punt
+// segur esperant una decisió: la cua el passa a WaitingUser (no a completed)
+// i allibera el worker. Resume el reprèn.
+var ErrWaitingUser = errors.New("runs: torn aparcat esperant una decisió")
 
 // maxPerSession és el topall de torns vius (pendents o en marxa) per sessió.
 const maxPerSession = 8
@@ -83,8 +92,18 @@ type slot struct {
 	exec   Executor
 	ctx    context.Context
 	cancel context.CancelFunc
+	// done es tanca quan el torn deixa d'executar-se: en acabar o en
+	// aparcar-se (WaitingUser). Resume en crea un de nou.
 	done   chan struct{}
+	closed bool  // done ja tancat (només amb q.mu)
 	seq    int64 // ordre d'arribada dins la sessió
+}
+
+func (sl *slot) closeDone() {
+	if !sl.closed {
+		sl.closed = true
+		close(sl.done)
+	}
 }
 
 // Queue és la cua compartida del procés. LesSessions ("converses") avancen
@@ -238,6 +257,8 @@ func (q *Queue) work(sess string) {
 		}()
 
 		switch {
+		case errors.Is(execErr, ErrWaitingUser) && sl.ctx.Err() == nil:
+			q.park(sl)
 		case execErr == nil:
 			q.finish(sl, Completed, "")
 		case errors.Is(execErr, ErrCancelled) || sl.ctx.Err() != nil:
@@ -294,7 +315,78 @@ func (q *Queue) finish(sl *slot, st State, msg string) {
 	sl.run.Err = msg
 	sl.run.FinishedAt = time.Now().UTC()
 	sl.cancel()
-	close(sl.done)
+	sl.closeDone()
+}
+
+// park passa un torn en marxa a WaitingUser: allibera el worker i tanca done
+// (el torn ja no s'executa), però el context continua viu per a Resume.
+func (q *Queue) park(sl *slot) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if sl.run.State != Running {
+		return
+	}
+	sl.run.State = WaitingUser
+	sl.exec = nil
+	sl.closeDone()
+}
+
+// Park registra un torn que ja ha començat fora de la cua (un xat en directe)
+// i que s'ha aparcat esperant una decisió. Si r.ID > 0 l'adopta amb aquest
+// ID (després d'un reinici, el registre d'events ja el coneix); si no, en
+// dona un de nou. No crea cap goroutine.
+func (q *Queue) Park(r Run) Run {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if r.ID > 0 {
+		if sl := q.byID[r.ID]; sl != nil {
+			return sl.run
+		}
+		if r.ID > q.nextID {
+			q.nextID = r.ID
+		}
+	} else {
+		q.nextID++
+		r.ID = q.nextID
+	}
+	q.nextSeq++
+	r.Workspace = WorkspaceKey(r.Workspace)
+	r.State = WaitingUser
+	if r.EnqueuedAt.IsZero() {
+		r.EnqueuedAt = time.Now().UTC()
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	sl := &slot{run: r, ctx: ctx, cancel: cancel, done: make(chan struct{}), seq: q.nextSeq}
+	sl.closeDone()
+	q.byID[r.ID] = sl
+	return r
+}
+
+// Resume torna a encuar un torn aparcat (WaitingUser) amb el mateix ID i un
+// executor nou. Torna fals si no hi era o ja no esperava (cancel·lat, o ja
+// reprès per una altra resposta): només una represa per espera.
+func (q *Queue) Resume(id int64, exec Executor) (Run, bool) {
+	if exec == nil {
+		return Run{}, false
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	sl := q.byID[id]
+	if sl == nil || sl.run.State != WaitingUser {
+		return Run{}, false
+	}
+	q.nextSeq++
+	sl.seq = q.nextSeq
+	sl.exec = exec
+	sl.run.State = Queued
+	sl.done = make(chan struct{})
+	sl.closed = false
+	q.pend[sl.run.Session] = append(q.pend[sl.run.Session], sl)
+	if !q.worker[sl.run.Session] {
+		q.worker[sl.run.Session] = true
+		go q.work(sl.run.Session)
+	}
+	return sl.run, true
 }
 
 // Cancel talla una execució viva. Si encara estava en cua, no s'executarà
@@ -306,12 +398,12 @@ func (q *Queue) Cancel(id int64) bool {
 		q.mu.Unlock()
 		return false
 	}
-	wasQueued := sl.run.State == Queued
+	wasQueued := sl.run.State == Queued || sl.run.State == WaitingUser
 	if wasQueued {
 		sl.run.State = Cancelled
 		sl.run.FinishedAt = time.Now().UTC()
 		sl.cancel()
-		close(sl.done)
+		sl.closeDone()
 	}
 	q.mu.Unlock()
 	if !wasQueued {
@@ -338,10 +430,21 @@ func (q *Queue) CancelSession(sess string) int {
 		sl.run.State = Cancelled
 		sl.run.FinishedAt = time.Now().UTC()
 		sl.cancel()
-		close(sl.done)
+		sl.closeDone()
 		n++
 	}
 	delete(q.pend, sess)
+	// Els aparcats també: «talla-ho tot» no ha de deixar res que es
+	// reprengui sol quan arribi una resposta.
+	for _, sl := range q.byID {
+		if sl.run.Session == sess && sl.run.State == WaitingUser {
+			sl.run.State = Cancelled
+			sl.run.FinishedAt = time.Now().UTC()
+			sl.cancel()
+			sl.closeDone()
+			n++
+		}
+	}
 	if cur := q.running[sess]; cur != nil && cur.run.State == Running {
 		cur.cancel()
 		n++

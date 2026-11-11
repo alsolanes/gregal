@@ -269,3 +269,24 @@ func TestAfterRunSeeksAndPaginatesWithoutOtherRuns(t *testing.T) {
 		}
 	}
 }
+
+// Un torn aparcat esperant una decisió no surt com a orfe en reobrir; si es
+// reprèn i el procés mor, sí.
+func TestWaitingRunIsNotAnOrphan(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events.jsonl")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Append(Event{RunID: 7, Kind: "run_queued"})
+	s.Append(Event{RunID: 7, Kind: RunWaitingUser})
+	s2, _ := Open(path)
+	if got := s2.Unfinished(); len(got) != 0 {
+		t.Fatalf("aparcat com a orfe: %+v", got)
+	}
+	s2.Append(Event{RunID: 7, Kind: "run_queued"})
+	s3, _ := Open(path)
+	if got := s3.Unfinished(); len(got) != 1 || got[0].RunID != 7 {
+		t.Fatalf("reprès i interromput: %+v", got)
+	}
+}

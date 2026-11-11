@@ -413,3 +413,66 @@ func TestInteractiveSessionsShareWorkspaceInParallel(t *testing.T) {
 	waitDone(t, q, a.ID)
 	waitDone(t, q, b.ID)
 }
+
+// Un torn que s'aparca esperant una decisió allibera el worker, no compta com
+// a acabat i es reprèn amb el mateix ID una sola vegada.
+func TestParkAndResumeKeepsTheRunID(t *testing.T) {
+	q := New()
+	parked := make(chan struct{})
+	run, _, err := q.Submit(func(ctx context.Context, r Run) error {
+		close(parked)
+		return ErrWaitingUser
+	}, Run{Session: "s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-parked
+	<-q.Done(run.ID)
+	if got, _ := q.Get(run.ID); got.State != WaitingUser {
+		t.Fatalf("estat: %s", got.State)
+	}
+	// Un altre torn de la mateixa sessió no queda bloquejat per l'aparcat.
+	other, _, _ := q.Submit(func(ctx context.Context, r Run) error { return nil }, Run{Session: "s"})
+	select {
+	case <-q.Done(other.ID):
+	case <-time.After(2 * time.Second):
+		t.Fatal("l'aparcat bloqueja la sessió")
+	}
+	ran := make(chan int64, 2)
+	exec := func(ctx context.Context, r Run) error { ran <- r.ID; return nil }
+	if _, ok := q.Resume(run.ID, exec); !ok {
+		t.Fatal("no s'ha reprès")
+	}
+	if _, ok := q.Resume(run.ID, exec); ok {
+		t.Fatal("una segona represa no s'ha d'acceptar")
+	}
+	<-q.Done(run.ID)
+	if id := <-ran; id != run.ID {
+		t.Fatalf("ID canviat: %d", id)
+	}
+	if got, _ := q.Get(run.ID); got.State != Completed {
+		t.Fatalf("estat final: %s", got.State)
+	}
+}
+
+// Park adopta un ID existent (després d'un reinici) i Cancel l'atura sense
+// executar res.
+func TestParkAdoptsAndCancelStops(t *testing.T) {
+	q := New()
+	r := q.Park(Run{ID: 41, Session: "s"})
+	if r.ID != 41 || r.State != WaitingUser {
+		t.Fatalf("park: %+v", r)
+	}
+	if next, _, _ := q.Submit(func(ctx context.Context, r Run) error { return nil }, Run{Session: "x"}); next.ID <= 41 {
+		t.Fatalf("un ID nou no pot reutilitzar l'adoptat: %d", next.ID)
+	}
+	if !q.Cancel(41) {
+		t.Fatal("cancel")
+	}
+	if _, ok := q.Resume(41, func(ctx context.Context, r Run) error { t.Error("no s'havia d'executar"); return nil }); ok {
+		t.Fatal("un cancel·lat no es reprèn")
+	}
+	if got, _ := q.Get(41); got.State != Cancelled {
+		t.Fatalf("estat: %s", got.State)
+	}
+}
