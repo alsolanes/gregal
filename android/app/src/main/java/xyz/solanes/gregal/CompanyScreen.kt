@@ -118,6 +118,7 @@ fun CompanyScreen(vm: GregalViewModel, openDrawer: () -> Unit) {
 fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLibrary: () -> Unit = {}, openPet: (Pet?) -> Unit) {
     var feinesOpen by remember { mutableStateOf(false) }
     var homeProfile by remember { mutableStateOf(false) }
+    var guideOpen by remember { mutableStateOf(false) }
     var homeComputer by remember { mutableStateOf(false) }
     var cornerOpen by remember { mutableStateOf(false) }
     var gamesOpen by remember { mutableStateOf(false) }
@@ -226,6 +227,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
             "explore" -> { manage = false; searching = false; exploreOpen = true }
             "today", "chats" -> { manage = false; searching = false; exploreOpen = false; tab = panel ?: "home" }
             "new" -> { creation = "chat" }
+            "guide" -> { guideOpen = true }
         }
         panelShown = panel
     }
@@ -553,6 +555,16 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     if (programatsOpen) ProgramatsDialog(vm, lang) { programatsOpen = false }
     if (feinesOpen) FeinesDialog(vm, lang, onOpenThread = { vm.openVentsChat("rot:$it") }) { feinesOpen = false }
     if (homeProfile) VentetProfile(vm, lang) { homeProfile = false }
+    // «Què pot fer Gregal»: la primera vegada que hi ha Gregal, i des del menú.
+    val guideWind = winds.firstOrNull { it.id == "gregal" }
+    val guidePrefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("gregal_guide", android.content.Context.MODE_PRIVATE)
+    LaunchedEffect(guideWind != null) {
+        if (guideWind != null && !guidePrefs.getBoolean("seen", false)) guideOpen = true
+    }
+    if (guideOpen) GregalGuide(lang, guideWind?.let { Color(it.argb) } ?: Sea,
+        onTry = { text -> vm.openVentsPanel(null); vm.sendWindMessage(guideWind?.id ?: "gregal", text) }) {
+        guideOpen = false; guidePrefs.edit().putBoolean("seen", true).apply()
+    }
     if (homeComputer) OrdinadorSheet(conn, lang, Color(capUi.state.argb)) { homeComputer = false }
     if (cornerOpen) CornerDialog(vm, lang) { cornerOpen = false }
     if (gamesOpen) GamesDialog(vm, lang) { gamesOpen = false }

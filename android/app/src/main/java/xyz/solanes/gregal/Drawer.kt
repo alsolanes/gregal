@@ -173,6 +173,7 @@ private fun SimpleVentsDrawer(
             DrawerRow(askCopy(lang, "today"), false, { close(); vm.openVentsPanel("today") }, Icons.Rounded.Today)
             DrawerRow(askCopy(lang, "chats"), false, { close(); vm.openVentsPanel("chats") }, Icons.Rounded.Forum)
             DrawerRow(tr(lang, "app.vents.newChat"), false, { close(); vm.openVentsPanel("new") }, Icons.Rounded.Add)
+            DrawerRow(guideIntro(lang).first, false, { close(); vm.openVentsPanel("guide") }, Icons.Rounded.AutoAwesome)
             DrawerRow(tr(lang, "app.vents.myWinds"), home && panel == "directory", { close(); vm.openVentsPanel("directory") }, Icons.Rounded.Groups)
             DrawerRow(ventsCopy(lang, "explore"), home && panel == "explore", { close(); vm.openVentsPanel("explore") }, Icons.Rounded.AutoAwesome)
             DrawerRow(tr(lang, "nav.notes"), screen == Screen.Notes, { nav(Screen.Notes); vm.loadNotes() }, Icons.Rounded.EditNote)

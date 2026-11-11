@@ -762,3 +762,31 @@ html body.shell-winds .vw-nav-item:focus-visible, html body.shell-winds .vw-send
 .vw-top.vw-top-gregal .vw-gregal-face .winds-face { width:40px; height:40px; }
 .vw-top.vw-top-gregal .vw-gregal-pc { justify-self:end; width:40px; height:40px; border:1px solid var(--line-hi); border-radius:50%; background:color-mix(in srgb, var(--surface) 70%, transparent); }
 .vw-top.vw-top-gregal > :first-child:not(.vw-mobile-menu) { visibility:hidden; }
+
+/* ---- «Què pot fer Gregal» (la guia) ---- */
+.vw-top.vw-top-gregal { grid-template-columns:96px 1fr 96px; }
+.vw-gregal-actions { justify-self:end; display:flex; gap:8px; }
+.vw-gregal-actions .vw-gregal-guide { width:40px; height:40px; border:1px solid var(--line-hi); border-radius:50%; background:color-mix(in srgb, var(--surface) 70%, transparent); }
+.vw-dialog.vw-guide { width:min(960px, calc(100vw - 32px)); max-height:min(88vh, 900px); padding:32px 32px 28px; border-radius:24px; overflow:auto; position:relative; isolation:isolate;
+  background:var(--bg); border:1px solid var(--line-hi); }
+.vw-dialog.vw-guide::before { content:""; position:absolute; inset:0 0 auto 0; height:260px; z-index:-1; pointer-events:none;
+  background:radial-gradient(48% 70% at 50% 0%, color-mix(in srgb, var(--g-accent, var(--accent)) 45%, transparent), transparent 75%),
+             radial-gradient(34% 55% at 70% 10%, color-mix(in srgb, var(--lila, #B69CFF) 35%, transparent), transparent 75%);
+  animation:vw-gregal-bloom 2.1s cubic-bezier(.2,.7,.2,1) both; }
+.vw-guide-close { position:absolute; top:14px; right:16px; width:36px; height:36px; border:0; border-radius:50%; background:transparent; color:var(--muted); font-size:24px; line-height:1; cursor:pointer; }
+.vw-guide-close:hover { background:var(--hover); color:var(--ink); }
+.vw-guide-head h2 { margin:0 0 8px; font-size:28px; line-height:1.2; color:var(--ink); letter-spacing:-.01em; }
+.vw-guide-head p { margin:0 0 22px; max-width:640px; color:var(--muted); font-size:16px; line-height:1.5; }
+.vw-guide-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(270px, 1fr)); gap:14px; }
+.vw-guide-card { display:flex; flex-direction:column; gap:8px; padding:16px; border-radius:15px; border:1px solid var(--line); background:color-mix(in srgb, var(--surface-hi) 60%, transparent);
+  animation:vw-guide-in .45s ease-out both; animation-delay:calc(var(--i) * 45ms); }
+@keyframes vw-guide-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+.vw-guide-top { display:flex; align-items:center; gap:10px; }
+.vw-guide-top h3 { margin:0; font-size:16px; color:var(--ink); }
+.vw-guide-icon { display:grid; place-items:center; width:36px; height:36px; border-radius:12px; font-size:18px; background:color-mix(in srgb, var(--g-accent, var(--accent)) 18%, transparent); }
+.vw-guide-how { margin:0; color:var(--muted); font-size:14px; line-height:1.45; }
+.vw-guide-try { text-align:left; padding:9px 13px; border-radius:14px; border:1px solid color-mix(in srgb, var(--g-accent, var(--accent)) 50%, transparent); background:transparent; color:var(--ink); font:inherit; font-size:14px; line-height:1.4; cursor:pointer; }
+.vw-guide-try:hover { background:color-mix(in srgb, var(--g-accent, var(--accent)) 12%, transparent); }
+@media(prefers-reduced-motion:reduce) { .vw-guide-card, .vw-dialog.vw-guide::before { animation:none; } }
+@media(max-width:600px) { .vw-dialog.vw-guide { padding:24px 18px; border-radius:20px; } .vw-guide-head h2 { font-size:23px; } }
+.vw-dialog.vw-guide header.vw-guide-head { display:block; padding:0 40px 0 0; margin:0; border:0; }

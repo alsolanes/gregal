@@ -113,7 +113,12 @@
   if(gregalHome){const g=state.winds.find(w=>w.id==='gregal');page.style.setProperty('--g-accent',g?.color||'var(--accent)');top.classList.add('vw-top-gregal');
    const who=btn('',()=>profile(g),'vw-gregal-face');who.setAttribute('aria-label',g?.name||'Gregal');who.title=g?.name||'Gregal';who.append(face(g));
    const pc=iconOnly('navegador',t("L'ordinador de Gregal","Gregal's computer"),()=>openComputer(),'vw-gregal-pc');
-   top.replaceChildren(top.firstChild,who,pc);}
+   // «Què pot fer Gregal»: la guia, amb exemples que s'envien al fil; la primera vegada s'obre sola.
+   const G=root.gregalGuide,tryIt=ex=>{if(input){input.value=ex;state.draft=ex;composer.requestSubmit();}};
+   const guide=iconOnly('sparkles',t('Què pot fer Gregal','What Gregal can do'),()=>G?.open({accent:g?.color,onTry:tryIt}),'vw-gregal-guide');
+   const right=el('div','vw-gregal-actions');right.append(guide,pc);
+   top.replaceChildren(top.firstChild,who,right);
+   if(G&&!G.seen()&&!state.guideShown){state.guideShown=true;setTimeout(()=>G.open({accent:g?.color,onTry:tryIt}),900);}}
   if(state.view==='chat'&&state.active?.legacyWind&&!gregalHome)top.append(btn(t('Fils','Threads'),windThreads,'vw-top-action'));
   if(state.view==='chat'&&state.active?.id&&!gregalHome)top.append(btn(t('Desa a la wiki','Save to wiki'),summarizeToWiki,'vw-top-action'));
   page.append(top);
