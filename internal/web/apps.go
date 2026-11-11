@@ -464,6 +464,8 @@ func (s *Server) runBuildTool(ctx context.Context, workspace, name, argsJSON str
 		return s.runMailTool(argsJSON)
 	case "notes":
 		return s.runNotesTool(argsJSON)
+	case "connector":
+		return s.runConnectorTool(ctx, argsJSON)
 	}
 	return "", fmt.Errorf("unknown tool %q", name)
 }

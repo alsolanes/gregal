@@ -172,6 +172,9 @@ func (h *Hub) SessionFor(user *User, id string) *Server {
 	s = h.clone(key)
 	s.user = user
 	s.wire = id
+	// Les eines MCP globals porten credencials de l'administrador: un
+	// altre compte només veu les que no en porten (B5, auditoria).
+	agent.SetSessionExtrasGate(s.id, s.mcpGate())
 	// Estat PER USUARI: vents, rotllanes i objectius propis. Només per als
 	// usuaris de debò d'un servidor multiusuari: el Tothom (token únic,
 	// mode local) i l'admin legacy continuen a l'estat compartit, que és

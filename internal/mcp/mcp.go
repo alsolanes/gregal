@@ -292,7 +292,13 @@ type Tool struct {
 	Call   func(argsJSON string) (string, error)
 	server string
 	remote string
+	// readOnly: el servidor declara que l'eina només llegeix
+	// (annotations.readOnlyHint). És una pista del servidor, no una garantia.
+	readOnly bool
 }
+
+// ReadOnlyHint diu si el servidor declara l'eina de només lectura.
+func (t Tool) ReadOnlyHint() bool { return t.readOnly }
 
 // Server és el servidor d'on ve l'eina.
 func (t Tool) Server() string { return t.server }
@@ -320,6 +326,9 @@ func (c *Client) ToolsCtx(ctx context.Context) ([]Tool, error) {
 				Name        string         `json:"name"`
 				Description string         `json:"description"`
 				InputSchema map[string]any `json:"inputSchema"`
+				Annotations struct {
+					ReadOnlyHint bool `json:"readOnlyHint"`
+				} `json:"annotations"`
 			} `json:"tools"`
 			NextCursor string `json:"nextCursor"`
 		}
@@ -333,9 +342,10 @@ func (c *Client) ToolsCtx(ctx context.Context) ([]Tool, error) {
 				schema = map[string]any{"type": "object", "properties": map[string]any{}}
 			}
 			out = append(out, Tool{
-				Spec:   llm.ToolSpec{Name: ToolName(c.name, t.Name), Description: "[mcp:" + c.name + "] " + t.Description, Parameters: schema},
-				server: c.name,
-				remote: t.Name,
+				Spec:     llm.ToolSpec{Name: ToolName(c.name, t.Name), Description: "[mcp:" + c.name + "] " + t.Description, Parameters: schema},
+				server:   c.name,
+				remote:   t.Name,
+				readOnly: t.Annotations.ReadOnlyHint,
 				Call: func(argsJSON string) (string, error) {
 					return c.CallTool(context.Background(), t.Name, argsJSON)
 				},

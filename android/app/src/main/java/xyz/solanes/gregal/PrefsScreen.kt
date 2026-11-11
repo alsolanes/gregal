@@ -468,6 +468,8 @@ private fun ConnectionsCard(vm: GregalViewModel, lang: String) {
     GCard(Modifier.fillMaxWidth()) {
         Text(tr(lang, "app.conn.title"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
         Text(tr(lang, "app.conn.help"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+        // B5: el model únic de connexions (connectors, calendaris, bústies, sessions a l'ordinador).
+        ConnexionsEntry(vm.conn.value, lang)
         Spacer(Modifier.height(12.dp))
         Text("Google Calendar", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         Text(tr(lang, "app.conn.calHelp"), color = Muted, fontSize = 12.sp, lineHeight = 16.sp,

@@ -301,6 +301,12 @@ func (s *Server) handleMCPOAuthCallback(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "GET", http.StatusMethodNotAllowed)
 		return
 	}
+	// Un compte d'una persona (B5) o un servidor de l'administrador: el
+	// state d'un sol ús diu de qui és.
+	if s.vault().HasPending(r.URL.Query().Get("state")) {
+		s.handleConnexioCallback(w, r)
+		return
+	}
 	_, _ = s.mcpManager().HandleCallback(w, r)
 }
 

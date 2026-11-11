@@ -144,6 +144,12 @@ func imapQuote(s string) (string, error) {
 	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(s) + `"`, nil
 }
 
+// imapAuthError: el servidor ha rebutjat les credencials (cal tornar a
+// connectar el compte, no és un error de xarxa).
+type imapAuthError struct{ msg string }
+
+func (e *imapAuthError) Error() string { return e.msg }
+
 func (c *imapClient) login(user, pass, folder string) error {
 	u, err := imapQuote(user)
 	if err != nil {
@@ -155,9 +161,9 @@ func (c *imapClient) login(user, pass, folder string) error {
 	}
 	if _, err := c.cmd("LOGIN " + u + " " + p); err != nil {
 		if c.gmail {
-			return errors.New("Gmail rejected the login. Use an app password (Google Account → Security → 2-Step Verification → App passwords), not your normal password, and check that IMAP is on in Gmail settings")
+			return &imapAuthError{msg: "Gmail rejected the login. Use an app password (Google Account → Security → 2-Step Verification → App passwords), not your normal password, and check that IMAP is on in Gmail settings"}
 		}
-		return fmt.Errorf("login rejected: %v", err)
+		return &imapAuthError{msg: fmt.Sprintf("login rejected: %v", err)}
 	}
 	if folder == "" {
 		folder = "INBOX"

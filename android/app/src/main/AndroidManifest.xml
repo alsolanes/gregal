@@ -101,6 +101,21 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+        <!-- B5: tornada del consentiment d'un compte (la pàgina del servidor enllaça a
+             <id de paquet>://connexions). Porta l'app al davant i es tanca. -->
+        <activity
+            android:name=".ConnexioReturnActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="${applicationId}" android:host="connexions" />
+            </intent-filter>
+        </activity>
         <!-- B7: el diàleg del permís d'avisos, només quan l'usuari fa una cosa que el
              justifica (NotifPermission.kt). Transparent: es tanca sol. -->
         <activity

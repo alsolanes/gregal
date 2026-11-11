@@ -106,6 +106,7 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 	if planTurn {
 		specs, notRun = planSpecs(), planNotRun
 	}
+	specs = agent.GateSpecs(ctx, s.id, specs)
 	if !interactive {
 		scope = s.windLoopScope()
 		scope.mode = agent.ModeInspect
@@ -181,6 +182,7 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 	answers := map[string]string{}
 	var handoffsMu sync.Mutex
 	handoffs := map[string]windHandoffOutcome{}
+	connWaits := map[string]connexioWaitOutcome{}
 	var temps loopTemps
 	loop := &agent.Loop{
 		MaxSteps: maxSteps,
@@ -259,9 +261,20 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 					return s.windHandoffText(ctx, res), nil, nil
 				}
 			}
+			// Espera d'una connexió (B5): ja decidida a Decide; aquí es
+			// comprova de debò si el compte ha quedat connectat.
+			if name == "connector" {
+				handoffsMu.Lock()
+				res, ok := connWaits[argsJSON]
+				delete(connWaits, argsJSON)
+				handoffsMu.Unlock()
+				if ok {
+					return s.connexioWaitText(ctx, res), nil, nil
+				}
+			}
 			defer func(t0 time.Time) { temps.addEina(time.Since(t0)) }(time.Now())
 			// Apps, publicar: les fa el servidor web, no el paquet agent.
-			if name == "app" || name == "publish" || name == "tunnel" || name == "calendar" || name == "mail" || name == "notes" {
+			if name == "app" || name == "publish" || name == "tunnel" || name == "calendar" || name == "mail" || name == "notes" || name == "connector" {
 				out, err := s.runBuildTool(ctx, scope.workspace, name, argsJSON)
 				return out, nil, err
 			}
@@ -303,6 +316,17 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 					handoffsMu.Unlock()
 				}
 				return "allow", "handoff"
+			}
+			// Un compte que cal connectar (B5): espera durable
+			// (waiting_connection) en un torn aparcable.
+			if name == "connector" && canAsk && spot != nil && isConnectorRequest(argsJSON) {
+				res, parked := s.windConnexioWait(ctx, emit, argsJSON)
+				if !parked {
+					handoffsMu.Lock()
+					connWaits[argsJSON] = res
+					handoffsMu.Unlock()
+				}
+				return "allow", "connection"
 			}
 			// Els vents poden programar avisos (remind, eina validada); la
 			// resta usa la política compartida i el mode del torn.

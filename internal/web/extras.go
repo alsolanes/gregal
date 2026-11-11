@@ -52,6 +52,13 @@ func (h *Hub) extraRoutes(handle func(string, http.HandlerFunc)) {
 	handle("/api/server/invitations", h.global(adminOnly((*Server).handleServerInvite)))
 	handle("/api/server/powers", h.global(adminOnly((*Server).handleServerPowers)))
 	handle("/api/connections", h.route((*Server).handleConnections))
+	// Connexions (B5): model únic per compte; cap secret al payload.
+	handle("/api/connexions", h.global((*Server).handleConnexions))
+	handle("/api/connexions/connect", h.global((*Server).handleConnexioConnect))
+	handle("/api/connexions/check", h.global((*Server).handleConnexioCheck))
+	handle("/api/connexions/disconnect", h.global((*Server).handleConnexioDisconnect))
+	handle("/api/connexions/remove", h.global((*Server).handleConnexioRemove))
+	handle("/api/connexions/update", h.global((*Server).handleConnexioUpdate))
 	handle("/api/ordinador", h.global((*Server).handleOrdinador))
 	// B3: visor i control humà (ordinador_visor.go). El visor és fora de
 	// /api i s'autentica amb la sessió curta del visor.
