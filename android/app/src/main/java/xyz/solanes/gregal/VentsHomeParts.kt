@@ -255,7 +255,9 @@ internal fun HomeFacesRow(
 
 /** El vent escriu: la seva cara petita i els punts, a l'esquerra com un missatge seu. */
 @Composable
-internal fun WindTypingBubble(lang: String, wind: Wind, accent: Color, mood: WindMood) {
+internal fun WindTypingBubble(lang: String, wind: Wind, accent: Color, mood: WindMood,
+                                /** Què està fent ara («Cercant al web…»). Aquí i enlloc més. */
+                                label: String? = null) {
     Row(
         Modifier.padding(top = 12.dp, bottom = 4.dp)
             .semantics(mergeDescendants = true) { contentDescription = tr(lang, "app.company.windThinking", wind.name) }
@@ -267,6 +269,13 @@ internal fun WindTypingBubble(lang: String, wind: Wind, accent: Color, mood: Win
         Box(
             Modifier.clip(RoundedCornerShape(18.dp)).background(accent.copy(alpha = .16f))
                 .padding(horizontal = 14.dp, vertical = 12.dp),
-        ) { TypingDots(accent) }
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TypingDots(accent)
+                // L'acció en marxa, al costat dels punts: un sol lloc per
+                // «què està fent» (la capçalera i la franja ja no ho diuen).
+                if (!label.isNullOrBlank()) Text(label, color = accent.copy(alpha = .85f), style = GregalType.caption, maxLines = 1)
+            }
+        }
     }
 }

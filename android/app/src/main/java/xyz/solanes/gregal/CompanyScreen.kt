@@ -1147,10 +1147,9 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     ReadReplyFromStart(listState, follow, isBusy, msgs.indexOfLast { it.from != "user" })
     Box(Modifier.fillMaxSize().background(Superficie)) {
         Column(Modifier.fillMaxSize()) {
-        // «Hi pensa» només si la feina dura de debò (vegeu rememberSettledBusy).
-        val busySettled = rememberSettledBusy(isBusy)
+        // La capçalera diu qui és; «què està fent» es diu al final del fil.
         VentsChatHeader(lang, wind.name,
-            if (busySettled) tr(lang, "app.company.windThinking", wind.name) else wind.role,
+            wind.role,
             accent, wind.faceStyle,
             if (isBusy) live[wind.id]?.mood ?: WindMood.THINKING else WindMood.IDLE,
             onBack = onBack, onProfile = { profile = true },
@@ -1163,14 +1162,6 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         val scope = rememberCoroutineScope()
         val awayFromLatest = msgs.isNotEmpty() && !follow.following
         Box(Modifier.weight(1f)) {
-        // La franja de feina va SOBREPOSADA al fil, no a sobre seu: si ocupa
-        // lloc, cada cop que apareix i desapareix (a cada passa del vent)
-        // empeny tota la conversa amunt i avall — el flaix que es veu mentre
-        // el vent respon.
-        if (isBusy) live[wind.id]?.let {
-            VentsWorkProgress(lang, it, onStop = { vm.cancelWindTurn(wind.id) },
-                modifier = Modifier.align(Alignment.TopCenter).zIndex(1f))
-        }
         LazyColumn(
             Modifier.fillMaxSize(),
             state = listState,
@@ -1229,15 +1220,15 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     for (a in turnActs) TurnActionCard(lang, a, accent) { vm.undoTurnAction(wind.id, a) }
                 }
             }
-            // Peu "hi pensa" només si no hi ha bombolla de directe: la
-            // bombolla ja mostra la fase (Cercant/Pensant…); si no, surten
-            // dos avisos apilats.
-            // Mentre la franja de dalt calla (només parla de feina visible), el
-            // vent «escriu» al fil: la seva cara petita i els punts, com un missatge.
+            // Un sol lloc per «què està fent»: la cara petita i els punts al final
+            // del fil, amb l'acció en marxa al costat («Cercant al web…»). La
+            // capçalera i la franja de dalt ja no en diuen res.
             val liveNow = live[wind.id]
-            if (busy.contains(wind.id) && msgs.lastOrNull()?.streaming != true &&
-                (liveNow == null || windVisibleWork(lang, liveNow) == null)) {
-                item(key = "typing") { WindTypingBubble(lang, wind, accent, liveNow?.mood ?: WindMood.THINKING) }
+            if (busy.contains(wind.id) && msgs.lastOrNull()?.streaming != true) {
+                item(key = "typing") {
+                    WindTypingBubble(lang, wind, accent, liveNow?.mood ?: WindMood.THINKING,
+                        label = liveNow?.let { l -> windVisibleWork(lang, l) ?: windStallNote(lang, l, quietNow(true)) })
+                }
             }
         }
         if (awayFromLatest) LatestPill(lang) {
@@ -1404,22 +1395,9 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
         Column(Modifier.fillMaxSize()) {
         val crewSteps by vm.crewStep.collectAsState()
         val crewStep = crewSteps[rot.id]
-        // El pas de la colla arriba a polsos; quan el servidor deixa de dir-ne
-        // un i el torn encara no ha plegat, la capçalera queia a «la colla hi
-        // pensa» i tornava al pas: un flaix de mig segon. Es guarda l'últim
-        // pas mentre la rotllana treballa.
-        var lastStep by remember(rot.id) { mutableStateOf<String?>(null) }
-        LaunchedEffect(crewStep) { if (crewStep != null) lastStep = crewStep }
-        val rotSettled = rememberSettledBusy(rotBusy)
         VentsChatHeader(lang, rot.name,
-            when {
-                crewStep != null -> tr(lang, "app.crew.step.$crewStep")
-                rotSettled && lastStep != null -> tr(lang, "app.crew.step.$lastStep")
-                // El títol de la rotllana és la primera pregunta: «Recomana'm… hi
-                // pensa» no deia res. Qui pensa és la colla.
-                rotSettled -> tr(lang, "app.company.groupThinking")
-                else -> faces.joinToString(", ") { it.name }
-            },
+            // El pas de la colla i «què està fent» es diuen al final del fil.
+            faces.joinToString(", ") { it.name },
             rotAccent, faces.firstOrNull()?.faceStyle ?: WindStyle(),
             if (rotBusy) live[rot.id]?.mood ?: WindMood.THINKING else WindMood.IDLE, faces,
             onBack = onBack, onProfile = { groupProfile = true },
@@ -1430,14 +1408,6 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
         val scope = rememberCoroutineScope()
         val awayFromLatest = msgs.isNotEmpty() && !follow.following
         Box(Modifier.weight(1f)) {
-        // La franja de feina va SOBREPOSADA al fil, no a sobre seu: si ocupa
-        // lloc, cada cop que apareix i desapareix (a cada passa del vent)
-        // empeny tota la conversa amunt i avall — el flaix que es veu mentre
-        // el vent respon.
-        if (rotBusy) live[rot.id]?.let {
-            VentsWorkProgress(lang, it, onStop = { vm.cancelRotllanaTurn(rot.id) },
-                modifier = Modifier.align(Alignment.TopCenter).zIndex(1f))
-        }
         LazyColumn(
             Modifier.fillMaxSize(),
             state = listState,
@@ -1508,20 +1478,21 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                     ChoiceChips(quick, rotAccent) { pick -> follow.requestFollow(); vm.sendRotllanaMessage(rot.id, pick, proposer?.speakerId.orEmpty()) }
                 }
             }
-            // Peu "hi pensa" només si no hi ha bombolla de directe (mateix
-            // motiu que al xat directe: evitar l'avís duplicat).
-            if (busy.contains(rot.id) && live[rot.id] == null && msgs.lastOrNull()?.streaming != true) {
+            // Un sol lloc per «què està fent» la colla: els punts al final del
+            // fil, amb el pas o l'acció al costat. La capçalera només diu qui hi és.
+            if (busy.contains(rot.id) && msgs.lastOrNull()?.streaming != true) {
+                val liveRot = live[rot.id]
                 item {
+                    // El rellotge del silenci només pot córrer dins del composable.
+                    val what = liveRot?.let { l -> windVisibleWork(lang, l) ?: windStallNote(lang, l, quietNow(true)) }
+                        ?: crewStep?.let { tr(lang, "app.crew.step.$it") }
                     Row(
                         Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         TypingDots(rotAccent)
-                        Text(
-                            "  " + tr(lang, "app.company.groupThinking"),
-                            fontSize = 12.sp, color = rotAccent,
-                        )
+                        if (what != null) Text("  " + what, fontSize = 12.sp, color = rotAccent)
                     }
                 }
             }
