@@ -50,6 +50,9 @@ type tokenRecord struct {
 	AuthMethod    string    `json:"auth_method,omitempty"`
 	TokenEndpoint string    `json:"token_endpoint,omitempty"`
 	Resource      string    `json:"resource,omitempty"`
+	// IDToken (OIDC) només serveix per saber amb quin compte s'ha
+	// connectat (el nom visible); no s'envia enlloc.
+	IDToken string `json:"id_token,omitempty"`
 }
 
 func (r tokenRecord) expired() bool {
@@ -170,6 +173,7 @@ type authMeta struct {
 	AuthorizationEndpoint string   `json:"authorization_endpoint"`
 	TokenEndpoint         string   `json:"token_endpoint"`
 	RegistrationEndpoint  string   `json:"registration_endpoint"`
+	RevocationEndpoint    string   `json:"revocation_endpoint"`
 	ScopesSupported       []string `json:"scopes_supported"`
 	CodeChallengeMethods  []string `json:"code_challenge_methods_supported"`
 }
@@ -292,6 +296,9 @@ type pendingAuth struct {
 	TokenEndpoint string
 	Resource      string
 	Created       time.Time
+	// RevocationEndpoint (RFC 7009) si el servidor n'anuncia: desconnectar
+	// un compte revoca els tokens al proveïdor, no només els oblida.
+	RevocationEndpoint string
 }
 
 func randomURLSafe(n int) string {
@@ -325,6 +332,7 @@ func beginAuth(ctx context.Context, hc HTTPDoer, store *TokenStore, name string,
 	p := &pendingAuth{
 		Server: name, Key: tokenKey(name, srv), State: randomURLSafe(24), Verifier: randomURLSafe(48),
 		RedirectURI: redirectURI, TokenEndpoint: meta.TokenEndpoint, Resource: resource, Created: time.Now(),
+		RevocationEndpoint: meta.RevocationEndpoint,
 	}
 	scopes := ""
 	if srv.OAuth != nil && len(srv.OAuth.Scopes) > 0 {
@@ -445,15 +453,16 @@ func tokenRequest(ctx context.Context, hc HTTPDoer, endpoint, clientID, secret, 
 		TokenType    string `json:"token_type"`
 		ExpiresIn    int64  `json:"expires_in"`
 		Scope        string `json:"scope"`
+		IDToken      string `json:"id_token"`
 		Error        string `json:"error"`
 		ErrorDesc    string `json:"error_description"`
 	}
 	_ = json.Unmarshal(data, &out)
 	if resp.StatusCode != http.StatusOK || out.AccessToken == "" {
 		msg := firstNonEmpty(out.ErrorDesc, out.Error, strings.TrimSpace(string(data)))
-		return tokenRecord{}, fmt.Errorf("token endpoint: HTTP %d: %s", resp.StatusCode, msg)
+		return tokenRecord{}, &TokenError{Status: resp.StatusCode, Code: out.Error, msg: fmt.Sprintf("token endpoint: HTTP %d: %s", resp.StatusCode, msg)}
 	}
-	r := tokenRecord{AccessToken: out.AccessToken, RefreshToken: out.RefreshToken, TokenType: out.TokenType, Scope: out.Scope}
+	r := tokenRecord{AccessToken: out.AccessToken, RefreshToken: out.RefreshToken, TokenType: out.TokenType, Scope: out.Scope, IDToken: out.IDToken}
 	if out.ExpiresIn > 0 {
 		r.Expiry = time.Now().Add(time.Duration(out.ExpiresIn) * time.Second)
 	}
@@ -500,6 +509,23 @@ func refreshRecord(ctx context.Context, hc HTTPDoer, old tokenRecord) (tokenReco
 	r.ClientID, r.ClientSecret, r.AuthMethod = old.ClientID, old.ClientSecret, old.AuthMethod
 	r.TokenEndpoint, r.Resource = old.TokenEndpoint, old.Resource
 	return r, nil
+}
+
+// TokenError és un error del token endpoint. Code és el codi OAuth
+// (invalid_grant = el refresc ja no val: cal tornar a iniciar sessió).
+type TokenError struct {
+	Status int
+	Code   string
+	msg    string
+}
+
+func (e *TokenError) Error() string { return e.msg }
+
+// IsGrantRevoked diu si l'error vol dir que el compte s'ha de tornar a
+// connectar (refresh token revocat o caducat).
+func IsGrantRevoked(err error) bool {
+	var te *TokenError
+	return errors.As(err, &te) && (te.Code == "invalid_grant" || te.Code == "unauthorized_client" || te.Status == http.StatusUnauthorized)
 }
 
 func firstNonEmpty(vals ...string) string {

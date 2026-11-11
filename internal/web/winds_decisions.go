@@ -303,7 +303,13 @@ func (s *Server) consumeResumedDecision(res *windResumeCtx, hash string) (windAn
 // deixa al registre (run_waiting_user). Torna l'ID.
 func (s *Server) parkWindRun(rec *windDecisionRec) int64 {
 	run := s.Hub().Queue().Park(runs.Run{Session: rec.Session, Priority: runs.PriorityBackground})
-	_ = s.Hub().appendEvent(events.Event{SessionID: rec.Session, User: s.usuari(), RunID: int(run.ID), Kind: events.RunWaitingUser, Text: "esperant la decisió " + rec.ID})
+	kind, text := events.RunWaitingUser, "esperant la decisió "+rec.ID
+	if rec.Type == "connection" {
+		// L'encàrrec espera una connexió (waiting_connection): la cua el té
+		// aparcat igual, però els clients ho han de dir així.
+		kind, text = "run_waiting_connection", "esperant la connexió "+rec.Site+" (decisió "+rec.ID+")"
+	}
+	_ = s.Hub().appendEvent(events.Event{SessionID: rec.Session, User: s.usuari(), RunID: int(run.ID), Kind: kind, Text: text})
 	return run.ID
 }
 
@@ -363,6 +369,9 @@ func (s *Server) resumeWindDecision(rec *windDecisionRec) {
 func (s *Server) windWaitingText(rec *windDecisionRec) string {
 	if rec.Type == "question" {
 		return s.tr("Necessito la teva resposta per continuar: ", "I need your answer to carry on: ") + rec.Query
+	}
+	if rec.Type == "connection" {
+		return s.tr("Necessito que connectis «", "I need you to connect «") + rec.What + s.tr("» per continuar. Obre Connexions i toca «Connecta»; continuaré l'encàrrec tot sol.", "» to carry on. Open Connections and tap «Connect»; I will carry on with the task by myself.")
 	}
 	if rec.Type == "handoff" {
 		return s.tr("Et toca a tu a l'ordinador: ", "Your turn on the computer: ") + rec.What +

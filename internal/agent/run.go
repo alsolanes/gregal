@@ -250,7 +250,7 @@ const NoUIQuestionReply = PreguntaSenseUI
 // que actuen demanen permís).
 var einesInteractives = map[string]bool{"question": true, "preview": true, "dashboard_save": true, "office_open": true, "browser": true,
 	// Les executa el servidor web (apps, webs publicades, vents): sense ell no hi són.
-	"app": true, "publish": true, "wind": true, "tunnel": true, "calendar": true, "mail": true, "notes": true}
+	"app": true, "publish": true, "wind": true, "tunnel": true, "calendar": true, "mail": true, "notes": true, "connector": true}
 
 // SpecsNoInteractiu és SpecsAll sense les eines que necessiten una persona.
 func SpecsNoInteractiu() []llm.ToolSpec {
@@ -463,7 +463,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 		CriticaPla:       CriticaPlaHook(client, cfg, dir),
 	})
 
-	specs := FilterSpecs(SpecsNoInteractiu(), mode, cfg.CompactCode(), OfficeAlHist([]llm.Message{{Role: "user", Content: task}}))
+	specs := GateSpecs(ctx, "", FilterSpecs(SpecsNoInteractiu(), mode, cfg.CompactCode(), OfficeAlHist([]llm.Message{{Role: "user", Content: task}})))
 	if len(o.Tools) > 0 {
 		keep := map[string]bool{}
 		for _, t := range o.Tools {

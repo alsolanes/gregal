@@ -237,7 +237,7 @@ func (s *Server) startBestOf(w http.ResponseWriter, r *http.Request) {
 			var out agent.RunResult
 			var runErr error
 			exec := func(rctx context.Context, _ runs.Run) error {
-				out, runErr = agent.RunNonInteractiveOpts(rctx, s.client, c, o)
+				out, runErr = agent.RunNonInteractiveOpts(agent.WithExtrasGate(rctx, s.mcpGate()), s.client, c, o)
 				if rctx.Err() != nil {
 					return runs.ErrCancelled
 				}

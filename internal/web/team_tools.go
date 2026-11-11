@@ -238,7 +238,7 @@ func (s *Server) runTeamSeat(ctx context.Context, cfg *config.Config, role confi
 	toolPaths := map[string]string{}
 	var progressMu sync.Mutex
 	var progressErr error
-	res, err := agent.RunNonInteractiveOpts(ctx, s.client, &local, agent.RunOpts{
+	res, err := agent.RunNonInteractiveOpts(agent.WithExtrasGate(ctx, s.mcpGate()), s.client, &local, agent.RunOpts{
 		Task: prompt, Mode: seat.Mode, MaxSteps: seat.MaxSteps, HardStepLimit: true,
 		Dir: workspace, Role: "team", Tools: seat.Tools, System: system, Approve: approve, ToolExecutor: toolExecutor,
 		Steer: steer,

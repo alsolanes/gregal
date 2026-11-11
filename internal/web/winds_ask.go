@@ -169,6 +169,10 @@ func (s *Server) windAskWait(ctx context.Context, emit func(kind, text string), 
 	if r.Type == "handoff" {
 		effect = &windEffect{Type: "handoff", Tool: "browser", Kind: "login", Summary: r.What}
 	}
+	if r.Type == "connection" {
+		// B5: la feina espera que la persona connecti un compte (waiting_connection).
+		effect = &windEffect{Type: "connection", Tool: "connector", Kind: "connect", Summary: r.What}
+	}
 	effect.Hash = windEffectHash(effect.Tool, firstNonEmpty(args, effect.Summary))
 
 	// Represa: la decisió que va aparcar aquest torn ja té resposta.
@@ -228,7 +232,7 @@ func (s *Server) windAskWait(ctx context.Context, emit func(kind, text string), 
 	*r = rec.public()
 	if b, err := json.Marshal(r); err == nil && emit != nil {
 		ev := r.Type + "_request"
-		if r.Type == "handoff" {
+		if r.Type == "handoff" || r.Type == "connection" {
 			// Els clients que encara no coneixen handoff hi veuen una
 			// aprovació (Permet = ja està, Rebutja = cancel·la).
 			ev = "approve_request"
@@ -411,7 +415,31 @@ func (s *Server) handleWindsAnswer(w http.ResponseWriter, r *http.Request) {
 		req.Answer = string([]rune(req.Answer)[:2000])
 	}
 	ans := windAnswer{Approve: req.Approve, Answer: req.Answer}
-	id := strings.TrimSpace(req.Key)
+	rec, code := s.answerDecision(strings.TrimSpace(req.Key), ans, req.Revision)
+	switch code {
+	case http.StatusNotFound:
+		http.Error(w, "expired or unknown request", http.StatusNotFound)
+		return
+	case http.StatusOK:
+		writeJSON(w, map[string]any{"ok": true, "duplicate": true, "state": rec.State, "id": rec.ID})
+		return
+	case http.StatusConflict:
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": "decision is no longer pending", "state": rec.State, "revision": rec.Revision, "supersededBy": rec.SupersededBy})
+		return
+	case http.StatusInternalServerError:
+		http.Error(w, "could not save the decision", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true, "state": rec.State, "id": rec.ID, "runId": rec.RunID})
+}
+
+// answerDecision resol una decisió pendent d'aquest usuari i fa continuar el
+// torn (en directe o reprenent l'aparcat). code: -1 = resolta ara; 200 = ja
+// ho estava amb la mateixa resposta; 404, 409, 500. També el fa servir la
+// connexió d'un compte (B5) per reprendre les feines que l'esperaven.
+func (s *Server) answerDecision(id string, ans windAnswer, revision int) (*windDecisionRec, int) {
 	var rec *windDecisionRec
 	var code int
 	var resume, live, sweptNow bool
@@ -433,12 +461,12 @@ func (s *Server) handleWindsAnswer(w http.ResponseWriter, r *http.Request) {
 			}
 			return nil
 		}
-		if req.Revision != 0 && req.Revision != cur.Revision {
+		if revision != 0 && revision != cur.Revision {
 			code = http.StatusConflict
 			return nil
 		}
 		cur.State = "approved"
-		if (cur.Type == "approve" || cur.Type == "handoff") && !ans.Approve {
+		if (cur.Type == "approve" || cur.Type == "handoff" || cur.Type == "connection") && !ans.Approve {
 			cur.State = "rejected"
 		}
 		cur.Answer = &ans
@@ -463,21 +491,8 @@ func (s *Server) handleWindsAnswer(w http.ResponseWriter, r *http.Request) {
 	if sweptNow && rec != nil {
 		s.afterDecisionChange(rec)
 	}
-	switch code {
-	case http.StatusNotFound:
-		http.Error(w, "expired or unknown request", http.StatusNotFound)
-		return
-	case http.StatusOK:
-		writeJSON(w, map[string]any{"ok": true, "duplicate": true, "state": rec.State, "id": rec.ID})
-		return
-	case http.StatusConflict:
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusConflict)
-		_ = json.NewEncoder(w).Encode(map[string]any{"error": "decision is no longer pending", "state": rec.State, "revision": rec.Revision, "supersededBy": rec.SupersededBy})
-		return
-	case http.StatusInternalServerError:
-		http.Error(w, "could not save the decision", http.StatusInternalServerError)
-		return
+	if code != -1 {
+		return rec, code
 	}
 	s.emitDecision(rec)
 	if rec.Type == "handoff" {
@@ -488,7 +503,7 @@ func (s *Server) handleWindsAnswer(w http.ResponseWriter, r *http.Request) {
 	if resume && !live {
 		s.resumeWindDecision(rec)
 	}
-	writeJSON(w, map[string]any{"ok": true, "state": rec.State, "id": rec.ID, "runId": rec.RunID})
+	return rec, code
 }
 
 // windAskArgsHint: una pista curta (camí, ordre, adreça) de la crida d'una eina,

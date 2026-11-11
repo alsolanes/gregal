@@ -146,6 +146,9 @@ func (s *Server) windHandoffText(ctx context.Context, res windHandoffOutcome) st
 	case lc.PasswordField:
 		return head + "A password field is still visible: the sign-in does not look complete. Do not type anything; tell them, or use handoff again."
 	}
+	// La sessió queda com a connexió (B5): una segona feina al mateix lloc la
+	// reutilitza sense tornar-la a demanar.
+	s.recordBrowserSession(lc.Page)
 	return head + "No sign-in or code form is visible, so the session looks active. Continue the original task with the browser; never ask for or read back what they typed."
 }
 

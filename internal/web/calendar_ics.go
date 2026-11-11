@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -78,11 +79,17 @@ func fetchICS(ctx context.Context, url string) (string, error) {
 	req.Header.Set("User-Agent", "Gregal calendar reader")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		// L'error de net/http porta l'URL, i l'URL és la clau secreta del
+		// calendari: només la causa, mai l'adreça.
+		var ue *neturl.Error
+		if errors.As(err, &ue) {
+			err = ue.Err
+		}
 		return "", fmt.Errorf("cannot reach the calendar: %v", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("the calendar answered HTTP %d (is the secret address right?)", resp.StatusCode)
+		return "", &icsHTTPError{code: resp.StatusCode}
 	}
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, icsMaxBytes))
 	if err != nil {
@@ -96,6 +103,19 @@ func fetchICS(ctx context.Context, url string) (string, error) {
 	icsCache[url] = icsCached{at: time.Now(), body: body}
 	icsCacheMu.Unlock()
 	return body, nil
+}
+
+// icsHTTPError: el calendari ha respost amb un codi HTTP que no és 200.
+// 401/403/404/410 volen dir que l'adreça secreta ja no val (canviada o
+// revocada): cal tornar a connectar-lo.
+type icsHTTPError struct{ code int }
+
+func (e *icsHTTPError) Error() string {
+	return fmt.Sprintf("the calendar answered HTTP %d (is the secret address right?)", e.code)
+}
+
+func (e *icsHTTPError) revoked() bool {
+	return e.code == 401 || e.code == 403 || e.code == 404 || e.code == 410
 }
 
 // icsZone és la zona del calendari (X-WR-TIMEZONE, la que posa Google).

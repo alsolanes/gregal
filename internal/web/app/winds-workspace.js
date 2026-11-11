@@ -629,6 +629,8 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  async function answerAsk(a,body){state.asks=state.asks.filter(x=>x.key!==a.key);paintAsks();try{await call('/api/winds/answer','POST',{key:a.key,...body});}catch(e){fail(e);}}
  // Visor de l'ordinador (B3): la finestra s'obre al clic (si no, el navegador la bloqueja) i després hi va el testimoni d'un sol ús.
  async function openComputer(handoff){const win=root.open('about:blank','gregal-ordinador');try{const r=await call('/api/ordinador/viewer','POST',{handoff:handoff||'',control:!!handoff});const lang=ca()?'ca':'en';if(win)win.location.href=r.url+(r.url.includes('?')?'&':'?')+'lang='+lang;}catch(e){if(win)win.close();const m=String(e&&e.message||'');if(/no computer|another account|unknown computer/.test(m))fail(new Error(t("El teu compte encara no té cap ordinador configurat. Les feines que en necessiten esperen fins que n'hi hagi.",'No computer is set up for your account yet. Tasks that need it wait until there is one.')));else if(/no_viewer/.test(m))fail(new Error(t('Aquest servidor no té visor remot.','This server has no remote viewer.')));else fail(e);}}
+ // Connecta el compte que una feina espera: el consentiment s'obre al clic (si no, el navegador el bloqueja).
+ async function connectFor(a){const win=root.open('about:blank','gregal-connexio');const site=String(a.site||'');const body=site.startsWith('con-')?{id:site}:{service:'mcp',provider:site.replace(/^mcp:/,'')};try{const r=await call('/api/connexions/connect','POST',body);if(win)win.location.href=r.authUrl;}catch(e){if(win)win.close();const m=String(e&&e.message||'');fail(/needs_client_id/.test(m)?new Error(t("Aquest proveïdor necessita que l'administrador hi registri Gregal. Mentrestant, pots iniciar sessió al navegador de l'ordinador.","This provider needs the administrator to register Gregal with it. Meanwhile, you can sign in on the computer's browser.")):e);}}
  async function loadAsks(){try{state.asks=(await call('/api/winds/pending')).pending||[];paintAsks();}catch(e){}}
  // Targetes d'aprovació i de pregunta: el torn del vent espera aquí.
  function paintAsks(){
@@ -643,6 +645,15 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
     card.append(el('small','',t("Gregal no escriu mai contrasenyes ni codis: ho fas tu a l'ordinador i l'encàrrec continua.",'Gregal never types passwords or codes: you do it on the computer and the task carries on.')));
     const row=el('div','vw-ask-actions');
     row.append(btn(t('Cancel·la','Cancel'),()=>answerAsk(a,{approve:false}),'vw-ask-decline'),btn(t('Ja està','Done'),()=>answerAsk(a,{approve:true}),'vw-ask-decline'),btn(t("Obre l'ordinador",'Open the computer'),()=>openComputer(a.key),'vw-ask-allow'));
+    card.append(row);
+   }else if(a.type==='connection'){
+    // B5: la feina espera que connectis un compte (waiting_connection). En acabar el consentiment continua sola.
+    card.className='vw-ask vw-ask-approve vw-ask-handoff';
+    card.append(el('strong','',t('Cal connectar un compte','An account needs connecting')),el('small','vw-ask-wait',t('La feina espera','The task is waiting')));
+    if(a.what)card.append(el('p','',a.what));
+    if(a.reason)card.append(el('small','',a.reason));
+    const row=el('div','vw-ask-actions');
+    row.append(btn(t('Cancel·la','Cancel'),()=>answerAsk(a,{approve:false}),'vw-ask-decline'),btn(t('Connecta','Connect'),()=>connectFor(a),'vw-ask-allow'));
     card.append(row);
    }else if(a.type==='question'){
     card.append(el('strong','',a.query||''));
