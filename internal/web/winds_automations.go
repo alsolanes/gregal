@@ -38,6 +38,12 @@ type AutomationItem struct {
 	LastAt     *time.Time `json:"last_at,omitempty"`
 	LastStatus string     `json:"last_status,omitempty"`
 	CanPause   bool       `json:"can_pause"`
+	// Text sencer i editable (Detail i Title es retallen per a la llista):
+	// el text d'un recordatori o la consigna d'una rutina.
+	Text string `json:"text,omitempty"`
+	// El que l'usuari ha ensenyat a una rutina i quants exemples té.
+	Howto string `json:"howto,omitempty"`
+	Refs  int    `json:"refs,omitempty"`
 }
 
 // AutomationCounts és el resum de dalt de la pantalla.
@@ -90,6 +96,7 @@ func (s *Server) automationOf(j jobs.Job, winds map[string]companion.Wind, allWi
 			return AutomationItem{}, false
 		}
 		it.Kind, it.Repeat = "reminder", "once"
+		it.Text = strings.TrimSpace(j.Prompt)
 		it.Title = firstNonEmpty(strings.TrimSpace(j.Prompt), strings.TrimSpace(j.Task))
 		if strings.TrimSpace(j.Task) != "" {
 			it.Kind = "task"
@@ -108,6 +115,8 @@ func (s *Server) automationOf(j jobs.Job, winds map[string]companion.Wind, allWi
 		it.Kind, it.Repeat, it.CanPause = "routine", j.Kind, true
 		it.Time, it.IntervalH = j.Time, j.IntervalH
 		it.Detail = strings.TrimSpace(j.Prompt)
+		it.Text = strings.TrimSpace(j.Prompt)
+		it.Howto, it.Refs = strings.TrimSpace(j.Howto), len(j.Refs)
 		if nd := jobs.NextDue(j, now); !nd.IsZero() {
 			it.NextAt = &nd
 		}

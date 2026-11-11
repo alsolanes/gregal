@@ -332,7 +332,7 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			}
 			// remind_edit toca els recordatoris existents de l'usuari:
 			// mateix tractament que remind (res en mode lectura).
-			if name == "remind_edit" {
+			if name == "remind_edit" || name == "routine_teach" {
 				if agent.ReadOnlyMode(scope.mode) {
 					return "deny", s.tr("mode de només lectura: no es poden editar els avisos", "read-only mode: cannot edit reminders")
 				}

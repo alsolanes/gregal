@@ -34,6 +34,9 @@ type RutinaInfo struct {
 	NextDueAt  string     `json:"next_due_at,omitempty"`
 	LastAt     *time.Time `json:"last_at,omitempty"`
 	LastStatus string     `json:"last_status,omitempty"`
+	// El que l'usuari ha ensenyat a la rutina (winds_rutines_teach.go).
+	Howto string           `json:"howto,omitempty"`
+	Refs  []jobs.ResultRef `json:"refs,omitempty"`
 }
 
 // handleWindsRutina crea una rutina de vent des de l'app. POST amb
@@ -138,6 +141,7 @@ func rutinaFromJob(s *Server, j jobs.Job) RutinaInfo {
 		Name: j.Name, Kind: j.Kind, Time: j.Time, IntervalH: j.IntervalH,
 		Prompt: j.Prompt, Enabled: j.Enabled,
 		LastAt: j.LastAt, LastStatus: j.LastStatus,
+		Howto: j.Howto, Refs: j.Refs,
 	}
 	if nd := jobs.NextDue(j, time.Now()); !nd.IsZero() {
 		out.NextDue = nd.Format("02-01 15:04")
@@ -250,8 +254,14 @@ func (s *Server) handleWindsRutinaRun(w http.ResponseWriter, r *http.Request) {
 	if !decodeSmall(w, r, &req) {
 		return
 	}
-	if _, ok := s.ownWindJob(req.ID); !ok {
+	job, ok := s.ownWindJob(req.ID)
+	if !ok {
 		http.Error(w, "unknown routine", 404)
+		return
+	}
+	// Una rutina pausada no corre, tampoc a mà: primer s'ha de reprendre.
+	if !job.Enabled {
+		http.Error(w, "paused: resume it first", http.StatusConflict)
 		return
 	}
 	s.mu.Lock()

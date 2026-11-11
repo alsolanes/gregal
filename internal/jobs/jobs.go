@@ -45,6 +45,21 @@ type Job struct {
 	// compte (seguiment d'una cosa que l'usuari va esmentar), no un que li
 	// van demanar: l'app el mostra com a «seguiment» i el deixa desfer.
 	Followup bool `json:"followup,omitempty"`
+	// Howto són les instruccions que l'usuari ha ensenyat a una rutina («fes-ho
+	// així la propera vegada»): text pla, una per línia, revisable i editable.
+	// Refs són resultats que l'usuari ha marcat com a model, amb un extracte
+	// desat al moment (el run o el missatge original es poden podar).
+	// Tots dos són opcionals: els jobs antics no els porten i no cal migrar.
+	Howto string      `json:"howto,omitempty"`
+	Refs  []ResultRef `json:"refs,omitempty"`
+}
+
+// ResultRef és un resultat que l'usuari ha marcat com a exemple d'una rutina.
+type ResultRef struct {
+	Kind    string    `json:"kind"` // "message" | "run"
+	ID      string    `json:"id"`
+	Excerpt string    `json:"excerpt"`
+	At      time.Time `json:"at"`
 }
 
 // Run és una execució (la sortida és markdown llest per renderitzar ric).

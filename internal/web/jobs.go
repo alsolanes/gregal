@@ -234,6 +234,8 @@ func (s *Server) executeJob(ctx context.Context, job jobs.Job, queued runs.Run) 
 			jobCtx = agent.WithSkillsDirs(jobCtx, s.windSkillsDir(wind.ID))
 		} else {
 			brief += "\nWind: " + wind.Name + ". " + wind.Persona + windTradeBrief(wind) + s.windCalaixBrief(wind) + s.windMemorySystem(wind.ID) + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windSkillsSystem(wind.ID)
+			// El que l'usuari ha ensenyat a aquesta rutina («fes-ho així»).
+			brief += rutinaHowtoBrief(job)
 			jobCtx = agent.WithSkillsDirs(jobCtx, s.windSkillsDir(wind.ID))
 		}
 	}

@@ -475,7 +475,7 @@ func (p *Policy) For(name, argsJSON string) (string, string) {
 	// remind la registra el servidor (els vents): no és nativa ni MCP, però
 	// tampoc desconeguda. Abans, un torn amb la política de la sessió la
 	// denegava i el vent responia «no t'he pogut programar l'avís».
-	if !tools.EsNativa(name) && !isMCP(name) && name != "remind" && name != "remind_list" && name != "remind_edit" && name != "calaix" {
+	if !tools.EsNativa(name) && !isMCP(name) && name != "remind" && name != "remind_list" && name != "remind_edit" && name != "routine_teach" && name != "calaix" {
 		return "deny", "eina desconeguda: " + name
 	}
 	if p != nil && name != "bash" && name != "bash_background" {

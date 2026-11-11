@@ -29,6 +29,30 @@ export function whenText(iso, now = new Date()) {
   return d.toLocaleDateString(idioma() === 'en' ? 'en-GB' : 'ca-ES', { weekday: 'short', day: '2-digit', month: '2-digit' }) + ' ' + hm;
 }
 
+/** «d'aquí a 25 min», «d'aquí a 3 h», «fa 5 min»; buit si és lluny (B8, com a Android). */
+export function relativeText(iso, now = new Date()) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  const min = Math.floor((d.getTime() - now.getTime()) / 60000);
+  if (min >= 0 && min < 60) return tx('d’aquí a ', 'in ') + Math.max(min, 1) + ' min';
+  if (min >= 60 && min <= 720) return tx('d’aquí a ', 'in ') + Math.round(min / 60) + ' h';
+  if (min < 0 && min > -60) return tx('fa ', '') + -min + tx(' min', ' min ago');
+  return '';
+}
+
+const tzName = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (_) { return ''; } };
+
+/** «Demà» a la mateixa hora (o les 09:00), amb el desplaçament local, RFC3339. */
+export function tomorrowIso(nextAt, now = new Date()) {
+  const base = nextAt ? new Date(nextAt) : null;
+  const ok = base && !isNaN(base);
+  const d = new Date(now.getTime()); d.setDate(d.getDate() + 1);
+  d.setHours(ok ? base.getHours() : 9, ok ? base.getMinutes() : 0, 0, 0);
+  const off = -d.getTimezoneOffset(), sign = off >= 0 ? '+' : '-', p = n => String(Math.abs(n)).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:00${sign}${p(Math.trunc(off / 60))}:${p(off % 60)}`;
+}
+
 const KIND = {
   reminder: ['Recordatori', 'Reminder'], task: ['Encàrrec', 'Errand'], followup: ['Seguiment', 'Follow-up'],
   watch: ['Vigila', 'Watch'], routine: ['Rutina', 'Routine'],
@@ -123,13 +147,66 @@ export async function renderAutomations(box, opts = {}) {
       r.append(f);
     }
     const main = el('div', 'auto-main');
-    const meta = [kindLabel(a.kind), wind ? '' : a.wind_name, a.enabled ? whenText(a.next_at) : tx('en pausa', 'paused'), repeatText(a)].filter(Boolean).join(' · ');
+    const meta = [kindLabel(a.kind), wind ? '' : a.wind_name, a.enabled ? whenText(a.next_at) : tx('en pausa', 'paused'), a.enabled ? relativeText(a.next_at) : '', repeatText(a)].filter(Boolean).join(' · ');
     main.append(el('strong', '', a.title), el('span', 'auto-sub', meta + (a.last_status === 'error' ? tx(' · ⚠ va fallar', ' · ⚠ failed') : '')));
     if (a.detail && a.detail !== a.title) { const d = el('details', 'act-detail'); d.append(el('summary', '', tx('Què farà', 'What it will do')), el('p', '', a.detail)); main.append(d); }
+    if (a.kind === 'routine' && a.howto) main.append(el('p', 'auto-sub', tx('Com ho vols: ', 'How you want it: ') + a.howto.split('\n').map(l => l.replace(/^\s*-\s*/, '').trim()).filter(Boolean).join(' · ')));
+    if (a.kind === 'routine' && a.refs) main.append(el('span', 'auto-sub', a.refs + tx(' exemples desats', ' saved examples')));
     const actions = el('div', 'auto-actions');
     if (a.enabled) actions.append(btn(tx('Fes-ho ara', 'Run now'), () => act(a, 'run', tx('En marxa: el resultat sortirà al xat del vent.', 'Running: the result will show up in the wind’s chat.'))));
     if (a.can_pause) actions.append(btn(a.enabled ? tx('Pausa', 'Pause') : tx('Reprèn', 'Resume'), () => act(a, a.enabled ? 'pause' : 'resume', a.enabled ? tx('En pausa.', 'Paused.') : tx('Represa.', 'Resumed.')), 'auto-btn subtle'));
     const hist = el('div', 'auto-history'); hist.hidden = true;
+    const form = el('div', 'auto-history'); form.hidden = true;
+    // B8: editar, ajornar i ensenyar, sempre sobre el mateix id.
+    const b8 = async (path, body, okMsg) => {
+      status.textContent = tx('Un moment…', 'One moment…');
+      try {
+        await post(path, body);
+        await renderAutomations(box, opts);
+        const s = box.querySelector('.auto-status'); if (s) s.textContent = okMsg; // el missatge del servidor és per al model (en català)
+      } catch (e) { status.textContent = '⚠ ' + (e.message || e); }
+    };
+    const field = (label, value, multi) => {
+      const l = el('label', 'act-field'), i = el(multi ? 'textarea' : 'input');
+      i.value = value || ''; if (multi) i.rows = 3;
+      l.append(el('span', '', label), i); form.append(l); return i;
+    };
+    const check = (label, on) => { const l = el('label', 'vw-check'), c = el('input'); c.type = 'checkbox'; c.checked = on; l.append(c, el('span', '', label)); form.append(l); return c; };
+    const openForm = build => { form.hidden = !form.hidden; if (!form.hidden) { form.replaceChildren(); build(); } };
+    const isReminder = a.kind === 'reminder' || a.kind === 'task' || a.kind === 'followup';
+    const snooze = (label, body) => actions.append(btn(label, () => b8('/api/winds/remind/edit', { id: a.id, tz: tzName(), ...body }, tx('Ajornat.', 'Snoozed.')), 'auto-btn subtle'));
+    if (isReminder) {
+      actions.append(btn(tx('Edita', 'Edit'), () => openForm(() => {
+        const text = field(tx('Què t’ha de dir', 'What it should tell you'), a.text || a.title, true);
+        const at = field(tx('Quan (09:00, 21/11 18:30, +2h…; buit = igual)', 'When (09:00, 21/11 18:30, +2h…; empty = same)'), '');
+        form.append(el('p', 'auto-help', tx('Hora d’aquest ordinador: ', 'This computer’s time: ') + tzName()));
+        form.append(btn(tx('Desa', 'Save'), () => b8('/api/winds/remind/edit', { id: a.id, op: 'edit', text: text.value.trim(), at: at.value.trim(), tz: tzName() }, tx('Desat.', 'Saved.'))));
+      }), 'auto-btn subtle'));
+      snooze(tx('Ajorna 10 min', 'Snooze 10 min'), { op: 'snooze', minutes: 10 });
+      snooze('1 h', { op: 'snooze', minutes: 60 });
+      snooze(tx('Demà', 'Tomorrow'), { op: 'reschedule', at: tomorrowIso(a.next_at) });
+    }
+    if (a.kind === 'routine') {
+      actions.append(btn(tx('Edita', 'Edit'), () => openForm(() => {
+        const prompt = field(tx('Què ha de fer', 'What it should do'), a.text || a.detail, true);
+        const when = a.repeat === 'daily' ? field(tx('Cada dia a (HH:MM)', 'Every day at (HH:MM)'), a.time) : field(tx('Cada (hores)', 'Every (hours)'), String(a.interval_h || ''));
+        const howto = field(tx('Com ho vols (una indicació per línia)', 'How you want it (one instruction per line)'), a.howto, true);
+        const clear = a.refs ? check(tx('Treu els exemples desats', 'Remove saved examples') + ' (' + a.refs + ')', false) : null;
+        form.append(btn(tx('Desa', 'Save'), () => {
+          const body = { id: a.id, prompt: prompt.value.trim(), howto: howto.value.trim() };
+          if (a.repeat === 'daily') body.time = when.value.trim(); else body.interval_h = parseFloat(when.value.replace(',', '.'));
+          if (clear?.checked) body.keep_refs = [];
+          b8('/api/winds/rutines/edit', body, tx('Desat.', 'Saved.'));
+        }));
+      }), 'auto-btn subtle'));
+      actions.append(btn(tx('Ensenya-li', 'Teach it'), () => openForm(() => {
+        form.append(el('p', 'auto-help', tx('Fes-ho així la propera vegada: desa una indicació a aquesta rutina. La pots revisar i editar; només és text, no aprèn de vídeos ni demostracions.',
+          'Do it like this next time: saves an instruction to this routine. You can review and edit it; it’s only text, it doesn’t learn from videos or demonstrations.')));
+        const ins = field(tx('Indicació (p. ex. «només els tres més barats, en una taula»)', 'Instruction (e.g. “only the three cheapest, in a table”)'), '', true);
+        const last = a.last_status === 'ok' ? check(tx('Guarda l’últim resultat com a exemple', 'Keep the last result as an example'), true) : null;
+        form.append(btn(tx('Desa', 'Save'), () => b8('/api/winds/rutines/teach', { id: a.id, instruction: ins.value.trim(), ref_last: !!last?.checked }, tx('Desat a la rutina.', 'Saved to the routine.'))));
+      }), 'auto-btn subtle'));
+    }
     if (a.kind === 'routine' || a.kind === 'watch') actions.append(btn(tx('Historial', 'History'), async () => {
       hist.hidden = !hist.hidden;
       if (hist.hidden || hist.dataset.loaded) return;
@@ -150,7 +227,7 @@ export async function renderAutomations(box, opts = {}) {
     actions.append(btn(a.kind === 'followup' ? tx('Desfés', 'Undo') : tx('Treu', 'Remove'), () => {
       if (confirm(tx('Treure aquesta automatització?', 'Remove this automation?') + '\n\n' + a.title)) act(a, 'delete', tx('Fet, l’he tret.', 'Done, removed.'));
     }, 'auto-btn subtle'));
-    r.append(main, actions, hist);
+    r.append(main, actions, form, hist);
     return r;
   };
   draw();
