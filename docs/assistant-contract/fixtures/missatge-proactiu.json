@@ -1,0 +1,10 @@
+{
+  "kind": "missatge",
+  "id": "m-demo-proactiu",
+  "conversationId": "cap",
+  "source": "heartbeat",
+  "relatedRunId": 412,
+  "resultRefs": ["res-itinerari-v2"],
+  "text": "Sobre el viatge · He trobat el trasllat que faltava: el bus directe et deixa a 5 minuts de l'hotel.",
+  "createdAt": "2026-11-11T09:12:30Z"
+}

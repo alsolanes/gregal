@@ -40,6 +40,8 @@ const (
 )
 
 type capMsg struct {
+	// ID estable del missatge (vegeu message_ids.go): els antics el reben derivat en carregar.
+	ID     string   `json:"id,omitempty"`
 	From   string   `json:"from"` // user | cap
 	Text   string   `json:"text"`
 	Ts     int64    `json:"ts"`
@@ -105,6 +107,12 @@ func (s *Server) loadCap() capState {
 	}
 	if st.History == nil {
 		st.History = []capMsg{}
+	}
+	for i := range st.History {
+		if st.History[i].ID == "" {
+			m := st.History[i]
+			st.History[i].ID = messageID(llm.Message{Role: m.From, Ts: m.Ts, Content: m.Text})
+		}
 	}
 	return st
 }
@@ -241,6 +249,25 @@ func (s *Server) handleCap(w http.ResponseWriter, r *http.Request) {
 		capMu.Unlock()
 		writeJSON(w, map[string]any{"name": st.Name, "color": st.Color, "style": st.Style, "history": st.History, "brief": brief, "pet": st.Pet.json(now)})
 	case http.MethodPost:
+		s.capPost(w, r, false)
+	default:
+		http.Error(w, "GET or POST required", http.StatusMethodNotAllowed)
+	}
+}
+
+// handleCapStream és el POST de /api/winds/cap en flux (SSE): «token» amb el
+// text de la resposta del Ventet a mesura que s'escriu, i «done» amb el
+// mateix cos que el POST normal.
+func (s *Server) handleCapStream(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", http.StatusMethodNotAllowed)
+		return
+	}
+	s.capPost(w, r, true)
+}
+
+func (s *Server) capPost(w http.ResponseWriter, r *http.Request, stream bool) {
+	{
 		var req struct {
 			Message string `json:"message"`
 			Lang    string `json:"lang"`
@@ -254,7 +281,7 @@ func (s *Server) handleCap(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "message required", http.StatusBadRequest)
 			return
 		}
-		ca = req.Lang == "ca"
+		ca := req.Lang == "ca"
 		winds, err := s.winds.List()
 		if err != nil {
 			http.Error(w, "could not read winds", http.StatusInternalServerError)
@@ -263,11 +290,17 @@ func (s *Server) handleCap(w http.ResponseWriter, r *http.Request) {
 		capMu.Lock()
 		st := s.loadCap()
 		capMu.Unlock()
+		emit, fail, stopStream := windTurnOutput(w, r, stream)
+		defer stopStream()
 		ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 		defer cancel()
+		if stream {
+			rs := &capReplyStream{emit: func(t string) { emit("token", map[string]string{"token": t}) }}
+			ctx = withCapToken(ctx, rs.feed)
+		}
 		d, err := s.capDecide(ctx, st, msg, req.Force, ca, winds)
 		if err != nil {
-			http.Error(w, redactError(err), http.StatusBadGateway)
+			fail(http.StatusBadGateway, redactError(err))
 			return
 		}
 		capMu.Lock()
@@ -278,20 +311,18 @@ func (s *Server) handleCap(w http.ResponseWriter, r *http.Request) {
 		if n := len(st.History); req.Force != "" && n >= 2 && st.History[n-2].From == "user" && st.History[n-2].Text == msg {
 			st.History = st.History[:n-1]
 		} else {
-			st.History = append(st.History, capMsg{From: "user", Text: msg, Ts: now})
+			st.History = append(st.History, capMsg{ID: newMessageID(), From: "user", Text: msg, Ts: now})
 		}
-		st.History = append(st.History, capMsg{From: "cap", Text: d.Reply, Ts: now, Action: d.Action, Winds: d.Winds, Task: d.Task,
+		st.History = append(st.History, capMsg{ID: newMessageID(), From: "cap", Text: d.Reply, Ts: now, Action: d.Action, Winds: d.Winds, Task: d.Task,
 			Create: d.Create, Novices: d.Novices})
 		if d.Action != "self" {
 			capCheer(&st.Pet, time.Now())
 		}
 		s.saveCap(st)
 		capMu.Unlock()
-		writeJSON(w, map[string]any{"action": d.Action, "reply": d.Reply, "winds": d.Winds, "task": d.Task, "rotllana": d.Rotllana,
+		emit("done", map[string]any{"action": d.Action, "reply": d.Reply, "winds": d.Winds, "task": d.Task, "rotllana": d.Rotllana,
 			"create": d.Create, "novices": d.Novices, "confirm": d.Confirm, "message": d.Message,
 			"history": st.History, "pet": st.Pet.json(time.Now())})
-	default:
-		http.Error(w, "GET or POST required", http.StatusMethodNotAllowed)
 	}
 }
 
@@ -347,13 +378,7 @@ func setCapDecider(f func(*Server, context.Context, []llm.Message) (string, erro
 }
 
 // capDecider és la crida al model; els tests la substitueixen.
-var capDecider = func(s *Server, ctx context.Context, msgs []llm.Message) (string, error) {
-	s.mu.Lock()
-	cfg, client := s.cfg, s.client
-	p, role := s.windRoleRef()
-	s.mu.Unlock()
-	return petChatter(ctx, client, cfg, p, role, msgs)
-}
+var capDecider = capModelCall
 
 // capDecide tria el camí. Un vent nomenat va directe, sense model; la resta,
 // una sola crida que decideix i, si ho respon la mascota, ja porta la resposta.
@@ -441,8 +466,13 @@ func (s *Server) capDecide(ctx context.Context, st capState, msg, force string, 
 		d.Create = extra.New
 	}
 	if obj := firstJSONObject(raw); obj == "" || json.Unmarshal([]byte(obj), &d) != nil {
-		// Sense JSON, el model ha contestat en prosa: és una resposta seva.
-		d = capDecision{Action: "self", Reply: oneLineKeepBreaks(raw, 1200)}
+		// Un JSON tallat o mal tancat: el reply descodificat, mai el JSON cru
+		// (abans sortia amb \" i retallat). Sense JSON, prosa: és la seva resposta.
+		if reply, ok := capReplyFromBroken(raw); ok {
+			d = capDecision{Action: "self", Reply: reply}
+		} else {
+			d = capDecision{Action: "self", Reply: oneLineKeepBreaks(raw, 16000)}
+		}
 	}
 	if force == "self" {
 		d.Action = "self"
@@ -674,7 +704,7 @@ func (s *Server) capNoteLink(link, text string) {
 	capMu.Lock()
 	defer capMu.Unlock()
 	st := s.loadCap()
-	st.History = append(st.History, capMsg{From: "cap", Text: text, Ts: time.Now().Unix(), Action: "link", Link: link})
+	st.History = append(st.History, capMsg{ID: newMessageID(), From: "cap", Text: text, Ts: time.Now().Unix(), Action: "link", Link: link})
 	s.saveCap(st)
 }
 

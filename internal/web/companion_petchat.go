@@ -63,7 +63,7 @@ func petHistoryJSON(history []llm.Message) []map[string]any {
 		if m.Role == "user" {
 			from = "user"
 		}
-		row := map[string]any{"from": from, "text": m.Content}
+		row := map[string]any{"id": messageID(m), "from": from, "text": m.Content}
 		if m.Ts > 0 {
 			row["ts"] = m.Ts
 		}

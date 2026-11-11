@@ -47,6 +47,7 @@ internal fun VentetConversation(vm: GregalViewModel, lang: String, winds: List<W
         if (t.isNotBlank() && field.text.isBlank()) field = TextFieldValue(t, TextRange(t.length))
     }
     val follow = rememberChatFollow(listState, "ventet")
+    ReadReplyFromStart(listState, follow, ui.busy, capReplyKey(ui))
     val mood = when {
         ui.busy || ui.going -> WindMood.THINKING
         ui.pending != null -> WindMood.HAPPY
@@ -56,7 +57,7 @@ internal fun VentetConversation(vm: GregalViewModel, lang: String, winds: List<W
     Box(Modifier.fillMaxSize().background(Superficie).testTag("ventet-chat")) {
         Column(Modifier.fillMaxSize()) {
             VentsChatHeader(lang, st.name,
-                if (ui.busy) tr(lang, "app.cap.thinking") else tr(lang, "app.cap.role"),
+                if (ui.busy && ui.live.isBlank()) tr(lang, "app.cap.thinking") else tr(lang, "app.cap.role"),
                 accent, st.faceStyle, mood, onBack = onBack, onProfile = { profile = true })
             VentetThread(vm, lang, winds, listState, accent, Modifier.weight(1f), showEmpty = true)
             VentsComposer(lang, field, { field = it }, tr(lang, "app.cap.hint", st.name),
@@ -75,6 +76,14 @@ internal fun VentetConversation(vm: GregalViewModel, lang: String, winds: List<W
  * que el mostren —la conversa sencera i la portada amb la lluïssor— perquè
  * sigui exactament el mateix xat i no dues coses que s'assemblen.
  */
+
+/** La resposta del torn del Ventet: en directe, la bombolla viva; en acabar, l'últim missatge seu. */
+internal fun capReplyKey(ui: GregalViewModel.CapUi): Any? = when {
+    ui.busy -> if (ui.live.isNotBlank()) ui.state.history.size + 1 else null
+    ui.state.history.lastOrNull()?.from == "cap" -> ui.state.history.lastIndex
+    else -> null
+}
+
 @Composable
 internal fun VentetThread(
     vm: GregalViewModel,
@@ -123,7 +132,21 @@ internal fun VentetThread(
         }
         // Mentrestant: el que ha passat des de l'última visita, al final del fil.
         if (st.briefCount > 0 && st.brief.isNotBlank()) item { CapNote(st.brief) }
-        if (ui.busy || ui.going) item {
+        // Mentre respon: la teva pregunta ja al fil (abans no hi sortia fins a
+        // tenir la resposta) i, quan arriba, el text en directe.
+        if (ui.busy && ui.asked.isNotBlank() && history.lastOrNull()?.let { it.from == "user" && it.text == ui.asked } != true) {
+            item(key = history.size) {
+                Column(Modifier.padding(top = 16.dp)) {
+                    WindBubble(GregalViewModel.PetMsg("user", ui.asked), accent, lang = lang)
+                }
+            }
+        }
+        if (ui.busy && ui.live.isNotBlank()) item(key = history.size + 1) {
+            Column(Modifier.padding(top = 16.dp)) {
+                WindBubble(GregalViewModel.PetMsg("pet", ui.live, streaming = true), accent, lang = lang)
+            }
+        }
+        if ((ui.busy && ui.live.isBlank()) || ui.going) item {
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically) {
                 TypingDots(accent)

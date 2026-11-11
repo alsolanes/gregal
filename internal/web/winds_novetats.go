@@ -41,6 +41,10 @@ type windNovetat struct {
 	// nivell «calm»: queda a la safata però el mòbil no sona.
 	Card  string `json:"card,omitempty"`
 	Quiet bool   `json:"quiet,omitempty"`
+	// MessageID: el missatge del fil que és aquesta novetat. La novetat és
+	// una vista del missatge, no una còpia: la notificació i «Avui» hi
+	// apunten per obrir-lo al lloc exacte i no tornar-lo a anunciar.
+	MessageID string `json:"message_id,omitempty"`
 }
 
 // novetatsMu protegeix les veus proactives també entre processos (crosslock.go).
@@ -81,6 +85,11 @@ func recordNovetat(s *Server, w companion.Wind, source, text string) {
 
 // recordNovetatJob és recordNovetat amb l'id del job que l'ha provocat.
 func recordNovetatJob(s *Server, w companion.Wind, source, job, text string) {
+	recordNovetatMsg(s, w, source, job, "", text)
+}
+
+// recordNovetatMsg és recordNovetatJob amb el missatge del fil que la novetat representa.
+func recordNovetatMsg(s *Server, w companion.Wind, source, job, messageID, text string) {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return
@@ -90,14 +99,15 @@ func recordNovetatJob(s *Server, w companion.Wind, source, job, text string) {
 	novetatsMu.Lock()
 	defer novetatsMu.Unlock()
 	list := append(loadNovetats(s), windNovetat{
-		Ts:     time.Now().Unix(),
-		Wind:   w.ID,
-		Name:   w.Name,
-		Source: source,
-		Text:   text,
-		Job:    job,
-		Card:   card,
-		Quiet:  !ring,
+		Ts:        time.Now().Unix(),
+		Wind:      w.ID,
+		Name:      w.Name,
+		Source:    source,
+		Text:      text,
+		Job:       job,
+		Card:      card,
+		Quiet:     !ring,
+		MessageID: messageID,
 	})
 	saveNovetats(s, list)
 }

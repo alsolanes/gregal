@@ -67,7 +67,7 @@ object OfflineLogic {
         val a = JSONArray()
         for (m in msgs.filter { !it.streaming && it.kind != "queued" && it.text.isNotBlank() }.takeLast(CHAT_KEEP)) {
             a.put(JSONObject().put("from", m.from).put("text", m.text).put("speaker_id", m.speakerId)
-                .put("speaker_name", m.speakerName).put("ts", m.ts).put("kind", m.kind).put("parcial", m.parcial))
+                .put("speaker_name", m.speakerName).put("ts", m.ts).put("kind", m.kind).put("parcial", m.parcial).put("id", m.id))
         }
         return a.toString()
     }
@@ -79,7 +79,7 @@ object OfflineLogic {
             (0 until a.length()).mapNotNull { i ->
                 val o = a.optJSONObject(i) ?: return@mapNotNull null
                 GregalViewModel.PetMsg(o.optString("from"), o.optString("text"), o.optString("speaker_id"),
-                    o.optString("speaker_name"), parcial = o.optBoolean("parcial"), ts = o.optLong("ts"), kind = o.optString("kind"))
+                    o.optString("speaker_name"), parcial = o.optBoolean("parcial"), ts = o.optLong("ts"), kind = o.optString("kind"), id = o.optString("id"))
             }
         } catch (_: Exception) { null }
     }

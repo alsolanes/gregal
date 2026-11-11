@@ -19,7 +19,7 @@ func TestWantsAllVoices(t *testing.T) {
 		"todos, decid":                              false, // «todos» sol: massa ambigu
 		"everyone, what do you think":                true,
 		"hola a tothom":                             false, // salutació, no petició
-		"què en penseu":                             false,
+		"què en penseu": true, "qui sou?": true, "vosaltres tres, què opineu": true,
 		"explica'm la situació":                     false,
 		"el cadascuníssim no és una paraula":        false,
 		"tinc tots els dits adolorits":              false, // «tots els» sol no és adreça
@@ -45,8 +45,16 @@ func TestRotllanaCollectiveAddressAllMembersSpeak(t *testing.T) {
 	if len(got) != 3 {
 		t.Fatalf("adreça col·lectiva: esperava 3 vents, got %d", len(got))
 	}
-	// Missatge normal: un de sol (regla justa).
+	// «Què en penseu?» és plural: parlen tots, no només un.
 	got = s.routeRotllanaSpeakers(context.Background(), rot, "", "què en penseu?", tail)
+	if len(got) != 3 {
+		t.Fatalf("plural de segona persona: esperava 3 vents, got %d", len(got))
+	}
+	// Missatge normal sense model de ruta: un de sol (regla local).
+	old := rotllanaRouteModel
+	rotllanaRouteModel = func(*Server, context.Context, []llm.Message) (string, error) { return "", errConst("off") }
+	defer func() { rotllanaRouteModel = old }()
+	got = s.routeRotllanaSpeakers(context.Background(), rot, "", "quina hora és millor per sopar?", tail)
 	if len(got) != 1 {
 		t.Fatalf("missatge normal: esperava 1 vent, got %d", len(got))
 	}

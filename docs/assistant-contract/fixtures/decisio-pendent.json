@@ -1,0 +1,16 @@
+{
+  "kind": "decisio",
+  "id": "dec-hotel-arribada",
+  "owner": "pilot",
+  "runId": 412,
+  "messageId": "m-demo-decisio",
+  "proposedEffect": {
+    "type": "send_message",
+    "target": "mail:recepcio@hotel.example.test",
+    "summary": "Confirmar arribada a les 23:30",
+    "draftRef": "res-correu-hotel-v1"
+  },
+  "revision": 1,
+  "state": "pending",
+  "expiresAt": "2026-11-14T18:00:00Z"
+}

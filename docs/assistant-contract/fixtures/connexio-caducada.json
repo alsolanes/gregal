@@ -1,0 +1,13 @@
+{
+  "kind": "connexio",
+  "id": "con-correu-pilot",
+  "owner": "pilot",
+  "method": "api",
+  "service": "mail-imap",
+  "accountLabel": "pilot@example.test",
+  "status": "needs_session",
+  "capabilities": ["read"],
+  "authRef": "auth:opaque-7f3a",
+  "lastCheckedAt": "2026-11-11T09:05:00Z",
+  "error": "La sessió ha caducat: torna a connectar el compte"
+}

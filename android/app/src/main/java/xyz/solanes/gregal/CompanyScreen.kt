@@ -392,6 +392,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                 val chatting = capSt.history.isNotEmpty() || capUi.busy
                 val homeList = rememberLazyListState()
                 val homeFollow = rememberChatFollow(homeList, "ventet-home")
+                ReadReplyFromStart(homeList, homeFollow, capUi.busy, capReplyKey(capUi))
                 // El missatge que no ha arribat torna al camp, també aquí.
                 LaunchedEffect(capUi.failedText) {
                     val t = capUi.failedText
@@ -408,7 +409,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                     modifier = Modifier.fillMaxSize().padding(pad),
                     chat = if (chatting) ({ VentetThread(vm, lang, winds, homeList, Color(capSt.argb), showEmpty = false) }) else null,
                     chatHeader = if (chatting) ({
-                        HomeThreadHeader(lang, capSt.name, Color(capSt.argb), capSt.faceStyle, capUi.busy || capUi.going)
+                        HomeThreadHeader(lang, capSt.name, Color(capSt.argb), capSt.faceStyle, (capUi.busy && capUi.live.isBlank()) || capUi.going)
                     }) else null,
                     top = { HomeFacesRow(lang, winds, news, busy, onTalk = { vm.openVentsChat("wind:" + it.id) }, onAll = { manage = true }) },
                 ) {
@@ -1143,7 +1144,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
 
     val isBusy = busy.contains(wind.id)
     // Al fil, cada missatge és l'element del seu índex (l'estat buit només surt sense missatges).
-    ReadReplyFromStart(listState, follow, isBusy, msgs.indexOfLast { it.from != "user" })
+    ReadReplyFromStart(listState, follow, isBusy, currentReplyKey(msgs))
     Box(Modifier.fillMaxSize().background(Superficie)) {
         Column(Modifier.fillMaxSize()) {
         VentsChatHeader(lang, wind.name,
@@ -1886,13 +1887,11 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                     // En directe el markdown parcial es trencaria: text pla net
                     // (sense marques crues) fins al done. El cursor que
                     // pampallugueja diu «ho està escrivint ara».
-                    if (m.streaming) {
-                        val plain = remember(m.text) { stripMdInline(m.text).ifBlank { "…" } }
-                        Row(verticalAlignment = Alignment.Bottom) {
-                            Text(plain, fontSize = 15.sp, lineHeight = 22.sp, color = Tinta)
-                            TypingCursor(accent)
-                        }
-                    } else { for (b in remember(m.text) { richBlocks(m.text) }) {
+                    // En directe es pinta igual que acabat (sense cau: cada prefix és
+                    // nou). Abans era text pla fins al done i, en canviar a
+                    // markdown, títols, llistes i taules saltaven de mida de cop.
+                    if (m.streaming && m.text.isBlank()) TypingCursor(accent)
+                    run { for (b in remember(m.text, m.streaming) { if (m.streaming) richBlocksLive(m.text) else richBlocks(m.text) }) {
                         when (b) {
                             is Rich.Inline -> {
                                 val rich = remember(b, link, codeBg) { renderSegs(b.segs, codeBg, link = link) }
@@ -1925,6 +1924,7 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                         }
                     }
                     }
+                    if (m.streaming && m.text.isNotBlank()) TypingCursor(accent)
                     // Enllaços del missatge com a pastilles per copiar d'un toc:
                     // al mòbil, obrir-los al navegador és fàcil; copiar-los, no.
                     if (!m.streaming) MessageLinks(lang, m.text, link, onCopied = onCopied)
@@ -2333,25 +2333,51 @@ internal fun rememberChatFollow(list: LazyListState, key: Any): ChatFollowState 
  * [replyIndex]: l'element de la llista on és l'última resposta del vent.
  */
 @Composable
-internal fun ReadReplyFromStart(list: LazyListState, follow: ChatFollowState, busy: Boolean, replyIndex: Int) {
+internal fun ReadReplyFromStart(list: LazyListState, follow: ChatFollowState, busy: Boolean, replyKey: Any?) {
     var wasBusy by remember(list) { mutableStateOf(busy) }
-    // La resposta pot arribar just després que el torn acabi: es llegeix l'índex d'ara.
-    val reply by rememberUpdatedState(replyIndex)
+    // La resposta pot arribar just després que el torn acabi: es llegeix la clau d'ara.
+    val reply by rememberUpdatedState(replyKey)
+    // En directe (el text creix): se segueix el final fins que l'inici de la
+    // resposta arriba a dalt; aleshores la vista s'hi queda i surt «Últims ↓».
+    // Abans se seguia la cua fins al final i, en acabar, es saltava enrere a
+    // l'inici: amb el text en directe era un salt cada resposta llarga.
+    LaunchedEffect(busy, list) {
+        if (!busy) return@LaunchedEffect
+        snapshotFlow {
+            val key = reply ?: return@snapshotFlow null
+            if (!follow.following || follow.dragging) return@snapshotFlow null
+            val info = list.layoutInfo
+            info.visibleItemsInfo.firstOrNull { it.key == key }?.let { it.index to (it.offset - info.viewportStartOffset) }
+        }.collect { hit ->
+            val (index, top) = hit ?: return@collect
+            if (top < 0 && follow.following && !follow.dragging) {
+                follow.pause()
+                list.scrollToItem(index)
+            }
+        }
+    }
     LaunchedEffect(busy) {
         val finished = wasBusy && !busy
         wasBusy = busy
-        if (!finished) return@LaunchedEffect
+        // Si ja no se segueix el final (fixada a l'inici o la persona llegeix), no es mou res.
+        if (!finished || !follow.following) return@LaunchedEffect
         // Que la resposta definitiva ja sigui al layout abans de mesurar-la.
         kotlinx.coroutines.delay(120)
-        val index = reply
-        if (index < 0) return@LaunchedEffect
+        val key = reply ?: return@LaunchedEffect
         val info = list.layoutInfo
         val viewport = info.viewportEndOffset - info.viewportStartOffset
-        val item = info.visibleItemsInfo.firstOrNull { it.index == index }
-        if (item != null && item.size <= viewport * 3 / 4) return@LaunchedEffect
+        val item = info.visibleItemsInfo.firstOrNull { it.key == key } ?: return@LaunchedEffect
+        if (item.size <= viewport * 3 / 4 || !follow.following) return@LaunchedEffect
         follow.pause()
-        list.animateScrollToItem(index)
+        list.animateScrollToItem(item.index)
     }
+}
+
+/** La clau de la resposta del torn en curs: l'últim missatge que no és teu, si va després de l'últim teu. */
+internal fun currentReplyKey(msgs: List<GregalViewModel.PetMsg>): Any? {
+    val lastUser = msgs.indexOfLast { it.from == "user" }
+    val reply = msgs.indexOfLast { it.from != "user" && it.from != "system" }
+    return if (reply > lastUser) reply else null
 }
 
 /** A tall last bubble must be aligned at its bottom, not its top. */

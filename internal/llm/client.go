@@ -46,6 +46,12 @@ type Message struct {
 	// història durable del company, no del cable cap al provider: a
 	// marshalMessage amb sanitize es treu igual que els parlants.
 	Ts int64 `json:"ts,omitempty"`
+	// ID és l'identificador estable del missatge dins la seva conversa: el
+	// fan servir les novetats, les notificacions i els enllaços per apuntar
+	// al missatge exacte en lloc de copiar-ne el text. Buit als missatges
+	// antics (qui el mostra en deriva un de determinista). Com Ts, no viatja
+	// mai al provider.
+	ID string `json:"id,omitempty"`
 	// ReasoningContent és el raonament que el proveïdor ha tornat amb
 	// aquesta crida d'eina (reasoning_content). Els models de raonament que
 	// criden eines l'exigeixen de tornada dins de la mateixa cadena de
@@ -73,6 +79,7 @@ func marshalMessage(m Message, sanitize bool) ([]byte, error) {
 	if sanitize {
 		w.SpeakerID, w.SpeakerName = "", ""
 		w.Ts = 0
+		w.ID = ""
 		w.Kind = ""
 		w.CrewRunID = ""
 		w.ToolCalls = safeToolCalls(m.ToolCalls)
@@ -100,13 +107,15 @@ func marshalMessage(m Message, sanitize bool) ([]byte, error) {
 		ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 		ToolCallID string     `json:"tool_call_id,omitempty"`
 		Ts         int64      `json:"ts,omitempty"`
+		ID         string     `json:"id,omitempty"`
 	}
 	iw := imgWire{
 		Role: m.Role, Content: parts,
-		ToolCalls: m.ToolCalls, ToolCallID: m.ToolCallID, Ts: m.Ts,
+		ToolCalls: m.ToolCalls, ToolCallID: m.ToolCallID, Ts: m.Ts, ID: m.ID,
 	}
 	if sanitize {
 		iw.Ts = 0
+		iw.ID = ""
 	}
 	if sanitize {
 		iw.ToolCalls = safeToolCalls(m.ToolCalls)

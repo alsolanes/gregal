@@ -53,6 +53,10 @@ func wantsAllVoices(msg string) bool {
 		"tots vosaltres", "tot el grup",
 		"tota la colla", "tots junts", "todo el grupo", "all of you",
 		"everyone", "everybody",
+		// Plural de segona persona: «què en penseu?», «vosaltres tres».
+		"vosaltres", "vosotros", "vosotras", "ustedes", "you all", "you guys", "y all",
+		"tots tres", "tots dos", "tots quatre", "els tres", "els dos", "los tres", "los dos",
+		"qui sou", "quienes sois", "presenteu", "penseu", "opineu", "creieu", "dieu", "opinais", "pensais",
 	}
 	// «tots» darrere d'un verb de parlar és adreça inequívoca:
 	// «que en parlin tots», «responguin tots», «contesteu tots»…
@@ -173,6 +177,15 @@ func (s *Server) routeRotllanaSpeakers(ctx context.Context, rot Rotllana, wanted
 	}
 	if len(members) == 1 {
 		return members
+	}
+	// Per sentit, no per paraules: un model petit tria qui respon (un, uns
+	// quants o tots). Si falla, la regla local de sota.
+	// Els missatges d'un parell de paraules («sí», «endavant», «i això?») només
+	// continuen el fil: no cal cap crida.
+	if _, hasLast := lastRotllanaSpeaker(members, tail); !(hasLast && len(strings.Fields(msg)) <= 3 && !strings.Contains(msg, "?")) {
+		if picked, ok := s.modelRotllanaSpeakers(ctx, members, msg, tail); ok {
+			return picked
+		}
 	}
 	cards := s.rankWindSpecialists(members, msg)
 	best := rotllanaSpecialist(members, cards, tail)

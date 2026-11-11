@@ -112,7 +112,11 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 	}
 	ctx = s.withRemindServer(agent.WithTurnMode(ctx, scope.mode))
 	ctx = llm.WithThink(ctx, role.Think)
-	if !agent.ReadOnlyMode(scope.mode) {
+	// Recuperar talls vol dir retenir tot el text fins al final: només per als
+	// torns que ningú no mira en directe (cor, avisos, encàrrecs). En un xat
+	// la persona ha de veure la resposta mentre s'escriu; des de 1.57 els
+	// vents ho retenien tot i la resposta arribava d'un sol cop al final.
+	if !agent.ReadOnlyMode(scope.mode) && emit == nil {
 		ctx = llm.WithRecoverTruncation(ctx)
 	}
 	var requiresApproval bool // Decide is serial, before any tools run.

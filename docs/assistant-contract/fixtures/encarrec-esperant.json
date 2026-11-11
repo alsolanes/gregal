@@ -1,0 +1,14 @@
+{
+  "kind": "encarrec",
+  "id": "enc-viatge-divendres",
+  "owner": "pilot",
+  "conversationId": "cap",
+  "runId": 412,
+  "objective": "Preparar el viatge de divendres i avisar si falta res",
+  "state": "waiting_user",
+  "allowedScope": { "read": ["mail:pilot@example.test", "web"], "prepare": ["computer:files"], "act": [] },
+  "resultRefs": ["res-itinerari-v2"],
+  "pendingDecisionId": "dec-hotel-arribada",
+  "createdAt": "2026-11-11T08:41:00Z",
+  "updatedAt": "2026-11-11T09:12:30Z"
+}

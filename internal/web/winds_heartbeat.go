@@ -79,18 +79,56 @@ func windNextAt(reply string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
+// windIsNextLine diu si una línia és la programació NEXT, amb el mateix
+// criteri que windNextAt (majúscules, espais i cometes d'eco del model).
+func windIsNextLine(line string) bool {
+	line = strings.TrimSpace(strings.Trim(strings.TrimSpace(line), "`\"' "))
+	return len(line) >= 5 && strings.EqualFold(line[:5], "NEXT:")
+}
+
 // windStripNext treu les línies NEXT del text que entra al xat del vent: la
 // programació no és parla.
 func windStripNext(reply string) string {
 	lines := strings.Split(reply, "\n")
 	out := lines[:0]
 	for _, line := range lines {
-		if strings.HasPrefix(strings.TrimSpace(line), "NEXT:") {
+		if windIsNextLine(line) {
 			continue
 		}
 		out = append(out, line)
 	}
 	return strings.TrimSpace(strings.Join(out, "\n"))
+}
+
+// windIsSilence diu si el que queda (ja sense NEXT) és el silenci del cor:
+// buit o «(res)», tolerant cometes, punt final i majúscules.
+func windIsSilence(text string) bool {
+	t := strings.TrimSpace(strings.Trim(strings.TrimSpace(text), "`\"'*. "))
+	return t == "" || strings.EqualFold(t, "(res)") || strings.EqualFold(t, "res")
+}
+
+// Límits de la propera mirada del cor: ni un bucle (una data passada o massa
+// propera faria córrer el job sense parar) ni silenci indefinit (una data
+// d'aquí a anys deixaria el vent mut).
+const (
+	windNextMin     = 30 * time.Minute
+	windNextMax     = 14 * 24 * time.Hour
+	windNextDefault = 24 * time.Hour
+)
+
+// windClampNext decideix la propera mirada a partir del que ha demanat el
+// model (si n'ha demanat cap). Pura: testejable.
+func windClampNext(at time.Time, ok bool, now time.Time) time.Time {
+	if !ok {
+		return now.Add(windNextDefault)
+	}
+	if at.Before(now.Add(windNextMin)) {
+		return now.Add(windNextMin)
+	}
+	if at.After(now.Add(windNextMax)) {
+		return now.Add(windNextMax)
+	}
+	return at
 }
 
 // executeWindHeartbeat és el pas del cor: cerca + (si cal) missatge al xat.
@@ -108,10 +146,8 @@ func (s *Server) executeWindHeartbeat(ctx context.Context, job jobs.Job, queued 
 	// El cor es reprograma: la línia "NEXT: <RFC3339>" del final és el moment
 	// que el mateix vent ha triat per tornar a mirar (p. ex. just després del
 	// partit). Sense línia vàlida, +24 h: mai es queda mut indefinidament.
-	nextAt := time.Now().Add(24 * time.Hour)
-	if at, ok := windNextAt(out); ok {
-		nextAt = at
-	}
+	at, ok := windNextAt(out)
+	nextAt := windClampNext(at, ok, time.Now())
 	if s.jobs != nil {
 		_ = s.jobs.SetNextAt(job.ID, nextAt)
 	}
@@ -127,8 +163,11 @@ func (s *Server) executeWindHeartbeat(ctx context.Context, job jobs.Job, queued 
 		_ = s.jobs.MarkRun(job.ID, end, "error")
 		return run, runErr
 	}
+	// Primer es treu la programació i després es mira si és silenci: «(res)»
+	// seguit de la línia NEXT (el que demana el prompt) no és cap missatge.
+	out = windStripNext(out)
 	// Silenci: res que valgui la pena. Job OK, sense missatge ni notificació.
-	if out == "" || out == "(res)" {
+	if windIsSilence(out) {
 		run.Status = "ok"
 		run.Output = ""
 		_ = s.jobs.AddRun(run)
@@ -136,8 +175,6 @@ func (s *Server) executeWindHeartbeat(ctx context.Context, job jobs.Job, queued 
 		return run, nil
 	}
 	// Hi ha algo a dir: entra al xat del vent com si hagués parlat ell.
-	// La línia NEXT és programació, no parla: no entra al xat.
-	out = windStripNext(out)
 	postWindMessage(s, w, "heartbeat", out)
 
 	run.Status = "ok"

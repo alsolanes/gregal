@@ -17,6 +17,8 @@ data class CapMsg(
     val link: String = "",
     /** Segons Unix (0 = sense hora). */
     val ts: Long = 0L,
+    /** Id estable del missatge al servidor (buit en servidors antics). */
+    val id: String = "",
 ) {
     /** És una proposta de delegació (un vent, una rotllana o una colla). */
     val delegates: Boolean get() = from == "cap" && (action == "wind" || action == "rotllana" || action == "crew")
@@ -78,7 +80,8 @@ data class CapState(
                     create = m.optJSONArray("create")?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it)?.let(CapNew::parse) } }.orEmpty(),
                     novices = m.optJSONArray("novices")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
                     link = m.optString("link"),
-                    ts = m.optLong("ts", 0L))
+                    ts = m.optLong("ts", 0L),
+                    id = m.optString("id"))
             }
         }
     }

@@ -240,7 +240,7 @@ func saveWindReminderFull(s *Server, windID, at, text, task string, retryMin int
 // recordatoris tinc?» responia que no tenia cap eina. Llista els pendents
 // del compte (tots els vents de l'usuari), amb moment, text i estat.
 var remindListToolSpec = llm.ToolSpec{
-	Name: "remind_list",
+	Name:        "remind_list",
 	Description: "Llista els recordatoris i automatitzacions pendents de l'usuari: els que qualsevol vent ha programat (avisos, seguiments, feines amb hora) i les rutines actives. Fes-la servir SEMPRE que l'usuari pregunti quins recordatoris té, si tens res pendent, o què li has de recordar; no responguis mai «no ho sé» — crida l'eina. Retorna una llista amb el moment, el text i l'estat de cada pendent. Si en vols esborrar o ajornar un, digues-ho a l'usuari amb l'id: encara no hi ha eina per fer-ho.",
 	Parameters: map[string]any{"type": "object", "properties": map[string]any{
 		"wind": map[string]any{"type": "string", "description": "opcional: llista només els d'aquest vent (id)"},
@@ -308,12 +308,12 @@ func (s *Server) remindListItems(windID string) ([]map[string]string, error) {
 // l'usuari deia «treu-me el recordatori repetit» el vent no podia.
 // Tres operacions: cancel (esborra), reschedule (nova hora), pause/resume.
 var remindEditToolSpec = llm.ToolSpec{
-	Name: "remind_edit",
+	Name:        "remind_edit",
 	Description: "Edita o elimina un recordatori o automatització ja existent de l'usuari. Fes-la servir quan l'usuari vulgui treure, ajornar, pausar o reprendre un pendent: primer llista els ids amb remind_list i després aplica l'operació sobre l'id exacte. Operacions: «cancel» (l'esborra definitivament), «reschedule» (li posa una hora nova, mateix text), «pause» (el desactiva sense esborrar-lo) i «resume» (el reactiva). Sempre confirma a l'usuari què has tocat i com queda.",
 	Parameters: map[string]any{"type": "object", "properties": map[string]any{
-		"id":      map[string]any{"type": "string", "description": "id del recordatori (el dóna remind_list)"},
-		"op":      map[string]any{"type": "string", "enum": []string{"cancel", "reschedule", "pause", "resume"}, "description": "operació"},
-		"at":      map[string]any{"type": "string", "description": "només amb reschedule: la nova hora (RFC3339, «2006-01-02 15:04», «+2h»…)"},
+		"id": map[string]any{"type": "string", "description": "id del recordatori (el dóna remind_list)"},
+		"op": map[string]any{"type": "string", "enum": []string{"cancel", "reschedule", "pause", "resume"}, "description": "operació"},
+		"at": map[string]any{"type": "string", "description": "només amb reschedule: la nova hora (RFC3339, «2006-01-02 15:04», «+2h»…)"},
 	}, "required": []string{"id", "op"}},
 }
 
@@ -492,7 +492,8 @@ func postWindMessage(s *Server, w companion.Wind, source, text string) {
 func postWindMessageJob(s *Server, w companion.Wind, source, job, text string) {
 	hist := windHistory(s, w.ID)
 	hist.mu.Lock()
-	history := append(append([]llm.Message(nil), hist.messages...), llm.Message{Role: "assistant", Content: text, Ts: time.Now().Unix()})
+	msg := llm.Message{Role: "assistant", Content: text, Ts: time.Now().Unix(), ID: newMessageID()}
+	history := append(append([]llm.Message(nil), hist.messages...), msg)
 	if err := saveWindHistoryTo(s, w, hist.name, history); err == nil {
 		hist.messages = podaHistorialVent(history)
 	}
@@ -500,7 +501,7 @@ func postWindMessageJob(s *Server, w companion.Wind, source, job, text string) {
 	goBackground(func() { s.windLearn(w, source, text) })
 	// Registre per a l'app (notificació local): el missatge és proactiu,
 	// l'usuari pot tenir l'app en segon pla. Best-effort, mai no bloqueja.
-	recordNovetatJob(s, w, source, job, text)
+	recordNovetatMsg(s, w, source, job, msg.ID, text)
 }
 
 // executeWindRemind dispara un recordatori: el text entra al xat del vent,

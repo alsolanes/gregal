@@ -1,0 +1,309 @@
+<Rive version="1" kind="fragment">
+    <Artboard name="Gregal" width="240" height="240" defaultStateMachineId="0:7" viewModelId="0:40" id="0:2">
+        <Node name="Retrat" x="120" y="116" id="0:60">
+            <Node name="Enllestit" x="62" y="-49" opacity="0" id="0:64">
+                <Shape name="Marca">
+                    <PointsPath isClosed="false">
+                        <StraightVertex x="-7" y="0"/>
+                        <StraightVertex x="-2" y="5"/>
+                        <StraightVertex x="8" y="-5"/>
+                    </PointsPath>
+                    <Stroke thickness="3.4" cap="round" join="round"><SolidColor colorValue="FF146656"/></Stroke>
+                </Shape>
+                <Shape name="Medalló" x="0" y="0"><Ellipse width="31" height="31"/><Fill><SolidColor colorValue="FFD4F6E7"/></Fill></Shape>
+            </Node>
+            <Node name="Lectura" x="57" y="42" opacity="0" id="0:63">
+                <Shape name="Ratlla esquerra" x="-8" y="-2"><Rectangle width="9" height="2" cornerRadiusTL="1"/><Fill><SolidColor colorValue="FFA29ACC"/></Fill></Shape>
+                <Shape name="Ratlla dreta" x="8" y="3"><Rectangle width="9" height="2" cornerRadiusTL="1"/><Fill><SolidColor colorValue="FFA29ACC"/></Fill></Shape>
+                <Shape name="Plec" x="0" y="0"><Rectangle width="2" height="19" cornerRadiusTL="1"/><Fill><SolidColor colorValue="FFA29ACC"/></Fill></Shape>
+                <Shape name="Pàgines" x="0" y="0"><Rectangle width="34" height="23" cornerRadiusTL="5"/><Fill><SolidColor colorValue="FFF6F3FF"/></Fill></Shape>
+                <Shape name="Coberta" x="0" y="2"><Rectangle width="41" height="28" cornerRadiusTL="7"/><Fill><SolidColor colorValue="FF65539C"/></Fill></Shape>
+            </Node>
+            <Node name="Mirada" id="0:61">
+                <Shape name="Ull esquerre" x="-23" y="-6"><Rectangle width="13" height="23" cornerRadiusTL="6.5"/><Fill><SolidColor colorValue="FF251E3F"/></Fill></Shape>
+                <Shape name="Ull dret" x="23" y="-6"><Rectangle width="13" height="23" cornerRadiusTL="6.5"/><Fill><SolidColor colorValue="FF251E3F"/></Fill></Shape>
+            </Node>
+            <Shape name="Somriure" y="19">
+                <PointsPath isClosed="false">
+                    <CubicDetachedVertex x="-15" y="0" outRotation="0.80" outDistance="11"/>
+                    <CubicDetachedVertex x="15" y="0" inRotation="2.34" inDistance="11"/>
+                </PointsPath>
+                <Stroke thickness="3.6" cap="round"><SolidColor colorValue="FF362950"/></Stroke>
+            </Shape>
+            <Shape name="Galtes esquerra" x="-40" y="12"><Ellipse width="17" height="8"/><Fill><SolidColor colorValue="55C56B98"/></Fill></Shape>
+            <Shape name="Galtes dreta" x="40" y="12"><Ellipse width="17" height="8"/><Fill><SolidColor colorValue="55C56B98"/></Fill></Shape>
+            <Shape name="Cos" id="0:62">
+                <Ellipse width="137" height="132"/>
+                <Fill>
+                    <RadialGradient startX="-30" startY="-39" endX="64" endY="50">
+                        <GradientStop colorValue="FFF4EEFF" position="0"/>
+                        <GradientStop colorValue="FFCBC0ED" position=".43"/>
+                        <GradientStop colorValue="FFA895D5" position=".79"/>
+                        <GradientStop colorValue="FF8972BD" position="1"/>
+                    </RadialGradient>
+                </Fill>
+            </Shape>
+            <Shape name="Peu esquerre" x="-34" y="60"><Ellipse width="32" height="14"/><Fill><SolidColor colorValue="FF9C87CB"/></Fill></Shape>
+            <Shape name="Peu dret" x="34" y="60"><Ellipse width="32" height="14"/><Fill><SolidColor colorValue="FF9C87CB"/></Fill></Shape>
+        </Node>
+        <Shape name="Ombra" x="120" y="188" scaleY=".23">
+            <Ellipse width="120" height="120"/>
+            <Fill>
+                <RadialGradient endX="60">
+                    <GradientStop colorValue="493A2B60" position="0"/>
+                    <GradientStop colorValue="003A2B60" position="1"/>
+                </RadialGradient>
+            </Fill>
+        </Shape>
+        <StateMachine name="Retrat" id="0:7">
+            <StateMachineListenerSingle targetId="0:62" listenerTypeValue="down" name="Prem el retrat" id="0:51">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:43" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:62" listenerTypeValue="up" name="Deixa el retrat" id="0:52">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="false">
+                        <DataBindContext sourcePathIds="0:40-0:43" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="0:62" listenerTypeValue="exit" name="Surt del retrat" id="0:53">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="false">
+                        <DataBindContext sourcePathIds="0:40-0:43" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineLayer name="Activitat" id="0:8">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="440" y="-120"/>
+                <EntryState><StateTransition stateToId="0:11"/></EntryState>
+                <AnimationState x="200" y="100" animationId="0:21" reset="true" id="0:11">
+                    <StateTransition stateToId="0:12" duration="160">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyNumber><DataBindContext sourcePathIds="0:40-0:42" propertyKey="636"/></BindablePropertyNumber>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueNumberComparator value="1"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                    <StateTransition stateToId="0:13" duration="160">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyNumber><DataBindContext sourcePathIds="0:40-0:42" propertyKey="636"/></BindablePropertyNumber>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueNumberComparator value="2"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="430" y="100" animationId="0:22" reset="true" id="0:12">
+                    <StateTransition stateToId="0:11" duration="160">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyNumber><DataBindContext sourcePathIds="0:40-0:42" propertyKey="636"/></BindablePropertyNumber>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueNumberComparator value="0"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                    <StateTransition stateToId="0:13" duration="160">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyNumber><DataBindContext sourcePathIds="0:40-0:42" propertyKey="636"/></BindablePropertyNumber>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueNumberComparator value="2"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="660" y="100" animationId="0:23" reset="true" id="0:13">
+                    <StateTransition stateToId="0:11" duration="160">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyNumber><DataBindContext sourcePathIds="0:40-0:42" propertyKey="636"/></BindablePropertyNumber>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueNumberComparator value="0"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                    <StateTransition stateToId="0:12" duration="160">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyNumber><DataBindContext sourcePathIds="0:40-0:42" propertyKey="636"/></BindablePropertyNumber>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueNumberComparator value="1"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+            </StateMachineLayer>
+            <StateMachineLayer name="Toc" id="0:9">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="440" y="-120"/>
+                <EntryState><StateTransition stateToId="0:14"/></EntryState>
+                <AnimationState x="200" y="100" animationId="0:24" reset="true" id="0:14">
+                    <StateTransition stateToId="0:15" duration="75">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean><DataBindContext sourcePathIds="0:40-0:43" propertyKey="634"/></BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="true"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="430" y="100" animationId="0:25" reset="true" id="0:15">
+                    <StateTransition stateToId="0:14" duration="180">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean><DataBindContext sourcePathIds="0:40-0:43" propertyKey="634"/></BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="false"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+            </StateMachineLayer>
+        </StateMachine>
+        <LinearAnimation name="Repòs" id="0:21" fps="60" duration="240" loopValue="loop">
+            <KeyedObject objectId="0:61">
+                <KeyedProperty property="x">
+                    <KeyFrameDouble frame="0" value="0" interpolationType="linear"/>
+                </KeyedProperty>
+            </KeyedObject>
+            <KeyedObject objectId="0:61">
+                <KeyedProperty property="y">
+                    <KeyFrameDouble frame="0" value="0" interpolationType="linear"/>
+                </KeyedProperty>
+            </KeyedObject>
+            <KeyedObject objectId="0:61">
+                <KeyedProperty property="scaleY">
+                    <KeyFrameDouble frame="0" value="1" interpolationType="linear"/>
+                    <KeyFrameDouble frame="162" value="1" interpolationType="linear"/>
+                    <KeyFrameDouble frame="168" value="0.08" interpolationType="linear"/>
+                    <KeyFrameDouble frame="175" value="1" interpolationType="linear"/>
+                    <KeyFrameDouble frame="240" value="1" interpolationType="linear"/>
+                </KeyedProperty>
+            </KeyedObject>
+            <KeyedObject objectId="0:63">
+                <KeyedProperty property="opacity">
+                    <KeyFrameDouble frame="0" value="0" interpolationType="linear"/>
+                </KeyedProperty>
+            </KeyedObject>
+            <KeyedObject objectId="0:64">
+                <KeyedProperty property="opacity">
+                    <KeyFrameDouble frame="0" value="0" interpolationType="linear"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation name="Llegint" id="0:22" fps="60" duration="160" loopValue="loop">
+            <KeyedObject objectId="0:61">
+                <KeyedProperty property="scaleY">
+                    <KeyFrameDouble frame="0" value="1" interpolationType="linear"/>
+                </KeyedProperty>
+            </KeyedObject>
+            <KeyedObject objectId="0:61">
+                <KeyedProperty property="x">
+                    <KeyFrameDouble frame="0" value="-7" interpolationType="linear"/>
+                    <KeyFrameDouble frame="62" value="8" interpolationType="linear"/>
+                    <KeyFrameDouble frame="74" value="8" interpolationType="linear"/>
+                    <KeyFrameDouble frame="84" value="-7" interpolationType="linear"/>
+                    <KeyFrameDouble frame="146" value="8" interpolationType="linear"/>
+                    <KeyFrameDouble frame="160" value="-7" interpolationType="linear"/>
+                </KeyedProperty>
+            </KeyedObject>
+            <KeyedObject objectId="0:61">
+                <KeyedProperty property="y">
+                    <KeyFrameDouble frame="0" value="4" interpolationType="linear"/>
+                    <KeyFrameDouble frame="74" value="4" interpolationType="linear"/>
+                    <KeyFrameDouble frame="84" value="8" interpolationType="linear"/>
+                    <KeyFrameDouble frame="146" value="8" interpolationType="linear"/>
+                    <KeyFrameDouble frame="160" value="4" interpolationType="linear"/>
+                </KeyedProperty>
+            </KeyedObject>
+            <KeyedObject objectId="0:63">
+                <KeyedProperty property="opacity">
+                    <KeyFrameDouble frame="0" value="1" interpolationType="linear"/>
+                </KeyedProperty>
+            </KeyedObject>
+            <KeyedObject objectId="0:64">
+                <KeyedProperty property="opacity">
+                    <KeyFrameDouble frame="0" value="0" interpolationType="linear"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation name="Enllestit" id="0:23" fps="60" duration="35">
+            <KeyedObject objectId="0:61">
+                <KeyedProperty property="x">
+                    <KeyFrameDouble frame="0" value="0" interpolationType="linear"/>
+                </KeyedProperty>
+            </KeyedObject>
+            <KeyedObject objectId="0:61">
+                <KeyedProperty property="y">
+                    <KeyFrameDouble frame="0" value="0" interpolationType="linear"/>
+                </KeyedProperty>
+            </KeyedObject>
+            <KeyedObject objectId="0:61">
+                <KeyedProperty property="scaleY">
+                    <KeyFrameDouble frame="0" value="1" interpolationType="linear"/>
+                    <KeyFrameDouble frame="10" value="0.17" interpolationType="linear"/>
+                    <KeyFrameDouble frame="23" value="0.17" interpolationType="linear"/>
+                    <KeyFrameDouble frame="35" value="1" interpolationType="linear"/>
+                </KeyedProperty>
+            </KeyedObject>
+            <KeyedObject objectId="0:63">
+                <KeyedProperty property="opacity">
+                    <KeyFrameDouble frame="0" value="0" interpolationType="linear"/>
+                </KeyedProperty>
+            </KeyedObject>
+            <KeyedObject objectId="0:64">
+                <KeyedProperty property="opacity">
+                    <KeyFrameDouble frame="0" value="1" interpolationType="linear"/>
+                </KeyedProperty>
+            </KeyedObject>
+            <KeyedObject objectId="0:64">
+                <KeyedProperty property="scaleX">
+                    <KeyFrameDouble frame="0" value="0.45" interpolationType="linear"/>
+                    <KeyFrameDouble frame="12" value="1.14" interpolationType="linear"/>
+                    <KeyFrameDouble frame="23" value="1" interpolationType="linear"/>
+                </KeyedProperty>
+            </KeyedObject>
+            <KeyedObject objectId="0:64">
+                <KeyedProperty property="scaleY">
+                    <KeyFrameDouble frame="0" value="0.45" interpolationType="linear"/>
+                    <KeyFrameDouble frame="12" value="1.14" interpolationType="linear"/>
+                    <KeyFrameDouble frame="23" value="1" interpolationType="linear"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation name="Lliure" id="0:24" fps="60" duration="1">
+            <KeyedObject objectId="0:60">
+                <KeyedProperty property="scaleX">
+                    <KeyFrameDouble frame="0" value="1" interpolationType="linear"/>
+                </KeyedProperty>
+            </KeyedObject>
+            <KeyedObject objectId="0:60">
+                <KeyedProperty property="scaleY">
+                    <KeyFrameDouble frame="0" value="1" interpolationType="linear"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation name="Premut" id="0:25" fps="60" duration="1">
+            <KeyedObject objectId="0:60">
+                <KeyedProperty property="scaleX">
+                    <KeyFrameDouble frame="0" value="1.05" interpolationType="linear"/>
+                </KeyedProperty>
+            </KeyedObject>
+            <KeyedObject objectId="0:60">
+                <KeyedProperty property="scaleY">
+                    <KeyFrameDouble frame="0" value="0.91" interpolationType="linear"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+    </Artboard>
+    <ViewModel name="Gregal" defaultInstanceId="0:41" id="0:40">
+        <ViewModelPropertyNumber name="activity" id="0:42"/>
+        <ViewModelPropertyBoolean name="pressed" id="0:43"/>
+        <ViewModelInstance name="Default" exports="true" id="0:41">
+            <ViewModelInstanceNumber viewModelPropertyId="0:42" propertyValue="0"/>
+            <ViewModelInstanceBoolean viewModelPropertyId="0:43" propertyValue="false"/>
+        </ViewModelInstance>
+    </ViewModel>
+</Rive>

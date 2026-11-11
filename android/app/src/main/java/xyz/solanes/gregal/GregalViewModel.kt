@@ -4633,7 +4633,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                      /** El missatge que no s'ha pogut enviar: torna al camp per no perdre'l. */
                      val failedText: String = "",
                      /** L'hora de l'última proposta deixada per a «ara no» (no torna a sortir). */
-                     val dismissedTs: Long = 0L)
+                     val dismissedTs: Long = 0L,
+                     /** La resposta que s'escriu en directe (buida fora del torn). */
+                     val live: String = "")
     private val _cap = MutableStateFlow(CapUi())
     val cap: StateFlow<CapUi> = _cap.asStateFlow()
 
@@ -4660,18 +4662,32 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         val message = rawMessage.trim()
         if (message.isEmpty() || _cap.value.busy) return
         val source = _conn.value; val epoch = companionEpoch
-        _cap.value = _cap.value.copy(busy = true, asked = message, pending = null, error = false, failedText = "")
+        _cap.value = _cap.value.copy(busy = true, asked = message, pending = null, error = false, failedText = "", live = "")
         viewModelScope.launch {
             try {
-                val d = withContext(Dispatchers.IO) { source.api().capAsk(message, idioma.value, force) }
+                // En directe: la resposta creix a la bombolla mentre s'escriu
+                // (abans, 8-10 s de punts i el text sencer de cop). Un servidor
+                // sense la ruta respon pel POST de sempre.
+                val d = withContext(Dispatchers.IO) {
+                    val buf = WindStreamText()
+                    try {
+                        source.api().capAskStream(message, idioma.value, force) { t ->
+                            buf.append(t)?.let { text ->
+                                if (isCompanionOrigin(source, epoch)) _cap.update { if (it.busy) it.copy(live = text) else it }
+                            }
+                        }
+                    } catch (_: WindStreamUnavailable) {
+                        source.api().capAsk(message, idioma.value, force)
+                    }
+                }
                 if (!isCompanionOrigin(source, epoch)) return@launch
                 val st = _cap.value.state.copy(history = d.history, brief = "", briefCount = 0, pet = d.pet ?: _cap.value.state.pet)
-                _cap.value = _cap.value.copy(state = st, busy = false, say = "", course = true,
+                _cap.value = _cap.value.copy(state = st, busy = false, say = "", course = true, live = "",
                     pending = if (d.delegates) CapPending(d.message.ifBlank { message }, d) else null)
                 // «Endavant»: la proposta d'abans es fa ara, sense un altre botó.
                 if (d.delegates && d.confirm) capGo()
             } catch (_: Exception) {
-                if (isCompanionOrigin(source, epoch)) _cap.value = _cap.value.copy(busy = false, error = true,
+                if (isCompanionOrigin(source, epoch)) _cap.value = _cap.value.copy(busy = false, error = true, live = "",
                     failedText = if (force.isBlank()) message else _cap.value.failedText)
             }
         }
@@ -5780,7 +5796,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     // Xat amb mascota: missatges en memòria + enviament
     data class PetMsg(val from: String, val text: String, val speakerId: String = "", val speakerName: String = "", val streaming: Boolean = false, val parcial: Boolean = false, val ts: Long = 0L,
                       /** Fil d'una colla: "debate" (es plega), "question" (espera resposta), "result". */
-                      val kind: String = "")
+                      val kind: String = "",
+                      /** Id estable del missatge al servidor (buit en servidors antics o missatges locals). */
+                      val id: String = "")
 
     private val _petChat = MutableStateFlow<Map<String, List<PetMsg>>>(emptyMap())
     val petChat: StateFlow<Map<String, List<PetMsg>>> = _petChat
