@@ -133,6 +133,15 @@ Què s'elimina o s'amaga al recorregut principal: `CapNote` com a resum, l'estat
 
 Quan l'ordinador està aturat, la conversa, els resultats ja lliurats, les decisions pendents i les webs publicades continuen funcionant. Només esperen les feines que necessiten navegador o terminal; passen a `waiting_computer` i el fil ho diu. El pilot són dos comptes, la Carla i l'Aleix, cadascun amb el seu ordinador.
 
+**Política d'encesa (requisit de l'usuari: poden passar moltes hores entre sessions i no es vol gastar res inútilment):**
+
+- **Estat normal: ordinador desat a disc** (suspensió/hibernació de la VM, o aturada si l'hipervisor no ho permet). Zero CPU i zero RAM; només ocupa disc. Les sessions del navegador i els fitxers es conserven.
+- **S'encén només quan una feina necessita navegador, terminal o fitxers de l'ordinador**, o quan la persona l'obre per mirar o prendre el control. Obrir l'app, xatejar, llegir resultats, aprovar decisions o veure webs publicades **no** l'encén.
+- **La proactivitat no l'encén per defecte.** Les comprovacions periòdiques (cerques web, correu per IMAP, calendari ICS, connectors API) corren a l'amfitrió, com fa avui el cor dels vents. Només una responsabilitat que necessiti un lloc amb sessió iniciada al navegador desperta l'ordinador, i agrupa aquestes mirades perquè no el desperti cada poc.
+- **Es desa sol passats 10 minuts sense feina ni visor obert** (configurable per compte). Abans de desar-se, acaba o posa en espera la feina en curs.
+- **Represa visible:** si una feina el necessita i està desat, l'encàrrec passa a `waiting_computer`, el fil diu «Engegant el teu ordinador…» i continua sol quan està a punt. Objectiu del pilot: ≤ 30 s des de suspensió.
+- **Mesura:** l'amfitrió registra hores enceses per ordinador i per què s'han encès. Es mostren a la pantalla de l'ordinador perquè es vegi que no gasta en buit.
+
 La primera entrega no necessita un servei de provisioning multi-cloud. Tampoc es pot presentar com a «ordinador personal» una pestanya headless sense fitxers, persistència, visibilitat ni recuperació.
 
 ### Capacitats mínimes de l'ordinador
