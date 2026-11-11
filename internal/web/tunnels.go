@@ -153,7 +153,11 @@ func namedTunnelConfig(tunnel string, ingress []tunnelRecord) string {
 	}
 	b.WriteString("ingress:\n")
 	for _, r := range ingress {
-		fmt.Fprintf(&b, "  - hostname: %s\n    service: %s\n", r.Hostname, r.Target)
+		host := r.Hostname
+		if strings.HasPrefix(host, "*") {
+			host = `"` + host + `"` // en YAML, un * sol és un àlies
+		}
+		fmt.Fprintf(&b, "  - hostname: %s\n    service: %s\n", host, r.Target)
 	}
 	b.WriteString("  - service: http_status:404\n")
 	return b.String()
@@ -216,6 +220,9 @@ func (m *tunnelManager) autostart() {
 		}
 		_ = m.launchQuickLocked(bin, r)
 	}
+	if _, ok := webIngressRule(""); ok {
+		named = true
+	}
 	if named {
 		_ = m.relaunchNamedLocked(bin)
 	}
@@ -262,6 +269,14 @@ func (m *tunnelManager) relaunchNamedLocked(bin string) error {
 			}
 		}
 	}
+	sort.Slice(ingress, func(i, j int) bool { return ingress[i].Hostname < ingress[j].Hostname })
+	// La regla comodí de les webs amb nom va al final, després de les concretes.
+	if wc, ok := webIngressRule(tunnel); ok {
+		ingress = append(ingress, wc)
+		if tunnel == "" {
+			tunnel = wc.Tunnel
+		}
+	}
 	run := m.runs[tunnelNamedID]
 	if len(ingress) == 0 {
 		if run != nil && run.proc != nil {
@@ -272,7 +287,6 @@ func (m *tunnelManager) relaunchNamedLocked(bin string) error {
 		delete(m.runs, tunnelNamedID)
 		return nil
 	}
-	sort.Slice(ingress, func(i, j int) bool { return ingress[i].Hostname < ingress[j].Hostname })
 	// El nom s'escriu a la configuració com a identificador: així `run` no depèn
 	// de com cloudflared resol els noms (que en aquesta versió falla).
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)

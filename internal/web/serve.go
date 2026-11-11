@@ -335,6 +335,8 @@ func (h *Hub) Run(addr string) error {
 	if _, p, err := net.SplitHostPort(addr); err == nil {
 		gregalListenPort, _ = strconv.Atoi(p)
 	}
+	// La regla d'ingress comodí de les webs amb nom (publish.tunnel).
+	setWebIngress(h.def.publishDomain(), h.def.publishTunnel())
 	if bg {
 		// I els túnels de Cloudflare que eren oberts (tunnels.go).
 		go tunnelsMgr.autostart()
@@ -382,14 +384,16 @@ func (h *Hub) Handler() http.Handler {
 	if s.Token != "" || (s.users != nil && s.users.Actiu()) {
 		handler = s.requireUser(mux)
 	}
-	return ambCapcaleresSegures(handler)
+	// Les webs amb nom (per Host o /w/<nom>/) van abans de l'autenticació
+	// de l'API: no en fan servir cap token (webs_serve.go).
+	return ambCapcaleresSegures(h.webHosts(handler))
 }
 
 // HandlerWithIdentity delegates authentication to an embedding application's
 // verified identity provider. The callback must never trust unverified headers.
 func (s *Server) HandlerWithIdentity(auth func(*http.Request) (*User, error)) http.Handler {
 	mux := s.Hub().mux()
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return s.Hub().webHosts(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != mcp.OAuthCallbackPath {
 			u, err := auth(r)
 			if err != nil || u == nil || u.Name == "" {
@@ -399,7 +403,7 @@ func (s *Server) HandlerWithIdentity(auth func(*http.Request) (*User, error)) ht
 			r = r.WithContext(context.WithValue(r.Context(), ctxKeyUser{}, u))
 		}
 		mux.ServeHTTP(w, r)
-	})
+	}))
 }
 
 // StartBackground starts the scheduler and returns a channel closed when it
@@ -633,6 +637,8 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("GET /share/{id}", handleSharePage)
 	handle("/api/shares/site", h.route((*Server).handleShareSite))
 	handle("GET /share/{id}/{path...}", handleShareSitePage)
+	// Webs amb nom (webs*.go): registre, versions, visibilitat i comprovació.
+	registerWebsRoutes(h, handle)
 	handle("/api/save", h.route((*Server).handleSave))
 	handle("/api/new", h.route((*Server).handleNew))
 	handle("/api/verify-approve", h.route((*Server).handleVerifyApprove))

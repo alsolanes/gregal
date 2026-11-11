@@ -375,12 +375,25 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 					}
 				}
 			}
+			// Fer pública per primer cop una web amb nom és una decisió de la
+			// persona (B11), també en mode autònom; les actualitzacions, no.
+			publicFirst := false
+			if (decision == "allow" || decision == "ask") && name == "publish" {
+				if need, where := s.webNeedsPublicDecision(argsJSON); need {
+					publicFirst = true
+					decision, reason, kind = "ask", "publish: first public publication of a site name", "publish_public"
+					what = strings.TrimSpace("publish public " + where)
+				}
+			}
 			if decision == "ask" {
 				if what == "" {
 					what = strings.TrimSpace(name + " " + windAskArgsHint(argsJSON))
 				}
 				if canAsk {
 					if ok, msg := s.windApproveCall(ctx, emit, name, argsJSON, kind, what, reason); ok {
+						if publicFirst {
+							grantWebPublic(s.remindOwner(), webArgName(argsJSON))
+						}
 						return "allow", "approved by the user"
 					} else {
 						return "deny", msg

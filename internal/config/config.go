@@ -583,6 +583,26 @@ type Config struct {
 	// games, corner…): id → on/off. Un id que no hi és fa servir el valor
 	// per defecte del plugin (encès), així qui ja les tenia no perd res.
 	Plugins map[string]bool `yaml:"plugins,omitempty"`
+
+	// Publish configura les webs pròpies amb nom (B11): <nom>.<domain>.
+	Publish PublishCfg `yaml:"publish,omitempty"`
+}
+
+// PublishCfg: el domini base de les webs publicades és configuració de la
+// instal·lació, mai del codi. Buit = només xarxa local o /w/<nom>/.
+type PublishCfg struct {
+	// Domain és el domini base (example.org): les webs surten a
+	// <nom>.<domain>, la previsualització a <nom>.preview.<domain> i la
+	// xarxa local a <nom>.lan.<domain>. GREGAL_PUBLISH_DOMAIN el sobreescriu.
+	Domain string `yaml:"domain,omitempty"`
+	// Scheme de l'URL pública (https per defecte; http per a proves locals).
+	Scheme string `yaml:"scheme,omitempty"`
+	// Tunnel és el túnel amb nom de Cloudflare que porta *.<domain> cap a
+	// aquest Gregal (regla d'ingress comodí). Buit = cap regla automàtica.
+	Tunnel string `yaml:"tunnel,omitempty"`
+	// Publishers són els comptes que poden publicar a més dels
+	// administradors; "*" = tots.
+	Publishers []string `yaml:"publishers,omitempty"`
 }
 
 // UserCfg és un compte del servidor web i de l'app.

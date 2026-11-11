@@ -381,9 +381,11 @@ func serverToolSpecs() []llm.ToolSpec {
 				"dir":     str,
 				"command": str,
 			}, "required": []string{"action"}}},
-		{Name: "publish", Description: "Publish a static website or web game (a folder with index.html) as a public link /share/<id>/ that opens on any device, including the user's phone. Publishing the same folder again updates the same link. Give dir (the project folder) and a short title. Use it when the user wants to see, share or open what you built; report the link it returns. For projects that need a server use the app tool instead.",
+		{Name: "publish", Description: "Publish a static website or web game (a folder with index.html) so it opens on any device, including the user's phone; it keeps working when the user's computer is off. Without name: an unguessable link /share/<id>/ (publishing the same folder again updates the same link). With name (lowercase letters, digits, hyphens; e.g. \"recipes\"): a named site at <name>.<the server's domain> (or /w/<name>/ without a domain) with immutable versions; the server checks the real URL (HTTP 200, index.html, internal links) and only switches visitors to the new version when the check passes; the result is a receipt to report. visibility: public (internet), lan (only the home network) or private (only the owner). The first time a name goes public the user is asked to confirm. preview: true only stages a private preview for the owner. Give dir (the project folder) and a short title. Report the receipt and link it returns. For projects that need a server use the app tool instead.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
-				"dir": str, "title": str,
+				"dir": str, "title": str, "name": str,
+				"visibility": map[string]any{"type": "string", "enum": []string{"public", "lan", "private"}},
+				"preview":    map[string]any{"type": "boolean"},
 			}, "required": []string{"dir"}}},
 		{Name: "calendar", Description: "Read the user's own calendar (Google Calendar or any iCal calendar they connected). Actions: today, tomorrow, week (optional days, default 7), range (from and to as YYYY-MM-DD). Returns events with times, places and overlaps marked. Read-only. If nothing is connected it says how to connect it.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
