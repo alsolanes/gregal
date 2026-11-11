@@ -413,6 +413,17 @@ Els paquets B substitueixen l'ordre A del primer pla. Les correccions, tests i c
 - Acceptació: en una VM Debian/Ubuntu neta, de zero a xat funcionant + ordinador + una web publicada en ≤15 min amb ≤5 valors introduïts; restaurar el backup en una segona màquina funciona sense editar fitxers; `doctor` detecta cada error provocat de la llista de la §15; el repo passa l'auditoria pública existent (`scripts/audit-public.cjs`).
 - Dependències: es construeix sobre B2/B11; les normes de la §15 s'apliquen des d'ara a tots els carrils. Esforç: 3–5 jornades.
 
+### B13 — Veure què fa l'agent a l'ordinador (P1, després de la primera release)
+
+Petició del 11/11: com fan altres assistents amb *computer use*, al visor de l'ordinador s'ha de veure on actua la IA.
+
+- Cursor de l'agent ben visible (color viu, amb un halo que dura uns instants on clica) i diferent del cursor de la persona; el text que escriu, ressaltat al camp; desplaçaments i arrossegaments amb una traça breu.
+- Una franja curta amb l'acció en curs («Clica "Reserva"», «Escriu l'adreça») i el pas de l'encàrrec, en llenguatge planer.
+- Funciona al visor del mòbil i de la web, i també en la reproducció de les últimes accions d'una feina (captures amb el punt marcat) quan no s'hi estava mirant.
+- Origen de les dades: les eines del navegador de l'ordinador (`internal/tools/browser*`, `browser_ordinador.go`) emeten esdeveniments `computer_action` amb coordenades i tipus pel bus existent; el visor els dibuixa a sobre del noVNC. Res de secrets: el text de camps de contrasenya es mostra emmascarat.
+- Quan la persona pren el control (B3), els ressalts de l'agent s'aturen.
+- Acceptació: en una feina real es veu cada clic i cada camp escrit al lloc correcte amb un retard inferior a 300 ms; cap contrasenya visible; la reproducció posterior coincideix amb el que ha passat.
+
 ## 11. Entregues i definició de «full upgrade»
 
 ### Entrega 1 — Fil + ordinador + feina que torna
