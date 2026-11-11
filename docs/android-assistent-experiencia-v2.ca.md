@@ -192,7 +192,7 @@ Abans d'escala: cost per usuari, hibernació, recursos, backups, actualitzacions
 | Permisos | Publicar és una capacitat per compte: «pot publicar a `*.selsol.top`». No requereix els «poders de servidor» d'administrador que avui exigeix l'eina `tunnel`. Publicar en `public` per primer cop un nom nou és una decisió que es confirma al fil; les actualitzacions del mateix nom, no |
 | Accés des del mòbil | Una llista «Webs» amb nom, visibilitat, versió, estat de l'última comprovació i obrir, compartir o desfer |
 
-Què es reutilitza: `publish` i `share_site.go` (còpia i versions), `apps.go` (apps dinàmiques), `tunnels.go` (túnel amb nom i ingress). Què falta: enrutament per `Host`, registre de noms amb owner, visibilitat `lan`/`private`, versions amb desfer, comprovació posterior i ingress comodí. Va al paquet **B11 — Publicació**, que depèn només de l'amfitrió i no espera B2 ni B3.
+Què es reutilitza: `publish` i `share_site.go` (còpia i versions), `apps.go` (apps dinàmiques), `tunnels.go` (túnel amb nom i ingress). Què falta: enrutament per `Host`, registre de noms amb owner, visibilitat `lan`/`private`, versions amb desfer, comprovació posterior i ingress comodí. Va al paquet **B11 — Publicació**, que depèn només de l'amfitrió i no espera B2 ni B3. El domini base és configuració de la instal·lació (§15): `selsol.top` és el del nostre desplegament, no un valor del codi.
 
 ## 6. Connectar apps: dos camins, una experiència
 
@@ -401,6 +401,18 @@ Els paquets B substitueixen l'ordre A del primer pla. Les correccions, tests i c
 - Acceptació: tota la ruta funciona amb backend, connector/lloc de prova i worker reals; cap etiqueta «connectat»/«acabat» basada només en estat optimista de UI.
 - Dependències: transversal. Esforç: 3–5 jornades + correccions.
 
+### B12 — Instal·lació portable i projecte obert (P0 transversal)
+
+**Fitxers:** `deploy/linux/{setup.sh,gregalctl.sh,install.sh}`, `deploy/ordinador/`, ordres `gregal setup`/`gregal doctor` noves a `cmd`/`main.go`, `README*.md`, `docs/getting-started*.md`, `docs/install*.md` nous. Detall a la §15.
+
+- Un sol camí d'instal·lació de l'amfitrió amb tres preguntes (domini o només LAN, compte administrador, proveïdor de model); la resta té valors per defecte que funcionen.
+- L'ordinador personal s'afegeix amb una ordre (`gregalctl computer add <compte>`) sobre un *backend* d'ordinadors connectable: **contenidor local** per defecte (Podman/Docker, sense hipervisor ni xarxa privada a configurar) i VM (libvirt o proveïdor) com a opció. Mateix contracte `status|wake|save|stop` que ja fa servir `internal/ordinador/host.go`.
+- `gregal doctor`: comprova i explica en llenguatge planer què falla (model, DNS, túnel, ordinador, push, espai), sense mostrar secrets.
+- Cap valor propi del nostre desplegament al codi ni als valors per defecte: domini base, noms de compte, IDs de paquet de push i URL d'actualització vénen de configuració.
+- Còpia de seguretat i restauració en una altra màquina (`gregalctl backup`/`restore`) que porta comptes, fils, decisions, webs publicades i perfils d'ordinador.
+- Acceptació: en una VM Debian/Ubuntu neta, de zero a xat funcionant + ordinador + una web publicada en ≤15 min amb ≤5 valors introduïts; restaurar el backup en una segona màquina funciona sense editar fitxers; `doctor` detecta cada error provocat de la llista de la §15; el repo passa l'auditoria pública existent (`scripts/audit-public.cjs`).
+- Dependències: es construeix sobre B2/B11; les normes de la §15 s'apliquen des d'ara a tots els carrils. Esforç: 3–5 jornades.
+
 ## 11. Entregues i definició de «full upgrade»
 
 ### Entrega 1 — Fil + ordinador + feina que torna
@@ -447,6 +459,7 @@ Les estimacions són jornades d'esforç orientatives, no calendari ni promesa; n
 | 2 | **B3** (visor + handoff) · **B7** (notificacions) · **B8** (programacions) | B3 necessita B2+B4; B7 necessita B4; B8 només toca pantalles pròpies |
 | 3 | **B5** (connexions) · **B6** (proactivitat) | Necessiten esperes durables i, B6, fonts de B5 |
 | Transversal | **B9** QA a cada final d'ona | Captures i matriu de la secció 11 |
+| Transversal | **B12** instal·lació portable (després de B11) | Normes de la §15 a tots els carrils des de l'ona 2 |
 
 L'integrador de B0 és l'únic que fusiona a `main` i l'únic que toca `GregalViewModel.kt`, `GregalApi.kt`, `CompanyScreen.kt`, `MainActivity.kt`, `AppStrings.kt`/`Strings.kt` i `docs/api-contract.md`. Els altres carrils li lliuren un diff acotat amb la crida exacta que necessiten.
 
@@ -470,6 +483,7 @@ No: prometre capacitats que la secció 6 diu que no existeixen; desactivar gates
 - No fer servir `~/gregal/gregal.exe` del terminal com si fos el binari de l'app d'escriptori (desfasament de versions conegut).
 - Commits sense línies d'atribució a assistents; sense publicar releases: les fa l'integrador localment.
 - Canvis de prompt dels vents: passar la bateria de qualitat existent abans i després.
+- Portabilitat (§15): tota opció nova té un valor per defecte que funciona o surt a l'assistent d'instal·lació; res de dominis, noms de persona, rutes ni IPs del nostre desplegament al codi; tota dependència externa (FCM, VM, Cloudflare) és opcional i el sistema funciona, degradat i ho diu, sense ella.
 
 ### Primera tasca per a cada carril de l'ona 1 (per arrencar sense ambigüitat)
 
@@ -512,3 +526,43 @@ Ordre: l'actualització de Kotlin/Compose, kotlinx.serialization i OkHttp és un
 - Maqueta revisada al navegador: conversa, ordinador i «Pren/Retorna el control» funcionen; sense errors de consola.
 - No s'ha modificat codi funcional ni provisionat infraestructura; es preserven els canvis locals previs.
 - Les proves del primer informe són el baseline d'aquella revisió, no una validació de les capacitats noves proposades aquí.
+
+## 15. Portabilitat: un projecte obert que s'instal·la en poca estona
+
+Requisit afegit el 11/11: Gregal ha de quedar com un copilot obert útil per a qualsevol persona, no com un muntatge per a la nostra màquina. Ha d'estar format per unes interfícies, un backend i les peces opcionals, tot integrat i fàcil de portar a un sistema nou amb una instal·lació senzilla i poca configuració.
+
+### Composició final
+
+| Peça | Què és | On corre | Obligatòria |
+|---|---|---|---|
+| **Backend** | Binari Go únic `gregal` (API, comptes, fils, esdeveniments, jobs, gateway, publicació). Porta la web dins (`internal/web/app`) | Amfitrió: Linux, Windows, macOS; també dins d'Android | Sí |
+| **Interfícies** | Web/escriptori (`internal/web/app`, `desktop/`), Android Vents (`android/`), terminal, VS Code, extensió de Chrome. Totes parlen el mateix `docs/api-contract.md` | Clients | Almenys una (la web ja ve amb el backend) |
+| **Ordinador personal** | `gregal-ordinador` + escriptori + Chrome, un per compte | Contenidor local (defecte) o VM | No: sense ell, les feines que el necessiten queden en `waiting_computer` i ho diuen |
+| **Publicació** | Webs per `Host` sota un domini base configurat | Amfitrió | No: sense domini, només LAN o `/w/<nom>/` |
+| **Push** | FCM per a Android | Servei extern | No: sense credencials, connexió de primer pla i comprovació periòdica |
+| **Model** | Qualsevol endpoint compatible amb OpenAI | Extern o local | Sí, un |
+
+### Instal·lació objectiu
+
+```
+curl -fsSL <release>/install.sh | sudo sh      # o: descomprimir i sudo sh setup.sh
+  → domini? (buit = només xarxa local)
+  → nom de l'administrador
+  → proveïdor de model i clau (o «després», des de la web)
+sudo gregalctl computer add <compte>           # opcional: ordinador en contenidor
+sudo gregal doctor                             # què funciona i què falta
+```
+
+- **Configuració en un sol lloc:** `/var/lib/gregal/config` (fitxer llegible i comentat) generat per l'assistent. Les 85 variables `GREGAL_*` actuals es mantenen com a sobreescriptura per a desenvolupament, però cap instal·lació normal n'ha de necessitar cap.
+- **Domini base:** un valor (`publish.domain`); la publicació, les previsualitzacions (`<nom>.preview.<domini>`) i la LAN (`<nom>.lan.<domini>`) en deriven. Al nostre desplegament és `selsol.top`; no apareix al codi.
+- **Ordinador:** el backend per defecte és un contenidor amb volum persistent (aturar-lo allibera la memòria; el perfil i els fitxers queden al volum). Si l'amfitrió no té Podman/Docker, `computer add` ho diu i proposa instal·lar-lo o fer servir VM. La VM de `deploy/ordinador` queda com a backend avançat amb el mateix contracte.
+- **Actualitzar:** tornar a executar l'instal·lador amb el binari nou; mai cal tocar configuració a mà ni migrar dades a mà.
+- **Portar a una altra màquina:** `gregalctl backup` → copiar → `install.sh --restore fitxer`. Inclou comptes, fils, decisions, recordatoris, webs i volums d'ordinador; els secrets van xifrats amb una clau que es mostra un sol cop.
+- **Clients:** l'app Android i l'escriptori troben el servidor a la LAN o amb una URL + invitació; cap compilació pròpia necessària. Qui faci un fork pot canviar l'ID de paquet i el canal d'actualitzacions amb dues propietats de Gradle.
+
+### Projecte obert
+
+- Llicència MIT ja present; mantenir `CONTRIBUTING.md`, `SECURITY.md` i l'auditoria pública (`scripts/audit-public.cjs`) verds abans de cada release.
+- Documentació en anglès per defecte i català: «Install», «Add a computer», «Publish a site», «Connect Android», «Backup and move».
+- Res que només funcioni amb els nostres comptes: proves amb dues identitats genèriques, fixtures sense dades personals, exemples amb `example.org`.
+- Errors provocats que `doctor` ha de detectar i explicar: model inaccessible o clau incorrecta, DNS del domini que no apunta a l'amfitrió, túnel caigut, ordinador que no arrenca, sense Podman/Docker, push sense credencials, disc ple, rellotge desfasat.
