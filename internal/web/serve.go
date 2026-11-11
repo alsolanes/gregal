@@ -118,10 +118,6 @@ type Server struct {
 	tokenAt     time.Time
 	approvals   map[string]approvalReq
 	apSeq       int
-	// windAsks: aprovacions i preguntes dels vents que esperen resposta
-	// (winds_ask.go); apart de les del xat principal.
-	windAsks   map[string]*windAskReq
-	windAskSeq int
 	// lastPrompt: tokens de l'última crida al model (amb sistema, eines i el que
 	// han llegit); convo només guarda els missatges i la mesura quedava curta.
 	lastPrompt atomic.Int64
@@ -1445,6 +1441,11 @@ func (s *Server) watchRun(run runs.Run) {
 		}
 		kind, text := "run_completed", "torn completat"
 		switch fin.State {
+		case runs.WaitingUser:
+			// Aparcat esperant una decisió: no ha acabat. Qui el reprengui
+			// tornarà a cridar watchRun.
+			s.appendRunEvent(fin, events.RunWaitingUser, "esperant una decisió")
+			return
 		case runs.Failed:
 			kind, text = "run_failed", "torn fallit: "+fin.Err
 		case runs.Cancelled:
@@ -1462,7 +1463,12 @@ func (s *Server) watchRun(run runs.Run) {
 // torns d'un altre.
 func (s *Server) runOwned(id int64) (runs.Run, bool) {
 	run, ok := s.Hub().Queue().Get(id)
-	if !ok || run.Session != s.id {
+	if !ok {
+		// Un torn aparcat d'abans d'un reinici: la cua no el coneix, però
+		// la decisió que espera sí.
+		return s.parkedDecisionRun(id)
+	}
+	if run.Session != s.id {
 		return runs.Run{}, false
 	}
 	return run, true
@@ -1629,11 +1635,18 @@ func (s *Server) handleV2RunCancel(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "id invàlid", http.StatusBadRequest)
 		return
 	}
-	if _, ok := s.runOwned(id); !ok {
+	run, ok := s.runOwned(id)
+	if !ok {
 		http.Error(w, "execució desconeguda", http.StatusNotFound)
 		return
 	}
 	cancelled := s.Hub().Queue().Cancel(id)
+	if cancelled && run.State == runs.WaitingUser {
+		// Aparcat: cap executor no tancarà el cicle. Les decisions que
+		// esperava ja no tindran efecte.
+		s.appendRunEvent(run, "run_cancelled", "torn cancel·lat")
+		s.cancelParkedDecisions(id)
+	}
 	writeJSON(w, map[string]any{"ok": true, "cancelled": cancelled})
 }
 

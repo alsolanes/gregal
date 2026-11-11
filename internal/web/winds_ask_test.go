@@ -21,16 +21,24 @@ func waitForWindAsk(t *testing.T, s *Server) *windAskReq {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		s.mu.Lock()
-		for _, a := range s.windAsks {
-			s.mu.Unlock()
-			return a
+		if list := pendingWindAsks(s); len(list) > 0 {
+			return &list[0]
 		}
-		s.mu.Unlock()
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("el torn no ha publicat cap petició")
 	return nil
+}
+
+// pendingWindAsks llegeix les pendents des del disc (el que veu un client).
+func pendingWindAsks(s *Server) []windAskReq {
+	pend := httptest.NewRecorder()
+	s.handleWindsPending(pend, httptest.NewRequest("GET", "/api/winds/pending", nil))
+	var list struct {
+		Pending []windAskReq `json:"pending"`
+	}
+	_ = json.Unmarshal(pend.Body.Bytes(), &list)
+	return list.Pending
 }
 
 func answerWindAsk(t *testing.T, s *Server, body string) *httptest.ResponseRecorder {
@@ -107,9 +115,12 @@ func TestWindApprovalBlocksUntilTheUserAnswers(t *testing.T) {
 	if !strings.Contains(raw, "tapped Decline") {
 		t.Fatalf("el vent ha de saber que s'ha rebutjat:\n%s", raw)
 	}
-	// Una segona resposta a la mateixa petició ja no val.
-	if rec := answerWindAsk(t, s, `{"key":"`+ask.Key+`","approve":true}`); rec.Code != http.StatusNotFound {
-		t.Fatalf("resposta repetida: %d", rec.Code)
+	// La mateixa resposta repetida no fa res; una de contrària ja no val.
+	if rec := answerWindAsk(t, s, `{"key":"`+ask.Key+`","approve":false}`); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"duplicate":true`) {
+		t.Fatalf("resposta duplicada: %d %s", rec.Code, rec.Body)
+	}
+	if rec := answerWindAsk(t, s, `{"key":"`+ask.Key+`","approve":true}`); rec.Code != http.StatusConflict {
+		t.Fatalf("resposta contrària: %d", rec.Code)
 	}
 }
 
@@ -163,10 +174,7 @@ func TestWindAskStopsWhenTheTurnIsCancelled(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("aturar el torn no allibera l'espera")
 	}
-	s.mu.Lock()
-	n := len(s.windAsks)
-	s.mu.Unlock()
-	if n != 0 {
+	if n := len(pendingWindAsks(s)); n != 0 {
 		t.Fatalf("la petició s'havia de netejar: %d", n)
 	}
 }

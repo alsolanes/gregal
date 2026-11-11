@@ -50,6 +50,14 @@ type Store struct {
 // feia fallar totes les lectures posteriors: el client es quedava esperant.
 const maxLine = 16 << 20
 
+// Tipus d'event de les esperes durables (B4). RunWaitingUser: el torn s'ha
+// aparcat en un punt segur esperant una decisió. Decision: una decisió ha
+// canviat d'estat (payload = la decisió pública, amb id, revision i state).
+const (
+	RunWaitingUser = "run_waiting_user"
+	Decision       = "decision"
+)
+
 // terminal diu si l'event tanca un torn.
 func terminal(kind string) bool {
 	return kind == "run_completed" || kind == "run_failed" || kind == "run_cancelled"
@@ -64,7 +72,10 @@ func (s *Store) track(e Event) {
 		s.runFirst[e.RunID] = e.ID
 	}
 	switch {
-	case terminal(e.Kind):
+	case terminal(e.Kind), e.Kind == RunWaitingUser:
+		// Un torn aparcat esperant una decisió no és orfe: no té cap
+		// procés que l'executi, i un reinici no l'ha de donar per fallit.
+		// Quan es reprengui tornarà a escriure run_queued.
 		delete(s.open, e.RunID)
 	case e.Kind == "run_queued" || e.Kind == "run_started":
 		s.open[e.RunID] = e

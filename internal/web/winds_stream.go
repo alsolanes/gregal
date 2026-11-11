@@ -250,6 +250,13 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 	ctx, doneTurn := s.beginWindTurn("wind", wind.ID, ctx)
 	defer doneTurn()
 	ctx = s.interactiveWindCtx(s.withWindSteerKey(withLinkBase(ctx, r), "wind", wind.ID))
+	// Si una decisió no arriba en directe, el torn s'aparca i allibera el
+	// goroutine; es reprèn com un run quan es respon (winds_ask.go).
+	spot := &windParkSpot{wind: wind.ID, thread: hist.name}
+	if !req.Continue {
+		spot.userMsg = msg
+	}
+	ctx = withWindPark(ctx, spot)
 	if s.crewChatIntent(msg) == "review" {
 		ctx = s.readOnlyWindCtx(ctx)
 	} else {
@@ -326,6 +333,29 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 		}
 	}
 	tl.finish(err, tornAturat(err), res.parcial, &res.temps)
+	if parked := spot.parkedRec(); parked != nil && errors.Is(err, errWindParked) {
+		// Aparcat: al fil hi queda el missatge i l'avís d'espera; la resposta
+		// continuarà el torn com un run (parked.RunID).
+		reply := s.windWaitingText(parked)
+		msgID := newMessageID()
+		history := append([]llm.Message(nil), base...)
+		if !isContinue {
+			history = append(history, llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()})
+		}
+		for _, n := range tornTexte.narracions(reply) {
+			history = append(history, llm.Message{Role: "assistant", Content: n, Ts: time.Now().Unix()})
+		}
+		history = append(history, llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix(), ID: msgID})
+		history, err = s.commitWindTurn(wind, hist, gotGen, history)
+		if err != nil {
+			fail(http.StatusInternalServerError, "no s'ha pogut desar la conversa")
+			return
+		}
+		s.noteParkedDecision(parked.ID, msgID)
+		emit("done", map[string]any{"reply": reply, "wind": wind.ID, "parcial": false, "history": petHistoryJSON(history),
+			"waiting": map[string]any{"id": parked.ID, "runId": parked.RunID, "messageId": msgID}})
+		return
+	}
 	if err != nil {
 		if tornAturat(err) {
 			emit("error", map[string]any{"error": "aturat", "cancelat": true})
