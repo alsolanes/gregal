@@ -5798,7 +5798,12 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                       /** Fil d'una colla: "debate" (es plega), "question" (espera resposta), "result". */
                       val kind: String = "",
                       /** Id estable del missatge al servidor (buit en servidors antics o missatges locals). */
-                      val id: String = "")
+                      val id: String = "",
+                      /** B6: run i resultats d'un missatge proactiu; obren «per què ho has fet?». */
+                      val relatedRunId: Long = 0L,
+                      val resultRefs: List<String> = emptyList()) {
+        val proactive: Boolean get() = from != "user" && id.isNotBlank() && (relatedRunId > 0 || resultRefs.isNotEmpty())
+    }
 
     private val _petChat = MutableStateFlow<Map<String, List<PetMsg>>>(emptyMap())
     val petChat: StateFlow<Map<String, List<PetMsg>>> = _petChat

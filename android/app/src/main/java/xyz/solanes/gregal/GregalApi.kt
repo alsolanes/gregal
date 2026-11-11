@@ -1607,8 +1607,10 @@ internal class PetMsgDto(
     @SerialName("speaker_id") val speakerId: String = "",
     @SerialName("speaker_name") val speakerName: String = "",
     val ts: Long = 0L, val kind: String = "", val id: String = "",
+    val relatedRunId: Long = 0L, val resultRefs: List<String> = emptyList(),
 ) {
-    fun toPetMsg() = GregalViewModel.PetMsg(from, text, speakerId, speakerName, ts = msgMillis(ts), kind = kind, id = id)
+    fun toPetMsg() = GregalViewModel.PetMsg(from, text, speakerId, speakerName, ts = msgMillis(ts), kind = kind, id = id,
+        relatedRunId = relatedRunId, resultRefs = resultRefs)
 }
 
 @Serializable internal class HistoryDto(val history: List<PetMsgDto> = emptyList(), val session: String = "")

@@ -68,3 +68,18 @@ func TestProactiveMessageNovetatPointsToThreadMessage(t *testing.T) {
 		t.Fatalf("la novetat no apunta al missatge del fil (%q): %+v", id, nov)
 	}
 }
+
+// TestPetHistoryCarriesProactiveLinks (B6): el fil que llegeixen Android i la
+// web porta el run i els resultats d'un missatge proactiu, i res als altres.
+func TestPetHistoryCarriesProactiveLinks(t *testing.T) {
+	rows := petHistoryJSON([]llm.Message{
+		{Role: "assistant", Content: "Ha baixat", ID: "m-1", RelatedRunID: 42, ResultRefs: []string{"res-1"}},
+		{Role: "assistant", Content: "Hola", ID: "m-2"},
+	})
+	if rows[0]["relatedRunId"] != int64(42) || len(rows[0]["resultRefs"].([]string)) != 1 {
+		t.Fatalf("missatge proactiu sense enllaços: %v", rows[0])
+	}
+	if _, ok := rows[1]["relatedRunId"]; ok {
+		t.Fatalf("un missatge normal no ha de portar relatedRunId: %v", rows[1])
+	}
+}

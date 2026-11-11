@@ -64,6 +64,8 @@ internal fun VentsChatHeader(
     centered: Boolean = false,
     /** L'ordinador de l'assistent (dreta), quan n'hi ha. */
     onComputer: (() -> Unit)? = null,
+    /** B6: el que aquest vent vigila (responsabilitats). */
+    onWatch: (() -> Unit)? = null,
 ) {
     if (centered) {
         CenteredChatHeader(lang, title, subtitle, accent, style, mood, faces, onBack, onProfile, onComputer,
@@ -84,7 +86,7 @@ internal fun VentsChatHeader(
         }
         // Una sola acció a la dreta, amb noms: dues icones soles (llibre,
         // bombolles) no deien què feien. El perfil també és a la cara.
-        if (onWiki != null || onSessions != null || onTransfer != null) {
+        if (onWiki != null || onSessions != null || onTransfer != null || onWatch != null || onComputer != null) {
             var more by remember { mutableStateOf(false) }
             Box {
                 IconButton(onClick = { more = true }, modifier = Modifier.testTag("chat-more")) {
@@ -98,6 +100,8 @@ internal fun VentsChatHeader(
                     if (onWiki != null) DropdownMenuItem(
                         leadingIcon = { Icon(Icons.Rounded.AutoStories, null) },
                         text = { Text(tr(lang, "app.wiki.summarize")) }, onClick = { more = false; onWiki() })
+                    if (onWatch != null) DropdownMenuItem(text = { Text(respCopy(lang, "title")) }, onClick = { more = false; onWatch() })
+                    if (onComputer != null) DropdownMenuItem(text = { Text(ordinadorCopy(lang, "title")) }, onClick = { more = false; onComputer() })
                     if (onTransfer != null) DropdownMenuItem(text = { Text(tr(lang, "app.vents.transferToServer")) }, onClick = { more = false; onTransfer() })
                 }
             }

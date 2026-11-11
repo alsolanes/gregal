@@ -1095,6 +1095,9 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     var askTransfer by remember(wind.id) { mutableStateOf(false) }
     var showPerm by remember(wind.id) { mutableStateOf(false) }
     var sessionsOpen by remember(wind.id) { mutableStateOf(false) }
+    var watchOpen by remember(wind.id) { mutableStateOf(false) }
+    var computerOpen by remember(wind.id) { mutableStateOf(false) }
+    var whyId by remember(wind.id) { mutableStateOf("") }
     val st by vm.state.collectAsState()
     val pickDocs = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.GetMultipleContents()
@@ -1142,7 +1145,9 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             onBack = onBack, onProfile = { profile = true },
             onWiki = onWiki,
             onSessions = { sessionsOpen = true; vm.loadWindSessions(wind.id) },
-            onTransfer = if (vm.canTransferToServer()) ({ askTransfer = true }) else null)
+            onTransfer = if (vm.canTransferToServer()) ({ askTransfer = true }) else null,
+            onComputer = { computerOpen = true },
+            onWatch = { watchOpen = true })
         if (isBusy) live[wind.id]?.let { VentsWorkProgress(lang, it, onStop = { vm.cancelWindTurn(wind.id) }) }
         // Missatges
         // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
@@ -1191,6 +1196,11 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                             onTransfer = if (vm.canTransferToServer() && !isBusy) ({ askTransfer = true }) else null,
                             onDiscard = if (m.kind == "queued") ({ vm.discardQueued(wind.id, m.ts) }) else null,
                             onCopied = { scope.launch { vm.notify(tr(lang, "app.vents.linkCopied")) } })
+                    }
+                    // B6: un missatge que ve d'una responsabilitat diu per què.
+                    if (m.proactive) TextButton(onClick = { whyId = m.id },
+                        modifier = Modifier.padding(start = 4.dp).testTag("msg-why")) {
+                        Text(respCopy(lang, "whyShort"), color = accent, fontSize = 13.sp)
                     }
                 }
             }
@@ -1269,6 +1279,9 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     if (askTransfer) TransferConfirmDialog(vm, lang, "wind", wind.id) { askTransfer = false }
     if (showPerm) PermissionDialog(st, lang, onPick = { vm.setAccess(it); showPerm = false }, onClose = { showPerm = false })
     if (sessionsOpen) WindSessionsSheet(vm, lang, wind) { sessionsOpen = false }
+    if (watchOpen) ResponsabilitatsSheet(chatConn, lang, winds, accent) { watchOpen = false }
+    if (computerOpen) OrdinadorSheet(chatConn, lang, accent) { computerOpen = false }
+    if (whyId.isNotBlank()) RespWhySheet(chatConn, lang, whyId) { whyId = "" }
 }
 
 /**

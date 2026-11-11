@@ -48,6 +48,7 @@ internal fun VentetConversation(vm: GregalViewModel, lang: String, winds: List<W
     var field by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var profile by remember { mutableStateOf(false) }
     var work by remember { mutableStateOf(false) }
+    var computer by remember { mutableStateOf(false) }
     val tasks by vm.windTasks.collectAsState()
     val running = tasks.orEmpty().count { it.running }
     val listState = rememberLazyListState()
@@ -74,7 +75,8 @@ internal fun VentetConversation(vm: GregalViewModel, lang: String, winds: List<W
                     ui.busy -> tr(lang, "app.cap.thinking")
                     else -> ""
                 },
-                accent, st.faceStyle, mood, onBack = onBack, onProfile = { profile = true }, centered = true)
+                accent, st.faceStyle, mood, onBack = onBack, onProfile = { profile = true }, centered = true,
+                onComputer = { computer = true })
             VentetThread(vm, lang, winds, listState, accent, Modifier.weight(1f), showEmpty = true)
             // Es pot escriure sempre (l'esborrany es conserva); enviar espera que acabi el torn.
             VentsComposer(lang, field, { field = it }, tr(lang, "app.cap.hint", st.name),
@@ -86,6 +88,7 @@ internal fun VentetConversation(vm: GregalViewModel, lang: String, winds: List<W
         }
     }
     if (profile) VentetProfile(vm, lang) { profile = false }
+    if (computer) OrdinadorSheet(vm.conn.collectAsState().value, lang, accent) { computer = false }
     if (work) FeinesDialog(vm, lang, onOpenThread = { vm.openVentsChat("rot:$it") }) { work = false }
 }
 
