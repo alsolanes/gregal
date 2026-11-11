@@ -11,6 +11,7 @@ import { desktopUpdates } from './desktop-updates.js';
 import { chromeExt } from './chrome-ext.js';
 import { wordAddin } from './word-addin.js';
 import { shares } from './export.js';
+import { webs } from './webs.js';
 import { funPrefs } from './fun-prefs.js';
 import { brands } from './brands.js';
 import { plugins } from './plugins.js';
@@ -359,7 +360,7 @@ export const prefs = {
         '<div id="prefsSkills"><div class="pf-skills-status">' + T('prefs.skills.loading') + '</div></div>'],
       // Calendari i correu: abans era el primer de General, i empenyia
       // l'idioma avall. És una integració amb Google, com les altres.
-      ['integrations', 'plug', '<div id="prefsConn" class="pf-conn"></div>' + chromeExt.section() + wordAddin.section() + shares.section()],
+      ['integrations', 'plug', '<div id="prefsConn" class="pf-conn"></div>' + chromeExt.section() + wordAddin.section() + shares.section() + webs.section()],
       // Les veus només serveixen per als jocs (plugins): hi van a sota.
       ['plugins', 'puzzle', '<div id="prefsPlugins">' + this.pluginsHTML() + '</div>' +
         '<div id="prefsVoiceSec" class="pf-sub"><h3 class="pf-sec">' + esc(T('prefs.group.voice')) + '</h3>' + voicePrefs.section() + '</div>'],
@@ -434,6 +435,7 @@ export const prefs = {
     chromeExt.bind(cos, () => this.repinta());
     wordAddin.bind(cos, () => this.repinta());
     shares.bind(cos);
+    webs.bind(cos);
     funPrefs.bind(cos);
     // Repintar conserva el desplaçament: la secció de brandings és llarga.
     brands.bind(cos, () => this.repinta());

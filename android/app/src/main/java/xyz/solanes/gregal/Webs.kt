@@ -30,7 +30,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 /**
@@ -95,6 +98,94 @@ internal fun parseWebs(base: String, shares: JSONObject?, apps: JSONObject?, pow
     return out
 }
 
+/** Una web amb nom (B11): <nom>.<domini> o /w/<nom>/, servida per l'amfitrió encara que l'ordinador estigui aturat. */
+internal data class NamedWeb(
+    val name: String,
+    val host: String,        // el que es mostra: aliments.example.org o /w/aliments/
+    val url: String,         // absoluta
+    val visibility: String,  // public | lan | private
+    val version: Int,        // activa (0 = encara cap)
+    val state: String,       // live | draft | check_failed
+    val problems: List<String> = emptyList(),
+    val canUndo: Boolean = false,
+)
+
+internal data class NamedWebs(val sites: List<NamedWeb> = emptyList(), val canPublish: Boolean = false, val domain: String = "")
+
+internal val WEB_VISIBILITIES = listOf("public", "lan", "private")
+
+/** GET /api/webs → les webs amb nom del compte (camps opcionals: servidors antics no en tenen). */
+internal fun parseNamedWebs(base: String, o: JSONObject?): NamedWebs {
+    if (o == null) return NamedWebs()
+    val out = mutableListOf<NamedWeb>()
+    o.optJSONArray("sites")?.let { a ->
+        for (i in 0 until a.length()) {
+            val x = a.optJSONObject(i) ?: continue
+            val name = x.optString("name")
+            if (name.isBlank()) continue
+            val probs = mutableListOf<String>()
+            x.optJSONObject("check")?.optJSONArray("problems")?.let { p -> for (j in 0 until p.length()) probs += p.optString(j) }
+            val vis = x.optString("visibility").takeIf { it in WEB_VISIBILITIES } ?: "private"
+            val state = x.optString("state").takeIf { it in listOf("live", "draft", "check_failed") } ?: "draft"
+            out += NamedWeb(name, x.optString("host").ifBlank { name }, absUrl(base, x.optString("url").ifBlank { x.optString("path") }),
+                vis, x.optInt("version"), state, probs, x.optBoolean("canUndo"))
+        }
+    }
+    return NamedWebs(out, o.optBoolean("canPublish"), o.optString("domain"))
+}
+
+private fun shareUrl(ctx: Context, url: String) {
+    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, url)
+    try { ctx.startActivity(Intent.createChooser(send, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) { }
+}
+
+@Composable
+private fun NamedWebRow(lang: String, w: NamedWeb, ctx: Context, act: (String, String, JSONObject) -> Unit) {
+    var askPublic by remember { mutableStateOf(false) }
+    val dot = when (w.state) { "live" -> Green; "check_failed" -> Red; else -> Sand }
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(SuperficieAlta.copy(alpha = .5f))
+            .border(1.dp, Line, RoundedCornerShape(20.dp)).padding(14.dp).testTag("web-named"),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.size(9.dp).clip(CircleShape).background(dot))
+            Text(w.host, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f))
+            Text(tr(lang, "webs.vis." + w.visibility), color = Muted, fontSize = 12.sp)
+        }
+        Text(tr(lang, "webs.version") + " " + (if (w.version > 0) w.version.toString() else "–") + " · " + tr(lang, "webs.state." + w.state),
+            color = Muted, fontSize = 12.sp)
+        if (w.problems.isNotEmpty()) Text(w.problems.joinToString("; "), color = Red, fontSize = 11.5.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (w.version > 0) {
+                WebAction(tr(lang, "webs.open")) { act(w.name, "open", JSONObject()) }
+                WebAction(tr(lang, "webs.share")) { shareUrl(ctx, w.url) }
+            }
+            if (w.canUndo) WebAction(tr(lang, "webs.undo")) { act(w.name, "undo", JSONObject()) }
+        }
+        // Visibilitat: es canvia sense tornar a publicar. Fer-la pública es confirma.
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            for (v in WEB_VISIBILITIES) {
+                val on = v == w.visibility
+                Text(tr(lang, "webs.vis.$v"), color = if (on) Superficie else Ink, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(if (on) Ink else Ink.copy(alpha = .07f))
+                        .clickable(enabled = !on) {
+                            if (v == "public") askPublic = true
+                            else act(w.name, "visibility", JSONObject().put("visibility", v))
+                        }
+                        .padding(horizontal = 10.dp, vertical = 6.dp).testTag("web-vis-$v"))
+            }
+        }
+    }
+    if (askPublic) AlertDialog(
+        onDismissRequest = { askPublic = false },
+        text = { Text(tr(lang, "webs.public.confirm")) },
+        confirmButton = { TextButton(onClick = { askPublic = false; act(w.name, "visibility", JSONObject().put("visibility", "public")) }) { Text(tr(lang, "webs.vis.public")) } },
+        dismissButton = { TextButton(onClick = { askPublic = false }) { Text(tr(lang, "btn.close")) } },
+    )
+}
+
 internal fun webCopy(lang: String, key: String): String {
     val en = lang == "en"
     return when (key) {
@@ -146,23 +237,51 @@ fun WebsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val lang by vm.idioma.collectAsState()
     val st by vm.webs.collectAsState()
     val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // Webs amb nom (B11): les porta /api/webs, sense passar pel ViewModel.
+    var named by remember { mutableStateOf(NamedWebs()) }
+    val reloadNamed: suspend () -> Unit = {
+        val api = vm.conn.value.api()
+        withContext(Dispatchers.IO) { runCatching { api.get("/api/webs") }.getOrNull() }
+            ?.let { named = parseNamedWebs(api.base, it) }
+    }
+    val namedAction: (String, String, JSONObject) -> Unit = { name, action, body ->
+        scope.launch {
+            try {
+                val api = vm.conn.value.api()
+                val out = withContext(Dispatchers.IO) { api.post("/api/webs/" + Uri.encode(name) + "/" + action, body) }
+                if (action == "open") openUrl(ctx, absUrl(api.base, out.optString("url")))
+                reloadNamed()
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                vm.notify(tr(lang, "webs.error") + e.message.orEmpty())
+            }
+        }
+    }
     // Es refresca en entrar i cada 10 s mentre es mira: una app que arrenca o peta es nota.
     // En segon pla no pica: només mentre la pantalla és visible.
-    LifecyclePoll(Unit) { while (true) { vm.loadWebs(); delay(10_000) } }
+    LifecyclePoll(Unit) { while (true) { vm.loadWebs(); reloadNamed(); delay(10_000) } }
     Scaffold(containerColor = Superficie, topBar = {
         TopAppBar(
             title = { Text(webCopy(lang, "title"), fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Ink) },
             navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu"), tint = Ink) } },
-            actions = { IconButton(onClick = { vm.loadWebs() }) { Icon(Icons.Rounded.Refresh, webCopy(lang, "refresh"), tint = Ink) } },
+            actions = { IconButton(onClick = { vm.loadWebs(); scope.launch { reloadNamed() } }) { Icon(Icons.Rounded.Refresh, webCopy(lang, "refresh"), tint = Ink) } },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie),
         )
     }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad)) {
             if (!st.loaded) Text(webCopy(lang, "loading"), color = Muted, modifier = Modifier.padding(20.dp))
-            else if (st.items.isEmpty()) Text(webCopy(lang, "empty"), color = Muted, fontSize = 14.sp, lineHeight = 20.sp,
+            else if (st.items.isEmpty() && named.sites.isEmpty()) Text(webCopy(lang, "empty"), color = Muted, fontSize = 14.sp, lineHeight = 20.sp,
                 modifier = Modifier.padding(24.dp).testTag("webs-empty"))
             else LazyColumn(Modifier.fillMaxSize().testTag("webs-list"), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 110.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (named.sites.isNotEmpty()) {
+                    item(key = "h-named") {
+                        Text(tr(lang, "webs.list").uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                            letterSpacing = 0.9.sp, modifier = Modifier.padding(start = 4.dp, top = 14.dp))
+                    }
+                    items(named.sites, key = { "named:" + it.name }) { w -> NamedWebRow(lang, w, ctx, namedAction) }
+                }
                 for ((kind, title) in listOf("site" to "sites", "app" to "apps", "tunnel" to "tunnels")) {
                     val group = st.items.filter { it.kind == kind }
                     if (group.isEmpty()) continue

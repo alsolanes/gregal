@@ -44,4 +44,36 @@ class VentsWebsTest {
             assertTrue(k, webCopy("ca", k) != k && webCopy("en", k) != k)
         }
     }
+
+    // B11: webs amb nom, servides per l'amfitrió (també amb l'ordinador aturat).
+    @Test fun parsesNamedSites() {
+        val o = JSONObject("""{"domain":"example.org","canPublish":true,"sites":[
+            {"name":"aliments","host":"aliments.example.org","url":"https://aliments.example.org/","visibility":"public","version":4,"state":"live","canUndo":true},
+            {"name":"casa","host":"/w/casa/","url":"","path":"/w/casa/","visibility":"lan","version":2,"state":"check_failed",
+             "check":{"ok":false,"problems":["broken link falta.png (HTTP 404)"]}},
+            {"name":"","visibility":"public"},
+            {"name":"rara","visibility":"altre","state":"?"}]}""")
+        val n = parseNamedWebs(base, o)
+        assertTrue(n.canPublish)
+        assertEquals("example.org", n.domain)
+        assertEquals(listOf("aliments", "casa", "rara"), n.sites.map { it.name })
+        assertEquals("https://aliments.example.org/", n.sites[0].url)
+        assertEquals(4, n.sites[0].version)
+        assertTrue(n.sites[0].canUndo)
+        // Sense domini: el camí /w/<nom>/ es completa amb l'adreça del servidor.
+        assertEquals("$base/w/casa/", n.sites[1].url)
+        assertEquals(listOf("broken link falta.png (HTTP 404)"), n.sites[1].problems)
+        // Valors desconeguts: el més prudent.
+        assertEquals("private", n.sites[2].visibility)
+        assertEquals("draft", n.sites[2].state)
+        assertTrue(parseNamedWebs(base, null).sites.isEmpty())
+    }
+
+    @Test fun namedSiteTextsInBothLanguages() {
+        val keys = listOf("webs.list", "webs.version", "webs.open", "webs.share", "webs.undo", "webs.error", "webs.public.confirm") +
+            WEB_VISIBILITIES.map { "webs.vis.$it" } + listOf("live", "draft", "check_failed").map { "webs.state.$it" }
+        for (k in keys) {
+            assertTrue(k, tr("ca", k) != k && tr("en", k) != k && tr("ca", k) != tr("en", k) || k == "webs.version")
+        }
+    }
 }
