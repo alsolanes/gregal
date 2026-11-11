@@ -6,6 +6,8 @@
 
 import { idioma } from './i18n.js';
 import { renderAutomations } from './vents-activity.js';
+import { renderResponsabilitats } from './vents-responsabilitats.js';
+import { t } from './i18n.js';
 
 const $ = id => document.getElementById(id);
 const tx = (ca, en) => (idioma() === 'en' ? en : ca);
@@ -75,6 +77,15 @@ async function render(box) {
   if (briefRoutine) cardBtns.append(btn(tx('Envia-me’l ara', 'Send it now'), () => act(() => post('/api/winds/rutines/run', { id: briefRoutine.id }), tx('En marxa: et sortirà al xat del vent i com a notificació.', 'Running: it will show up in the wind’s chat and as a notification.'))));
   card.append(cardBtns);
   box.append(card);
+
+  // Responsabilitats (B6): el que vigilen de manera continuada, amb fonts,
+  // pressupost i «per què?» (com ResponsabilitatsSheet d'Android).
+  const resp = section(t('resp.title'), t('resp.intro'));
+  resp.classList.add('resp-section');
+  const respBox = el('div', 'resp-box');
+  resp.append(respBox);
+  box.append(resp);
+  await renderResponsabilitats(respBox);
 
   // Tot el que faran sols, en una sola llista amb accions (com a Android).
   const all = section(tx('Què faran', 'Coming up'), tx('Recordatoris, seguiments que s’han ofert a fer, el que vigilen i les rutines. Fes-ho ara, pausa-ho, mira’n l’historial o treu-ho.',
