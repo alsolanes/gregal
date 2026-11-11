@@ -43,6 +43,14 @@ func newFakeCDP(t *testing.T) *fakeCDP {
 		host := r.Host
 		fmt.Fprintf(w, `[{"type":"page","url":"about:blank","webSocketDebuggerUrl":"ws://%s/devtools/page/1"}]`, host)
 	})
+	// Pestanya nova i tancar (navegador per propietari, pestanya per
+	// sessió): la «nova» és la mateixa pàgina falsa.
+	mux.HandleFunc("/json/new", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, `{"id":"1","type":"page","url":"about:blank","webSocketDebuggerUrl":"ws://%s/devtools/page/1"}`, r.Host)
+	})
+	mux.HandleFunc("/json/close/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "Target is closing")
+	})
 	mux.Handle("/devtools/page/1", websocket.Handler(func(ws *websocket.Conn) {
 		for {
 			var raw []byte
