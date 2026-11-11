@@ -301,8 +301,10 @@ internal fun VentsOpening(
             // Conversa a la portada: la lluïssor queda al darrere, el fil al mig
             // i el camp a baix, sense canviar de pantalla.
             Column(Modifier.fillMaxSize().imePadding().testTag("vents-home-chat")) {
-                // Les cares continuen a dalt amb conversa; escrivint, deixen lloc al fil.
-                if (!focused) top()
+                // Amb conversa oberta, el fil és l'únic protagonista: les cares
+                // són a «Xats» i al calaix. Abans s'hi quedaven a dalt i la
+                // portada barrejava dues pantalles alhora (pestanyes, cares,
+                // capçalera i fil); costava entendre què era què.
                 chatHeader?.invoke()
                 Box(Modifier.weight(1f).fillMaxWidth()) { chat() }
                 AskComposer(
