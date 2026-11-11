@@ -766,7 +766,11 @@ const jsHit = `function(x, y) {
 func (b *Browser) ClickRef(r axRef, button string, count, modifiers int) (string, error) {
 	x, y, err := b.nodePoint(r.node)
 	what := axDescribe(r)
+	if err == nil {
+		b.emitRef(ComputerClick, r, computerPoint{x: x, y: y})
+	}
 	if err != nil {
+		b.emitRef(ComputerClick, r, computerPoint{})
 		if _, e2 := b.callOn(r.node, `function() { this.scrollIntoView({block: 'center'}); this.click(); }`); e2 != nil {
 			return "", err
 		}
@@ -826,6 +830,7 @@ func (b *Browser) TypeRef(r axRef, text string, clear, enter bool) (string, erro
 	if _, err := b.callOn(r.node, jsFocusClear, clear); err != nil {
 		return "", err
 	}
+	b.emitRef(ComputerType, r, computerPoint{text: text})
 	if text != "" {
 		if _, err := b.call("Input.insertText", map[string]any{"text": text}); err != nil {
 			return "", err
@@ -859,6 +864,7 @@ const jsSelect = `function(want) {
 // SelectRef tria una opció. Els desplegables fets a mà (ARIA) no són
 // <select>: es clica i es tria l'opció amb un altre clic.
 func (b *Browser) SelectRef(r axRef, option string) (string, error) {
+	b.emitRef(ComputerSelect, r, computerPoint{text: option})
 	v, err := b.callOnString(r.node, jsSelect, option)
 	if err != nil {
 		return "", err
@@ -894,6 +900,7 @@ func (b *Browser) DragRef(from, to axRef) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	b.emitComputer(ComputerDrag, computerPoint{x: x1, y: y1, toX: x2, toY: y2, hasTo: true, target: firstNonEmpty(from.name, from.role) + " → " + firstNonEmpty(to.name, to.role)})
 	steps := []map[string]any{
 		{"type": "mouseMoved", "x": x1, "y": y1},
 		{"type": "mousePressed", "x": x1, "y": y1, "button": "left", "clickCount": 1},

@@ -250,6 +250,7 @@ func (b *Browser) Scroll(x, y float64, direction string, amount int) (string, er
 		direction = "down"
 		dy = step
 	}
+	b.emitComputer(ComputerScroll, computerPoint{x: x, y: y, dir: direction})
 	if _, err := b.call("Input.dispatchMouseEvent", map[string]any{"type": "mouseWheel", "x": x, "y": y, "deltaX": dx, "deltaY": dy}); err != nil {
 		return "", err
 	}
@@ -266,6 +267,7 @@ func (b *Browser) ClickXY(x, y float64, button string, count int) (string, error
 	if scale <= 0 {
 		scale = 1
 	}
+	b.emitComputer(ComputerClick, computerPoint{x: x / scale, y: y / scale})
 	if err := b.mouse(x/scale, y/scale, button, count, 0); err != nil {
 		return "", err
 	}
