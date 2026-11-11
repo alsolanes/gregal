@@ -13,6 +13,7 @@ import (
 	"gregal/internal/config"
 	"gregal/internal/llm"
 	"gregal/internal/profile"
+	"gregal/internal/push"
 	"gregal/internal/sandbox"
 	"gregal/internal/tools"
 )
@@ -102,6 +103,17 @@ func doctor(cfg *config.Config, path string) int {
 		ok(text("doctor.browser"), exe)
 	} else {
 		no(text("doctor.browser"), text("doctor.browser_missing"))
+	}
+
+	// Push de fons al mòbil (B7). Opcional: sense configurar no és un error,
+	// l'app fa servir la connexió de primer pla i la comprovació periòdica.
+	switch configured, err := push.Status(); {
+	case err != nil:
+		no(text("doctor.push"), text("doctor.push_broken", err))
+	case configured:
+		ok(text("doctor.push"), text("doctor.push_on"))
+	default:
+		ok(text("doctor.push"), text("doctor.push_off"))
 	}
 
 	// Revisió visual de documents d'Office (office_render). No és un

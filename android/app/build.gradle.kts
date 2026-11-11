@@ -29,6 +29,37 @@ val backendAbis = if (onlyAbi == null) allBackendAbis
         require(it.isNotEmpty()) { "gregal.abi ha de ser un de: ${allBackendAbis.keys}" }
     }
 
+// Push FCM (B7), opcional i per a forks: una sola propietat de Gradle,
+// gregal.fcm.config = camí al google-services.json del teu projecte de
+// Firebase (a ~/.gradle/gradle.properties o -P; mai al repositori). Sense
+// ella, l'APK és la de sempre (sense Firebase): avisos per la connexió de
+// primer pla i la comprovació periòdica (WindWatch). El servidor necessita,
+// a part, GREGAL_FCM_CREDENTIALS. Cap projecte, paquet ni clau nostres aquí.
+val fcmConfig: Map<String, String> = run {
+    val path = (findProperty("gregal.fcm.config") as String?)?.trim().orEmpty()
+    if (path.isEmpty()) return@run emptyMap()
+    val file = File(path)
+    require(file.isFile) { "gregal.fcm.config: no existeix $path" }
+    @Suppress("UNCHECKED_CAST")
+    val json = groovy.json.JsonSlurper().parse(file) as Map<String, Any?>
+    val info = json["project_info"] as? Map<String, Any?> ?: emptyMap()
+    @Suppress("UNCHECKED_CAST")
+    val clients = (json["client"] as? List<Map<String, Any?>>).orEmpty()
+    // El client de l'ID de paquet d'aquesta build; si no n'hi ha, el primer.
+    fun pkg(c: Map<String, Any?>) = ((c["client_info"] as? Map<*, *>)?.get("android_client_info") as? Map<*, *>)?.get("package_name")
+    val wanted = if (project.hasProperty("gregal.plotsPreview")) "xyz.solanes.gregal.vents" else "xyz.solanes.gregal"
+    val client = clients.firstOrNull { pkg(it) == wanted } ?: clients.firstOrNull() ?: emptyMap()
+    val appId = (client["client_info"] as? Map<*, *>)?.get("mobilesdk_app_id")?.toString().orEmpty()
+    val apiKey = ((client["api_key"] as? List<*>)?.firstOrNull() as? Map<*, *>)?.get("current_key")?.toString().orEmpty()
+    mapOf(
+        "projectId" to info["project_id"]?.toString().orEmpty(),
+        "appId" to appId,
+        "apiKey" to apiKey,
+        "senderId" to info["project_number"]?.toString().orEmpty(),
+    ).also { m -> require(m.values.all { it.isNotEmpty() }) { "gregal.fcm.config: al fitxer hi falten camps de Firebase" } }
+}
+val fcmOn = fcmConfig.isNotEmpty()
+
 android {
     namespace = "xyz.solanes.gregal"
     compileSdk = 36
@@ -41,6 +72,8 @@ android {
         versionCode = if (project.hasProperty("gregal.plotsPreview")) 194 else 49
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         versionName = if (project.hasProperty("gregal.plotsPreview")) "1.73.0-vents" else "1.62.0"
+        manifestPlaceholders["gregalFcm"] = fcmOn.toString()
+        if (fcmOn) fcmConfig.forEach { (k, v) -> buildConfigField("String", "FCM_" + k.uppercase(), "\"" + v.replace("\"", "") + "\"") }
     }
 
     // L'APK surt amb el nom de l'app i la versió: «Gregal-Vents-<versió>-arm64-v8a.apk» no
@@ -56,6 +89,7 @@ android {
     }
 
     sourceSets["main"].jniLibs.srcDir(backendOut)
+    if (fcmOn) sourceSets["main"].java.srcDir("src/fcm/java")
     // Un APK per ABI (app-<abi>-debug.apk) perquè cada mòbil només baixi el
     // seu backend, més l'universal (Gregal-Vents-<versió>.apk) per a qui no
     // sàpiga quin li toca. Tots comparteixen versionCode i signatura: el
@@ -104,6 +138,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = fcmOn
     }
 }
 
@@ -195,6 +230,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
     implementation("com.squareup.okhttp3:okhttp:5.4.0")
     implementation("com.squareup.okhttp3:okhttp-sse:5.4.0")
+    if (fcmOn) implementation("com.google.firebase:firebase-messaging:24.1.2")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")

@@ -1,6 +1,9 @@
 package web
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -10,6 +13,7 @@ import (
 	"time"
 
 	"gregal/internal/companion"
+	"gregal/internal/events"
 )
 
 // Novetats dels vents per a l'app: quan un vent parla sol (cor proactiu,
@@ -45,6 +49,55 @@ type windNovetat struct {
 	// una vista del missatge, no una còpia: la notificació i «Avui» hi
 	// apunten per obrir-lo al lloc exacte i no tornar-lo a anunciar.
 	MessageID string `json:"message_id,omitempty"`
+	// ID: identificador opac de la novetat (B7). És l'únic que viatja en un
+	// push; l'app el fa servir per llegir-la amb la seva sessió autenticada i
+	// per no avisar dues vegades del mateix (push + sondeig).
+	ID string `json:"id,omitempty"`
+	// Owner: el compte que la va provocar (s.usuari()). La lectura filtra
+	// per ell: mai no surt una novetat d'un altre compte.
+	Owner string `json:"owner,omitempty"`
+	// Read: l'usuari ja l'ha vista (fil obert, notificació tocada, «Avui»).
+	// Coherent entre dispositius i vistes: tots llegeixen aquest estat.
+	Read bool `json:"read,omitempty"`
+}
+
+// Tipus d'esdeveniment del registre durable (internal/events) per a les
+// novetats. El payload porta només identificadors: el text es llegeix amb
+// GET /api/winds/novetats?id=… (el mateix camí que fa servir el push).
+const (
+	eventNovetat     = "novetat"
+	eventNovetatRead = "novetat_read"
+)
+
+// novetatID torna l'id de la novetat: el desat o, per a les antigues, un de
+// derivat i estable (mateixa idea que messageID).
+func novetatID(n windNovetat) string {
+	if n.ID != "" {
+		return n.ID
+	}
+	h := sha256.Sum256([]byte(strconv.FormatInt(n.Ts, 10) + "\x00" + n.Wind + "\x00" + n.Source + "\x00" + n.Text))
+	return "n-" + hex.EncodeToString(h[:8])
+}
+
+func newNovetatID() string {
+	var b [8]byte
+	_, _ = rand.Read(b[:])
+	return "n-" + strconv.FormatInt(time.Now().Unix(), 36) + hex.EncodeToString(b[:])
+}
+
+// visibleNovetats són les del compte que pregunta, amb id omplert.
+func visibleNovetats(s *Server, all []windNovetat) []windNovetat {
+	me := s.usuari()
+	out := make([]windNovetat, 0, len(all))
+	for _, n := range all {
+		// Les antigues no porten owner: el fitxer ja és del compte (sessDir).
+		if n.Owner != "" && n.Owner != me {
+			continue
+		}
+		n.ID = novetatID(n)
+		out = append(out, n)
+	}
+	return out
 }
 
 // novetatsMu protegeix les veus proactives també entre processos (crosslock.go).
@@ -96,9 +149,7 @@ func recordNovetatMsg(s *Server, w companion.Wind, source, job, messageID, text 
 	}
 	// Cada veu és també una targeta de la safata «Avui» (winds_avui.go).
 	card, ring := s.avuiFromVoice(w, source, job, text)
-	novetatsMu.Lock()
-	defer novetatsMu.Unlock()
-	list := append(loadNovetats(s), windNovetat{
+	n := windNovetat{
 		Ts:        time.Now().Unix(),
 		Wind:      w.ID,
 		Name:      w.Name,
@@ -108,8 +159,45 @@ func recordNovetatMsg(s *Server, w companion.Wind, source, job, messageID, text 
 		Card:      card,
 		Quiet:     !ring,
 		MessageID: messageID,
+		ID:        newNovetatID(),
+		Owner:     s.usuari(),
+	}
+	novetatsMu.Lock()
+	saveNovetats(s, append(loadNovetats(s), n))
+	novetatsMu.Unlock()
+	// Al registre durable: l'app oberta (stream amb cursor) la insereix al
+	// fil sense esperar cap sondeig. Només ids, cap text privat.
+	s.appendNovetatEvent(eventNovetat, novetatEventPayload{
+		ID: n.ID, MessageID: n.MessageID, Wind: n.Wind, Source: n.Source, Quiet: n.Quiet, Ts: n.Ts,
 	})
-	saveNovetats(s, list)
+	// Fora de l'app: push amb l'id opac, si el servidor en té (winds_push.go).
+	if ring {
+		s.pushNovetat(n)
+	}
+}
+
+// novetatEventPayload és el que porta un event «novetat» o «novetat_read».
+type novetatEventPayload struct {
+	ID        string   `json:"id,omitempty"`
+	IDs       []string `json:"ids,omitempty"`
+	Winds     []string `json:"winds,omitempty"`
+	MessageID string   `json:"message_id,omitempty"`
+	Wind      string   `json:"wind,omitempty"`
+	Source    string   `json:"source,omitempty"`
+	Quiet     bool     `json:"quiet,omitempty"`
+	Ts        int64    `json:"ts,omitempty"`
+}
+
+func (s *Server) appendNovetatEvent(kind string, p novetatEventPayload) {
+	if s == nil || s.hub == nil {
+		return
+	}
+	raw, err := json.Marshal(p)
+	if err != nil {
+		return
+	}
+	// Sense sessió: és de l'usuari sencer (stream amb ?scope=user).
+	_ = s.hub.appendEvent(events.Event{User: s.usuari(), Kind: kind, Payload: raw})
 }
 
 // handleWindNovetats torna les veus proactives posteriors a des_de (unix,
@@ -120,13 +208,25 @@ func (s *Server) handleWindNovetats(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "només GET", http.StatusMethodNotAllowed)
 		return
 	}
+	novetatsMu.Lock()
+	all := visibleNovetats(s, loadNovetats(s))
+	novetatsMu.Unlock()
+	// Una de sola per id: és la lectura autenticada que fa l'app quan rep un
+	// push (que només porta l'id). D'un altre compte o inexistent: 404.
+	if id := strings.TrimSpace(r.URL.Query().Get("id")); id != "" {
+		for _, n := range all {
+			if n.ID == id {
+				writeJSON(w, map[string]any{"novetat": n})
+				return
+			}
+		}
+		http.Error(w, "novetat desconeguda", http.StatusNotFound)
+		return
+	}
 	var desDe int64
 	if raw := strings.TrimSpace(r.URL.Query().Get("des_de")); raw != "" {
 		desDe, _ = strconv.ParseInt(raw, 10, 64)
 	}
-	novetatsMu.Lock()
-	all := loadNovetats(s)
-	novetatsMu.Unlock()
 	out := make([]windNovetat, 0, len(all))
 	for _, n := range all {
 		if n.Ts > desDe {
@@ -137,4 +237,76 @@ func (s *Server) handleWindNovetats(w http.ResponseWriter, r *http.Request) {
 		out = append([]windNovetat(nil), out[len(out)-maxNovetatsOut:]...)
 	}
 	writeJSON(w, map[string]any{"novetats": out})
+}
+
+// handleWindNovetatsRead marca novetats com a llegides (POST
+// /api/winds/novetats/read). Accepta ids, message_ids o un vent sencer
+// (wind: obrir el seu fil les llegeix totes). És idempotent i torna quantes
+// han canviat; l'event «novetat_read» avisa els altres dispositius perquè
+// treguin la notificació i la insígnia.
+func (s *Server) handleWindNovetatsRead(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "només POST", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		IDs        []string `json:"ids"`
+		MessageIDs []string `json:"message_ids"`
+		Wind       string   `json:"wind"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil {
+		http.Error(w, "json invàlid", http.StatusBadRequest)
+		return
+	}
+	ids := map[string]bool{}
+	for _, id := range req.IDs {
+		ids[strings.TrimSpace(id)] = true
+	}
+	msgs := map[string]bool{}
+	for _, id := range req.MessageIDs {
+		msgs[strings.TrimSpace(id)] = true
+	}
+	delete(ids, "")
+	delete(msgs, "")
+	wind := strings.TrimSpace(req.Wind)
+	if len(ids) == 0 && len(msgs) == 0 && wind == "" {
+		http.Error(w, "cal ids, message_ids o wind", http.StatusBadRequest)
+		return
+	}
+	marked := s.readNovetats(func(n windNovetat) bool {
+		return ids[novetatID(n)] || (n.MessageID != "" && msgs[n.MessageID]) || (wind != "" && n.Wind == wind)
+	})
+	writeJSON(w, map[string]any{"ok": true, "marked": marked})
+}
+
+// readNovetats marca com a llegides les del compte que compleixen match,
+// avisa els altres dispositius (event novetat_read, amb els vents afectats
+// perquè treguin l'avís) i torna els ids canviats.
+func (s *Server) readNovetats(match func(windNovetat) bool) []string {
+	me := s.usuari()
+	novetatsMu.Lock()
+	list := loadNovetats(s)
+	marked := []string{}
+	winds := []string{}
+	seen := map[string]bool{}
+	for i, n := range list {
+		if n.Read || (n.Owner != "" && n.Owner != me) || !match(n) {
+			continue
+		}
+		list[i].Read = true
+		list[i].ID = novetatID(n)
+		marked = append(marked, list[i].ID)
+		if n.Wind != "" && !seen[n.Wind] {
+			seen[n.Wind] = true
+			winds = append(winds, n.Wind)
+		}
+	}
+	if len(marked) > 0 {
+		saveNovetats(s, list)
+	}
+	novetatsMu.Unlock()
+	if len(marked) > 0 {
+		s.appendNovetatEvent(eventNovetatRead, novetatEventPayload{IDs: marked, Winds: winds})
+	}
+	return marked
 }

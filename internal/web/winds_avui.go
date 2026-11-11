@@ -497,6 +497,11 @@ func (s *Server) handleWindsAvui(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		// Decidida a «Avui» (o des de la notificació): la novetat que la va
+		// portar queda llegida a tot arreu i el seu avís desapareix (B7).
+		if id := req.ID; req.Action == "done" || req.Action == "dismiss" || req.Action == "later" {
+			s.readNovetats(func(n windNovetat) bool { return n.Card != "" && n.Card == id })
+		}
 		writeJSON(w, map[string]any{"ok": true})
 	default:
 		http.Error(w, "GET or POST", http.StatusMethodNotAllowed)

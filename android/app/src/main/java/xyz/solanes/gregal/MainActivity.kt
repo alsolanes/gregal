@@ -178,11 +178,6 @@ class Prefs(val ctx: Context) {
 
 class MainActivity : ComponentActivity() {
     private val vm: GregalViewModel by viewModels()
-    private val notificationPermission = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (!granted) vm.notify(tr(vm.idioma.value, "app.notifications.permissionMissing"))
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -193,10 +188,8 @@ class MainActivity : ComponentActivity() {
         // Context d'aplicació: el ViewModel sobreviu a l'activitat (girar).
         val prefs = Prefs(applicationContext)
         creaCanalActualitzacions(this)
-        if (savedInstanceState == null && Build.VERSION.SDK_INT >= 33 &&
-            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
+        // El permís d'avisos no es demana a l'arrencada (B7): NotifPermission.kt
+        // el demana una vegada quan l'usuari fa una cosa que el justifica.
         // Només la primera vegada per a aquest ViewModel: en girar la pantalla
         // l'activitat es recrea però l'estat (connexió, xat) segueix viu.
         // Notificació d'un job tocada: s'obre aquella execució (abans de

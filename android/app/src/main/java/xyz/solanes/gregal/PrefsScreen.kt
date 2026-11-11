@@ -120,6 +120,11 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         Icons.Rounded.AutoAwesome, t("app.prefs.model"),
                         st.provider.ifBlank { "—" } + if (st.model.isNotBlank()) " · " + st.model else "",
                     )
+                    // B7: com arriben els avisos (push opcional o comprovació periòdica).
+                    if (!conn.local) {
+                        HorizontalDivider(Modifier.padding(start = 66.dp), color = Line)
+                        PushStatusRow(conn, idioma)
+                    }
                 }
                 // Convidar algú (la Marta) des del mòbil: abans calia la web.
                 val admin by vm.isAdmin.collectAsState()

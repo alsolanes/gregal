@@ -329,7 +329,13 @@ data class WindNovetat(val ts: Long, val wind: String, val name: String, val sou
     /** Va arribar en hores tranquil·les o en mode tranquil: no fa sonar el mòbil, espera a la safata. */
     val quiet: Boolean = false,
     /** El missatge del fil que és aquesta novetat: obrir-la porta a aquest missatge, no a una còpia. */
-    val messageId: String = "")
+    val messageId: String = "",
+    /** Id opac de la novetat (B7): dedup push + sondeig i lectura per id. */
+    val id: String = "",
+    /** Compte que la va provocar: l'app no avisa mai d'un altre compte. */
+    val owner: String = "",
+    /** Ja llegida (en aquest o en un altre dispositiu). */
+    val read: Boolean = false)
 
 /** Una decisió d'una targeta d'«Avui»: obre la conversa amb el vent i li diu [prompt]. */
 data class AvuiAction(val label: String, val prompt: String)
