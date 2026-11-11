@@ -850,10 +850,35 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     /** Respon: aprovar o rebutjar, o triar una opció (o escriure-la). Desbloqueja el torn. */
     fun answerWindAsk(key: String, approve: Boolean = false, answer: String = "") {
         val c = _conn.value
+        val wind = _windAsks.value.firstOrNull { it.key == key }?.wind.orEmpty()
         _windAsks.value = _windAsks.value.filter { it.key != key }
         viewModelScope.launch {
             try { withContext(Dispatchers.IO) { c.api().answerWindAsk(key, approve, answer) } }
-            catch (e: Exception) { if (e is CancellationException) throw e; notify(e.message.orEmpty()) }
+            catch (e: Exception) { if (e is CancellationException) throw e; notify(e.message.orEmpty()); return@launch }
+            if ((approve || answer.isNotBlank()) && wind.isNotBlank() && wind !in _windBusy.value) watchResumedWind(wind)
+        }
+    }
+
+    /** Vents amb un torn reprès al servidor després d'una decisió (B4): el fil diu que treballen. */
+    private val _windResuming = MutableStateFlow<Set<String>>(emptySet())
+    val windResuming: StateFlow<Set<String>> = _windResuming
+
+    /** El torn aparcat continua al servidor, fora d'aquest xat: el fil ensenya que treballa i,
+     *  quan arriba el missatge (la resposta o una altra pregunta), el llegeix i deixa de dir-ho. */
+    private fun watchResumedWind(windId: String) {
+        if (windId in _windResuming.value) return
+        _windResuming.value = _windResuming.value + windId
+        val before = _windChat.value[windId]?.size ?: 0
+        viewModelScope.launch {
+            try {
+                repeat(360) {
+                    delay(2500)
+                    if (windId in _windBusy.value) return@launch
+                    loadWindChat(windId)
+                    val now = _windChat.value[windId].orEmpty()
+                    if (now.size > before && now.lastOrNull()?.from != "user") { loadWindAsks(); return@launch }
+                }
+            } finally { _windResuming.value = _windResuming.value - windId }
         }
     }
 

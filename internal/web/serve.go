@@ -4491,7 +4491,9 @@ func (s *Server) hasActiveTurn() bool {
 
 func (s *Server) queueHasActiveTurn() bool {
 	for _, run := range s.Hub().Queue().ListSession(s.id) {
-		if run.State.Active() {
+		// Un torn de vent reprès després d'una decisió és feina del vent, no
+		// d'aquesta sessió de codi: no la marca com a «treballant».
+		if run.State.Active() && !strings.HasPrefix(run.Key, windDecisionRunKey) {
 			return true
 		}
 	}

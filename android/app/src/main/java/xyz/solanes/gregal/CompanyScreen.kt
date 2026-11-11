@@ -1079,6 +1079,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     val chats by vm.windChat.collectAsState()
     val loadingChat by vm.windChatLoading.collectAsState()
     val busy by vm.windBusy.collectAsState()
+    val resuming by vm.windResuming.collectAsState()
     val live by vm.windLive.collectAsState()
     val turnActionsAll by vm.turnActions.collectAsState()
     val msgs = chats[wind.id].orEmpty()
@@ -1223,7 +1224,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             // del fil, amb l'acció en marxa al costat («Cercant al web…»). La
             // capçalera i la franja de dalt ja no en diuen res.
             val liveNow = live[wind.id]
-            if (busy.contains(wind.id) && msgs.lastOrNull()?.streaming != true) {
+            if ((busy.contains(wind.id) || resuming.contains(wind.id)) && msgs.lastOrNull()?.streaming != true) {
                 item(key = "typing") {
                     WindTypingBubble(lang, wind, accent, liveNow?.mood ?: WindMood.THINKING,
                         label = liveNow?.let { l -> windVisibleWork(lang, l) ?: windStallNote(lang, l, quietNow(true)) })

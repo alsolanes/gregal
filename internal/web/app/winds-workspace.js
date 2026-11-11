@@ -633,7 +633,15 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  }
  const choicesStrip=text=>root.gregalChoices?root.gregalChoices.strip(text):text;
  const askTitle=kind=>({install:t('Vol instal·lar programari','Wants to install software'),download:t('Vol baixar un paquet o un fitxer','Wants to download a package or file'),delete:t('Vol esborrar fora del projecte','Wants to delete outside the project'),system:t('Vol canviar un servei del sistema','Wants to change a system service')}[kind]||t('Et demana permís','Asks for your permission'));
- async function answerAsk(a,body){state.asks=state.asks.filter(x=>x.key!==a.key);paintAsks();try{await call('/api/winds/answer','POST',{key:a.key,...body});}catch(e){fail(e);}}
+ async function answerAsk(a,body){state.asks=state.asks.filter(x=>x.key!==a.key);paintAsks();try{await call('/api/winds/answer','POST',{key:a.key,...body});}catch(e){fail(e);return;}if(body.approve!==false||body.answer)watchResumed(a);}
+ // Una decisió d'un torn aparcat (B4) el reprèn al servidor, fora d'aquesta pàgina: el fil diu que treballa
+ // i, quan arriba el missatge (la resposta o una altra pregunta), l'ensenya. Amb el torn en directe no cal.
+ function watchResumed(a){const chat=state.active;if(!chat||state.view!=='chat'||state.busy)return;const before=state.history.length;state.pending={thread:chat.id,wind:a.wind||null,phase:'working',text:'',resumed:true};paintPending();let n=0;
+  const done=()=>{if(state.pending?.resumed&&state.pending.thread===chat.id){state.pending=null;paintPending();}};
+  const tick=async()=>{if(state.active?.id!==chat.id||state.busy||!state.pending?.resumed){done();return;}
+   try{const url=chat.legacyWind?'/api/winds/chat?'+new URLSearchParams(chat.id?{wind:chat.wind,session:chat.id}:{wind:chat.wind}):'/api/winds/rotllana?rotlla='+encodeURIComponent(chat.id);const data=await call(url);const h=data.history||[];if(h.length>before&&h[h.length-1]?.from!=='user'){state.pending=null;state.history=h;paintHistory();paintPending();loadAsks();return;}}catch{}
+   if(++n<360)setTimeout(tick,2500);else done();};
+  setTimeout(tick,1500);}
  // Visor de l'ordinador (B3): la finestra s'obre al clic (si no, el navegador la bloqueja) i després hi va el testimoni d'un sol ús.
  async function openComputer(handoff){const win=root.open('about:blank','gregal-ordinador');try{const r=await call('/api/ordinador/viewer','POST',{handoff:handoff||'',control:!!handoff});const lang=ca()?'ca':'en';if(win)win.location.href=r.url+(r.url.includes('?')?'&':'?')+'lang='+lang;}catch(e){if(win)win.close();const m=String(e&&e.message||'');if(/no computer|another account|unknown computer/.test(m))fail(new Error(t("El teu compte encara no té cap ordinador configurat. Les feines que en necessiten esperen fins que n'hi hagi.",'No computer is set up for your account yet. Tasks that need it wait until there is one.')));else if(/no_viewer/.test(m))fail(new Error(t('Aquest servidor no té visor remot.','This server has no remote viewer.')));else fail(e);}}
  // Connecta el compte que una feina espera: el consentiment s'obre al clic (si no, el navegador el bloqueja).

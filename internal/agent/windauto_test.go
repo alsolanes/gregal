@@ -49,7 +49,12 @@ func TestWindAutoAllow(t *testing.T) {
 		{"amb poders de servidor res no atura el torn", &Policy{ProjectDir: proj, ServerPowers: true}, "mcp_github_x", `{}`, true},
 		{"sense poders una eina fora de la llista queda fora", pol, "send_file", `{"path":"/x"}`, false},
 		{"config explícit bash=ask mana", &Policy{ProjectDir: proj, Tools: map[string]string{"bash": "ask"}}, "bash", bashQ("go build ./..."), false},
-		{"config explícit write=ask mana", &Policy{ProjectDir: proj, Tools: map[string]string{"write": "ask"}}, "write", `{"path":` + quote(dins) + `,"content":"x"}`, false},
+		// La plantilla del config porta write/edit: ask (pensat per al xat
+		// principal): dins del projecte, el vent no pregunta fitxer a fitxer.
+		{"config write=ask dins del projecte passa", &Policy{ProjectDir: proj, Tools: map[string]string{"write": "ask"}}, "write", `{"path":` + quote(dins) + `,"content":"x"}`, true},
+		{"config edit=ask dins del projecte passa", &Policy{ProjectDir: proj, Tools: map[string]string{"edit": "ask"}}, "edit", `{"path":` + quote(dins) + `,"old":"a","new":"b"}`, true},
+		{"config write=ask fora del projecte pregunta", &Policy{ProjectDir: proj, Tools: map[string]string{"write": "ask"}}, "write", `{"path":"/tmp/fora-vents.txt","content":"x"}`, false},
+		{"config write=deny mana", &Policy{ProjectDir: proj, Tools: map[string]string{"write": "deny"}}, "write", `{"path":` + quote(dins) + `,"content":"x"}`, false},
 		// Documents i símbols: la feina d'aquí també els ha de poder fer.
 		{"office_edit dins", pol, "office_edit", `{"path":` + quote(dins) + `,"op":"replace"}`, true},
 		{"office_create fora", pol, "office_create", `{"path":"/tmp/fora.docx","content":"x"}`, false},

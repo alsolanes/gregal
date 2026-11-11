@@ -205,6 +205,9 @@ func (s *Server) windAskWait(ctx context.Context, emit func(kind, text string), 
 		rec.RunID = spot.runID
 		rec.Slot = spot.wind + "|" + spot.thread + "|" + effect.Tool + "|" + effect.Kind
 		rec.Resume = &windResume{Wind: spot.wind, Thread: spot.thread, UserMsg: spot.userMsg, Hist: spot.snapshot()}
+		if scope, ok := ctx.Value(interactiveWindKey{}).(windTurnScope); ok {
+			rec.Resume.Workspace = scope.workspace
+		}
 	}
 	rec.Expires = now.Add(ttl).UnixMilli()
 	rec.ExpiresAt = now.Add(ttl).UTC().Format(time.RFC3339)

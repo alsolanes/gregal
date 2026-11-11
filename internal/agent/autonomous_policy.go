@@ -145,6 +145,18 @@ func (p *Policy) WindAutoAllow(name, argsJSON string) bool {
 	// del config (la plantilla porta write/edit: ask, pensat per al xat
 	// principal) no l'atura; un «deny» explícit, sí.
 	blocks := func(d string) bool { return d != "allow" && !(p.ServerPowers && d == "ask") }
+	// Escriure i editar dins del projecte: un «ask» del config (la plantilla
+	// porta write/edit: ask, pensat per al xat principal) no fa preguntar el
+	// vent fitxer a fitxer; l'ordre del xat ja és el permís. Un «deny», escriure
+	// fora del projecte i tota la resta continuen igual.
+	if p != nil && p.ProjectDir != "" {
+		switch name {
+		case "write", "edit", "patch":
+			if InsideProject(p.ProjectDir, toolPath(name, argsJSON)) {
+				blocks = func(d string) bool { return d != "allow" && d != "ask" }
+			}
+		}
+	}
 	if p != nil {
 		if d, _, ok := p.ruleDecision(name, argsJSON); ok && blocks(d) {
 			return false

@@ -36,6 +36,10 @@ type windResume struct {
 	// Hist acaba amb el missatge de l'assistent que demana les crides del
 	// lot pendent, sense cap resultat: Loop.Repren el continua.
 	Hist []llm.Message `json:"hist"`
+	// Workspace és la carpeta on treballava el torn (la de la conversa, p. ex.
+	// ~/gregal/projectes): la represa hi torna, encara que la sessió del
+	// navegador hagi canviat de projecte (anar a Codi) mentrestant.
+	Workspace string `json:"workspace,omitempty"`
 }
 
 // decisionDir és la vista bloquejada de la carpeta de decisions d'un usuari.
@@ -302,7 +306,9 @@ func (s *Server) consumeResumedDecision(res *windResumeCtx, hash string) (windAn
 // parkWindRun registra a la cua el run aparcat d'un xat en directe i ho
 // deixa al registre (run_waiting_user). Torna l'ID.
 func (s *Server) parkWindRun(rec *windDecisionRec) int64 {
-	run := s.Hub().Queue().Park(runs.Run{Session: rec.Session, Priority: runs.PriorityBackground})
+	// La clau marca el run com a feina d'un vent: Codi no l'ensenya com una
+	// sessió que treballa (queueHasActiveTurn).
+	run := s.Hub().Queue().Park(runs.Run{Session: rec.Session, Priority: runs.PriorityBackground, Key: windDecisionRunKey + rec.ID})
 	kind, text := events.RunWaitingUser, "esperant la decisió "+rec.ID
 	if rec.Type == "connection" {
 		// L'encàrrec espera una connexió (waiting_connection): la cua el té
@@ -312,6 +318,9 @@ func (s *Server) parkWindRun(rec *windDecisionRec) int64 {
 	_ = s.Hub().appendEvent(events.Event{SessionID: rec.Session, User: s.usuari(), RunID: int(run.ID), Kind: kind, Text: text})
 	return run.ID
 }
+
+// windDecisionRunKey prefixa la clau dels runs que reprenen una decisió d'un vent.
+const windDecisionRunKey = "wind-decision:"
 
 // decisionServer és la sessió on va néixer la decisió (la resposta pot
 // entrar per una altra sessió del mateix usuari).
@@ -450,6 +459,9 @@ func (s *Server) windResumeExec(id string) runs.Executor {
 		tctx, doneTurn := s.beginWindTurn("wind", wind.ID, tctx)
 		defer doneTurn()
 		tctx = s.interactiveWindCtx(s.withWindSteerKey(tctx, "wind", wind.ID))
+		if ws := strings.TrimSpace(rec.Resume.Workspace); ws != "" {
+			tctx = withWindWorkspaceScope(tctx, ws)
+		}
 		tctx = s.windDocsCtx(agent.WithSkillsDirs(tctx, s.windSkillsDir(wind.ID)))
 		spot := &windParkSpot{wind: wind.ID, thread: rec.Resume.Thread, runID: run.ID}
 		tctx = withWindResume(withWindPark(tctx, spot), rec.ID)

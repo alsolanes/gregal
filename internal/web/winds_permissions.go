@@ -66,6 +66,19 @@ func (s *Server) interactiveWindCtx(ctx context.Context) context.Context {
 	return context.WithValue(ctx, interactiveWindKey{}, scope)
 }
 
+// withWindWorkspaceScope torna a posar la carpeta d'un torn reprès al seu abast
+// (la mateixa política, amb el projecte d'aquell torn).
+func withWindWorkspaceScope(ctx context.Context, ws string) context.Context {
+	scope, ok := ctx.Value(interactiveWindKey{}).(windTurnScope)
+	if !ok || scope.policy == nil || ws == scope.workspace {
+		return ctx
+	}
+	pol := *scope.policy
+	pol.ProjectDir = ws
+	scope.policy, scope.workspace = &pol, ws
+	return context.WithValue(ctx, interactiveWindKey{}, scope)
+}
+
 func (s *Server) readOnlyWindCtx(ctx context.Context) context.Context {
 	scope, ok := ctx.Value(interactiveWindKey{}).(windTurnScope)
 	if !ok {
