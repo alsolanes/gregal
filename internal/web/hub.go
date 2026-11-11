@@ -40,6 +40,9 @@ type Hub struct {
 	eventStore *events.Store
 	eventErr   error
 	queue      *runs.Queue
+	// computer: accions recents de l'agent a l'ordinador i les seues
+	// captures, per propietari (B13, ordinador_accions.go).
+	computer *computerStore
 	// plug és l'estat viu dels plugins (plugins.go): encesos, apagats i
 	// els bucles de fons que tenen en marxa.
 	plug pluginRuntime
@@ -60,6 +63,8 @@ func (s *Server) Hub() *Hub {
 	// encara que el client canviï de pestanya. Si el disc no és escrivible,
 	// la resta del servei continua funcionant i l'API ho tracta com a buida.
 	h.eventStore, _ = events.Open(filepath.Join(session.DefaultDir(), "events.jsonl"))
+	h.computer = &computerStore{dir: filepath.Join(session.DefaultDir(), "ordinador-accions")}
+	tools.SetComputerActionSink(h.recordComputerAction)
 	if h.eventStore != nil {
 		h.queue.SeedIDs(int64(h.eventStore.MaxRunID()))
 	}
