@@ -207,6 +207,8 @@
    stopChat(chatTurn).catch(fail);
   }:null;
  }
+ // Superfície de lectura (B1): una taula, un bloc de codi o un text llarg no van dins d'una bombolla.
+ const chatReadingSurface=text=>{const s=String(text||'');return s.length>900||/```/.test(s)||/^\s*\|.*\|\s*$/m.test(s)&&/^\s*\|?\s*:?-{3,}/m.test(s);};
  const nearChatEnd=box=>box.scrollHeight-box.clientHeight-box.scrollTop<64;
  function paintPending(){
   if(!messages||state.view!=='chat')return;const pending=state.pending;
@@ -672,9 +674,10 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
    box.append(card);
   }
  }
- function paintHistory(){const top=messages.scrollTop,follow=nearChatEnd(messages);messages.replaceChildren();let voice='',asked=false;for(const item of state.history){const user=item.from==='user';
+ function paintHistory(){const top=messages.scrollTop,follow=nearChatEnd(messages);messages.replaceChildren();let voice='',asked=false;const H=state.history,who=m=>m?(m.from==='user'?'user':(m.speaker_id||m.from||'')):null;for(let hi=0;hi<H.length;hi++){const item=H[hi];const user=item.from==='user';
   // Un altre vent agafa el fil després d'un missatge teu: una línia ho diu, en lloc que el vent ho expliqui.
-  if(user)asked=true;else if(!state.active?.legacyWind){const id=item.speaker_id||'';if(voice&&id&&id!==voice&&asked){const who=state.winds.find(w=>w.id===id);if(who)messages.append(el('p','vw-handoff',t('→ '+who.name+' agafa el fil','→ '+who.name+' takes over')));}if(id)voice=id;asked=false;}const w=state.winds.find(w=>w.id===item.speaker_id||w.id===item.from||w.name===item.from)||(state.active?.legacyWind?state.winds.find(w=>w.id===state.active.wind):null);const row=el('article',user?'vw-message vw-user':'vw-message');if(!user)row.append(face(w));const copy=el('div'),body=el('div','vw-message-text'),text=user?item.text:choicesStrip(withoutSpeaker(item.text,w?.name||item.speaker_name));if(root.gregalMD)body.innerHTML=root.gregalMD.render(text);else body.textContent=text;copy.append(el('strong','',user?t('Tu','You'):w?.name||item.speaker_name||t('La colla','Your crew')),body);
+  if(user)asked=true;else if(!state.active?.legacyWind){const id=item.speaker_id||'';if(voice&&id&&id!==voice&&asked){const who=state.winds.find(w=>w.id===id);if(who)messages.append(el('p','vw-handoff',t('→ '+who.name+' agafa el fil','→ '+who.name+' takes over')));}if(id)voice=id;asked=false;}const w=state.winds.find(w=>w.id===item.speaker_id||w.id===item.from||w.name===item.from)||(state.active?.legacyWind?state.winds.find(w=>w.id===state.active.wind):null);const row=el('article',user?'vw-message vw-user':'vw-message');// Ratxes (B1): la cara i el nom un sol cop; la cua només a l'última. Taules, codi i textos llargs es llegeixen sense bombolla.
+  if(who(H[hi-1])===who(item))row.classList.add('vw-run-cont');if(who(H[hi+1])!==who(item))row.classList.add('vw-run-last');if(!user&&chatReadingSurface(item.text))row.classList.add('vw-reading');if(!user)row.append(face(w));const copy=el('div'),body=el('div','vw-message-text'),text=user?item.text:choicesStrip(withoutSpeaker(item.text,w?.name||item.speaker_name));if(root.gregalMD)body.innerHTML=root.gregalMD.render(text);else body.textContent=text;copy.append(el('strong','',user?t('Tu','You'):w?.name||item.speaker_name||t('La colla','Your crew')),body);
   // Un missatge proactiu (B6, amb run o resultat): «per què ho has fet?».
   const R=root.gregalResponsabilitats;if(!user&&R&&R.isProactive(item)&&item.id){const why=btn(R.whyLabel(),()=>R.openWhy(item.id),'vw-why');why.dataset.message=item.id;row.dataset.proactive='1';copy.append(why);}
   row.append(copy);messages.append(row);}
