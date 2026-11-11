@@ -20,7 +20,7 @@ class MessageIdTest {
     }
 
     @Test fun elFilDelVentetPortaIds() {
-        val h = CapState.parseHistory(JSONArray("""[{"id":"m-1","from":"user","text":"hola"},{"from":"cap","text":"servidor antic"}]"""))
+        val h = CapState.parseHistory("""[{"id":"m-1","from":"user","text":"hola"},{"from":"cap","text":"servidor antic"}]""")
         assertEquals("m-1", h[0].id)
         assertEquals("", h[1].id)
     }

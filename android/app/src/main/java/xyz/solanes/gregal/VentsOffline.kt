@@ -1,8 +1,11 @@
 package xyz.solanes.gregal
 
 import android.content.Context
-import org.json.JSONArray
-import org.json.JSONObject
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 import java.io.File
 import java.net.ConnectException
 import java.net.NoRouteToHostException
@@ -63,37 +66,27 @@ object OfflineLogic {
     /** Els ids avisats es recorden 3 dies (prou per deduplicar el que el servidor dispari tard). */
     const val SHOWN_KEEP_MS = 3 * 24 * 3600_000L
 
-    fun encodeChat(msgs: List<GregalViewModel.PetMsg>): String {
-        val a = JSONArray()
-        for (m in msgs.filter { !it.streaming && it.kind != "queued" && it.text.isNotBlank() }.takeLast(CHAT_KEEP)) {
-            a.put(JSONObject().put("from", m.from).put("text", m.text).put("speaker_id", m.speakerId)
-                .put("speaker_name", m.speakerName).put("ts", m.ts).put("kind", m.kind).put("parcial", m.parcial).put("id", m.id))
-        }
-        return a.toString()
-    }
+    fun encodeChat(msgs: List<GregalViewModel.PetMsg>): String =
+        GregalJson.encodeToString(ListSerializer(SavedMsg.serializer()),
+            msgs.filter { !it.streaming && it.kind != "queued" && it.text.isNotBlank() }.takeLast(CHAT_KEEP).map { m ->
+                SavedMsg(m.from, m.text, m.speakerId, m.speakerName, m.ts, m.kind, m.parcial, m.id)
+            })
 
     fun decodeChat(raw: String?): List<GregalViewModel.PetMsg>? {
         if (raw.isNullOrBlank()) return null
         return try {
-            val a = JSONArray(raw)
-            (0 until a.length()).mapNotNull { i ->
-                val o = a.optJSONObject(i) ?: return@mapNotNull null
-                GregalViewModel.PetMsg(o.optString("from"), o.optString("text"), o.optString("speaker_id"),
-                    o.optString("speaker_name"), parcial = o.optBoolean("parcial"), ts = o.optLong("ts"), kind = o.optString("kind"), id = o.optString("id"))
+            GregalJson.decodeFromString(ListSerializer(SavedMsg.serializer()), raw).map { o ->
+                GregalViewModel.PetMsg(o.from, o.text, o.speakerId, o.speakerName, parcial = o.parcial, ts = o.ts, kind = o.kind, id = o.id)
             }
         } catch (_: Exception) { null }
     }
 
-    fun encodeOutbox(items: List<OutboxItem>): String = JSONArray().apply {
-        for (i in items) put(JSONObject().put("wind", i.wind).put("text", i.text).put("ts", i.ts))
-    }.toString()
+    fun encodeOutbox(items: List<OutboxItem>): String =
+        GregalJson.encodeToString(ListSerializer(SavedOutbox.serializer()), items.map { SavedOutbox(it.wind, it.text, it.ts) })
 
     fun decodeOutbox(raw: String?): List<OutboxItem> = try {
-        val a = JSONArray(raw ?: "[]")
-        (0 until a.length()).mapNotNull { i ->
-            val o = a.optJSONObject(i) ?: return@mapNotNull null
-            val text = o.optString("text")
-            if (text.isBlank() || o.optString("wind").isBlank()) null else OutboxItem(o.optString("wind"), text, o.optLong("ts"))
+        GregalJson.decodeFromString(ListSerializer(SavedOutbox.serializer()), raw ?: "[]").mapNotNull { o ->
+            if (o.text.isBlank() || o.wind.isBlank()) null else OutboxItem(o.wind, o.text, o.ts)
         }.sortedBy { it.ts }
     } catch (_: Exception) { emptyList() }
 
@@ -110,16 +103,12 @@ object OfflineLogic {
         history.filter { it.kind != "queued" } +
             outbox.filter { it.wind == wind }.sortedBy { it.ts }.map { GregalViewModel.PetMsg("user", it.text, ts = it.ts, kind = "queued") }
 
-    fun encodeReminders(items: List<MirroredReminder>): String = JSONArray().apply {
-        for (r in items) put(JSONObject().put("id", r.id).put("wind", r.wind).put("name", r.name).put("at", r.at).put("text", r.text))
-    }.toString()
+    fun encodeReminders(items: List<MirroredReminder>): String =
+        GregalJson.encodeToString(ListSerializer(SavedReminder.serializer()), items.map { SavedReminder(it.id, it.wind, it.name, it.at, it.text) })
 
     fun decodeReminders(raw: String?): List<MirroredReminder> = try {
-        val a = JSONArray(raw ?: "[]")
-        (0 until a.length()).mapNotNull { i ->
-            val o = a.optJSONObject(i) ?: return@mapNotNull null
-            if (o.optString("id").isBlank() || o.optLong("at") <= 0) null
-            else MirroredReminder(o.optString("id"), o.optString("wind"), o.optString("name"), o.optLong("at"), o.optString("text"))
+        GregalJson.decodeFromString(ListSerializer(SavedReminder.serializer()), raw ?: "[]").mapNotNull { o ->
+            if (o.id.isBlank() || o.at <= 0) null else MirroredReminder(o.id, o.wind, o.name, o.at, o.text)
         }
     } catch (_: Exception) { emptyList() }
 
@@ -157,13 +146,30 @@ object OfflineLogic {
     fun pruneShown(shown: Map<String, Long>, now: Long): Map<String, Long> =
         shown.filterValues { it > now - SHOWN_KEEP_MS }
 
-    fun encodeShown(shown: Map<String, Long>): String = JSONObject().apply { shown.forEach { (k, v) -> put(k, v) } }.toString()
+    private val shownSerializer = MapSerializer(String.serializer(), Long.serializer())
+
+    fun encodeShown(shown: Map<String, Long>): String = GregalJson.encodeToString(shownSerializer, shown)
 
     fun decodeShown(raw: String?): Map<String, Long> = try {
-        val o = JSONObject(raw ?: "{}")
-        o.keys().asSequence().associateWith { o.optLong(it) }
+        GregalJson.decodeFromString(shownSerializer, raw ?: "{}")
     } catch (_: Exception) { emptyMap() }
 }
+
+// La forma dels fitxers desats (la mateixa d'abans: les còpies velles es llegeixen igual).
+
+@Serializable
+internal class SavedMsg(
+    val from: String = "", val text: String = "",
+    @SerialName("speaker_id") val speakerId: String = "",
+    @SerialName("speaker_name") val speakerName: String = "",
+    val ts: Long = 0L, val kind: String = "", val parcial: Boolean = false, val id: String = "",
+)
+
+@Serializable
+internal class SavedOutbox(val wind: String = "", val text: String = "", val ts: Long = 0L)
+
+@Serializable
+internal class SavedReminder(val id: String = "", val wind: String = "", val name: String = "", val at: Long = 0L, val text: String = "")
 
 /** La còpia d'un servidor (origen) al mòbil: fitxers petits al directori privat de l'app. */
 class VentsOfflineStore(private val dir: File) {

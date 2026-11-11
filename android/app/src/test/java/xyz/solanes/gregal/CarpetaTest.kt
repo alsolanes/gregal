@@ -23,8 +23,8 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class CarpetaTest {
 
-    private fun ws(raw: String) = parseWorkspaces(JSONObject(raw))
-    private fun dirs(raw: String) = parseDirs(JSONObject(raw))
+    private fun ws(raw: String) = parseWorkspaces(raw)
+    private fun dirs(raw: String) = parseDirs(raw)
 
     @Test
     fun `workspaces llegeix la carpeta actual i la branca`() {

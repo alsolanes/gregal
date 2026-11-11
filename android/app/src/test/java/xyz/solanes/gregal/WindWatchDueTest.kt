@@ -37,8 +37,8 @@ class WindWatchDueTest {
     @Test
     fun theReplyCarriesTheExactReminderTime() {
         val api = GregalApi("http://x", "")
-        val m = GregalApi::class.java.getDeclaredMethod("windReplyOf", org.json.JSONObject::class.java).apply { isAccessible = true }
-        val o = org.json.JSONObject("""{"reply":"Fet","actions":[{"kind":"remind","at":"02/11 16:53","at_iso":"2026-11-02T16:53:27+01:00","text":"Apaga el foc"}]}""")
+        val m = GregalApi::class.java.getDeclaredMethod("windReplyOf", String::class.java).apply { isAccessible = true }
+        val o = """{"reply":"Fet","actions":[{"kind":"remind","at":"02/11 16:53","at_iso":"2026-11-02T16:53:27+01:00","text":"Apaga el foc"}]}"""
         val r = m.invoke(api, o) as WindReply
         assertEquals(listOf("02/11 16:53"), r.reminds)
         assertEquals(listOf(java.time.OffsetDateTime.parse("2026-11-02T16:53:27+01:00").toInstant().toEpochMilli()), r.remindAt)

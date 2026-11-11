@@ -40,7 +40,7 @@ class AvuiJsonTest {
         val v = AvuiJson.view("{}")
         assertTrue(v.all.isEmpty())
         assertEquals(AvuiSettings(), v.settings)
-        assertEquals("normal", AvuiJson.settings(org.json.JSONObject("""{"level":"rar"}""")).level)
+        assertEquals("normal", AvuiJson.settings("""{"level":"rar"}""").level)
     }
 
     @Test fun novetatsPortenTargetaISilenci() {

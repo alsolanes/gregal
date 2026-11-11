@@ -2221,7 +2221,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 GregalNotifications.needsYou(appContext)
             }
             "question_request" -> {
-                _question.value = QuestionReq(f("key"), f("call_id"), f("query"), parseQuestionOptions(o.optJSONArray("options")))
+                _question.value = QuestionReq(f("key"), f("call_id"), f("query"), parseQuestionOptions(o.optJSONArray("options")?.toString()))
                 setActivity("question", appText("app.work.waitAnswer"))
                 GregalNotifications.needsYou(appContext)
             }
