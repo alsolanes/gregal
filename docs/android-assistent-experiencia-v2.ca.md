@@ -577,3 +577,30 @@ sudo gregal doctor                             # què funciona i què falta
 - Documentació en anglès per defecte i català: «Install», «Add a computer», «Publish a site», «Connect Android», «Backup and move».
 - Res que només funcioni amb els nostres comptes: proves amb dues identitats genèriques, fixtures sense dades personals, exemples amb `example.org`.
 - Errors provocats que `doctor` ha de detectar i explicar: model inaccessible o clau incorrecta, DNS del domini que no apunta a l'amfitrió, túnel caigut, ordinador que no arrenca, sense Podman/Docker, push sense credencials, disc ple, rellotge desfasat.
+
+## 16. L'assistent principal fa la feina (repensar el Ventet)
+
+Revisat l'11/11 a petició de l'usuari: el Ventet és el que s'obre per defecte, però avui l'únic que fa és repartir.
+
+### Què passa avui
+
+`/api/winds/cap` decideix amb **una sola crida al model, sense eines** (`capModelCall`): o respon amb text, o proposa passar-ho a un vent, una rotllana o una colla i espera «Endavant». No pot cercar, ni programar un recordatori, ni vigilar res, ni fer servir l'ordinador ni les connexions. Tot el que és feina de debò surt del fil principal cap a un altre xat.
+
+### Com ho fan els referents
+
+- **Claude Duet:** un fil principal on l'agent fa la feina ell mateix amb el seu ordinador al núvol, les connexions i la memòria del compte; t'escriu primer (resum del matí, comprovacions periòdiques); canals opcionals per temes; demana aprovació només abans d'actuar fora (enviar, pagar, signar, esborrar). [MacRumors](https://www.macrumors.com/2026/10/21/anthropic-claude-duet/), [Zapier](https://zapier.com/blog/claude-duet/).
+- **OpenAI dots:** un agent persistent amb ordinador propi que treballa en segon pla, fa recerca proactiva només de lectura i torna quan necessita una decisió. [Presentem els dots](https://openai.com/index/introducing-dots/), [TechCrunch](https://techcrunch.com/2026/10/26/how-openai-turned-its-coding-tools-into-dots-an-always-on-personal-assistant/).
+- **Grok Bot:** bots amb nom sobre un ordinador compartit; el patró recomanat és un «cap de gabinet» que és amo del resultat i crida especialistes només quan cal la seva part, i et demana només les decisions de criteri. [Grok Bot 101](https://x.ai/bot/guides/grok-bot-101), [handbook](https://github.com/0xkaize/grok-bot-handbook).
+
+Patró comú: **un sol agent principal que treballa i és amo del resultat**; els especialistes són ajuda en segon pla, no una porta que cal triar; l'aprovació és per a accions externes, no per decidir qui ho fa.
+
+### Proposta (paquet B14)
+
+1. **Gregal és un agent, no un encaminador.** El fil principal fa servir el mateix bucle que els vents (eines, ordinador, connexions, recordatoris, vigilàncies, decisions durables i represa): cercar, preparar, programar i vigilar els fa ell, al mateix fil.
+2. **Els especialistes són ajudants.** Gregal els consulta amb una eina (la `wind` existent, o una colla per a feina llarga) en segon pla; el resultat torna al fil principal com a targeta «Ho ha preparat Marinada». Sense «Endavant» per triar qui ho fa.
+3. **Aprovació només per actuar fora:** enviar, comprar, publicar, esborrar o escriure fora del projecte (decisions de B4).
+4. **T'escriu primer al mateix fil:** el resum del matí, les vigilàncies (B6) i els recordatoris (B8) arriben al fil principal, no a fils separats. Els xats amb cada vent queden com a «canals» opcionals al menú.
+5. **Nom i cara de Gregal** per defecte (personalitzables), i el «Ventet» desapareix com a concepte separat.
+6. **Obertura espectacular:** en obrir l'app, la lluïssor floreix al voltant de la cara de Gregal i s'esvaeix quan apareix el fil (≤ 1 s, res amb «reduir animacions»); torna, suau, mentre treballa.
+
+Compatibilitat: l'historial del Ventet es conserva com a historial del fil principal; `/api/winds/cap` continua responent per a apps antigues. Acceptació: «recorda'm demà a les 9…», «vigila aquesta web» i «cerca'm X» es resolen dins del fil principal sense canviar de xat ni prémer «Endavant»; una feina llarga torna al fil amb el resultat; enviar o comprar demana permís.
