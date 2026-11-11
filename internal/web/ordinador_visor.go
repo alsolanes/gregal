@@ -351,6 +351,18 @@ func (s *Server) handleVisor(w http.ResponseWriter, r *http.Request) {
 			ordinadorViewers.End(sess.ID)
 		}
 		writeJSON(w, s.visorState(r.Context(), t))
+	case rest == "accions":
+		// Les accions de l'agent en directe (B13): només les del propietari.
+		s.Hub().serveComputerStream(w, r, computerOwnerOf(sess.Owner))
+	case rest == "accions/recents":
+		writeJSON(w, s.Hub().computerRecentJSON(computerOwnerOf(sess.Owner), r, "captura/"))
+	case strings.HasPrefix(rest, "captura/"):
+		b, ok := s.Hub().computer.shot(computerOwnerOf(sess.Owner), strings.TrimPrefix(rest, "captura/"))
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		serveComputerShot(w, b)
 	case strings.HasPrefix(rest, "vnc/"):
 		s.visorProxy(t).ServeHTTP(w, r)
 	default:

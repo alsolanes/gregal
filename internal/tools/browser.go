@@ -69,6 +69,8 @@ type Browser struct {
 	launched bool
 	// actx: context del pas en marxa; call el consulta per tallar-se.
 	actx context.Context
+	// actScope: la sessió del pas en marxa (de qui és l'acció, B13).
+	actScope string
 	// ax: refs i última lectura de l'arbre d'accessibilitat (browser_ax.go).
 	ax *axState
 	// shotScale: píxels de captura per píxel CSS (click amb x/y).
@@ -732,19 +734,21 @@ func (b *Browser) Click(target string) (string, error) {
 	  if (!e) return "no hi és";
 	  e.scrollIntoView({block: 'center'});
 	  const r = e.getBoundingClientRect();
-	  return JSON.stringify({x: r.left + r.width / 2, y: r.top + r.height / 2, tag: e.tagName, text: (e.innerText || e.value || '').trim().slice(0, 60)});
+	  return JSON.stringify({x: r.left + r.width / 2, y: r.top + r.height / 2, l: r.left, t: r.top, w: r.width, h: r.height, tag: e.tagName, text: (e.innerText || e.value || e.getAttribute('aria-label') || '').trim().slice(0, 60)});
 	})()`, jsonStr(sel)))
 	if err != nil {
 		return "", err
 	}
 	var pos struct {
-		X, Y float64
-		Tag  string
-		Text string
+		X, Y       float64
+		L, T, W, H float64
+		Tag        string
+		Text       string
 	}
 	if json.Unmarshal([]byte(res), &pos) != nil {
 		return "", fmt.Errorf("browser: %s", res)
 	}
+	b.emitComputer(ComputerClick, computerPoint{x: pos.X, y: pos.Y, box: []float64{pos.L, pos.T, pos.W, pos.H}, target: firstNonEmpty(pos.Text, strings.ToLower(pos.Tag))})
 	abansURL, _ := b.evalString("location.href")
 	for _, tipus := range []string{"mousePressed", "mouseReleased"} {
 		if _, err := b.call("Input.dispatchMouseEvent", map[string]any{"type": tipus, "x": pos.X, "y": pos.Y, "button": "left", "clickCount": 1}); err != nil {
@@ -785,6 +789,9 @@ func (b *Browser) Type(target, text string, enter bool) (string, error) {
 	  return true;
 	})()`, jsonStr(sel))); err != nil {
 		return "", err
+	}
+	if f, ok := b.selectorField(sel); ok {
+		b.emitComputer(ComputerType, computerPoint{x: f.X + f.W/2, y: f.Y + f.H/2, box: f.box(), target: f.Label, text: text, secret: f.Secret})
 	}
 	if _, err := b.call("Input.insertText", map[string]any{"text": text}); err != nil {
 		return "", err
@@ -909,10 +916,12 @@ func BrowserActionFor(ctx context.Context, scope, action string, args map[string
 	// (navigate, read, click…) queden limitades pel topall del pas.
 	b.mu.Lock()
 	b.actx = ctx
+	b.actScope = scope
 	b.mu.Unlock()
 	defer func() {
 		b.mu.Lock()
 		b.actx = nil
+		b.actScope = ""
 		b.mu.Unlock()
 	}()
 	hosts := callHosts(b.host(), args)

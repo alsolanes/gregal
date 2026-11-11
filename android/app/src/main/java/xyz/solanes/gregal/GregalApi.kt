@@ -387,6 +387,12 @@ class GregalApi(val base: String, val token: String) {
         return download(path)
     }
 
+    /** B13: la captura d'una acció de l'agent a l'ordinador (només aquest camí del servidor). */
+    fun ordinadorShot(path: String): ByteArray {
+        if (!path.startsWith("/api/ordinador/accions/captura?id=")) throw ApiException("not a computer action screenshot")
+        return download(path)
+    }
+
     fun officeDownload(id: String): ByteArray = download("/api/office/download?id=" + id)
 
     /** Proveïdors: llista del servidor amb estat de clau (emmascarada). */

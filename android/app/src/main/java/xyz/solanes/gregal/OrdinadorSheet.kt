@@ -150,6 +150,7 @@ internal fun OrdinadorSheet(
     var view by remember { mutableStateOf<OrdinadorView?>(null) }
     var url by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
+    var replay by remember { mutableStateOf(false) }
     val acc = if (accent != Color.Unspecified) accent else Sea
 
     LaunchedEffect(handoffKey) {
@@ -205,9 +206,16 @@ internal fun OrdinadorSheet(
             }
             if (handoffKey.isNotBlank()) {
                 Text(ordinadorCopy(lang, "handoffHint"), color = Muted, fontSize = 12.sp)
+            } else if (!replay && error.isBlank()) {
+                // B13: el que ha fet l'agent quan no s'hi mirava, amb les captures marcades.
+                OrdButton(accionsCopy(lang, "last"), primary = false, modifier = Modifier.testTag("ordinador-last")) { replay = true }
             }
             Box(Modifier.weight(1f).fillMaxWidth().clip(GregalShape.lg).background(SuperficieAlta).border(1.dp, Line, GregalShape.lg)) {
+                // El visor en directe ja dibuixa on actua l'agent (pàgina del servidor).
                 if (url.isNotBlank()) ViewerWebView(url, ordinadorCopy(lang, "screen"))
+                if (replay) Box(Modifier.fillMaxSize().background(SuperficieAlta).padding(8.dp)) {
+                    OrdinadorReplay(conn, lang, acc, onClose = { replay = false })
+                }
             }
             if (handoffKey.isNotBlank()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {

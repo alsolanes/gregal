@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Gregal · Ordinador</title>
 <style>
-  :root { color-scheme: light dark; --bg:#0e1015; --ink:#f3f5fa; --muted:#a3adc2; --line:#ffffff22; --acc:#8193ff; --warn:#f2b45c; }
+  :root { color-scheme: light dark; --bg:#0e1015; --ink:#f3f5fa; --muted:#a3adc2; --line:#ffffff22; --acc:#8193ff; --warn:#f2b45c; --agent:#ff2d95; }
   @media (prefers-color-scheme: light) { :root { --bg:#f6f7fb; --ink:#141824; --muted:#5b6476; --line:#14182422; --acc:#3d55e0; --warn:#a8650b; } }
   html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); font:14px/1.4 system-ui, sans-serif; }
   body { display:flex; flex-direction:column; }
@@ -18,25 +18,63 @@
   button { font:600 14px system-ui, sans-serif; border-radius:12px; min-height:44px; padding:0 16px; cursor:pointer; border:1px solid var(--acc); background:var(--acc); color:#0e1015; }
   button.sec { background:transparent; color:var(--ink); border-color:var(--line); }
   button[hidden] { display:none; }
-  #wrap { flex:1; position:relative; }
+  #wrap { flex:1; position:relative; overflow:hidden; }
   iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
   #msg { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:24px; color:var(--muted); }
   #msg[hidden] { display:none; }
+  /* B13: on actua l'agent, amb un color viu propi (el cursor de la persona és el del sistema). */
+  #ov { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  #act { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); max-width:calc(100% - 24px); box-sizing:border-box;
+    display:flex; gap:10px; align-items:center; padding:8px 14px; border-radius:14px; background:#0e1015e6; color:#f3f5fa;
+    border:2px solid var(--agent); box-shadow:0 4px 18px #0006; pointer-events:none; }
+  #act[hidden] { display:none; }
+  #act i { width:10px; height:10px; border-radius:50%; background:var(--agent); flex:none; animation:pulse 1.2s infinite; }
+  #act b { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #act span { color:#a3adc2; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  @keyframes pulse { 50% { opacity:.35; } }
+  @media (prefers-reduced-motion: reduce) { #act i { animation:none; } }
+  #rep { position:absolute; inset:0; background:var(--bg); display:flex; flex-direction:column; }
+  #rep[hidden] { display:none; }
+  #repStage { flex:1; position:relative; min-height:0; }
+  #repImg { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
+  #repImg[hidden] { display:none; }
+  #repOv { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  #repBar { display:flex; gap:8px; align-items:center; padding:8px 12px; border-top:1px solid var(--line); flex-wrap:wrap; }
+  #repTxt { flex:1; min-width:140px; }
+  #repTxt b { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #repTxt span { color:var(--muted); font-size:12px; }
+  #repBar button { padding:0 12px; }
+  /* Mòbil (WebView del full «Ordinador»): l'estat a dalt i els botons a sota. */
+  @media (max-width:520px) { #bar { flex-wrap:wrap; } #st { flex-basis:100%; } #st span { display:none; } #bar button { flex:1; padding:0 10px; } }
 </style>
 </head>
 <body>
 <div id="bar" role="status" aria-live="polite">
   <span id="dot"></span>
   <span id="st"><b></b><span></span></span>
+  <button id="last" type="button" class="sec" hidden></button>
   <button id="ctl" type="button" hidden></button>
 </div>
 <div id="wrap">
   <iframe id="vnc" title="" hidden></iframe>
+  <canvas id="ov" aria-hidden="true"></canvas>
+  <div id="act" role="status" aria-live="polite" hidden><i></i><b></b><span></span></div>
   <div id="msg"></div>
+  <div id="rep" hidden>
+    <div id="repStage"><img id="repImg" alt=""><canvas id="repOv" aria-hidden="true"></canvas></div>
+    <div id="repBar">
+      <button id="repPrev" type="button" class="sec"></button>
+      <button id="repPlay" type="button" class="sec"></button>
+      <button id="repNext" type="button" class="sec"></button>
+      <span id="repTxt" role="status" aria-live="polite"><b></b><span></span></span>
+      <button id="repClose" type="button" class="sec"></button>
+    </div>
+  </div>
 </div>
 <script>
 (() => {
   const en = new URLSearchParams(location.search).get('lang') === 'en' || (!/^ca\b/i.test(navigator.language || '') && new URLSearchParams(location.search).get('lang') !== 'ca');
+  const q = t => '«' + String(t || '').slice(0, 60) + '»';
   const T = en ? {
     starting: 'Starting your computer…', startingSub: 'It was saved to disk; it usually takes under 30 s.',
     running: 'Gregal is working', runningSub: 'You are watching. Take control to use it yourself.',
@@ -46,6 +84,13 @@
     unreachable: 'The computer does not answer', unreachableSub: 'Network or computer down. Gregal keeps the task waiting.',
     expired: 'The viewer session has expired. Open the computer again from Gregal.',
     take: 'Take control', give: 'Give control back', title: 'Computer screen',
+    last: 'Last actions', none: 'Gregal has not done anything on this computer yet.', close: 'Close',
+    prev: '◀', next: '▶', play: 'Play', pause: 'Pause', step: 'Step', of: ' of ',
+    prevL: 'Previous action', nextL: 'Next action',
+    click: t => t ? 'Clicks ' + q(t) : 'Clicks on the screen',
+    type: (t, x) => x ? 'Types ' + q(x) + (t ? ' in ' + q(t) : '') : 'Types in ' + q(t),
+    scroll: d => ({ up: 'Scrolls up', left: 'Scrolls left', right: 'Scrolls right' })[d] || 'Scrolls down',
+    drag: t => 'Drags ' + (t || ''), select: (t, x) => 'Picks ' + q(x) + (t ? ' in ' + q(t) : ''),
   } : {
     starting: 'Engegant el teu ordinador…', startingSub: 'Estava desat a disc; sol trigar menys de 30 s.',
     running: 'Gregal hi treballa', runningSub: 'Ho estàs veient. Pren el control per fer-lo servir tu.',
@@ -55,18 +100,26 @@
     unreachable: 'L\'ordinador no respon', unreachableSub: 'Xarxa o ordinador caigut. Gregal manté la feina en espera.',
     expired: 'La sessió del visor ha caducat. Torna a obrir l\'ordinador des de Gregal.',
     take: 'Pren el control', give: 'Torna el control', title: 'Pantalla de l\'ordinador',
+    last: 'Últimes accions', none: 'Gregal encara no ha fet res en aquest ordinador.', close: 'Tanca',
+    prev: '◀', next: '▶', play: 'Reprodueix', pause: 'Pausa', step: 'Pas', of: ' de ',
+    prevL: 'Acció anterior', nextL: 'Acció següent',
+    click: t => t ? 'Clica ' + q(t) : 'Clica a la pantalla',
+    type: (t, x) => x ? 'Escriu ' + q(x) + (t ? ' a ' + q(t) : '') : 'Escriu a ' + q(t),
+    scroll: d => ({ up: 'Desplaça amunt', left: 'Desplaça a l\'esquerra', right: 'Desplaça a la dreta' })[d] || 'Desplaça avall',
+    drag: t => 'Arrossega ' + (t || ''), select: (t, x) => 'Tria ' + q(x) + (t ? ' a ' + q(t) : ''),
   };
   const H = { 'X-Gregal-Visor': '1', 'Content-Type': 'application/json' };
   const $ = id => document.getElementById(id);
-  const vnc = $('vnc'), msg = $('msg'), ctl = $('ctl'), dot = $('dot');
+  const vnc = $('vnc'), msg = $('msg'), ctl = $('ctl'), dot = $('dot'), wrap = $('wrap');
   vnc.title = T.title;
   let st = null, src = '', dead = false;
 
   function expired() {
     dead = true;
+    stopActions();
     vnc.hidden = true; vnc.src = 'about:blank';
     msg.hidden = false; msg.textContent = T.expired;
-    ctl.hidden = true;
+    ctl.hidden = true; $('last').hidden = true; $('rep').hidden = true;
     dot.className = '';
     $('st').querySelector('b').textContent = ''; $('st').querySelector('span').textContent = '';
   }
@@ -82,6 +135,7 @@
     ctl.hidden = st.health !== 'running';
     ctl.textContent = mine ? T.give : T.take;
     ctl.className = mine ? 'sec' : '';
+    $('last').hidden = false;
     if (st.health === 'running') {
       // Sense el control, el visor és de només lectura.
       const want = 'vnc/vnc.html?path=ordinador/visor/vnc/websockify&autoconnect=1&reconnect=1&resize=remote&view_only=' + (mine ? '0' : '1');
@@ -92,6 +146,8 @@
       msg.textContent = T[k + 'Sub'] || '';
       if (src) { src = ''; vnc.src = 'about:blank'; }
     }
+    // Els ressalts de l'agent només mentre l'agent pot actuar.
+    if (st.health === 'running' && !mine) startActions(); else stopActions();
   }
 
   async function call(path, body) {
@@ -103,7 +159,288 @@
     } catch (e) { /* xarxa: es torna a provar al proper batec */ }
   }
 
-  ctl.onclick = () => call('control', { action: st && st.controlOwner === 'user' ? 'release' : 'take' });
+  // ---- B13: on actua l'agent ----
+  // Funcions pures (les mateixes a Android, OrdinadorAccions.kt).
+  // fitRect: on queda una imatge iw×ih encabida (contain) en una caixa bw×bh.
+  function fitRect(bw, bh, iw, ih) {
+    if (!(bw > 0 && bh > 0 && iw > 0 && ih > 0)) return { x: 0, y: 0, w: Math.max(bw, 0), h: Math.max(bh, 0) };
+    const s = Math.min(bw / iw, bh / ih), w = iw * s, h = ih * s;
+    return { x: (bw - w) / 2, y: (bh - h) / 2, w, h };
+  }
+  // toScreen: un punt del viewport (fraccions) en fraccions de la pantalla.
+  function toScreen(v, fx, fy) {
+    const sw = v.screenW || v.w, sh = v.screenH || v.h;
+    return { x: ((v.left || 0) + fx * v.w) / sw, y: ((v.top || 0) + fy * v.h) / sh };
+  }
+  // fade: opacitat d'un ressalt que té age ms i en dura dur (s'apaga de pressa al final).
+  function fade(age, dur) {
+    if (age <= 0) return 1;
+    if (age >= dur) return 0;
+    const t = age / dur;
+    return 1 - t * t;
+  }
+  const AGENT = (getComputedStyle(document.documentElement).getPropertyValue('--agent') || '#ff2d95').trim();
+  const DUR = { click: 900, select: 900, type: 2600, scroll: 800, drag: 1300 };
+  const CURSOR_LINGER = 8000;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const ov = $('ov'), act = $('act');
+  let es = null, items = [], cur = null, lastAt = 0, raf = 0, actTimer = 0;
+
+  function describe(a) {
+    const f = T[a.type] || T.click;
+    if (a.type === 'type' || a.type === 'select') return f(a.target, a.text);
+    if (a.type === 'scroll') return f(a.dir);
+    return f(a.target);
+  }
+  function stepText(a) { return a.step ? T.step + ' ' + a.step : ''; }
+
+  // On és la pantalla remota dins #wrap: el canvas del noVNC si es veu
+  // (mateix origen), si no la pantalla encabida al marc.
+  function screenRect(v) {
+    const wr = wrap.getBoundingClientRect();
+    try {
+      const d = vnc.contentDocument, c = d && d.querySelector('#noVNC_container canvas, canvas');
+      if (c && !vnc.hidden) {
+        const fr = vnc.getBoundingClientRect(), r = c.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) return { x: fr.left - wr.left + r.left, y: fr.top - wr.top + r.top, w: r.width, h: r.height };
+      }
+    } catch (e) { /* un altre origen: es fa servir la mida de la pantalla */ }
+    return fitRect(wr.width, wr.height, v.screenW || v.w, v.screenH || v.h);
+  }
+  function liveMap(a) {
+    const r = screenRect(a.view);
+    return (fx, fy) => { const p = toScreen(a.view, fx, fy); return { x: r.x + p.x * r.w, y: r.y + p.y * r.h }; };
+  }
+
+  function sizeCanvas(c) {
+    const dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+    if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+    const g = c.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+    return g;
+  }
+
+  function arrowHead(g, x1, y1, x2, y2, size) {
+    const ang = Math.atan2(y2 - y1, x2 - x1);
+    g.beginPath();
+    g.moveTo(x2, y2);
+    g.lineTo(x2 - size * Math.cos(ang - 0.45), y2 - size * Math.sin(ang - 0.45));
+    g.lineTo(x2 - size * Math.cos(ang + 0.45), y2 - size * Math.sin(ang + 0.45));
+    g.closePath(); g.fill();
+  }
+
+  // Un ressalt: halo del clic, camp on escriu, traça del desplaçament o de
+  // l'arrossegament. map passa fraccions del viewport a píxels del llenç.
+  function drawItem(g, it, now, map, still) {
+    const a = it.a, age = still ? it.dur * 0.25 : now - it.born, alpha = still ? 1 : fade(age, it.dur), t = Math.min(1, age / it.dur);
+    if (alpha <= 0) return;
+    g.save();
+    g.globalAlpha = alpha;
+    g.strokeStyle = AGENT; g.fillStyle = AGENT;
+    const p = map(a.x, a.y);
+    if (a.rect && (a.type === 'type' || a.type === 'select' || a.type === 'click')) {
+      const p1 = map(a.rect[0], a.rect[1]), p2 = map(a.rect[0] + a.rect[2], a.rect[1] + a.rect[3]);
+      g.lineWidth = a.type === 'click' ? 2 : 3;
+      g.globalAlpha = alpha * (a.type === 'click' ? 0.6 : 1);
+      g.strokeRect(p1.x - 3, p1.y - 3, p2.x - p1.x + 6, p2.y - p1.y + 6);
+      if (a.type !== 'click') { g.globalAlpha = alpha * 0.16; g.fillRect(p1.x - 3, p1.y - 3, p2.x - p1.x + 6, p2.y - p1.y + 6); }
+      g.globalAlpha = alpha;
+      if (a.type === 'type' && a.text) {
+        const txt = a.text.length > 40 ? a.text.slice(0, 40) + '…' : a.text;
+        g.font = '600 13px system-ui, sans-serif';
+        const w = g.measureText(txt).width + 16, x = Math.max(4, p1.x - 3), y = p2.y + 8;
+        g.fillStyle = AGENT; g.beginPath(); g.roundRect ? g.roundRect(x, y, w, 24, 8) : g.rect(x, y, w, 24); g.fill();
+        g.fillStyle = '#fff'; g.fillText(txt, x + 8, y + 17);
+      }
+    }
+    g.fillStyle = AGENT;
+    if (a.type === 'click' || a.type === 'select') {
+      const r = reduce || still ? 18 : 8 + 26 * t;
+      g.lineWidth = 4; g.beginPath(); g.arc(p.x, p.y, r, 0, Math.PI * 2); g.stroke();
+      g.globalAlpha = alpha * 0.35; g.beginPath(); g.arc(p.x, p.y, 7, 0, Math.PI * 2); g.fill();
+    } else if (a.type === 'scroll') {
+      const d = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[a.dir] || [0, 1];
+      const len = 70, head = reduce || still ? 1 : Math.min(1, t * 1.6);
+      const x2 = p.x + d[0] * len * head, y2 = p.y + d[1] * len * head;
+      g.lineWidth = 5; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(x2, y2); g.stroke();
+      arrowHead(g, p.x, p.y, x2 + d[0] * 6, y2 + d[1] * 6, 14);
+    } else if (a.type === 'drag' && a.toX != null) {
+      const q2 = map(a.toX, a.toY), k = reduce || still ? 1 : Math.min(1, t * 1.4);
+      const x2 = p.x + (q2.x - p.x) * k, y2 = p.y + (q2.y - p.y) * k;
+      g.lineWidth = 4; g.setLineDash([10, 6]); g.lineCap = 'round';
+      g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(x2, y2); g.stroke();
+      g.setLineDash([]);
+      g.beginPath(); g.arc(p.x, p.y, 6, 0, Math.PI * 2); g.fill();
+      if (k > 0.05) arrowHead(g, p.x, p.y, x2, y2, 14);
+    }
+    g.restore();
+  }
+
+  // El cursor de l'agent: fletxa magenta amb vora blanca i l'etiqueta «Gregal».
+  function drawCursor(g, x, y, alpha) {
+    if (alpha <= 0) return;
+    g.save();
+    g.globalAlpha = alpha;
+    g.translate(x, y);
+    g.beginPath();
+    g.moveTo(0, 0); g.lineTo(0, 22); g.lineTo(6, 16.5); g.lineTo(10.5, 26); g.lineTo(14, 24.5); g.lineTo(9.6, 15.2); g.lineTo(17, 15.2); g.closePath();
+    g.fillStyle = AGENT; g.strokeStyle = '#fff'; g.lineWidth = 2; g.lineJoin = 'round';
+    g.fill(); g.stroke();
+    g.font = '600 11px system-ui, sans-serif';
+    const w = g.measureText('Gregal').width + 12;
+    g.fillStyle = AGENT; g.beginPath(); g.roundRect ? g.roundRect(18, 20, w, 18, 9) : g.rect(18, 20, w, 18); g.fill();
+    g.fillStyle = '#fff'; g.fillText('Gregal', 24, 33);
+    g.restore();
+  }
+
+  function cursorAt(now) {
+    const k = cur.dur > 0 ? Math.min(1, (now - cur.born) / cur.dur) : 1, e = 1 - Math.pow(1 - k, 3);
+    return { x: cur.from.x + (cur.to.x - cur.from.x) * e, y: cur.from.y + (cur.to.y - cur.from.y) * e };
+  }
+
+  function frame(now) {
+    raf = 0;
+    const g = sizeCanvas(ov);
+    if (!items.length && !cur) return;
+    items = items.filter(it => now - it.born < it.dur);
+    for (const it of items) drawItem(g, it, now, liveMap(it.a), false);
+    let alive = items.length > 0;
+    if (cur) {
+      const r = screenRect(cur.view), p = cursorAt(now), alpha = fade(now - lastAt - CURSOR_LINGER, 600);
+      drawCursor(g, r.x + p.x * r.w, r.y + p.y * r.h, alpha);
+      if (alpha > 0) alive = true; else cur = null;
+    }
+    if (alive) raf = requestAnimationFrame(frame);
+  }
+  function kick() { if (!raf) raf = requestAnimationFrame(frame); }
+
+  function onAction(a) {
+    if (!a || !a.view || !a.view.w || (st && st.controlOwner === 'user')) return;
+    const now = performance.now();
+    lastAt = now;
+    items.push({ a, born: now, dur: DUR[a.type] || 900 });
+    if (items.length > 12) items.shift();
+    const start = toScreen(a.view, a.x, a.y);
+    const end = a.type === 'drag' && a.toX != null ? toScreen(a.view, a.toX, a.toY) : start;
+    const from = a.type === 'drag' ? start : (cur ? cursorAt(now) : start);
+    cur = { from, to: end, born: now, dur: reduce ? 0 : (a.type === 'drag' ? DUR.drag * 0.7 : 220), view: a.view };
+    act.querySelector('b').textContent = describe(a);
+    act.querySelector('span').textContent = stepText(a);
+    act.hidden = false;
+    clearTimeout(actTimer);
+    actTimer = setTimeout(() => { act.hidden = true; }, CURSOR_LINGER);
+    kick();
+  }
+
+  function startActions() {
+    if (es || dead || typeof EventSource === 'undefined') return;
+    es = new EventSource('accions');
+    es.addEventListener('computer_action', e => { try { onAction(JSON.parse(e.data)); } catch (err) { /* event il·legible */ } });
+  }
+  // La persona pren el control (o l'ordinador s'atura): fora ressalts.
+  function stopActions() {
+    if (es) { es.close(); es = null; }
+    items = []; cur = null;
+    clearTimeout(actTimer);
+    act.hidden = true;
+    sizeCanvas(ov);
+  }
+
+  // ---- Reproducció de les últimes accions, amb captures marcades ----
+  const rep = { list: [], i: 0, timer: 0, playing: false, raf: 0 };
+  const repImg = $('repImg'), repOv = $('repOv');
+  $('last').textContent = T.last;
+  $('repClose').textContent = T.close;
+  $('repPrev').textContent = T.prev; $('repPrev').setAttribute('aria-label', T.prevL);
+  $('repNext').textContent = T.next; $('repNext').setAttribute('aria-label', T.nextL);
+
+  function repMap(a) {
+    const s = $('repStage').getBoundingClientRect();
+    const iw = repImg.naturalWidth || a.view.w, ih = repImg.naturalHeight || a.view.h;
+    const b = fitRect(s.width, s.height, iw, ih);
+    return (fx, fy) => ({ x: b.x + fx * b.w, y: b.y + fy * b.h });
+  }
+  function repFrame(now) {
+    rep.raf = 0;
+    const a = rep.list[rep.i];
+    const g = sizeCanvas(repOv);
+    if (!a) return;
+    const it = rep.item, map = repMap(a);
+    const age = now - it.born, still = age >= it.dur;
+    drawItem(g, it, now, map, still);
+    const end = a.type === 'drag' && a.toX != null ? map(a.toX, a.toY) : map(a.x, a.y);
+    drawCursor(g, end.x, end.y, 1);
+    if (!still) rep.raf = requestAnimationFrame(repFrame);
+  }
+  function repShow() {
+    const a = rep.list[rep.i];
+    const b = $('repTxt').querySelector('b'), sp = $('repTxt').querySelector('span');
+    const nav = rep.list.length > 1;
+    $('repPrev').hidden = $('repNext').hidden = $('repPlay').hidden = !nav;
+    if (!a) {
+      repImg.hidden = true; b.textContent = T.none; sp.textContent = '';
+      sizeCanvas(repOv);
+      return;
+    }
+    b.textContent = describe(a);
+    const when = a.at ? new Date(a.at).toLocaleTimeString(en ? 'en' : 'ca', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+    sp.textContent = [(rep.i + 1) + T.of + rep.list.length, when, stepText(a)].filter(Boolean).join(' · ');
+    rep.item = { a, born: performance.now(), dur: DUR[a.type] || 900 };
+    const draw = () => { rep.item.born = performance.now(); if (!rep.raf) rep.raf = requestAnimationFrame(repFrame); };
+    if (a.shotUrl) {
+      repImg.hidden = false;
+      if (repImg.getAttribute('src') !== a.shotUrl) { repImg.onload = draw; repImg.onerror = () => { repImg.hidden = true; draw(); }; repImg.src = a.shotUrl; }
+      else draw();
+    } else {
+      repImg.hidden = true; repImg.removeAttribute('src');
+      draw();
+    }
+  }
+  function repStep(d) {
+    if (!rep.list.length) return;
+    rep.i = Math.max(0, Math.min(rep.list.length - 1, rep.i + d));
+    repShow();
+  }
+  function repPlay(on) {
+    rep.playing = on;
+    clearInterval(rep.timer);
+    $('repPlay').textContent = on ? T.pause : T.play;
+    if (on) {
+      if (rep.i >= rep.list.length - 1) { rep.i = 0; repShow(); }
+      rep.timer = setInterval(() => { if (rep.i >= rep.list.length - 1) { repPlay(false); return; } repStep(1); }, 1600);
+    }
+  }
+  async function openReplay() {
+    if (dead) return;
+    try {
+      const r = await fetch('accions/recents', { headers: H, credentials: 'same-origin' });
+      if (r.status === 401) { expired(); return; }
+      const data = r.ok ? await r.json() : { actions: [] };
+      rep.list = data.actions || [];
+    } catch (e) { rep.list = []; }
+    rep.i = 0;
+    $('rep').hidden = false;
+    repShow();
+    repPlay(rep.list.length > 1 && !reduce);
+  }
+  function closeReplay() { repPlay(false); $('rep').hidden = true; }
+  $('last').onclick = openReplay;
+  $('repClose').onclick = closeReplay;
+  $('repPrev').onclick = () => { repPlay(false); repStep(-1); };
+  $('repNext').onclick = () => { repPlay(false); repStep(1); };
+  $('repPlay').onclick = () => repPlay(!rep.playing);
+  addEventListener('resize', () => { kick(); if (!$('rep').hidden && !rep.raf) rep.raf = requestAnimationFrame(repFrame); });
+  // Per a les proves i la depuració: les funcions pures, sense estat.
+  window.gregalVisor = { fitRect, toScreen, fade, describe };
+
+  ctl.onclick = () => {
+    const take = !(st && st.controlOwner === 'user');
+    // En prendre el control, els ressalts s'aturen de seguida, sense esperar el servidor.
+    if (take) stopActions();
+    call('control', { action: take ? 'take' : 'release' });
+  };
   const beat = () => { if (document.visibilityState === 'visible') call('batec', {}); };
   document.addEventListener('visibilitychange', beat);
   call('estat');

@@ -237,6 +237,13 @@ func (s *Store) AfterUser(after uint64, limit int, user string) ([]Event, error)
 	return s.after(after, limit, func(e Event) bool { return e.User == user })
 }
 
+// AfterMatch torna events posteriors al cursor que compleixen keep. És per a
+// lectors que no filtren per usuari sinó pel contingut (p. ex. el visor de
+// l'ordinador, que filtra pel propietari de l'acció, B13).
+func (s *Store) AfterMatch(after uint64, limit int, keep func(Event) bool) ([]Event, error) {
+	return s.after(after, limit, keep)
+}
+
 func (s *Store) AfterScope(after uint64, limit int, user, sessionID string) ([]Event, error) {
 	return s.after(after, limit, func(e Event) bool {
 		return e.User == user && (sessionID == "" || e.SessionID == sessionID)
