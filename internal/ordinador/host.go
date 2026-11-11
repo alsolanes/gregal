@@ -67,9 +67,9 @@ type Report struct {
 	Capabilities []string `json:"capabilities"`
 	ControlOwner string   `json:"controlOwner"`
 	// LeaseExpiry: quan caduca la lease de la persona (buit = cap).
-	LeaseExpiry  string   `json:"leaseExpiry,omitempty"`
-	LastSeenAt   any      `json:"lastSeenAt"`
-	BrowserMode  string   `json:"browserMode,omitempty"`
+	LeaseExpiry string `json:"leaseExpiry,omitempty"`
+	LastSeenAt  any    `json:"lastSeenAt"`
+	BrowserMode string `json:"browserMode,omitempty"`
 	// Power és el que diu el hipervisor: running, saved (desat a disc),
 	// stopped, starting o unknown (sense "control" o si no respon).
 	Power  string  `json:"power"`
