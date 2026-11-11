@@ -241,7 +241,7 @@ func saveWindReminderFull(s *Server, windID, at, text, task string, retryMin int
 // del compte (tots els vents de l'usuari), amb moment, text i estat.
 var remindListToolSpec = llm.ToolSpec{
 	Name:        "remind_list",
-	Description: "Llista els recordatoris i automatitzacions pendents de l'usuari: els que qualsevol vent ha programat (avisos, seguiments, feines amb hora) i les rutines actives. Fes-la servir SEMPRE que l'usuari pregunti quins recordatoris té, si tens res pendent, o què li has de recordar; no responguis mai «no ho sé» — crida l'eina. Retorna una llista amb el moment, el text i l'estat de cada pendent. Si en vols esborrar o ajornar un, digues-ho a l'usuari amb l'id: encara no hi ha eina per fer-ho.",
+	Description: "Llista els recordatoris i automatitzacions pendents de l'usuari: els que qualsevol vent ha programat (avisos, seguiments, feines amb hora) i les rutines actives. Fes-la servir SEMPRE que l'usuari pregunti quins recordatoris té, si tens res pendent, o què li has de recordar; no responguis mai «no ho sé» — crida l'eina. Retorna una llista amb el moment, el text i l'estat de cada pendent. Per esborrar-ne, ajornar-ne o editar-ne un, fes servir remind_edit amb l'id.",
 	Parameters: map[string]any{"type": "object", "properties": map[string]any{
 		"wind": map[string]any{"type": "string", "description": "opcional: llista només els d'aquest vent (id)"},
 	}, "required": []string{}},
@@ -306,82 +306,24 @@ func (s *Server) remindListItems(windID string) ([]map[string]string, error) {
 // remindEditToolSpec: el costat d'escriptura dels recordatoris. El vent
 // podia programar i llistar avisos però no tocar els existents: quan
 // l'usuari deia «treu-me el recordatori repetit» el vent no podia.
-// Tres operacions: cancel (esborra), reschedule (nova hora), pause/resume.
+// Operacions: cancel (esborra), reschedule (nova hora), snooze, edit (text), pause/resume.
 var remindEditToolSpec = llm.ToolSpec{
 	Name:        "remind_edit",
-	Description: "Edita o elimina un recordatori o automatització ja existent de l'usuari. Fes-la servir quan l'usuari vulgui treure, ajornar, pausar o reprendre un pendent: primer llista els ids amb remind_list i després aplica l'operació sobre l'id exacte. Operacions: «cancel» (l'esborra definitivament), «reschedule» (li posa una hora nova, mateix text), «pause» (el desactiva sense esborrar-lo) i «resume» (el reactiva). Sempre confirma a l'usuari què has tocat i com queda.",
+	Description: "Edita o elimina un recordatori o automatització ja existent de l'usuari. Fes-la servir quan l'usuari vulgui treure, ajornar, pausar o reprendre un pendent: primer llista els ids amb remind_list i després aplica l'operació sobre l'id exacte. Operacions: «cancel» (l'esborra definitivament), «reschedule» (li posa una hora nova, mateix text), «snooze» (l'ajorna minutes minuts des d'ara), «edit» (canvia el text i, si passes at, l'hora), «pause» (el desactiva sense esborrar-lo) i «resume» (el reactiva). L'id no canvia mai. Sempre confirma a l'usuari què has tocat i com queda.",
 	Parameters: map[string]any{"type": "object", "properties": map[string]any{
 		"id": map[string]any{"type": "string", "description": "id del recordatori (el dóna remind_list)"},
-		"op": map[string]any{"type": "string", "enum": []string{"cancel", "reschedule", "pause", "resume"}, "description": "operació"},
-		"at": map[string]any{"type": "string", "description": "només amb reschedule: la nova hora (RFC3339, «2006-01-02 15:04», «+2h»…)"},
+		"op":      map[string]any{"type": "string", "enum": []string{"cancel", "reschedule", "snooze", "edit", "pause", "resume"}, "description": "operació"},
+		"at":      map[string]any{"type": "string", "description": "amb reschedule (o edit): la nova hora (RFC3339, «2006-01-02 15:04», «+2h»…)"},
+		"text":    map[string]any{"type": "string", "description": "només amb edit: el text nou"},
+		"minutes": map[string]any{"type": "integer", "description": "només amb snooze: minuts des d'ara (per defecte 10)"},
 	}, "required": []string{"id", "op"}},
 }
 
-// remindEdit aplica l'operació sobre un job visible per aquesta sessió.
-// La propietat és la mateixa que el panell: windRoutineVisibleID.
+// remindEdit és l'eina del vent sobre remindApply (mateixa lògica que
+// l'app): l'id es conserva sempre.
 func (s *Server) remindEdit(id, op, at string) (string, error) {
-	if s.jobs == nil {
-		return "", fmt.Errorf("no hi ha jobs")
-	}
-	id = strings.TrimSpace(id)
-	if id == "" {
-		return "", fmt.Errorf("id buit")
-	}
-	if !s.windRoutineVisibleID(id) {
-		return "", fmt.Errorf("no hi ha cap recordatori amb id %s", id)
-	}
-	all, err := s.jobs.List()
-	if err != nil {
-		return "", err
-	}
-	var job *jobs.Job
-	for i := range all {
-		if all[i].ID == id {
-			job = &all[i]
-			break
-		}
-	}
-	if job == nil {
-		return "", fmt.Errorf("no hi ha cap recordatori amb id %s", id)
-	}
-	switch strings.TrimSpace(op) {
-	case "cancel":
-		if err := s.jobs.Delete(id); err != nil {
-			return "", err
-		}
-		return fmt.Sprintf("Esborrat: «%s» ja no sonarà.", strings.TrimSpace(firstNonEmpty(job.Prompt, job.Name))), nil
-	case "reschedule":
-		moment, err := parseRemindAt(strings.TrimSpace(at), time.Now())
-		if err != nil {
-			return "", fmt.Errorf("hora no vàlida: %v", err)
-		}
-		if moment.Before(time.Now()) {
-			return "", fmt.Errorf("l'hora nova (%s) ja és passada", moment.Format("02/01 15:04"))
-		}
-		if moment.After(time.Now().Add(remindMaxAhead)) {
-			return "", fmt.Errorf("més enllà de %d dies", int(remindMaxAhead.Hours()/24))
-		}
-		job.NextAt = &moment
-		job.Enabled = true
-		if _, err := s.jobs.Save(*job); err != nil {
-			return "", err
-		}
-		return fmt.Sprintf("Reprogramat: «%s» sonarà %s.", strings.TrimSpace(firstNonEmpty(job.Prompt, job.Name)), moment.Format("02/01 15:04")), nil
-	case "pause":
-		job.Enabled = false
-		if _, err := s.jobs.Save(*job); err != nil {
-			return "", err
-		}
-		return fmt.Sprintf("Pausat: «%s» no sonarà fins que el reprènguis.", strings.TrimSpace(firstNonEmpty(job.Prompt, job.Name))), nil
-	case "resume":
-		job.Enabled = true
-		if _, err := s.jobs.Save(*job); err != nil {
-			return "", err
-		}
-		return fmt.Sprintf("Reactivat: «%s» torna a estar actiu.", strings.TrimSpace(firstNonEmpty(job.Prompt, job.Name))), nil
-	default:
-		return "", fmt.Errorf("operació desconeguda: %s (usa cancel, reschedule, pause o resume)", op)
-	}
+	_, msg, err := s.remindApply(remindEditReq{ID: id, Op: op, At: at})
+	return msg, err
 }
 
 // remindOwner és el compte d'aquesta sessió ("" en local o per a tothom).
@@ -428,7 +370,7 @@ func (s *Server) registerRemindTool() {
 			if i > 0 {
 				sb.WriteString("\n")
 			}
-			fmt.Fprintf(&sb, "- %s · %s · %s", it["moment"], it["vent"], it["titol"])
+			fmt.Fprintf(&sb, "- %s · %s · %s · id=%s", it["moment"], it["vent"], it["titol"], it["id"])
 			if it["detall"] != "" {
 				fmt.Fprintf(&sb, " · %s", it["detall"])
 			}
@@ -440,16 +382,19 @@ func (s *Server) registerRemindTool() {
 	})
 	agent.RegisterExtraCtx(remindEditToolSpec, func(ctx context.Context, argsJSON string) (string, error) {
 		var a struct {
-			ID string `json:"id"`
-			Op string `json:"op"`
-			At string `json:"at"`
+			ID      string          `json:"id"`
+			Op      string          `json:"op"`
+			At      string          `json:"at"`
+			Text    string          `json:"text"`
+			Minutes json.RawMessage `json:"minutes"`
 		}
 		_ = json.Unmarshal([]byte(argsJSON), &a)
 		target := s
 		if cur, ok := ctx.Value(remindServerKey{}).(*Server); ok && cur != nil {
 			target = cur
 		}
-		return target.remindEdit(a.ID, a.Op, a.At)
+		_, msg, err := target.remindApply(remindEditReq{ID: a.ID, Op: a.Op, At: a.At, Text: a.Text, Minutes: looseInt(a.Minutes)})
+		return msg, err
 	})
 	agent.RegisterExtraCtx(remindToolSpec, func(ctx context.Context, argsJSON string) (string, error) {
 		var a struct {
@@ -498,7 +443,11 @@ func postWindMessageJob(s *Server, w companion.Wind, source, job, text string) {
 		hist.messages = podaHistorialVent(history)
 	}
 	hist.mu.Unlock()
-	goBackground(func() { s.windLearn(w, source, text) })
+	// Un recordatori simple és el text que l'usuari va dictar: no hi ha res
+	// a aprendre i disparar-lo no ha de cridar cap model (B8).
+	if source != "remind" || job == "" || !windRemindIsSimple(s, job) {
+		goBackground(func() { s.windLearn(w, source, text) })
+	}
 	// Registre per a l'app (notificació local): el missatge és proactiu,
 	// l'usuari pot tenir l'app en segon pla. Best-effort, mai no bloqueja.
 	recordNovetatMsg(s, w, source, job, msg.ID, text)
@@ -541,6 +490,23 @@ func (s *Server) executeWindRemind(ctx context.Context, job jobs.Job) (jobs.Run,
 	_ = s.jobs.AddRun(run)
 	_ = s.jobs.MarkRun(job.ID, end, "ok")
 	return run, nil
+}
+
+// windRemindIsSimple: el job és un recordatori sense feina (només text).
+func windRemindIsSimple(s *Server, jobID string) bool {
+	if s.jobs == nil || !strings.HasPrefix(jobID, remindJobPrefix) {
+		return false
+	}
+	list, err := s.jobs.List()
+	if err != nil {
+		return false
+	}
+	for _, j := range list {
+		if j.ID == jobID {
+			return strings.TrimSpace(j.Task) == ""
+		}
+	}
+	return false
 }
 
 // windRemindBrief diu al vent com programar avisos (eina remind).

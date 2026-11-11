@@ -319,6 +319,8 @@ private fun VentMemorySection(vm: GregalViewModel, lang: String, wind: Wind) {
     var draft by remember(wind.id) { mutableStateOf("") }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(tr(lang, "app.vents.memoryTitle"), color = Ink, fontWeight = FontWeight.SemiBold)
+        // B8: la memòria són les preferències de treball del vent i val per a tots els seus encàrrecs.
+        Text(trB8(lang, "b8.prefsApply"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
         if (editing) {
             var saving by remember(wind.id) { mutableStateOf(false) }
             OutlinedTextField(draft, { draft = it }, enabled = !saving, minLines = 4, modifier = Modifier.fillMaxWidth())

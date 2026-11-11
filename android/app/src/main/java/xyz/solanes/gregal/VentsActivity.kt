@@ -50,6 +50,11 @@ data class WindAutomation(
     val nextAt: String,
     val lastStatus: String,
     val canPause: Boolean,
+    /** Text sencer i editable (recordatori o consigna de la rutina). */
+    val text: String = "",
+    /** El que l'usuari ha ensenyat a la rutina, i quants exemples té. */
+    val howto: String = "",
+    val refs: Int = 0,
 )
 
 data class WindAutomationCounts(val total: Int = 0, val today: Int = 0, val week: Int = 0, val paused: Int = 0)
@@ -80,6 +85,7 @@ object WindActivityJson {
                 x.optString("wind_color"), x.optString("wind_style"), x.optString("title"), x.optString("detail"),
                 x.optString("repeat"), x.optString("time"), x.optDouble("interval_h", 0.0),
                 x.optBoolean("enabled"), x.optString("next_at"), x.optString("last_status"), x.optBoolean("can_pause"),
+                x.optString("text"), x.optString("howto"), x.optInt("refs"),
             )
         }
         val c = o.optJSONObject("counts") ?: JSONObject()
@@ -188,7 +194,8 @@ private fun KindBadge(lang: String, kind: String) {
 
 /** Una fila: cara del vent, què farà, quan, i les accions a mà. */
 @Composable
-fun WindAutomationRow(lang: String, a: WindAutomation, showWind: Boolean, onAction: (WindAutomation, String) -> Unit) {
+fun WindAutomationRow(lang: String, a: WindAutomation, showWind: Boolean, onAction: (WindAutomation, String) -> Unit,
+                      extra: @Composable (WindAutomation) -> Unit = {}) {
     var open by remember(a.id) { mutableStateOf(false) }
     var confirmDelete by remember(a.id) { mutableStateOf(false) }
     val accent = runCatching { Color(android.graphics.Color.parseColor(a.windColor)) }.getOrDefault(Color(0xFFFF9F00))
@@ -204,7 +211,9 @@ fun WindAutomationRow(lang: String, a: WindAutomation, showWind: Boolean, onActi
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                         KindBadge(lang, a.kind)
-                        val whenText = if (!a.enabled) tr(lang, "act.paused") else automationWhen(lang, a.nextAt)
+                        // Absoluta i, si és a prop, també relativa: «avui 18:00 · d'aquí a 2 h».
+                        val whenText = if (!a.enabled) tr(lang, "act.paused")
+                            else listOf(automationWhen(lang, a.nextAt), automationRelative(lang, a.nextAt)).filter { it.isNotBlank() }.joinToString(" · ")
                         Text(listOfNotNull(if (showWind) a.windName else null, whenText.ifBlank { null }, automationRepeat(lang, a).takeIf { a.repeat != "once" })
                             .joinToString(" · "), color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
@@ -215,6 +224,7 @@ fun WindAutomationRow(lang: String, a: WindAutomation, showWind: Boolean, onActi
             if (open) {
                 if (a.detail.isNotBlank() && a.detail != a.title) Text(a.detail, color = Tinta, fontSize = 13.sp, lineHeight = 18.sp)
                 if (a.lastStatus == "error") Text(tr(lang, "act.lastError"), color = Red, fontSize = 12.sp)
+                extra(a)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (a.enabled) AssistChip(onClick = { onAction(a, "run") }, label = { Text(tr(lang, "act.runNow")) },
                         leadingIcon = { Icon(Icons.Rounded.PlayArrow, null, Modifier.size(18.dp)) })
@@ -297,7 +307,8 @@ fun WindAutomationList(vm: GregalViewModel, lang: String, wind: String = "", sho
         val shown = filterAutomations(got.items, filter)
         if (shown.isEmpty()) Text(tr(lang, "act.noneHere"), color = Muted, fontSize = 13.sp)
         for (a in shown) {
-            key(a.id) { WindAutomationRow(lang, a, showWind = wind.isBlank()) { item, action -> vm.automationAction(item, action, wind) } }
+            key(a.id) { WindAutomationRow(lang, a, showWind = wind.isBlank(), onAction = { item, action -> vm.automationAction(item, action, wind) },
+                extra = { AutomationB8Actions(vm, lang, it) }) }
         }
     }
 }
