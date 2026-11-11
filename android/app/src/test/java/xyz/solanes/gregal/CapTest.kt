@@ -13,8 +13,8 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class CapTest {
     @Test fun `la decisio de delegar porta qui i el fil`() {
-        val d = CapDecision.parse(JSONObject("""{"action":"wind","reply":"Això és cosa de la Marinada","winds":["m1"],
-            "history":[{"from":"user","text":"sopar?"},{"from":"cap","text":"Això és cosa de la Marinada","action":"wind","winds":["m1"]}]}"""))
+        val d = CapDecision.parse("""{"action":"wind","reply":"Això és cosa de la Marinada","winds":["m1"],
+            "history":[{"from":"user","text":"sopar?"},{"from":"cap","text":"Això és cosa de la Marinada","action":"wind","winds":["m1"]}]}""")
         assertTrue(d.delegates)
         assertEquals(listOf("m1"), d.winds)
         assertEquals(2, d.history.size)
@@ -22,12 +22,12 @@ class CapTest {
     }
 
     @Test fun `si respon ella no hi ha res a fer`() {
-        assertFalse(CapDecision.parse(JSONObject("""{"action":"self","reply":"Bon dia"}""")).delegates)
-        assertFalse(CapDecision.parse(JSONObject("""{"reply":"?"}""")).delegates)
+        assertFalse(CapDecision.parse("""{"action":"self","reply":"Bon dia"}""").delegates)
+        assertFalse(CapDecision.parse("""{"reply":"?"}""").delegates)
     }
 
     @Test fun `el resum compta el que hi ha de nou`() {
-        val st = CapState.parse(JSONObject("""{"name":"Bufi","brief":{"done":1,"failed":1,"running":3,"news":2,"text":"Ja està llesta"}}"""))
+        val st = CapState.parse("""{"name":"Bufi","brief":{"done":1,"failed":1,"running":3,"news":2,"text":"Ja està llesta"}}""")
         assertEquals("Bufi", st.name)
         assertEquals(4, st.briefCount)
         assertEquals("organisation", st.faceStyle.kit)
@@ -39,9 +39,9 @@ class CapTest {
     }
 
     @Test fun `proposa especialistes nous i curs per als que no en saben`() {
-        val d = CapDecision.parse(JSONObject("""{"action":"rotllana","reply":"Faig rotllana","winds":["m1"],
+        val d = CapDecision.parse("""{"action":"rotllana","reply":"Faig rotllana","winds":["m1"],
             "create":[{"name":"Fogony","role":"cuina","persona":"Cuina.","kit":"","color":"#F7B2D9","style":"bon"}],
-            "novices":["m1"],"pet":{"happy":80,"energy":40,"full":20,"level":3,"level_xp":20,"outfits":["llacet","gorra"],"outfit":"gorra"}}"""))
+            "novices":["m1"],"pet":{"happy":80,"energy":40,"full":20,"level":3,"level_xp":20,"outfits":["llacet","gorra"],"outfit":"gorra"}}""")
         assertEquals("Fogony", d.create.single().name)
         assertEquals(listOf("m1"), d.novices)
         assertEquals(3, d.pet?.level)
@@ -83,7 +83,7 @@ class CapTest {
     }
 
     @Test fun `el fil porta la proposta sencera i l'enllac`() {
-        val h = CapState.parseHistory(org.json.JSONArray("""[{"from":"cap","text":"Faig rotllana","action":"rotllana","winds":["a"],"create":[{"name":"Fogony","role":"cuina"}],"novices":["a"],"ts":5},{"from":"cap","text":"He obert la rotllana","action":"link","link":"rot:r1","ts":6}]"""))
+        val h = CapState.parseHistory("""[{"from":"cap","text":"Faig rotllana","action":"rotllana","winds":["a"],"create":[{"name":"Fogony","role":"cuina"}],"novices":["a"],"ts":5},{"from":"cap","text":"He obert la rotllana","action":"link","link":"rot:r1","ts":6}]""")
         assertEquals("Fogony", h[0].create.single().name)
         assertEquals(listOf("a"), h[0].novices)
         assertTrue(h[0].delegates)

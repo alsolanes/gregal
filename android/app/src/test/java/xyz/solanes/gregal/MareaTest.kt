@@ -223,7 +223,7 @@ class OtaTest {
 
     @Test
     fun laCacheTambeTriaPerAbi() {
-        val dir = createTempDir()
+        val dir = kotlin.io.path.createTempDirectory().toFile()
         try {
             desaCache(dir, manifestAmbAbis, 1000L)
             java.io.File(dir, "gregal-update.json").setLastModified(System.currentTimeMillis())

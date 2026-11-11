@@ -4,6 +4,8 @@ import java.util.concurrent.ConcurrentLinkedQueue
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 // El backend de Gregal (el mateix servidor Go de l'escriptori) viatja dins
@@ -29,7 +31,7 @@ val backendAbis = if (onlyAbi == null) allBackendAbis
 
 android {
     namespace = "xyz.solanes.gregal"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = if (project.hasProperty("gregal.plotsPreview")) "xyz.solanes.gregal.vents" else "xyz.solanes.gregal"
@@ -100,20 +102,17 @@ android {
         // això createComposeRule() no troba cap activity llançable.
         unitTests.isIncludeAndroidResources = true
     }
-    kotlinOptions {
-        jvmTarget = "17"
-        // Strong skipping: els composables amb paràmetres inestables (llistes,
-        // lambdes que capturen el vm) se salten si no han canviat, en lloc de
-        // recompondre's cada vegada que es recompon el pare.
-        freeCompilerArgs += listOf(
-            "-P", "plugin:androidx.compose.compiler.plugins.kotlin:experimentalStrongSkipping=true",
-        )
-    }
     buildFeatures {
         compose = true
     }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.14"
+}
+
+// Strong skipping ja ve encès per defecte amb el compilador de Compose de
+// Kotlin 2: els composables amb paràmetres inestables (llistes, lambdes que
+// capturen el vm) se salten si no han canviat.
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 
@@ -185,7 +184,7 @@ tasks.matching { it.name.matches(Regex("merge.*JniLibFolders")) }.configureEach 
 }
 
 dependencies {
-    implementation(platform("androidx.compose:compose-bom:2024.05.00"))
+    implementation(platform("androidx.compose:compose-bom:2026.06.01"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
@@ -193,12 +192,15 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
+    implementation("com.squareup.okhttp3:okhttp:5.4.0")
+    implementation("com.squareup.okhttp3:okhttp-sse:5.4.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
     testImplementation("androidx.compose.ui:ui-test-junit4")
 
-    androidTestImplementation(platform("androidx.compose:compose-bom:2024.05.00"))
+    androidTestImplementation(platform("androidx.compose:compose-bom:2026.06.01"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

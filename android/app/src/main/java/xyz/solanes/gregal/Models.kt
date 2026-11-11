@@ -1,5 +1,9 @@
 package xyz.solanes.gregal
 
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+
 /** Model de dades de l'API de `gregal serve` (rutes /api/...). */
 
 data class ChatMsg(
@@ -194,12 +198,13 @@ data class QuestionReq(
     val options: List<QuestionOption>,
 )
 
-/** Opcions de /api/question: [{label, description}, …]. */
-fun parseQuestionOptions(arr: org.json.JSONArray?): List<QuestionOption> {
-    if (arr == null) return emptyList()
-    return (0 until arr.length()).mapNotNull { i ->
-        val o = arr.optJSONObject(i) ?: return@mapNotNull null
-        QuestionOption(o.optString("label"), o.optString("description"))
+/** Opcions de /api/question: [{label, description}, …] (el JSON de la llista, o null). */
+fun parseQuestionOptions(arr: String?): List<QuestionOption> {
+    if (arr.isNullOrBlank()) return emptyList()
+    val items = try { GregalJson.parseToJsonElement(arr) as? kotlinx.serialization.json.JsonArray } catch (_: Exception) { null }
+        ?: return emptyList()
+    return items.filterIsInstance<kotlinx.serialization.json.JsonObject>().map { o ->
+        QuestionOption(o.str("label"), o.str("description"))
     }
 }
 
@@ -543,29 +548,31 @@ data class DurableEvent(
 
 /** Extreu el payload d'una interacció durable en qualsevol forma compatible. */
 fun structuredInteractivePayload(eventJson: String): String {
-    val e = try { org.json.JSONObject(eventJson) } catch (_: Exception) { return "" }
-    fun objectWithKey(value: Any?): org.json.JSONObject? {
-        val o = when (value) {
-            is org.json.JSONObject -> value
-            is String -> try { org.json.JSONObject(value) } catch (_: Exception) { null }
+    fun objectOf(text: String): JsonObject? =
+        try { GregalJson.parseToJsonElement(text) as? JsonObject } catch (_: Exception) { null }
+    val e = objectOf(eventJson) ?: return ""
+    fun objectWithKey(value: JsonElement?): JsonObject? {
+        val o = when {
+            value is JsonObject -> value
+            value is JsonPrimitive && value.isString -> objectOf(value.content)
             else -> null
         } ?: return null
         for (key in listOf("payload", "interaction", "data")) {
-            objectWithKey(o.opt(key))?.let { return it }
+            objectWithKey(o[key])?.let { return it }
         }
-        return o.takeIf { it.optString("key").isNotBlank() }
+        return o.takeIf { it.str("key").isNotBlank() }
     }
     for (key in listOf("payload", "data", "details", "interaction", "meta")) {
-        objectWithKey(e.opt(key))?.let { return it.toString() }
+        objectWithKey(e[key])?.let { return it.toString() }
     }
-    if (e.optString("key").isNotBlank()) {
-        val out = org.json.JSONObject().put("key", e.optString("key"))
+    if (e.str("key").isNotBlank()) {
+        val out = linkedMapOf<String, JsonElement>("key" to JsonPrimitive(e.str("key")))
         for (key in listOf("call_id", "name", "args", "query", "options")) {
-            if (e.has(key)) out.put(key, e.opt(key))
+            e[key]?.let { out[key] = it }
         }
-        return out.toString()
+        return JsonObject(out).toString()
     }
-    return objectWithKey(e.optString("text"))?.toString() ?: ""
+    return objectWithKey(JsonPrimitive(e.str("text")))?.toString() ?: ""
 }
 
 data class EventsPage(

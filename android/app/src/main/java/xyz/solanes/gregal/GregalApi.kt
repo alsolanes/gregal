@@ -1,15 +1,59 @@
 package xyz.solanes.gregal
 
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.longOrNull
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.asResponseBody
+import okhttp3.sse.EventSource
+import okhttp3.sse.EventSourceListener
+import okhttp3.sse.EventSources
 import org.json.JSONArray
 import org.json.JSONObject
-
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.net.HttpURLConnection
-import java.net.URL
-import java.nio.charset.StandardCharsets
+import java.io.IOException
 import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
+import java.util.concurrent.TimeUnit
 
+/**
+ * El lector JSON de les respostes del servidor. Cap camp és obligatori: un
+ * servidor més antic que no n'enviï algun no trenca res (pren el valor per
+ * defecte del model), els camps que no coneixem s'ignoren i un `null` val
+ * com si no hi fos. Tolera números i booleans entre cometes, com feia org.json.
+ */
+@OptIn(ExperimentalSerializationApi::class)
+val GregalJson: Json = Json {
+    ignoreUnknownKeys = true
+    isLenient = true
+    coerceInputValues = true
+    explicitNulls = false
+    encodeDefaults = true
+}
+
+/** Text d'un valor qualsevol, com `optString` d'org.json: un objecte o una llista surten com a JSON. */
+internal fun JsonElement?.looseString(): String = when (this) {
+    null, JsonNull -> ""
+    is JsonPrimitive -> content
+    else -> toString()
+}
+
+/** `optString(key)` sobre un objecte de kotlinx. */
+internal fun JsonObject.str(key: String): String = this[key].looseString()
 
 /** Payload de /api/plan (pur, testeable sense Android). */
 fun planPayload(task: String): Map<String, String> = mapOf("task" to task)
@@ -21,8 +65,8 @@ fun officeEditPayload(id: String, op: String, sheet: String = "", cell: String =
         "value" to value, "find" to find, "replace" to replace)
 
 /**
- * Client de `gregal serve`. HttpURLConnection de la stdlib (sense
- * dependències) + org.json (inclòs a Android). El token va per capçalera
+ * Client de `gregal serve`. OkHttp (i okhttp-sse per als fluxos) i
+ * kotlinx.serialization per llegir les respostes. El token va per capçalera
  * Bearer (o el servidor el rebutja amb 401).
  */
 /**
@@ -40,41 +84,50 @@ var sessioApp: String = "mobil"
 
 class GregalApi(val base: String, val token: String) {
 
-
-    private fun conn(path: String, method: String, body: String? = null): HttpURLConnection {
-        val c = URL(base + path).openConnection() as HttpURLConnection
-        c.requestMethod = method
-        c.connectTimeout = 15_000
-        c.readTimeout = 240_000
-        if (token.isNotBlank()) c.setRequestProperty("Authorization", "Bearer $token")
+    private fun request(path: String, method: String, body: String? = null): Request {
+        val b = Request.Builder().url(base + path)
+        if (token.isNotBlank()) b.header("Authorization", "Bearer $token")
         // Cada dispositiu, la seva conversa.
-        if (sessioApp.isNotBlank()) c.setRequestProperty("X-Gregal-Session", sessioApp)
-        if (body != null) {
-            c.doOutput = true
-            c.setRequestProperty("Content-Type", "application/json")
-            c.outputStream.use { it.write(body.toByteArray(StandardCharsets.UTF_8)) }
+        if (sessioApp.isNotBlank()) b.header("X-Gregal-Session", sessioApp)
+        val rb = when {
+            body != null -> body.toByteArray(StandardCharsets.UTF_8).toRequestBody(JSON_TYPE)
+            method == "POST" || method == "PUT" -> ByteArray(0).toRequestBody(JSON_TYPE)
+            else -> null
         }
-        return c
+        if (rb != null) b.header("Content-Type", "application/json")
+        return b.method(method, rb).build()
     }
 
-    private fun read(c: HttpURLConnection): String {
-        val code = c.responseCode
-        // Sense cos d'error, inputStream llançaria una IOException i tapava el 401.
-        val stream = if (code in 200..299) c.inputStream else c.errorStream
-        val text = stream?.bufferedReader(StandardCharsets.UTF_8)?.use { it.readText() }.orEmpty()
+    /** Executa la petició; qui la crida tanca la resposta (`use`). */
+    private fun exec(path: String, method: String, body: String? = null): Response =
+        http.newCall(request(path, method, body)).execute()
+
+    private fun bodyText(r: Response): String =
+        try { String(r.body.bytes(), StandardCharsets.UTF_8) } catch (_: Exception) { "" }
+
+    private fun read(r: Response): String = r.use {
+        val code = r.code
+        val text = bodyText(r)
         if (code == 401) {
             if (token.isNotBlank()) onUnauthorized?.invoke(base, token)
             throw ApiException("HTTP 401: server requires a valid token")
         }
         if (code !in 200..299) throw ApiException("HTTP $code: ${text.take(200)}")
-        return text
+        text
     }
+
+    private fun read(path: String, method: String = "GET", body: String? = null): String = read(exec(path, method, body))
+
+    private inline fun <reified T> getAs(path: String): T = GregalJson.decodeFromString(read(path))
+
+    private inline fun <reified T> postAs(path: String, payload: JSONObject): T =
+        GregalJson.decodeFromString(read(path, "POST", payload.toString()))
 
     /** Missatge per al torn en curs. false si ja no n'hi ha cap (409). */
     fun steer(text: String, interrupt: Boolean): Boolean {
-        val c = conn("/api/steer", "POST", JSONObject().put("text", text).put("interrupt", interrupt).toString())
-        if (c.responseCode == 409) return false
-        read(c)
+        val r = exec("/api/steer", "POST", JSONObject().put("text", text).put("interrupt", interrupt).toString())
+        if (r.code == 409) { r.close(); return false }
+        read(r)
         return true
     }
 
@@ -86,88 +139,75 @@ class GregalApi(val base: String, val token: String) {
             runId > 0 -> "?run_id=$runId"
             else -> ""
         }
-        return parseRetroInfo(read(conn("/api/retro$q", "GET")))
+        return parseRetroInfo(read("/api/retro$q"))
     }
 
     fun startRetro(key: String, runId: Long): RetroChannel? {
         val p = JSONObject()
         if (key.isNotBlank()) p.put("key", key)
         if (runId > 0) p.put("run_id", runId)
-        return parseRetroChannelResponse(read(conn("/api/retro/start", "POST", p.toString())))
+        return parseRetroChannelResponse(read("/api/retro/start", "POST", p.toString()))
     }
 
     fun retroMessage(key: String, text: String, thread: String = ""): RetroChannel? {
         val p = JSONObject().put("key", key).put("text", text)
         if (thread.isNotBlank()) p.put("thread_id", thread)
-        return parseRetroChannelResponse(read(conn("/api/retro/message", "POST", p.toString())))
+        return parseRetroChannelResponse(read("/api/retro/message", "POST", p.toString()))
     }
 
     /** Engega l'arranjament proposat en un missatge com un torn nou. */
     fun retroFix(key: String, messageId: String): RetroChannel? {
         val p = JSONObject().put("key", key).put("message_id", messageId)
-        return parseRetroChannelResponse(read(conn("/api/retro/fix", "POST", p.toString())))
+        return parseRetroChannelResponse(read("/api/retro/fix", "POST", p.toString()))
     }
 
     /** Canvia el to del canal i regenera els missatges d'agent (mateixos IDs i ordre). */
     fun retroRewrite(key: String, persona: String): RetroChannel? =
-        parseRetroChannelResponse(read(conn("/api/retro/rewrite", "POST", RetroRequests.rewrite(key, persona))))
+        parseRetroChannelResponse(read("/api/retro/rewrite", "POST", RetroRequests.rewrite(key, persona)))
 
     fun retroReact(key: String, messageId: String, emoji: String, add: Boolean): RetroChannel? {
         val p = JSONObject().put("key", key).put("message_id", messageId).put("emoji", emoji).put("action", if (add) "add" else "remove")
-        return parseRetroChannelResponse(read(conn("/api/retro/react", "POST", p.toString())))
+        return parseRetroChannelResponse(read("/api/retro/react", "POST", p.toString()))
     }
 
     /** Descobreix capacitats abans d'usar la cua v2. */
     fun health(): ServiceHealth {
-        val o = JSONObject(read(conn("/api/health", "GET")))
-        val caps = mutableMapOf<String, Boolean>()
-        val c = o.optJSONObject("capabilities")
-        if (c != null) for (k in c.keys()) caps[k] = c.optBoolean(k)
-        return ServiceHealth(
-            status = o.optString("status"), protocol = o.optString("protocol"),
-            instanceId = o.optString("instance_id"), capabilities = caps,
-        )
+        val o = getAs<HealthDto>("/api/health")
+        return ServiceHealth(status = o.status, protocol = o.protocol, instanceId = o.instanceId, capabilities = o.capabilities)
     }
 
     fun getState(): ServerState {
-        val o = JSONObject(read(conn("/api/state", "GET")))
+        val o = getAs<StateDto>("/api/state")
         return ServerState(
-            roles = o.optJSONArray("role")?.toStrList() ?: emptyList(),
-            currentRole = o.optString("current_role"),
-            mode = o.optString("mode"),
-            model = o.optString("model"),
-            provider = o.optString("provider"),
-            verify = o.optString("verify", "manual"),
-            agentBusy = o.optBoolean("agent_busy"),
-            cwd = o.optString("cwd"),
-            project = o.optString("project"),
-            branch = o.optString("branch"),
-            usedTokens = o.optInt("used_tokens"),
-            modelName = o.optString("model_name"),
-            think = o.optString("think"),
-            thinkOptions = o.optJSONArray("think_options")?.toStrList() ?: emptyList(),
-            thinkEffective = o.optString("think_effective"),
-            contextWindow = o.optInt("context_window"),
-            permissive = o.optBoolean("permissive"),
-            autoReview = o.optBoolean("auto_review"),
-            access = o.optString("access", "edits").ifBlank { "edits" },
-            transcript = o.optJSONArray("transcript")?.let { a ->
-                (0 until a.length()).mapNotNull { i ->
-                    val m = a.optJSONObject(i) ?: return@mapNotNull null
-                    val role = m.optString("role")
-                    val text = m.optString("content")
-                    if ((role == "user" || role == "assistant") && text.isNotBlank()) ChatMsg(role, text) else null
-                }
-            } ?: emptyList(),
+            roles = o.role,
+            currentRole = o.currentRole,
+            mode = o.mode,
+            model = o.model,
+            provider = o.provider,
+            verify = o.verify,
+            agentBusy = o.agentBusy,
+            cwd = o.cwd,
+            project = o.project,
+            branch = o.branch,
+            usedTokens = o.usedTokens,
+            modelName = o.modelName,
+            think = o.think,
+            thinkOptions = o.thinkOptions,
+            thinkEffective = o.thinkEffective,
+            contextWindow = o.contextWindow,
+            permissive = o.permissive,
+            autoReview = o.autoReview,
+            access = o.access.ifBlank { "edits" },
+            transcript = o.transcript.mapNotNull { m ->
+                val text = m.content.looseString()
+                if ((m.role == "user" || m.role == "assistant") && text.isNotBlank()) ChatMsg(m.role, text) else null
+            },
         )
     }
 
     fun getModels(): Triple<Map<String, List<String>>, String, String> {
-        val o = JSONObject(read(conn("/api/models?configured_only=1", "GET")))
-        val out = mutableMapOf<String, List<String>>()
-        val m = o.optJSONObject("models") ?: JSONObject()
-        for (k in m.keys()) out[k] = m.optJSONArray(k)?.toStrList() ?: emptyList()
-        return Triple(out, o.optString("current"), o.optString("vents_selected"))
+        val o = getAs<ModelsDto>("/api/models?configured_only=1")
+        return Triple(o.models, o.current, o.ventsSelected)
     }
 
     /** Model per defecte dels vents (xat, rotllana i cor), sense tocar el de la feina. */
@@ -175,15 +215,16 @@ class GregalApi(val base: String, val token: String) {
         return post("/api/model", JSONObject().put("model", model).put("scope", "vents"))
     }
 
+    /** POST que torna l'objecte JSON tal qual (per a les pantalles que el llegeixen elles mateixes). */
     fun post(path: String, payload: JSONObject): JSONObject {
-        return JSONObject(read(conn(path, "POST", payload.toString())))
+        return JSONObject(read(path, "POST", payload.toString()))
     }
 
     /** GET que torna un objecte JSON (el Racó dels vents, entre d'altres). */
-    fun get(path: String): JSONObject = JSONObject(read(conn(path, "GET")))
+    fun get(path: String): JSONObject = JSONObject(read(path))
 
     /** DELETE /api/shares/{id}: revoca un enllaç o despublica una web. */
-    fun deleteShare(id: String) { read(conn("/api/shares/" + java.net.URLEncoder.encode(id, "UTF-8"), "DELETE")) }
+    fun deleteShare(id: String) { read("/api/shares/" + URLEncoder.encode(id, "UTF-8"), "DELETE") }
 
     /**
      * Entra amb usuari i contrasenya (POST /api/login) i torna el token de
@@ -193,10 +234,8 @@ class GregalApi(val base: String, val token: String) {
      * Serveix per al servidor amb usuaris configurats; si el servidor no en
      * te cap, la resposta porta un error i el cami bo es el token de sempre.
      */
-    fun login(usuari: String, contrasenya: String): String {
-        val o = post("/api/login", JSONObject().put("user", usuari).put("password", contrasenya))
-        return o.optString("token")
-    }
+    fun login(usuari: String, contrasenya: String): String =
+        postAs<TokenDto>("/api/login", JSONObject().put("user", usuari).put("password", contrasenya)).token
 
     /** Calendari (Google Calendar per iCal), Gmail (IMAP) i resum del matí d'aquest compte. */
     data class Connections(
@@ -205,14 +244,11 @@ class GregalApi(val base: String, val token: String) {
     )
 
     fun getConnections(): Connections {
-        val o = JSONObject(read(conn("/api/connections", "GET")))
-        val cals = o.optJSONArray("calendars") ?: JSONArray()
-        val m = o.optJSONObject("mail") ?: JSONObject()
-        val b = o.optJSONObject("briefing") ?: JSONObject()
+        val o = getAs<ConnectionsDto>("/api/connections")
         return Connections(
-            (0 until cals.length()).map { i -> cals.getJSONObject(i).let { it.optString("name") to it.optString("url") } },
-            m.optString("user"), m.optBoolean("has_password"),
-            b.optBoolean("enabled"), b.optString("time").ifBlank { "08:00" }, b.optString("wind"),
+            o.calendars.map { it.name to it.url },
+            o.mail.user, o.mail.hasPassword,
+            o.briefing.enabled, o.briefing.time.ifBlank { "08:00" }, o.briefing.wind,
         )
     }
 
@@ -221,10 +257,10 @@ class GregalApi(val base: String, val token: String) {
 
     /** Prova la connexió: text curt per mostrar. */
     fun testConnections(): String {
-        val o = post("/api/connections", JSONObject().put("action", "test"))
+        val o = postAs<ConnectionsTestDto>("/api/connections", JSONObject().put("action", "test"))
         val parts = mutableListOf<String>()
-        o.optJSONObject("calendar")?.let { parts += "📅 " + it.optInt("events_next_7_days") + " (7d)" }
-        o.optJSONObject("mail")?.let { parts += "✉ " + (if (it.has("error")) "⚠ " + it.optString("error") else it.optInt("unread").toString()) }
+        o.calendar?.let { parts += "📅 " + it.eventsNext7Days + " (7d)" }
+        o.mail?.let { parts += "✉ " + (if (it.error != null) "⚠ " + it.error else it.unread.toString()) }
         return parts.joinToString(" · ")
     }
 
@@ -232,12 +268,8 @@ class GregalApi(val base: String, val token: String) {
     data class ServerPowers(val enabled: Boolean, val tools: List<String>, val user: String, val notes: String, val tunnels: List<Pair<String, String>>)
 
     fun getServerPowers(): ServerPowers {
-        val o = JSONObject(read(conn("/api/server/powers", "GET")))
-        val t = o.optJSONArray("tunnels") ?: JSONArray()
-        return ServerPowers(
-            o.optBoolean("enabled"), o.optJSONArray("tools")?.toStrList() ?: emptyList(), o.optString("user"), o.optString("notes"),
-            (0 until t.length()).map { i -> t.getJSONObject(i).let { it.optString("url") to (it.optString("target") + " · " + it.optString("status")) } },
-        )
+        val o = getAs<ServerPowersDto>("/api/server/powers")
+        return ServerPowers(o.enabled, o.tools, o.user, o.notes, o.tunnels.map { it.url to (it.target + " · " + it.status) })
     }
 
     fun setServerPowers(enabled: Boolean? = null, notes: String? = null) {
@@ -248,27 +280,21 @@ class GregalApi(val base: String, val token: String) {
     }
 
     /** Codi d'invitació d'un sol ús (admin): POST /api/server/invitations. */
-    fun createInvitation(): String = post("/api/server/invitations", JSONObject()).optString("code")
+    fun createInvitation(): String = postAs<InvitationDto>("/api/server/invitations", JSONObject()).code
 
     /** Tanca la sessió d'aquest token al servidor (POST /api/logout). */
     fun logout() { post("/api/logout", JSONObject()) }
 
     /** Qui soc (GET /api/me): nom, arrels, carpeta de treball i si es admin. */
     fun me(): MeInfo {
-        val o = JSONObject(read(conn("/api/me", "GET")))
-        return MeInfo(
-            user = o.optString("user"),
-            home = o.optString("home"),
-            admin = o.optBoolean("admin"),
-            roots = o.optJSONArray("roots")?.toStrList() ?: emptyList(),
-        )
+        val o = getAs<MeDto>("/api/me")
+        return MeInfo(user = o.user, home = o.home, admin = o.admin, roots = o.roots)
     }
 
     // --- carpeta de treball: on treballen els vents ---
 
     /** GET /api/workspaces: carpeta actual, branca i projectes recents. */
-    fun workspaces(): WorkspacesInfo =
-        parseWorkspaces(JSONObject(read(conn("/api/workspaces", "GET"))))
+    fun workspaces(): WorkspacesInfo = parseWorkspaces(read("/api/workspaces"))
 
     /**
      * POST /api/workspaces {path}: canvia la carpeta d'aquesta sessió.
@@ -276,53 +302,39 @@ class GregalApi(val base: String, val token: String) {
      * respon amb la llista nova; si falla, llença ApiException amb el motiu.
      */
     fun setWorkspace(path: String): WorkspacesInfo =
-        parseWorkspaces(post("/api/workspaces", JSONObject().put("path", path)))
+        parseWorkspaces(read("/api/workspaces", "POST", JSONObject().put("path", path).toString()))
 
     /** GET /api/dirs?path=: subdirectoris, per triar carpeta sense escriure rutes. */
     fun dirs(path: String? = null): DirsInfo {
         val query = if (path.isNullOrBlank()) "" else "?path=" + URLEncoder.encode(path, "UTF-8")
-        return parseDirs(JSONObject(read(conn("/api/dirs$query", "GET"))))
+        return parseDirs(read("/api/dirs$query"))
     }
 
     /** GET /api/preview: què es pot previsualitzar de la carpeta de treball. */
     fun preview(): PreviewInfo {
-        val o = JSONObject(read(conn("/api/preview", "GET")))
-        val a = o.optJSONArray("webs") ?: JSONArray()
-        val webs = (0 until a.length()).mapNotNull { i ->
-            val w = a.optJSONObject(i) ?: return@mapNotNull null
-            val p = w.optString("path")
-            if (p.isBlank()) null else PreviewWeb(p, w.optString("name").ifBlank { p }, w.optLong("size"), w.optString("mtime"))
+        val o = getAs<PreviewDto>("/api/preview")
+        val webs = o.webs.mapNotNull { w ->
+            if (w.path.isBlank()) null else PreviewWeb(w.path, w.name.ifBlank { w.path }, w.size, w.mtime)
         }
-        return PreviewInfo(root = o.optString("root"), base = o.optString("base"),
-            index = o.optString("index"), webs = webs)
+        return PreviewInfo(root = o.root, base = o.base, index = o.index, webs = webs)
     }
 
     /** Respon la pregunta de l'agent (POST /api/question {key, answer}). */
-    fun answerQuestion(key: String, answer: String): Boolean {
-        val o = post("/api/question", JSONObject().put("key", key).put("answer", answer))
-        return o.optBoolean("ok")
-    }
+    fun answerQuestion(key: String, answer: String): Boolean =
+        postAs<OkDto>("/api/question", JSONObject().put("key", key).put("answer", answer)).ok ?: false
 
     /** Compara els rols configurats alhora (local + cloud/revisor). */
-    fun parallel(message: String): List<ParallelResult> {
-        val root = post("/api/parallel", JSONObject().put("message", message))
-        val a = root.optJSONArray("results") ?: JSONArray()
-        return (0 until a.length()).map { i ->
-            val o = a.getJSONObject(i)
-            ParallelResult(
-                role = o.optString("role"), provider = o.optString("provider"),
-                model = o.optString("model"), reply = o.optString("reply"),
-                error = o.optString("error"),
-            )
+    fun parallel(message: String): List<ParallelResult> =
+        postAs<ParallelDto>("/api/parallel", JSONObject().put("message", message)).results.map { o ->
+            ParallelResult(role = o.role, provider = o.provider, model = o.model, reply = o.reply, error = o.error)
         }
-    }
 
     fun github(tool: String, action: String, number: Int = 0, query: String = "", repo: String = ""): GithubResult {
         return try {
-            val o = post("/api/github", JSONObject()
+            val o = postAs<GithubDto>("/api/github", JSONObject()
                 .put("tool", tool).put("action", action).put("number", number)
                 .put("query", query).put("repo", repo))
-            GithubResult(output = o.optString("output"))
+            GithubResult(output = o.output)
         } catch (e: Exception) {
             GithubResult(error = e.message ?: "GitHub request failed")
         }
@@ -332,10 +344,8 @@ class GregalApi(val base: String, val token: String) {
      *  al servidor i la ruta que es dona a l'agent. */
     fun officeUpload(name: String, dataB64: String): OfficeDoc {
         return try {
-            val o = post("/api/office/upload", JSONObject().put("name", name).put("data", dataB64))
-            OfficeDoc(id = o.optString("id"), name = o.optString("name"),
-                kind = o.optString("kind"), text = "", result = "uploaded ${o.optInt("size")} bytes",
-                path = o.optString("path"))
+            val o = postAs<OfficeDto>("/api/office/upload", JSONObject().put("name", name).put("data", dataB64))
+            OfficeDoc(id = o.id, name = o.name, kind = o.kind, text = "", result = "uploaded ${o.size} bytes", path = o.path)
         } catch (e: Exception) {
             OfficeDoc(error = e.message ?: "upload failed")
         }
@@ -344,9 +354,8 @@ class GregalApi(val base: String, val token: String) {
     /** Office: llegeix el text/dades del document pujat. */
     fun officeRead(id: String): OfficeDoc {
         return try {
-            val o = post("/api/office/read", JSONObject().put("id", id))
-            OfficeDoc(id = id, name = o.optString("name"), kind = o.optString("kind"),
-                text = o.optString("text"))
+            val o = postAs<OfficeDto>("/api/office/read", JSONObject().put("id", id))
+            OfficeDoc(id = id, name = o.name, kind = o.kind, text = o.text)
         } catch (e: Exception) {
             OfficeDoc(id = id, error = e.message ?: "read failed")
         }
@@ -356,11 +365,18 @@ class GregalApi(val base: String, val token: String) {
     fun officeEdit(id: String, op: String, sheet: String = "", cell: String = "",
                    value: String = "", find: String = "", replace: String = ""): OfficeDoc {
         return try {
-            val o = post("/api/office/edit", JSONObject(officeEditPayload(id, op, sheet, cell, value, find, replace)))
-            OfficeDoc(id = id, text = o.optString("text"), result = o.optString("result"))
+            val o = postAs<OfficeDto>("/api/office/edit", JSONObject(officeEditPayload(id, op, sheet, cell, value, find, replace)))
+            OfficeDoc(id = id, text = o.text, result = o.result)
         } catch (e: Exception) {
             OfficeDoc(id = id, error = e.message ?: "edit failed")
         }
+    }
+
+    /** Baixa els bytes d'una ruta del servidor (sense avisar del 401: no és la sessió que caduca). */
+    private fun download(path: String): ByteArray = exec(path, "GET").use { r ->
+        if (r.code == 401) throw ApiException("HTTP 401: server requires a valid token")
+        if (r.code !in 200..299) throw ApiException("HTTP ${r.code} downloading document")
+        r.body.bytes()
     }
 
     /** Office: baixa el fitxer editat (bytes per desar al mòbil). */
@@ -368,87 +384,60 @@ class GregalApi(val base: String, val token: String) {
      *  (/api/winds/doc?… o /api/office/download?…), amb la clau. */
     fun downloadServerDoc(path: String): ByteArray {
         if (!isServerDocLink(path)) throw ApiException("not a Gregal document link")
-        val c = conn(path, "GET")
-        val code = c.responseCode
-        if (code == 401) throw ApiException("HTTP 401: server requires a valid token")
-        if (code !in 200..299) throw ApiException("HTTP $code downloading document")
-        return c.inputStream.use { it.readBytes() }
+        return download(path)
     }
 
-    fun officeDownload(id: String): ByteArray {
-        val c = conn("/api/office/download?id=" + id, "GET")
-        val code = c.responseCode
-        if (code == 401) throw ApiException("HTTP 401: server requires a valid token")
-        if (code !in 200..299) throw ApiException("HTTP $code downloading document")
-        return c.inputStream.use { it.readBytes() }
-    }
+    fun officeDownload(id: String): ByteArray = download("/api/office/download?id=" + id)
 
     /** Proveïdors: llista del servidor amb estat de clau (emmascarada). */
     fun getProviders(): List<ProviderInfo> {
-        val c = conn("/api/providers", "GET")
-        val code = c.responseCode
-        if (code == 401) throw ApiException("HTTP 401: server requires a valid token")
-        if (code !in 200..299) throw ApiException("HTTP $code listing providers")
-        return parseProviders(read(c))
+        val r = exec("/api/providers", "GET")
+        if (r.code == 401) { r.close(); throw ApiException("HTTP 401: server requires a valid token") }
+        if (r.code !in 200..299) { val code = r.code; r.close(); throw ApiException("HTTP $code listing providers") }
+        return parseProviders(read(r))
     }
 
     /** JSON cru de /api/providers (hi ha el catàleg per al primer ús). */
-    fun providersJson(): String = read(conn("/api/providers", "GET"))
+    fun providersJson(): String = read("/api/providers")
 
     /** Preset: tots els rols passen a aquest proveïdor amb el seu model per defecte. */
     fun presetProvider(name: String): String =
-        post("/api/providers", JSONObject().put("action", "preset").put("name", name)).optString("msg")
+        postAs<MsgDto>("/api/providers", JSONObject().put("action", "preset").put("name", name)).msg
 
     /** Desa la clau d'un proveïdor (servidor: en memòria, o ${VAR} per persistir). */
-    fun setProviderKey(name: String, key: String): String {
-        val o = post("/api/providers", JSONObject().put("action", "key").put("name", name).put("key", key))
-        return o.optString("msg").ifBlank { "desat" }
-    }
+    fun setProviderKey(name: String, key: String): String =
+        postAs<MsgDto>("/api/providers", JSONObject().put("action", "key").put("name", name).put("key", key)).msg.ifBlank { "desat" }
 
     /**
      * Afegeix un proveïdor nou (POST /api/providers {action:add}).
      * El servidor valida el nom i l'URL i el desa a la SEVA configuració; des
      * del mòbil això és una ordre al servidor, no una preferència del telèfon.
      */
-    fun addProvider(name: String, url: String, key: String): String {
-        val o = post(
+    fun addProvider(name: String, url: String, key: String): String =
+        postAs<MsgDto>(
             "/api/providers",
             JSONObject().put("action", "add").put("name", name.trim())
                 .put("url", url.trim()).put("key", key.trim()),
-        )
-        return o.optString("msg").ifBlank { "ok" }
-    }
+        ).msg.ifBlank { "ok" }
 
     /** Prova la connexió d'un proveïdor (GET /models amb la seva clau). */
-    fun testProvider(name: String): String {
-        val o = post("/api/providers", JSONObject().put("action", "test").put("name", name))
-        return o.optString("msg").ifBlank { "ok" }
-    }
+    fun testProvider(name: String): String =
+        postAs<MsgDto>("/api/providers", JSONObject().put("action", "test").put("name", name)).msg.ifBlank { "ok" }
 
     /** Pla read-only: /api/plan {"task"} → text del pla. */
-    fun postPlan(task: String): String {
-        return post("/api/plan", JSONObject(planPayload(task))).optString("plan")
-    }
+    fun postPlan(task: String): String = postAs<PlanDto>("/api/plan", JSONObject(planPayload(task))).plan
 
     /** Checkpoints del journal: GET /api/checkpoints → llista. */
-    fun getCheckpoints(): List<CheckpointInfo> =
-        parseCheckpoints(read(conn("/api/checkpoints", "GET")))
+    fun getCheckpoints(): List<CheckpointInfo> = parseCheckpoints(read("/api/checkpoints"))
 
     /** Desfés-ho tot: POST /api/rewind → resum. */
-    fun postRewind(): String =
-        post("/api/rewind", JSONObject()).optString("summary", "canvis desfets")
+    fun postRewind(): String = postAs<SummaryDto>("/api/rewind", JSONObject()).summary
 
     /** Torna al checkpoint seq: POST /api/rewind-to → resum. */
-    fun postRewindTo(seq: Int): String =
-        post("/api/rewind-to", JSONObject().put("seq", seq)).optString("summary", "canvis desfets")
+    fun postRewindTo(seq: Int): String = postAs<SummaryDto>("/api/rewind-to", JSONObject().put("seq", seq)).summary
 
-    fun getSessions(): List<SessionInfo> {
-        val a = JSONArray(read(conn("/api/sessions", "GET")))
-        return (0 until a.length()).map {
-            val o = a.getJSONObject(it)
-            SessionInfo(o.optString("name"), o.optInt("msgs"), o.optString("when"),
-                o.optString("title"), o.optString("at"), o.optBoolean("current"))
-        }
+    fun getSessions(): List<SessionInfo> = getAs<List<SessionDto>>("/api/sessions").map { o ->
+        SessionInfo(o.name, o.msgs, o.whenText, o.title, o.at, o.current)
     }
 
     // ---- Contracte de torns v2 (cua + events durables) ----
@@ -460,60 +449,53 @@ class GregalApi(val base: String, val token: String) {
         if (mode.isNotBlank()) payload.put("mode", mode)
         if (images.isNotEmpty()) payload.put("images", JSONArray(images))
         if (idempotencyKey.isNotBlank()) payload.put("idempotency_key", idempotencyKey)
-        val root = post("/api/v2/runs", payload)
-        return parseRun(root.optJSONObject("run") ?: root).copy(cursor = root.optLong("cursor"))
+        val root = GregalJson.parseToJsonElement(read("/api/v2/runs", "POST", payload.toString())) as JsonObject
+        return runOf(root).copy(cursor = GregalJson.decodeFromJsonElement<CursorDto>(root).cursor ?: 0L)
     }
 
     /** Llegeix events persistents posteriors al cursor, filtrats per sessió. */
     fun getEvents(after: Long, limit: Int = 100, session: String = sessioApp): EventsPage {
         val path = "/api/v2/events?after=$after&limit=$limit&session=" +
             URLEncoder.encode(session, "UTF-8")
-        val root = JSONObject(read(conn(path, "GET")))
-        val a = root.optJSONArray("events") ?: JSONArray()
-        val events = (0 until a.length()).map { i ->
-            val e = a.getJSONObject(i)
+        val root = getAs<EventsDto>(path)
+        val events = root.events.map { e ->
+            val d = GregalJson.decodeFromJsonElement<DurableEventDto>(e)
             DurableEvent(
-                id = e.optLong("id"), sessionId = e.optString("session_id"),
-                runId = e.optLong("run_id"), kind = e.optString("kind"),
-                text = e.optString("text"),
-                payload = structuredInteractivePayload(e.toString()).ifEmpty { rawPayload(e) },
+                id = d.id, sessionId = d.sessionId, runId = d.runId, kind = d.kind, text = d.text,
+                payload = structuredInteractivePayload(e.toString()).ifEmpty { rawPayload(e["payload"]) },
             )
         }
-        return EventsPage(events, root.optLong("cursor", after), root.optLong("next", after))
+        return EventsPage(events, root.cursor ?: after, root.next ?: after)
     }
 
     /** Payload estructurat de qualsevol event (eines, progrés, subagents). */
-    private fun rawPayload(e: JSONObject): String = when (val p = e.opt("payload")) {
-        is JSONObject -> p.toString()
-        is String -> p.takeIf { it.trimStart().startsWith("{") }.orEmpty()
+    private fun rawPayload(p: JsonElement?): String = when {
+        p is JsonObject -> p.toString()
+        p is JsonPrimitive && p.isString -> p.content.takeIf { it.trimStart().startsWith("{") }.orEmpty()
         else -> ""
     }
 
     /** Consulta l'estat d'un torn concret. */
-    fun getRun(id: Long): RunV2 {
-        val root = JSONObject(read(conn("/api/v2/runs/$id", "GET")))
-        return parseRun(root.optJSONObject("run") ?: root)
-    }
+    fun getRun(id: Long): RunV2 = runOf(GregalJson.parseToJsonElement(read("/api/v2/runs/$id")) as JsonObject)
 
     /** Cancel·la un torn concret de la cua v2. */
     fun cancelRun(id: Long): Boolean {
-        val root = post("/api/v2/runs/$id/cancel", JSONObject())
-        return root.optBoolean("cancelled", root.optBoolean("ok"))
+        val root = postAs<CancelDto>("/api/v2/runs/$id/cancel", JSONObject())
+        return root.cancelled ?: root.ok ?: false
     }
 
     /** Cancel·lació de compatibilitat per servidors antics. */
-    fun cancelLegacy(): Boolean = post("/api/agent/cancel", JSONObject()).optBoolean("ok", true)
+    fun cancelLegacy(): Boolean = postAs<OkDto>("/api/agent/cancel", JSONObject()).ok ?: true
 
-    private fun parseRun(o: JSONObject): RunV2 = RunV2(
-        id = o.optLong("id"), state = o.optString("state"),
-        session = o.optString("session"), workspace = o.optString("workspace"),
-        error = o.optString("error"),
-    )
-
+    /** El torn ve dins de `run` o és l'objecte sencer (servidors antics). */
+    private fun runOf(root: JsonObject): RunV2 {
+        val o = GregalJson.decodeFromJsonElement<RunDto>(root["run"] as? JsonObject ?: root)
+        return RunV2(id = o.id, state = o.state, session = o.session, workspace = o.workspace, error = o.error)
+    }
 
     /** Esborra una conversa (DELETE /api/sessions?name=). */
     fun deleteSession(name: String) {
-        read(conn("/api/sessions?name=" + java.net.URLEncoder.encode(name, "UTF-8"), "DELETE"))
+        read("/api/sessions?name=" + URLEncoder.encode(name, "UTF-8"), "DELETE")
     }
 
     /** Mode del revisor: off|manual|auto|both|strict (paritat prefs web). */
@@ -523,75 +505,40 @@ class GregalApi(val base: String, val token: String) {
 
     // ---- Grafs (/api/flows*): llistar, veure, esborrar i executar. ----
 
-    fun getFlows(): List<FlowSummary> {
-        val o = JSONObject(read(conn("/api/flows", "GET")))
-        val a = o.optJSONArray("flows") ?: JSONArray()
-        return (0 until a.length()).map {
-            val f = a.getJSONObject(it)
-            FlowSummary(f.optString("name"), f.optString("slug"),
-                f.optString("desc"), f.optInt("steps"))
-        }
-    }
+    fun getFlows(): List<FlowSummary> =
+        getAs<FlowsDto>("/api/flows").flows.map { f -> FlowSummary(f.name, f.slug, f.desc, f.steps) }
 
     fun getFlow(name: String): FlowDetail {
-        val o = JSONObject(read(conn("/api/flows/load?name=" + enc(name), "GET")))
-        val f = o.getJSONObject("flow")
-        val nodes = (f.optJSONArray("nodes") ?: JSONArray()).let { a ->
-            (0 until a.length()).map {
-                val n = a.getJSONObject(it)
-                FlowNode(n.optString("id"), n.optString("kind"), n.optString("title"),
-                    n.optString("task"), n.optString("tool"), n.optString("text"))
-            }
-        }
-        val edges = (f.optJSONArray("edges") ?: JSONArray()).let { a ->
-            (0 until a.length()).map {
-                val e = a.getJSONObject(it)
-                FlowEdge(e.optString("from"), e.optString("to"), e.optString("when"))
-            }
-        }
-        return FlowDetail(f.optString("name"), f.optString("desc"), nodes, edges)
+        val f = getAs<FlowLoadDto>("/api/flows/load?name=" + enc(name)).flow ?: throw ApiException("flow not found")
+        return FlowDetail(f.name, f.desc,
+            f.nodes.map { n -> FlowNode(n.id, n.kind, n.title, n.task, n.tool, n.text) },
+            f.edges.map { e -> FlowEdge(e.from, e.to, e.whenText) })
     }
 
     fun deleteFlow(name: String) {
         post("/api/flows/delete", JSONObject().put("name", name))
     }
 
-    private fun enc(s: String): String = java.net.URLEncoder.encode(s, "UTF-8")
+    private fun enc(s: String): String = URLEncoder.encode(s, "UTF-8")
 
     fun getActive(): ActiveAgent? {
-        val root = JSONObject(read(conn("/api/active", "GET")))
-        if (root.isNull("active")) return null
-        val a = root.optJSONObject("active") ?: return null
-        val events = a.optJSONArray("events") ?: JSONArray()
+        val a = getAs<ActiveDto>("/api/active").active ?: return null
         return ActiveAgent(
-            id = a.optInt("id"), task = a.optString("task"), startedAt = a.optString("started_at"),
-            role = a.optString("role"), mode = a.optString("mode"), project = a.optString("project"),
-            events = (0 until events.length()).map { i ->
-                val e = events.getJSONObject(i)
-                LiveEvent(e.optString("kind", "activity"), e.optString("text"))
-            },
+            id = a.id, task = a.task, startedAt = a.startedAt, role = a.role, mode = a.mode, project = a.project,
+            events = a.events.map { e -> LiveEvent(e.kind, e.text) },
         )
     }
 
-    fun getGoals(): List<GoalItem> {
-        val o = JSONObject(read(conn("/api/goal", "GET")))
-        val a = o.optJSONArray("goals") ?: JSONArray()
-        return (0 until a.length()).map {
-            val g = a.getJSONObject(it)
-            GoalItem(g.optString("id"), g.optString("title"), g.optString("body"), g.optString("status"))
-        }
-    }
+    fun getGoals(): List<GoalItem> =
+        getAs<GoalsDto>("/api/goal").goals.map { g -> GoalItem(g.id, g.title, g.body, g.status) }
 
     // ---- Mode company (estil Dot): memòria personal + check-ins ----
 
-    fun getCompany(): CompanyState =
-        CompanyState.parse(read(conn("/api/companion/memory", "GET")))
+    fun getCompany(): CompanyState = CompanyState.parse(read("/api/companion/memory"))
 
     fun companyAccept(fact: String): CompanyState {
-        val o = post("/api/companion/memory", JSONObject(CompanionRequests.accept(fact)))
-        fun arr(a: JSONArray?): List<String> =
-            a?.let { (0 until it.length()).map { i -> it.optString(i) } } ?: emptyList()
-        return CompanyState(state = "none", facts = emptyList(), notes = arr(o.optJSONArray("notes")))
+        val o = postAs<NotesDto>("/api/companion/memory", JSONObject(CompanionRequests.accept(fact)))
+        return CompanyState(state = "none", facts = emptyList(), notes = o.notes)
     }
 
     fun companyDismiss(): CompanyState {
@@ -600,39 +547,28 @@ class GregalApi(val base: String, val token: String) {
     }
 
     fun companyForget(term: String): CompanyState {
-        val o = post("/api/companion/memory", JSONObject(CompanionRequests.forget(term)))
-        fun arr(a: JSONArray?): List<String> =
-            a?.let { (0 until it.length()).map { i -> it.optString(i) } } ?: emptyList()
-        return CompanyState(state = "none", facts = emptyList(), notes = arr(o.optJSONArray("notes")))
+        val o = postAs<NotesDto>("/api/companion/memory", JSONObject(CompanionRequests.forget(term)))
+        return CompanyState(state = "none", facts = emptyList(), notes = o.notes)
     }
 
     fun companyCheckin(): CompanyCheckin =
-        CompanyCheckin.parse(post("/api/companion/checkin", JSONObject()).toString())
+        CompanyCheckin.parse(read("/api/companion/checkin", "POST", "{}"))
 
-    fun getPets(): List<Pet> =
-        Pet.parse(read(conn("/api/companion/pets", "GET")))
+    fun getPets(): List<Pet> = Pet.parse(read("/api/companion/pets"))
 
     fun petCheckin(petId: String): PetCheckin =
-        PetCheckin.parse(post("/api/companion/checkin", JSONObject(PetRequests.checkin(petId))).toString())
+        PetCheckin.parse(read("/api/companion/checkin", "POST", JSONObject(PetRequests.checkin(petId)).toString()))
 
-    fun petChat(petId: String, message: String): String {
-        val o = post("/api/companion/chat", JSONObject(PetRequests.chat(petId, message)))
-        return o.optString("reply")
-    }
+    fun petChat(petId: String, message: String): String =
+        postAs<ReplyTextDto>("/api/companion/chat", JSONObject(PetRequests.chat(petId, message))).reply
 
-    fun getPetChat(petId: String): List<GregalViewModel.PetMsg> {
-        val o = JSONObject(read(conn("/api/companion/chat?pet=$petId", "GET")))
-        val a = o.optJSONArray("history") ?: JSONArray()
-        return (0 until a.length()).mapNotNull { i ->
-            val item = a.optJSONObject(i) ?: return@mapNotNull null
-            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = msgMillis(item.optLong("ts", 0L)), kind = item.optString("kind"), id = item.optString("id"))
-        }
-    }
+    fun getPetChat(petId: String): List<GregalViewModel.PetMsg> =
+        getAs<HistoryDto>("/api/companion/chat?pet=$petId").history.map { it.toPetMsg() }
 
     fun getWinds(): List<Wind> = Wind.parse(getWindsRaw())
 
     /** La resposta tal qual: el mòbil la desa com a còpia per quan el servidor no respongui. */
-    fun getWindsRaw(): String = read(conn("/api/winds", "GET"))
+    fun getWindsRaw(): String = read("/api/winds")
 
     fun saveWind(name: String, color: String, role: String, style: String = "pso", persona: String = "", id: String = "") {
         val payload = JSONObject(WindRequests.save(name, color, role, style, persona))
@@ -641,19 +577,18 @@ class GregalApi(val base: String, val token: String) {
     }
 
     fun getWindProfile(id: String): WindProfile = WindProfile.parse(
-        read(conn("/api/winds/profile?wind=${java.net.URLEncoder.encode(id, "UTF-8")}", "GET")))
+        read("/api/winds/profile?wind=${URLEncoder.encode(id, "UTF-8")}"))
 
     fun updateWindKnowledge(id: String, text: String): WindProfile = WindProfile.parse(
-        post("/api/winds/memory", JSONObject().put("wind", id).put("text", text)).toString())
+        read("/api/winds/memory", "POST", JSONObject().put("wind", id).put("text", text).toString()))
 
     /** Proposta de persona i cara per a un vent nou (feta amb la IA). */
     fun suggestWind(name: String, role: String): Pair<String, String> {
-        val o = post("/api/winds/suggest", JSONObject().put("name", name).put("role", role))
-        return Pair(o.optString("persona"), o.optString("style").ifBlank { "pso" })
+        val o = postAs<SuggestDto>("/api/winds/suggest", JSONObject().put("name", name).put("role", role))
+        return Pair(o.persona, o.style.ifBlank { "pso" })
     }
 
-    fun getRotllanes(): List<Rotllana> =
-        RotllanaRequests.parse(read(conn("/api/winds/rotllanes", "GET")))
+    fun getRotllanes(): List<Rotllana> = RotllanaRequests.parse(read("/api/winds/rotllanes"))
 
     fun saveRotllana(name: String, members: List<String>, id: String = ""): JSONObject {
         val payload = JSONObject(RotllanaRequests.save(name, members))
@@ -662,13 +597,13 @@ class GregalApi(val base: String, val token: String) {
     }
 
     fun deleteRotllana(id: String) {
-        read(conn("/api/winds/rotllanes", "DELETE", JSONObject().put("id", id).toString()))
+        read("/api/winds/rotllanes", "DELETE", JSONObject().put("id", id).toString())
     }
 
     /** Buida el xat amb un vent (DELETE /api/winds/chat): el vent es queda. */
     fun clearWindChat(windId: String, session: String = "") {
         val body = JSONObject().put("wind", windId)
-        read(conn(windThreadPath("/api/winds/chat", session), "DELETE", body.toString()))
+        read(windThreadPath("/api/winds/chat", session), "DELETE", body.toString())
     }
 
     /**
@@ -691,40 +626,29 @@ class GregalApi(val base: String, val token: String) {
     fun getTransferVerify(verifyPath: String): JSONObject = get(verifyPath)
 
     /** Memòria del vent sobre l'usuari (markdown, editable). */
-    fun getWindMemoria(windId: String): String {
-        val o = JSONObject(read(conn("/api/winds/memoria?wind=$windId", "GET")))
-        return o.optString("memoria")
-    }
+    fun getWindMemoria(windId: String): String = getAs<MemoriaDto>("/api/winds/memoria?wind=$windId").memoria
 
     fun saveWindMemoria(windId: String, memoria: String) {
-        read(conn("/api/winds/memoria", "PUT", JSONObject().put("wind", windId).put("memoria", memoria).toString()))
+        read("/api/winds/memoria", "PUT", JSONObject().put("wind", windId).put("memoria", memoria).toString())
     }
 
     /** Coneixement d'un vent: resum de catàleg. */
     data class Coneixement(val nom: String, val titol: String, val descripcio: String, val cos: String = "")
 
-    fun listConeixements(windId: String): List<Coneixement> {
-        val o = JSONObject(read(conn("/api/winds/coneixements?wind=$windId", "GET")))
-        val a = o.optJSONArray("coneixements") ?: JSONArray()
-        return (0 until a.length()).mapNotNull { i ->
-            val c = a.optJSONObject(i) ?: return@mapNotNull null
-            Coneixement(c.optString("nom"), c.optString("titol"), c.optString("descripcio"))
-        }
-    }
+    fun listConeixements(windId: String): List<Coneixement> =
+        getAs<ConeixementsDto>("/api/winds/coneixements?wind=$windId").coneixements.map { it.toConeixement(withBody = false) }
 
-    fun getConeixement(windId: String, nom: String): Coneixement {
-        val o = JSONObject(read(conn("/api/winds/coneixement?wind=$windId&nom=$nom", "GET")))
-        return Coneixement(o.optString("nom"), o.optString("titol"), o.optString("descripcio"), o.optString("cos"))
-    }
+    fun getConeixement(windId: String, nom: String): Coneixement =
+        getAs<ConeixementDto>("/api/winds/coneixement?wind=$windId&nom=$nom").toConeixement(withBody = true)
 
     fun saveConeixement(windId: String, c: Coneixement): String {
-        val o = post("/api/winds/coneixements", JSONObject().put("wind", windId).put("nom", c.nom)
+        val o = postAs<NomDto>("/api/winds/coneixements", JSONObject().put("wind", windId).put("nom", c.nom)
             .put("titol", c.titol).put("descripcio", c.descripcio).put("cos", c.cos))
-        return o.optString("nom", c.nom)
+        return o.nom ?: c.nom
     }
 
     fun deleteConeixement(windId: String, nom: String) {
-        read(conn("/api/winds/coneixements", "DELETE", JSONObject().put("wind", windId).put("nom", nom).toString()))
+        read("/api/winds/coneixements", "DELETE", JSONObject().put("wind", windId).put("nom", nom).toString())
     }
 
     /** Information snapshots, not conversation backups. Record IDs are NOT wind IDs. */
@@ -741,6 +665,23 @@ class GregalApi(val base: String, val token: String) {
     }
 
     companion object {
+        private val JSON_TYPE = "application/json".toMediaType()
+        private val SSE_TYPE = "text/event-stream".toMediaType()
+
+        /**
+         * Un sol client per a tota l'app: comparteix connexions entre
+         * instàncies. Mateixos temps que abans: 15 s per connectar i fins a
+         * 4 minuts per resposta (un torn llarg); l'enviament (pujar un
+         * document gran) té el mateix marge.
+         */
+        internal val http: OkHttpClient by lazy {
+            OkHttpClient.Builder()
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(240, TimeUnit.SECONDS)
+                .writeTimeout(240, TimeUnit.SECONDS)
+                .build()
+        }
+
         /**
          * El servidor ha rebutjat el token (sessió tancada, contrasenya
          * canviada o compte esborrat). El ViewModel decideix si és la connexió
@@ -748,39 +689,36 @@ class GregalApi(val base: String, val token: String) {
          */
         @Volatile
         var onUnauthorized: ((base: String, token: String) -> Unit)? = null
+
         fun parseWindLibrary(raw: String): List<WindLibraryItem> {
-            val items = JSONObject(raw).getJSONArray("items")
-            return (0 until items.length()).map { i ->
-                val item = items.getJSONObject(i)
-                val wind = Wind.parse(JSONObject().put("winds", JSONArray().put(item.getJSONObject("wind"))).toString()).single()
-                require(item.getString("id").isNotBlank() && wind.id.isNotBlank()) { "Invalid library identity" }
-                val skills = item.optJSONArray("skills") ?: JSONArray()
-                WindLibraryItem(item.getString("id"), item.getString("kind"), wind,
-                    item.optString("memory"), item.optString("knowledge"),
-                    (0 until skills.length()).map { j ->
-                        val sk = skills.getJSONObject(j)
-                        // Library serializes skills.Skill directly (Go exported field names).
-                        // The dedicated skills endpoints use lowercase DTO fields instead.
-                        fun field(lower: String, go: String) = if (sk.has(go)) sk.getString(go) else sk.optString(lower)
-                        val name = field("nom", "Nom")
+            val items = GregalJson.decodeFromString<LibraryDto>(raw).items ?: throw IllegalArgumentException("Invalid library: no items")
+            return items.map { item ->
+                val id = requireNotNull(item.id) { "Invalid library identity" }
+                val kind = requireNotNull(item.kind) { "Invalid library kind" }
+                val windObj = requireNotNull(item.wind) { "Invalid library wind" }
+                val wind = Wind.parse(JsonObject(mapOf("winds" to JsonArray(listOf(windObj)))).toString()).single()
+                require(id.isNotBlank() && wind.id.isNotBlank()) { "Invalid library identity" }
+                WindLibraryItem(id, kind, wind, item.memory, item.knowledge,
+                    item.skills.map { sk ->
+                        val name = sk.name
                         require(name.isNotBlank()) { "Invalid library skill" }
-                        Coneixement(name, field("titol", "Titol"), field("descripcio", "Descripcio"), field("cos", "Cos"))
-                    }, item.optString("created"), item.optString("origin"))
+                        Coneixement(name, sk.titleText, sk.descriptionText, sk.bodyText)
+                    }, item.created, item.origin)
             }
         }
     }
 
-    fun getWindLibrary(): List<WindLibraryItem> = parseWindLibrary(read(conn("/api/winds/library", "GET")))
+    fun getWindLibrary(): List<WindLibraryItem> = parseWindLibrary(read("/api/winds/library"))
 
     fun restoreWindLibrary(sourceId: String) {
-        val result = post("/api/winds/library", JSONObject().put("action", "restore").put("source", sourceId))
-        check(result.optBoolean("ok")) { "Restore was not acknowledged" }
+        val result = postAs<OkDto>("/api/winds/library", JSONObject().put("action", "restore").put("source", sourceId))
+        check(result.ok == true) { "Restore was not acknowledged" }
     }
 
     fun assignWindLibrary(sourceId: String, targetId: String, memory: Boolean, knowledge: Boolean) {
-        val result = post("/api/winds/library", JSONObject().put("action", "assign").put("source", sourceId)
+        val result = postAs<OkDto>("/api/winds/library", JSONObject().put("action", "assign").put("source", sourceId)
             .put("target", targetId).put("memory", memory).put("knowledge", knowledge))
-        check(result.optBoolean("ok")) { "Assignment was not acknowledged" }
+        check(result.ok == true) { "Assignment was not acknowledged" }
     }
 
     /** Resum de tots els vents: rol + índex de coneixements (selector de membres). */
@@ -802,37 +740,19 @@ class GregalApi(val base: String, val token: String) {
         val progres: Float get() = if (passos <= 0) 0f else (pas.coerceIn(0, passos) / passos.toFloat()) * .9f + (if (exit) .1f else 0f)
     }
 
-    fun getWindsResum(): List<WindResum> {
-        val o = JSONObject(read(conn("/api/winds/resum", "GET")))
-        val a = o.optJSONArray("vents") ?: JSONArray()
-        return (0 until a.length()).mapNotNull { i ->
-            val v = a.optJSONObject(i) ?: return@mapNotNull null
-            val c = v.optJSONArray("coneixements") ?: JSONArray()
-            WindResum(v.optString("id"), v.optString("nom"), v.optString("rol"),
-                (0 until c.length()).mapNotNull { j ->
-                    val e = c.optJSONObject(j) ?: return@mapNotNull null
-                    Coneixement(e.optString("nom"), e.optString("titol"), e.optString("descripcio"))
-                })
+    fun getWindsResum(): List<WindResum> =
+        getAs<ResumDto>("/api/winds/resum").vents.map { v ->
+            WindResum(v.id, v.nom, v.rol, v.coneixements.map { it.toConeixement(withBody = false) })
         }
-    }
 
     /** Colles predefinides (Dia a dia, Ciència de dades, Software i seguretat). */
     data class SquadMember(val key: String, val name: String, val ca: String, val en: String, val color: String, val style: String)
     data class Squad(val id: String, val ca: String, val en: String, val members: List<SquadMember>)
 
-    fun getSquads(): List<Squad> {
-        val o = JSONObject(read(conn("/api/winds/squads", "GET")))
-        val a = o.optJSONArray("squads") ?: JSONArray()
-        return (0 until a.length()).mapNotNull { i ->
-            val s = a.optJSONObject(i) ?: return@mapNotNull null
-            val m = s.optJSONArray("members") ?: JSONArray()
-            Squad(s.optString("id"), s.optString("ca"), s.optString("en"),
-                (0 until m.length()).mapNotNull { j ->
-                    val e = m.optJSONObject(j) ?: return@mapNotNull null
-                    SquadMember(e.optString("key"), e.optString("name"), e.optString("ca"), e.optString("en"), e.optString("color"), e.optString("style"))
-                })
+    fun getSquads(): List<Squad> =
+        getAs<SquadsDto>("/api/winds/squads").squads.map { s ->
+            Squad(s.id, s.ca, s.en, s.members.map { e -> SquadMember(e.key, e.name, e.ca, e.en, e.color, e.style) })
         }
-    }
 
     /** Qui pot fer un encàrrec: vents que ja hi encaixen i especialistes nous. */
     fun crewPropose(task: String, lang: String): CrewProposal =
@@ -843,108 +763,77 @@ class GregalApi(val base: String, val token: String) {
         val body = JSONObject().put("task", task).put("lang", lang)
             .put("reuse", JSONArray(p.reuse.map { it.id }))
             .put("create", JSONArray(p.create.map { it.json() }))
-        return post("/api/winds/crew/start", body).optJSONObject("rotllana")?.optString("id").orEmpty()
+        return postAs<CrewStartDto>("/api/winds/crew/start", body).rotllana?.id.orEmpty()
     }
 
     /** Pas de la feina d'una colla convocada: discussing, waiting, working, done, failed. */
     fun crewStatus(rotllanaId: String): Pair<Boolean, String> {
-        val o = JSONObject(read(conn("/api/winds/crew/status?rotllana=" + java.net.URLEncoder.encode(rotllanaId, "UTF-8"), "GET")))
-        require(o.opt("running") is Boolean) { "Invalid crew status" }
-        return o.getBoolean("running") to o.optString("step")
+        val o = getAs<CrewStatusDto>("/api/winds/crew/status?rotllana=" + URLEncoder.encode(rotllanaId, "UTF-8"))
+        val running = (o.running as? JsonPrimitive)?.takeIf { !it.isString }?.booleanOrNull
+        require(running != null) { "Invalid crew status" }
+        return running to o.step
     }
 
     /** Activa una colla: crea els especialistes que falten (idempotent). */
-    fun activateSquad(id: String, lang: String): Boolean {
-        val o = post("/api/winds/squads", JSONObject().put("id", id).put("lang", lang))
-        return o.optBoolean("ok", false)
-    }
+    fun activateSquad(id: String, lang: String): Boolean =
+        postAs<OkDto>("/api/winds/squads", JSONObject().put("id", id).put("lang", lang)).ok ?: false
 
     /** Envia un missatge al grup; respon el vent que toca (o el demanat). */
     fun rotllanaChat(rotllanaId: String, message: String, wind: String = "", cont: Boolean = false): Triple<String, String, List<GregalViewModel.PetMsg>> {
-        val o = post("/api/winds/rotllana", JSONObject(if (cont) RotllanaRequests.chatContinue(rotllanaId, wind) else RotllanaRequests.chat(rotllanaId, message, wind)))
-        val reply = o.optJSONObject("reply") ?: JSONObject()
-        val a = o.optJSONArray("history") ?: JSONArray()
-        val hist = (0 until a.length()).mapNotNull { i ->
-            val item = a.optJSONObject(i) ?: return@mapNotNull null
-            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = msgMillis(item.optLong("ts", 0L)), kind = item.optString("kind"), id = item.optString("id"))
-        }
-        return Triple(reply.optString("wind"), reply.optString("text"),
-            if (o.optBoolean("parcial", false)) markParcial(hist) else hist)
+        val o = postAs<RotllanaDoneDto>("/api/winds/rotllana", JSONObject(if (cont) RotllanaRequests.chatContinue(rotllanaId, wind) else RotllanaRequests.chat(rotllanaId, message, wind)))
+        val hist = o.history.map { it.toPetMsg() }
+        return Triple(o.reply?.wind.orEmpty(), o.reply?.text.orEmpty(), if (o.parcial) markParcial(hist) else hist)
     }
 
-    fun getRotllanaChat(rotllanaId: String): List<GregalViewModel.PetMsg> {
-        val o = JSONObject(read(conn("/api/winds/rotllana?rotlla=$rotllanaId", "GET")))
-        val a = o.optJSONArray("history") ?: JSONArray()
-        return (0 until a.length()).mapNotNull { i ->
-            val item = a.optJSONObject(i) ?: return@mapNotNull null
-            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = msgMillis(item.optLong("ts", 0L)), kind = item.optString("kind"), id = item.optString("id"))
-        }
-    }
+    fun getRotllanaChat(rotllanaId: String): List<GregalViewModel.PetMsg> =
+        getAs<HistoryDto>("/api/winds/rotllana?rotlla=$rotllanaId").history.map { it.toPetMsg() }
 
     fun deleteWind(id: String) {
-        read(conn("/api/winds", "DELETE", JSONObject().put("id", id).toString()))
+        read("/api/winds", "DELETE", JSONObject().put("id", id).toString())
     }
 
-    fun windChat(windId: String, message: String, cont: Boolean = false, session: String = ""): WindReply {
-        val o = post(windThreadPath("/api/winds/chat", session), windChatPayload(windId, message, cont))
-        return windReplyOf(o)
-    }
+    fun windChat(windId: String, message: String, cont: Boolean = false, session: String = ""): WindReply =
+        windReplyOf(read(windThreadPath("/api/winds/chat", session), "POST", windChatPayload(windId, message, cont).toString()))
 
     /** Sessions d'un vent: fils separats d'un mateix vent (com /api/sessions del xat general). */
-    fun windSessions(windId: String): List<WindSessionInfo> {
-        val o = JSONObject(read(conn("/api/winds/sessions?wind=" + java.net.URLEncoder.encode(windId, "UTF-8"), "GET")))
-        val arr = o.optJSONArray("sessions") ?: return emptyList()
-        return (0 until arr.length()).mapNotNull { i ->
-            val s = arr.optJSONObject(i) ?: return@mapNotNull null
-            WindSessionInfo(s.optString("name"), s.optString("title"), s.optInt("msgs"), s.optString("when"), s.optBoolean("current"))
+    fun windSessions(windId: String): List<WindSessionInfo> =
+        getAs<WindSessionsDto>("/api/winds/sessions?wind=" + URLEncoder.encode(windId, "UTF-8")).sessions.map { s ->
+            WindSessionInfo(s.name, s.title, s.msgs, s.whenText, s.current)
         }
-    }
 
     /** Crea una sessió nova del vent i l'activa (el fil del vent comença de zero). */
-    fun windSessionNew(windId: String): String {
-        val o = post("/api/winds/sessions", JSONObject().put("wind", windId))
-        return o.optString("name")
-    }
+    fun windSessionNew(windId: String): String =
+        postAs<NameDto>("/api/winds/sessions", JSONObject().put("wind", windId)).name
 
     /** Obre una sessió concreta del vent: passa a ser l'activa i en torna l'historial. */
-    fun windSessionOpen(windId: String, name: String): List<GregalViewModel.PetMsg> {
-        val o = post("/api/winds/session/open", JSONObject().put("wind", windId).put("name", name))
-        val a = o.optJSONArray("history") ?: JSONArray()
-        return (0 until a.length()).mapNotNull { i ->
-            val item = a.optJSONObject(i) ?: return@mapNotNull null
-            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = msgMillis(item.optLong("ts", 0L)), kind = item.optString("kind"), id = item.optString("id"))
-        }
-    }
+    fun windSessionOpen(windId: String, name: String): List<GregalViewModel.PetMsg> =
+        postAs<HistoryDto>("/api/winds/session/open", JSONObject().put("wind", windId).put("name", name)).history.map { it.toPetMsg() }
 
     /** Esborra una sessió del vent (no l'activa). */
     fun windSessionDelete(windId: String, name: String) {
-        read(conn("/api/winds/sessions", "DELETE", JSONObject().put("wind", windId).put("name", name).toString()))
+        read("/api/winds/sessions", "DELETE", JSONObject().put("wind", windId).put("name", name).toString())
     }
 
     /** Feines dels vents (resum: estat, qui, fitxers i resultat). */
     /** La mascota: nom, cara, fil i el resum del que ha passat des de l'última visita. */
     fun cap(lang: String): CapState =
-        CapState.parse(JSONObject(read(conn("/api/winds/cap?lang=" + java.net.URLEncoder.encode(lang, "UTF-8"), "GET"))))
+        CapState.parse(read("/api/winds/cap?lang=" + URLEncoder.encode(lang, "UTF-8")))
 
     /** Li diu una cosa a la mascota; force = el camí que tria l'usuari ("self", "wind:<id>", "rotllana", "crew"). */
     fun capAsk(message: String, lang: String, force: String = ""): CapDecision =
-        CapDecision.parse(post("/api/winds/cap", JSONObject().put("message", message).put("lang", lang).put("force", force)))
+        CapDecision.parse(read("/api/winds/cap", "POST", JSONObject().put("message", message).put("lang", lang).put("force", force).toString()))
 
     /** Cuidar-la: "pet", "feed:galeta", "game:nuvols:12", "sleep", "wear:gorra". */
     fun capPlay(act: String, lang: String): Triple<CapPet, String, List<String>> {
-        val o = post("/api/winds/cap/play", JSONObject().put("act", act).put("lang", lang))
-        val u = o.optJSONArray("unlocked")
-        return Triple(CapPet.parse(o.optJSONObject("pet") ?: JSONObject()), o.optString("say"),
-            if (u == null) emptyList() else (0 until u.length()).map { u.optString(it) })
+        val o = postAs<CapPlayDto>("/api/winds/cap/play", JSONObject().put("act", act).put("lang", lang))
+        return Triple(o.pet ?: CapPet(), o.say, o.unlocked)
     }
 
     /** Endavant: crea els especialistes, obre el xat i, si cal, el curs accelerat. */
     fun capGo(message: String, lang: String, winds: List<String>, create: List<CapNew>, course: Boolean): CapGoResult {
-        val o = post("/api/winds/cap/go", JSONObject().put("message", message).put("lang", lang)
-            .put("winds", JSONArray(winds)).put("create", JSONArray(create.map { it.json() })).put("course", course))
-        fun strs(k: String) = o.optJSONArray(k)?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
-        val created = o.optJSONArray("created")?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it)?.optString("id") } }.orEmpty()
-        return CapGoResult(o.optString("wind"), o.optString("rotllana"), strs("studying"), created)
+        val o = postAs<CapGoDto>("/api/winds/cap/go", JSONObject().put("message", message).put("lang", lang)
+            .put("winds", JSONArray(winds)).put("create", JSONArray(GregalJson.encodeToString(create))).put("course", course))
+        return CapGoResult(o.wind, o.rotllana, o.studying, o.created.map { it.id })
     }
 
     /** Apunta al fil del Ventet on ha anat a parar una delegació. */
@@ -953,69 +842,59 @@ class GregalApi(val base: String, val token: String) {
     }
 
     /** Últim missatge de cada conversa (wind:<id>, rot:<id>, cap) per a la llista. */
-    fun summaries(): Map<String, ConvoSummary> {
-        val o = JSONObject(read(conn("/api/winds/summaries", "GET")))
-        val a = o.optJSONArray("items") ?: JSONArray()
-        return (0 until a.length()).mapNotNull { i ->
-            val j = a.optJSONObject(i) ?: return@mapNotNull null
-            ConvoSummary(j.optString("key"), j.optString("from"), j.optString("speaker"), j.optString("text"),
-                msgMillis(j.optLong("ts", 0L)), j.optInt("count"))
+    fun summaries(): Map<String, ConvoSummary> =
+        getAs<SummariesDto>("/api/winds/summaries").items.map { j ->
+            ConvoSummary(j.key, j.from, j.speaker, j.text, msgMillis(j.ts), j.count)
         }.associateBy { it.key }
-    }
 
     fun capRename(name: String): CapState {
-        val o = post("/api/winds/cap/profile", JSONObject().put("name", name))
-        return CapState(name = o.optString("name"), color = o.optString("color"), style = o.optString("style"))
+        val o = postAs<CapProfileDto>("/api/winds/cap/profile", JSONObject().put("name", name))
+        return CapState(name = o.name, color = o.color, style = o.style)
     }
 
     fun windTasks(): List<WindTask> {
-        val o = JSONObject(read(conn("/api/winds/tasks?summary=1", "GET")))
-        val a = o.optJSONArray("tasks") ?: JSONArray()
         fun ms(s: String): Long = try { java.time.Instant.parse(s).toEpochMilli() } catch (_: Exception) { 0L }
-        return (0 until a.length()).map {
-            val t = a.getJSONObject(it)
-            val agents = t.optJSONObject("agents")
-            val files = t.optJSONArray("files") ?: JSONArray()
+        return getAs<WindTasksDto>("/api/winds/tasks?summary=1").tasks.map { t ->
             WindTask(
-                id = t.optString("id"), task = t.optString("task"), workspace = t.optString("workspace"),
-                thread = t.optString("thread"), created = ms(t.optString("created")), updated = ms(t.optString("updated")),
-                status = t.optString("status"),
-                agents = agents?.keys()?.asSequence()?.sorted()?.map { k -> agents.optString(k) }?.filter { n -> n.isNotBlank() }?.toList().orEmpty(),
-                files = (0 until files.length()).map { i -> files.optString(i) }.filter { f -> f.isNotBlank() },
-                result = t.optString("result"), error = t.optString("error"),
+                id = t.id, task = t.task, workspace = t.workspace,
+                thread = t.thread, created = ms(t.created), updated = ms(t.updated),
+                status = t.status,
+                agents = t.agents.keys.sorted().map { k -> t.agents[k].looseString() }.filter { n -> n.isNotBlank() },
+                files = t.files.filter { f -> f.isNotBlank() },
+                result = t.result, error = t.error,
             )
         }
     }
 
     /** Text d'un fitxer (GET /api/file). null + motiu si és binari o massa gran. */
     fun readTextFile(path: String): Pair<String?, String?> {
-        val o = JSONObject(read(conn("/api/file?path=" + java.net.URLEncoder.encode(path, "UTF-8"), "GET")))
+        val o = getAs<FileDto>("/api/file?path=" + URLEncoder.encode(path, "UTF-8"))
         return when {
-            o.optBoolean("binary") -> null to "binary"
-            o.optBoolean("too_big") -> null to "too_big"
-            else -> o.optString("content") to null
+            o.binary -> null to "binary"
+            o.tooBig -> null to "too_big"
+            else -> o.content to null
         }
     }
 
     /** Veus proactives posteriors a desDe (unix). Lleuger: el vigilant ho
      *  crida en segon pla sense descarregar historials. */
     fun windNovetats(desDe: Long): List<WindNovetat> =
-        AvuiJson.novetats(read(conn("/api/winds/novetats?des_de=$desDe", "GET")))
+        AvuiJson.novetats(read("/api/winds/novetats?des_de=$desDe"))
 
     /** La safata «Avui» (GET /api/winds/avui). */
-    fun avui(): AvuiView = AvuiJson.view(read(conn("/api/winds/avui", "GET")))
+    fun avui(): AvuiView = AvuiJson.view(read("/api/winds/avui"))
 
     /** Una decisió sobre una targeta: done | later | dismiss | useful | notuseful | save | reopen. */
     fun avuiAction(id: String, action: String): Boolean =
-        post("/api/winds/avui", JSONObject().put("id", id).put("action", action)).optBoolean("ok", false)
+        postAs<OkDto>("/api/winds/avui", JSONObject().put("id", id).put("action", action)).ok ?: false
 
-    fun avuiSettings(): AvuiSettings = AvuiJson.settings(get("/api/winds/avui/settings"))
+    fun avuiSettings(): AvuiSettings = AvuiJson.settings(read("/api/winds/avui/settings"))
 
     /** Desa la configuració; [tune] null = no el toquis. */
     fun saveAvuiSettings(s: AvuiSettings, tune: String? = null): AvuiSettings {
         val body = JSONObject().put("quiet_from", s.quietFrom).put("quiet_to", s.quietTo).put("level", s.level)
         if (tune != null) body.put("tune", tune)
-        return AvuiJson.settings(post("/api/winds/avui/settings", body))
+        return AvuiJson.settings(read("/api/winds/avui/settings", "POST", body.toString()))
     }
 
     /** Resposta d'un torn amb streaming (SSE per POST). */
@@ -1039,21 +918,10 @@ class GregalApi(val base: String, val token: String) {
         val name: String = "", val kind: String = "", val what: String = "", val reason: String = "",
     )
 
-    private fun parseWindAsk(o: JSONObject): WindAsk {
-        val opts = o.optJSONArray("options")
-        return WindAsk(
-            key = o.optString("key"), type = o.optString("type").ifBlank { "approve" }, query = o.optString("query"),
-            options = (0 until (opts?.length() ?: 0)).mapNotNull { i ->
-                opts?.optJSONObject(i)?.let { it.optString("label") to it.optString("description") }?.takeIf { it.first.isNotBlank() }
-            },
-            name = o.optString("name"), kind = o.optString("kind"), what = o.optString("what"), reason = o.optString("reason"),
-        )
-    }
-
     /** GET /api/winds/pending: el que els vents esperen (si l'app s'havia tancat). */
     fun getWindAsks(): List<WindAsk> {
-        val arr = get("/api/winds/pending").optJSONArray("pending") ?: throw java.io.IOException("resposta sense pending (servidor antic?)")
-        return (0 until arr.length()).mapNotNull { i -> arr.optJSONObject(i)?.let(::parseWindAsk)?.takeIf { it.key.isNotBlank() } }
+        val arr = getAs<PendingDto>("/api/winds/pending").pending ?: throw IOException("resposta sense pending (servidor antic?)")
+        return arr.map { it.toAsk() }.filter { it.key.isNotBlank() }
     }
 
     /** POST /api/winds/answer: respon una aprovació (approve) o una pregunta (answer). */
@@ -1062,8 +930,8 @@ class GregalApi(val base: String, val token: String) {
     }
 
     /**
-     * Llegeix un SSE (event:/data: per línies) cridant onEvent a mesura que
-     * arriba. Puro excepte la lectura: parseWindStreamEvent es pot provar sol.
+     * Llegeix un SSE (event:/data:) cridant onEvent a mesura que arriba.
+     * Pur excepte la lectura: parseWindStreamEvent es pot provar sol.
      */
     fun streamPost(path: String, payload: JSONObject, onEvent: (WindStreamEvent) -> Unit) =
         sseLoop(path, payload) { ev, data ->
@@ -1081,11 +949,11 @@ class GregalApi(val base: String, val token: String) {
     fun capAskStream(message: String, lang: String, force: String = "", onText: (String) -> Unit): CapDecision {
         var done: CapDecision? = null
         sseLoop("/api/winds/cap/stream", JSONObject().put("message", message).put("lang", lang).put("force", force)) { ev, data ->
-            val o = try { JSONObject(data) } catch (_: Exception) { return@sseLoop false }
+            val o = try { GregalJson.parseToJsonElement(data) as? JsonObject } catch (_: Exception) { null } ?: return@sseLoop false
             when (ev) {
-                "token" -> { onText(o.optString("token")); false }
-                "error" -> throw ApiException(o.optString("error", "stream error"))
-                "done" -> { done = CapDecision.parse(o); true }
+                "token" -> { onText(o.str("token")); false }
+                "error" -> throw ApiException(if (o.containsKey("error")) o.str("error") else "stream error")
+                "done" -> { done = CapDecision.parse(data); true }
                 else -> false
             }
         }
@@ -1094,86 +962,85 @@ class GregalApi(val base: String, val token: String) {
 
     /** Llegeix un flux SSE: onRaw(event, data) torna cert quan ja n'hi ha prou. */
     private fun sseLoop(path: String, payload: JSONObject, onRaw: (String?, String) -> Boolean) {
-        val c = conn(path, "POST", payload.toString())
-        try {
-            val code = c.responseCode
+        val r = exec(path, "POST", payload.toString())
+        r.use {
+            val code = r.code
             // Only an explicit unsupported route may be retried as a classic POST.
             // Timeout, server error, or EOF may mean tools have ALREADY run.
             if (code in listOf(404, 405, 501)) throw WindStreamUnavailable()
-            if (code !in 200..299) {
-                val err = try { c.errorStream?.bufferedReader(StandardCharsets.UTF_8)?.readText().orEmpty() } catch (_: Exception) { "" }
-                throw ApiException("HTTP $code: ${err.take(200)}")
-            }
-            if (c.contentType.orEmpty().startsWith("text/html")) throw WindStreamUnavailable()
-            var ev: String? = null
-            val data = StringBuilder()
-            fun dispatch(): Boolean {
-                val event = ev; val body = data.toString()
-                ev = null; data.clear()
-                if (body.isEmpty()) return false
-                return onRaw(event, body)
-            }
-            c.inputStream.bufferedReader(StandardCharsets.UTF_8).use { reader ->
-                while (true) {
-                    val line = reader.readLine() ?: break
-                    when {
-                        line.startsWith("event:") -> ev = line.substringAfter("event:").trim()
-                        line.startsWith("data:") -> {
-                            if (data.isNotEmpty()) data.append("\n")
-                            data.append(line.substringAfter("data:").trim())
-                        }
-                        line.isBlank() -> if (dispatch()) return
-                    }
+            if (code !in 200..299) throw ApiException("HTTP $code: ${bodyText(r).take(200)}")
+            if (r.header("Content-Type").orEmpty().startsWith("text/html")) throw WindStreamUnavailable()
+            readEvents(r) { ev, data -> data.isNotEmpty() && onRaw(ev, data) }
+        }
+    }
+
+    /**
+     * Passa els events d'una resposta SSE ja oberta (okhttp-sse) a [onEvent],
+     * que torna cert per plegar. Una excepció de [onEvent] o de la xarxa es
+     * rellança. El cos es llegeix com a flux encara que el servidor no en
+     * declari el tipus (com feia el lector d'abans): okhttp-sse només mira la
+     * capçalera.
+     */
+    private fun readEvents(r: Response, onEvent: (type: String?, data: String) -> Boolean) {
+        val body = r.body
+        val stream = if (body.contentType()?.let { it.type == "text" && it.subtype == "event-stream" } == true) r
+            else r.newBuilder().body(body.source().asResponseBody(SSE_TYPE, -1L)).build()
+        var failure: Throwable? = null
+        var stopped = false
+        EventSources.processResponse(stream, object : EventSourceListener() {
+            override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
+                if (stopped) return
+                try {
+                    if (onEvent(type, data)) { stopped = true; eventSource.cancel() }
+                } catch (t: Throwable) {
+                    failure = t; stopped = true; eventSource.cancel()
                 }
-                if (data.isNotEmpty()) dispatch()
             }
-        } finally { c.disconnect() }
+
+            override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
+                if (!stopped && failure == null) failure = t ?: IOException("SSE failed (HTTP ${response?.code})")
+            }
+        })
+        failure?.let { throw it }
     }
 
     fun parseWindStreamEvent(event: String?, data: String): WindStreamEvent? {
         if (data.isEmpty()) return null
-        val o = try { JSONObject(data) } catch (_: Exception) { return null }
+        val o = try { GregalJson.parseToJsonElement(data) as? JsonObject } catch (_: Exception) { null } ?: return null
         return when (event) {
-            "phase" -> WindStreamEvent.Phase(o.optString("phase", "working"))
-            "activity" -> WindStreamEvent.Activity(o.optString("phase", "working"), o.optString("tool").take(48), o.optInt("step").coerceAtLeast(0))
-            "token" -> WindStreamEvent.Token(o.optString("token"))
-            "done" -> if (o.has("history") && o.opt("reply") is JSONObject) {
-                val reply = o.optJSONObject("reply") ?: JSONObject()
-                val a = o.optJSONArray("history") ?: JSONArray()
-                val hist = (0 until a.length()).mapNotNull { i ->
-                    val item = a.optJSONObject(i) ?: return@mapNotNull null
-                    GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = msgMillis(item.optLong("ts", 0L)), kind = item.optString("kind"), id = item.optString("id"))
-                }
-                val parcial = o.optBoolean("parcial", false)
-                WindStreamEvent.DoneRotllana(reply.optString("wind"), reply.optString("text"),
-                    if (parcial) markParcial(hist) else hist, parcial, o.optBoolean("silenci", false),
-                    o.optJSONArray("failed")?.let { failed -> List(failed.length()) { failed.optString(it) } }.orEmpty())
+            "phase" -> WindStreamEvent.Phase(if (o.containsKey("phase")) o.str("phase") else "working")
+            "activity" -> {
+                val a = GregalJson.decodeFromJsonElement<ActivityDto>(o)
+                WindStreamEvent.Activity(a.phase, a.tool.take(48), a.step.coerceAtLeast(0))
+            }
+            "token" -> WindStreamEvent.Token(o.str("token"))
+            "done" -> if (o.containsKey("history") && o["reply"] is JsonObject) {
+                val d = GregalJson.decodeFromJsonElement<RotllanaDoneDto>(o)
+                val hist = d.history.map { it.toPetMsg() }
+                WindStreamEvent.DoneRotllana(d.reply?.wind.orEmpty(), d.reply?.text.orEmpty(),
+                    if (d.parcial) markParcial(hist) else hist, d.parcial, d.silenci, d.failed)
             } else {
                 WindStreamEvent.DoneWind(windReplyOf(o))
             }
-            "error" -> WindStreamEvent.Error(o.optString("error", "error"))
-            "approve_request", "question_request" -> parseWindAsk(o).takeIf { it.key.isNotBlank() }?.let { WindStreamEvent.Ask(it) }
-            "ask_resolved" -> WindStreamEvent.AskResolved(o.optString("key"))
+            "error" -> WindStreamEvent.Error(if (o.containsKey("error")) o.str("error") else "error")
+            "approve_request", "question_request" ->
+                GregalJson.decodeFromJsonElement<WindAskDto>(o).toAsk().takeIf { it.key.isNotBlank() }?.let { WindStreamEvent.Ask(it) }
+            "ask_resolved" -> WindStreamEvent.AskResolved(o.str("key"))
             else -> null
         }
     }
 
-    private fun windReplyOf(o: JSONObject): WindReply {
-        val acts = o.optJSONArray("actions")
-        val reminds = (0 until (acts?.length() ?: 0)).mapNotNull { i ->
-            acts?.optJSONObject(i)?.takeIf { it.optString("kind") == "remind" }?.optString("at")
-        }.filter { it.isNotBlank() }
-        val remindAt = (0 until (acts?.length() ?: 0)).mapNotNull { i ->
-            acts?.optJSONObject(i)?.takeIf { it.optString("kind") == "remind" || it.optString("kind") == "followup" }?.optString("at_iso")
-                ?.let { runCatching { java.time.OffsetDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() }
+    private fun windReplyOf(raw: String): WindReply = windReplyOf(GregalJson.parseToJsonElement(raw) as JsonObject)
+
+    private fun windReplyOf(o: JsonObject): WindReply {
+        val d = GregalJson.decodeFromJsonElement<WindReplyDto>(o)
+        val reminds = d.actions.filter { it.kind == "remind" }.map { it.at }.filter { it.isNotBlank() }
+        val follow = d.actions.filter { it.kind == "remind" || it.kind == "followup" }
+        val remindAt = follow.mapNotNull { a ->
+            runCatching { java.time.OffsetDateTime.parse(a.atIso).toInstant().toEpochMilli() }.getOrNull()
         }
-        val actions = (0 until (acts?.length() ?: 0)).mapNotNull { i ->
-            val a = acts?.optJSONObject(i) ?: return@mapNotNull null
-            val kind = a.optString("kind")
-            if (kind != "remind" && kind != "followup") return@mapNotNull null
-            WindTurnAction(a.optString("id"), kind, a.optString("at_iso"), a.optString("text"))
-        }
-        return WindReply(o.optString("reply"), reminds, o.optBoolean("parcial", false), remindAt, actions)
+        val actions = follow.map { a -> WindTurnAction(a.id, a.kind, a.atIso, a.text) }
+        return WindReply(d.reply, reminds, d.parcial, remindAt, actions)
     }
 
     /** Marca l'última resposta del vent com a parcial (botó «continua»). */
@@ -1195,7 +1062,7 @@ class GregalApi(val base: String, val token: String) {
     private fun windThreadPath(path: String, session: String): String {
         if (session.isEmpty()) return path
         val separator = if ('?' in path) '&' else '?'
-        return path + separator + "session=" + java.net.URLEncoder.encode(session, "UTF-8")
+        return path + separator + "session=" + URLEncoder.encode(session, "UTF-8")
     }
 
     fun windChatStream(windId: String, message: String, cont: Boolean = false, session: String = "", onEvent: (WindStreamEvent) -> Unit): WindReply {
@@ -1221,7 +1088,7 @@ class GregalApi(val base: String, val token: String) {
         val body = JSONObject()
         if (windId.isNotEmpty()) body.put("wind", windId)
         if (rotllanaId.isNotEmpty()) body.put("rotllana", rotllanaId)
-        read(conn("/api/winds/cancel", "POST", body.toString()))
+        read("/api/winds/cancel", "POST", body.toString())
     }
 
     // Steer: missatge lliurat al torn que treballa (200) o rebutjat (409,
@@ -1231,7 +1098,7 @@ class GregalApi(val base: String, val token: String) {
         if (windId.isNotEmpty()) body.put("kind", "wind").put("id", windId)
         if (rotllanaId.isNotEmpty()) body.put("kind", "rotllana").put("id", rotllanaId)
         return try {
-            read(conn("/api/winds/steer", "POST", body.toString()))
+            read("/api/winds/steer", "POST", body.toString())
             true
         } catch (e: ApiException) {
             if (e.message?.startsWith("HTTP 409") == true) false else throw e
@@ -1241,13 +1108,8 @@ class GregalApi(val base: String, val token: String) {
     fun getWindChat(windId: String): List<GregalViewModel.PetMsg> = getWindThread(windId).second
 
     fun getWindThread(windId: String, session: String = ""): Pair<String, List<GregalViewModel.PetMsg>> {
-        val o = JSONObject(read(conn(windThreadPath("/api/winds/chat?wind=$windId", session), "GET")))
-        val a = o.optJSONArray("history") ?: JSONArray()
-        val history = (0 until a.length()).mapNotNull { i ->
-            val item = a.optJSONObject(i) ?: return@mapNotNull null
-            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = msgMillis(item.optLong("ts", 0L)), kind = item.optString("kind"), id = item.optString("id"))
-        }
-        return o.optString("session") to history
+        val o = getAs<HistoryDto>(windThreadPath("/api/winds/chat?wind=$windId", session))
+        return o.session to o.history.map { it.toPetMsg() }
     }
 
     /** Rutina d'un vent: feina programada que corre el vent de veres (LLM + eines). */
@@ -1260,42 +1122,31 @@ class GregalApi(val base: String, val token: String) {
     /** Llista les rutines dels vents (daily/interval): el vent hi corre de veres. */
     /** L'última execució correcta d'una rutina: (inici ISO, text que va dir), o null. */
     fun getWindRutinaLastOutput(id: String): Pair<String, String>? {
-        val o = JSONObject(read(conn("/api/winds/rutines/runs?id=" + java.net.URLEncoder.encode(id, "UTF-8"), "GET")))
-        val arr = o.optJSONArray("runs") ?: return null
-        for (i in 0 until arr.length()) {
-            val x = arr.getJSONObject(i)
-            val out = x.optString("output").trim()
-            if (x.optString("status") == "ok" && out.isNotEmpty()) return x.optString("started_at") to out
+        val runs = getAs<RunsDto>("/api/winds/rutines/runs?id=" + URLEncoder.encode(id, "UTF-8")).runs
+        for (x in runs) {
+            val out = x.output.trim()
+            if (x.status == "ok" && out.isNotEmpty()) return x.startedAt to out
         }
         return null
     }
 
-    fun getWindRutines(): List<WindRutina> {
-        val o = JSONObject(read(conn("/api/winds/rutines", "GET")))
-        val arr = o.optJSONArray("rutines") ?: JSONArray()
-        return (0 until arr.length()).map { i ->
-            val x = arr.getJSONObject(i)
-            WindRutina(
-                x.optString("id"), x.optString("wind"), x.optString("wind_name"), x.optString("name"),
-                x.optString("kind"), x.optString("time"), x.optDouble("interval_h"), x.optString("prompt"),
-                x.optBoolean("enabled"), x.optString("next_due"), x.optString("next_due_at"), x.optString("last_status"),
-            )
+    fun getWindRutines(): List<WindRutina> =
+        getAs<RutinesDto>("/api/winds/rutines").rutines.map { x ->
+            WindRutina(x.id, x.wind, x.windName, x.name, x.kind, x.time, x.intervalH, x.prompt,
+                x.enabled, x.nextDue, x.nextDueAt, x.lastStatus)
         }
-    }
 
     /** Crea una rutina de vent: quan toca, el vent obre un torn real (cerca, pensa, parla). */
     fun createWindRutina(windId: String, kind: String, time: String, intervalH: Double, prompt: String, name: String): Boolean {
-        val o = post("/api/winds/rutina", JSONObject()
+        val o = postAs<JobRefDto>("/api/winds/rutina", JSONObject()
             .put("wind", windId).put("kind", kind).put("time", time)
             .put("interval_h", intervalH).put("prompt", prompt).put("name", name))
-        return o.has("job")
+        return o.job != null
     }
 
     /** Esborra una rutina de vent. */
-    fun deleteWindRutina(id: String): Boolean {
-        val o = post("/api/winds/rutines/delete", JSONObject().put("id", id))
-        return o.optBoolean("ok", false)
-    }
+    fun deleteWindRutina(id: String): Boolean =
+        postAs<OkDto>("/api/winds/rutines/delete", JSONObject().put("id", id)).ok ?: false
 
     /** Preferència d'organització: una secció temàtica de la llista de converses. */
     data class WindSection(
@@ -1314,45 +1165,27 @@ class GregalApi(val base: String, val token: String) {
      * Plugins del servidor (Racó, Partits, Arena): id → encès. Un servidor
      * antic sense /api/plugins torna un mapa buit (i tot es mostra).
      */
-    fun getPlugins(): Map<String, Boolean> {
-        val o = JSONObject(read(conn("/api/plugins", "GET")))
-        val arr = o.optJSONArray("plugins") ?: JSONArray()
-        return (0 until arr.length()).associate { i ->
-            val p = arr.getJSONObject(i)
-            p.optString("id") to p.optBoolean("enabled", true)
-        }
-    }
+    fun getPlugins(): Map<String, Boolean> =
+        getAs<PluginsDto>("/api/plugins").plugins.associate { p -> p.id to p.enabled }
 
     /** Llegeix els favorits i les seccions (buits si no n'hi ha). */
     /** Com es diuen els ajudants en aquest compte del servidor ({singular, plural}). */
     data class Collective(val singular: String, val plural: String, val asked: Boolean)
 
     fun getWindCollective(): Collective =
-        get("/api/winds/collective").let { Collective(it.optString("singular"), it.optString("plural"), it.optBoolean("asked")) }
+        getAs<CollectiveDto>("/api/winds/collective").let { Collective(it.singular, it.plural, it.asked) }
 
     fun setWindCollective(singular: String, plural: String) {
         post("/api/winds/collective", JSONObject().put("singular", singular).put("plural", plural))
     }
 
     /** Noms per a ajudants nous, al gust del nom col·lectiu triat. */
-    fun getWindNames(n: Int, lang: String): List<String> {
-        val a = get("/api/winds/names?n=$n&lang=$lang").optJSONArray("names") ?: return emptyList()
-        return (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() }
-    }
+    fun getWindNames(n: Int, lang: String): List<String> =
+        getAs<NamesDto>("/api/winds/names?n=$n&lang=$lang").names.filter { it.isNotBlank() }
 
     fun getWindsMeta(): WindsMeta {
-        val o = JSONObject(read(conn("/api/winds/meta", "GET")))
-        val m = o.optJSONObject("meta") ?: JSONObject()
-        val favs = m.optJSONArray("favorites") ?: JSONArray()
-        val secs = m.optJSONArray("sections") ?: JSONArray()
-        return WindsMeta(
-            (0 until favs.length()).map { favs.optString(it) },
-            (0 until secs.length()).map { i ->
-                val s = secs.getJSONObject(i)
-                val items = s.optJSONArray("items") ?: JSONArray()
-                WindSection(s.optString("id"), s.optString("name"), (0 until items.length()).map { items.optString(it) })
-            },
-        )
+        val m = getAs<MetaDto>("/api/winds/meta").meta ?: MetaBodyDto()
+        return WindsMeta(m.favorites, m.sections.map { s -> WindSection(s.id, s.name, s.items) })
     }
 
     /** Desa favorits i seccions sencers (la UI hi envia sempre l'estat complet). */
@@ -1365,38 +1198,23 @@ class GregalApi(val base: String, val token: String) {
         }
         val favorites = JSONArray()
         meta.favorites.forEach(favorites::put)
-        val o = post("/api/winds/meta", JSONObject().put("favorites", favorites).put("sections", sections))
-        return o.optJSONObject("meta") != null
+        val o = postAs<MetaDto>("/api/winds/meta", JSONObject().put("favorites", favorites).put("sections", sections))
+        return o.meta != null
     }
 
     /** Missatges programats i estadístiques dels vents (recordatoris, cors). */
     fun getWindsProgramats(): WindsProgramats {
-        val o = JSONObject(read(conn("/api/winds/programats", "GET")))
-        fun str(x: JSONObject, k: String) = x.optString(k)
-        val rem = o.optJSONArray("reminders") ?: JSONArray()
-        val hearts = o.optJSONArray("hearts") ?: JSONArray()
-        val stats = o.optJSONArray("stats") ?: JSONArray()
+        val o = getAs<ProgramatsDto>("/api/winds/programats")
         return WindsProgramats(
-            reminders = (0 until rem.length()).map { i ->
-                val x = rem.getJSONObject(i)
-                ProgramatReminder(x.optString("id"), x.optString("wind_name"), x.optString("at"), x.optString("text"))
-            },
-            hearts = (0 until hearts.length()).map { i ->
-                val x = hearts.getJSONObject(i)
-                ProgramatHeart(x.optString("wind"), x.optString("wind_name"), x.optString("next_at"), x.optString("last_status"))
-            },
-            stats = (0 until stats.length()).map { i ->
-                val x = stats.getJSONObject(i)
-                ProgramatStats(x.optString("wind_name"), x.optInt("beats"), x.optInt("spoke"), x.optInt("silent"), x.optInt("reminders"), str(x, "last_at"))
-            },
+            reminders = o.reminders.map { x -> ProgramatReminder(x.id, x.windName, x.at, x.text) },
+            hearts = o.hearts.map { x -> ProgramatHeart(x.wind, x.windName, x.nextAt, x.lastStatus) },
+            stats = o.stats.map { x -> ProgramatStats(x.windName, x.beats, x.spoke, x.silent, x.reminders, x.lastAt) },
         )
     }
 
     /** Estudi «fes-te expert»: engega una sessió (POST) o consulta el progrés (GET). */
-    fun startWindExpert(windId: String, tema: String): Boolean {
-        val o = post("/api/winds/expert", JSONObject().put("wind", windId).put("tema", tema))
-        return o.optBoolean("ok", false)
-    }
+    fun startWindExpert(windId: String, tema: String): Boolean =
+        postAs<OkDto>("/api/winds/expert", JSONObject().put("wind", windId).put("tema", tema)).ok ?: false
 
     /** Wiki de l'espai vents: pàgines de resum amb markdown, gràfics i imatges. */
     data class WikiPage(
@@ -1404,27 +1222,19 @@ class GregalApi(val base: String, val token: String) {
         val cos: String, val updated: String,
     )
 
-    fun getWikiPages(): List<WikiPage> {
-        val o = JSONObject(read(conn("/api/winds/wiki", "GET")))
-        val a = o.optJSONArray("pages") ?: JSONArray()
-        return (0 until a.length()).map { wikiFromJSON(a.getJSONObject(it)) }
-    }
+    fun getWikiPages(): List<WikiPage> = getAs<WikiPagesDto>("/api/winds/wiki").pages.map { it.toPage() }
 
-    fun getWikiPage(nom: String): WikiPage {
-        val o = JSONObject(read(conn("/api/winds/wiki/${java.net.URLEncoder.encode(nom, "UTF-8")}", "GET")))
-        return wikiFromJSON(o.getJSONObject("page"))
-    }
+    fun getWikiPage(nom: String): WikiPage =
+        (getAs<WikiPageRefDto>("/api/winds/wiki/${URLEncoder.encode(nom, "UTF-8")}").page ?: throw ApiException("wiki page not found")).toPage()
 
     fun saveWikiPage(p: WikiPage): Boolean {
-        val o = post("/api/winds/wiki", JSONObject()
+        val o = postAs<WikiPageRefDto>("/api/winds/wiki", JSONObject()
             .put("nom", p.nom).put("titol", p.titol).put("descripcio", p.descripcio).put("cos", p.cos))
-        return o.has("page")
+        return o.page != null
     }
 
     fun deleteWikiPage(nom: String): Boolean = try {
-        val c = conn("/api/winds/wiki/${java.net.URLEncoder.encode(nom, "UTF-8")}", "DELETE")
-        c.requestMethod = "DELETE"
-        JSONObject(read(c)).optBoolean("ok", false)
+        GregalJson.decodeFromString<OkDto>(read("/api/winds/wiki/${URLEncoder.encode(nom, "UTF-8")}", "DELETE")).ok ?: false
     } catch (e: Exception) { false }
 
     /** Resumeix l'última conversa (vent o rotllana) i la desa com a pàgina nova. */
@@ -1433,44 +1243,33 @@ class GregalApi(val base: String, val token: String) {
         if (wind != null) body.put("wind", wind)
         if (rotllana != null) body.put("rotllana", rotllana)
         if (titol.isNotBlank()) body.put("titol", titol)
-        val o = post("/api/winds/wiki/summary", body)
-        return if (o.has("page")) wikiFromJSON(o.getJSONObject("page")) else null
+        return postAs<WikiPageRefDto>("/api/winds/wiki/summary", body).page?.toPage()
     }
-
-    private fun wikiFromJSON(j: JSONObject): WikiPage = WikiPage(
-        j.optString("nom"), j.optString("titol"), j.optString("descripcio"),
-        j.optString("cos"), j.optString("updated"),
-    )
 
     fun getWindExpert(windId: String): WindExpert {
-        val o = JSONObject(read(conn("/api/winds/expert?wind=${java.net.URLEncoder.encode(windId, "UTF-8")}", "GET")))
-        return WindExpert(o.optString("wind"), o.optString("tema"), o.optString("fase"),
-            o.optInt("pas"), o.optInt("passos"), o.optLong("iniciat", 0L), o.optLong("acabat", 0L), o.optString("error"))
+        val o = getAs<ExpertDto>("/api/winds/expert?wind=${URLEncoder.encode(windId, "UTF-8")}")
+        return WindExpert(o.wind, o.tema, o.fase, o.pas, o.passos, o.iniciat, o.acabat, o.error)
     }
 
-    fun getJobs(): List<JobItem> {
-        val o = JSONObject(read(conn("/api/jobs", "GET")))
-        val a = o.optJSONArray("jobs") ?: JSONArray()
-        return (0 until a.length()).map {
-            val j = a.getJSONObject(it)
+    fun getJobs(): List<JobItem> =
+        getAs<JobsDto>("/api/jobs").jobs.map { j ->
             JobItem(
-                id = j.optString("id"), name = j.optString("name"), prompt = j.optString("prompt"),
-                kind = j.optString("kind", "manual"), time = j.optString("time"),
-                intervalH = j.optDouble("interval_h", 0.0), enabled = j.optBoolean("enabled"),
-                notify = j.optBoolean("notify", true), lastStatus = j.optString("last_status"),
-                nextDue = j.optString("next_due"),
-                lastAt = j.optString("last_at"), nextDueAt = j.optString("next_due_at"),
+                id = j.id, name = j.name, prompt = j.prompt,
+                kind = j.kind, time = j.time,
+                intervalH = j.intervalH, enabled = j.enabled,
+                notify = j.notify, lastStatus = j.lastStatus,
+                nextDue = j.nextDue,
+                lastAt = j.lastAt, nextDueAt = j.nextDueAt,
             )
         }
-    }
 
     fun saveJob(j: JobItem): JobItem {
-        val o = post("/api/jobs/save", JSONObject()
+        val o = postAs<JobRefDto>("/api/jobs/save", JSONObject()
             .put("id", j.id).put("name", j.name).put("prompt", j.prompt)
             .put("kind", j.kind).put("time", j.time).put("interval_h", j.intervalH)
             .put("enabled", j.enabled).put("notify", j.notify))
-        val r = o.optJSONObject("job") ?: return j
-        return j.copy(id = r.optString("id", j.id))
+        val r = o.job as? JsonObject ?: return j
+        return j.copy(id = if (r.containsKey("id")) r.str("id") else j.id)
     }
 
     fun deleteJob(id: String) {
@@ -1486,63 +1285,44 @@ class GregalApi(val base: String, val token: String) {
      * marxa. false si ja n'hi ha un altre en marxa o el job està pausat (409).
      */
     fun runScheduledJob(id: String): Boolean {
-        val c = conn("/api/jobs/run", "POST", JSONObject().put("id", id).put("scheduled", true).toString())
-        if (c.responseCode == 409) return false
-        read(c)
+        val r = exec("/api/jobs/run", "POST", JSONObject().put("id", id).put("scheduled", true).toString())
+        if (r.code == 409) { r.close(); return false }
+        read(r)
         return true
     }
 
-    fun getRuns(jobId: String = "", n: Int = 30): List<RunItem> {
-        val o = JSONObject(read(conn("/api/jobs/runs?job=$jobId&n=$n", "GET")))
-        val a = o.optJSONArray("runs") ?: JSONArray()
-        return (0 until a.length()).map {
-            val r = a.getJSONObject(it)
+    fun getRuns(jobId: String = "", n: Int = 30): List<RunItem> =
+        getAs<RunsDto>("/api/jobs/runs?job=$jobId&n=$n").runs.map { r ->
             RunItem(
-                id = r.optString("id"), jobId = r.optString("job_id"), jobName = r.optString("job_name"),
-                startedAt = r.optString("started_at"), finishedAt = r.optString("finished_at"),
-                status = r.optString("status"), output = r.optString("output"), error = r.optString("error"),
+                id = r.id, jobId = r.jobId, jobName = r.jobName,
+                startedAt = r.startedAt, finishedAt = r.finishedAt,
+                status = r.status, output = r.output, error = r.error,
             )
         }
-    }
 
     /**
      * Crida SSE (/api/chat o /api/agent). Cada event arriba a [onEvent];
      * retorna en acabar l'stream. Llança ApiException en error HTTP.
      */
     fun stream(path: String, payload: JSONObject, onEvent: (SseEvent) -> Unit) {
-        val c = conn(path, "POST", payload.toString())
-        streamRead(c, onEvent)
+        streamRead(exec(path, "POST", payload.toString()), onEvent)
     }
 
     /** SSE per GET (execució de grafs): mateix Bearer, mateix parser. */
     fun streamGet(path: String, onEvent: (SseEvent) -> Unit) {
-        streamRead(conn(path, "GET"), onEvent)
+        streamRead(exec(path, "GET"), onEvent)
     }
 
-    private fun streamRead(c: java.net.HttpURLConnection, onEvent: (SseEvent) -> Unit) {
-        val code = c.responseCode
+    private fun streamRead(r: Response, onEvent: (SseEvent) -> Unit) = r.use {
+        val code = r.code
         if (code == 401) throw ApiException("HTTP 401: server requires a valid token")
-        if (code !in 200..299) {
-            val t = try {
-                c.errorStream?.bufferedReader(StandardCharsets.UTF_8)?.use { it.readText() } ?: ""
-            } catch (_: Exception) { "" }
-            throw ApiException("HTTP $code: ${t.take(200)}")
-        }
-        BufferedReader(InputStreamReader(c.inputStream, StandardCharsets.UTF_8)).use { r ->
-            var carry = ""
-            val buf = CharArray(4096)
-            while (true) {
-                val n = r.read(buf)
-                if (n < 0) break
-                val (evs, rest) = SseParser.feed(String(buf, 0, n), carry)
-                carry = rest
-                evs.forEach(onEvent)
-            }
+        if (code !in 200..299) throw ApiException("HTTP $code: ${bodyText(r).take(200)}")
+        // Només els events amb nom i dades (com feia SseParser).
+        readEvents(r) { type, data ->
+            if (!type.isNullOrEmpty() && data.isNotEmpty()) onEvent(SseEvent(type, data))
+            false
         }
     }
-
-    private fun JSONArray.toStrList(): List<String> =
-        (0 until length()).map { optString(it) }
 }
 
 class ApiException(msg: String) : Exception(msg)
@@ -1561,11 +1341,12 @@ internal fun msgMillis(ts: Long): Long = if (ts in 1 until 100_000_000_000L) ts 
 // --- Parsers de la carpeta de treball (a part per poder-los provar) ---
 
 /** `last` arriba com a data ISO o com a mil·lisegons: es tolera totes dues. */
-internal fun instantsDeWorkspace(o: JSONObject): Long {
-    val raw = o.opt("last") ?: return 0L
-    if (raw is Number) return raw.toLong()
-    val txt = raw.toString()
+internal fun instantsDeWorkspace(raw: JsonElement?): Long {
+    if (raw !is JsonPrimitive) return 0L
+    if (!raw.isString) raw.longOrNull?.let { return it }
+    val txt = raw.content
     txt.toLongOrNull()?.let { return it }
+    txt.toDoubleOrNull()?.let { if (!raw.isString) return it.toLong() }
     return try {
         java.time.Instant.parse(txt).toEpochMilli()
     } catch (_: Exception) {
@@ -1573,118 +1354,511 @@ internal fun instantsDeWorkspace(o: JSONObject): Long {
     }
 }
 
-internal fun parseWorkspaces(o: JSONObject): WorkspacesInfo {
-    val llista = ArrayList<WorkspaceInfo>()
-    o.optJSONArray("workspaces")?.let { arr ->
-        for (i in 0 until arr.length()) {
-            val e = arr.optJSONObject(i) ?: continue
-            val path = e.optString("path")
-            if (path.isBlank()) continue
-            llista.add(
-                WorkspaceInfo(
-                    path = path,
-                    name = e.optString("name").ifBlank { path.trimEnd('/').substringAfterLast('/') },
-                    last = instantsDeWorkspace(e),
-                    missing = e.optBoolean("missing"),
-                ),
-            )
-        }
-    }
+internal fun parseWorkspaces(raw: String): WorkspacesInfo {
+    val o = GregalJson.decodeFromString<WorkspacesDto>(raw)
     return WorkspacesInfo(
-        current = o.optString("current"),
-        project = o.optString("project"),
-        branch = o.optString("branch"),
-        list = llista,
+        current = o.current,
+        project = o.project,
+        branch = o.branch,
+        list = o.workspaces.filter { it.path.isNotBlank() }.map { e ->
+            WorkspaceInfo(
+                path = e.path,
+                name = e.name.ifBlank { e.path.trimEnd('/').substringAfterLast('/') },
+                last = instantsDeWorkspace(e.last),
+                missing = e.missing,
+            )
+        },
     )
 }
 
-internal fun parseDirs(o: JSONObject): DirsInfo {
-    val dirs = ArrayList<DirEntry>()
-    o.optJSONArray("dirs")?.let { arr ->
-        for (i in 0 until arr.length()) {
-            val e = arr.optJSONObject(i) ?: continue
-            val path = e.optString("path")
-            if (path.isBlank()) continue
-            dirs.add(DirEntry(name = e.optString("name").ifBlank { path.substringAfterLast('/') }, path = path, git = e.optBoolean("git")))
-        }
-    }
-    val roots = ArrayList<String>()
-    o.optJSONArray("roots")?.let { arr -> for (i in 0 until arr.length()) roots.add(arr.optString(i)) }
+internal fun parseDirs(raw: String): DirsInfo {
+    val o = GregalJson.decodeFromString<DirsDto>(raw)
     return DirsInfo(
-        path = o.optString("path"),
-        name = o.optString("name"),
-        git = o.optBoolean("git"),
-        parent = o.optString("parent"),
-        home = o.optString("home"),
-        roots = roots,
-        dirs = dirs,
-        hidden = o.optInt("hidden"),
-        truncated = o.optBoolean("truncat") || o.optBoolean("truncated"),
+        path = o.path,
+        name = o.name,
+        git = o.git,
+        parent = o.parent,
+        home = o.home,
+        roots = o.roots,
+        dirs = o.dirs.filter { it.path.isNotBlank() }.map { e ->
+            DirEntry(name = e.name.ifBlank { e.path.substringAfterLast('/') }, path = e.path, git = e.git)
+        },
+        hidden = o.hidden,
+        truncated = o.truncat || o.truncated,
     )
 }
 
 /** Lectura pura de les respostes de la safata «Avui» i de les novetats (es prova sense xarxa). */
 object AvuiJson {
-    fun novetats(raw: String): List<WindNovetat> {
-        val a = JSONObject(raw).optJSONArray("novetats") ?: JSONArray()
-        return (0 until a.length()).mapNotNull {
-            val j = a.optJSONObject(it) ?: return@mapNotNull null
-            val text = j.optString("text")
-            if (text.isBlank()) null else WindNovetat(
-                ts = j.optLong("ts"),
-                wind = j.optString("wind"),
-                name = j.optString("name"),
-                source = j.optString("source"),
-                text = text,
-                job = j.optString("job"),
-                card = j.optString("card"),
-                quiet = j.optBoolean("quiet", false),
-                messageId = j.optString("message_id"),
+    fun novetats(raw: String): List<WindNovetat> =
+        GregalJson.decodeFromString<NovetatsDto>(raw).novetats.mapNotNull { j ->
+            if (j.text.isBlank()) null else WindNovetat(
+                ts = j.ts, wind = j.wind, name = j.name, source = j.source, text = j.text,
+                job = j.job, card = j.card, quiet = j.quiet, messageId = j.messageId,
             )
         }
-    }
 
-    fun card(j: JSONObject): AvuiCard {
-        val acts = j.optJSONArray("actions") ?: JSONArray()
-        return AvuiCard(
-            id = j.optString("id"), wind = j.optString("wind"), windName = j.optString("wind_name"),
-            source = j.optString("source"), section = j.optString("section").ifBlank { "fyi" },
-            title = j.optString("title"), why = j.optString("why"), body = j.optString("body"),
-            actions = (0 until acts.length()).mapNotNull { i ->
-                val a = acts.optJSONObject(i) ?: return@mapNotNull null
-                val label = a.optString("label")
-                if (label.isBlank()) null else AvuiAction(label, a.optString("prompt"))
-            },
-            state = j.optString("state").ifBlank { "open" }, feedback = j.optString("feedback"),
-            saved = j.optBoolean("saved", false), held = j.optBoolean("held", false),
-            created = j.optLong("created"), days = j.optInt("days", 0),
-        )
-    }
+    private fun card(j: AvuiCardDto): AvuiCard = AvuiCard(
+        id = j.id, wind = j.wind, windName = j.windName,
+        source = j.source, section = j.section.ifBlank { "fyi" },
+        title = j.title, why = j.why, body = j.body,
+        actions = j.actions.mapNotNull { a -> if (a.label.isBlank()) null else AvuiAction(a.label, a.prompt) },
+        state = j.state.ifBlank { "open" }, feedback = j.feedback,
+        saved = j.saved, held = j.held,
+        created = j.created, days = j.days,
+    )
 
-    private fun cards(o: JSONObject, key: String): List<AvuiCard> {
-        val a = o.optJSONArray(key) ?: return emptyList()
-        return (0 until a.length()).mapNotNull { i -> a.optJSONObject(i)?.let(::card) }.filter { it.id.isNotBlank() }
-    }
+    private fun cards(a: List<AvuiCardDto>): List<AvuiCard> = a.map(::card).filter { it.id.isNotBlank() }
 
-    fun settings(o: JSONObject?): AvuiSettings {
+    private fun settings(o: AvuiSettingsDto?): AvuiSettings {
         if (o == null) return AvuiSettings()
         return AvuiSettings(
-            quietFrom = o.optString("quiet_from").ifBlank { "22:00" },
-            quietTo = o.optString("quiet_to").ifBlank { "08:00" },
-            level = if (o.optString("level") == "calm") "calm" else "normal",
-            tune = o.optString("tune"),
+            quietFrom = o.quietFrom.ifBlank { "22:00" },
+            quietTo = o.quietTo.ifBlank { "08:00" },
+            level = if (o.level == "calm") "calm" else "normal",
+            tune = o.tune,
         )
     }
 
+    /** La configuració de la safata (GET o POST /api/winds/avui/settings). */
+    fun settings(raw: String): AvuiSettings = settings(GregalJson.decodeFromString<AvuiSettingsDto>(raw))
+
     fun view(raw: String): AvuiView {
-        val o = JSONObject(raw)
+        val o = GregalJson.decodeFromString<AvuiViewDto>(raw)
         return AvuiView(
-            date = o.optString("date"),
-            now = cards(o, "now"), fyi = cards(o, "fyi"), ahead = cards(o, "ahead"), done = cards(o, "done"),
-            held = o.optInt("held", 0), settings = settings(o.optJSONObject("settings")),
+            date = o.date,
+            now = cards(o.now), fyi = cards(o.fyi), ahead = cards(o.ahead), done = cards(o.done),
+            held = o.held, settings = settings(o.settings),
         )
     }
 
     /** «HH:MM» vàlid (00:00–23:59). */
     fun validTime(s: String): Boolean = Regex("""([01]\d|2[0-3]):[0-5]\d""").matches(s.trim())
 }
+
+// --- Models de lectura (kotlinx.serialization) ---
+// Tots els camps tenen valor per defecte: un servidor antic que no els envia
+// no trenca res. Els noms són els del JSON del servidor; després es passen
+// als models de l'app (ServerState, PetMsg…).
+
+@Serializable
+internal class HealthDto(
+    val status: String = "", val protocol: String = "",
+    @SerialName("instance_id") val instanceId: String = "",
+    val capabilities: Map<String, Boolean> = emptyMap(),
+)
+
+@Serializable
+internal class TranscriptDto(val role: String = "", val content: JsonElement? = null)
+
+@Serializable
+internal class StateDto(
+    val role: List<String> = emptyList(),
+    @SerialName("current_role") val currentRole: String = "",
+    val mode: String = "", val model: String = "", val provider: String = "",
+    val verify: String = "manual",
+    @SerialName("agent_busy") val agentBusy: Boolean = false,
+    val cwd: String = "", val project: String = "", val branch: String = "",
+    @SerialName("used_tokens") val usedTokens: Int = 0,
+    @SerialName("model_name") val modelName: String = "",
+    val think: String = "",
+    @SerialName("think_options") val thinkOptions: List<String> = emptyList(),
+    @SerialName("think_effective") val thinkEffective: String = "",
+    @SerialName("context_window") val contextWindow: Int = 0,
+    val permissive: Boolean = false,
+    @SerialName("auto_review") val autoReview: Boolean = false,
+    val access: String = "edits",
+    val transcript: List<TranscriptDto> = emptyList(),
+)
+
+@Serializable
+internal class ModelsDto(
+    val models: Map<String, List<String>> = emptyMap(),
+    val current: String = "",
+    @SerialName("vents_selected") val ventsSelected: String = "",
+)
+
+@Serializable internal class TokenDto(val token: String = "")
+@Serializable internal class InvitationDto(val code: String = "")
+@Serializable internal class MsgDto(val msg: String = "")
+@Serializable internal class PlanDto(val plan: String = "")
+@Serializable internal class SummaryDto(val summary: String = "canvis desfets")
+@Serializable internal class OkDto(val ok: Boolean? = null)
+@Serializable internal class CancelDto(val cancelled: Boolean? = null, val ok: Boolean? = null)
+@Serializable internal class ReplyTextDto(val reply: String = "")
+@Serializable internal class NotesDto(val notes: List<String> = emptyList())
+@Serializable internal class MemoriaDto(val memoria: String = "")
+@Serializable internal class NomDto(val nom: String? = null)
+@Serializable internal class NameDto(val name: String = "")
+@Serializable internal class NamesDto(val names: List<String> = emptyList())
+@Serializable internal class SuggestDto(val persona: String = "", val style: String = "")
+@Serializable internal class GithubDto(val output: String = "")
+@Serializable internal class JobRefDto(val job: JsonElement? = null)
+@Serializable internal class CursorDto(val cursor: Long? = null)
+
+@Serializable
+internal class OfficeDto(
+    val id: String = "", val name: String = "", val kind: String = "", val size: Int = 0,
+    val path: String = "", val text: String = "", val result: String = "",
+)
+
+@Serializable internal class NameUrlDto(val name: String = "", val url: String = "")
+@Serializable internal class MailDto(val user: String = "", @SerialName("has_password") val hasPassword: Boolean = false)
+@Serializable internal class BriefingDto(val enabled: Boolean = false, val time: String = "", val wind: String = "")
+
+@Serializable
+internal class ConnectionsDto(
+    val calendars: List<NameUrlDto> = emptyList(),
+    val mail: MailDto = MailDto(),
+    val briefing: BriefingDto = BriefingDto(),
+)
+
+@Serializable internal class CalendarTestDto(@SerialName("events_next_7_days") val eventsNext7Days: Int = 0)
+@Serializable internal class MailTestDto(val error: String? = null, val unread: Int = 0)
+@Serializable internal class ConnectionsTestDto(val calendar: CalendarTestDto? = null, val mail: MailTestDto? = null)
+
+@Serializable internal class TunnelDto(val url: String = "", val target: String = "", val status: String = "")
+
+@Serializable
+internal class ServerPowersDto(
+    val enabled: Boolean = false, val tools: List<String> = emptyList(), val user: String = "",
+    val notes: String = "", val tunnels: List<TunnelDto> = emptyList(),
+)
+
+@Serializable
+internal class MeDto(val user: String = "", val home: String = "", val admin: Boolean = false, val roots: List<String> = emptyList())
+
+@Serializable internal class PreviewWebDto(val path: String = "", val name: String = "", val size: Long = 0L, val mtime: String = "")
+
+@Serializable
+internal class PreviewDto(
+    val root: String = "", val base: String = "", val index: String = "", val webs: List<PreviewWebDto> = emptyList(),
+)
+
+@Serializable
+internal class ParallelItemDto(
+    val role: String = "", val provider: String = "", val model: String = "", val reply: String = "", val error: String = "",
+)
+
+@Serializable internal class ParallelDto(val results: List<ParallelItemDto> = emptyList())
+
+@Serializable
+internal class SessionDto(
+    val name: String = "", val msgs: Int = 0, @SerialName("when") val whenText: String = "",
+    val title: String = "", val at: String = "", val current: Boolean = false,
+)
+
+@Serializable
+internal class RunDto(
+    val id: Long = 0L, val state: String = "", val session: String = "", val workspace: String = "", val error: String = "",
+)
+
+@Serializable
+internal class DurableEventDto(
+    val id: Long = 0L,
+    @SerialName("session_id") val sessionId: String = "",
+    @SerialName("run_id") val runId: Long = 0L,
+    val kind: String = "", val text: String = "",
+)
+
+@Serializable
+internal class EventsDto(val events: List<JsonObject> = emptyList(), val cursor: Long? = null, val next: Long? = null)
+
+@Serializable internal class FlowItemDto(val name: String = "", val slug: String = "", val desc: String = "", val steps: Int = 0)
+@Serializable internal class FlowsDto(val flows: List<FlowItemDto> = emptyList())
+
+@Serializable
+internal class FlowNodeDto(
+    val id: String = "", val kind: String = "", val title: String = "", val task: String = "", val tool: String = "", val text: String = "",
+)
+
+@Serializable internal class FlowEdgeDto(val from: String = "", val to: String = "", @SerialName("when") val whenText: String = "")
+
+@Serializable
+internal class FlowDto(
+    val name: String = "", val desc: String = "",
+    val nodes: List<FlowNodeDto> = emptyList(), val edges: List<FlowEdgeDto> = emptyList(),
+)
+
+@Serializable internal class FlowLoadDto(val flow: FlowDto? = null)
+
+@Serializable internal class LiveEventDto(val kind: String = "activity", val text: String = "")
+
+@Serializable
+internal class ActiveAgentDto(
+    val id: Int = 0, val task: String = "", @SerialName("started_at") val startedAt: String = "",
+    val role: String = "", val mode: String = "", val project: String = "", val events: List<LiveEventDto> = emptyList(),
+)
+
+@Serializable internal class ActiveDto(val active: ActiveAgentDto? = null)
+
+@Serializable internal class GoalDto(val id: String = "", val title: String = "", val body: String = "", val status: String = "")
+@Serializable internal class GoalsDto(val goals: List<GoalDto> = emptyList())
+
+/** Un missatge d'un fil (vent, rotllana, mascota): `ts` en segons o mil·lisegons. */
+@Serializable
+internal class PetMsgDto(
+    val from: String = "", val text: String = "",
+    @SerialName("speaker_id") val speakerId: String = "",
+    @SerialName("speaker_name") val speakerName: String = "",
+    val ts: Long = 0L, val kind: String = "", val id: String = "",
+) {
+    fun toPetMsg() = GregalViewModel.PetMsg(from, text, speakerId, speakerName, ts = msgMillis(ts), kind = kind, id = id)
+}
+
+@Serializable internal class HistoryDto(val history: List<PetMsgDto> = emptyList(), val session: String = "")
+
+@Serializable internal class WindTextDto(val wind: String = "", val text: String = "")
+
+@Serializable
+internal class RotllanaDoneDto(
+    val reply: WindTextDto? = null,
+    val history: List<PetMsgDto> = emptyList(),
+    val parcial: Boolean = false,
+    val silenci: Boolean = false,
+    val failed: List<String> = emptyList(),
+)
+
+@Serializable
+internal class TurnActionDto(
+    val id: String = "", val kind: String = "", val at: String = "",
+    @SerialName("at_iso") val atIso: String = "", val text: String = "",
+)
+
+@Serializable
+internal class WindReplyDto(val reply: String = "", val parcial: Boolean = false, val actions: List<TurnActionDto> = emptyList())
+
+@Serializable internal class ActivityDto(val phase: String = "working", val tool: String = "", val step: Int = 0)
+
+@Serializable internal class AskOptionDto(val label: String = "", val description: String = "")
+
+@Serializable
+internal class WindAskDto(
+    val key: String = "", val type: String = "", val query: String = "",
+    val options: List<AskOptionDto> = emptyList(),
+    val name: String = "", val kind: String = "", val what: String = "", val reason: String = "",
+) {
+    fun toAsk() = GregalApi.WindAsk(
+        key = key, type = type.ifBlank { "approve" }, query = query,
+        options = options.map { it.label to it.description }.filter { it.first.isNotBlank() },
+        name = name, kind = kind, what = what, reason = reason,
+    )
+}
+
+@Serializable internal class PendingDto(val pending: List<WindAskDto>? = null)
+
+@Serializable
+internal class ConeixementDto(val nom: String = "", val titol: String = "", val descripcio: String = "", val cos: String = "") {
+    fun toConeixement(withBody: Boolean) = GregalApi.Coneixement(nom, titol, descripcio, if (withBody) cos else "")
+}
+
+@Serializable internal class ConeixementsDto(val coneixements: List<ConeixementDto> = emptyList())
+
+/** Una habilitat de la biblioteca: el servidor la desa amb els noms de Go (Nom, Titol…). */
+@Serializable
+internal class LibrarySkillDto(
+    @SerialName("Nom") val goNom: String? = null, @SerialName("Titol") val goTitol: String? = null,
+    @SerialName("Descripcio") val goDescripcio: String? = null, @SerialName("Cos") val goCos: String? = null,
+    val nom: String = "", val titol: String = "", val descripcio: String = "", val cos: String = "",
+) {
+    val name get() = goNom ?: nom
+    val titleText get() = goTitol ?: titol
+    val descriptionText get() = goDescripcio ?: descripcio
+    val bodyText get() = goCos ?: cos
+}
+
+@Serializable
+internal class LibraryItemDto(
+    val id: String? = null, val kind: String? = null, val wind: JsonObject? = null,
+    val memory: String = "", val knowledge: String = "",
+    val skills: List<LibrarySkillDto> = emptyList(), val created: String = "", val origin: String = "",
+)
+
+@Serializable internal class LibraryDto(val items: List<LibraryItemDto>? = null)
+
+@Serializable
+internal class ResumItemDto(val id: String = "", val nom: String = "", val rol: String = "", val coneixements: List<ConeixementDto> = emptyList())
+
+@Serializable internal class ResumDto(val vents: List<ResumItemDto> = emptyList())
+
+@Serializable
+internal class SquadMemberDto(
+    val key: String = "", val name: String = "", val ca: String = "", val en: String = "", val color: String = "", val style: String = "",
+)
+
+@Serializable
+internal class SquadDto(val id: String = "", val ca: String = "", val en: String = "", val members: List<SquadMemberDto> = emptyList())
+
+@Serializable internal class SquadsDto(val squads: List<SquadDto> = emptyList())
+
+@Serializable internal class IdDto(val id: String = "")
+@Serializable internal class CrewStartDto(val rotllana: IdDto? = null)
+@Serializable internal class CrewStatusDto(val running: JsonElement? = null, val step: String = "")
+
+@Serializable
+internal class WindSessionDto(
+    val name: String = "", val title: String = "", val msgs: Int = 0,
+    @SerialName("when") val whenText: String = "", val current: Boolean = false,
+)
+
+@Serializable internal class WindSessionsDto(val sessions: List<WindSessionDto> = emptyList())
+
+@Serializable
+internal class CapPlayDto(val pet: CapPet? = null, val say: String = "", val unlocked: List<String> = emptyList())
+
+@Serializable
+internal class CapGoDto(
+    val wind: String = "", val rotllana: String = "", val studying: List<String> = emptyList(), val created: List<IdDto> = emptyList(),
+)
+
+@Serializable internal class CapProfileDto(val name: String = "", val color: String = "", val style: String = "")
+
+@Serializable
+internal class SummaryItemDto(
+    val key: String = "", val from: String = "", val speaker: String = "", val text: String = "", val ts: Long = 0L, val count: Int = 0,
+)
+
+@Serializable internal class SummariesDto(val items: List<SummaryItemDto> = emptyList())
+
+@Serializable
+internal class WindTaskDto(
+    val id: String = "", val task: String = "", val workspace: String = "", val thread: String = "",
+    val created: String = "", val updated: String = "", val status: String = "",
+    val agents: Map<String, JsonElement> = emptyMap(), val files: List<String> = emptyList(),
+    val result: String = "", val error: String = "",
+)
+
+@Serializable internal class WindTasksDto(val tasks: List<WindTaskDto> = emptyList())
+
+@Serializable
+internal class FileDto(val binary: Boolean = false, @SerialName("too_big") val tooBig: Boolean = false, val content: String = "")
+
+@Serializable
+internal class RunItemDto(
+    val id: String = "",
+    @SerialName("job_id") val jobId: String = "",
+    @SerialName("job_name") val jobName: String = "",
+    @SerialName("started_at") val startedAt: String = "",
+    @SerialName("finished_at") val finishedAt: String = "",
+    val status: String = "", val output: String = "", val error: String = "",
+)
+
+@Serializable internal class RunsDto(val runs: List<RunItemDto> = emptyList())
+
+@Serializable
+internal class RutinaDto(
+    val id: String = "", val wind: String = "", @SerialName("wind_name") val windName: String = "", val name: String = "",
+    val kind: String = "", val time: String = "", @SerialName("interval_h") val intervalH: Double = Double.NaN, val prompt: String = "",
+    val enabled: Boolean = false, @SerialName("next_due") val nextDue: String = "",
+    @SerialName("next_due_at") val nextDueAt: String = "", @SerialName("last_status") val lastStatus: String = "",
+)
+
+@Serializable internal class RutinesDto(val rutines: List<RutinaDto> = emptyList())
+
+@Serializable internal class PluginDto(val id: String = "", val enabled: Boolean = true)
+@Serializable internal class PluginsDto(val plugins: List<PluginDto> = emptyList())
+
+@Serializable internal class CollectiveDto(val singular: String = "", val plural: String = "", val asked: Boolean = false)
+
+@Serializable internal class SectionDto(val id: String = "", val name: String = "", val items: List<String> = emptyList())
+@Serializable internal class MetaBodyDto(val favorites: List<String> = emptyList(), val sections: List<SectionDto> = emptyList())
+@Serializable internal class MetaDto(val meta: MetaBodyDto? = null)
+
+@Serializable
+internal class ReminderDto(val id: String = "", @SerialName("wind_name") val windName: String = "", val at: String = "", val text: String = "")
+
+@Serializable
+internal class HeartDto(
+    val wind: String = "", @SerialName("wind_name") val windName: String = "",
+    @SerialName("next_at") val nextAt: String = "", @SerialName("last_status") val lastStatus: String = "",
+)
+
+@Serializable
+internal class StatsDto(
+    @SerialName("wind_name") val windName: String = "", val beats: Int = 0, val spoke: Int = 0,
+    val silent: Int = 0, val reminders: Int = 0, @SerialName("last_at") val lastAt: String = "",
+)
+
+@Serializable
+internal class ProgramatsDto(
+    val reminders: List<ReminderDto> = emptyList(), val hearts: List<HeartDto> = emptyList(), val stats: List<StatsDto> = emptyList(),
+)
+
+@Serializable
+internal class WikiPageDto(
+    val nom: String = "", val titol: String = "", val descripcio: String = "", val cos: String = "", val updated: String = "",
+) {
+    fun toPage() = GregalApi.WikiPage(nom, titol, descripcio, cos, updated)
+}
+
+@Serializable internal class WikiPagesDto(val pages: List<WikiPageDto> = emptyList())
+@Serializable internal class WikiPageRefDto(val page: WikiPageDto? = null)
+
+@Serializable
+internal class ExpertDto(
+    val wind: String = "", val tema: String = "", val fase: String = "", val pas: Int = 0, val passos: Int = 0,
+    val iniciat: Long = 0L, val acabat: Long = 0L, val error: String = "",
+)
+
+@Serializable
+internal class JobDto(
+    val id: String = "", val name: String = "", val prompt: String = "",
+    val kind: String = "manual", val time: String = "",
+    @SerialName("interval_h") val intervalH: Double = 0.0, val enabled: Boolean = false,
+    val notify: Boolean = true, @SerialName("last_status") val lastStatus: String = "",
+    @SerialName("next_due") val nextDue: String = "",
+    @SerialName("last_at") val lastAt: String = "", @SerialName("next_due_at") val nextDueAt: String = "",
+)
+
+@Serializable internal class JobsDto(val jobs: List<JobDto> = emptyList())
+
+@Serializable
+internal class WorkspaceDto(val path: String = "", val name: String = "", val last: JsonElement? = null, val missing: Boolean = false)
+
+@Serializable
+internal class WorkspacesDto(
+    val current: String = "", val project: String = "", val branch: String = "",
+    val workspaces: List<WorkspaceDto> = emptyList(),
+)
+
+@Serializable internal class DirEntryDto(val name: String = "", val path: String = "", val git: Boolean = false)
+
+@Serializable
+internal class DirsDto(
+    val path: String = "", val name: String = "", val git: Boolean = false, val parent: String = "", val home: String = "",
+    val roots: List<String> = emptyList(), val dirs: List<DirEntryDto> = emptyList(),
+    val hidden: Int = 0, val truncat: Boolean = false, val truncated: Boolean = false,
+)
+
+@Serializable
+internal class NovetatDto(
+    val ts: Long = 0L, val wind: String = "", val name: String = "", val source: String = "", val text: String = "",
+    val job: String = "", val card: String = "", val quiet: Boolean = false,
+    @SerialName("message_id") val messageId: String = "",
+)
+
+@Serializable internal class NovetatsDto(val novetats: List<NovetatDto> = emptyList())
+
+@Serializable internal class AvuiActionDto(val label: String = "", val prompt: String = "")
+
+@Serializable
+internal class AvuiCardDto(
+    val id: String = "", val wind: String = "", @SerialName("wind_name") val windName: String = "",
+    val source: String = "", val section: String = "", val title: String = "", val why: String = "", val body: String = "",
+    val actions: List<AvuiActionDto> = emptyList(), val state: String = "", val feedback: String = "",
+    val saved: Boolean = false, val held: Boolean = false, val created: Long = 0L, val days: Int = 0,
+)
+
+@Serializable
+internal class AvuiSettingsDto(
+    @SerialName("quiet_from") val quietFrom: String = "", @SerialName("quiet_to") val quietTo: String = "",
+    val level: String = "", val tune: String = "",
+)
+
+@Serializable
+internal class AvuiViewDto(
+    val date: String = "",
+    val now: List<AvuiCardDto> = emptyList(), val fyi: List<AvuiCardDto> = emptyList(),
+    val ahead: List<AvuiCardDto> = emptyList(), val done: List<AvuiCardDto> = emptyList(),
+    val held: Int = 0, val settings: AvuiSettingsDto? = null,
+)

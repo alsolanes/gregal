@@ -1,7 +1,8 @@
 package xyz.solanes.gregal
 
-import org.json.JSONArray
-import org.json.JSONObject
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
 
 /**
  * La mascota, cap de gabinet de la colla (/api/winds/cap). Viu al servidor
@@ -55,35 +56,24 @@ data class CapState(
     val faceStyle: WindStyle get() = windStyleOf(style).copy(kit = "organisation")
 
     companion object {
-        fun parse(o: JSONObject): CapState {
-            val b = o.optJSONObject("brief")
-            val count = if (b == null) 0 else b.optInt("done") + b.optInt("failed") + b.optInt("news")
+        /** GET /api/winds/cap (tots els camps opcionals). */
+        fun parse(raw: String): CapState {
+            val o = GregalJson.decodeFromString(CapStateDto.serializer(), raw)
+            val b = o.brief
             return CapState(
-                name = o.optString("name").ifBlank { "Ventet" },
-                color = o.optString("color").ifBlank { "#FFC857" },
-                style = o.optString("style").ifBlank { "pto" },
-                history = parseHistory(o.optJSONArray("history")),
-                brief = b?.optString("text").orEmpty(),
-                briefCount = count,
-                pet = o.optJSONObject("pet")?.let { CapPet.parse(it) } ?: CapPet(),
+                name = o.name.ifBlank { "Ventet" },
+                color = o.color.ifBlank { "#FFC857" },
+                style = o.style.ifBlank { "pto" },
+                history = o.history.map { it.toMsg() },
+                brief = b?.text.orEmpty(),
+                briefCount = if (b == null) 0 else b.done + b.failed + b.news,
+                pet = o.pet ?: CapPet(),
             )
         }
 
-        fun parseHistory(a: JSONArray?): List<CapMsg> {
-            if (a == null) return emptyList()
-            return (0 until a.length()).mapNotNull { i ->
-                val m = a.optJSONObject(i) ?: return@mapNotNull null
-                val w = m.optJSONArray("winds")
-                CapMsg(m.optString("from"), m.optString("text"), m.optString("action"),
-                    if (w == null) emptyList() else (0 until w.length()).map { w.optString(it) },
-                    task = m.optString("task"),
-                    create = m.optJSONArray("create")?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it)?.let(CapNew::parse) } }.orEmpty(),
-                    novices = m.optJSONArray("novices")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
-                    link = m.optString("link"),
-                    ts = m.optLong("ts", 0L),
-                    id = m.optString("id"))
-            }
-        }
+        /** El fil de la mascota (una llista JSON de missatges). */
+        fun parseHistory(raw: String): List<CapMsg> =
+            GregalJson.decodeFromString(ListSerializer(CapMsgDto.serializer()), raw).map { it.toMsg() }
     }
 }
 
@@ -109,20 +99,21 @@ data class CapDecision(
     val delegates: Boolean get() = action == "wind" || action == "rotllana" || action == "crew"
 
     companion object {
-        fun parse(o: JSONObject): CapDecision {
-            val w = o.optJSONArray("winds")
+        /** La resposta de POST /api/winds/cap (o el done del flux). */
+        fun parse(raw: String): CapDecision {
+            val o = GregalJson.decodeFromString(CapDecisionDto.serializer(), raw)
             return CapDecision(
-                action = o.optString("action").ifBlank { "self" },
-                reply = o.optString("reply"),
-                winds = if (w == null) emptyList() else (0 until w.length()).map { w.optString(it) }.filter { it.isNotBlank() },
-                task = o.optString("task"),
-                rotllana = o.optString("rotllana"),
-                history = CapState.parseHistory(o.optJSONArray("history")),
-                create = o.optJSONArray("create")?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it)?.let(CapNew::parse) } }.orEmpty(),
-                novices = o.optJSONArray("novices")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
-                pet = o.optJSONObject("pet")?.let { CapPet.parse(it) },
-                confirm = o.optBoolean("confirm", false),
-                message = o.optString("message"),
+                action = o.action.ifBlank { "self" },
+                reply = o.reply,
+                winds = o.winds.filter { it.isNotBlank() },
+                task = o.task,
+                rotllana = o.rotllana,
+                history = o.history.map { it.toMsg() },
+                create = o.create,
+                novices = o.novices.filter { it.isNotBlank() },
+                pet = o.pet,
+                confirm = o.confirm,
+                message = o.message,
             )
         }
     }
@@ -135,38 +126,25 @@ internal fun capRotllanaName(names: List<String>, lang: String): String = when (
     else -> names.dropLast(1).joinToString(", ") + (if (lang == "ca") " i " else " & ") + names.last()
 }
 
-/** Un especialista nou que la mascota proposa (es crea en dir «endavant»). */
-data class CapNew(val name: String, val role: String, val persona: String = "", val kit: String = "",
+/** Un especialista nou que la mascota proposa (es crea en dir «endavant»). Viatja tal qual en el JSON. */
+@Serializable
+data class CapNew(val name: String = "", val role: String = "", val persona: String = "", val kit: String = "",
                   val color: String = "", val style: String = "") {
     val argb: Long get() {
         val hex = color.removePrefix("#")
         return 0xFF000000L or (if (hex.matches(Regex("[0-9a-fA-F]{6}"))) hex else "C9B8F5").toLong(16)
     }
-    fun json(): JSONObject = JSONObject().put("name", name).put("role", role).put("persona", persona)
-        .put("kit", kit).put("color", color).put("style", style)
-    companion object {
-        fun parse(o: JSONObject) = CapNew(o.optString("name"), o.optString("role"), o.optString("persona"),
-            o.optString("kit"), o.optString("color"), o.optString("style"))
-    }
 }
 
 /** L'estat de criatura de companyia: alegria, energia, gana, nivell i roba. */
+@Serializable
 data class CapPet(
     val happy: Int = 70, val energy: Int = 80, val full: Int = 60,
-    val level: Int = 1, val levelXp: Int = 0, val levelNeed: Int = 100,
+    val level: Int = 1, @SerialName("level_xp") val levelXp: Int = 0, @SerialName("level_need") val levelNeed: Int = 100,
     val outfit: String = "", val outfits: List<String> = emptyList(), val played: Int = 0,
 ) {
     val hungry: Boolean get() = full < 30
     val tired: Boolean get() = energy < 20
-    companion object {
-        fun parse(o: JSONObject): CapPet {
-            val a = o.optJSONArray("outfits")
-            return CapPet(o.optInt("happy", 70), o.optInt("energy", 80), o.optInt("full", 60),
-                o.optInt("level", 1), o.optInt("level_xp"), o.optInt("level_need", 100),
-                o.optString("outfit"), if (a == null) emptyList() else (0 until a.length()).map { a.optString(it) },
-                o.optInt("played"))
-        }
-    }
 }
 
 /** La roba de la mascota: emoji, on va i com es guanya (ha de coincidir amb capOutfits del servidor). */
@@ -183,3 +161,33 @@ val capOutfitCatalog = listOf(
 
 /** Resultat de «endavant»: on s'ha obert la conversa i qui estudia. */
 data class CapGoResult(val wind: String, val rotllana: String, val studying: List<String>, val created: List<String>)
+
+// --- Lectura (kotlinx.serialization): tots els camps opcionals ---
+
+@Serializable
+internal class CapMsgDto(
+    val from: String = "", val text: String = "", val action: String = "",
+    val winds: List<String> = emptyList(), val task: String = "",
+    val create: List<CapNew> = emptyList(), val novices: List<String> = emptyList(),
+    val link: String = "", val ts: Long = 0L, val id: String = "",
+) {
+    fun toMsg() = CapMsg(from, text, action, winds, task = task, create = create,
+        novices = novices.filter { it.isNotBlank() }, link = link, ts = ts, id = id)
+}
+
+@Serializable
+internal class CapBriefDto(val done: Int = 0, val failed: Int = 0, val news: Int = 0, val text: String = "")
+
+@Serializable
+internal class CapStateDto(
+    val name: String = "", val color: String = "", val style: String = "",
+    val history: List<CapMsgDto> = emptyList(), val brief: CapBriefDto? = null, val pet: CapPet? = null,
+)
+
+@Serializable
+internal class CapDecisionDto(
+    val action: String = "", val reply: String = "", val winds: List<String> = emptyList(),
+    val task: String = "", val rotllana: String = "", val history: List<CapMsgDto> = emptyList(),
+    val create: List<CapNew> = emptyList(), val novices: List<String> = emptyList(),
+    val pet: CapPet? = null, val confirm: Boolean = false, val message: String = "",
+)
