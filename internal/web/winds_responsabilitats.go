@@ -145,6 +145,8 @@ type respCursor struct {
 	// Snapshot és el text normalitzat de l'última lectura, per treure'n el
 	// que és nou la propera vegada. Mai no surt per l'API.
 	Snapshot string `json:"snapshot,omitempty"`
+	// Feed és el cursor opac d'una connexió de B5 (connexioChanges).
+	Feed string `json:"feed,omitempty"`
 }
 
 // respChange és un canvi detectat que encara s'ha de preparar.
