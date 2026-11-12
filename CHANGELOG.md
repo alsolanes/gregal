@@ -2,11 +2,11 @@
 
 ## Unreleased
 
-## v1.72.2 - 2026-11-12 - L'ordinador de Gregal, sense VM
+## v1.72.3 - 2026-11-12 - L'ordinador de Gregal, sense VM
 
 - **L'ordinador de Gregal, sense VM.** Si no tens cap ordinador remot muntat,
   l'ordinador de Gregal és el navegador d'aquest PC: obre'l des del mòbil
-  (Vents 1.75.2) o l'escriptori i el veus treballar en directe, amb les
+  (Vents 1.75.3) o l'escriptori i el veus treballar en directe, amb les
   últimes accions marcades. Abans deia que no havia pogut.
 
 ## v1.72.1 - 2026-11-11 - Què pot fer Gregal
