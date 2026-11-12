@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## v1.72.5 - 2026-11-12 - Gregal ensenya què fa
+
+- **Gregal ensenya què fa mentre treballa (escriptori).** Sota «Escrivint la
+  resposta», els passos que ja ha fet: ✓ Llegint fitxers ✓ Cercant al web.
+  Al mòbil (Vents 1.75.5), el pas en curs també diu si navega, programa un
+  recordatori, vigila, mira el calendari o el correu o consulta un especialista.
+- **L'escriptori, més net.** Targeta de resultat com al mòbil; menú de Vents
+  com el d'Android (Gregal, Feina · Canals · Recursos); al mode codi, una sola
+  línia de «treballant», rutes relatives a les eines i el resum del torn en una
+  franja; els avisos ja no tapen el camp d'escriure.
+- **Push més fàcil d'activar.** El servidor agafa `fcm-service-account.json`
+  de la carpeta de dades sense cap variable d'entorn (pas a pas a
+  `docs/push.ca.md`).
+- Inclou també tot el de la v1.72.4 (Gregal al mòbil com a la maqueta, targetes
+  de resultat i menú curt), que no es va arribar a publicar.
+
 ## v1.72.4 - 2026-11-12 - Gregal al mòbil, com a la maqueta
 
 - **Gregal al mòbil, com a la maqueta (Vents 1.75.4).** A dalt només hi ha el
