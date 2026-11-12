@@ -37,7 +37,14 @@ enum class Screen { Pairing, Chat, Sessions, Goals, Jobs, Office, Flows, Automat
  */
 data class Conn(val host: String, val port: String, val token: String, val user: String = "",
                 val local: Boolean = false) {
-    fun api() = GregalApi(baseUrlOf(host, port), token)
+    /**
+     * L'API d'aquesta connexió, a l'adreça que toca: a casa la LAN, fora el
+     * domini del túnel (vegeu ServerPick).
+     */
+    fun api() = GregalApi(
+        ServerPick.base(host, port, ServerNet.lanIp, ServerNet.exteriorHost, ServerPick.deviceIpsCached()),
+        token,
+    )
 }
 
 class GregalViewModel(app: Application) : AndroidViewModel(app) {
@@ -358,6 +365,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         // altre nom, tots els textos en fan servir el mot.
         VentNom.singular = p.ventSingular
         VentNom.plural = p.ventPlural
+        // Les adreces que el servidor va dir de si mateix el darrer cop: la
+        // tria LAN/domini ha de valer ja en obrir l'app, no quan arribi health.
+        ServerNet.hydrate(p.lanIp, p.hostExterior)
         _capHome.value = p.capHome
         _tema.value = p.tema
         _temaApp.value = p.temaApp
@@ -1510,6 +1520,19 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             val admin = async(Dispatchers.IO) { try { api.me().admin } catch (_: Exception) { true } }
             val st = async(Dispatchers.IO) { api.getState() }
             Triple(health.await(), admin.await(), st.await())
+        }
+        // El servidor diu com se'l pot trobar. Es desa per a la propera
+        // arrencada i per quan siguem fora de casa.
+        health?.net?.let { n ->
+            val lan = n.lanIps.firstOrNull { it == ServerPick.lanIpOf(_conn.value.host) }
+                ?: n.lanIps.firstOrNull().orEmpty()
+            if (lan.isNotBlank() || n.publicHost.isNotBlank()) {
+                ServerNet.hydrate(lan, n.publicHost)
+                prefsOrNull?.let { pr ->
+                    if (lan.isNotBlank()) pr.lanIp = lan
+                    if (n.publicHost.isNotBlank()) pr.hostExterior = n.publicHost
+                }
+            }
         }
         _v2Runs.value = health?.supportsV2Interactive() == true
         _isAdmin.value = admin

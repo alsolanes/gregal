@@ -515,6 +515,8 @@ data class ServiceHealth(
     val protocol: String = "",
     val instanceId: String = "",
     val capabilities: Map<String, Boolean> = emptyMap(),
+    /** Com es pot trobar el servidor, si el servidor ho diu. */
+    val net: ServerNetInfo? = null,
 ) {
     /** La cua v2 només s'activa quan el servidor anuncia les dues peces. */
     fun supportsV2RunsEvents(): Boolean =
@@ -531,6 +533,12 @@ data class ServiceHealth(
             (capabilities["events"] == true || capabilities["event_stream"] == true) &&
             capabilities["interactive_events"] == true
 }
+
+/** On més es pot trobar el servidor: la IP de la LAN i el domini del túnel. */
+data class ServerNetInfo(
+    val publicHost: String = "",
+    val lanIps: List<String> = emptyList(),
+)
 
 data class RunV2(
     val id: Long = 0L,

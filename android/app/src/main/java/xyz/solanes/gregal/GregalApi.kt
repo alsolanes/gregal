@@ -173,7 +173,11 @@ class GregalApi(val base: String, val token: String) {
     /** Descobreix capacitats abans d'usar la cua v2. */
     fun health(): ServiceHealth {
         val o = getAs<HealthDto>("/api/health")
-        return ServiceHealth(status = o.status, protocol = o.protocol, instanceId = o.instanceId, capabilities = o.capabilities)
+        val net = o.net?.let { ServerNetInfo(publicHost = it.publicHost, lanIps = it.lanIps) }
+        return ServiceHealth(
+            status = o.status, protocol = o.protocol, instanceId = o.instanceId,
+            capabilities = o.capabilities, net = net,
+        )
     }
 
     fun getState(): ServerState {
@@ -685,6 +689,9 @@ class GregalApi(val base: String, val token: String) {
                 .connectTimeout(15, TimeUnit.SECONDS)
                 .readTimeout(240, TimeUnit.SECONDS)
                 .writeTimeout(240, TimeUnit.SECONDS)
+                // Si una adreça no pot ni connectar, la propera petició prova
+                // l'altra (LAN ↔ domini del túnel).
+                .addInterceptor(ServerFailoverInterceptor())
                 .build()
         }
 
@@ -1459,6 +1466,14 @@ internal class HealthDto(
     val status: String = "", val protocol: String = "",
     @SerialName("instance_id") val instanceId: String = "",
     val capabilities: Map<String, Boolean> = emptyMap(),
+    val net: ServerNetDto? = null,
+)
+
+/** Com es pot trobar el servidor: la IP de la LAN i el domini del túnel. */
+@Serializable
+internal class ServerNetDto(
+    @SerialName("public_host") val publicHost: String = "",
+    @SerialName("lan_ips") val lanIps: List<String> = emptyList(),
 )
 
 @Serializable

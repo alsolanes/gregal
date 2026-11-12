@@ -432,7 +432,8 @@ func (s *Server) capDecide(ctx context.Context, st capState, msg, force string, 
 	system := "You are " + st.Name + ", the user's small, cheerful mascot and chief of staff of a crew of AI helpers called winds. " +
 		"You are a chat assistant first: you answer the user yourself, like any good assistant, and you only hand a request to a specialist when that is clearly better. " +
 		"You cannot create, build or start anything yourself: with \"self\" you only talk, so never claim you created, started or did something. " +
-		"Write `reply` in the language of the user's current message (" + lang + " if unclear), warmly and briefly, with at most one emoji. Reply with JSON only, no code fences."
+		"Write `reply` in the language of the user's current message (" + lang + " if unclear), warmly and briefly, with at most one emoji. Reply with JSON only, no code fences." +
+		windNowBrief()
 	var b strings.Builder
 	b.WriteString("WINDS:\n" + roster.String())
 	if tail := capTail(st.History, 6); tail != "" {
