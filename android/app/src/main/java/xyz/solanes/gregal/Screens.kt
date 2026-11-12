@@ -5,6 +5,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
@@ -1152,6 +1155,7 @@ fun AssistantResponse(text: String, lang: String = "ca", streaming: Boolean = fa
                 }
                 is Rich.Code -> CodeBlock(b.lang, b.code, lang)
                 is Rich.Table -> MdTable(b.headers, b.rows, lang)
+                is Rich.Result -> GregalResultCard(b.spec, Sea)
                 is Rich.Chart -> ChartBlock(b.spec, Sea, false)
                 is Rich.Image -> MdImage(b.url, b.alt, Sea, lang)
             }
@@ -1240,7 +1244,15 @@ fun MdTable(headers: List<String>, rows: List<List<String>>, lang: String = "ca"
                 }
             }
         }
-        if (widths == null) body() else Box(Modifier.horizontalScroll(rememberScrollState())) { body() }
+        if (widths == null) body() else {
+            // Es desplaça en horitzontal; un degradat a la dreta diu que n'hi ha més (abans semblava tallada).
+            val sc = rememberScrollState()
+            Box(Modifier.height(IntrinsicSize.Min)) {
+                Box(Modifier.horizontalScroll(sc)) { body() }
+                if (sc.canScrollForward) Box(Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(32.dp)
+                    .background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(CodeDark.copy(alpha = 0f), CodeDark))))
+            }
+        }
     }
 }
 
@@ -1778,47 +1790,31 @@ fun UpdateAvis(vm: GregalViewModel) {
     val prog by vm.updateProg.collectAsState()
     val info = res?.takeIf { it.isAvailable }
     if (!obert || info == null) return
-    AlertDialog(
-        onDismissRequest = { vm.descartaAvis() },
-        title = { Text("Gregal ${info.latestVersion}", color = Ink) },
-        text = {
-            // Unes notes llargues no han d'empènyer els botons fora de la pantalla.
-            Column(Modifier.heightIn(max = 340.dp).verticalScroll(rememberScrollState())) {
-                Text(tr(lang, "app.update.currentVersion", info.currentVersion), color = Muted, style = GregalType.bodySmall)
-                if (info.changelog.isNotBlank()) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(info.changelog, color = Tinta, style = GregalType.bodySmall)
+    // Una franja discreta a dalt, no un diàleg: obrir l'app és per parlar amb
+    // Gregal, i un modal tapava la portada i bloquejava els tocs (també el menú).
+    Box(Modifier.fillMaxSize().statusBarsPadding().padding(top = 56.dp, start = 12.dp, end = 12.dp), contentAlignment = Alignment.TopCenter) {
+        Surface(shape = RoundedCornerShape(18.dp), color = Superficie, tonalElevation = 2.dp, shadowElevation = 6.dp,
+            border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.fillMaxWidth().testTag("update-bar")) {
+            Column(Modifier.padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = 8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Gregal ${info.latestVersion}", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        Text(info.changelog.ifBlank { tr(lang, "app.update.currentVersion", info.currentVersion) },
+                            color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    if (prog < 0) {
+                        TextButton(onClick = { vm.baixaIInstalla() }) { Text(tr(lang, "app.update.downloadInstall"), fontSize = 13.sp) }
+                        IconButton(onClick = { vm.descartaAvis() }, modifier = Modifier.size(40.dp)) {
+                            Icon(Icons.Rounded.Close, tr(lang, "app.update.later"), tint = Muted, modifier = Modifier.size(18.dp))
+                        }
+                    }
                 }
                 if (prog >= 0) {
-                    Spacer(Modifier.height(10.dp))
-                    LinearProgressIndicator(
-                        progress = { prog / 100f },
-                        modifier = Modifier.fillMaxWidth(),
-                        color = Sea, trackColor = Line,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(tr(lang, "app.update.downloadProgress", prog), color = Muted, fontSize = 12.sp)
+                    Spacer(Modifier.height(6.dp))
+                    LinearProgressIndicator(progress = { prog / 100f }, modifier = Modifier.fillMaxWidth().padding(end = 10.dp), color = Sea, trackColor = Line)
+                    Text(tr(lang, "app.update.downloadProgress", prog), color = Muted, fontSize = 11.sp)
                 }
             }
-        },
-        // Tres accions apilades a tota l'amplada: en una fila, «Skip this version»
-        // i «Download and install» no hi cabien i el diàleg les partia a mitges.
-        confirmButton = {
-            if (prog < 0) {
-                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Button(onClick = { vm.baixaIInstalla() }, modifier = Modifier.fillMaxWidth().height(48.dp)) {
-                        Text(tr(lang, "app.update.downloadInstall"))
-                    }
-                    TextButton(onClick = { vm.descartaAvis() }, modifier = Modifier.fillMaxWidth().height(48.dp)) {
-                        Text(tr(lang, "app.update.later"))
-                    }
-                    TextButton(onClick = { vm.ignoraAquestaVersio() }, modifier = Modifier.fillMaxWidth().height(48.dp)) {
-                        Text(tr(lang, "app.update.silence"), color = Muted)
-                    }
-                }
-            } else {
-                Text(tr(lang, "app.update.downloading", info.latestVersion), color = Muted, style = GregalType.caption)
-            }
-        },
-    )
+        }
+    }
 }

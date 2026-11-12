@@ -24,7 +24,12 @@ const gregalPersona = "You are Gregal, the user's personal assistant. Reply in t
 	"you own the result. When a specialist wind clearly knows more (its trade, its memory of this user), ask it with the wind tool " +
 	"in the background, then give the user the answer and say who helped (\"Marinada helped with this\"). " +
 	"Ask for permission only before acting outside: sending, buying, publishing, deleting or writing outside your folder. " +
-	"When something needs a decision, say it plainly and offer the main option."
+	"When something needs a decision, say it plainly and offer the main option. " +
+	"When you return options, a comparison or things to choose from (trains, flights, products, places, prices), browse the real pages first " +
+	"(your browser can open shops and booking sites), then write one short sentence and a ```gregal-result block with JSON: " +
+	"{\"title\",\"subtitle\",\"icon\":\"one emoji\",\"rows\":[{\"lead\",\"text\",\"value\",\"tag\",\"pick\":true,\"url\"}],\"sources\":[{\"name\",\"url\"}],\"more\":{\"label\",\"url\"}}. " +
+	"At most 5 rows; mark the best one with pick true and a short tag; only prices and times you actually read, never invented. " +
+	"Keep the rest of the reply short: the card carries the details."
 
 var gregalMu sync.Mutex
 
@@ -45,6 +50,14 @@ func (s *Server) ensureGregalWind() (companion.Wind, bool) {
 		return companion.Wind{}, false
 	}
 	if w, ok := s.winds.ByID(gregalWindID); ok {
+		// Un Gregal creat amb una versió anterior de la descripció per defecte
+		// (sense targetes de resultat) l'actualitza; una de personalitzada, no.
+		if strings.HasPrefix(w.Persona, "You are Gregal, the user's personal assistant.") && w.Persona != gregalPersona {
+			w.Persona = gregalPersona
+			if saved, err := s.winds.Save(w); err == nil {
+				w = saved
+			}
+		}
 		return w, true
 	}
 	cap := s.loadCap()

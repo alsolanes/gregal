@@ -23,6 +23,7 @@ sealed interface Seg {
     data class Image(val alt: String, val url: String) : Seg
     data class Table(val headers: List<String>, val rows: List<List<String>>) : Seg
     data class Chart(val spec: ChartSpec) : Seg
+    data class Result(val spec: ResultSpec) : Seg
 }
 
 /** Bloc ric per emetre composables (text corregut, codi, taula o imatge). */
@@ -32,6 +33,7 @@ sealed interface Rich {
     data class Table(val headers: List<String>, val rows: List<List<String>>) : Rich
     data class Chart(val spec: ChartSpec) : Rich
     data class Image(val alt: String, val url: String) : Rich
+    data class Result(val spec: ResultSpec) : Rich
 }
 
 /** Parteix markdown lleuger en segments (tots els detalls, testeable). */
@@ -57,7 +59,12 @@ fun splitMd(src: String): List<Seg> {
             val body = inner.substring(nl + 1)
             // Bloc chart amb JSON vàlid: gràfic; si no, codi com sempre.
             // ```gregal-plot (el del xat principal i l'escriptori) és el mateix gràfic.
-            if (lang == "chart" || lang == "gregal-plot") {
+            if (lang == "gregal-result") {
+                // Targeta de resultat (direcció visual §4): opcions o comparacions estructurades.
+                val spec = parseResultSpec(body.trim())
+                if (spec != null) out += listOf(Seg.Result(spec))
+                else out += listOf(Seg.Block("json", body))
+            } else if (lang == "chart" || lang == "gregal-plot") {
                 val spec = parseChartSpec(body.trim())
                 if (spec != null) out += listOf(Seg.Chart(spec))
                 else out += listOf(Seg.Block(lang, body))
@@ -318,6 +325,10 @@ fun groupRich(segs: List<Seg>): List<Rich> {
                 flush()
                 out += Rich.Chart(seg.spec)
             }
+            is Seg.Result -> {
+                flush()
+                out += Rich.Result(seg.spec)
+            }
             else -> run += seg
         }
     }
@@ -386,6 +397,13 @@ fun renderSegs(segs: List<Seg>, codeBg: Color, activity: Boolean = false, link: 
                     withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(head) }
                     append("\n")
                     seg.rows.take(12).forEach { r -> append(r.joinToString(" | ") + "\n") }
+                }
+                // La targeta de resultat, en text pla: títol i files.
+                is Seg.Result -> {
+                    append("\n")
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(seg.spec.title) }
+                    append("\n")
+                    seg.spec.rows.forEach { r -> append(listOf(r.lead, r.text, r.value).filter { it.isNotBlank() }.joinToString(" · ") + "\n") }
                 }
                 // El gràfic és bloc propi (Rich.Chart); en text pla, resum.
                 is Seg.Chart -> {

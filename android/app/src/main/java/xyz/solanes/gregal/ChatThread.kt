@@ -147,6 +147,7 @@ internal fun threadCopy(lang: String, key: String): String {
         "unread" -> if (en) "Something new for you" else "Una novetat per a tu"
         "menu" -> if (en) "Menu" else "Menú"
         "computer" -> if (en) "Computer" else "Ordinador"
+        "working" -> if (en) "working…" else "treballant…"
         "ready" -> if (en) "Ready on your computer" else "Preparat al teu ordinador"
         "seeWork" -> if (en) "See work" else "Veure feina"
         "open" -> if (en) "Open" else "Obre"

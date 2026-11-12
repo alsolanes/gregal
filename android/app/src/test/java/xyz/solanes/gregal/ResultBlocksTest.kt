@@ -1,0 +1,40 @@
+package xyz.solanes.gregal
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+
+/** Targeta de resultat: el bloc ```gregal-result``` es llegeix i, si està mal fet, surt com a codi. */
+@RunWith(RobolectricTestRunner::class)
+class ResultBlocksTest {
+    private val json = """{"title":"Barcelona → Girona · dv. 13","subtitle":"11 trens","icon":"🚆",
+        "rows":[{"lead":"08:05","text":"Avant · 40 min","value":"17,40 €","tag":"Recomanat","pick":true},
+                {"lead":"08:16","text":"R11 · 1 h 20","value":"8,95 €"}],
+        "sources":[{"name":"Renfe","url":"https://www.renfe.com"},{"url":"https://www.trainline.es/x"}],
+        "more":{"label":"Veure els 11","url":"https://www.renfe.com"}}"""
+
+    @Test fun parsesCard() {
+        val s = parseResultSpec(json)!!
+        assertEquals("Barcelona → Girona · dv. 13", s.title)
+        assertEquals(2, s.rows.size)
+        assertTrue(s.rows[0].pick)
+        assertEquals("www.trainline.es", s.sources[1].first)
+        assertEquals("Veure els 11", s.moreLabel)
+    }
+
+    @Test fun invalidIsNull() {
+        assertNull(parseResultSpec("no és json"))
+        assertNull(parseResultSpec("""{"title":"Sense files","rows":[]}"""))
+        assertNull(parseResultSpec("""{"rows":[{"text":"x"}]}"""))
+    }
+
+    @Test fun markdownGivesResultBlock() {
+        val rich = groupRich(splitMd("Aquests són els millors:\n```gregal-result\n$json\n```\nVols que en reservi un?"))
+        assertTrue(rich.any { it is Rich.Result })
+        val broken = groupRich(splitMd("```gregal-result\n{trencat\n```"))
+        assertTrue("un bloc mal fet surt com a codi", broken.any { it is Rich.Code })
+    }
+}

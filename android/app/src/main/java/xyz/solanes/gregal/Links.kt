@@ -1,6 +1,8 @@
 package xyz.solanes.gregal
 
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -131,36 +133,30 @@ internal fun MessageLinks(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Les fonts, lleugeres (direcció visual §4): un punt i el nom; tocar obre, mantenir premut copia.
+        Text(if (lang == "en") "Sources" else "Fonts", color = Muted, fontSize = 12.sp)
         links.forEach { l ->
-            Surface(
-                shape = RoundedCornerShape(999.dp),
-                color = link.copy(alpha = 0.12f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, link.copy(alpha = 0.38f)),
-                modifier = Modifier.clip(RoundedCornerShape(999.dp))
+            Row(
+                Modifier.clip(RoundedCornerShape(8.dp))
                     .combinedClickable(
-                        onClick = {
+                        onClick = { uri.openUri(l.url) },
+                        onLongClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             clipboard.setText(AnnotatedString(l.url))
                             onCopied?.invoke()
                         },
-                        onLongClick = { uri.openUri(l.url) },
                     )
-                    .semantics {
-                        contentDescription = tr(lang, "app.vents.copyLink") + ": " + l.label
-                    },
+                    .semantics { contentDescription = l.label }
+                    .heightIn(min = 32.dp).padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    Modifier.heightIn(min = 32.dp).padding(start = 10.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Rounded.ContentCopy, null, tint = link, modifier = Modifier.size(13.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        l.label, color = link, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.widthIn(max = 210.dp),
-                    )
-                }
+                Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(link.copy(alpha = 0.55f)))
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    l.label, color = link, fontSize = 12.5.sp, fontWeight = FontWeight.Medium,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = 170.dp),
+                )
             }
         }
     }

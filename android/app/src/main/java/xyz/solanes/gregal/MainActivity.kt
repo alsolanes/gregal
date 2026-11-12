@@ -228,7 +228,8 @@ class MainActivity : ComponentActivity() {
             // Colors de barra i icones fora de la composició, i icones fosques
             // sobre el tema clar (abans quedaven blanques sobre blanc).
             SideEffect {
-                window.statusBarColor = pal.deepTop.toArgb()
+                // El color del fil (direcció visual §2): cap franja entre la barra d'estat i la capçalera flotant.
+                window.statusBarColor = pal.surface.toArgb()
                 window.navigationBarColor = pal.deepTop.toArgb()
                 WindowCompat.getInsetsController(window, view).apply {
                     isAppearanceLightStatusBars = !dark

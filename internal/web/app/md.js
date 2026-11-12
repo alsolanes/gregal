@@ -78,8 +78,56 @@
     return esc((typeof t === "function" && t(key)) || fallback);
   }
 
+  // Targeta de resultat (```gregal-result {json}``): opcions o comparacions de
+  // Gregal, com a Android (ResultBlocks.kt). El codi arriba escapat: es desfà per
+  // llegir el JSON i tot es torna a escapar en pintar-lo; només enllaços http(s).
+  function unesc(s) {
+    return String(s).replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+  }
+  function safeUrl(u) {
+    u = String(u || "").trim();
+    return /^https?:\/\//i.test(u) ? esc(u) : "";
+  }
+  function resultCard(code) {
+    let o;
+    try { o = JSON.parse(unesc(code)); } catch (_) { return ""; }
+    if (!o || typeof o !== "object") return "";
+    const title = String(o.title || "").trim();
+    const rows = (Array.isArray(o.rows) ? o.rows : []).filter((r) => r && (r.lead || r.text)).slice(0, 5);
+    if (!title || !rows.length) return "";
+    const str = (v) => esc(String(v == null ? "" : v).trim());
+    let h = '<div class="gregal-result">';
+    h += '<div class="gr-head">' + (o.icon ? '<span class="gr-icon">' + str(String(o.icon).slice(0, 4)) + "</span>" : "") +
+      '<div><strong>' + esc(title) + "</strong>" + (o.subtitle ? "<small>" + str(o.subtitle) + "</small>" : "") + "</div></div>";
+    for (const r of rows) {
+      const url = safeUrl(r.url);
+      const inner = '<span class="gr-lead">' + str(r.lead) + '</span><span class="gr-text">' + str(r.text) +
+        (r.tag ? '<em>' + str(r.tag) + "</em>" : "") + '</span><span class="gr-value">' + str(r.value) + "</span>";
+      h += url ? '<a class="gr-row' + (r.pick ? " gr-pick" : "") + '" href="' + url + '" target="_blank" rel="noopener">' + inner + "</a>"
+        : '<div class="gr-row' + (r.pick ? " gr-pick" : "") + '">' + inner + "</div>";
+    }
+    const sources = (Array.isArray(o.sources) ? o.sources : []).slice(0, 6);
+    const more = o.more && typeof o.more === "object" ? o.more : null;
+    if (sources.length || (more && more.label)) {
+      h += '<div class="gr-foot"><span class="gr-sources">' + sources.map((x, i) => {
+        const url = safeUrl(x && x.url), name = str((x && (x.name || String(x.url || "").replace(/^https?:\/\//, "").split("/")[0])) || "");
+        return '<i class="gr-dot gr-dot' + (i % 6) + '"></i>' + (url ? '<a href="' + url + '" target="_blank" rel="noopener">' + name + "</a>" : name);
+      }).join(" ") + "</span>";
+      if (more && more.label) {
+        const url = safeUrl(more.url);
+        h += url ? '<a class="gr-more" href="' + url + '" target="_blank" rel="noopener">' + str(more.label) + " ›</a>" : '<span class="gr-more">' + str(more.label) + "</span>";
+      }
+      h += "</div>";
+    }
+    return h + "</div>";
+  }
+
   function codeBlock(lang, code) {
     const cos = code.replace(/\n$/, "");
+    if (lang === "gregal-result") {
+      const card = resultCard(cos);
+      if (card) return card;
+    }
     // ```chart (el format dels vents i d'Android) i ```gregal-plot són el mateix gràfic.
     if (lang === 'gregal-plot' || lang === 'chart') return '<pre class="codeblock lang-gregal-plot"><code>' + cos + '</code></pre>';
     return '<div class="codeblock"><div class="codehead"><span>' + (lang || label("md.code", "code")) +

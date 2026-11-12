@@ -3,6 +3,8 @@ package xyz.solanes.gregal
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -415,6 +417,36 @@ internal fun VentsComposer(
                     modifier = Modifier.minimumInteractiveComponentSize().size(GregalChat.send).clip(CircleShape).background(if (canSend) Ink else Ink.copy(alpha = .12f))) {
                     Icon(Icons.Rounded.ArrowUpward, tr(lang, "app.vents.send"), tint = if (canSend) Superficie else Muted, modifier = Modifier.size(20.dp))
                 }
+            }
+        }
+    }
+}
+
+/**
+ * La capçalera de la portada de Gregal (direcció visual §2): cap barra ni vora.
+ * Un degradat del color de fons perquè el fil hi passi per sota, el menú i
+ * l'ordinador com a icones soles (objectiu tàctil de 48 dp) i la cara de 34 dp
+ * al centre; sota la cara, una paraula d'estat només mentre treballa.
+ */
+@Composable
+internal fun GregalFloatingHeader(lang: String, accent: Color, style: WindStyle, mood: WindMood, working: Boolean,
+    onMenu: () -> Unit, onProfile: () -> Unit, onComputer: () -> Unit, modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxWidth().height(if (working) 84.dp else 72.dp)
+        .background(Brush.verticalGradient(0f to Superficie, .72f to Superficie.copy(alpha = .96f), 1f to Superficie.copy(alpha = 0f)))
+        .testTag("gregal-floating-header")) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp), verticalAlignment = Alignment.Top) {
+            IconButton(onClick = onMenu, modifier = Modifier.testTag("home-menu")) {
+                Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu"), tint = Ink)
+            }
+            Column(Modifier.weight(1f).padding(top = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.clip(CircleShape).clickable(onClick = onProfile, role = Role.Button)) {
+                    WindHalo(accent, style, size = 34, mood = mood, online = false, showKit = false)
+                }
+                if (working) Text(threadCopy(lang, "working"), color = Muted, fontSize = 11.sp, lineHeight = 14.sp,
+                    modifier = Modifier.padding(top = 2.dp).testTag("gregal-working"))
+            }
+            IconButton(onClick = onComputer, modifier = Modifier.testTag("home-computer")) {
+                Icon(Icons.Rounded.Computer, threadCopy(lang, "computer"), tint = Ink)
             }
         }
     }

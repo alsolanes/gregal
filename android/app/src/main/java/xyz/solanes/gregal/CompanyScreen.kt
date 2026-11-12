@@ -1180,11 +1180,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     Box(Modifier.fillMaxSize().background(Superficie).then(if (home) Modifier.openingBloom(accent, pal.lila, isBusy) else Modifier)) {
         Column(Modifier.fillMaxSize()) {
         // La capçalera diu qui és; «què està fent» es diu al final del fil.
-        if (home) VentsChatHeader(lang, wind.name, "", accent, wind.faceStyle,
-            if (isBusy) live[wind.id]?.mood ?: WindMood.THINKING else WindMood.IDLE,
-            onBack = onBack, onProfile = { profile = true }, centered = true, menu = true, compact = true,
-            onComputer = { computerOpen = true })
-        else VentsChatHeader(lang, wind.name,
+        // A la portada de Gregal la capçalera és una capa flotant (a sota): el fil hi passa per sota.
+        if (!home) VentsChatHeader(lang, wind.name,
             wind.role,
             accent, wind.faceStyle,
             if (isBusy) live[wind.id]?.mood ?: WindMood.THINKING else WindMood.IDLE,
@@ -1203,7 +1200,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         LazyColumn(
             Modifier.fillMaxSize(),
             state = listState,
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = if (home) 72.dp else 10.dp, bottom = 10.dp),
             verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             if (msgs.isEmpty()) {
@@ -1316,6 +1313,11 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             }
         }
         }
+        if (home) GregalFloatingHeader(lang, accent, wind.faceStyle,
+            if (isBusy) live[wind.id]?.mood ?: WindMood.THINKING else WindMood.IDLE,
+            working = isBusy || resuming.contains(wind.id),
+            onMenu = onBack, onProfile = { profile = true }, onComputer = { computerOpen = true },
+            modifier = Modifier.align(Alignment.TopCenter))
     }
     if (profile) WindProfileDialog(vm, lang, wind) { profile = false }
     if (askTransfer) TransferConfirmDialog(vm, lang, "wind", wind.id) { askTransfer = false }
@@ -1955,6 +1957,7 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                                 )
                             }
                             is Rich.Table -> MdTable(b.headers, b.rows, lang)
+                            is Rich.Result -> GregalResultCard(b.spec, if (accent != Color.Unspecified) accent else Sea)
                             is Rich.Chart -> ChartBlock(b.spec, accent, dark)
                             is Rich.Image -> MdImage(
                                 b.url, b.alt,
@@ -1981,7 +1984,7 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                     if (!m.streaming && showMeta) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                         if (tsMillis > 0L) Text(receipt, style = GregalType.chatMeta, color = Muted)
                         Spacer(Modifier.weight(1f, fill = false).widthIn(min = 8.dp))
-                        ReadAloudButton("msg:" + m.ts + ":" + m.text.hashCode(), m.text, lang, Tinta.copy(alpha = 0.6f))
+                        ReadAloudButton("msg:" + m.ts + ":" + m.text.hashCode(), m.text, lang, Tinta.copy(alpha = 0.32f))
                     }
                 }
             }

@@ -796,3 +796,22 @@ html body.shell-winds .vw-nav-item:focus-visible, html body.shell-winds .vw-send
 .vw-live-where { margin:6px 0 8px; color:var(--muted); font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .vw-live-shot { display:block; width:100%; max-height:70vh; object-fit:contain; object-position:top; border-radius:12px; border:1px solid var(--line); background:var(--surface); }
 .vw-live-idle { margin:24px 0; text-align:center; color:var(--muted); }
+
+/* Targeta de resultat de Gregal (```gregal-result```), com a Android. */
+.gregal-result { margin:8px 0; border:1px solid var(--line-hi); border-radius:18px; overflow:hidden; background:var(--surface); max-width:560px; }
+.gregal-result .gr-head { display:flex; align-items:center; gap:10px; padding:12px 14px 8px; }
+.gregal-result .gr-head strong { display:block; font-size:15px; color:var(--ink); }
+.gregal-result .gr-head small { display:block; font-size:12px; color:var(--muted); }
+.gregal-result .gr-icon { display:grid; place-items:center; width:30px; height:30px; border-radius:10px; background:color-mix(in srgb, var(--accent) 14%, transparent); }
+.gregal-result .gr-row { display:grid; grid-template-columns:minmax(46px,auto) 1fr auto; gap:10px; align-items:center; padding:9px 14px; border-top:1px solid var(--line); color:var(--ink); text-decoration:none; font-size:13.5px; }
+.gregal-result a.gr-row:hover { background:var(--hover); }
+.gregal-result .gr-pick { background:color-mix(in srgb, #1E9E6A 10%, transparent); }
+.gregal-result .gr-lead, .gregal-result .gr-value { font-weight:700; font-variant-numeric:tabular-nums; }
+.gregal-result .gr-text em { display:block; font-style:normal; font-size:10.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); }
+.gregal-result .gr-pick .gr-text em { color:#1E9E6A; }
+.gregal-result .gr-foot { display:flex; align-items:center; gap:10px; padding:10px 14px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); }
+.gregal-result .gr-sources { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.gregal-result .gr-sources a { color:var(--muted); text-decoration:none; }
+.gregal-result .gr-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin:0 4px 0 6px; vertical-align:middle; }
+.gr-dot0{background:#C9152B}.gr-dot1{background:#2E7D32}.gr-dot2{background:#1565C0}.gr-dot3{background:#EF6C00}.gr-dot4{background:#6A1B9A}.gr-dot5{background:#00838F}
+.gregal-result .gr-more { color:var(--accent); font-weight:650; text-decoration:none; white-space:nowrap; }
