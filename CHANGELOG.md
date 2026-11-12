@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## v1.72.4 - 2026-11-12 - Gregal al mòbil, com a la maqueta
+
+- **Gregal al mòbil, com a la maqueta (Vents 1.75.4).** A dalt només hi ha el
+  menú, la cara flotant de Gregal i l'ordinador, sobre un degradat transparent;
+  l'avís d'actualització és una franja discreta que no bloqueja res.
+- **Targetes de resultat.** Quan Gregal compara opcions (preus, bitllets,
+  productes) les torna com una targeta amb fins a cinc files, la seva tria en
+  verd, les fonts i «Veure'n més», al mòbil i a l'escriptori.
+- **Menú curt i franja de l'ordinador.** Gregal, Feina, Vigilant i
+  Recordatoris; els especialistes com a canals; Ordinador, Connexions, Webs i
+  Notes a Recursos. Mentre navega, una miniatura en directe a sobre del camp.
+
 ## v1.72.3 - 2026-11-12 - L'ordinador de Gregal, sense VM
 
 - **L'ordinador de Gregal, sense VM.** Si no tens cap ordinador remot muntat,
