@@ -23,9 +23,12 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	"gregal/internal/profile"
 )
 
 // EnvCredentials és el camí del fitxer JSON del compte de servei de
@@ -73,7 +76,7 @@ var (
 // el mode «sondeig» declarat). Un fitxer present però il·legible és un error.
 func FromEnv() (Sender, error) {
 	envOnce.Do(func() {
-		path := strings.TrimSpace(os.Getenv(EnvCredentials))
+		path := CredentialsPath()
 		if path == "" {
 			return
 		}
@@ -90,11 +93,30 @@ func FromEnv() (Sender, error) {
 // Status diu si el push és configurat i, si ho és però no es pot fer
 // servir (fitxer il·legible, clau dolenta), l'error. Per a «gregal doctor».
 func Status() (configured bool, err error) {
-	if strings.TrimSpace(os.Getenv(EnvCredentials)) == "" {
+	if CredentialsPath() == "" {
 		return false, nil
 	}
 	s, err := FromEnv()
 	return s != nil, err
+}
+
+// DefaultFile és el nom del fitxer de credencials que es busca a la carpeta
+// de dades quan no hi ha GREGAL_FCM_CREDENTIALS: així l'app d'escriptori, que
+// no té variables d'entorn pròpies, l'agafa només deixant-hi el fitxer.
+const DefaultFile = "fcm-service-account.json"
+
+// CredentialsPath és el fitxer de credencials a fer servir: la variable
+// d'entorn si hi és; si no, <carpeta de dades>/fcm-service-account.json si
+// existeix; si no, "" (sense push).
+func CredentialsPath() string {
+	if p := strings.TrimSpace(os.Getenv(EnvCredentials)); p != "" {
+		return p
+	}
+	p := filepath.Join(profile.DataDir(), DefaultFile)
+	if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() {
+		return p
+	}
+	return ""
 }
 
 // NewFCM crea el Sender a partir del JSON del compte de servei.

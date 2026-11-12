@@ -66,7 +66,7 @@ var cliMessages = map[string]cliMessage{
 	"doctor.browser":             {"browser", "navegador"},
 	"doctor.browser_missing":     {"no Chrome/Edge found: the browser tool will not work (set GREGAL_BROWSER)", "cap Chrome/Edge trobat: l'eina browser no funcionarà (defineix GREGAL_BROWSER)"},
 	"doctor.push":                {"phone push", "push al mòbil"},
-	"doctor.push_off":            {"push not configured: the app uses its foreground connection and periodic checks (optional: GREGAL_FCM_CREDENTIALS)", "push no configurat: l'app fa servir la connexió de primer pla i la comprovació periòdica (opcional: GREGAL_FCM_CREDENTIALS)"},
+	"doctor.push_off":            {"push not configured: the app uses its foreground connection and periodic checks (optional: GREGAL_FCM_CREDENTIALS or fcm-service-account.json in the data folder)", "push no configurat: l'app fa servir la connexió de primer pla i la comprovació periòdica (opcional: GREGAL_FCM_CREDENTIALS o fcm-service-account.json a la carpeta de dades)"},
 	"doctor.push_on":             {"configured (FCM, opaque ids only)", "configurat (FCM, només ids opacs)"},
 	"doctor.push_broken":         {"GREGAL_FCM_CREDENTIALS is set but unusable: %s", "GREGAL_FCM_CREDENTIALS és definit però no serveix: %s"},
 	"doctor.office":              {"office render", "render d'office"},

@@ -126,7 +126,7 @@ object PushStatusLogic {
             PushState.ACTIVE -> if (en) "Push active (FCM): notifications arrive with the app closed" else "Push actiu (FCM): els avisos arriben amb l'app tancada"
             PushState.NOT_CONFIGURED -> if (en) "Push not configured: foreground connection and periodic checks" else "Push no configurat: connexió de primer pla i comprovació periòdica"
             PushState.SERVER_ONLY -> if (en) "Push not configured in this app build: periodic checks" else "Push no configurat en aquesta app: comprovació periòdica"
-            PushState.APP_ONLY -> if (en) "Push not configured on the server (GREGAL_FCM_CREDENTIALS): periodic checks" else "Push no configurat al servidor (GREGAL_FCM_CREDENTIALS): comprovació periòdica"
+            PushState.APP_ONLY -> if (en) "Push not configured on the server (fcm-service-account.json): periodic checks" else "Push no configurat al servidor (fcm-service-account.json): comprovació periòdica"
             PushState.UNKNOWN -> if (en) "Push status unknown: periodic checks" else "Estat del push desconegut: comprovació periòdica"
         }
     }

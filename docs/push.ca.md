@@ -16,6 +16,11 @@ ni clau del projecte Gregal al codi: cada instal·lació o fork fa servir el seu
 |---|---|---|
 | `GREGAL_FCM_CREDENTIALS` | Camí al JSON del compte de servei del teu projecte de Firebase (rol «Firebase Cloud Messaging API Admin») | Buit: sense push, mode `polling` |
 
+Sense la variable, el servidor busca `fcm-service-account.json` a la seva
+carpeta de dades (`GREGAL_DATA_DIR`, o la de per defecte): l'app d'escriptori,
+que no té variables d'entorn pròpies, l'agafa només deixant-hi el fitxer i
+reiniciant-la.
+
 El fitxer viu fora del repositori; el contingut no surt mai per cap API ni log.
 Si el camí és dolent, `gregal doctor` ho marca com a error i el servidor
 continua sense push. Els dispositius es registren sols (`/api/v2/push`).
@@ -34,3 +39,16 @@ la build (`xyz.solanes.gregal`, o `xyz.solanes.gregal.vents` amb
 
 Cal tots dos costats (servidor i app) del mateix projecte de Firebase perquè
 Preferències digui «Push actiu».
+
+## Pas a pas (una vegada, uns 10 minuts)
+
+1. A <https://console.firebase.google.com> crea un projecte (Analytics no cal).
+2. «Afegeix una app» → Android, paquet `xyz.solanes.gregal.vents`. Descarrega
+   `google-services.json` i desa'l fora del repositori.
+3. A `~/.gradle/gradle.properties`: `gregal.fcm.config=<camí al fitxer>`.
+   L'APK de Vents que es construeixi a partir d'ara ja porta Firebase.
+4. Configuració del projecte → Comptes de servei → «Genera una clau privada
+   nova». Desa el JSON com a `fcm-service-account.json` a la carpeta de dades
+   del servidor i reinicia'l.
+5. Obre l'app al mòbil: Preferències → Avisos en segon pla ha de dir «Push
+   actiu».

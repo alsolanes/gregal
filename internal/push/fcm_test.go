@@ -11,6 +11,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -98,5 +100,25 @@ func TestNewFCMRejectsIncomplete(t *testing.T) {
 	}
 	if _, err := NewFCM([]byte(`no json`)); err == nil || strings.Contains(err.Error(), "no json") {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestCredentialsPathFallsBackToDataDirFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("GREGAL_DATA_DIR", dir)
+	t.Setenv(EnvCredentials, "")
+	if got := CredentialsPath(); got != "" {
+		t.Fatalf("sense fitxer ni variable: %q", got)
+	}
+	f := filepath.Join(dir, DefaultFile)
+	if err := os.WriteFile(f, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := CredentialsPath(); got != f {
+		t.Fatalf("fitxer per defecte: %q", got)
+	}
+	t.Setenv(EnvCredentials, "/altre.json")
+	if got := CredentialsPath(); got != "/altre.json" {
+		t.Fatalf("la variable mana: %q", got)
 	}
 }
