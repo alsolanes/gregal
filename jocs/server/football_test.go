@@ -98,8 +98,23 @@ func TestFootballMatchPlaysToTheEnd(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(s.fbDir(), "members.json")); err != nil {
 		t.Fatalf("members.json: %v", err)
 	}
-	if w := get(t, s.host.(*web.Server).Handler(), "/api/winds"); strings.Contains(w.Body.String(), `"id"`) {
-		t.Fatalf("la lliga no ha de crear vents: %s", w.Body.String())
+	// El servidor porta el vent de casa (Gregal) des que Gregal és un vent més:
+	// el que la lliga no ha de fer és convertir equips o entrenadors en vents.
+	w := get(t, s.host.(*web.Server).Handler(), "/api/winds")
+	var res struct {
+		Winds []struct {
+			ID string `json:"id"`
+		} `json:"winds"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &res); err != nil {
+		t.Fatalf("/api/winds no és JSON: %v %s", err, w.Body.String())
+	}
+	for _, wind := range res.Winds {
+		for _, tm := range lg.Teams {
+			if wind.ID == tm.ID {
+				t.Fatalf("la lliga ha convertit l'equip %q en un vent: %s", tm.ID, w.Body.String())
+			}
+		}
 	}
 	data := os.Getenv("GREGAL_DATA_DIR")
 	_ = filepath.WalkDir(data, func(p string, d os.DirEntry, err error) error {
