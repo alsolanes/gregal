@@ -120,6 +120,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     var homeProfile by remember { mutableStateOf(false) }
     var guideOpen by remember { mutableStateOf(false) }
     var homeComputer by remember { mutableStateOf(false) }
+    var watchHome by remember { mutableStateOf(false) }
     var cornerOpen by remember { mutableStateOf(false) }
     var gamesOpen by remember { mutableStateOf(false) }
     // Inici (preguntar primer) o Xats (la llista de converses).
@@ -228,6 +229,9 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
             "today", "chats" -> { manage = false; searching = false; exploreOpen = false; tab = panel ?: "home" }
             "new" -> { creation = "chat" }
             "guide" -> { guideOpen = true }
+            "work" -> { feinesOpen = true }
+            "watch" -> { watchHome = true }
+            "computer" -> { homeComputer = true }
         }
         panelShown = panel
     }
@@ -554,6 +558,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     SharedInvitePopup(vm, lang) { vm.openVentsChat("shared:$it") }
     if (programatsOpen) ProgramatsDialog(vm, lang) { programatsOpen = false }
     if (feinesOpen) FeinesDialog(vm, lang, onOpenThread = { vm.openVentsChat("rot:$it") }) { feinesOpen = false }
+    if (watchHome) ResponsabilitatsSheet(conn, lang, winds) { watchHome = false }
     if (homeProfile) VentetProfile(vm, lang) { homeProfile = false }
     // «Què pot fer Gregal»: la primera vegada que hi ha Gregal, i des del menú.
     val guideWind = winds.firstOrNull { it.id == "gregal" }
@@ -1289,6 +1294,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                 )
             }
         }
+        // Mentre Gregal fa servir el seu ordinador, la miniatura en directe a sobre del camp.
+        if (home) GregalWorkStrip(chatConn, lang, accent, working = isBusy || resuming.contains(wind.id)) { computerOpen = true }
         VentsComposer(lang, field, { field = it }, tr(lang, "app.company.windChatHint", wind.name), canSend,
             busy = busy.contains(wind.id), accent = accent, st = st,
             onAttachDoc = { pickDocs.launch("*/*") },

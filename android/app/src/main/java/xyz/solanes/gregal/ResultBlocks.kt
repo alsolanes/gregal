@@ -67,6 +67,8 @@ internal fun GregalResultCard(spec: ResultSpec, accent: Color) {
     val uri = LocalUriHandler.current
     val shape = RoundedCornerShape(18.dp)
     val ok = Color(0xFF1E9E6A)
+    // L'accent tal qual (p. ex. el groc de Gregal) no es llegeix sobre blanc: el de l'enllaç llegible.
+    val link = readableLink(accent, LocalPal.current.dark)
     Column(Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(shape).background(Superficie).border(1.dp, Line, shape)
         .testTag("gregal-result")) {
         Row(Modifier.padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically,
@@ -84,9 +86,10 @@ internal fun GregalResultCard(spec: ResultSpec, accent: Color) {
                 .then(if (r.url.isNotEmpty()) Modifier.clickable(role = Role.Button) { uri.openUri(r.url) } else Modifier)
                 .heightIn(min = 44.dp).padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (r.lead.isNotEmpty()) Text(r.lead, color = Ink, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, modifier = Modifier.widthIn(min = 46.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(r.text, color = Ink, fontSize = 13.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (r.lead.isNotEmpty()) Text(r.lead, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (r.text.isNotEmpty()) Text(r.text, color = if (r.lead.isNotEmpty()) Muted else Ink, fontSize = 13.sp, lineHeight = 18.sp,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis)
                     if (r.tag.isNotEmpty()) Text(r.tag.uppercase(), color = if (r.pick) ok else Muted, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
                 }
                 if (r.value.isNotEmpty()) Text(r.value, color = Ink, fontSize = 13.5.sp, fontWeight = FontWeight.Bold)
@@ -94,20 +97,29 @@ internal fun GregalResultCard(spec: ResultSpec, accent: Color) {
         }
         if (spec.sources.isNotEmpty() || spec.moreLabel.isNotEmpty()) {
             HorizontalDivider(color = Line)
-            Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().heightIn(min = 40.dp).padding(horizontal = 14.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Row(horizontalArrangement = Arrangement.spacedBy((-6).dp)) {
                     spec.sources.forEachIndexed { i, _ ->
                         Box(Modifier.size(16.dp).clip(RoundedCornerShape(50)).background(Superficie).padding(2.dp)
                             .clip(RoundedCornerShape(50)).background(SourceDots[i % SourceDots.size]))
                     }
                 }
-                if (spec.sources.isNotEmpty()) Text("  " + spec.sources.joinToString(" · ") { it.first }, color = Muted, fontSize = 12.sp,
+                if (spec.sources.isNotEmpty()) Text("  " + resultSourceNames(spec.sources).joinToString(" · "), color = Muted, fontSize = 12.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
                         .clickable(role = Role.Button) { spec.sources.firstOrNull()?.second?.takeIf { it.isNotEmpty() }?.let { uri.openUri(it) } })
                 else Spacer(Modifier.weight(1f))
-                if (spec.moreLabel.isNotEmpty()) Text(spec.moreLabel + " ›", color = accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.clickable(role = Role.Button) { if (spec.moreUrl.isNotEmpty()) uri.openUri(spec.moreUrl) })
             }
+            if (spec.moreLabel.isNotEmpty()) Text(spec.moreLabel + " ›", color = link, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().clickable(role = Role.Button) { if (spec.moreUrl.isNotEmpty()) uri.openUri(spec.moreUrl) }
+                    .padding(start = 14.dp, end = 14.dp, bottom = 12.dp))
         }
     }
 }
+
+/** Pura: cada web una vegada (pel domini de l'enllaç; si no n'hi ha, pel nom). */
+internal fun resultSourceNames(sources: List<Pair<String, String>>): List<String> =
+    sources.map { (name, url) ->
+        url.substringAfter("://", "").substringBefore('/').removePrefix("www.").substringBeforeLast('.').substringAfterLast('.')
+            .takeIf { it.isNotBlank() } ?: name
+    }.distinct()

@@ -37,4 +37,10 @@ class ResultBlocksTest {
         val broken = groupRich(splitMd("```gregal-result\n{trencat\n```"))
         assertTrue("un bloc mal fet surt com a codi", broken.any { it is Rich.Code })
     }
+
+    @Test fun sourcesOncePerSite() {
+        val names = resultSourceNames(listOf("idealo · QCY" to "https://www.idealo.es/a", "idealo · Sony" to "https://www.idealo.es/b",
+            "Amazon" to "https://www.amazon.es/x", "sense enllaç" to ""))
+        assertEquals(listOf("idealo", "amazon", "sense enllaç"), names)
+    }
 }

@@ -17,6 +17,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.Computer
+import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.automirrored.rounded.Undo
@@ -168,15 +172,33 @@ private fun SimpleVentsDrawer(
             }
             Spacer(Modifier.height(18.dp))
             val home = screen == Screen.Company || screen == Screen.Ventet
-            DrawerRow(tr(lang, "nav.company"), home && panel == null, { vm.openVentsPanel(null); nav(Screen.Company) }) { DrawerWindIcon(vm) }
-            // La portada és el fil de Gregal: el que abans eren pestanyes i cares, aquí.
-            DrawerRow(askCopy(lang, "today"), false, { close(); vm.openVentsPanel("today") }, Icons.Rounded.Today)
-            DrawerRow(askCopy(lang, "chats"), false, { close(); vm.openVentsPanel("chats") }, Icons.Rounded.Forum)
-            DrawerRow(tr(lang, "app.vents.newChat"), false, { close(); vm.openVentsPanel("new") }, Icons.Rounded.Add)
-            DrawerRow(guideIntro(lang).first, false, { close(); vm.openVentsPanel("guide") }, Icons.Rounded.AutoAwesome)
-            DrawerRow(tr(lang, "app.vents.myWinds"), home && panel == "directory", { close(); vm.openVentsPanel("directory") }, Icons.Rounded.Groups)
-            DrawerRow(ventsCopy(lang, "explore"), home && panel == "explore", { close(); vm.openVentsPanel("explore") }, Icons.Rounded.AutoAwesome)
+            val winds by vm.winds.collectAsState()
+            val tasks by vm.windTasks.collectAsState()
+            val en = lang == "en"
+            // Direcció visual §2.6: poques coses, totes útils. Gregal és la portada;
+            // els especialistes són canals; els recursos, a sota.
+            val gregal = winds.firstOrNull { it.id == "gregal" }
+            DrawerRow(gregal?.name ?: tr(lang, "nav.company"), home && panel == null, { vm.openVentsPanel(null); nav(Screen.Company) }) { DrawerWindIcon(vm) }
+            val running = tasks.orEmpty().count { it.running }
+            DrawerRow(if (en) "Work" else "Feina" + "", false, { close(); vm.openVentsPanel("work") }, Icons.Rounded.Construction, badge = running)
+            DrawerRow(if (en) "Watching" else "Vigilant", false, { close(); vm.openVentsPanel("watch") }, Icons.Rounded.Visibility)
+            DrawerRow(if (en) "Reminders" else "Recordatoris", screen == Screen.Automatitzacions, { nav(Screen.Automatitzacions) }, Icons.Rounded.Alarm)
+            DrawerSection(if (en) "Channels" else "Canals")
+            winds.filter { it.id != "gregal" }.take(5).forEach { w ->
+                DrawerRow(w.name + if (w.role.isNotBlank()) " · " + w.role else "", false, { close(); vm.openVentsPanel(null); vm.openVentsChat("wind:" + w.id) }) {
+                    WindHalo(Color(w.argb), w.faceStyle, size = 24, online = false, showKit = false)
+                }
+            }
+            DrawerRow(askCopy(lang, "chats"), false, { close(); vm.openVentsPanel("chats") }, Icons.Rounded.Forum, muted = true)
+            DrawerRow(if (en) "New specialist" else "Nou especialista", false, { close(); vm.showWindCreator(true) }, Icons.Rounded.Add, muted = true)
+            DrawerSection(if (en) "Resources" else "Recursos")
+            DrawerRow(if (en) "Computer" else "Ordinador", false, { close(); vm.openVentsPanel("computer") }, Icons.Rounded.Computer)
+            DrawerRow(if (en) "Connections" else "Connexions", screen == Screen.Prefs, { nav(Screen.Prefs) }, Icons.Rounded.Link)
+            DrawerRow(webCopy(lang, "title"), screen == Screen.Webs, { nav(Screen.Webs); vm.loadWebs() }, Icons.Rounded.Language)
             DrawerRow(tr(lang, "nav.notes"), screen == Screen.Notes, { nav(Screen.Notes); vm.loadNotes() }, Icons.Rounded.EditNote)
+            HorizontalDivider(Modifier.padding(vertical = 8.dp, horizontal = 8.dp), color = Line)
+            DrawerRow(guideIntro(lang).first, false, { close(); vm.openVentsPanel("guide") }, Icons.Rounded.AutoAwesome)
+            DrawerRow(tr(lang, "app.vents.myWinds"), home && panel == "directory", { close(); vm.openVentsPanel("directory") }, Icons.Rounded.Groups, muted = true)
             // Programar des del mòbil: l'agent de codi, les seves converses, el
             // projecte i les feines, plegats. (Objectius, gràfics, Office i Retro
             // continuen a Preferències → Eines de programació.)
@@ -211,12 +233,12 @@ private fun DrawerSection(label: String) {
 }
 
 @Composable
-private fun DrawerRow(label: String, selected: Boolean, onClick: () -> Unit, icon: ImageVector, muted: Boolean = false) =
-    DrawerRow(label, selected, onClick, muted) { Icon(icon, null, modifier = Modifier.size(22.dp)) }
+private fun DrawerRow(label: String, selected: Boolean, onClick: () -> Unit, icon: ImageVector, muted: Boolean = false, badge: Int = 0) =
+    DrawerRow(label, selected, onClick, muted, badge) { Icon(icon, null, modifier = Modifier.size(22.dp)) }
 
 /** Una entrada del calaix: compacta, amb la seleccionada en píndola tintada i un punt. */
 @Composable
-private fun DrawerRow(label: String, selected: Boolean, onClick: () -> Unit, muted: Boolean = false, icon: @Composable () -> Unit) {
+private fun DrawerRow(label: String, selected: Boolean, onClick: () -> Unit, muted: Boolean = false, badge: Int = 0, icon: @Composable () -> Unit) {
     val shape = RoundedCornerShape(14.dp)
     Row(
         Modifier.fillMaxWidth().clip(shape)
@@ -235,6 +257,9 @@ private fun DrawerRow(label: String, selected: Boolean, onClick: () -> Unit, mut
             color = when { selected -> Ink; muted -> Muted; else -> Tinta },
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
         )
+        if (badge > 0) Box(Modifier.background(Sea, CircleShape).padding(horizontal = 7.dp, vertical = 1.dp)) {
+            Text(badge.toString(), color = OnSea, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
         if (selected) Box(Modifier.size(6.dp).background(Sea, CircleShape))
     }
 }

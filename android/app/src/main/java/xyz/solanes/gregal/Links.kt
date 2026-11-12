@@ -133,20 +133,20 @@ internal fun MessageLinks(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Les fonts, lleugeres (direcció visual §4): un punt i el nom; tocar obre, mantenir premut copia.
+        // Les fonts, lleugeres (direcció visual §4): un punt i el nom; tocar copia l'enllaç, mantenir premut l'obre.
         Text(if (lang == "en") "Sources" else "Fonts", color = Muted, fontSize = 12.sp)
         links.forEach { l ->
             Row(
                 Modifier.clip(RoundedCornerShape(8.dp))
                     .combinedClickable(
-                        onClick = { uri.openUri(l.url) },
-                        onLongClick = {
+                        onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             clipboard.setText(AnnotatedString(l.url))
                             onCopied?.invoke()
                         },
+                        onLongClick = { uri.openUri(l.url) },
                     )
-                    .semantics { contentDescription = l.label }
+                    .semantics { contentDescription = tr(lang, "app.vents.copyLink") + ": " + l.label }
                     .heightIn(min = 32.dp).padding(horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
