@@ -1,6 +1,6 @@
 # Gregal Android: direcció visual i prompt
 
-12 de novembre de 2026. Basat en captures reals de Vents 1.75 a l'emulador (`output/design-now/`) i en la maqueta objectiu (`output/mockups/gregal-target.html`, imatges `gregal-target-1..4.png`).
+12 de novembre de 2026. Basat en captures reals de Vents 1.75 a l'emulador (`docs/design/gregal-android/ara/`) i en la maqueta objectiu (`docs/design/gregal-android/gregal-target.html`, imatges `gregal-target-1..4.png`).
 
 ## 1. Què es veu avui
 
@@ -30,10 +30,10 @@
 
 | # | Imatge | Què ha de quedar clar |
 |---|---|---|
-| 1 | `output/mockups/gregal-target-1.png` | Obertura: cara gran amb lluïssor, salutació amb el nom, suggeriments, camp a baix |
-| 2 | `output/mockups/gregal-target-2.png` | Fil: capçalera flotant, bombolles, targeta de resultat amb recomanada, aprovació |
-| 3 | `output/mockups/gregal-target-3.png` | Treballant (fosc): «treballant…» sota la cara, novetat amb «Per què?», franja amb l'ordinador en directe, camp amb Atura |
-| 4 | `output/mockups/gregal-target-4.png` | Menú: Gregal, Feina (2), Vigilant (3), Recordatoris (5), Canals, Recursos |
+| 1 | `docs/design/gregal-android/gregal-target-1.png` | Obertura: cara gran amb lluïssor, salutació amb el nom, suggeriments, camp a baix |
+| 2 | `docs/design/gregal-android/gregal-target-2.png` | Fil: capçalera flotant, bombolles, targeta de resultat amb recomanada, aprovació |
+| 3 | `docs/design/gregal-android/gregal-target-3.png` | Treballant (fosc): «treballant…» sota la cara, novetat amb «Per què?», franja amb l'ordinador en directe, camp amb Atura |
+| 4 | `docs/design/gregal-android/gregal-target-4.png` | Menú: Gregal, Feina (2), Vigilant (3), Recordatoris (5), Canals, Recursos |
 
 ## 4. Especificació
 
@@ -52,8 +52,8 @@
 ```
 You are improving the Gregal Vents Android app (Kotlin/Compose, repo C:\dev\gregal, branch assistent-v2) so its main
 screen looks and behaves like a top personal assistant (OpenAI dots / Claude Duet), following
-docs/android-gregal-direccio.ca.md. Target images: output/mockups/gregal-target-1..4.png (open the HTML
-output/mockups/gregal-target.html for exact sizes). Current state: output/design-now/*.png.
+docs/android-gregal-direccio.ca.md. Target images: docs/design/gregal-android/gregal-target-1..4.png (open the HTML
+docs/design/gregal-android/gregal-target.html for exact sizes). Current state: docs/design/gregal-android/ara/*.png.
 
 Goal: the home screen is Gregal's thread (WindConversation(home = true) in CompanyScreen.kt). Make it match the mockups:
 1. Floating header: edge-to-edge, transparent status bar; no bar/background/borders; menu icon left, Gregal's

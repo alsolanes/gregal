@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ca"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gregal Android · direcció visual</title>
+<style>
+:root{--bg:#F6F7FB;--ink:#141821;--muted:#5D6578;--faint:#8A91A2;--line:rgba(20,24,33,.08);--line2:rgba(20,24,33,.14);--bub:#ECEEF4;--card:#FFFFFF;--acc:#3D5AFE;--acc2:#7C5CFF;--onacc:#fff;--warm:#FFC857;--ok:#1E9E6A}
+.dark{--bg:#0F1116;--ink:#F2F4F8;--muted:#A4ABB8;--faint:#7D8494;--line:rgba(220,228,255,.08);--line2:rgba(220,228,255,.16);--bub:#1D2029;--card:#171A22;--acc:#8193FF;--acc2:#B69CFF;--onacc:#0F1116}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Inter","Segoe UI",system-ui,sans-serif;background:#E9EBF1;display:flex;gap:28px;padding:28px;flex-wrap:wrap}
+.phone{width:390px;height:844px;border-radius:44px;background:var(--bg);color:var(--ink);position:relative;overflow:hidden;box-shadow:0 30px 80px rgba(20,24,40,.18),0 0 0 10px #111,0 0 0 11px #333}
+.cap{position:absolute;top:-38px;left:0;font:600 13px Inter,sans-serif;color:#555}
+.wrap{position:relative}
+/* halo */
+.halo{position:absolute;inset:-60px -40px auto -40px;height:360px;pointer-events:none;background:radial-gradient(40% 46% at 50% 22%,color-mix(in srgb,var(--warm) 55%,transparent),transparent 72%),radial-gradient(34% 40% at 64% 30%,color-mix(in srgb,var(--acc2) 30%,transparent),transparent 72%);opacity:.55}
+.status{height:44px;display:flex;justify-content:space-between;align-items:center;padding:0 26px;font:600 14px Inter;position:relative;z-index:3}
+/* floating header: no bar, no borders */
+.top{position:absolute;top:44px;left:0;right:0;height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;z-index:3}
+.fade{position:absolute;top:0;left:0;right:0;height:112px;z-index:2;background:linear-gradient(var(--bg) 46%,color-mix(in srgb,var(--bg) 0%,transparent));pointer-events:none}
+.ib{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;color:var(--ink)}
+.ib svg{width:22px;height:22px}
+.face{width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFE59A,#F5B43C);position:relative;box-shadow:0 4px 14px rgba(245,180,60,.45)}
+.face::before,.face::after{content:"";position:absolute;top:12px;width:4px;height:6px;border-radius:2px;background:#2A1E10}
+.face::before{left:11px}.face::after{right:11px}
+.face i{position:absolute;left:12px;bottom:8px;width:10px;height:5px;border-bottom:2px solid #2A1E10;border-radius:0 0 8px 8px}
+.who{display:flex;flex-direction:column;align-items:center;gap:2px}
+.who small{font:600 10.5px Inter;color:var(--muted);letter-spacing:.02em}
+.thread{position:absolute;top:96px;bottom:92px;left:0;right:0;overflow:hidden;padding:8px 16px 0;display:flex;flex-direction:column;gap:6px;justify-content:flex-end}
+.u{align-self:flex-end;max-width:78%;background:var(--acc);color:var(--onacc);padding:10px 15px;border-radius:22px 22px 6px 22px;font-size:15.5px;line-height:22px}
+.a{align-self:flex-start;max-width:86%;background:var(--bub);padding:10px 15px;border-radius:22px 22px 22px 6px;font-size:15.5px;line-height:22px}
+.a.mid{border-radius:22px}
+.meta{font-size:11.5px;color:var(--faint);margin:2px 6px 8px}
+.meta.r{align-self:flex-end}
+.sep{display:flex;align-items:center;gap:10px;color:var(--faint);font-size:11.5px;margin:10px 0 4px}
+.sep::before,.sep::after{content:"";flex:1;height:1px;background:var(--line2)}
+/* result card */
+.res{align-self:stretch;background:var(--card);border:1px solid var(--line2);border-radius:18px;overflow:hidden}
+.res h4{display:flex;align-items:center;gap:10px;padding:12px 14px 8px;font-size:14.5px}
+.res h4 b{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;background:color-mix(in srgb,var(--acc) 14%,transparent);font-size:15px}
+.res h4 span{font-weight:400;color:var(--muted);font-size:12px;display:block}
+.row{display:grid;grid-template-columns:52px 1fr auto;gap:10px;padding:9px 14px;border-top:1px solid var(--line);font-size:13.5px;align-items:center}
+.row .t{font-weight:650;font-variant-numeric:tabular-nums}
+.row .p{font-weight:650}
+.row .m{color:var(--muted);font-size:12px}
+.pick{background:color-mix(in srgb,var(--ok) 9%,transparent)}
+.tag{font-size:10.5px;font-weight:700;color:var(--ok);margin-left:6px}
+.foot{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+.foot a{color:var(--acc);font-weight:650;text-decoration:none}
+.srcs{display:flex;align-items:center;gap:-4px}
+.srcs i{width:18px;height:18px;border-radius:50%;border:2px solid var(--card);margin-left:-6px;display:inline-block}
+.srcs i:first-child{margin-left:0}
+/* approval */
+.ask{align-self:stretch;border:1.5px solid color-mix(in srgb,var(--acc) 55%,transparent);border-radius:18px;padding:13px 14px;background:color-mix(in srgb,var(--acc) 6%,var(--card))}
+.ask p{font-size:14.5px;line-height:20px;margin-bottom:10px}
+.ask small{display:block;color:var(--muted);font-size:12px;margin:-4px 0 10px}
+.btns{display:flex;gap:8px}
+.btn{flex:1;text-align:center;padding:10px;border-radius:14px;font-weight:650;font-size:14px}
+.btn.p{background:var(--acc);color:var(--onacc)}
+.btn.s{border:1px solid var(--line2)}
+/* work strip + pip */
+.strip{position:absolute;left:16px;right:16px;bottom:96px;display:flex;align-items:center;gap:10px;padding:8px 10px 8px 8px;border-radius:16px;background:var(--card);border:1px solid var(--line2);box-shadow:0 8px 24px rgba(20,24,40,.08);z-index:3}
+.pip{width:64px;height:42px;border-radius:9px;background:linear-gradient(#fff,#f1f3f8);border:1px solid var(--line2);position:relative;overflow:hidden;flex:none}
+.pip::before{content:"";position:absolute;left:6px;right:6px;top:7px;height:5px;border-radius:3px;background:#C9152B}
+.pip::after{content:"";position:absolute;left:6px;top:17px;width:34px;height:4px;border-radius:2px;background:#d8dbe4;box-shadow:0 8px 0 #d8dbe4,10px 16px 0 #d8dbe4}
+.dot{position:absolute;width:10px;height:10px;border-radius:50%;background:#FF2E93;box-shadow:0 0 0 4px rgba(255,46,147,.25);left:38px;top:24px}
+.strip b{font-size:13px}.strip span{display:block;font-size:11.5px;color:var(--muted)}
+.strip em{margin-left:auto;font-style:normal;color:var(--acc);font-weight:650;font-size:13px}
+.comp{position:absolute;left:12px;right:12px;bottom:22px;height:58px;border-radius:29px;background:var(--card);border:1px solid var(--line2);display:flex;align-items:center;padding:0 8px 0 18px;gap:10px;z-index:3;box-shadow:0 6px 20px rgba(20,24,40,.06)}
+.comp span{flex:1;color:var(--faint);font-size:15.5px;text-align:left;white-space:nowrap;display:block;order:1}
+.send{width:42px;height:42px;border-radius:50%;background:var(--ink);color:var(--bg);display:grid;place-items:center}
+.plus{color:var(--muted);font-size:24px;line-height:1;order:0}
+.send{order:2}
+/* drawer */
+.drawer{position:absolute;inset:0 70px 0 0;background:var(--bg);z-index:5;padding:58px 18px 20px;box-shadow:20px 0 60px rgba(0,0,0,.18)}
+.scrim{position:absolute;inset:0;background:rgba(10,12,20,.35);z-index:4}
+.dh{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.dh b{font-size:19px}.dh small{display:block;color:var(--muted);font-size:12px}
+.sec{font:700 10.5px Inter;letter-spacing:.08em;color:var(--faint);margin:16px 6px 6px;text-transform:uppercase}
+.it{display:flex;align-items:center;gap:12px;padding:10px 10px;border-radius:12px;font-size:15px}
+.it.on{background:color-mix(in srgb,var(--acc) 10%,transparent);font-weight:650}
+.it i{width:22px;text-align:center;font-style:normal}
+.it em{margin-left:auto;font-style:normal;font-size:11.5px;color:var(--onacc);background:var(--acc);padding:1px 7px;border-radius:9px}
+.it small{margin-left:auto;color:var(--faint);font-size:12px}
+.chan{display:flex;gap:-6px}
+.av{width:22px;height:22px;border-radius:50%}
+/* opening */
+.open{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;padding:0 40px}
+.bigface{width:92px;height:92px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFE59A,#F5B43C);position:relative;box-shadow:0 0 0 18px rgba(255,200,87,.16),0 0 0 40px rgba(255,200,87,.09),0 0 120px 40px rgba(182,156,255,.35)}
+.bigface::before,.bigface::after{content:"";position:absolute;top:34px;width:9px;height:14px;border-radius:5px;background:#2A1E10}
+.bigface::before{left:30px}.bigface::after{right:30px}
+.open h2{font-size:26px;letter-spacing:-.01em}
+.open p{color:var(--muted);font-size:15px;line-height:22px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:6px}
+.chip{border:1px solid var(--line2);background:var(--card);border-radius:18px;padding:8px 13px;font-size:13.5px}
+</style></head><body>
+
+<!-- 1. Obertura -->
+<div class="wrap"><div class="cap">1 · Obertura (0,7 s de lluïssor, després el fil)</div>
+<div class="phone"><div class="halo" style="height:720px;opacity:.9"></div><div class="status"><span>9:41</span><span>●●● ▮</span></div>
+<div class="open"><div class="bigface"></div><h2>Bon dia, Aleix</h2><p>Soc Gregal. Ho faig jo i torno aquí amb el resultat.</p>
+<div class="chips"><span class="chip">🔎 Busca'm bitllets</span><span class="chip">⏰ Recorda'm…</span><span class="chip">👀 Vigila un preu</span><span class="chip">✦ Què pots fer?</span></div></div>
+<div class="comp"><span class="plus">+</span><span>Demana-li a Gregal…</span><div class="send">↑</div></div></div></div>
+
+<!-- 2. Fil amb resultat -->
+<div class="wrap"><div class="cap">2 · Fil: capçalera flotant i resultat com a targeta</div>
+<div class="phone"><div class="halo" style="opacity:.28"></div><div class="status"><span>9:41</span><span>●●● ▮</span></div><div class="fade"></div>
+<div class="top"><div class="ib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg></div>
+<div class="who"><div class="face"><i></i></div></div>
+<div class="ib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 20h8"/></svg></div></div>
+<div class="thread">
+<div class="u">Busca'm trens de Barcelona a Girona per demà al matí</div><div class="meta r">09:12</div>
+<div class="a">He mirat Renfe i dues webs de dades obertes. Aquests són els millors:</div>
+<div class="res"><h4><b>🚆</b><div>Barcelona → Girona · dv. 13<span>11 trens al matí · preus d'avui</span></div></h4>
+<div class="row pick"><span class="t">08:05</span><span>Avant · 40 min<span class="tag">RECOMANAT</span></span><span class="p">17,40 €</span></div>
+<div class="row"><span class="t">08:16</span><span>R11 · 1 h 20 <span class="m">més barat</span></span><span class="p">8,95 €</span></div>
+<div class="row"><span class="t">09:32</span><span>Avant · 41 min</span><span class="p">17,00 €</span></div>
+<div class="foot"><span class="srcs"><i style="background:#C9152B"></i><i style="background:#2E7D32"></i><i style="background:#1565C0"></i></span><span>3 fonts · fa 2 min</span><a>Veure els 11 ›</a></div></div>
+<div class="ask"><p>Vols que et reservi l'Avant de les 08:05?</p><small>Ho faré a renfe.com amb el teu compte. Abans de pagar et tornaré a preguntar.</small>
+<div class="btns"><span class="btn p">Reserva'l</span><span class="btn s">Ara no</span></div></div>
+</div>
+<div class="comp"><span class="plus">+</span><span>Demana-li a Gregal…</span><div class="send">↑</div></div></div></div>
+
+<!-- 3. Treballant amb l'ordinador -->
+<div class="wrap"><div class="cap">3 · Treballant: el seu ordinador en miniatura</div>
+<div class="phone dark"><div class="halo" style="opacity:.32"></div><div class="status"><span>9:41</span><span>●●● ▮</span></div><div class="fade"></div>
+<div class="top"><div class="ib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg></div>
+<div class="who"><div class="face"><i></i></div><small>treballant…</small></div>
+<div class="ib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 20h8"/></svg></div></div>
+<div class="thread" style="bottom:160px">
+<div class="sep">Una novetat per a tu</div>
+<div class="a">Sobre el portàtil · Ha baixat a 879 € a la botiga oficial. L'he comprovat fa un moment.</div><div class="meta"><span style="color:var(--acc)">Per què?</span> · 08:30</div>
+<div class="u">Perfecte. Reserva l'Avant de les 08:05</div><div class="meta r">09:14</div>
+<div class="a mid">Entro a renfe.com amb el teu compte…</div>
+</div>
+<div class="strip"><div class="pip"><div class="dot"></div></div><div><b>A renfe.com</b><span>Clica «Comprar» · pas 3 de 5</span></div><em>Mira-ho</em></div>
+<div class="comp"><span class="plus">+</span><span>Escriu mentre treballa…</span><div class="send">■</div></div></div></div>
+
+<!-- 4. Menú -->
+<div class="wrap"><div class="cap">4 · Menú: poques coses, totes útils</div>
+<div class="phone"><div class="status"><span>9:41</span><span>●●● ▮</span></div><div class="scrim"></div>
+<div class="drawer">
+<div class="dh"><div class="face" style="width:40px;height:40px"><i></i></div><div><b>Gregal</b><small>al teu PC · connectat</small></div></div>
+<div class="it on"><i>💬</i>Gregal</div>
+<div class="it"><i>⏳</i>Feina<em>2</em></div>
+<div class="it"><i>👀</i>Vigilant<small>3</small></div>
+<div class="it"><i>⏰</i>Recordatoris<small>5</small></div>
+<div class="sec">Canals</div>
+<div class="it"><span class="av" style="background:#EFC69A"></span>Marinada · compres</div>
+<div class="it"><span class="av" style="background:#7FC8B8"></span>Garbí · dades</div>
+<div class="it"><i>＋</i>Nou especialista</div>
+<div class="sec">Recursos</div>
+<div class="it"><i>🖥</i>Ordinador</div>
+<div class="it"><i>🔗</i>Connexions<small>Gmail · Calendari</small></div>
+<div class="it"><i>🌐</i>Webs</div>
+<div class="it"><i>📝</i>Notes</div>
+<div class="sec"> </div>
+<div class="it"><i>✦</i>Què pot fer Gregal</div>
+<div class="it"><i>⚙</i>Preferències</div>
+</div></div></div>
+
+</body></html>
