@@ -774,3 +774,16 @@ body .workshop-bay { container-type:inline-size; container-name:bay; }
 .ar-hist-res b.up { color:#1f9d5b; } .ar-hist-res b.down { color:#d1373c; }
 .ar-diff { margin:0; max-height:340px; overflow:auto; white-space:pre-wrap; word-break:break-word; font-size:12px; border:1px solid var(--line); border-radius:8px; padding:6px 0; background:var(--bg); }
 .ar-diff span { display:block; padding:0 10px; } .ar-diff .d-same { color:var(--muted); } .ar-diff .d-skip { color:var(--muted); font-style:italic; text-align:center; }
+/* Resum del torn compacte: una franja (estat · fitxers · «Revisa canvis»), no una
+   segona resposta. La resposta ja explica què ha fet; aquí només el que es clica. */
+.run-summary { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; padding:9px 14px;
+  border-radius:12px; box-shadow:none; background:transparent; }
+.run-summary-title { margin:0; font-size:var(--t2); font-weight:600; color:var(--green); }
+.run-summary-title::before { content:"✓"; }
+.run-summary-section { padding:0; border:0; color:var(--muted); font-size:var(--t1); }
+.run-summary-section + .run-summary-section { margin:0; }
+.run-summary-section .run-summary-pill { display:none; }
+.run-summary-row { padding:0; }
+.run-summary-file { padding:2px 8px; border:1px solid var(--line); border-radius:7px; background:var(--surface); font-size:var(--t1); }
+.run-summary-actions { margin:0 0 0 auto; }
+.run-summary-action { min-height:28px; padding:3px 10px; font-size:var(--t1); }

@@ -12,7 +12,7 @@ test('context details and speed remain visible independently of work steps', () 
   sandbox.updateCtxGauge({context_window: 10000, used_tokens: 2500});
   assert.equal(gauge.hidden, false); assert.match(gauge.dataset.tooltip, /25%/); assert.equal(gauge['aria-valuetext'], gauge.dataset.tooltip);
   sandbox.speedReset(); sandbox.speedAdd({pp: 100, tg: 20, prompt: 1000, cached: 0, completion: 100, ttft_ms: 10000, gen_ms: 5000});
-  assert.equal(speed.hidden, false); assert.match(speed.textContent, /PP 100.*TG 20/);
+  assert.equal(speed.hidden, false); assert.match(speed.textContent, /20(\.0)? t\/s/); assert.doesNotMatch(speed.textContent, /PP|TG/);
   sandbox.updateCtxGauge({context_window: 0}); assert.equal(gauge.hidden, true);
   sandbox.speedReset(); assert.equal(speed.hidden, true);
 });

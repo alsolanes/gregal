@@ -26,3 +26,11 @@ test('un bloc mal fet surt com a codi', () => {
   assert.ok(md.render('```gregal-result\n{trencat\n```').includes('codeblock'));
   assert.ok(md.render('```gregal-result\n{"title":"sense files","rows":[]}\n```').includes('codeblock'));
 });
+
+test('cada web surt una sola vegada a les fonts', () => {
+  const h = card({ title: 'Auriculars', rows: [{ lead: 'QCY H3', text: 'ANC', value: '25 €' }],
+    sources: [{ name: 'idealo · QCY H3', url: 'https://www.idealo.es/a' }, { name: 'idealo · Sony', url: 'https://www.idealo.es/b' }, { name: 'Amazon', url: 'https://www.amazon.es/x' }] });
+  assert.strictEqual((h.match(/>idealo</g) || []).length, 1);
+  assert.ok(h.includes('>amazon<'));
+  assert.ok(h.includes('class="gr-lead"'));
+});

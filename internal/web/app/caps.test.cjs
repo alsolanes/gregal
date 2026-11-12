@@ -41,9 +41,9 @@ test('bet chip lands on the tool summary with the outcome mark', () => {
   caps.betChip(card, { p: '30', passed: 'false' });
   caps.betChip(null, { p: '50', passed: 'true' });
   assert.equal(appended.length, 2);
-  assert.equal(appended[0].textContent, 'bet 80% ✓');
+  assert.equal(appended[0].textContent, '80%');
   assert.match(appended[0].className, /bet-ok/);
-  assert.equal(appended[1].textContent, 'bet 30% ✗');
+  assert.equal(appended[1].textContent, '30%');
 });
 
 test('/debug switches to debug mode and sends only the task', async () => {

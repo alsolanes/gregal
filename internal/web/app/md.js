@@ -101,16 +101,26 @@
       '<div><strong>' + esc(title) + "</strong>" + (o.subtitle ? "<small>" + str(o.subtitle) + "</small>" : "") + "</div></div>";
     for (const r of rows) {
       const url = safeUrl(r.url);
-      const inner = '<span class="gr-lead">' + str(r.lead) + '</span><span class="gr-text">' + str(r.text) +
-        (r.tag ? '<em>' + str(r.tag) + "</em>" : "") + '</span><span class="gr-value">' + str(r.value) + "</span>";
+      // Com a Android: el nom a dalt, la descripció a sota (més suau) i el preu a la dreta.
+      const inner = '<span class="gr-main">' + (r.lead ? '<span class="gr-lead">' + str(r.lead) + "</span>" : "") +
+        (r.text ? '<span class="gr-text' + (r.lead ? "" : " gr-solo") + '">' + str(r.text) + "</span>" : "") +
+        (r.tag ? "<em>" + str(r.tag) + "</em>" : "") + '</span><span class="gr-value">' + str(r.value) + "</span>";
       h += url ? '<a class="gr-row' + (r.pick ? " gr-pick" : "") + '" href="' + url + '" target="_blank" rel="noopener">' + inner + "</a>"
         : '<div class="gr-row' + (r.pick ? " gr-pick" : "") + '">' + inner + "</div>";
     }
-    const sources = (Array.isArray(o.sources) ? o.sources : []).slice(0, 6);
+    // Cada web una vegada (pel domini; si no hi ha enllaç, pel nom), com resultSourceNames a Android.
+    const seen = new Set();
+    const sources = (Array.isArray(o.sources) ? o.sources : []).slice(0, 6).map((x) => {
+      const url = String((x && x.url) || "");
+      const host = /^https?:\/\//i.test(url) ? url.replace(/^https?:\/\//i, "").split("/")[0].replace(/^www\./, "") : "";
+      const parts = host.split(".");
+      const site = parts.length > 1 ? parts[parts.length - 2] : host;
+      return { url, name: site || String((x && x.name) || "") };
+    }).filter((x) => x.name && !seen.has(x.name) && seen.add(x.name));
     const more = o.more && typeof o.more === "object" ? o.more : null;
     if (sources.length || (more && more.label)) {
       h += '<div class="gr-foot"><span class="gr-sources">' + sources.map((x, i) => {
-        const url = safeUrl(x && x.url), name = str((x && (x.name || String(x.url || "").replace(/^https?:\/\//, "").split("/")[0])) || "");
+        const url = safeUrl(x.url), name = str(x.name);
         return '<i class="gr-dot gr-dot' + (i % 6) + '"></i>' + (url ? '<a href="' + url + '" target="_blank" rel="noopener">' + name + "</a>" : name);
       }).join(" ") + "</span>";
       if (more && more.label) {

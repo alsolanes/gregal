@@ -17,7 +17,8 @@
     const ok = String(d.passed) === 'true';
     const chip = document.createElement('span');
     chip.className = 'bet-chip ' + (ok ? 'bet-ok' : 'bet-bad');
-    chip.textContent = T('bet.label', 'bet') + ' ' + (d.p || '?') + '% ' + (ok ? '✓' : '✗');
+    // Discret: només el percentatge que s'havia predit; què vol dir, al títol.
+    chip.textContent = (d.p || '?') + '%';
     chip.title = T('bet.title', 'Predicted chance that this check passes, against the real outcome') + (d.command ? ' · ' + d.command : '');
     const summary = card && card.querySelector && card.querySelector('summary');
     if (summary) summary.appendChild(chip);

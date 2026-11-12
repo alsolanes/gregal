@@ -1,8 +1,7 @@
 /* Capacitats d'agent (app/caps.js): xip d'aposta, crític del pla, best-of. */
-.bet-chip { display:inline-block; margin-left:8px; padding:0 6px; border-radius:9px; font-size:11px; line-height:17px;
-  border:1px solid var(--line); color:var(--muted, inherit); white-space:nowrap; vertical-align:middle; }
-.bet-chip.bet-ok { border-color:color-mix(in srgb, var(--green, #3a9) 55%, transparent); }
-.bet-chip.bet-bad { border-color:color-mix(in srgb, var(--red, #c55) 55%, transparent); }
+.bet-chip { display:inline-block; margin-left:8px; font-size:11px; line-height:17px; opacity:.6;
+  color:var(--muted, inherit); white-space:nowrap; vertical-align:middle; font-variant-numeric:tabular-nums; }
+.bet-chip.bet-bad { color:var(--red, #c55); }
 .plan-critic { margin:8px 0 4px; padding:6px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px; }
 .plan-critic summary { cursor:pointer; font-weight:600; }
 .plan-critic ul { margin:6px 0 2px 18px; padding:0; }

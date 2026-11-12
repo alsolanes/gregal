@@ -234,6 +234,8 @@
   const flat=x=>String(x||'').replace(/\s+/g,' ').trim();
   const already=!!pending.text&&state.history.some(h=>h.from!=='user'&&flat(withoutSpeaker(h.text,wind?.name||h.speaker_name))===flat(withoutSpeaker(pending.text,wind?.name)));
   const writing=!!pending.text&&!already;
+  // A long answer becomes a reading surface (no bubble) when it lands: it streams in that shape too, so it doesn't jump.
+  if(writing&&chatReadingSurface(pending.text))row.classList.add('vw-reading');
   activity.append(el('span','',writing?t('Escrivint la resposta','Writing the response'):phases[pending.phase]||phases.thinking),dots);copy.append(activity);
   // Streamed text is formatted as it arrives, like the finished message it becomes.
   if(writing){const body=el('div','vw-message-text vw-stream-text'),shown=choicesStrip(withoutSpeaker(pending.text,wind?.name)).replace(/```(?:chart|gregal-plot)\n[\s\S]*?```/g,'\n_'+t('Preparant un gràfic…','Preparing a chart…')+'_\n');if(root.gregalMD)body.innerHTML=root.gregalMD.render(shown);else body.textContent=shown;copy.append(body);}
