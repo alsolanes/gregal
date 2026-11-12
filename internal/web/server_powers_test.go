@@ -55,6 +55,11 @@ func fakeCloudflared(t *testing.T) (string, string) {
 }
 
 func TestTunnelQuickAndNamed(t *testing.T) {
+	// La prova descriu algú que no té cap túnel amb nom configurat: si
+	// GREGAL_CF_TUNNEL hi és (la closca de qui compila, o un desplegament),
+	// el servidor fa el correcte —agafar aquell— i la prova no parla del
+	// mateix cas.
+	t.Setenv("GREGAL_CF_TUNNEL", "")
 	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	bin, _ := fakeCloudflared(t)
 	var routed []string
