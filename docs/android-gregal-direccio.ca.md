@@ -83,3 +83,50 @@ the mockups; no Co-Authored-By lines; do not push or release.
 Done when: side-by-side screenshots match the four mockups in light and dark, the drawer opens from home,
 a train/price search returns a result card, an approval shows as the inline card, and all tests pass.
 ```
+
+## 6. Què fan Grok Bot, dots i Duet que nosaltres no fem
+
+Llegit el 12/11 a les fonts: [Grok Bot 101](https://x.ai/bot/guides/grok-bot-101) (guia oficial), [Presentem els dots](https://openai.com/ca-ES/index/introducing-dots/) (anunci oficial) i [What is Claude Duet?](https://zapier.com/blog/claude-duet/) (prova a Zapier). ✅ fet · 🟡 a mitges · ❌ no ho tenim.
+
+| Què fan | Qui | Gregal avui |
+|---|---|---|
+| **Avisos al mòbil quan acaba una feina o et necessita**, amb l'app tancada | Duet, dots | 🟡 només amb l'app oberta o per comprovació periòdica; el push (FCM) no està configurat |
+| **Connectar Gmail, Calendar i Drive d'un toc** a l'alta | Duet, dots, Grok | ❌ correu per IMAP i calendari per enllaç ICS, a mà; OAuth només per a MCP amb client registrat |
+| **Resum del matí** al fil principal | Duet | 🟡 existeix el resum, però no arriba al fil de Gregal |
+| **Revisa els teus comptes cada poques hores i només parla si cal** («recerca proactiva» només de lectura) | Duet, dots | 🟡 només el que li encarregues amb «vigila…»; no mira els comptes pel seu compte |
+| **Pantalla de Tasques** amb la feina de fons i, al principi, «escaneja les teves eines per trobar feina que pugui fer» | Duet | 🟡 «Feina» llista el que corre; no proposa feina |
+| **Pestanya Fes (Make)** amb plantilles: llista del dia, triatge de correu… | Duet | ❌ |
+| **Resultats com a targetes al fil** (apps connectades, opcions) | Duet | 🟡 hi ha `ResultCard`, però Gregal no l'omple amb dades estructurades |
+| **Veure i fer servir el seu ordinador des del mòbil com un escriptori remot** | Grok, dots | 🟡 amb VM: visor noVNC (mai provat amb una real); sense VM: el veus en directe però no el pots controlar des del mòbil |
+| **Formulari segur al xat per a una contrasenya o una clau d'API** | Grok | ❌ cal anar a Connexions o iniciar sessió a l'ordinador |
+| **Inicia sessió amb contrasenyes desades sense ensenyar-les al model** | dots | ❌ |
+| **Regles en llenguatge natural** (què pot fer sol, què demana, què mai) + **un revisor** que les aplica | Grok, dots | ❌ només permisos al YAML i les decisions per a accions externes |
+| **Ensenyar una feina gravant-la** i convertir-la en rutina | Grok | 🟡 «fes-ho així la propera vegada» en text; sense gravació |
+| **Rutines i disparadors d'esdeveniments d'apps** (un fil de Slack, un PR, un correu nou) | Grok | 🟡 web, agenda, calendari i correu per enquesta; cap disparador d'apps |
+| **Trucar-li i parlar-hi en veu** | dots | ❌ només dictat |
+| **Parlar-hi des de Slack, Teams o SMS** amb el mateix context | dots | 🟡 hi ha un client de Telegram, no unificat amb el fil de Gregal |
+| **Diverses feines alhora sense fils separats** | dots | 🟡 un torn a la vegada al fil; les colles van a part |
+| **Bots que es parlen entre ells i xats de grup** | Grok | ✅ Gregal consulta especialistes; rotllanes i colles |
+| **Diversos comptes per servei** | Grok | ✅ B5 |
+| **Aprovació abans d'enviar, pagar, signar o esborrar** | tots | ✅ decisions de B4 |
+| **Aprèn les teves preferències amb el temps** | dots, Duet | 🟡 memòria per vent i correccions; no aprèn sol del feedback |
+| **Torna amb captures o un vídeo del que ha fet** | Grok | 🟡 B13 guarda les captures; no arriben al fil |
+| **Navegar webs reals (Amazon, bitllets) amb preus** | tots | ✅ provat: el navegador d'aquest PC obre Amazon, Trainline i Renfe sense captcha. Al mòbil no ho veies perquè el servidor encara era la v1.71.0 |
+
+### Ordre proposat (Android primer)
+
+**P0 — perquè sigui i sembli com ells**
+1. La pantalla de Gregal com a la maqueta (§2–§4): capçalera flotant, targetes de resultat amb dades estructurades, aprovació en targeta, franja amb l'ordinador en directe, menú curt, sense diàleg d'actualització.
+2. Avisos reals al mòbil: FCM configurat (cal un projecte de Firebase teu) i «acabat / et necessito» sempre com a notificació.
+3. Connectar Google d'un toc (Gmail, Calendar, Drive) amb OAuth (cal un client OAuth de Google Cloud teu).
+4. Resum del matí i revisions cada poques hores al fil de Gregal, només quan hi ha alguna cosa.
+5. Controlar el navegador del PC des del mòbil (tocs i text) quan no hi ha VM.
+
+**P1 — confiança i comoditat**
+6. Regles en llenguatge natural + revisor (permet / pregunta / mai), a Preferències.
+7. Formulari segur al xat per a contrasenyes i claus (van directes al magatzem xifrat).
+8. Pestanyes Xat · Tasques · Fes, amb «busca feina que pugui fer» i plantilles.
+9. Mode veu: parlar-hi i que respongui en veu.
+
+**P2 — més enllà**
+10. Ensenyar gravant la pantalla de l'ordinador; disparadors d'apps; una adreça de correu per a Gregal; Telegram/Slack lligats al mateix fil.
