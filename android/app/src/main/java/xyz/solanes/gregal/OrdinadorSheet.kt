@@ -17,6 +17,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,6 +58,9 @@ internal fun ordinadorCopy(lang: String, key: String): String {
     val en = lang == "en"
     return when (key) {
         "title" -> if (en) "Computer" else "Ordinador"
+        "local" -> if (en) "Gregal's browser, on this computer" else "El navegador de Gregal, en aquest ordinador"
+        "localSub" -> if (en) "You see it live. To take control, use the browser on the computer." else "El veus en directe. Per prendre el control, fes-ho al navegador de l'ordinador."
+        "localIdle" -> if (en) "Gregal has no page open right now. Ask it to look something up and you'll see it here." else "Ara mateix Gregal no té cap pàgina oberta. Demana-li que busqui alguna cosa i ho veuràs aquí."
         "starting" -> if (en) "Starting your computer…" else "Engegant el teu ordinador…"
         "startingSub" -> if (en) "It was saved to disk; it usually takes under 30 s." else "Estava desat a disc; sol trigar menys de 30 s."
         "running" -> if (en) "Gregal is working" else "Gregal hi treballa"
@@ -132,6 +136,18 @@ internal fun viewerAbsoluteUrl(base: String, rel: String, lang: String): String 
 internal fun GregalApi.openOrdinadorViewer(control: Boolean, handoff: String = ""): OrdinadorView =
     parseOrdinadorView(post("/api/ordinador/viewer", JSONObject().put("control", control).put("handoff", handoff)))
 
+/** Mode local: una captura actual del navegador de Gregal en aquest servidor. */
+internal data class OrdinadorLive(val live: Boolean, val url: String = "", val title: String = "", val image: ByteArray? = null)
+
+internal fun parseOrdinadorLive(o: JSONObject): OrdinadorLive {
+    val img = o.optString("image").substringAfter("base64,", "").takeIf { it.isNotBlank() }
+        ?.let { runCatching { android.util.Base64.decode(it, android.util.Base64.DEFAULT) }.getOrNull() }
+    return OrdinadorLive(o.optBoolean("live") && img != null, o.optString("url"), o.optString("title"), img)
+}
+
+/** GET /api/ordinador/live (mode local, sense VM ni noVNC). */
+internal fun GregalApi.ordinadorLive(): OrdinadorLive = parseOrdinadorLive(get("/api/ordinador/live"))
+
 /** /api/ordinador/control: llegir (action buida), take o release. */
 internal fun GregalApi.ordinadorControl(action: String = ""): OrdinadorView =
     parseOrdinadorView(if (action.isBlank()) get("/api/ordinador/control") else post("/api/ordinador/control", JSONObject().put("action", action)))
@@ -151,6 +167,9 @@ internal fun OrdinadorSheet(
     var url by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
     var replay by remember { mutableStateOf(false) }
+    // Sense ordinador remot (ni noVNC): l'ordinador és el navegador d'aquest servidor, en directe.
+    var local by remember { mutableStateOf(false) }
+    var shot by remember { mutableStateOf<OrdinadorLive?>(null) }
     val acc = if (accent != Color.Unspecified) accent else Sea
 
     LaunchedEffect(handoffKey) {
@@ -160,7 +179,15 @@ internal fun OrdinadorSheet(
             url = viewerAbsoluteUrl(conn.api().base, v.url, lang)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            error = ordinadorErrorKey(e.message.orEmpty()).let { ordinadorCopy(lang, it) }
+            if (e.message.orEmpty().contains("no_viewer") || e.message.orEmpty().contains("no remote viewer")) local = true
+            else error = ordinadorErrorKey(e.message.orEmpty()).let { ordinadorCopy(lang, it) }
+        }
+    }
+    LifecyclePoll(local) {
+        while (local) {
+            try { shot = withContext(Dispatchers.IO) { conn.api().ordinadorLive() } }
+            catch (e: Exception) { if (e is CancellationException) throw e }
+            delay(1_000)
         }
     }
     // Estat: mentre el full és a la vista (l'app en primer pla).
@@ -194,9 +221,9 @@ internal fun OrdinadorSheet(
                 modifier = Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite }) {
                 Icon(Icons.Rounded.Computer, null, tint = acc, modifier = Modifier.size(24.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(if (error.isNotBlank()) ordinadorCopy(lang, "title") else ordinadorCopy(lang, key),
+                    Text(if (local) ordinadorCopy(lang, "local") else if (error.isNotBlank()) ordinadorCopy(lang, "title") else ordinadorCopy(lang, key),
                         color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.testTag("ordinador-state"))
-                    Text(error.ifBlank { ordinadorCopy(lang, key + "Sub") }, color = Muted, fontSize = 12.sp)
+                    Text(if (local) ordinadorCopy(lang, "localSub") else error.ifBlank { ordinadorCopy(lang, key + "Sub") }, color = Muted, fontSize = 12.sp)
                 }
                 if (v != null && v.health == "running" && error.isBlank()) {
                     val mine = v.controlOwner == "user"
@@ -206,13 +233,14 @@ internal fun OrdinadorSheet(
             }
             if (handoffKey.isNotBlank()) {
                 Text(ordinadorCopy(lang, "handoffHint"), color = Muted, fontSize = 12.sp)
-            } else if (!replay && error.isBlank()) {
+            } else if (!replay && (error.isBlank() || local)) {
                 // B13: el que ha fet l'agent quan no s'hi mirava, amb les captures marcades.
                 OrdButton(accionsCopy(lang, "last"), primary = false, modifier = Modifier.testTag("ordinador-last")) { replay = true }
             }
             Box(Modifier.weight(1f).fillMaxWidth().clip(GregalShape.lg).background(SuperficieAlta).border(1.dp, Line, GregalShape.lg)) {
                 // El visor en directe ja dibuixa on actua l'agent (pàgina del servidor).
                 if (url.isNotBlank()) ViewerWebView(url, ordinadorCopy(lang, "screen"))
+                if (local) LocalLiveView(lang, shot)
                 if (replay) Box(Modifier.fillMaxSize().background(SuperficieAlta).padding(8.dp)) {
                     OrdinadorReplay(conn, lang, acc, onClose = { replay = false })
                 }
@@ -292,4 +320,26 @@ internal fun HandoffCard(conn: Conn, lang: String, a: GregalApi.WindAsk, accent:
         }
     }
     if (open) OrdinadorSheet(conn, lang, accent, handoffKey = a.key, onDone = onDone, onCancel = onCancel, onClose = { open = false })
+}
+
+/** Mode local: la pestanya on treballa Gregal, en directe (una captura per segon). */
+@Composable
+private fun LocalLiveView(lang: String, shot: OrdinadorLive?) {
+    val bmp = remember(shot?.image) {
+        shot?.image?.let { runCatching { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() }
+    }
+    Column(Modifier.fillMaxSize().padding(10.dp).testTag("ordinador-local"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (shot?.live == true && bmp != null) {
+            Text(shot.title.ifBlank { shot.url }, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            if (shot.title.isNotBlank()) Text(shot.url, color = Muted, fontSize = 11.sp, maxLines = 1)
+            androidx.compose.foundation.Image(bmp, ordinadorCopy(lang, "screen"),
+                modifier = Modifier.fillMaxWidth().weight(1f).clip(GregalShape.sm),
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit, alignment = Alignment.TopCenter)
+        } else {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(ordinadorCopy(lang, "localIdle"), color = Muted, fontSize = 14.sp, lineHeight = 20.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(24.dp))
+            }
+        }
+    }
 }

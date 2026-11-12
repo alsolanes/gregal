@@ -882,6 +882,7 @@ func BrowserActionFor(ctx context.Context, scope, action string, args map[string
 		a = browserArgs{}
 	}
 	action = strings.ToLower(strings.TrimSpace(action))
+	noteLiveScope(scope)
 	// La persona té el control (B3): l'agent espera, no actua ni captura.
 	if err := waitBrowserControl(ctx, scope); err != nil {
 		return "", nil, err

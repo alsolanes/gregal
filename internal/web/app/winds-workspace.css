@@ -790,3 +790,9 @@ html body.shell-winds .vw-nav-item:focus-visible, html body.shell-winds .vw-send
 @media(prefers-reduced-motion:reduce) { .vw-guide-card, .vw-dialog.vw-guide::before { animation:none; } }
 @media(max-width:600px) { .vw-dialog.vw-guide { padding:24px 18px; border-radius:20px; } .vw-guide-head h2 { font-size:23px; } }
 .vw-dialog.vw-guide header.vw-guide-head { display:block; padding:0 40px 0 0; margin:0; border:0; }
+
+/* Ordinador en mode local: el navegador de Gregal en directe. */
+.vw-dialog.vw-live-computer { width:min(1100px, calc(100vw - 32px)); }
+.vw-live-where { margin:6px 0 8px; color:var(--muted); font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.vw-live-shot { display:block; width:100%; max-height:70vh; object-fit:contain; object-position:top; border-radius:12px; border:1px solid var(--line); background:var(--surface); }
+.vw-live-idle { margin:24px 0; text-align:center; color:var(--muted); }

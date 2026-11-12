@@ -65,6 +65,7 @@ func (h *Hub) extraRoutes(handle func(string, http.HandlerFunc)) {
 	handle("/api/ordinador/viewer", h.global((*Server).handleOrdinadorViewer))
 	handle("/api/ordinador/control", h.global((*Server).handleOrdinadorControl))
 	handle("/api/ordinador/accions", h.global((*Server).handleOrdinadorAccions))
+	handle("/api/ordinador/live", h.global((*Server).handleOrdinadorLive))
 	handle("/api/ordinador/accions/captura", h.global((*Server).handleOrdinadorAccionsCaptura))
 	handle(visorPrefix, func(w http.ResponseWriter, r *http.Request) { h.def.handleVisor(w, r) })
 	handle("/api/register", h.global((*Server).handleServerRegister))
