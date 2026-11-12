@@ -151,3 +151,9 @@
 /* La barra de revisió queda a la vista mentre es llegeix. */
 .retro-reviewbar { position:sticky; top:0; z-index:2; box-shadow:0 6px 12px -8px var(--ombra); }
 @media (max-width:640px) { .retro-msg.is-finding .retro-fix { flex-wrap:wrap; } }
+/* «# Retro» i «Replay» al resum del grup: hi són, però surten en passar-hi el ratolí. */
+.work-group > summary .retro-open, .work-group > summary .replay-group { opacity:0; transition:opacity .15s; }
+.work-group > summary:hover .retro-open, .work-group > summary:hover .replay-group,
+.work-group > summary:focus-within .retro-open, .work-group > summary:focus-within .replay-group,
+.work-group > summary .retro-open:focus-visible, .work-group > summary .replay-group:focus-visible { opacity:1; }
+@media (hover:none) { .work-group > summary .retro-open, .work-group > summary .replay-group { opacity:1; } }

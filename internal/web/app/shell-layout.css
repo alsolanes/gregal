@@ -125,7 +125,8 @@ body.has-tool-dock #inspector { display:none; }
 #permLabel { position:static; width:auto; height:auto; margin:0; overflow:visible; clip-path:none; }
 #composer #permBtn.obert { color:var(--amber); border-color:var(--amber); background:var(--amber-soft); }
 #composer #permBtn.inactiu { opacity:.55; }
-#box.perm-risc, #box.perm-risc:focus-within { border-color:var(--amber); box-shadow:0 6px 24px var(--ombra),0 0 0 2px var(--amber-soft); }
+/* Mode sense preguntes: el xip «No questions» ja ho diu en groc; la vora només ho recorda, sense cridar. */
+#box.perm-risc, #box.perm-risc:focus-within { border-color:color-mix(in srgb, var(--amber) 40%, var(--line-hi)); box-shadow:0 6px 24px var(--ombra); }
 #composer .mode-chip { flex:none; max-width:90px; overflow:hidden; }
 @media(max-width:760px) { #side,#side.compact { left:56px; } #sideShade { left:56px; } .rail-more-menu { left:64px; } }
 @media(max-width:600px) {

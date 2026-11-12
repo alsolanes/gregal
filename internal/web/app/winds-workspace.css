@@ -722,6 +722,10 @@ html body.shell-winds .vw-nav-item:focus-visible, html body.shell-winds .vw-send
 .vw-messages .vw-pending { padding-top:14px; }
 .vw-messages .vw-pending-copy { background:var(--surface-hi); border-radius:var(--vw-bubble) var(--vw-bubble) var(--vw-bubble) var(--vw-tail); padding:10px 16px 11px; max-width:min(calc(100% - 48px), 680px); }
 .vw-messages .vw-pending-copy > strong { color:var(--muted); font-size:12px; }
+.vw-messages .vw-steps { display:flex; flex-wrap:wrap; gap:4px 6px; margin-top:6px; }
+.vw-messages .vw-step { font-size:12px; line-height:18px; padding:0 8px; border-radius:999px; background:color-mix(in srgb, var(--ink) 6%, transparent); color:var(--muted); }
+.vw-messages .vw-step::before { content:"✓ "; color:#1E9E6A; }
+.vw-messages .vw-step-more::before { content:""; }
 .vw-messages .vw-pending.vw-reading .vw-pending-copy { background:transparent; padding:2px 0; border-radius:0; max-width:min(calc(100% - 48px), 820px); }
 /* «Per què?» (B6), sota el text, discret. */
 .vw-messages .vw-why { display:inline-block; margin-top:6px; padding:2px 10px; border:1px solid var(--line-hi); border-radius:999px; background:transparent; color:var(--muted); font-size:12px; text-decoration:none; cursor:pointer; }
@@ -821,3 +825,11 @@ html body.shell-winds .vw-nav-item:focus-visible, html body.shell-winds .vw-send
 .gregal-result .gr-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin:0 4px 0 6px; vertical-align:middle; }
 .gr-dot0{background:#C9152B}.gr-dot1{background:#2E7D32}.gr-dot2{background:#1565C0}.gr-dot3{background:#EF6C00}.gr-dot4{background:#6A1B9A}.gr-dot5{background:#00838F}
 .gregal-result .gr-more { color:var(--accent); font-weight:650; text-decoration:none; white-space:nowrap; }
+/* Canals (especialistes) al menú: cara petita i nom, com a Android. */
+.vw-nav-item.vw-nav-channel { display:flex; align-items:center; gap:9px; }
+.vw-nav-item.vw-nav-channel > .winds-face { width:20px; height:20px; flex:none; }
+/* Al fil de Gregal, a dalt només la cara, la guia i l'ordinador: les notes ja són al menú (i a Ctrl+Alt+N). */
+.vw-top.vw-top-gregal .qn-launch-vw { display:none; }
+/* El mapa de preguntes a la dreta, discret fins que hi passes el ratolí. */
+.wind-workspace .pnav { opacity:.3; transition:opacity .15s; }
+.wind-workspace .pnav:hover, .wind-workspace .pnav:focus-within { opacity:1; }

@@ -124,6 +124,12 @@ internal fun windProgressLabel(lang: String, live: WindLive): String {
         "edit", "write", "patch", "write_file" -> if (en) "Updating files" else "Modificant fitxers"
         "web_search" -> if (en) "Searching the web" else "Cercant al web"
         "web_fetch" -> if (en) "Reading a source" else "Llegint una font"
+        "browser", "viewer" -> if (en) "Browsing" else "Navegant"
+        "remind", "remind_edit", "remind_list" -> if (en) "Scheduling a reminder" else "Programant un recordatori"
+        "watch" -> if (en) "Setting up a watch" else "Preparant una vigilància"
+        "calendar" -> if (en) "Checking the calendar" else "Mirant el calendari"
+        "mail" -> if (en) "Checking mail" else "Mirant el correu"
+        "wind", "delegate" -> if (en) "Asking a specialist" else "Consultant un especialista"
         else -> if (en) "Using a tool" else "Executant una eina"
     }
     return when (live.phase) {
