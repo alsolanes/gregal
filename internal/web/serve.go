@@ -1134,6 +1134,8 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"protocol":    APIProtocol,
 		"instance_id": id,
 		"products":    prods,
+		// net: com arribar-hi des de fora i des de casa (l'app en tria una).
+		"net": selfNet(),
 		"capabilities": map[string]bool{
 			"sessions":           true,
 			"runs":               true,

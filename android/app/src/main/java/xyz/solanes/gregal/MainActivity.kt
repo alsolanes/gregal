@@ -83,6 +83,17 @@ class Prefs(val ctx: Context) {
     var usuari: String
         get() = p.getString("usuari", "") ?: ""
         set(v) { p.edit().putString("usuari", v.trim()).apply() }
+    /**
+     * On més es pot trobar aquest servidor, segons ell mateix (`/api/health`):
+     * la IP de la LAN i el domini del túnel. Amb això l'app tria sola quan ets
+     * fora de casa en lloc de no respondre.
+     */
+    var lanIp: String
+        get() = p.getString("lanIp", "") ?: ""
+        set(v) { p.edit().putString("lanIp", v.trim()).apply() }
+    var hostExterior: String
+        get() = p.getString("hostExterior", "") ?: ""
+        set(v) { p.edit().putString("hostExterior", v.trim()).apply() }
     /** Com es diuen els vents en aquest mòbil (buit = Vent/Vents). */
     val ventSingular: String get() = p.getString("ventSingular", "") ?: ""
     val ventPlural: String get() = p.getString("ventPlural", "") ?: ""
