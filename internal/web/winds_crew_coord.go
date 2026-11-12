@@ -594,7 +594,7 @@ var crewCoordinator = func(s *Server, ctx context.Context, system, prompt string
 	cfg, client := s.cfg, s.client
 	p, role := s.windRoleRef()
 	s.mu.Unlock()
-	return petChatter(ctx, client, cfg, p, role, []llm.Message{{Role: "system", Content: system}, {Role: "user", Content: prompt}})
+	return petChatter(ctx, client, cfg, p, role, []llm.Message{{Role: "system", Content: system + windNowBrief()}, {Role: "user", Content: prompt}})
 }
 
 // crewDecide demana al coordinador el pas següent i el deixa net: membres
