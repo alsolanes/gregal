@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## v1.72.6 - 2026-11-13 - Els vents treballen sense preguntar als seus projectes
+
+- **Els vents no demanen permís per als seus projectes.** Un joc o una web que
+  Gregal construeix a `~/gregal/projectes` s'escriu sense preguntar fitxer a
+  fitxer; fora d'allà, els «deny» i el que és destructiu continuen demanant-ho.
+  Quan pregunta, la targeta ho diu en pla: «Gregal vol crear game.js a
+  Projectes › zefir/js».
+- **Canvi de model sense soroll.** Ja no surt «model → proveïdor/id» a dalt del
+  fil: el xip fa un flaix i, si hi ha conversa, un separador discret diu qui
+  respon ara amb el seu nom.
+- La salutació de l'inici queda centrada pel text, sobre l'eix del camp.
+
 ## v1.72.5 - 2026-11-12 - Gregal ensenya què fa
 
 - **Gregal ensenya què fa mentre treballa (escriptori).** Sota «Escrivint la
