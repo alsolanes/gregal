@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+## v1.73.0 - 2026-11-13 - Gregal torna amb captures del que ha fet
+
+- **Gregal torna amb captures del que ha fet.** Quan fa servir el navegador,
+  sota la resposta hi surt «Ho he fet així · N captures»; un toc les obre grans
+  i les passes amb ‹ ›. També als torns que s'han aturat a demanar permís. Al
+  model no li arriben mai i només les veu qui és propietari.
+- **Fes servir l'ordinador de Gregal des del visor en directe.** Toca la
+  pàgina, escriu, Enter, Enrere i desplaça't; mentre tens el control Gregal
+  s'espera, i «Torna-li el control» l'hi retorna. Ningú altre el veu ni el toca.
+- **Gregal diu qui de l'equip hi pot donar un cop d'ull**, amb un botó per
+  demanar-ho.
+- **Feina ensenya tot el que Gregal fa per tu:** T'espera (permisos que es
+  responen allà mateix), Ara, Programat i Fet.
+- **Targetes de resultat i de permís noves:** files d'una línia, fonts i
+  «Veure tots ›»; els permisos pregunten en pla («Vols que esborri x?») amb el
+  verb al botó.
+- **Repàs visual:** una sola barra a dalt a Codi, Preferències per pàgines,
+  el botó del model igual a Codi i a Vents, i moltes pestanyes es desplacen
+  sense encongir res.
+- Les captures en directe ja no surten en blanc després de desplaçar-se, i els
+  accents de pàgines web i de sortides d'ordres a Windows surten bé.
+
 ## v1.72.6 - 2026-11-13 - Els vents treballen sense preguntar als seus projectes
 
 - **Els vents no demanen permís per als seus projectes.** Un joc o una web que
