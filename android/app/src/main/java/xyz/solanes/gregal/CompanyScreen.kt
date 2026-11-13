@@ -1252,6 +1252,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                         modifier = Modifier.padding(start = 4.dp).testTag("msg-why")) {
                         Text(respCopy(lang, "whyShort"), color = accent, fontSize = 13.sp)
                     }
+                    // Captures del que ha fet a l'ordinador en aquest torn.
+                    if (m.from != "user" && m.shots.isNotEmpty()) TurnShotsStrip(chatConn, lang, accent, m.shots)
                 }
             }
             // Respostes ràpides que el vent proposa al final del seu missatge.

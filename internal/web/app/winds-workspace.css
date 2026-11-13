@@ -816,7 +816,20 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 /* Ordinador en mode local: el navegador de Gregal en directe. */
 .vw-dialog.vw-live-computer { width:min(1100px, calc(100vw - 32px)); }
 .vw-live-where { margin:6px 0 8px; color:var(--muted); font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.vw-live-shot { display:block; width:100%; max-height:70vh; object-fit:contain; object-position:top; border-radius:12px; border:1px solid var(--line); background:var(--surface); }
+.vw-live-stage { position:relative; width:fit-content; max-width:100%; margin:0 auto; }
+.vw-live-shot { display:block; max-width:100%; max-height:calc(85dvh - 250px); width:auto; height:auto; border-radius:12px; border:1px solid var(--line); background:var(--surface); cursor:pointer; }
+.vw-live-computer.is-acting .vw-live-shot { opacity:.85; }
+.vw-live-tap { position:absolute; width:26px; height:26px; margin:-13px 0 0 -13px; border-radius:50%; border:2px solid var(--accent, #7c8cff); background:color-mix(in srgb, var(--accent, #7c8cff) 25%, transparent); pointer-events:none; animation:vw-live-tap .7s ease-out forwards; }
+@keyframes vw-live-tap { from { transform:scale(.4); opacity:1; } to { transform:scale(1.4); opacity:0; } }
+.vw-live-bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:10px; }
+.vw-live-text { flex:1 1 220px; min-width:0; height:36px; padding:0 12px; border-radius:10px; border:1px solid var(--line); background:var(--surface); color:var(--text); font:inherit; font-size:14px; }
+.vw-live-btn { height:36px; padding:0 12px; border-radius:10px; border:1px solid var(--line); background:transparent; color:var(--text); font:inherit; font-size:13px; cursor:pointer; white-space:nowrap; }
+.vw-live-btn:hover { background:var(--surface); }
+.vw-live-icon { width:36px; padding:0; }
+.vw-live-mine { display:flex; align-items:center; gap:10px; margin:0 0 4px; padding:4px 4px 4px 12px; border-radius:10px; background:color-mix(in srgb, var(--accent, #7c8cff) 14%, transparent); font-size:13px; }
+.vw-live-mine span { flex:1; }
+.vw-live-mine[hidden], .vw-live-bar[hidden], .vw-live-computer .vw-muted[hidden] { display:none; }
+.vw-live-mine .vw-live-btn { height:30px; }
 .vw-live-idle { margin:24px 0; text-align:center; color:var(--muted); }
 
 /* Targeta de resultat de Gregal (```gregal-result```), com a Android. */
@@ -887,3 +900,18 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-feina-asks { margin:0; }
 .vw-feina-live { display:flex; align-items:center; gap:10px; }
 .vw-feina-auto .auto-status:empty { display:none; }
+
+/* Captures del torn sota la resposta («Ho he fet així») */
+.vw-shots { margin-top:10px; }
+.vw-shots-head { display:flex; gap:8px; align-items:baseline; font-size:12px; color:var(--muted); margin-bottom:6px; }
+.vw-shots-head span:first-child { color:var(--ink); font-weight:600; }
+.vw-shots-row { display:flex; gap:8px; overflow-x:auto; padding-bottom:2px; scrollbar-width:thin; }
+.vw-shot { flex:none; display:flex; flex-direction:column; gap:4px; width:132px; padding:0; border:0; background:none; color:var(--muted); cursor:pointer; text-align:left; font:inherit; }
+.vw-shot img { display:block; width:132px; height:84px; object-fit:cover; object-position:top; border-radius:8px; border:1px solid var(--line); background:var(--surface); }
+.vw-shot:hover img, .vw-shot:focus-visible img { border-color:var(--accent); }
+.vw-shot-cap { font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.vw-shot.is-gone { display:none; }
+.vw-dialog.vw-shots-view { width:min(1100px, calc(100vw - 32px)); }
+.vw-shots-big { display:block; max-width:100%; max-height:calc(85dvh - 200px); margin:0 auto; border-radius:12px; border:1px solid var(--line); background:var(--surface); }
+.vw-shots-nav { display:flex; justify-content:center; align-items:center; gap:14px; margin-top:10px; font-size:13px; color:var(--muted); }
+.vw-shots-nav button:disabled { opacity:.35; cursor:default; }

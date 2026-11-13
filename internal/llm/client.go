@@ -58,6 +58,10 @@ type Message struct {
 	// provider.
 	RelatedRunID int64    `json:"relatedRunId,omitempty"`
 	ResultRefs   []string `json:"resultRefs,omitempty"`
+	// Shots són les captures del que l'assistent ha fet a l'ordinador en
+	// aquest torn (la UI les ensenya sota la resposta). Com ResultRefs, no
+	// viatgen mai al provider.
+	Shots []MessageShot `json:"shots,omitempty"`
 	// ReasoningContent és el raonament que el proveïdor ha tornat amb
 	// aquesta crida d'eina (reasoning_content). Els models de raonament que
 	// criden eines l'exigeixen de tornada dins de la mateixa cadena de
@@ -65,6 +69,14 @@ type Message struct {
 	// persistència (MarshalJSON) no el desa. Buit = el proveïdor no en fa
 	// servir i el camp no s'envia mai.
 	ReasoningContent string `json:"reasoning_content,omitempty"`
+}
+
+// MessageShot és una captura d'un torn: l'identificador (servit a
+// /api/ordinador/accions/captura?id=) i on era.
+type MessageShot struct {
+	ID    string `json:"id"`
+	Title string `json:"title,omitempty"`
+	URL   string `json:"url,omitempty"`
 }
 
 // MarshalJSON manté el format string clàssic sense imatges (cap canvi
@@ -88,6 +100,7 @@ func marshalMessage(m Message, sanitize bool) ([]byte, error) {
 		w.ID = ""
 		w.RelatedRunID = 0
 		w.ResultRefs = nil
+		w.Shots = nil
 		w.Kind = ""
 		w.CrewRunID = ""
 		w.ToolCalls = safeToolCalls(m.ToolCalls)

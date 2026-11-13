@@ -196,14 +196,26 @@ func buildComputerAction(kind, scope string, view ComputerView, p computerPoint)
 
 // computerShot és la captura de la reproducció: JPEG petit, com a molt 960
 // píxels d'ample. Si falla, la reproducció ensenya només el punt.
+// jsScrollPos és on és la vista dins del document.
+const jsScrollPos = `JSON.stringify([window.scrollX || 0, window.scrollY || 0])`
+
 func (b *Browser) computerShot(view ComputerView) []byte {
 	scale := 1.0
 	if view.W > 960 {
 		scale = 960 / view.W
 	}
+	// El clip és en coordenades del document: el que es veu comença on s'ha
+	// desplaçat la pàgina (si no, després de baixar, la captura surt en blanc).
+	sx, sy := 0.0, 0.0
+	if v, err := b.evalString(jsScrollPos); err == nil {
+		var pos [2]float64
+		if json.Unmarshal([]byte(v), &pos) == nil {
+			sx, sy = pos[0], pos[1]
+		}
+	}
 	res, err := b.call("Page.captureScreenshot", map[string]any{
 		"format": "jpeg", "quality": 50, "optimizeForSpeed": true,
-		"clip": map[string]any{"x": 0, "y": 0, "width": view.W, "height": view.H, "scale": scale},
+		"clip": map[string]any{"x": sx, "y": sy, "width": view.W, "height": view.H, "scale": scale},
 	})
 	if err != nil {
 		return nil

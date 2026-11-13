@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -45,5 +46,30 @@ func TestGregalMainWind(t *testing.T) {
 	other := s.withWindSteerKey(context.Background(), "wind", "marinada")
 	if !windIsMainCtx(main) || windIsMainCtx(other) {
 		t.Fatal("només el torn de Gregal és el principal")
+	}
+}
+
+// Gregal sap a cada torn qui té a l'equip i de què en sap (el «cap de gabinet»):
+// sense la llista no consultava ningú i la interfície et feia anar a parlar amb
+// l'especialista. Els altres vents no la reben.
+func TestGregalTeamBriefListsTheSpecialists(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s, _ := companionTestServer(t)
+	postJSON(t, s.handleWinds, `{"name":"Llevantada","color":"#EFC69A","role":"Cuina i receptes"}`)
+	g, ok := s.ensureGregalWind()
+	if !ok {
+		t.Fatal("sense Gregal")
+	}
+	brief := s.gregalTeamBrief(g)
+	if !strings.Contains(brief, "YOUR TEAM") || !strings.Contains(brief, "Llevantada") || !strings.Contains(brief, "Cuina i receptes") {
+		t.Fatalf("falta l'equip:\n%s", brief)
+	}
+	if strings.Contains(brief, "- Gregal") {
+		t.Fatal("Gregal no s'ha de llistar a si mateix")
+	}
+	for _, w := range mustWinds(s) {
+		if w.ID != gregalWindID && s.gregalTeamBrief(w) != "" {
+			t.Fatalf("%s no és Gregal i ha rebut l'equip", w.Name)
+		}
 	}
 }

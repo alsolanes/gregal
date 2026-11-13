@@ -8,6 +8,7 @@ import android.webkit.WebViewClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Computer
@@ -21,6 +22,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -59,7 +61,14 @@ internal fun ordinadorCopy(lang: String, key: String): String {
     return when (key) {
         "title" -> if (en) "Computer" else "Ordinador"
         "local" -> if (en) "Gregal's browser, on this computer" else "El navegador de Gregal, en aquest ordinador"
-        "localSub" -> if (en) "You see it live. To take control, use the browser on the computer." else "El veus en directe. Per prendre el control, fes-ho al navegador de l'ordinador."
+        "localSub" -> if (en) "You see it live. Tap the screen to use it yourself: Gregal waits meanwhile." else "El veus en directe. Toca la pantalla per fer-lo servir tu: mentrestant, Gregal s'espera."
+        "localMine" -> if (en) "You have control · Gregal is waiting" else "Tens el control · Gregal s'espera"
+        "giveShort" -> if (en) "Give it back" else "Torna-l'hi"
+        "back" -> if (en) "Back" else "Enrere"
+        "typeHint" -> if (en) "Type into the field you tapped…" else "Escriu al camp que has tocat…"
+        "type" -> if (en) "Type" else "Escriu"
+        "scrollUp" -> if (en) "Scroll up" else "Puja"
+        "scrollDown" -> if (en) "Scroll down" else "Baixa"
         "localIdle" -> if (en) "Gregal has no page open right now. Ask it to look something up and you'll see it here." else "Ara mateix Gregal no té cap pàgina oberta. Demana-li que busqui alguna cosa i ho veuràs aquí."
         "starting" -> if (en) "Starting your computer…" else "Engegant el teu ordinador…"
         "startingSub" -> if (en) "It was saved to disk; it usually takes under 30 s." else "Estava desat a disc; sol trigar menys de 30 s."
@@ -137,16 +146,45 @@ internal fun GregalApi.openOrdinadorViewer(control: Boolean, handoff: String = "
     parseOrdinadorView(post("/api/ordinador/viewer", JSONObject().put("control", control).put("handoff", handoff)))
 
 /** Mode local: una captura actual del navegador de Gregal en aquest servidor. */
-internal data class OrdinadorLive(val live: Boolean, val url: String = "", val title: String = "", val image: ByteArray? = null)
+internal data class OrdinadorLive(
+    val live: Boolean, val url: String = "", val title: String = "", val image: ByteArray? = null,
+    /** "user" quan la persona té el control (Gregal s'espera). */
+    val controlOwner: String = "none",
+)
 
 internal fun parseOrdinadorLive(o: JSONObject): OrdinadorLive {
     val img = o.optString("image").substringAfter("base64,", "").takeIf { it.isNotBlank() }
         ?.let { runCatching { android.util.Base64.decode(it, android.util.Base64.DEFAULT) }.getOrNull() }
-    return OrdinadorLive(o.optBoolean("live") && img != null, o.optString("url"), o.optString("title"), img)
+    return OrdinadorLive(o.optBoolean("live") && img != null, o.optString("url"), o.optString("title"), img,
+        o.optString("controlOwner").ifBlank { "none" })
 }
 
 /** GET /api/ordinador/live (mode local, sense VM ni noVNC). */
 internal fun GregalApi.ordinadorLive(): OrdinadorLive = parseOrdinadorLive(get("/api/ordinador/live"))
+
+/**
+ * POST /api/ordinador/live: la persona el fa servir des del mòbil (tap amb x/y
+ * en fraccions de la captura, type, key, scroll, back). Pren el control i torna
+ * la captura de després.
+ */
+internal fun GregalApi.ordinadorLiveInput(body: JSONObject): OrdinadorLive = parseOrdinadorLive(post("/api/ordinador/live", body))
+
+/**
+ * On cau un toc dins de la captura, en fraccions (0–1), quan la imatge es
+ * dibuixa encaixada (Fit) i alineada a dalt al centre d'una caixa. Fora de la
+ * imatge, null. Pura: testejable.
+ */
+internal fun liveTapFraction(tapX: Float, tapY: Float, boxW: Float, boxH: Float, imgW: Float, imgH: Float): Pair<Float, Float>? {
+    if (boxW <= 0f || boxH <= 0f || imgW <= 0f || imgH <= 0f) return null
+    val scale = minOf(boxW / imgW, boxH / imgH)
+    val w = imgW * scale
+    val h = imgH * scale
+    val left = (boxW - w) / 2f
+    val fx = (tapX - left) / w
+    val fy = tapY / h
+    if (fx < 0f || fx > 1f || fy < 0f || fy > 1f) return null
+    return fx to fy
+}
 
 /** /api/ordinador/control: llegir (action buida), take o release. */
 internal fun GregalApi.ordinadorControl(action: String = ""): OrdinadorView =
@@ -183,12 +221,29 @@ internal fun OrdinadorSheet(
             else error = ordinadorErrorKey(e.message.orEmpty()).let { ordinadorCopy(lang, it) }
         }
     }
+    var acting by remember { mutableStateOf(false) }
     LifecyclePoll(local) {
         while (local) {
-            try { shot = withContext(Dispatchers.IO) { conn.api().ordinadorLive() } }
+            if (!acting) try { shot = withContext(Dispatchers.IO) { conn.api().ordinadorLive() } }
             catch (e: Exception) { if (e is CancellationException) throw e }
             delay(1_000)
         }
+    }
+    // Mode local: el que la persona fa des del mòbil (pren el control).
+    fun act(body: JSONObject) {
+        if (acting) return
+        acting = true
+        scope.launch {
+            try { shot = withContext(Dispatchers.IO) { conn.api().ordinadorLiveInput(body) } }
+            catch (e: Exception) { if (e is CancellationException) throw e }
+            finally { acting = false }
+        }
+    }
+    val localHeld = local && shot?.controlOwner == "user"
+    fun giveBackLocal() = scope.launch {
+        shot = shot?.copy(controlOwner = "none")
+        try { withContext(Dispatchers.IO) { conn.api().ordinadorControl("release") } }
+        catch (e: Exception) { if (e is CancellationException) throw e }
     }
     // Estat: mentre el full és a la vista (l'app en primer pla).
     LifecyclePoll(url) {
@@ -205,7 +260,7 @@ internal fun OrdinadorSheet(
     // En tancar el full, el control torna a l'agent (si no, caduca sol).
     DisposableEffect(Unit) {
         onDispose {
-            if (view?.controlOwner == "user") Thread {
+            if (view?.controlOwner == "user" || shot?.controlOwner == "user") Thread {
                 try { conn.api().ordinadorControl("release") } catch (_: Exception) {}
             }.start()
         }
@@ -223,8 +278,11 @@ internal fun OrdinadorSheet(
                 Column(Modifier.weight(1f)) {
                     Text(if (local) ordinadorCopy(lang, "local") else if (error.isNotBlank()) ordinadorCopy(lang, "title") else ordinadorCopy(lang, key),
                         color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.testTag("ordinador-state"))
-                    Text(if (local) ordinadorCopy(lang, "localSub") else error.ifBlank { ordinadorCopy(lang, key + "Sub") }, color = Muted, fontSize = 12.sp)
+                    Text(if (localHeld) ordinadorCopy(lang, "localMine") else if (local) ordinadorCopy(lang, "localSub") else error.ifBlank { ordinadorCopy(lang, key + "Sub") },
+                        color = if (localHeld) acc else Muted, fontSize = 12.sp, modifier = Modifier.testTag("ordinador-sub"))
                 }
+                if (localHeld) OrdButton(ordinadorCopy(lang, "giveShort"), primary = false,
+                    modifier = Modifier.testTag("ordinador-local-give")) { giveBackLocal() }
                 if (v != null && v.health == "running" && error.isBlank()) {
                     val mine = v.controlOwner == "user"
                     OrdButton(ordinadorCopy(lang, if (mine) "give" else "take"), primary = !mine, accent = acc,
@@ -240,11 +298,12 @@ internal fun OrdinadorSheet(
             Box(Modifier.weight(1f).fillMaxWidth().clip(GregalShape.lg).background(SuperficieAlta).border(1.dp, Line, GregalShape.lg)) {
                 // El visor en directe ja dibuixa on actua l'agent (pàgina del servidor).
                 if (url.isNotBlank()) ViewerWebView(url, ordinadorCopy(lang, "screen"))
-                if (local) LocalLiveView(lang, shot)
+                if (local) LocalLiveView(lang, shot, onTap = { x, y -> act(JSONObject().put("kind", "tap").put("x", x.toDouble()).put("y", y.toDouble())) })
                 if (replay) Box(Modifier.fillMaxSize().background(SuperficieAlta).padding(8.dp)) {
                     OrdinadorReplay(conn, lang, acc, onClose = { replay = false })
                 }
             }
+            if (local && shot?.live == true && !replay) LocalLiveControls(lang, acc) { act(it) }
             if (handoffKey.isNotBlank()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                     OrdButton(ordinadorCopy(lang, "cancel"), primary = false, modifier = Modifier.weight(1f).testTag("ordinador-cancel")) {
@@ -324,7 +383,7 @@ internal fun HandoffCard(conn: Conn, lang: String, a: GregalApi.WindAsk, accent:
 
 /** Mode local: la pestanya on treballa Gregal, en directe (una captura per segon). */
 @Composable
-private fun LocalLiveView(lang: String, shot: OrdinadorLive?) {
+internal fun LocalLiveView(lang: String, shot: OrdinadorLive?, onTap: (Float, Float) -> Unit = { _, _ -> }) {
     val bmp = remember(shot?.image) {
         shot?.image?.let { runCatching { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() }
     }
@@ -333,12 +392,60 @@ private fun LocalLiveView(lang: String, shot: OrdinadorLive?) {
             Text(shot.title.ifBlank { shot.url }, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
             if (shot.title.isNotBlank()) Text(shot.url, color = Muted, fontSize = 11.sp, maxLines = 1)
             androidx.compose.foundation.Image(bmp, ordinadorCopy(lang, "screen"),
-                modifier = Modifier.fillMaxWidth().weight(1f).clip(GregalShape.sm),
+                modifier = Modifier.fillMaxWidth().weight(1f).clip(GregalShape.sm).testTag("ordinador-local-shot")
+                    .pointerInput(bmp) {
+                        detectTapGestures { o ->
+                            liveTapFraction(o.x, o.y, size.width.toFloat(), size.height.toFloat(), bmp.width.toFloat(), bmp.height.toFloat())
+                                ?.let { (x, y) -> onTap(x, y) }
+                        }
+                    },
                 contentScale = androidx.compose.ui.layout.ContentScale.Fit, alignment = Alignment.TopCenter)
         } else {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(ordinadorCopy(lang, "localIdle"), color = Muted, fontSize = 14.sp, lineHeight = 20.sp,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(24.dp))
+            }
+        }
+    }
+}
+
+/** Mode local: enrere, escriure al camp tocat, Enter i desplaçar. */
+@Composable
+internal fun LocalLiveControls(lang: String, accent: Color, onAct: (JSONObject) -> Unit) {
+    var text by remember { mutableStateOf("") }
+    fun send() {
+        if (text.isEmpty()) onAct(JSONObject().put("kind", "key").put("key", "Enter"))
+        else { onAct(JSONObject().put("kind", "type").put("text", text)); text = "" }
+    }
+    Column(Modifier.fillMaxWidth().testTag("ordinador-local-controls"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            androidx.compose.foundation.text.BasicTextField(
+                value = text, onValueChange = { text = it }, singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(color = Ink, fontSize = 15.sp),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(accent),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Send),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { send() }),
+                modifier = Modifier.weight(1f).heightIn(min = 48.dp).clip(GregalShape.sm).background(SuperficieAlta)
+                    .border(1.dp, Line, GregalShape.sm).testTag("ordinador-local-text"),
+                decorationBox = { inner ->
+                    Box(Modifier.padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) {
+                        if (text.isEmpty()) Text(ordinadorCopy(lang, "typeHint"), color = Muted, fontSize = 14.sp, maxLines = 1)
+                        inner()
+                    }
+                },
+            )
+            OrdButton(if (text.isEmpty()) "↵" else ordinadorCopy(lang, "type"), primary = true, accent = accent,
+                modifier = Modifier.testTag("ordinador-local-send")) { send() }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            OrdButton("‹ " + ordinadorCopy(lang, "back"), primary = false, modifier = Modifier.weight(1f).testTag("ordinador-local-back")) {
+                onAct(JSONObject().put("kind", "back"))
+            }
+            OrdButton("↑", primary = false, modifier = Modifier.weight(1f).semantics { contentDescription = ordinadorCopy(lang, "scrollUp") }) {
+                onAct(JSONObject().put("kind", "scroll").put("dir", "up"))
+            }
+            OrdButton("↓", primary = false, modifier = Modifier.weight(1f).semantics { contentDescription = ordinadorCopy(lang, "scrollDown") }) {
+                onAct(JSONObject().put("kind", "scroll").put("dir", "down"))
             }
         }
     }

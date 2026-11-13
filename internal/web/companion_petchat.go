@@ -75,6 +75,15 @@ func petHistoryJSON(history []llm.Message) []map[string]any {
 		if len(m.ResultRefs) > 0 {
 			row["resultRefs"] = m.ResultRefs
 		}
+		// Captures del que ha fet a l'ordinador en aquest torn.
+		if len(m.Shots) > 0 {
+			shots := make([]map[string]any, 0, len(m.Shots))
+			for _, sh := range m.Shots {
+				shots = append(shots, map[string]any{"id": sh.ID, "title": sh.Title, "url": sh.URL,
+					"shotUrl": "/api/ordinador/accions/captura?id=" + sh.ID})
+			}
+			row["shots"] = shots
+		}
 		out = append(out, row)
 	}
 	return out

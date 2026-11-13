@@ -5870,7 +5870,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                       val id: String = "",
                       /** B6: run i resultats d'un missatge proactiu; obren «per què ho has fet?». */
                       val relatedRunId: Long = 0L,
-                      val resultRefs: List<String> = emptyList()) {
+                      val resultRefs: List<String> = emptyList(),
+                      /** Captures del que ha fet a l'ordinador en aquest torn («Ho he fet així»). */
+                      val shots: List<MsgShot> = emptyList()) {
         val proactive: Boolean get() = from != "user" && id.isNotBlank() && (relatedRunId > 0 || resultRefs.isNotEmpty())
     }
 

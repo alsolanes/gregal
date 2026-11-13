@@ -1633,10 +1633,16 @@ internal class PetMsgDto(
     @SerialName("speaker_name") val speakerName: String = "",
     val ts: Long = 0L, val kind: String = "", val id: String = "",
     val relatedRunId: Long = 0L, val resultRefs: List<String> = emptyList(),
+    val shots: List<MsgShotDto> = emptyList(),
 ) {
     fun toPetMsg() = GregalViewModel.PetMsg(from, text, speakerId, speakerName, ts = msgMillis(ts), kind = kind, id = id,
-        relatedRunId = relatedRunId, resultRefs = resultRefs)
+        relatedRunId = relatedRunId, resultRefs = resultRefs,
+        shots = shots.filter { it.shotUrl.startsWith("/api/ordinador/accions/captura?id=") }.map { MsgShot(it.id, it.title, it.url, it.shotUrl) })
 }
+
+/** Una captura del que el vent ha fet a l'ordinador en aquell torn. */
+@Serializable
+internal class MsgShotDto(val id: String = "", val title: String = "", val url: String = "", val shotUrl: String = "")
 
 @Serializable internal class HistoryDto(val history: List<PetMsgDto> = emptyList(), val session: String = "")
 

@@ -60,7 +60,8 @@ class OrdinadorSheetTest {
     @Test fun copyExistsInBothLanguages() {
         val keys = listOf("title", "starting", "startingSub", "running", "runningSub", "idle", "idleSub", "user", "userSub",
             "stopped", "stoppedSub", "unreachable", "unreachableSub", "noViewer", "noComputer", "error", "take", "give", "done", "cancel",
-            "close", "screen", "handoffTitle", "handoffHint", "open")
+            "close", "screen", "handoffTitle", "handoffHint", "open",
+            "local", "localSub", "localMine", "giveShort", "back", "typeHint", "type", "scrollUp", "scrollDown")
         for (k in keys) {
             val ca = ordinadorCopy("ca", k)
             val en = ordinadorCopy("en", k)
@@ -85,5 +86,41 @@ class OrdinadorSheetTest {
         assertEquals("done", answered)
         ui.onNodeWithTag("handoff-cancel").performClick()
         assertEquals("cancel", answered)
+    }
+
+    @Test fun aTapLandsWhereTheScreenshotIs() {
+        // Captura 1000×500 en una caixa 400×400: s'encaixa a 400×200, a dalt.
+        val (x, y) = liveTapFraction(200f, 50f, 400f, 400f, 1000f, 500f)!!
+        assertEquals(0.5f, x, 0.001f)
+        assertEquals(0.25f, y, 0.001f)
+        // Sota la imatge (on no hi ha res) no és cap toc.
+        assertEquals(null, liveTapFraction(200f, 300f, 400f, 400f, 1000f, 500f))
+        // Captura alta en una caixa ampla: centrada amb marges als costats.
+        assertEquals(null, liveTapFraction(10f, 10f, 400f, 200f, 100f, 200f))
+        val (cx, _) = liveTapFraction(200f, 100f, 400f, 200f, 100f, 200f)!!
+        assertEquals(0.5f, cx, 0.001f)
+    }
+
+    @Test fun theLiveAnswerSaysWhoHasControl() {
+        assertEquals("user", parseOrdinadorLive(JSONObject("""{"live":false,"controlOwner":"user"}""")).controlOwner)
+        assertEquals("none", parseOrdinadorLive(JSONObject("""{"live":false}""")).controlOwner)
+    }
+
+    @Test fun fromThePhoneYouTypePressEnterAndGoBack() {
+        val sent = mutableListOf<String>()
+        ui.setContent { MaterialTheme { LocalLiveControls("ca", Color(0xFF8193FF)) { sent += it.toString() } } }
+        ui.onNodeWithText("Escriu al camp que has tocat…").assertIsDisplayed()
+        // Amb el camp buit, el botó és Enter a la pàgina.
+        ui.onNodeWithTag("ordinador-local-send").performClick()
+        ui.onNodeWithTag("ordinador-local-text").performTextInput("Catedral de Girona")
+        ui.onNodeWithTag("ordinador-local-send").performClick()
+        ui.onNodeWithTag("ordinador-local-back").performClick()
+        ui.onNodeWithContentDescription("Baixa").performClick()
+        assertEquals(listOf(
+            """{"kind":"key","key":"Enter"}""",
+            """{"kind":"type","text":"Catedral de Girona"}""",
+            """{"kind":"back"}""",
+            """{"kind":"scroll","dir":"down"}""",
+        ), sent)
     }
 }

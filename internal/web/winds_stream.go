@@ -14,6 +14,7 @@ import (
 	"gregal/internal/agent"
 	"gregal/internal/companion"
 	"gregal/internal/llm"
+	"gregal/internal/tools"
 )
 
 // Streaming dels vents: el mateix torn que el xat clàssic, però amb
@@ -139,8 +140,44 @@ const windEstilBrief = "\n\nAFTER DOING WORK (files, commands, publishing): 2-5 
 func windChatSystemPrompt(s *Server, wind companion.Wind, msg string) string {
 	ws, _ := s.ventWorkspace()
 	system := companion.WindChatSystem(wind, s.personalMemory(), s.projectName(), s.windGoalTitles(), s.lastSessionDigest(), s.windUserName())
-	return system + windNowBrief() + windTradeBrief(wind) + s.windCalaixBrief(wind) + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windMemorySystem(wind.ID) + s.windSkillsSystem(wind.ID) + s.windCardsBrief(wind.ID) + s.windServerBrief() + s.windConnectionsBrief() +
+	return system + windNowBrief() + windTradeBrief(wind) + s.gregalTeamBrief(wind) + s.windCalaixBrief(wind) + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windMemorySystem(wind.ID) + s.windSkillsSystem(wind.ID) + s.windCardsBrief(wind.ID) + s.windServerBrief() + s.windConnectionsBrief() +
 		windDocsBrief + windCodeBrief + windEstilBrief + windRemindBrief(wind.ID) + windFollowupBrief(wind) + s.windLessonsBrief(wind.ID) + windProjectesBrief(ws) + companion.ReplyLanguageBrief(msg)
+}
+
+// gregalTeamBrief diu a Gregal, a cada torn, qui té a l'equip i de què en sap:
+// sense això només ho podia saber cridant «wind list», no ho feia, i responia
+// sol mentre la interfície proposava «Llevantada en sap més de cuina ·
+// Pregunta-li» (la persona havia de canviar de conversa). És el patró del
+// «cap de gabinet»: Gregal és l'amo del resultat i consulta en segon pla.
+func (s *Server) gregalTeamBrief(wind companion.Wind) string {
+	if wind.ID != gregalWindID || s.winds == nil {
+		return ""
+	}
+	all, err := s.winds.List()
+	if err != nil {
+		return ""
+	}
+	var b strings.Builder
+	n := 0
+	for _, w := range all {
+		if w.ID == gregalWindID || strings.TrimSpace(w.Role) == "" {
+			continue
+		}
+		if n == 0 {
+			b.WriteString("\n\nYOUR TEAM (specialist winds you can consult with the wind tool, action ask; they do not see this chat, so give them the full context):\n")
+		}
+		b.WriteString("- " + w.Name + " (id " + w.ID + "): " + strings.TrimSpace(w.Role) + "\n")
+		if n++; n == 15 {
+			break
+		}
+	}
+	if n == 0 {
+		return ""
+	}
+	b.WriteString("When the request is clearly in one of these trades (a recipe for the cook, a trip for the traveller…), ask that wind first, " +
+		"then answer the user yourself with its help and name it in one short line (\"Llevantada helped with the recipes\"). " +
+		"Do not send the user to talk to it instead: you own the result.\n")
+	return b.String()
 }
 
 // windChatBrief és el mateix torn en un sol text (encàrrecs, fitxes i el
@@ -283,6 +320,9 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 	emit("activity", windActivity{Phase: "preparing"})
 	tornTexte := &tornText{}
 	turnStart := time.Now()
+	// El que faci al navegador torna al fil amb la resposta (captures).
+	turnShots := &tools.TurnShots{}
+	ctx = tools.WithTurnShots(ctx, turnShots)
 	isContinue := req.Continue && len(previous) > 0
 	s.mu.Lock()
 	_, logRole := s.windRoleRef()
@@ -345,7 +385,7 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 		for _, n := range tornTexte.narracions(reply) {
 			history = append(history, llm.Message{Role: "assistant", Content: n, Ts: time.Now().Unix()})
 		}
-		history = append(history, llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix(), ID: msgID})
+		history = append(history, llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix(), ID: msgID, Shots: s.turnShotsFor(turnShots)})
 		history, err = s.commitWindTurn(wind, hist, gotGen, history)
 		if err != nil {
 			fail(http.StatusInternalServerError, "no s'ha pogut desar la conversa")
@@ -382,7 +422,7 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 	for _, n := range tornTexte.narracions(reply) {
 		history = append(history, llm.Message{Role: "assistant", Content: n, Ts: time.Now().Unix()})
 	}
-	history = append(history, llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix()})
+	history = append(history, llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix(), Shots: s.turnShotsFor(turnShots)})
 	history, err = s.commitWindTurn(wind, hist, gotGen, history)
 	if err != nil {
 		fail(http.StatusInternalServerError, "no s'ha pogut desar la conversa")

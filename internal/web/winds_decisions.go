@@ -16,6 +16,7 @@ import (
 	"gregal/internal/config"
 	"gregal/internal/events"
 	"gregal/internal/llm"
+	"gregal/internal/tools"
 	"gregal/internal/runs"
 )
 
@@ -465,6 +466,8 @@ func (s *Server) windResumeExec(id string) runs.Executor {
 		tctx = s.windDocsCtx(agent.WithSkillsDirs(tctx, s.windSkillsDir(wind.ID)))
 		spot := &windParkSpot{wind: wind.ID, thread: rec.Resume.Thread, runID: run.ID}
 		tctx = withWindResume(withWindPark(tctx, spot), rec.ID)
+		turnShots := &tools.TurnShots{}
+		tctx = tools.WithTurnShots(tctx, turnShots)
 		emit := func(kind, text string) {
 			switch kind {
 			case "approve_request", "question_request", "ask_resolved":
@@ -501,7 +504,7 @@ func (s *Server) windResumeExec(id string) runs.Executor {
 			reply = fraseTornAturat(res.motiu, s.cfg.Lang())
 		}
 		msgID := newMessageID()
-		msgs := append(userMsgs, llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix(), ID: msgID})
+		msgs := append(userMsgs, llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix(), ID: msgID, Shots: s.turnShotsFor(turnShots)})
 		if err := s.appendWindThread(wind, hist, msgs...); err != nil {
 			return err
 		}

@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"gregal/internal/events"
+	"gregal/internal/llm"
 	"gregal/internal/tools"
 	"gregal/internal/transcript"
 )
@@ -395,4 +396,68 @@ func (s *Server) handleOrdinadorAccionsCaptura(w http.ResponseWriter, r *http.Re
 		return
 	}
 	serveComputerShot(w, b)
+}
+
+// turnShotsKeep és quantes captures de torns (les del fil) es guarden per
+// propietari; les més velles s'esborren i el fil les amaga.
+const turnShotsKeep = 240
+
+// saveTurnShot desa una captura d'un torn (la que el fil ensenya sota la
+// resposta). Es serveix com les de la reproducció però no és cap acció:
+// l'índex és a part (torns.txt) i només serveix per retallar les velles.
+func (c *computerStore) saveTurnShot(owner string, img []byte) string {
+	if c == nil || c.dir == "" || owner == "" || len(img) == 0 {
+		return ""
+	}
+	id := newShotID()
+	if id == "" {
+		return ""
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	dir := c.ownerDir(owner)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return ""
+	}
+	if err := os.WriteFile(filepath.Join(dir, id+".jpg"), img, 0o600); err != nil {
+		return ""
+	}
+	idx := filepath.Join(dir, "torns.txt")
+	var ids []string
+	if b, err := os.ReadFile(idx); err == nil {
+		ids = strings.Fields(string(b))
+	}
+	ids = append(ids, id)
+	if len(ids) > turnShotsKeep {
+		for _, old := range ids[:len(ids)-turnShotsKeep] {
+			if computerShotRe.MatchString(old) {
+				_ = os.Remove(filepath.Join(dir, old+".jpg"))
+			}
+		}
+		ids = ids[len(ids)-turnShotsKeep:]
+	}
+	_ = os.WriteFile(idx, []byte(strings.Join(ids, "\n")+"\n"), 0o600)
+	return id
+}
+
+// turnShotsFor desa les captures del torn del qui pregunta i en torna les
+// referències per al missatge.
+func (s *Server) turnShotsFor(c *tools.TurnShots) []llm.MessageShot {
+	shots := c.Shots()
+	if len(shots) == 0 {
+		return nil
+	}
+	// El mateix propietari que ordinadorCaller: «tothom» és l'ordinador local.
+	name := ""
+	if s.user != nil && !s.user.Tothom {
+		name = s.user.Name
+	}
+	owner := computerOwnerOf(name)
+	var out []llm.MessageShot
+	for _, sh := range shots {
+		if id := s.Hub().computer.saveTurnShot(owner, sh.Image); id != "" {
+			out = append(out, llm.MessageShot{ID: id, Title: sh.Title, URL: sh.URL})
+		}
+	}
+	return out
 }

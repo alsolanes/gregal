@@ -938,6 +938,8 @@ func BrowserActionFor(ctx context.Context, scope, action string, args map[string
 		if n := b.takeNote(); n != "" {
 			out = "Note: " + n + "\n\n" + out
 		}
+		// El torn ensenya al fil el que ha fet (browser_turnshots.go).
+		noteTurnShot(ctx, b, action)
 	}
 	return out, imgs, err
 }
