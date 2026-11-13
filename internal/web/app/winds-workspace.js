@@ -185,6 +185,9 @@
    name=id?((root.gregalModelName&&root.gregalModelName(id))||id.replace(/[-_]+/g,' ').replace(/\s+/g,' ').trim()):t('Model','Model');
   const chev=el('span','vw-model-chev');chev.setAttribute('aria-hidden','true');
   button.replaceChildren(el('span','vw-model-name',name),chev);
+  // La icona del joc de Codi (shell-icons.js), perquè el botó sigui el mateix.
+  const ico=root.gregalIcon&&root.gregalIcon('model');
+  if(ico)button.insertAdjacentHTML('afterbegin',ico);
   button.title=t('Model dels vents: ','Winds model: ')+(full||'—')+(models.current?'':t(' (el de la feina)',' (same as work)'));
   button.setAttribute('aria-label',button.title);button.setAttribute('aria-haspopup','dialog');button.setAttribute('aria-expanded',String(!!document.querySelector('.vw-model-pop')));
  }

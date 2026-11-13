@@ -98,9 +98,12 @@ class ModelPickerHostUiTest {
         }
         ui.onNodeWithText(tr("ca", "prefs.title")).assertExists()
         snapshot("settings-device-ca.png")
-        ui.onAllNodesWithText("Sistema")[1].performScrollTo().assertIsSelected()
+        // Des que Preferències es reparteix per pàgines, l'idioma és dins de
+        // «General»: abans la tria sortia a la primera pantalla.
+        ui.onNodeWithText(PrefsPage.General.title("ca")).performScrollTo().performClick()
+        ui.onNodeWithText("Sistema").performScrollTo().assertIsSelected()
         ui.onNodeWithText("English").performScrollTo().performClick()
-        ui.onNodeWithText(tr("en", "prefs.title")).assertExists()
+        ui.onNodeWithText(PrefsPage.General.title("en")).assertExists()
         snapshot("settings-manual-en.png")
         assertEquals("en", Prefs(app).idiomaChoice)
     }

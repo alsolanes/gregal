@@ -840,7 +840,9 @@ private fun WindsModelRow(vm: GregalViewModel, lang: String) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(tr(lang, "app.vents.defaultModel"), style = GregalType.heading, color = Ink)
                 Text(
-                    windsModel.ifBlank { tr(lang, "app.vents.defaultModelSameAsWork") },
+                    // El nom bonic, com al compositor i a la barra de dalt;
+                    // aquí hi sortia l'identificador sencer («zen/deepseek-v4.1-flash»).
+                    prettyModelName(windsModel).ifBlank { tr(lang, "app.vents.defaultModelSameAsWork") },
                     style = GregalType.bodySmall, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
