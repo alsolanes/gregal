@@ -159,10 +159,13 @@
     x.setAttribute('aria-label', T('extras.close', 'Close'));
     x.onclick = () => chip.remove();
     chip.append(label, go, x);
-    // A la pàgina d'inici (hero) va sobre les converses recents; si no,
-    // a la pila de targetes al marge.
-    const home = $('homeContext'), hero = $('hero');
+    // A la pàgina d'inici (hero) va sobre les converses recents; en una
+    // conversa, a dalt de tot i fora de la llista de missatges (que es
+    // desplaça i es repinta): abans flotava a la pila del marge i tapava el
+    // primer missatge.
+    const home = $('homeContext'), hero = $('hero'), main = $('main');
     if (home && hero && !hero.hidden && hero.style.display !== 'none') home.before(chip);
+    else if (main && main.parentElement) { chip.classList.add('in-pane'); main.before(chip); }
     else stack().appendChild(chip);
   }
   document.addEventListener('visibilitychange', () => {
@@ -295,6 +298,7 @@
 .mem-chip button{padding:0 4px;font-size:12px}
 .aside-bad{color:var(--red,#c0392b)}
 .recap-chip{display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--line,rgba(127,127,127,.25));border-radius:999px;background:var(--panel);font-size:12px;margin:6px auto;width:max-content;max-width:100%}
+.recap-chip.in-pane{flex:none;margin:10px auto 2px;max-width:calc(100% - 32px);box-shadow:0 4px 14px rgba(0,0,0,.18)}
 .mem-section .mem-notes{list-style:none;padding:0;margin:6px 0;font-size:12px;max-height:180px;overflow:auto}
 .mem-section .mem-notes li{padding:3px 0;border-bottom:1px solid var(--line,rgba(127,127,127,.15))}
 .mem-diff pre{font-size:11px;white-space:pre-wrap;max-height:220px;overflow:auto}
@@ -308,9 +312,16 @@
     // Canvi de sessió: el botó «Resumeix» mira les novetats de la nova.
     setInterval(() => {
       const id = session();
-      if (id !== lastSession) { lastSession = id; checkUnseen(); }
+      if (id !== lastSession) {
+        lastSession = id;
+        // L'avís era de la sessió d'abans.
+        document.querySelectorAll('.recap-chip').forEach(el => el.remove());
+        checkUnseen();
+      }
       const busy = !!(G().isBusy && G().isBusy());
-      if (wasBusy && !busy) memPoll = setTimeout(() => pollMemory(0), 1500);
+      // En acabar un torn, el que s'acaba de veure ja és vist: si no, tancant
+      // l'app abans del proper markSeen (cada 20 s) tornava com a «novetats».
+      if (wasBusy && !busy) { memPoll = setTimeout(() => pollMemory(0), 1500); setTimeout(markSeen, 2000); }
       wasBusy = busy;
     }, 1500);
     setInterval(markSeen, 20000);

@@ -34,9 +34,12 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	xhtml "golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
+	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/encoding/htmlindex"
 )
 
 // Límit de descàrrega web (anti-bomba) i timeouts.
@@ -975,7 +978,55 @@ func webFetchDirectPage(target string, timeout time.Duration, raw bool) (*pagina
 	if resp.Request != nil && resp.Request.URL != nil {
 		final = resp.Request.URL.String()
 	}
-	return llegeixCos(final, ct, string(body), raw)
+	return llegeixCos(final, ct, cosUTF8(ct, body), raw)
+}
+
+// cosUTF8 torna el cos de la pàgina en UTF-8. Si ja ho és, tal qual. Si no,
+// amb la codificació que declara el Content-Type o el <meta charset> de la
+// pàgina, i si no en declara cap, windows-1252, com fan els navegadors.
+// Abans es llegia sempre com a UTF-8: les webs en ISO-8859-1 (marca.com,
+// molts diaris i webs antigues) arribaven com «F�tbol» al model i a la
+// targeta de l'eina.
+func cosUTF8(ct string, body []byte) string {
+	if utf8.Valid(body) {
+		return string(body)
+	}
+	nom := charsetDe(ct)
+	if nom == "" {
+		nom = metaCharset(body[:min(len(body), 4096)])
+	}
+	if enc, err := htmlindex.Get(nom); nom != "" && err == nil {
+		if out, err := enc.NewDecoder().Bytes(body); err == nil {
+			return string(out)
+		}
+	}
+	if out, err := charmap.Windows1252.NewDecoder().Bytes(body); err == nil {
+		return string(out)
+	}
+	return string(body)
+}
+
+var reMetaCharset = regexp.MustCompile(`(?i)<meta[^>]+charset\s*=\s*["']?\s*([a-z0-9_\-:.]+)`)
+
+// charsetDe treu el charset=… d'un Content-Type («text/html; charset=iso-8859-1»).
+func charsetDe(ct string) string {
+	i := strings.Index(strings.ToLower(ct), "charset=")
+	if i < 0 {
+		return ""
+	}
+	v := strings.TrimSpace(ct[i+len("charset="):])
+	if j := strings.IndexAny(v, "; "); j >= 0 {
+		v = v[:j]
+	}
+	return strings.Trim(v, `"'`)
+}
+
+// metaCharset busca <meta charset="…"> o <meta http-equiv … content="…; charset=…">.
+func metaCharset(head []byte) string {
+	if m := reMetaCharset.FindSubmatch(head); m != nil {
+		return string(m[1])
+	}
+	return ""
 }
 
 // llegeixCos converteix el cos segons el tipus: HTML → lector; JSON/text →

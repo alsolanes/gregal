@@ -539,3 +539,26 @@ html body.tabs-inline #top .session-tab.new { width:28px; height:28px; min-width
    l'escriptori (l'alçada ha de casar amb TITLEBAR_H de desktop/main.js). */
 html body.desktop.tabs-inline #top { -webkit-app-region:drag; padding-right:150px; }
 html body.desktop.tabs-inline #top :is(button,input,.session-tab,.folder-chip) { -webkit-app-region:no-drag; }
+/* Amb moltes pestanyes, qui s'encongeix són les pestanyes (es desplacen i
+   s'esvaeixen a la dreta), no el xip de la carpeta: es quedava en «p..». */
+html body.tabs-inline #top .breadcrumb, html body.tabs-inline #top .folder-chip { flex:none; }
+html body.tabs-inline #top #sessionTabs { flex:1 1 auto; scrollbar-width:none;
+  -webkit-mask-image:linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image:linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+html body.tabs-inline #top #sessionTabs::-webkit-scrollbar { display:none; }
+html body.tabs-inline #top .session-tab:not(.new) { max-width:220px; }
+html body.tabs-inline #top .session-tab .nm { overflow:hidden; text-overflow:ellipsis; min-width:0; }
+
+/* ---------- Mentre treballa: un sol «treballant» ----------
+   A la sessió que mires, l'avís és la targeta de feina («Treballant… · 2s»)
+   i el botó d'atura. La pestanya i la barra lateral només ho diuen per a les
+   altres sessions (en segon pla), i la franja de sobre el compositor —amb les
+   dreceres Enter / Ctrl+Enter / Alt+Enter— surt quan comences a escriure, que
+   és quan serveixen. Abans sortia a cinc llocs alhora. «Necessita resposta» sí
+   que es queda a tot arreu. */
+.wg-time { color:var(--muted); font-variant-numeric:tabular-nums; }
+.wg-time:not(:empty)::before { content:'·'; margin-right:8px; color:var(--faint); }
+#sessionTabs .session-tab.active .session-state.working { display:none; }
+#side .conv.current .conv-live-state.busy { display:none; }
+#turnBar .turn-hint { display:none; }
+#composer:has(#in:not(:placeholder-shown)) #turnBar .turn-hint { display:inline; }
+body:has(#main .work-group.running) #composer:not(:has(#in:not(:placeholder-shown))) #turnTimer { display:none; }

@@ -229,3 +229,27 @@ func TestEsShellWSL(t *testing.T) {
 		t.Fatal("el bash del Git for Windows és bo")
 	}
 }
+
+// L'error de sintaxi de Python duu la ruta del fitxer: amb accents
+// («Còpies de seguretat») tornava «C�pies» a Windows, perquè Python escrivia
+// en la pàgina de codis de la consola i no es descodificava.
+func TestDiagPythonRutaAmbAccents(t *testing.T) {
+	if !tePython() {
+		t.Skip("sense python")
+	}
+	dir := filepath.Join(t.TempDir(), "Còpies de seguretat")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "dedup.py")
+	if err := os.WriteFile(path, []byte("def f(:\n    return 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := diagPython(path)
+	if got == "" {
+		t.Fatal("esperava un error de sintaxi")
+	}
+	if strings.Contains(got, "�") || !strings.Contains(got, "Còpies") {
+		t.Fatalf("la ruta no s'ha llegit bé:\n%s", got)
+	}
+}

@@ -62,7 +62,9 @@
     const colloca=()=>{
       if(ample.matches) { if(tabs.parentElement!==$('top')) crumb.after(tabs); }
       else if(tabs.parentElement!==wrap) wrap.insertBefore(tabs,ancora);
+      const abans=document.body.classList.contains('tabs-inline');
       document.body.classList.toggle('tabs-inline',ample.matches);
+      if(abans!==ample.matches) document.dispatchEvent(new Event('gregal:tabs-inline'));
     };
     colloca(); ample.addEventListener('change',colloca);
   }

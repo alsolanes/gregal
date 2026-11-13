@@ -88,7 +88,9 @@ func diagPython(path string) string {
 	if !ok {
 		return ""
 	}
-	env := os.Environ()
+	// PYTHONIOENCODING: que Python escrigui l'error en UTF-8 i no en la
+	// pàgina de codis de la consola (shell.ChildEnv fa el mateix per a bash).
+	env := append(os.Environ(), "PYTHONIOENCODING=utf-8")
 	if cau, err := os.MkdirTemp("", "gregal-pycompile-*"); err == nil {
 		defer os.RemoveAll(cau)
 		env = append(env, "PYTHONPYCACHEPREFIX="+cau)

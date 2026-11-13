@@ -252,7 +252,7 @@ export const sessions = {
     const pending = window.gregalPendingInteractions;
     // El projecte hi ha de ser: la pestanya principal en duu el nom, i sense
     // ell canviar de carpeta no la repintava (deia l'antic).
-    const firma = list.map(s => s.id + ':' + (s.busy ? 1 : 0) + ':' + (pending?.has(s.id) ? 1 : 0) + ':' + (s.title || '') + ':' + (s.project || '') + ':' + (s.worktree || '')).join('|') + '#' + this.current + '#' + this._error;
+    const firma = list.map(s => s.id + ':' + (s.busy ? 1 : 0) + ':' + (pending?.has(s.id) ? 1 : 0) + ':' + (s.title || '') + ':' + (s.project || '') + ':' + (s.worktree || '')).join('|') + '#' + this.current + '#' + this._error + '#' + document.body.classList.contains('tabs-inline');
     if (firma === this._firma) return;
     this._firma = firma;
     // Amb una sola sessió la pestanya no aporta res: la barra queda com a
@@ -325,7 +325,30 @@ export const sessions = {
       iso.className = 'icon-btn top-session-new worktree';
       box.append(plus, iso);
       crumb.appendChild(box);
+    } else if (document.body.classList.contains('tabs-inline')) {
+      // Una sola barra: ＋ i ⎇＋ queden fora de la tira que es desplaça, a
+      // la dreta de les pestanyes; si no, amb moltes pestanyes no es veien.
+      const box = document.createElement('span');
+      box.id = 'topSessionNew';
+      plus.className = 'icon-btn top-session-new';
+      iso.className = 'icon-btn top-session-new worktree';
+      box.append(plus, iso);
+      bar.after(box);
     } else bar.append(plus, iso);
+    this.revealActive();
+  },
+  // La pestanya activa sempre a la vista, encara que n'hi hagi moltes. Es fa
+  // al quadre següent: en moure la barra (una barra ↔ dues) el navegador en
+  // reinicia el desplaçament i encara no l'ha tornada a mesurar.
+  revealActive() {
+    const fes = () => {
+      const bar = $('sessionTabs'), activa = bar && bar.querySelector('.session-tab.active');
+      if (!activa || !activa.getBoundingClientRect || bar.scrollWidth <= bar.clientWidth) return;
+      const a = activa.getBoundingClientRect(), b = bar.getBoundingClientRect();
+      if (a.left < b.left) bar.scrollLeft -= b.left - a.left + 8;
+      else if (a.right > b.right - 28) bar.scrollLeft += a.right - b.right + 36;
+    };
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(fes); else fes();
   },
   // Sessió aïllada: worktree nou (branca gregal/<nom>) i una pestanya que hi
   // treballa. El repo principal no es toca fins a «Porta al repo principal».
@@ -489,6 +512,16 @@ async function nouProjecte() {
 }
 
 // ------------------------------------------------------------------ canvis
+
+// La capçalera canvia de forma (una barra / dues) en fer la finestra més
+// ampla o més estreta: les pestanyes i els ＋ s'han de tornar a col·locar.
+if (typeof document.addEventListener === 'function') document.addEventListener('gregal:tabs-inline', () => { sessions.render().then(() => sessions.revealActive()); });
+// I cada cop que la tira canvia d'amplada (finestra, ＋ que entren o surten):
+// l'esdeveniment de la media query arriba abans que la finestra s'hagi mesurat.
+if (typeof ResizeObserver === 'function' && typeof document.getElementById === 'function') {
+  const tira = document.getElementById('sessionTabs');
+  if (tira) new ResizeObserver(() => sessions.revealActive()).observe(tira);
+}
 
 export const changes = {
   data: null,

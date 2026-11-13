@@ -2670,7 +2670,7 @@ function beginWorkGroup() {
   const g = document.createElement('details');
   g.className = 'msg work-group running';
   g.open = true;
-  g.innerHTML = '<summary><span class="wg-dot" aria-hidden="true"></span><span class="wg-label"></span><span class="wg-meta"></span></summary><div class="wg-body"></div>';
+  g.innerHTML = '<summary><span class="wg-dot" aria-hidden="true"></span><span class="wg-label"></span><span class="wg-time"></span><span class="wg-meta"></span></summary><div class="wg-body"></div>';
   main.appendChild(g);
   turnGroup = g;
   paintWorkGroup(g, { running: true });
@@ -2689,6 +2689,10 @@ function paintWorkGroup(g, o) {
     : o.ms > 0 ? gregalT(o.failed ? 'work.stopped' : 'work.done').replace('{t}', durada(o.ms))
     : gregalT('work.steps');
   g.querySelector('.wg-label').textContent = label;
+  // El temps en marxa (pintaTurnBar el posa al dia cada segon); acabat, ja el
+  // diu l'etiqueta («Ha treballat 16s»).
+  const temps = g.querySelector('.wg-time');
+  if (temps && !o.running) temps.textContent = '';
   const meta = g.querySelector('.wg-meta');
   // La velocitat (PP/TG) ja surt al peu del compositor: aquí només en passar-hi.
   meta.textContent = tools ? (tools === 1 ? gregalT('ui.toolsCountOne') : gregalT('ui.toolsCount').replace('{n}', tools)) : '';
@@ -3031,6 +3035,11 @@ function pintaTurnBar() {
   // aquí només l'estat i el temps (una sola línia de «treballant»). Sense grup
   // (p. ex. un torn reprès), el pas sí que surt aquí.
   const groupShows = typeof document !== 'undefined' && document.querySelector && document.querySelector('#main .work-group.running');
+  // La targeta de feina és l'únic «treballant» de la sessió que mires: el
+  // temps hi va a la capçalera, i la franja de sobre el compositor s'amaga
+  // mentre no escrius (refine.css).
+  const tempsGrup = groupShows && groupShows.querySelector('.wg-time');
+  if (tempsGrup) tempsGrup.textContent = turnT0 ? durada(Date.now() - turnT0) : '';
   t.innerHTML = visiblePhase === 'idle' ? '' : (visiblePhase === 'working' ? '<span class="spin">◌</span> ' : '') + phaseLabel + (turnT0 ? ' · <b>' + durada(Date.now() - turnT0) + '</b>' : '') + (groupShows ? '' : activeAction);
   void speedHTML;
   // Mentre treballa, com dir-li alguna cosa sense esperar (steerNow).

@@ -252,7 +252,10 @@ func (p *Proc) pump(stream string, r io.Reader) {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for sc.Scan() {
-		p.add(stream, sc.Text())
+		// Com la sortida de bash: a Windows, el que no és UTF-8 es llegeix com
+		// a cp1252 (els servidors i scripts natius escriuen en la pàgina de
+		// codis de la consola). Sense això, bash_output tornava «M�s».
+		p.add(stream, shell.DecodeOutput(sc.Bytes()))
 	}
 }
 

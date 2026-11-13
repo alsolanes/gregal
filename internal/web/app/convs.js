@@ -401,7 +401,9 @@ export const convs = {
         const mark = card.querySelector('.tspin'); if (mark) mark.textContent = '■';
       });
       const msgsWord = gregalT('conv.messages') || 'messages';
-      G().sys((d.title || name) + ' · ' + d.msgs + ' ' + msgsWord);
+      // Abans s'escrivia «títol · N missatges» a la conversa: repetia el que ja
+      // diuen la pestanya i la barra lateral, i quedava com un missatge més.
+      // Es queda només al registre d'activitat.
       if (d.recovered) G().sys(gregalT('sessions.recoveredRun'));
       G().activityItem('conversa', d.title || name, d.msgs + ' ' + msgsWord, 'ok');
       G().setView('agent');

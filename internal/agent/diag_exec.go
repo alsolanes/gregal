@@ -27,6 +27,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"gregal/internal/shell"
 )
 
 // DiagExecTimeout és el màxim per comprovació externa. go vet d'un paquet
@@ -99,7 +101,10 @@ func execCurt(timeout time.Duration, dir string, env []string, exe string, args 
 	if _, esSortida := err.(*exec.ExitError); err != nil && !esSortida {
 		return resultatExec{} // no ha arrencat (binari fals, permisos)
 	}
-	return resultatExec{out: out.String(), err: err, acabat: true}
+	// Com la sortida de bash: a Windows, el que no és UTF-8 es llegeix com a
+	// cp1252. Sense això, el py_compile d'un fitxer a «Còpies de seguretat»
+	// tornava «C�pies» i el model veia una ruta que no existeix.
+	return resultatExec{out: shell.DecodeOutput(out.Bytes()), err: err, acabat: true}
 }
 
 // dinsModulGo puja directoris buscant un go.mod.
