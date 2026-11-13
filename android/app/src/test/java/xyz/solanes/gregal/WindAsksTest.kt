@@ -59,7 +59,10 @@ class WindAsksTest {
             MaterialTheme(colorScheme = LightPal.scheme()) { WindAskCards(vm, "en", androidx.compose.ui.graphics.Color(0xFF8899AA), busy = false) }
         } }
         ui.onNodeWithTag("approve-card").assertExists()
-        ui.onNodeWithText("Wants to install software").assertExists()
+        ui.onNodeWithText("Shall I install software?").assertExists()
+        // L'ordre va plegada sota «See the command» i s'obre amb un toc.
+        ui.onNodeWithText("sdkmanager --licenses").assertDoesNotExist()
+        ui.onNodeWithTag("ask-command-toggle").performClick()
         ui.onNodeWithText("sdkmanager --licenses").assertExists()
         ui.onNodeWithTag("ask-allow").performClick()
         ui.waitForIdle()

@@ -30,7 +30,20 @@ test('un bloc mal fet surt com a codi', () => {
 test('cada web surt una sola vegada a les fonts', () => {
   const h = card({ title: 'Auriculars', rows: [{ lead: 'QCY H3', text: 'ANC', value: '25 €' }],
     sources: [{ name: 'idealo · QCY H3', url: 'https://www.idealo.es/a' }, { name: 'idealo · Sony', url: 'https://www.idealo.es/b' }, { name: 'Amazon', url: 'https://www.amazon.es/x' }] });
-  assert.strictEqual((h.match(/>idealo</g) || []).length, 1);
-  assert.ok(h.includes('>amazon<'));
+  // Cada web és un punt amb el nom al títol (com a la maqueta), i el peu en diu el nombre.
+  assert.strictEqual((h.match(/title="idealo"/g) || []).length, 1);
+  assert.ok(h.includes('title="amazon"'));
+  assert.ok(h.includes('>2 sources<'));
   assert.ok(h.includes('class="gr-lead"'));
+});
+
+test('stamp afegeix quan es va mirar al peu de la targeta', () => {
+  const html = card({ title: 'Trens', rows: [{ lead: '08:25', text: 'Directe', value: '59 €' }], sources: [{ name: 'Omio', url: 'https://www.omio.es/x' }] });
+  const age = { textContent: '', dataset: {} };
+  const m = /<span class="gr-age">([^<]*)<\/span>/.exec(html);
+  assert.ok(m, 'hi ha el recompte de fonts');
+  age.textContent = m[1];
+  const node = { querySelectorAll: () => [age] };
+  md.stamp(node, Math.round(Date.now() / 1000) - 120);
+  assert.strictEqual(age.textContent, '1 source · 2 min ago');
 });

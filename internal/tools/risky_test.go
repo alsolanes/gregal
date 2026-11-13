@@ -82,3 +82,36 @@ func TestRiskyLeavesNormalProjectWorkAlone(t *testing.T) {
 		}
 	}
 }
+
+// Un «cd» canvia on actuen els camins relatius: «cd fora && rm -f x» esborra
+// fora del projecte. Abans es resolia contra el projecte i passava per «dins»
+// (així va sortir una targeta de permís genèrica per a un esborrat real).
+func TestRiskyFollowsCdBeforeADelete(t *testing.T) {
+	proj := t.TempDir()
+	home := filepath.Dir(proj)
+	outside := filepath.ToSlash(filepath.Join(home, "vell"))
+	for _, cmd := range []string{
+		`cd "` + outside + `" && ls -la && rm -f caducat.txt && ls -la`,
+		`cd ` + outside + `; rm -rf build`,
+		`cd .. && rm -f notes.txt`,
+		`cd $TMPDIR && rm -f x`,
+	} {
+		r, ok := Risky(cmd, proj, home)
+		if !ok || r.Kind != "delete" {
+			t.Errorf("%q: volia delete, ha tornat %+v %v", cmd, r, ok)
+		}
+	}
+	// La part perillosa porta el camí resolt (la targeta diu on és).
+	if r, _ := Risky(`cd "`+outside+`" && rm -f caducat.txt`, proj, home); r.What != `rm "`+outside+`/caducat.txt"` {
+		t.Errorf("What = %q", r.What)
+	}
+	// Dins del projecte, encara que hi hagi cd, és feina normal.
+	for _, cmd := range []string{
+		`mkdir -p sub && cd sub && rm -f vell.txt`,
+		`cd ` + filepath.ToSlash(proj) + ` && rm -rf dist`,
+	} {
+		if r, ok := Risky(cmd, proj, home); ok {
+			t.Errorf("%q: no havia de preguntar, ha tornat %+v", cmd, r)
+		}
+	}
+}

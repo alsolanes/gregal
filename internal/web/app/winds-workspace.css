@@ -410,6 +410,20 @@ button.vw-choice { white-space:normal; text-align:left; }
 .vw-ask-option small { color:var(--muted); font-weight:400; font-size:12px; }
 .vw-ask-free { padding:9px 12px; border-radius:8px; border:1px solid var(--line-hi); background:var(--bg); color:var(--ink); font:inherit; }
 input.vw-ask-free:focus { border-color:color-mix(in srgb, var(--accent) 55%, var(--line)); box-shadow:var(--ring); outline:none; }
+/* Targeta de permís com a la maqueta: dins del fil, sota l'últim missatge,
+   amb una pregunta en pla («Vols que esborri x?»), on és i si es pot desfer,
+   l'ordre plegada i el botó amb el verb a l'esquerra. */
+.vw-asks-inline { margin:6px 0 4px 58px; max-width:760px; }
+.vw-ask.vw-ask-plan { border-radius:18px; border-color:color-mix(in srgb, var(--accent) 55%, transparent); background:color-mix(in srgb, var(--accent) 7%, var(--surface)); box-shadow:none; gap:10px; }
+.vw-ask-head { display:flex; gap:10px; align-items:flex-start; }
+.vw-ask-head strong { display:block; color:var(--ink); font-size:15px; font-weight:600; line-height:1.35; }
+.vw-ask-sub { display:block; color:var(--muted); font-size:13px; margin-top:2px; line-height:1.4; }
+.vw-ask-shield { flex:none; width:20px; height:20px; margin-top:1px; color:var(--accent-hi); }
+.vw-ask-cmd summary { cursor:pointer; color:var(--muted); font-size:12.5px; width:max-content; }
+.vw-ask-cmd summary:hover { color:var(--ink); }
+.vw-ask-cmd code { margin-top:6px; max-height:12em; }
+.vw-ask-plan .vw-ask-actions button { min-height:40px; border-radius:12px; font-weight:600; }
+@media (max-width:640px) { .vw-asks-inline { margin-left:0; } }
 .vw-choices { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 2px 46px; }
 
 /* Un sol sistema amb Codi: la barra lateral amb les mides de #navRail (calma.css); el compositor,
@@ -823,6 +837,28 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .gregal-result .gr-main em { display:block; font-style:normal; font-size:10.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); }
 .gregal-result .gr-pick .gr-main em { color:#1E9E6A; }
 .gregal-result .gr-foot { display:flex; align-items:center; gap:10px; padding:10px 14px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); }
+/* Com la maqueta (docs/design/gregal-android/gregal-target-2.png): cada fila
+   en una línia —hora o nom · descripció curta i etiqueta · preu · ›— i el peu
+   amb els punts de les fonts superposats, «N fonts · fa X min» i «Veure tots ›».
+   En pantalla estreta, la descripció torna a anar a sota. */
+.gregal-result .gr-row { padding:0 14px; min-height:46px; }
+.gregal-result .gr-main { flex-direction:row; align-items:baseline; gap:14px; }
+.gregal-result .gr-lead { flex:none; min-width:112px; max-width:45%; }
+.gregal-result .gr-text { flex:1 1 auto; min-width:0; -webkit-line-clamp:1; color:var(--text); }
+.gregal-result .gr-main em { flex:none; white-space:nowrap; }
+.gregal-result a.gr-row::after { content:'›'; flex:none; color:var(--faint); font-size:18px; line-height:1; margin-left:-4px; }
+.gregal-result a.gr-row:hover::after { color:var(--ink); }
+.gregal-result .gr-sources { display:inline-flex; align-items:center; gap:8px; }
+.gregal-result .gr-dots { display:inline-flex; }
+.gregal-result .gr-dots a, .gregal-result .gr-dots span { display:inline-flex; margin-left:-5px; }
+.gregal-result .gr-dots :first-child { margin-left:0; }
+.gregal-result .gr-dots .gr-dot { width:14px; height:14px; margin:0; border:2px solid var(--surface); }
+@media (max-width:560px) {
+  .gregal-result .gr-row { padding:9px 14px; }
+  .gregal-result .gr-main { flex-direction:column; align-items:stretch; gap:1px; }
+  .gregal-result .gr-lead { max-width:none; }
+  .gregal-result .gr-text { -webkit-line-clamp:2; color:var(--muted); }
+}
 .gregal-result .gr-sources { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .gregal-result .gr-sources a { color:var(--muted); text-decoration:none; }
 .gregal-result .gr-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin:0 4px 0 6px; vertical-align:middle; }
@@ -838,3 +874,6 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .wind-workspace .pnav:hover, .wind-workspace .pnav:focus-within { opacity:1; }
 .vw-ask .vw-ask-plain { margin:6px 0 4px; font-size:14px; color:var(--ink); }
 .vw-ask code.vw-ask-raw { font-size:11.5px; opacity:.7; }
+/* Mentre una targeta de permís espera, el vent no «treballa en la resposta»:
+   t'espera a tu. La bombolla de treballant sobrava (i sortia sota la targeta). */
+.vw-messages:has(.vw-asks-inline .vw-ask) .vw-pending:not(:has(.vw-stream-text)) { display:none; }

@@ -118,11 +118,18 @@
       return { url, name: site || String((x && x.name) || "") };
     }).filter((x) => x.name && !seen.has(x.name) && seen.add(x.name));
     const more = o.more && typeof o.more === "object" ? o.more : null;
+    // Peu com a la maqueta: punts superposats (cada un és la web, amb el nom
+    // al títol), «N fonts» i, si el missatge té hora, «· fa X min» (stamp).
     if (sources.length || (more && more.label)) {
-      h += '<div class="gr-foot"><span class="gr-sources">' + sources.map((x, i) => {
+      const dots = sources.map((x, i) => {
         const url = safeUrl(x.url), name = str(x.name);
-        return '<i class="gr-dot gr-dot' + (i % 6) + '"></i>' + (url ? '<a href="' + url + '" target="_blank" rel="noopener">' + name + "</a>" : name);
-      }).join(" ") + "</span>";
+        const dot = '<i class="gr-dot gr-dot' + (i % 6) + '"></i>';
+        return url ? '<a href="' + url + '" target="_blank" rel="noopener" title="' + name + '" aria-label="' + name + '">' + dot + "</a>"
+          : '<span title="' + name + '">' + dot + "</span>";
+      }).join("");
+      const count = sources.length === 1 ? label("result.sources.one", "1 source")
+        : label("result.sources.n", "{n} sources").replace("{n}", sources.length);
+      h += '<div class="gr-foot"><span class="gr-sources">' + (sources.length ? '<span class="gr-dots">' + dots + '</span><span class="gr-age">' + count + "</span>" : "") + "</span>";
       if (more && more.label) {
         const url = safeUrl(more.url);
         h += url ? '<a class="gr-more" href="' + url + '" target="_blank" rel="noopener">' + str(more.label) + " ›</a>" : '<span class="gr-more">' + str(more.label) + "</span>";
@@ -231,7 +238,24 @@
     return out.join("\n").replace(/<<B(\d+)<<B/g, (m, i) => blocks[+i]);
   }
 
-  const api = { render, inline, esc };
+  // stamp afegeix «· fa X min» al peu de les targetes de resultat d'un
+  // missatge ja pintat (ts en segons). Els preus caduquen: saber quan es van
+  // mirar és part del resultat.
+  function stamp(node, ts) {
+    if (!node || !node.querySelectorAll || !ts) return;
+    const secs = Math.max(0, Math.round(Date.now() / 1000 - ts));
+    const t = root.gregalT, label = (key, fb) => (typeof t === "function" && t(key)) || fb;
+    const ago = secs < 60 ? label("result.ago.now", "just now")
+      : secs < 3600 ? label("result.ago.min", "{n} min ago").replace("{n}", Math.round(secs / 60))
+      : secs < 86400 ? label("result.ago.h", "{n} h ago").replace("{n}", Math.round(secs / 3600))
+      : label("result.ago.d", "{n} d ago").replace("{n}", Math.round(secs / 86400));
+    node.querySelectorAll(".gregal-result .gr-age").forEach((el) => {
+      if (!el.dataset.base) el.dataset.base = el.textContent;
+      el.textContent = el.dataset.base + " · " + ago;
+    });
+  }
+
+  const api = { render, inline, esc, stamp };
   root.gregalMD = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

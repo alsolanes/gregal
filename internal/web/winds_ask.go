@@ -85,12 +85,15 @@ type windAskReq struct {
 	Type    string       `json:"type"`
 	Query   string       `json:"query,omitempty"`
 	Options []windAskOpt `json:"options,omitempty"`
-	Name    string       `json:"name,omitempty"`   // l'eina
-	Kind    string       `json:"kind,omitempty"`   // install | download | delete | system | other
-	What    string       `json:"what,omitempty"`   // l'ordre o l'acció, curta
-	Reason  string       `json:"reason,omitempty"` // per què es pregunta
-	At      int64        `json:"at"`
-	Expires int64        `json:"expires"`
+	Name    string       `json:"name,omitempty"` // l'eina
+	Kind    string       `json:"kind,omitempty"` // install | download | delete | system | other
+	What    string       `json:"what,omitempty"` // l'ordre o l'acció, curta
+	// Detail: l'ordre o els arguments sencers, per a «Veure l'ordre» (What és
+	// la part que importa; aquí hi ha tot el que s'executarà).
+	Detail  string `json:"detail,omitempty"`
+	Reason  string `json:"reason,omitempty"` // per què es pregunta
+	At      int64  `json:"at"`
+	Expires int64  `json:"expires"`
 	// Handoff (B3): la pàgina (origen + camí, sense query) i el lloc on la
 	// persona ha d'iniciar sessió des del visor.
 	Page string `json:"page,omitempty"`
@@ -323,7 +326,7 @@ func (s *Server) windApprove(ctx context.Context, emit func(kind, text string), 
 // windApproveCall és windApprove amb els arguments de la crida, que lliguen
 // l'aprovació a l'efecte exacte.
 func (s *Server) windApproveCall(ctx context.Context, emit func(kind, text string), name, args, kind, what, reason string) (bool, string) {
-	ans, out := s.windAskWait(ctx, emit, &windAskReq{Type: "approve", Name: name, Kind: kind, What: what, Reason: reason}, args)
+	ans, out := s.windAskWait(ctx, emit, &windAskReq{Type: "approve", Name: name, Kind: kind, What: what, Detail: windAskArgsFull(args), Reason: reason}, args)
 	switch {
 	case out == askParked:
 		return false, "NOT RUN YET: waiting for the user's decision."
@@ -511,6 +514,25 @@ func (s *Server) answerDecision(id string, ans windAnswer, revision int) (*windD
 
 // windAskArgsHint: una pista curta (camí, ordre, adreça) de la crida d'una eina,
 // perquè l'aprovació digui de què va sense mostrar tots els arguments.
+// windAskArgsFull és l'argument principal sencer (l'ordre de bash, el camí),
+// amb un sostre de seguretat, per ensenyar-lo plegat a la targeta.
+func windAskArgsFull(argsJSON string) string {
+	var m map[string]any
+	if json.Unmarshal([]byte(argsJSON), &m) != nil {
+		return ""
+	}
+	for _, k := range []string{"command", "path", "file", "dir", "url", "target", "name", "action"} {
+		if v, ok := m[k].(string); ok && strings.TrimSpace(v) != "" {
+			v = strings.TrimSpace(v)
+			if r := []rune(v); len(r) > 4000 {
+				v = string(r[:4000]) + "…"
+			}
+			return v
+		}
+	}
+	return ""
+}
+
 func windAskArgsHint(argsJSON string) string {
 	var m map[string]any
 	if json.Unmarshal([]byte(argsJSON), &m) != nil {

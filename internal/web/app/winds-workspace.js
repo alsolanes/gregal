@@ -3,7 +3,7 @@
  'use strict';
  const $=id=>document.getElementById(id), ca=()=>document.documentElement.lang==='ca', t=(a,b)=>{const v=ca()?a:b;return window.gregalCollective?window.gregalCollective.apply(v):v;};
  const state={asks:[],winds:[],squads:[],chats:[],tasks:[],projects:[],workspace:'',view:'home',squad:'daily',active:null,history:[],busy:false,draft:'',snapshot:null,events:[],library:[],filter:'all',meta:null};
- let mounted=false, page, nav, content, messages, composer, input, status, loadVersion=0, chatTurn=null, pendingTimer=0, demoTimer=0, demoRun=0;
+ let mounted=false, page, nav, content, messages, asksBox=null, composer, input, status, loadVersion=0, chatTurn=null, pendingTimer=0, demoTimer=0, demoRun=0;
  const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;};
  const accent=()=>{const v=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();return /^#[0-9a-f]{6}$/i.test(v)?v:'#8193FF';};
  const btn=(label,action,cls='vw-button')=>{const n=el('button',cls,label);n.type='button';n.onclick=()=>Promise.resolve().then(action).catch(fail);return n;};
@@ -117,7 +117,7 @@
  function render(){
   if(!mounted)return;
   const savedScroll=state.view==='chat'&&messages&&messages.dataset.thread===state.active?.id&&!nearChatEnd(messages)?messages.scrollTop:null;
-  renderNav();page.replaceChildren();messages=null;input=null;composer=null;
+  renderNav();page.replaceChildren();messages=null;asksBox=null;input=null;composer=null;
   const top=el('header','vw-top');const menu=iconOnly('menu',t('Obre la navegació','Open navigation'),()=>{if(matchMedia('(max-width:760px)').matches){setDrawer(!document.body.classList.contains('vw-drawer'));return;}const side=$('side');const reopen=side.classList.contains('closed')||side.classList.contains('compact');if(reopen&&root.setSideCompact)root.setSideCompact(false);if(root.setSide)root.setSide(reopen);},'vw-mobile-menu');menu.setAttribute('aria-expanded',String(document.body.classList.contains('vw-drawer')));top.append(menu,el('span','',t('Vents','Winds')),el('span','vw-separator','/'),state.view==='chat'?owner():el('span','',state.active?.name||squadName(state.squad)));
   // «La colla» ja és a la barra lateral (i a la de sota, al mòbil): aquí només hi van les accions del fil obert.
   // Fil de Gregal (B14): a dalt només la seva cara, flotant, i l'ordinador; la lluïssor floreix en obrir.
@@ -679,7 +679,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   card.append(days);host.append(card);}
  function placePicker(w,after){const d=dialog(t('On vols seguir el temps?','Where do you want to follow the weather?'));const q=field(d,t('Cerca un lloc','Search a place'),'');q.placeholder=t('Barcelona, Puigcerdà, Sóller…','Barcelona, Puigcerdà, Sóller…');const list=el('div','vw-place-results');d.append(list,el('p','vw-error'));let timer=0;
   q.oninput=()=>{clearTimeout(timer);timer=setTimeout(async()=>{const r=await call('/api/winds/weather/places?q='+encodeURIComponent(q.value)).catch(()=>({places:[]}));list.replaceChildren();for(const p of r.places||[]){const b=btn('',async()=>{await call('/api/winds/calaix','POST',{wind:w.id,shelf:'llocs',action:'add',item:{name:p.name,lat:p.lat,lon:p.lon,where:p.where,primary:true}});await call('/api/winds/calaix','POST',{wind:w.id,shelf:'llocs',action:'primary',key:p.name.toLowerCase()});d.close();after?.();},'vw-place-result');b.append(el('strong','',p.name),el('small','',p.where||''));list.append(b);}},250);};setTimeout(()=>q.focus(),0);}
- function chatView(){content.classList.add('vw-thread-view');messages=el('div','vw-messages');messages.dataset.thread=state.active.id;content.append(messages);paintHistory();const linked=state.tasks.filter(task=>task.thread===state.active.id);for(const task of linked)messages.append(linkRow(task.task+' · '+statusName(task.status),()=>{state.events=task.events||[];route('task',{...task,name:task.task,conversation:state.active});}));content.append(el('div','vw-asks'));paintAsks();loadAsks();addComposer(!!state.active?.workspace);}
+ function chatView(){content.classList.add('vw-thread-view');messages=el('div','vw-messages');messages.dataset.thread=state.active.id;content.append(messages);paintHistory();const linked=state.tasks.filter(task=>task.thread===state.active.id);for(const task of linked)messages.append(linkRow(task.task+' · '+statusName(task.status),()=>{state.events=task.events||[];route('task',{...task,name:task.task,conversation:state.active});}));asksBox=el('div','vw-asks vw-asks-inline');messages.append(asksBox);paintAsks();loadAsks();addComposer(!!state.active?.workspace);}
  function emptyWindThread(){
   const wind=state.winds.find(w=>w.id===state.active?.wind);
   if(!wind)return;
@@ -714,17 +714,39 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  async function connectFor(a){const win=root.open('about:blank','gregal-connexio');const site=String(a.site||'');const body=site.startsWith('con-')?{id:site}:{service:'mcp',provider:site.replace(/^mcp:/,'')};try{const r=await call('/api/connexions/connect','POST',body);if(win)win.location.href=r.authUrl;}catch(e){if(win)win.close();const m=String(e&&e.message||'');fail(/needs_client_id/.test(m)?new Error(t("Aquest proveïdor necessita que l'administrador hi registri Gregal. Mentrestant, pots iniciar sessió al navegador de l'ordinador.","This provider needs the administrator to register Gregal with it. Meanwhile, you can sign in on the computer's browser.")):e);}}
  async function loadAsks(){try{state.asks=(await call('/api/winds/pending')).pending||[];paintAsks();}catch(e){}}
  // Targetes d'aprovació i de pregunta: el torn del vent espera aquí.
- function askPlain(a){
-  const m=/^(write|edit|patch)\s+(.+)$/.exec(String(a.what||'').trim());if(!m)return '';
-  const w=state.winds.find(x=>x.id===a.wind),who=w?.name||t('El vent','The wind');
-  const full=m[2].replace(/\\/g,'/'),parts=full.split('/'),file=parts.pop()||full;
+ function askShield(){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');svg.setAttribute('class','vw-ask-shield');const p=document.createElementNS(svg.namespaceURI,'path');p.setAttribute('d','M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z');p.setAttribute('fill','none');p.setAttribute('stroke','currentColor');p.setAttribute('stroke-width','1.8');p.setAttribute('stroke-linejoin','round');svg.append(p);return svg;}
+ function askPlain(a){const p=askPlan(a);return p?p.q:'';}
+ // Com la maqueta: una pregunta en pla («Vols que esborri x?»), on és i si es
+ // pot desfer, i un botó amb el verb («Esborra'l»). L'ordre sencera, plegada.
+ function askWhere(path){
+  const full=String(path||'').replace(/\\/g,'/'),parts=full.split('/'),file=parts.pop()||full;
   let dir=parts.join('/');const k=dir.search(/\/gregal\/projectes(\/|$)/i);
   if(k>=0)dir=t('Projectes','Projects')+(dir.slice(k+17)?' › '+dir.slice(k+18):'');else dir=parts.slice(-2).join('/');
-  const verb=m[1]==='write'?t('vol crear o escriure','wants to write'):t('vol modificar','wants to edit');
-  return who+' '+verb+' '+file+(dir?' '+t('a','in')+' '+dir:'');
+  return {file,dir};
+ }
+ function askPath(s){
+  const q=[...String(s||'').matchAll(/"([^"]+)"|'([^']+)'/g)].map(m=>m[1]||m[2]);
+  return q.length?q[q.length-1]:String(s||'').trim().split(/\s+/).pop()||'';
+ }
+ function askPlan(a){
+  const what=String(a.what||'').trim(),m=/^(write|edit|patch)\s+(.+)$/.exec(what);
+  if(m){
+   const {file,dir}=askWhere(m[2]);const sub=dir?t('És a '+dir+'.','It is in '+dir+'.'):'';
+   return m[1]==='write'?{q:t('Vols que escrigui '+file+'?','Shall I write '+file+'?'),sub,yes:t('Escriu-lo','Write it')}
+    :{q:t('Vols que modifiqui '+file+'?','Shall I edit '+file+'?'),sub,yes:t("Modifica'l",'Edit it')};
+  }
+  switch(a.kind){
+   case 'delete':{const {file,dir}=askWhere(askPath(what));
+    return {q:t('Vols que esborri '+file+'?','Shall I delete '+file+'?'),sub:t((dir?'És a '+dir+', fora':'És fora')+' del projecte. No es podrà desfer.',(dir?'It is in '+dir+', outside':'It is outside')+' the project. It cannot be undone.'),yes:t("Esborra'l",'Delete it')};}
+   case 'install':return {q:t('Vols que instal·li programari?','Shall I install software?'),sub:t("Programari nou a l'ordinador.",'New software on the computer.'),yes:t("Instal·la'l",'Install it')};
+   case 'download':return {q:t('Vols que baixi un paquet o un fitxer?','Shall I download a package or file?'),sub:t("De fora, a l'ordinador.",'From outside, onto the computer.'),yes:t('Baixa-ho','Download it')};
+   case 'system':return {q:t('Vols que canviï un servei del sistema?','Shall I change a system service?'),sub:t("Afecta tot l'ordinador, no només el projecte.",'It affects the whole computer, not just the project.'),yes:t('Canvia-ho','Change it')};
+   case 'publish_public':return {q:t('Vols que publiqui la web?','Shall I publish the site?'),sub:t("Serà pública: qualsevol que tingui l'enllaç la veurà.",'It will be public: anyone with the link can see it.'),yes:t('Publica-la','Publish it')};
+  }
+  return {q:askTitle(a.kind),sub:'',yes:t('Fes-ho','Do it')};
  }
  function paintAsks(){
-  const box=page?.querySelector('.vw-asks');if(!box)return;box.replaceChildren();
+  const box=(asksBox&&messages&&state.view==='chat')?asksBox:page?.querySelector('.vw-asks');if(!box)return;if(box===asksBox&&box.parentElement!==messages)messages.append(box);const abans=box.childElementCount;box.replaceChildren();
   for(const a of state.asks){
    const card=el('section','vw-ask'+(a.type==='question'?' vw-ask-question':' vw-ask-approve'));card.setAttribute('role','group');
    if(a.type==='handoff'){
@@ -750,19 +772,21 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
     for(const o of a.options||[]){const b=btn(o.label,()=>answerAsk(a,{answer:o.label}),'vw-ask-option');if(o.description)b.append(el('small','',o.description));card.append(b);}
     const free=el('input','vw-ask-free');free.placeholder=t('Una altra cosa…','Something else…');free.setAttribute('aria-label',free.placeholder);free.onkeydown=e=>{if(e.key==='Enter'&&free.value.trim()){e.preventDefault();answerAsk(a,{answer:free.value.trim()});}};card.append(free);
    }else{
-    card.append(el('strong','',askTitle(a.kind)),el('small','vw-ask-wait',t('Espera la teva resposta','Waiting for you')));
-    // Dit en pla: qui ho demana i què vol fer («Gregal vol escriure game.js a Projectes › zefir/js»); l'ordre crua, a sota.
-    const plain=askPlain(a);if(plain)card.append(el('p','vw-ask-plain',plain));
-    if(a.what){const raw=el('code','',a.what);if(plain)raw.className='vw-ask-raw';card.append(raw);}
-    const row=el('div','vw-ask-actions');row.append(btn(t('Rebutja','Decline'),()=>answerAsk(a,{approve:false}),'vw-ask-decline'),btn(t('Permet','Allow'),()=>answerAsk(a,{approve:true}),'vw-ask-allow'));card.append(row);
+    const plan=askPlan(a);card.classList.add('vw-ask-plan');
+    const head=el('div','vw-ask-head'),txt=el('div');txt.append(el('strong','',plan.q));if(plan.sub)txt.append(el('small','vw-ask-sub',plan.sub));
+    head.append(askShield(),txt);card.append(head);
+    const full=a.detail||a.what;if(full){const d=el('details','vw-ask-cmd');d.append(el('summary','',t("Veure l'ordre",'See the command')),el('code','',full));card.append(d);}
+    const row=el('div','vw-ask-actions');row.append(btn(plan.yes,()=>answerAsk(a,{approve:true}),'vw-ask-allow'),btn(t('Ara no','Not now'),()=>answerAsk(a,{approve:false}),'vw-ask-decline'));card.append(row);
    }
    box.append(card);
   }
+  // Una petició nova no pot quedar sota el compositor: el fil baixa fins a la targeta sencera.
+  if(box===asksBox&&box.childElementCount>abans)requestAnimationFrame(()=>{if(messages)messages.scrollTop=messages.scrollHeight;});
  }
  function paintHistory(){const top=messages.scrollTop,follow=nearChatEnd(messages);messages.replaceChildren();let voice='',asked=false;const H=state.history,who=m=>m?(m.from==='user'?'user':(m.speaker_id||m.from||'')):null;for(let hi=0;hi<H.length;hi++){const item=H[hi];const user=item.from==='user';
   // Un altre vent agafa el fil després d'un missatge teu: una línia ho diu, en lloc que el vent ho expliqui.
   if(user)asked=true;else if(!state.active?.legacyWind){const id=item.speaker_id||'';if(voice&&id&&id!==voice&&asked){const who=state.winds.find(w=>w.id===id);if(who)messages.append(el('p','vw-handoff',t('→ '+who.name+' agafa el fil','→ '+who.name+' takes over')));}if(id)voice=id;asked=false;}const w=state.winds.find(w=>w.id===item.speaker_id||w.id===item.from||w.name===item.from)||(state.active?.legacyWind?state.winds.find(w=>w.id===state.active.wind):null);const row=el('article',user?'vw-message vw-user':'vw-message');// Ratxes (B1): la cara i el nom un sol cop; la cua només a l'última. Taules, codi i textos llargs es llegeixen sense bombolla.
-  if(who(H[hi-1])===who(item))row.classList.add('vw-run-cont');if(who(H[hi+1])!==who(item))row.classList.add('vw-run-last');if(!user&&chatReadingSurface(item.text))row.classList.add('vw-reading');if(!user)row.append(face(w));const copy=el('div'),body=el('div','vw-message-text'),text=user?item.text:choicesStrip(withoutSpeaker(item.text,w?.name||item.speaker_name));if(root.gregalMD)body.innerHTML=root.gregalMD.render(text);else body.textContent=text;copy.append(el('strong','',user?t('Tu','You'):w?.name||item.speaker_name||t('La colla','Your crew')),body);
+  if(who(H[hi-1])===who(item))row.classList.add('vw-run-cont');if(who(H[hi+1])!==who(item))row.classList.add('vw-run-last');if(!user&&chatReadingSurface(item.text))row.classList.add('vw-reading');if(!user)row.append(face(w));const copy=el('div'),body=el('div','vw-message-text'),text=user?item.text:choicesStrip(withoutSpeaker(item.text,w?.name||item.speaker_name));if(root.gregalMD){body.innerHTML=root.gregalMD.render(text);if(item.ts&&root.gregalMD.stamp)root.gregalMD.stamp(body,item.ts);}else body.textContent=text;copy.append(el('strong','',user?t('Tu','You'):w?.name||item.speaker_name||t('La colla','Your crew')),body);
   // Un missatge proactiu (B6, amb run o resultat): «per què ho has fet?».
   const R=root.gregalResponsabilitats;if(!user&&R&&R.isProactive(item)&&item.id){const why=btn(R.whyLabel(),()=>R.openWhy(item.id),'vw-why');why.dataset.message=item.id;row.dataset.proactive='1';copy.append(why);}
   row.append(copy);messages.append(row);}
@@ -770,7 +794,10 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   if(state.suggest?.thread===state.active?.id&&!state.busy)messages.append(suggestRow(state.suggest));
   const last=state.history[state.history.length-1];if(last&&last.from!=='user'&&!state.busy){const opts=root.gregalChoices?root.gregalChoices.extract(last.text):[];if(opts.length){const row=el('div','vw-choices');for(const o of opts)row.append(btn(o,()=>{if(!input)return;state.replyOnce=last.speaker_id||null;input.value=o;composer.requestSubmit();},'vw-choice'));messages.append(row);}}
   if(!last&&state.active?.legacyWind)emptyWindThread();
-  paintPending();messages.scrollTop=follow?messages.scrollHeight:top;}
+  paintPending();
+  // La targeta de permís va dins del fil, sota l'últim missatge (com a la maqueta).
+  if(asksBox)messages.append(asksBox);
+  messages.scrollTop=follow?messages.scrollHeight:top;}
  async function submit(){if(state.preparing)return;state.preparing=true;try{await submitRequest();}finally{state.preparing=false;}}
  async function submitRequest(){
   const text=input.value.trim();if(!text||state.busy)return;state.draft=text;

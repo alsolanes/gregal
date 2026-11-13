@@ -62,8 +62,29 @@ internal fun parseResultSpec(raw: String): ResultSpec? {
 
 private val SourceDots = listOf(Color(0xFFC9152B), Color(0xFF2E7D32), Color(0xFF1565C0), Color(0xFFEF6C00), Color(0xFF6A1B9A), Color(0xFF00838F))
 
+/** Peu de la targeta: «N fonts», i «· fa X min» si se sap quan es va mirar (atMs, ms d'època). Pura. */
+internal fun resultFootText(lang: String, sources: Int, atMs: Long, nowMs: Long = System.currentTimeMillis()): String {
+    if (sources <= 0) return ""
+    val count = if (sources == 1) tr(lang, "app.result.sourcesOne") else tr(lang, "app.result.sourcesN").replace("{n}", sources.toString())
+    if (atMs <= 0L) return count
+    val secs = ((nowMs - atMs) / 1000).coerceAtLeast(0)
+    val ago = when {
+        secs < 60 -> tr(lang, "app.result.agoNow")
+        secs < 3600 -> tr(lang, "app.result.agoMin").replace("{n}", Math.round(secs / 60.0).toString())
+        secs < 86400 -> tr(lang, "app.result.agoH").replace("{n}", Math.round(secs / 3600.0).toString())
+        else -> tr(lang, "app.result.agoD").replace("{n}", Math.round(secs / 86400.0).toString())
+    }
+    return "$count · $ago"
+}
+
+/**
+ * Targeta de resultat com a la maqueta (docs/design/gregal-android/gregal-target-2.png):
+ * cada fila en una línia —hora o nom · descripció curta · preu · ›—, l'etiqueta
+ * de la recomanada a sota, i el peu amb els punts de les fonts, «N fonts · fa X
+ * min» i «Veure tots ›» a la mateixa fila. atMs: quan es va escriure el missatge.
+ */
 @Composable
-internal fun GregalResultCard(spec: ResultSpec, accent: Color) {
+internal fun GregalResultCard(spec: ResultSpec, accent: Color, lang: String = "ca", atMs: Long = 0L) {
     val uri = LocalUriHandler.current
     val shape = RoundedCornerShape(18.dp)
     val ok = Color(0xFF1E9E6A)
@@ -77,42 +98,43 @@ internal fun GregalResultCard(spec: ResultSpec, accent: Color) {
                 contentAlignment = Alignment.Center) { Text(spec.icon, fontSize = 15.sp) }
             Column(Modifier.weight(1f)) {
                 Text(spec.title, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (spec.subtitle.isNotEmpty()) Text(spec.subtitle, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (spec.subtitle.isNotEmpty()) Text(spec.subtitle, color = Muted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
         }
         spec.rows.forEach { r ->
             HorizontalDivider(color = Line)
             Row(Modifier.fillMaxWidth().then(if (r.pick) Modifier.background(ok.copy(alpha = .09f)) else Modifier)
                 .then(if (r.url.isNotEmpty()) Modifier.clickable(role = Role.Button) { uri.openUri(r.url) } else Modifier)
-                .heightIn(min = 44.dp).padding(horizontal = 14.dp, vertical = 8.dp),
+                .heightIn(min = 44.dp).padding(start = 14.dp, end = if (r.url.isNotEmpty()) 8.dp else 14.dp, top = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (r.lead.isNotEmpty()) Text(r.lead, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+                    overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(min = 96.dp, max = 160.dp))
                 Column(Modifier.weight(1f)) {
-                    if (r.lead.isNotEmpty()) Text(r.lead, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (r.text.isNotEmpty()) Text(r.text, color = if (r.lead.isNotEmpty()) Muted else Ink, fontSize = 13.sp, lineHeight = 18.sp,
-                        maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    if (r.tag.isNotEmpty()) Text(r.tag.uppercase(), color = if (r.pick) ok else Muted, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                    if (r.text.isNotEmpty()) Text(r.text, color = Ink, fontSize = 13.sp, maxLines = if (r.lead.isNotEmpty()) 1 else 2,
+                        overflow = TextOverflow.Ellipsis)
+                    if (r.tag.isNotEmpty()) Text(r.tag.uppercase(), color = if (r.pick) ok else Muted, fontSize = 10.5.sp, fontWeight = FontWeight.Bold,
+                        maxLines = 1)
                 }
-                if (r.value.isNotEmpty()) Text(r.value, color = Ink, fontSize = 13.5.sp, fontWeight = FontWeight.Bold)
+                if (r.value.isNotEmpty()) Text(r.value, color = Ink, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                if (r.url.isNotEmpty()) Text("›", color = Faint, fontSize = 18.sp)
             }
         }
         if (spec.sources.isNotEmpty() || spec.moreLabel.isNotEmpty()) {
             HorizontalDivider(color = Line)
             Row(Modifier.fillMaxWidth().heightIn(min = 40.dp).padding(horizontal = 14.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Row(horizontalArrangement = Arrangement.spacedBy((-6).dp)) {
-                    spec.sources.forEachIndexed { i, _ ->
+                    spec.sources.forEachIndexed { i, (_, url) ->
                         Box(Modifier.size(16.dp).clip(RoundedCornerShape(50)).background(Superficie).padding(2.dp)
-                            .clip(RoundedCornerShape(50)).background(SourceDots[i % SourceDots.size]))
+                            .clip(RoundedCornerShape(50)).background(SourceDots[i % SourceDots.size])
+                            .then(if (url.isNotEmpty()) Modifier.clickable(role = Role.Button) { uri.openUri(url) } else Modifier))
                     }
                 }
-                if (spec.sources.isNotEmpty()) Text("  " + resultSourceNames(spec.sources).joinToString(" · "), color = Muted, fontSize = 12.sp,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
-                        .clickable(role = Role.Button) { spec.sources.firstOrNull()?.second?.takeIf { it.isNotEmpty() }?.let { uri.openUri(it) } })
-                else Spacer(Modifier.weight(1f))
+                Text((if (spec.sources.isNotEmpty()) "  " else "") + resultFootText(lang, resultSourceNames(spec.sources).size, atMs),
+                    color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                if (spec.moreLabel.isNotEmpty()) Text(spec.moreLabel + " ›", color = link, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, modifier = Modifier.clickable(role = Role.Button) { if (spec.moreUrl.isNotEmpty()) uri.openUri(spec.moreUrl) }
+                        .padding(start = 8.dp, top = 6.dp, bottom = 6.dp))
             }
-            if (spec.moreLabel.isNotEmpty()) Text(spec.moreLabel + " ›", color = link, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().clickable(role = Role.Button) { if (spec.moreUrl.isNotEmpty()) uri.openUri(spec.moreUrl) }
-                    .padding(start = 14.dp, end = 14.dp, bottom = 12.dp))
         }
     }
 }

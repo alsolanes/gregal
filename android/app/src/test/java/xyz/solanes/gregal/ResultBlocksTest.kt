@@ -43,4 +43,12 @@ class ResultBlocksTest {
             "Amazon" to "https://www.amazon.es/x", "sense enllaç" to ""))
         assertEquals(listOf("idealo", "amazon", "sense enllaç"), names)
     }
+
+    @Test fun footTextSaysHowManySourcesAndHowLongAgo() {
+        val now = 1_800_000_000_000L
+        assertEquals("1 font", resultFootText("ca", 1, 0L, now))
+        assertEquals("3 fonts · fa 2 min", resultFootText("ca", 3, now - 120_000L, now))
+        assertEquals("2 sources · 1 h ago", resultFootText("en", 2, now - 3_600_000L, now))
+        assertEquals("", resultFootText("ca", 0, now, now))
+    }
 }

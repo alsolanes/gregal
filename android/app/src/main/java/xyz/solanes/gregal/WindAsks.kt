@@ -114,24 +114,83 @@ private fun Color.compositeOverSafe(bg: Color): Color = Color(
     blue = blue * alpha + bg.blue * (1 - alpha), alpha = maxOf(alpha, bg.alpha),
 )
 
+/** Què es pregunta: la pregunta en pla, on és i si es pot desfer, i el verb del botó. */
+internal data class ApprovePlan(val question: String, val sub: String, val yes: String)
+
+private fun askWhere(path: String, en: Boolean): Pair<String, String> {
+    val full = path.replace('\\', '/')
+    val parts = full.split('/').toMutableList()
+    val file = parts.removeLastOrNull()?.ifBlank { null } ?: full
+    val joined = parts.joinToString("/")
+    val k = Regex("/gregal/projectes(/|$)", RegexOption.IGNORE_CASE).find(joined)?.range?.first ?: -1
+    val dir = if (k >= 0) (if (en) "Projects" else "Projectes") + joined.substring(k + 17).let { if (it.isNotEmpty()) " › " + it.removePrefix("/") else "" }
+        else parts.takeLast(2).joinToString("/")
+    return file to dir
+}
+
+private fun askPath(s: String): String {
+    val quoted = Regex("\"([^\"]+)\"|'([^']+)'").findAll(s).map { it.groupValues[1].ifEmpty { it.groupValues[2] } }.toList()
+    return quoted.lastOrNull() ?: s.trim().split(Regex("\\s+")).lastOrNull().orEmpty()
+}
+
+/** Pura i provada (ApprovePlanTest): la mateixa lògica que askPlan a la web. */
+internal fun approvePlan(lang: String, kind: String, what: String): ApprovePlan {
+    val en = lang == "en"
+    fun t(ca: String, e: String) = if (en) e else ca
+    val w = what.trim()
+    Regex("^(write|edit|patch)\\s+(.+)$").find(w)?.let { m ->
+        val (file, dir) = askWhere(m.groupValues[2], en)
+        val sub = if (dir.isNotEmpty()) t("És a $dir.", "It is in $dir.") else ""
+        return if (m.groupValues[1] == "write") ApprovePlan(t("Vols que escrigui $file?", "Shall I write $file?"), sub, t("Escriu-lo", "Write it"))
+        else ApprovePlan(t("Vols que modifiqui $file?", "Shall I edit $file?"), sub, t("Modifica'l", "Edit it"))
+    }
+    return when (kind) {
+        "delete" -> {
+            val (file, dir) = askWhere(askPath(w), en)
+            ApprovePlan(t("Vols que esborri $file?", "Shall I delete $file?"),
+                t((if (dir.isNotEmpty()) "És a $dir, fora" else "És fora") + " del projecte. No es podrà desfer.",
+                    (if (dir.isNotEmpty()) "It is in $dir, outside" else "It is outside") + " the project. It cannot be undone."),
+                t("Esborra'l", "Delete it"))
+        }
+        "install" -> ApprovePlan(t("Vols que instal·li programari?", "Shall I install software?"), t("Programari nou a l'ordinador.", "New software on the computer."), t("Instal·la'l", "Install it"))
+        "download" -> ApprovePlan(t("Vols que baixi un paquet o un fitxer?", "Shall I download a package or file?"), t("De fora, a l'ordinador.", "From outside, onto the computer."), t("Baixa-ho", "Download it"))
+        "system" -> ApprovePlan(t("Vols que canviï un servei del sistema?", "Shall I change a system service?"), t("Afecta tot l'ordinador, no només el projecte.", "It affects the whole computer, not just the project."), t("Canvia-ho", "Change it"))
+        "publish_public" -> ApprovePlan(t("Vols que publiqui la web?", "Shall I publish the site?"), t("Serà pública: qualsevol que tingui l'enllaç la veurà.", "It will be public: anyone with the link can see it."), t("Publica-la", "Publish it"))
+        // «other» i els tipus que no coneixem: el títol genèric. (askUi("other") és el
+        // camp lliure de les preguntes, «Una altra cosa…»: sortia com a títol.)
+        else -> ApprovePlan(askUi(lang, "approve"), "", t("Fes-ho", "Do it"))
+    }
+}
+
+/**
+ * Targeta de permís com a la maqueta: una pregunta en pla («Vols que esborri x?»),
+ * on és i si es pot desfer, l'ordre plegada i el botó amb el verb («Esborra'l») a
+ * l'esquerra. Abans: «Et demana permís» i l'ordre tallada, sovint abans del rm.
+ */
 @Composable
 private fun ApproveCard(lang: String, a: GregalApi.WindAsk, accent: Color, onAllow: () -> Unit, onDecline: () -> Unit) {
+    val plan = remember(a.key, lang) { approvePlan(lang, a.kind, a.what) }
+    var showCmd by remember(a.key) { mutableStateOf(false) }
+    val full = a.detail.ifBlank { a.what }
     AskShell(accent, "approve-card") {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Icon(Icons.Rounded.Shield, null, tint = accent, modifier = Modifier.size(22.dp))
             Column {
-                Text(askUi(lang, a.kind.ifBlank { "approve" }).let { if (it == a.kind) askUi(lang, "approve") else it },
-                    color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Text(askUi(lang, "waiting"), color = Muted, fontSize = 11.sp)
+                Text(plan.question, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                if (plan.sub.isNotEmpty()) Text(plan.sub, color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
             }
         }
-        if (a.what.isNotBlank()) Text(
-            a.what, color = Ink, fontSize = 12.5.sp, fontFamily = FontFamily.Monospace, maxLines = 4, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Superficie.copy(alpha = .7f)).padding(10.dp),
-        )
+        if (full.isNotBlank()) {
+            Text((if (showCmd) "▾ " else "▸ ") + if (lang == "en") "See the command" else "Veure l'ordre", color = Muted, fontSize = 12.5.sp,
+                modifier = Modifier.clickable { showCmd = !showCmd }.padding(vertical = 2.dp).testTag("ask-command-toggle"))
+            if (showCmd) Text(
+                full, color = Ink, fontSize = 12.5.sp, fontFamily = FontFamily.Monospace,
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Superficie.copy(alpha = .7f)).padding(10.dp),
+            )
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            AskButton(askUi(lang, "decline"), primary = false, modifier = Modifier.weight(1f).testTag("ask-decline"), onClick = onDecline)
-            AskButton(askUi(lang, "allow"), primary = true, accent = accent, modifier = Modifier.weight(1f).testTag("ask-allow"), onClick = onAllow)
+            AskButton(plan.yes, primary = true, accent = accent, modifier = Modifier.weight(1f).testTag("ask-allow"), onClick = onAllow)
+            AskButton(if (lang == "en") "Not now" else "Ara no", primary = false, modifier = Modifier.weight(1f).testTag("ask-decline"), onClick = onDecline)
         }
     }
 }

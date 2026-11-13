@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -189,5 +190,18 @@ func TestWindAnswerNeedsAKnownRequest(t *testing.T) {
 	s.handleWindsAnswer(rec, req)
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("GET: %d", rec.Code)
+	}
+}
+
+// La targeta ensenya l'ordre sencera plegada: abans només hi havia el resum
+// tallat a 100 caràcters, sovint just abans del `rm` que la feia perillosa.
+func TestWindAskArgsFullKeepsTheWholeCommand(t *testing.T) {
+	cmd := `cat "C:/Users/alsol/AppData/Local/Temp/gsbx/fora/esborrar.txt"; echo "---"; rm -f "C:/Users/alsol/AppData/Local/Temp/gsbx/fora/esborrar.txt"`
+	args := `{"command":` + strconv.Quote(cmd) + `}`
+	if got := windAskArgsFull(args); got != cmd {
+		t.Fatalf("windAskArgsFull = %q", got)
+	}
+	if hint := windAskArgsHint(args); !strings.HasSuffix(hint, "…") || strings.Contains(hint, "esborrar.txt\"\n") {
+		t.Fatalf("el resum curt continua tallat: %q", hint)
 	}
 }

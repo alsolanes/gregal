@@ -411,13 +411,19 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			// persona, encara que el classificador ho deixi passar (amb poders de
 			// servidor, per exemple). El torn s'atura fins que respon.
 			kind, what := "other", ""
-			if decision == "allow" && interactive && (name == "bash" || name == "bash_background") {
+			// També quan la política ja deia «pregunta»: sense el classificador, la
+			// targeta deia «Et demana permís» i ensenyava l'ordre tallada a 100
+			// caràcters, sovint just abans del `rm` que la feia perillosa.
+			if (decision == "allow" || decision == "ask") && interactive && (name == "bash" || name == "bash_background") {
 				var a struct {
 					Command string `json:"command"`
 				}
 				if json.Unmarshal([]byte(argsJSON), &a) == nil {
 					if r, risky := tools.Risky(a.Command, scope.workspace, serviceHome()); risky {
-						decision, reason, kind, what = "ask", "needs your approval: "+r.Kind, r.Kind, r.What
+						if decision == "allow" {
+							decision, reason = "ask", "needs your approval: "+r.Kind
+						}
+						kind, what = r.Kind, r.What
 					}
 				}
 			}

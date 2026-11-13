@@ -1966,7 +1966,7 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                                 )
                             }
                             is Rich.Table -> MdTable(b.headers, b.rows, lang)
-                            is Rich.Result -> GregalResultCard(b.spec, if (accent != Color.Unspecified) accent else Sea)
+                            is Rich.Result -> GregalResultCard(b.spec, if (accent != Color.Unspecified) accent else Sea, lang, tsMillis)
                             is Rich.Chart -> ChartBlock(b.spec, accent, dark)
                             is Rich.Image -> MdImage(
                                 b.url, b.alt,

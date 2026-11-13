@@ -931,6 +931,8 @@ class GregalApi(val base: String, val token: String) {
         val name: String = "", val kind: String = "", val what: String = "", val reason: String = "",
         /** El vent que espera (B4); buit en servidors antics. */
         val wind: String = "",
+        /** L'ordre o l'argument sencer, per a «Veure l'ordre» (what és la part que importa). */
+        val detail: String = "",
     )
 
     /** GET /api/winds/pending: el que els vents esperen (si l'app s'havia tancat). */
@@ -1667,12 +1669,12 @@ internal class WindAskDto(
     val key: String = "", val type: String = "", val query: String = "",
     val options: List<AskOptionDto> = emptyList(),
     val name: String = "", val kind: String = "", val what: String = "", val reason: String = "",
-    val wind: String = "",
+    val wind: String = "", val detail: String = "",
 ) {
     fun toAsk() = GregalApi.WindAsk(
         key = key, type = type.ifBlank { "approve" }, query = query,
         options = options.map { it.label to it.description }.filter { it.first.isNotBlank() },
-        name = name, kind = kind, what = what, reason = reason, wind = wind,
+        name = name, kind = kind, what = what, reason = reason, wind = wind, detail = detail,
     )
 }
 

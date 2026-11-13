@@ -39,12 +39,72 @@ var (
 // dins); home, la casa de l'usuari del servei.
 func Risky(cmd, projectDir, home string) (Risk, bool) {
 	cmd = stripHeredocs(cmd)
+	// workDir segueix els «cd» de l'ordre: «cd C:/altre && rm -f x.txt»
+	// esborra C:/altre/x.txt, no x.txt del projecte. Abans els camins relatius
+	// sempre es resolien contra el projecte i aquest esborrat passava per «dins».
+	workDir := ""
 	for _, seg := range reSegSplit.Split(cmd, -1) {
-		if r, ok := riskySegment(strings.TrimSpace(seg), projectDir, home, 0); ok {
+		seg = strings.TrimSpace(seg)
+		if d, ok := cdTarget(seg); ok {
+			workDir = resolveWorkDir(d, workDir, projectDir, home)
+			continue
+		}
+		if r, ok := riskySegment(seg, projectDir, workDir, home, 0); ok {
 			return r, true
 		}
 	}
 	return Risk{}, false
+}
+
+// cdTarget torna la carpeta d'un «cd x» (o pushd, Set-Location, chdir).
+func cdTarget(seg string) (string, bool) {
+	w := fields(seg)
+	if len(w) != 2 {
+		return "", false
+	}
+	switch strings.ToLower(w[0]) {
+	case "cd", "pushd", "chdir", "set-location", "sl":
+		if w[1] == "-" || strings.HasPrefix(w[1], "-") {
+			return "", false
+		}
+		return w[1], true
+	}
+	return "", false
+}
+
+// resolveWorkDir és la carpeta de feina després d'un cd: absoluta, ~ o
+// relativa a l'anterior (o al projecte si encara no se n'ha canviat).
+func resolveWorkDir(d, workDir, projectDir, home string) string {
+	d = strings.Trim(strings.TrimSpace(d), `"'`)
+	switch {
+	case d == "~" || strings.HasPrefix(d, "~/"):
+		if home == "" {
+			return ""
+		}
+		return filepath.Join(home, strings.TrimPrefix(strings.TrimPrefix(d, "~"), "/"))
+	case strings.Contains(d, "$") || strings.Contains(d, "`"):
+		// No sabem on va: que tot el que vingui després compti com a fora.
+		return string(filepath.Separator) + "??"
+	case filepath.IsAbs(d) || strings.HasPrefix(filepath.ToSlash(d), "/"):
+		return filepath.Clean(d)
+	}
+	base := workDir
+	if base == "" {
+		base = projectDir
+	}
+	if base == "" {
+		return ""
+	}
+	return filepath.Join(base, d)
+}
+
+// enWorkDir resol un camí relatiu contra la carpeta del «cd» anterior.
+func enWorkDir(a, workDir string) string {
+	if workDir == "" || a == "" || filepath.IsAbs(a) || strings.HasPrefix(filepath.ToSlash(a), "/") ||
+		strings.HasPrefix(a, "~") || strings.Contains(a, "$") || strings.Contains(a, "`") {
+		return a
+	}
+	return filepath.Join(workDir, a)
 }
 
 // stripHeredocs treu el cos dels «<<EOF … EOF»: és text que s'escriu a un fitxer,
@@ -79,7 +139,7 @@ func fields(seg string) []string {
 	return out
 }
 
-func riskySegment(seg, projectDir, home string, depth int) (Risk, bool) {
+func riskySegment(seg, projectDir, workDir, home string, depth int) (Risk, bool) {
 	if seg == "" {
 		return Risk{}, false
 	}
@@ -87,7 +147,7 @@ func riskySegment(seg, projectDir, home string, depth int) (Risk, bool) {
 	if m := reShellC.FindStringSubmatch(seg); m != nil && depth < 3 {
 		inner := strings.Trim(strings.TrimSpace(m[1]), `"'`)
 		for _, s := range reSegSplit.Split(inner, -1) {
-			if r, ok := riskySegment(strings.TrimSpace(s), projectDir, home, depth+1); ok {
+			if r, ok := riskySegment(strings.TrimSpace(s), projectDir, workDir, home, depth+1); ok {
 				return r, true
 			}
 		}
@@ -170,14 +230,18 @@ func riskySegment(seg, projectDir, home string, depth int) (Risk, bool) {
 			if strings.HasPrefix(a, "-") || (strings.HasPrefix(a, "/") && len(a) <= 3) || a == "" {
 				continue
 			}
-			if !insideDir(a, projectDir, home) {
+			if target := enWorkDir(a, workDir); !insideDir(target, projectDir, home) {
+				if target != a {
+					// Després d'un cd, el camí sencer: la targeta ha de poder dir on és.
+					return Risk{"delete", prog + ` "` + filepath.ToSlash(target) + `"`}, true
+				}
 				return Risk{"delete", short()}, true
 			}
 		}
 	case "find":
 		if has("-delete") || has("-exec") && strings.Contains(seg, " rm ") {
 			for _, a := range args {
-				if !strings.HasPrefix(a, "-") && !insideDirRoot(a, projectDir, home, true) {
+				if !strings.HasPrefix(a, "-") && !insideDirRoot(enWorkDir(a, workDir), projectDir, home, true) {
 					return Risk{"delete", short()}, true
 				}
 				break
