@@ -303,6 +303,29 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			if spot.parkedRec() != nil {
 				return "deny", "NOT RUN YET: waiting for the user's decision."
 			}
+			// Les regles de la persona (winds_rules.go): «Mai» atura l'acció,
+			// «Pregunta'm» la porta a una targeta que cita la regla.
+			rv := s.windRulesReview(ctx, name, argsJSON)
+			if rv.Kind == "never" {
+				return "deny", s.tr("no es fa: la teva regla diu «"+rv.Rule+"»", "not done: your rule says «"+rv.Rule+"»")
+			}
+			if rv.Kind == "ask" {
+				if d, why := scope.policy.Decide(scope.mode, name, argsJSON); d == "deny" {
+					return d, why
+				}
+				why := s.tr("Ho pregunto per la teva regla: «"+rv.Rule+"».", "Asking because of your rule: «"+rv.Rule+"».")
+				what := strings.TrimSpace(name + " " + windAskArgsHint(argsJSON))
+				if canAsk {
+					if ok, msg := s.windApproveCall(ctx, emit, name, argsJSON, "rule", what, why); ok {
+						return "allow", "approved by the user"
+					} else {
+						return "deny", msg
+					}
+				}
+				requiresApproval = true
+				skipped = append(skipped, why)
+				return "deny", notRun + " (" + why + ")"
+			}
 			// La pregunta es fa aquí, abans d'executar res del lot: si s'ha
 			// d'aparcar, el punt segur no té cap eina a mig fer.
 			if name == "question" && canAsk {
@@ -405,6 +428,12 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			}
 			if decision == "ask" && interactive && pol.WindAutoAllow(name, argsJSON) {
 				decision, reason = "allow", "ordre del xat del vent ("+reason+")"
+			}
+			// «Pot fer-ho sol»: una petició de permís normal passa sense preguntar.
+			// Les portes dures de sota (esborrar fora, instal·lar, publicar per
+			// primer cop) continuen preguntant; sense torn interactiu, també.
+			if decision == "ask" && rv.Kind == "alone" && !windRuleHardGate(name, argsJSON, scope.workspace) {
+				decision, reason = "allow", s.tr("la teva regla: «"+rv.Rule+"»", "your rule: «"+rv.Rule+"»")
 			}
 			// Porta dura: instal·lar programari, baixar paquets, esborrar fora del
 			// projecte o tocar serveis del sistema NO es fa sense el sí de la

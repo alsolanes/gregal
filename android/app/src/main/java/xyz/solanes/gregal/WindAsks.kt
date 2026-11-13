@@ -134,13 +134,14 @@ private fun askPath(s: String): String {
 }
 
 /** Pura i provada (ApprovePlanTest): la mateixa lògica que askPlan a la web. */
-internal fun approvePlan(lang: String, kind: String, what: String): ApprovePlan {
+internal fun approvePlan(lang: String, kind: String, what: String, name: String = "", reason: String = ""): ApprovePlan {
     val en = lang == "en"
     fun t(ca: String, e: String) = if (en) e else ca
     val w = what.trim()
     Regex("^(write|edit|patch)\\s+(.+)$").find(w)?.let { m ->
         val (file, dir) = askWhere(m.groupValues[2], en)
-        val sub = if (dir.isNotEmpty()) t("És a $dir.", "It is in $dir.") else ""
+        val where = if (dir.isNotEmpty()) t("És a $dir.", "It is in $dir.") else ""
+        val sub = if (kind == "rule" && reason.isNotBlank()) listOf(where, reason).filter { it.isNotEmpty() }.joinToString(" ") else where
         return if (m.groupValues[1] == "write") ApprovePlan(t("Vols que escrigui $file?", "Shall I write $file?"), sub, t("Escriu-lo", "Write it"))
         else ApprovePlan(t("Vols que modifiqui $file?", "Shall I edit $file?"), sub, t("Modifica'l", "Edit it"))
     }
@@ -156,6 +157,16 @@ internal fun approvePlan(lang: String, kind: String, what: String): ApprovePlan 
         "download" -> ApprovePlan(t("Vols que baixi un paquet o un fitxer?", "Shall I download a package or file?"), t("De fora, a l'ordinador.", "From outside, onto the computer."), t("Baixa-ho", "Download it"))
         "system" -> ApprovePlan(t("Vols que canviï un servei del sistema?", "Shall I change a system service?"), t("Afecta tot l'ordinador, no només el projecte.", "It affects the whole computer, not just the project."), t("Canvia-ho", "Change it"))
         "publish_public" -> ApprovePlan(t("Vols que publiqui la web?", "Shall I publish the site?"), t("Serà pública: qualsevol que tingui l'enllaç la veurà.", "It will be public: anyone with the link can see it."), t("Publica-la", "Publish it"))
+        // Una regla teva («Pregunta'm abans»): la targeta diu quina.
+        "rule" -> ApprovePlan(when (name) {
+            "mail" -> t("Vols que enviï aquest correu?", "Shall I send this email?")
+            "browser" -> t("Vols que faci aquest pas al navegador?", "Shall I take this step in the browser?")
+            "bash", "bash_background" -> t("Vols que executi aquesta ordre?", "Shall I run this command?")
+            "publish" -> t("Vols que publiqui la web?", "Shall I publish the site?")
+            "calendar" -> t("Vols que canviï el calendari?", "Shall I change the calendar?")
+            "remind" -> t("Vols que programi l'avís?", "Shall I set the reminder?")
+            else -> t("Vols que ho faci?", "Shall I do it?")
+        }, reason, t("Fes-ho", "Do it"))
         // «other» i els tipus que no coneixem: el títol genèric. (askUi("other") és el
         // camp lliure de les preguntes, «Una altra cosa…»: sortia com a títol.)
         else -> ApprovePlan(askUi(lang, "approve"), "", t("Fes-ho", "Do it"))
@@ -169,7 +180,7 @@ internal fun approvePlan(lang: String, kind: String, what: String): ApprovePlan 
  */
 @Composable
 private fun ApproveCard(lang: String, a: GregalApi.WindAsk, accent: Color, onAllow: () -> Unit, onDecline: () -> Unit) {
-    val plan = remember(a.key, lang) { approvePlan(lang, a.kind, a.what) }
+    val plan = remember(a.key, lang) { approvePlan(lang, a.kind, a.what, a.name, a.reason) }
     var showCmd by remember(a.key) { mutableStateOf(false) }
     val full = a.detail.ifBlank { a.what }
     AskShell(accent, "approve-card") {

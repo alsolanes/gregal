@@ -931,3 +931,28 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-turn-act-undo:hover { background:color-mix(in srgb, var(--ink) 8%, transparent); }
 /* La marca del que has afegit mentre treballava, llegible dins la bombolla. */
 .vw-user .vw-steer-tag { color:inherit; opacity:.72; }
+
+/* Regles: què pot fer sol, què pregunta i què mai. */
+.vw-rules { display:grid; gap:14px; max-width:720px; }
+.vw-rule-sec { border:1px solid var(--line); border-radius:14px; padding:14px 16px; background:var(--surface); display:grid; gap:10px; }
+.vw-rule-head { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.vw-rule-head strong { font-size:15px; color:var(--ink); }
+.vw-rule-head small { color:var(--muted); font-size:12.5px; }
+.vw-rule-dot { width:9px; height:9px; border-radius:50%; align-self:center; background:var(--muted); }
+.vw-rule-alone .vw-rule-dot { background:#4ec98a; }
+.vw-rule-ask .vw-rule-dot { background:#e9b24a; }
+.vw-rule-never .vw-rule-dot { background:#ef6b6b; }
+.vw-rule-list { list-style:none; margin:0; padding:0; display:grid; gap:6px; }
+.vw-rule { display:flex; align-items:center; gap:8px; padding:6px 6px 6px 12px; border-radius:10px; background:color-mix(in srgb, var(--ink) 5%, transparent); font-size:14px; color:var(--ink); }
+.vw-rule > span { flex:1; min-width:0; }
+.vw-rule-x { display:grid; place-items:center; width:32px; height:32px; padding:0; border:0; border-radius:8px; background:transparent; color:var(--muted); cursor:pointer; }
+.vw-rule-x > span:last-child { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+.vw-rule-x:hover { background:color-mix(in srgb, var(--ink) 8%, transparent); color:var(--ink); }
+.vw-rule-add { width:100%; box-sizing:border-box; padding:9px 12px; border:1px dashed var(--line); border-radius:10px; background:transparent; color:var(--ink); font:inherit; font-size:14px; }
+.vw-rule-add:focus { outline:none; border-style:solid; border-color:var(--accent); }
+.vw-rule-examples { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.vw-rule-examples small { color:var(--muted); font-size:12px; margin-right:2px; }
+.vw-rule-example { border:1px solid var(--line); background:transparent; color:var(--ink); border-radius:999px; padding:5px 11px; font-size:12.5px; cursor:pointer; }
+.vw-rule-example:hover { border-color:var(--accent); }
+/* La targeta de permís que cita una regla. */
+.vw-ask-rule { color:var(--muted); }

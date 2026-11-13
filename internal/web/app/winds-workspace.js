@@ -83,7 +83,7 @@
   nav.append(navRow(['crew','La colla','Crew']));
   section(t('Recursos','Resources'));
   const pc=btn('',()=>openComputer(),'vw-nav-item vw-nav-icon');pc.append(navIcon('computer'),el('span','',t('Ordinador','Computer')));nav.append(pc);
-  for(const item of [['notes','Notes','Notes'],['saved','Desat','Saved']])nav.append(navRow(item));
+  for(const item of [['notes','Notes','Notes'],['saved','Desat','Saved'],['rules','Regles','Rules']])nav.append(navRow(item));
   const memory=btn('',()=>root.gregal.setView('memoria'),'vw-nav-item vw-nav-icon');memory.append(navIcon('wiki'),el('span','',t('Memòria del projecte','Project memory')));nav.append(memory);
   const publications=btn('',()=>root.gregal.setView('publicacions'),'vw-nav-item vw-nav-icon');publications.append(navIcon('saved'),el('span','',t('Comparticions','Sharing')));nav.append(publications);
   // «Automatitzacions» no hi va: ja és al capdamunt de la barra (Vents ·
@@ -135,7 +135,7 @@
   if(state.view==='chat'&&state.active?.id&&!gregalHome)top.append(btn(t('Desa a la wiki','Save to wiki'),summarizeToWiki,'vw-top-action'));
   page.append(top);
   content=el('div','vw-content');page.append(content);status=el('div','vw-status');status.setAttribute('role','status');status.textContent=state.notice?.thread===state.active?.id?state.notice?.text||'':'';page.append(status);
-  if(state.view==='home')home();else if(state.view==='crew')team();else if(state.view==='library')library();else if(state.view==='project')projectView();else if(state.view==='tasks')tasks();else if(state.view==='chat')chatView();else if(state.view==='task')taskView();else if(state.view==='wiki')wikiView();else if(state.view==='pati')patiView();else if(state.view==='saved')savedView();else if(state.view==='notes')notesView();else if(state.view==='shared')root.gregalShared?.view(content,{chat:state.active,back:()=>route('home')});
+  if(state.view==='home')home();else if(state.view==='crew')team();else if(state.view==='library')library();else if(state.view==='project')projectView();else if(state.view==='tasks')tasks();else if(state.view==='chat')chatView();else if(state.view==='task')taskView();else if(state.view==='wiki')wikiView();else if(state.view==='pati')patiView();else if(state.view==='saved')savedView();else if(state.view==='notes')notesView();else if(state.view==='rules')rulesView();else if(state.view==='shared')root.gregalShared?.view(content,{chat:state.active,back:()=>route('home')});
   // Al mòbil, cinc destinacions amb icona; El pati, la biblioteca i la wiki són al menú, dins de «Més».
   const bottom=el('nav','vw-mobile-nav');bottom.setAttribute('aria-label',t('Seccions dels vents','Winds sections'));for(const [id,a,b]of MOBILE_NAV){const n=btn('',()=>route(id));n.append(navIcon(id),el('span','',t(a,b)));n.dataset.selected=String(state.view===id);if(state.view===id)n.setAttribute('aria-current','page');bottom.append(n);}page.append(bottom);
   root.gregalPromptNav?.attachVents(page.querySelector('.vw-messages'));
@@ -660,10 +660,36 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  // Icones de la navegació dels vents: traç fi com les del rail, no caràcters Unicode.
  // Notes: el quadern de l'usuari (winds-notes.js); «Pregunta a un vent» obre el xat amb el text a punt.
  function notesView(){if(!root.gregalNotes){content.append(el('p','vw-muted',t('Carregant…','Loading…')));return;}root.gregalNotes.view(content,{ask:text=>{route('home');if(input){input.value=text;input.focus();input.setSelectionRange(text.length,text.length);}}});}
+ // Regles en llenguatge natural (com Grok i dots): què pot fer sol, què pregunta i què mai.
+ // El servidor les posa al context i un revisor les comprova abans de cada acció (winds_rules.go).
+ const RULE_KINDS=[
+  ['alone',t('Pot fer-ho sol','It can do this alone'),t('Sense preguntar-te.','Without asking you.'),[t('Crear i editar fitxers a la carpeta de projectes','Create and edit files in the projects folder'),t('Programar-me recordatoris','Set reminders for me'),t('Afegir esdeveniments al meu calendari','Add events to my calendar')]],
+  ['ask',t("Pregunta'm abans",'Ask me first'),t("T'ensenya què vol fer i espera el teu sí.",'It shows you what it wants to do and waits for your yes.'),[t('Enviar qualsevol correu o missatge','Send any email or message'),t('Comprar o pagar res','Buy or pay for anything'),t('Publicar res a internet','Post anything online')]],
+  ['never',t('Mai','Never'),t("No ho fa, encara que l'hi demanin.",'It will not do it, even if asked.'),[t('Esborrar res de la carpeta Documents','Delete anything in the Documents folder'),t('Compartir les meves dades personals','Share my personal data'),t('Acceptar condicions o galetes per mi','Accept terms or cookies for me')]],
+ ];
+ async function rulesView(){
+  heading(t('Regles','Rules'),t("Digues-li amb les teves paraules què pot fer sol, què t'ha de preguntar i què no ha de fer mai. Gregal les té presents a cada conversa i, abans de fer res que canviï alguna cosa, un revisor les comprova.","Tell it in your own words what it can do alone, what it must ask first and what it must never do. Gregal keeps them in mind in every conversation and, before doing anything that changes something, a reviewer checks them."));
+  const box=el('div','vw-rules');content.append(box);box.append(el('p','vw-muted',t('Carregant…','Loading…')));
+  let rules;try{rules=await call('/api/winds/regles');}catch(e){box.replaceChildren(el('p','vw-muted',t("No s'han pogut carregar les regles.",'Could not load the rules.')));return;}
+  const save=async()=>{try{rules=await call('/api/winds/regles','POST',rules);}catch(e){fail(e);}paint();};
+  const paint=()=>{box.replaceChildren();
+   for(const [kind,title,sub,examples] of RULE_KINDS){const list=rules[kind]||(rules[kind]=[]);
+    const sec=el('section','vw-rule-sec vw-rule-'+kind);const head=el('div','vw-rule-head');head.append(el('span','vw-rule-dot'),el('strong','',title),el('small','',sub));sec.append(head);
+    const ul=el('ul','vw-rule-list');
+    for(const [i,r] of list.entries()){const li=el('li','vw-rule');li.append(el('span','',r));li.append(iconBtn('close',t('Treu la regla','Remove the rule')+': '+r,()=>{list.splice(i,1);save();},'vw-rule-x'));ul.append(li);}
+    if(list.length)sec.append(ul);
+    const add=el('input','vw-rule-add');add.placeholder=t('Afegeix una regla…','Add a rule…');add.setAttribute('aria-label',title+': '+add.placeholder);add.maxLength=300;
+    add.onkeydown=e=>{if(e.key==='Enter'&&add.value.trim()){e.preventDefault();list.push(add.value.trim());save().then(()=>box.querySelector('.vw-rule-'+kind+' .vw-rule-add')?.focus());}};sec.append(add);
+    const left=examples.filter(x=>!list.some(r=>r.toLowerCase()===x.toLowerCase()));
+    if(left.length&&list.length<3){const ex=el('div','vw-rule-examples');ex.append(el('small','',t('Per exemple:','For example:')));for(const x of left)ex.append(btn('+ '+x,()=>{list.push(x);save();},'vw-rule-example'));sec.append(ex);}
+    box.append(sec);}
+  };
+  paint();
+ }
  function savedView(){heading(t('Desat','Saved'),t('Tot el que els vents han fet per a tu: documents, webs, gràfics, imatges i fitxes, amb qui ho va fer i quan.','Everything the winds made for you: documents, websites, charts, images and cards, with who made it and when.'));const box=el('div','vw-saved');content.append(box);if(root.gregalVentsActivity)root.gregalVentsActivity.renderSaved(box,{onCard:it=>{const w=state.winds.find(x=>x.id===it.wind);if(w)windCards(w);}});else box.append(el('p','vw-muted',t('Carregant…','Loading…')));}
  // Racó i Automatitzacions també són de Vents: al telèfon porten la mateixa barra de baix, que torna a Vents.
  function pageNavs(){for(const id of ['racoPage','automatitzacionsPage']){const page=document.getElementById(id);if(!page)continue;page.querySelector(':scope > .vw-page-nav')?.remove();const bottom=el('nav','vw-mobile-nav vw-page-nav');bottom.setAttribute('aria-label',t('Seccions dels vents','Winds sections'));for(const [view,a,b]of MOBILE_NAV){const n=btn('',()=>{root.gregal?.setView?.('vents');route(view);});n.append(navIcon(view),el('span','',t(a,b)));bottom.append(n);}page.append(bottom);}}
- function navIcon(id){const paths={computer:'M2.5 3.5h11v7.5h-11Z M6 13.5h4 M8 11v2.5',home:'M3 7.5 8 3.5l5 4V13H3Z M6.5 13V9.5h3V13',pati:'M8 2.6a3.1 3.1 0 0 1 3.1 3.1c0 1.8-1.4 3.2-3.1 3.2S4.9 7.5 4.9 5.7A3.1 3.1 0 0 1 8 2.6Z M8 8.9V13.4 M5.2 13.4h5.6 M11.6 11.6a1.3 1.3 0 1 0 0 .01',tasks:'M8 2.75a5.25 5.25 0 1 0 0 10.5 5.25 5.25 0 0 0 0-10.5Z M8 5v3.2l2.2 1.3',crew:'M5.5 7.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z M10.8 7.2a1.7 1.7 0 1 0 0-3.4 M2.5 13c.4-2.2 1.6-3.4 3-3.4s2.6 1.2 3 3.4 M10 9.7c1.4.1 2.6 1.2 3 3.3',library:'M3 3.5h3v9H3Z M7 3.5h3v9H7Z M11 4.2l2.4-.6 1.9 8.4-2.4.6Z',wiki:'M4 2.75h5.5L12 5.25v8H4Z M9.5 2.75v2.5H12 M6 8h4 M6 10.5h4',saved:'M4 2.75h8v10.5L8 10.5 4 13.25Z',notes:'M4.5 2.75h7v10.5h-7Z M6.5 5.5h3 M6.5 8h3 M6.5 10.5h2 M3.2 4.5h1.3 M3.2 7h1.3 M3.2 9.5h1.3',more:'M3.4 8a.8.8 0 1 0 1.6 0 .8.8 0 1 0-1.6 0 M7.2 8a.8.8 0 1 0 1.6 0 .8.8 0 1 0-1.6 0 M11 8a.8.8 0 1 0 1.6 0 .8.8 0 1 0-1.6 0'};const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 16 16');svg.setAttribute('aria-hidden','true');svg.setAttribute('class','vw-nav-svg');const p=document.createElementNS(svg.namespaceURI,'path');p.setAttribute('d',paths[id]||'');p.setAttribute('fill','none');p.setAttribute('stroke','currentColor');p.setAttribute('stroke-width','1.3');p.setAttribute('stroke-linecap','round');p.setAttribute('stroke-linejoin','round');svg.append(p);return svg;}
+ function navIcon(id){const paths={computer:'M2.5 3.5h11v7.5h-11Z M6 13.5h4 M8 11v2.5',home:'M3 7.5 8 3.5l5 4V13H3Z M6.5 13V9.5h3V13',pati:'M8 2.6a3.1 3.1 0 0 1 3.1 3.1c0 1.8-1.4 3.2-3.1 3.2S4.9 7.5 4.9 5.7A3.1 3.1 0 0 1 8 2.6Z M8 8.9V13.4 M5.2 13.4h5.6 M11.6 11.6a1.3 1.3 0 1 0 0 .01',tasks:'M8 2.75a5.25 5.25 0 1 0 0 10.5 5.25 5.25 0 0 0 0-10.5Z M8 5v3.2l2.2 1.3',crew:'M5.5 7.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z M10.8 7.2a1.7 1.7 0 1 0 0-3.4 M2.5 13c.4-2.2 1.6-3.4 3-3.4s2.6 1.2 3 3.4 M10 9.7c1.4.1 2.6 1.2 3 3.3',library:'M3 3.5h3v9H3Z M7 3.5h3v9H7Z M11 4.2l2.4-.6 1.9 8.4-2.4.6Z',wiki:'M4 2.75h5.5L12 5.25v8H4Z M9.5 2.75v2.5H12 M6 8h4 M6 10.5h4',saved:'M4 2.75h8v10.5L8 10.5 4 13.25Z',rules:'M8 2.5 3.5 4.3v3.5c0 2.8 1.9 4.9 4.5 5.7 2.6-.8 4.5-2.9 4.5-5.7V4.3Z M6 8l1.4 1.4L10.2 6.6',notes:'M4.5 2.75h7v10.5h-7Z M6.5 5.5h3 M6.5 8h3 M6.5 10.5h2 M3.2 4.5h1.3 M3.2 7h1.3 M3.2 9.5h1.3',more:'M3.4 8a.8.8 0 1 0 1.6 0 .8.8 0 1 0-1.6 0 M7.2 8a.8.8 0 1 0 1.6 0 .8.8 0 1 0-1.6 0 M11 8a.8.8 0 1 0 1.6 0 .8.8 0 1 0-1.6 0'};const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 16 16');svg.setAttribute('aria-hidden','true');svg.setAttribute('class','vw-nav-svg');const p=document.createElementNS(svg.namespaceURI,'path');p.setAttribute('d',paths[id]||'');p.setAttribute('fill','none');p.setAttribute('stroke','currentColor');p.setAttribute('stroke-width','1.3');p.setAttribute('stroke-linecap','round');p.setAttribute('stroke-linejoin','round');svg.append(p);return svg;}
  async function openChat(chat){if(state.preparing&&!state.busy)return;const ticket=state.chatEpoch=(state.chatEpoch||0)+1;const data=await call('/api/winds/rotllana?rotlla='+encodeURIComponent(chat.id));if(ticket!==state.chatEpoch)return;state.replyTo=null;state.active=chat;state.history=data.history||[];state.squad=state.winds.find(w=>chat.members.includes(w.id))?.squad||state.squad;state.view='chat';state.draft='';render();followCrew(chat);}
  // Una colla convocada treballa al servidor: el fil s'actualitza sol mentre parlen i fan la feina.
  function followCrew(chat){root.gregalCrew?.follow(chat.id,async st=>{if(state.view!=='chat'||state.active?.id!==chat.id)return false;const steps={discussing:t('La colla prepara el pla…','The crew is planning…'),waiting:t('La colla espera torn…','The crew is waiting…'),working:t('La colla hi treballa…','The crew is working…')};status.textContent=st.running?steps[st.step]||'':st.step==='interrupted'?t('La feina es va aturar: el servidor es va reiniciar. Torna-la a demanar si cal.','The work stopped: the server restarted. Ask for it again if needed.'):'';const data=await call('/api/winds/rotllana?rotlla='+encodeURIComponent(chat.id));if(state.active?.id!==chat.id)return false;if((data.history||[]).length!==state.history.length){state.history=data.history||[];paintHistory();}});}
@@ -833,7 +859,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  function askPlan(a){
   const what=String(a.what||'').trim(),m=/^(write|edit|patch)\s+(.+)$/.exec(what);
   if(m){
-   const {file,dir}=askWhere(m[2]);const sub=dir?t('És a '+dir+'.','It is in '+dir+'.'):'';
+   const {file,dir}=askWhere(m[2]);const sub=(dir?t('És a '+dir+'.','It is in '+dir+'.'):'')+(a.kind==='rule'&&a.reason?(dir?' ':'')+a.reason:'');
    return m[1]==='write'?{q:t('Vols que escrigui '+file+'?','Shall I write '+file+'?'),sub,yes:t('Escriu-lo','Write it')}
     :{q:t('Vols que modifiqui '+file+'?','Shall I edit '+file+'?'),sub,yes:t("Modifica'l",'Edit it')};
   }
@@ -844,6 +870,8 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
    case 'download':return {q:t('Vols que baixi un paquet o un fitxer?','Shall I download a package or file?'),sub:t("De fora, a l'ordinador.",'From outside, onto the computer.'),yes:t('Baixa-ho','Download it')};
    case 'system':return {q:t('Vols que canviï un servei del sistema?','Shall I change a system service?'),sub:t("Afecta tot l'ordinador, no només el projecte.",'It affects the whole computer, not just the project.'),yes:t('Canvia-ho','Change it')};
    case 'publish_public':return {q:t('Vols que publiqui la web?','Shall I publish the site?'),sub:t("Serà pública: qualsevol que tingui l'enllaç la veurà.",'It will be public: anyone with the link can see it.'),yes:t('Publica-la','Publish it')};
+   // Una regla teva («Pregunta'm abans»): la targeta diu quina.
+   case 'rule':{const verb={mail:t('Vols que enviï aquest correu?','Shall I send this email?'),browser:t('Vols que faci aquest pas al navegador?','Shall I take this step in the browser?'),bash:t('Vols que executi aquesta ordre?','Shall I run this command?'),bash_background:t('Vols que executi aquesta ordre?','Shall I run this command?'),publish:t('Vols que publiqui la web?','Shall I publish the site?'),calendar:t('Vols que canviï el calendari?','Shall I change the calendar?'),remind:t("Vols que programi l'avís?",'Shall I set the reminder?')}[a.name]||t('Vols que ho faci?','Shall I do it?');return {q:verb,sub:a.reason||'',yes:t('Fes-ho','Do it')};}
   }
   return {q:askTitle(a.kind),sub:'',yes:t('Fes-ho','Do it')};
  }
