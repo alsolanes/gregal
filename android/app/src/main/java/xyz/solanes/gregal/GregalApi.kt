@@ -944,8 +944,11 @@ class GregalApi(val base: String, val token: String) {
     }
 
     /** POST /api/winds/answer: respon una aprovació (approve) o una pregunta (answer). */
-    fun answerWindAsk(key: String, approve: Boolean = false, answer: String = "") {
-        post("/api/winds/answer", JSONObject().put("key", key).put("approve", approve).put("answer", answer))
+    fun answerWindAsk(key: String, approve: Boolean = false, answer: String = "", secret: String = "") {
+        val body = JSONObject().put("key", key).put("approve", approve).put("answer", answer)
+        // El formulari segur: el valor va al magatzem xifrat del servidor, no a la decisió.
+        if (secret.isNotEmpty()) body.put("secret", secret)
+        post("/api/winds/answer", body)
     }
 
     /**

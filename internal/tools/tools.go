@@ -1037,7 +1037,7 @@ func BashCtx(ctx context.Context, dir, cmd string, timeout time.Duration) (strin
 	}
 	c := exec.Command(plan.Name, plan.Args...)
 	c.Dir = plan.Dir
-	c.Env = shell.ChildEnv()
+	c.Env = append(shell.ChildEnv(), ExtraEnv(ctx)...)
 	// Sostre de captura A LA FONT: el buffer il·limitat d'abans és el
 	// que portava el procés a l'OOM (una comanda de sortida gegant
 	// omplia la RAM sencera abans del truncat final a 8.000 caràcters).

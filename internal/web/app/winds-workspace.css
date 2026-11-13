@@ -956,3 +956,10 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-rule-example:hover { border-color:var(--accent); }
 /* La targeta de permís que cita una regla. */
 .vw-ask-rule { color:var(--muted); }
+
+/* Formulari segur per a una contrasenya o una clau. */
+.vw-secret-form { display:flex; gap:8px; margin-top:8px; }
+.vw-secret-input { flex:1; min-width:0; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--ink); font:inherit; font-size:14px; letter-spacing:.04em; }
+.vw-secret-input:focus { outline:none; border-color:var(--accent); }
+.vw-secret-show { border:1px solid var(--line); background:transparent; color:var(--ink); border-radius:10px; padding:0 14px; font-size:13px; cursor:pointer; }
+.vw-secret-note { display:block; margin-top:6px; color:var(--muted); }

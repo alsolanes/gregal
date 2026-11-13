@@ -107,7 +107,7 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 	// Gregal (l'assistent principal, B14) té, a més, l'eina wind per consultar
 	// els especialistes.
 	if windIsMainCtx(ctx) {
-		specs = agent.SpecsAll()
+		specs = append(agent.SpecsAll(), windSecretSpec())
 	}
 	if planTurn {
 		specs, notRun = planSpecs(), planNotRun
@@ -256,6 +256,12 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 				answersMu.Unlock()
 				return ans, nil, nil
 			}
+			if name == "secret" {
+				answersMu.Lock()
+				ans := answers[argsJSON]
+				answersMu.Unlock()
+				return ans, nil, nil
+			}
 			// Handoff durable (B3): ja decidit a Decide; aquí es comprova la
 			// sessió sense llegir cap camp, en comptes d'esperar al navegador.
 			if name == "browser" {
@@ -296,7 +302,20 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			if d := windDocsOf(ctx); d != "" && windDocTool(name) {
 				cwd = d
 			}
-			return windToolExec(agent.WithSkillsDirs(ctx, dirs...), s.id, cwd, name, argsJSON)
+			// {{secret:id}} a una ordre: el valor hi arriba com a variable
+			// d'entorn i es tapa a la sortida (winds_secret.go).
+			sctx, sargs, secretVals, serr := s.withSecrets(ctx, name, argsJSON)
+			if serr != nil {
+				return "", nil, serr
+			}
+			out, imgs, err := windToolExec(agent.WithSkillsDirs(sctx, dirs...), s.id, cwd, name, sargs)
+			if len(secretVals) > 0 {
+				out = maskSecrets(out, secretVals)
+				if err != nil {
+					err = errors.New(maskSecrets(err.Error(), secretVals))
+				}
+			}
+			return out, imgs, err
 		},
 		Decide: func(name, argsJSON string) (string, string) {
 			// Ja aparcat: la resta del lot no es pregunta ni s'executa.
@@ -338,6 +357,19 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 					}
 				}
 				return "allow", "question"
+			}
+			// Una contrasenya o una clau: formulari segur (winds_secret.go).
+			if name == "secret" {
+				if !canAsk {
+					return "deny", "NOT RUN: secrets can only be asked for in a live conversation with the person."
+				}
+				res, parked := s.windSecretCall(ctx, emit, argsJSON)
+				if !parked {
+					answersMu.Lock()
+					answers[argsJSON] = res
+					answersMu.Unlock()
+				}
+				return "allow", "secret"
 			}
 			// Iniciar sessió, contrasenyes, codis: un handoff durable (B3) en
 			// un torn aparcable. La resta de torns fan el «passa-m'ho» en

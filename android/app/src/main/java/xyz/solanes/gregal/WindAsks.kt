@@ -94,6 +94,8 @@ internal fun WindAskCards(vm: GregalViewModel, lang: String, accent: Color, busy
                 onDone = { vm.answerWindAsk(a.key, approve = true) }, onCancel = { vm.answerWindAsk(a.key, approve = false) })
             else if (a.type == "connection") ConnexioWaitCard(vm.conn.value, lang, a, accent,
                 onCancel = { vm.answerWindAsk(a.key, approve = false) })
+            else if (a.type == "secret") SecretCard(lang, a, accent,
+                onSave = { v -> vm.answerWindAsk(a.key, approve = true, secret = v) }, onDecline = { vm.answerWindAsk(a.key, approve = false) })
             else if (a.type == "question") QuestionCard(lang, a, accent) { ans -> vm.answerWindAsk(a.key, answer = ans) }
             else ApproveCard(lang, a, accent, onAllow = { vm.answerWindAsk(a.key, approve = true) }, onDecline = { vm.answerWindAsk(a.key, approve = false) })
         }
@@ -264,6 +266,60 @@ internal fun ChoiceChips(options: List<String>, accent: Color, onPick: (String) 
                 modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(accent.copy(alpha = .14f))
                     .border(1.dp, accent.copy(alpha = .45f), RoundedCornerShape(999.dp)).clickable { onPick(o) }
                     .padding(horizontal = 14.dp, vertical = 9.dp).testTag("choice-chip"))
+        }
+    }
+}
+
+internal fun secretCopy(lang: String, key: String): String {
+    val en = lang == "en"
+    return when (key) {
+        "need" -> if (en) "I need: " else "Necessito: "
+        "hint" -> if (en) "Paste it here" else "Enganxa-la aquí"
+        "show" -> if (en) "Show" else "Mostra"
+        "hide" -> if (en) "Hide" else "Amaga"
+        "save" -> if (en) "Save it" else "Desa-la"
+        "no" -> if (en) "Not now" else "Ara no"
+        "note" -> if (en) "🔒 Stored encrypted on your server. Gregal never sees it or keeps it in the thread: it only uses it when needed."
+            else "🔒 Va xifrada al teu servidor. Gregal no la veu mai ni la desa al fil: només la fa servir quan cal."
+        else -> key
+    }
+}
+
+/**
+ * Formulari segur (com Grok): un camp amagat per a una contrasenya o una clau.
+ * El valor va directe al magatzem xifrat del servidor (internal/web/winds_secret.go);
+ * ni el fil ni el model el veuen. La web fa el mateix a paintAsks (type «secret»).
+ */
+@Composable
+internal fun SecretCard(lang: String, a: GregalApi.WindAsk, accent: Color, onSave: (String) -> Unit, onDecline: () -> Unit) {
+    var value by remember(a.key) { mutableStateOf("") }
+    var visible by remember(a.key) { mutableStateOf(false) }
+    AskShell(accent, "secret-card") {
+        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Icon(Icons.Rounded.Shield, null, tint = accent, modifier = Modifier.size(20.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(secretCopy(lang, "need") + a.query.ifBlank { a.name }, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                if (a.reason.isNotBlank()) Text(a.reason, color = Muted, fontSize = 13.sp)
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            androidx.compose.material3.OutlinedTextField(
+                value = value, onValueChange = { value = it.take(8192) }, singleLine = true,
+                placeholder = { Text(secretCopy(lang, "hint"), fontSize = 14.sp) },
+                visualTransformation = if (visible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Password, autoCorrectEnabled = false),
+                modifier = Modifier.weight(1f).testTag("secret-input"),
+            )
+            androidx.compose.material3.TextButton(onClick = { visible = !visible }, modifier = Modifier.testTag("secret-show")) {
+                Text(secretCopy(lang, if (visible) "hide" else "show"), color = Ink)
+            }
+        }
+        Text(secretCopy(lang, "note"), color = Muted, fontSize = 12.sp, lineHeight = 16.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            androidx.compose.material3.Button(onClick = { val v = value; if (v.isNotBlank()) { value = ""; onSave(v) } },
+                enabled = value.isNotBlank(), modifier = Modifier.testTag("secret-save")) { Text(secretCopy(lang, "save")) }
+            androidx.compose.material3.TextButton(onClick = onDecline) { Text(secretCopy(lang, "no"), color = Muted) }
         }
     }
 }

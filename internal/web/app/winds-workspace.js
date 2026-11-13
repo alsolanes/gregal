@@ -683,7 +683,11 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
     const left=examples.filter(x=>!list.some(r=>r.toLowerCase()===x.toLowerCase()));
     if(left.length&&list.length<3){const ex=el('div','vw-rule-examples');ex.append(el('small','',t('Per exemple:','For example:')));for(const x of left)ex.append(btn('+ '+x,()=>{list.push(x);save();},'vw-rule-example'));sec.append(ex);}
     box.append(sec);}
+   // Les claus que li has donat pel formulari segur: només el nom (mai el valor), i treure-les.
+   if(secrets.length){const sec=el('section','vw-rule-sec vw-rule-secrets');const head=el('div','vw-rule-head');head.append(el('strong','',t('Claus i contrasenyes desades','Saved keys and passwords')),el('small','',t('Xifrades al servidor. Gregal les fa servir sense veure-les.','Encrypted on the server. Gregal uses them without seeing them.')));sec.append(head);
+    const ul=el('ul','vw-rule-list');for(const x of secrets){const li=el('li','vw-rule');li.append(el('span','','🔒 '+x.id));li.append(iconBtn('close',t('Esborra la clau','Delete the key')+': '+x.id,async()=>{try{await call('/api/winds/secrets?id='+encodeURIComponent(x.id),'DELETE');secrets=secrets.filter(y=>y.id!==x.id);paint();}catch(e){fail(e);}},'vw-rule-x'));ul.append(li);}sec.append(ul);box.append(sec);}
   };
+  let secrets=[];try{secrets=(await call('/api/winds/secrets')).secrets||[];}catch{}
   paint();
  }
  function savedView(){heading(t('Desat','Saved'),t('Tot el que els vents han fet per a tu: documents, webs, gràfics, imatges i fitxes, amb qui ho va fer i quan.','Everything the winds made for you: documents, websites, charts, images and cards, with who made it and when.'));const box=el('div','vw-saved');content.append(box);if(root.gregalVentsActivity)root.gregalVentsActivity.renderSaved(box,{onCard:it=>{const w=state.winds.find(x=>x.id===it.wind);if(w)windCards(w);}});else box.append(el('p','vw-muted',t('Carregant…','Loading…')));}
@@ -888,6 +892,17 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
     const row=el('div','vw-ask-actions');
     row.append(btn(t('Cancel·la','Cancel'),()=>answerAsk(a,{approve:false}),'vw-ask-decline'),btn(t('Ja està','Done'),()=>answerAsk(a,{approve:true}),'vw-ask-decline'),btn(t("Obre l'ordinador",'Open the computer'),()=>openComputer(a.key),'vw-ask-allow'));
     card.append(row);
+   }else if(a.type==='secret'){
+    // Formulari segur (com Grok): el valor va directe al magatzem xifrat; ni el fil ni el model el veuen.
+    card.className='vw-ask vw-ask-approve vw-ask-secret';
+    const head=el('div','vw-ask-head'),txt=el('div');txt.append(el('strong','',t('Necessito: ','I need: ')+(a.query||a.name||'')));if(a.reason)txt.append(el('small','vw-ask-sub',a.reason));head.append(askShield(),txt);card.append(head);
+    const form=el('form','vw-secret-form');const field=el('input','vw-secret-input');field.type='password';field.autocomplete='off';field.spellcheck=false;field.placeholder=t('Enganxa-la aquí','Paste it here');field.setAttribute('aria-label',a.query||t('Secret','Secret'));
+    const show=btn(t('Mostra','Show'),()=>{const vis=field.type==='password';field.type=vis?'text':'password';show.textContent=vis?t('Amaga','Hide'):t('Mostra','Show');field.focus();},'vw-secret-show');show.type='button';
+    form.append(field,show);card.append(form);
+    card.append(el('small','vw-secret-note',t('🔒 Va xifrada al teu servidor. Gregal no la veu mai ni la desa al fil: només la fa servir quan cal.','🔒 Stored encrypted on your server. Gregal never sees it or keeps it in the thread: it only uses it when needed.')));
+    const row=el('div','vw-ask-actions'),save=btn(t('Desa-la','Save it'),()=>form.requestSubmit(),'vw-ask-allow');
+    row.append(save,btn(t('Ara no','Not now'),()=>answerAsk(a,{approve:false}),'vw-ask-decline'));card.append(row);
+    form.onsubmit=e=>{e.preventDefault();const v=field.value;if(!v.trim()){field.focus();return;}field.value='';answerAsk(a,{approve:true,secret:v});};
    }else if(a.type==='connection'){
     // B5: la feina espera que connectis un compte (waiting_connection). En acabar el consentiment continua sola.
     card.className='vw-ask vw-ask-approve vw-ask-handoff';

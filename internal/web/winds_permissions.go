@@ -122,7 +122,7 @@ func windSpecs() []llm.ToolSpec {
 			out = append(out, t)
 		}
 	}
-	return out
+	return append(out, windSecretSpec())
 }
 
 // windNotRun és el que rep el model quan una acció necessita una aprovació

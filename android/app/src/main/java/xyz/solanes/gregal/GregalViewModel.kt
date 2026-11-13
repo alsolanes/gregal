@@ -879,12 +879,12 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Respon: aprovar o rebutjar, o triar una opció (o escriure-la). Desbloqueja el torn. */
-    fun answerWindAsk(key: String, approve: Boolean = false, answer: String = "") {
+    fun answerWindAsk(key: String, approve: Boolean = false, answer: String = "", secret: String = "") {
         val c = _conn.value
         val wind = _windAsks.value.firstOrNull { it.key == key }?.wind.orEmpty()
         _windAsks.value = _windAsks.value.filter { it.key != key }
         viewModelScope.launch {
-            try { withContext(Dispatchers.IO) { c.api().answerWindAsk(key, approve, answer) } }
+            try { withContext(Dispatchers.IO) { c.api().answerWindAsk(key, approve, answer, secret) } }
             catch (e: Exception) { if (e is CancellationException) throw e; notify(e.message.orEmpty()); return@launch }
             if ((approve || answer.isNotBlank()) && wind.isNotBlank() && wind !in _windBusy.value) watchResumedWind(wind)
         }

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -261,6 +262,25 @@ func (v *Vault) Delete(owner, ref string) error {
 	}
 	delete(f.Items, ref)
 	return v.write(owner, f)
+}
+
+// Refs llista les referències d'un owner que comencen per prefix (mai els
+// valors), ordenades.
+func (v *Vault) Refs(owner, prefix string) []string {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	f, err := v.read(owner)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for ref := range f.Items {
+		if strings.HasPrefix(ref, prefix) {
+			out = append(out, ref)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // PutJSON i GetJSON desen estructures (tokens OAuth) com a secret.

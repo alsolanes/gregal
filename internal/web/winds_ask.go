@@ -238,7 +238,7 @@ func (s *Server) windAskWait(ctx context.Context, emit func(kind, text string), 
 	*r = rec.public()
 	if b, err := json.Marshal(r); err == nil && emit != nil {
 		ev := r.Type + "_request"
-		if r.Type == "handoff" || r.Type == "connection" {
+		if r.Type == "handoff" || r.Type == "connection" || r.Type == "secret" {
 			// Els clients que encara no coneixen handoff hi veuen una
 			// aprovació (Permet = ja està, Rebutja = cancel·la).
 			ev = "approve_request"
@@ -409,6 +409,9 @@ func (s *Server) handleWindsAnswer(w http.ResponseWriter, r *http.Request) {
 		Approve  bool   `json:"approve"`
 		Answer   string `json:"answer"`
 		Revision int    `json:"revision"`
+		// Secret: el valor del formulari segur. Va directe al magatzem
+		// xifrat; la decisió només guarda que s'ha donat.
+		Secret string `json:"secret"`
 	}
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST only", http.StatusMethodNotAllowed)
@@ -419,6 +422,23 @@ func (s *Server) handleWindsAnswer(w http.ResponseWriter, r *http.Request) {
 	}
 	if len([]rune(req.Answer)) > 2000 {
 		req.Answer = string([]rune(req.Answer)[:2000])
+	}
+	if req.Secret != "" {
+		if len(req.Secret) > 8192 {
+			http.Error(w, "secret too long", http.StatusBadRequest)
+			return
+		}
+		ok, err := s.storeSecretAnswer(strings.TrimSpace(req.Key), req.Secret)
+		req.Secret = ""
+		if err != nil {
+			http.Error(w, "could not save the secret", http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			http.Error(w, "expired or unknown request", http.StatusNotFound)
+			return
+		}
+		req.Approve, req.Answer = true, "saved"
 	}
 	ans := windAnswer{Approve: req.Approve, Answer: req.Answer}
 	rec, code := s.answerDecision(strings.TrimSpace(req.Key), ans, req.Revision)
@@ -472,7 +492,7 @@ func (s *Server) answerDecision(id string, ans windAnswer, revision int) (*windD
 			return nil
 		}
 		cur.State = "approved"
-		if (cur.Type == "approve" || cur.Type == "handoff" || cur.Type == "connection") && !ans.Approve {
+		if (cur.Type == "approve" || cur.Type == "handoff" || cur.Type == "connection" || cur.Type == "secret") && !ans.Approve {
 			cur.State = "rejected"
 		}
 		cur.Answer = &ans
