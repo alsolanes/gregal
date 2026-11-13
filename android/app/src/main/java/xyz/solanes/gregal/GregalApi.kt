@@ -922,6 +922,8 @@ class GregalApi(val base: String, val token: String) {
         data class Ask(val ask: WindAsk) : WindStreamEvent
         /** La petició ja no espera (contestada, caducada o torn aturat). */
         data class AskResolved(val key: String) : WindStreamEvent
+        /** El que has escrit mentre treballava i ja no ha arribat a llegir: s'envia després. */
+        data class SteerUnread(val texts: List<String>) : WindStreamEvent
     }
 
     /** Una aprovació («approve») o una pregunta amb opcions («question») d'un vent. */
@@ -1043,6 +1045,9 @@ class GregalApi(val base: String, val token: String) {
             "approve_request", "question_request" ->
                 GregalJson.decodeFromJsonElement<WindAskDto>(o).toAsk().takeIf { it.key.isNotBlank() }?.let { WindStreamEvent.Ask(it) }
             "ask_resolved" -> WindStreamEvent.AskResolved(o.str("key"))
+            "steer_unread" -> (o["texts"] as? kotlinx.serialization.json.JsonArray)
+                ?.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.content?.trim()?.takeIf(String::isNotEmpty) }
+                ?.takeIf { it.isNotEmpty() }?.let { WindStreamEvent.SteerUnread(it) }
             else -> null
         }
     }

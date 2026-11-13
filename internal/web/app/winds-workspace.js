@@ -143,7 +143,7 @@
   if(messages)messages.scrollTop=savedScroll??messages.scrollHeight;
  }
  function addComposer(workspace=false){
-  composer=el('form','vw-composer');input=el('textarea');input.rows=2;input.value=state.draft;input.placeholder=t('Què tens al cap?','What’s on your mind?');input.setAttribute('aria-label',input.placeholder);input.oninput=()=>{state.draft=input.value;};
+  composer=el('form','vw-composer');input=el('textarea');input.rows=2;input.value=state.draft;input.placeholder=steerable()?t('Demana-li una altra cosa mentre treballa…','Ask for something else while it works…'):t('Què tens al cap?','What’s on your mind?');input.setAttribute('aria-label',input.placeholder);input.oninput=()=>{state.draft=input.value;if(state.busy)paintSend(composer.querySelector('.vw-send'));};
   input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();composer.requestSubmit();}});
   const foot=el('div','vw-composer-foot'),pick=el('span','vw-select'),select=el('select');select.setAttribute('aria-label',t('Amb qui parles','Who you are talking to'));
   select.append(new Option(t('Automàtic','Automatic'),'auto'),new Option(t('Tota la colla','The whole crew'),'crew'));for(const w of state.winds)select.append(new Option(w.name+(roleName(w)?' · '+roleName(w):''),w.id));select.value=state.active?.wind||'auto';
@@ -223,14 +223,46 @@
   filter.oninput=draw;filter.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();list.querySelector('.vw-model-row')?.click();}};
   draw();place();
  }
+ // Diverses feines alhora (com dots): mentre el vent treballa en aquest fil, el que escrius
+ // entra al torn en curs (/api/winds/steer) i el fa també; si el torn ja s'ha acabat, surt sol després.
+ const steerable=()=>!!chatTurn&&state.busy&&state.view==='chat'&&chatTurn.destination?.id===state.active?.id;
+ async function steerChat(text){
+  const dest=chatTurn.destination;input.value='';state.draft='';
+  state.history.push({from:'user',text,steer:true,optimistic:true});paintHistory();paintSend(composer?.querySelector('.vw-send'));
+  const body=dest.legacyWind?{kind:'wind',id:dest.wind,text}:{kind:'rotllana',id:dest.id,text};
+  const r=await root.api('/api/winds/steer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).catch(()=>null);
+  if(!r||!r.ok)queueAfter(dest.id,[text]);
+ }
+ // El que no ha arribat a temps: s'envia com a missatge nou quan acaba el torn.
+ function queueAfter(thread,texts){state.after=(state.after||[]).concat(texts.filter(Boolean).map(text=>({thread,text})));}
+ function sendAfter(thread){
+  const i=(state.after||[]).findIndex(x=>x.thread===thread);if(i<0)return;
+  const [next]=state.after.splice(i,1);
+  if(state.view!=='chat'||state.active?.id!==thread||state.busy){state.after.unshift(next);return;}
+  state.history=state.history.filter(m=>!(m.steer&&m.text===next.text));
+  let tries=0;const go=async()=>{if(state.busy||state.preparing){if(++tries<40){setTimeout(go,250);return;}state.after.unshift(next);return;}state.preparing=true;try{await submitRequest(next.text);}catch(e){fail(e);}finally{state.preparing=false;}};setTimeout(go,0);
+ }
+ const actWhen=iso=>{const d=new Date(iso);if(isNaN(d))return '';return d.toLocaleString(t('ca','en'),{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});};
+ function turnActsRow(acts){const box=el('div','vw-turn-acts');
+  for(const a of acts.list){const card=el('div','vw-turn-act'),copy=el('div','vw-turn-act-copy');
+   card.append(el('span','vw-turn-act-icon',a.kind==='followup'?'🔁':'🔔'));
+   copy.append(el('strong','',(a.kind==='followup'?t('Hi tornarà ','Will check back '):t('Avís programat · ','Reminder set · '))+actWhen(a.at_iso||a.at)));
+   if(a.text)copy.append(el('span','',a.text));card.append(copy);
+   if(a.id){const undo=btn(t('Desfés','Undo'),async()=>{undo.disabled=true;try{await call('/api/winds/rutines/delete','POST',{id:a.id});acts.list=acts.list.filter(x=>x.id!==a.id);paintHistory();}catch(e){undo.disabled=false;fail(e);}},'vw-turn-act-undo');card.append(undo);}
+   box.append(card);}
+  return box;}
  function paintSend(button){
-  button.replaceChildren();button.type=state.busy?'button':'submit';button.dataset.busy=String(state.busy);button.disabled=false;
-  const label=state.busy?t('Atura la resposta','Stop response'):t('Envia','Send');button.setAttribute('aria-label',label);button.title=label;
+  if(!button)return;
+  if(input&&button.closest('.vw-composer')===composer){input.placeholder=steerable()?t('Demana-li una altra cosa mentre treballa…','Ask for something else while it works…'):state.view==='task'?input.placeholder:t('Què tens al cap?','What’s on your mind?');input.setAttribute('aria-label',input.placeholder);}
+  // Mentre treballa: amb text, «Afegeix-ho» (diverses feines alhora); buit, el quadrat d'aturar.
+  const stop=state.busy&&!(steerable()&&input?.value.trim()),adding=state.busy&&!stop;
+  button.replaceChildren();button.type=stop?'button':'submit';button.dataset.busy=String(stop);button.disabled=false;
+  const label=stop?t('Atura la resposta','Stop response'):adding?t('Afegeix-ho a la feina','Add it to the work'):t('Envia','Send');button.setAttribute('aria-label',label);button.title=label;
   const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');
-  const shape=document.createElementNS(svg.namespaceURI,state.busy?'rect':'path');
-  if(state.busy){for(const [key,value]of Object.entries({x:6,y:6,width:12,height:12,rx:2,fill:'currentColor'}))shape.setAttribute(key,value);}
+  const shape=document.createElementNS(svg.namespaceURI,stop?'rect':'path');
+  if(stop){for(const [key,value]of Object.entries({x:6,y:6,width:12,height:12,rx:2,fill:'currentColor'}))shape.setAttribute(key,value);}
   else{shape.setAttribute('d','M12 19V5M5 12l7-7 7 7');shape.setAttribute('fill','none');shape.setAttribute('stroke','currentColor');shape.setAttribute('stroke-width','2');shape.setAttribute('stroke-linecap','round');shape.setAttribute('stroke-linejoin','round');}
-  svg.append(shape);button.append(svg);button.onclick=state.busy?()=>{
+  svg.append(shape);button.append(svg);button.onclick=stop?()=>{
    if(!chatTurn){root.gregalWindRunner?.stop();return;}
    chatTurn.stopping=true;
    stopChat(chatTurn).catch(fail);
@@ -293,7 +325,7 @@
   catch(error){turn.cancelSent=false;throw error;}
  }
  async function streamChat(destination,text,turn,progress={}){
-  turn.destination=destination;
+  turn.destination=destination;paintSend(composer?.querySelector('.vw-send'));
   if(turn.stopping)return {cancelat:true};
   // Una proposta («choices») la continua qui l'ha feta, també en una conversa en grup.
   const payload=destination.legacyWind?{wind:destination.wind,session:destination.id,message:text}:{rotllana:destination.id,message:text,...((state.replyOnce||state.replyTo)?{wind:state.replyOnce||state.replyTo}:{})};state.replyOnce=null;
@@ -306,6 +338,7 @@
     if(kind==='error'&&data.cancelat){result=data;continue;}
     if(kind==='error')throw new Error(root.gregalFriendlyRunError(data.error)||t('La resposta s’ha interromput.','The response was interrupted.'));
     if(kind==='done'){result=data;continue;}
+    if(kind==='steer_unread'){queueAfter(destination.id,data.texts||[]);continue;}
     // Un vent espera una resposta (aprovació o pregunta): el torn està aturat fins que contestes.
     if(kind==='approve_request'||kind==='question_request'){state.asks=state.asks.filter(x=>x.key!==data.key).concat(data);paintAsks();continue;}
     if(kind==='ask_resolved'){state.asks=state.asks.filter(x=>x.key!==data.key);paintAsks();continue;}
@@ -858,9 +891,12 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   if(user)asked=true;else if(!state.active?.legacyWind){const id=item.speaker_id||'';if(voice&&id&&id!==voice&&asked){const who=state.winds.find(w=>w.id===id);if(who)messages.append(el('p','vw-handoff',t('→ '+who.name+' agafa el fil','→ '+who.name+' takes over')));}if(id)voice=id;asked=false;}const w=state.winds.find(w=>w.id===item.speaker_id||w.id===item.from||w.name===item.from)||(state.active?.legacyWind?state.winds.find(w=>w.id===state.active.wind):null);const row=el('article',user?'vw-message vw-user':'vw-message');// Ratxes (B1): la cara i el nom un sol cop; la cua només a l'última. Taules, codi i textos llargs es llegeixen sense bombolla.
   if(who(H[hi-1])===who(item))row.classList.add('vw-run-cont');if(who(H[hi+1])!==who(item))row.classList.add('vw-run-last');if(!user&&chatReadingSurface(item.text))row.classList.add('vw-reading');if(!user)row.append(face(w));const copy=el('div'),body=el('div','vw-message-text'),text=user?item.text:choicesStrip(withoutSpeaker(item.text,w?.name||item.speaker_name));if(root.gregalMD){body.innerHTML=root.gregalMD.render(text);if(item.ts&&root.gregalMD.stamp)root.gregalMD.stamp(body,item.ts);}else body.textContent=text;copy.append(el('strong','',user?t('Tu','You'):w?.name||item.speaker_name||t('La colla','Your crew')),body);
   if(!user&&Array.isArray(item.shots)&&item.shots.length)copy.append(shotStrip(item.shots));
+  if(user&&item.steer)copy.append(el('span','vw-steer-tag',t('Ho afegeix a la feina en curs','Added to the work in progress')));
   // Un missatge proactiu (B6, amb run o resultat): «per què ho has fet?».
   const R=root.gregalResponsabilitats;if(!user&&R&&R.isProactive(item)&&item.id){const why=btn(R.whyLabel(),()=>R.openWhy(item.id),'vw-why');why.dataset.message=item.id;row.dataset.proactive='1';copy.append(why);}
   row.append(copy);messages.append(row);}
+  // Avisos i seguiments que ha programat en aquest torn (com la targeta de l'Android), amb «Desfés».
+  if(state.turnActs?.thread===state.active?.id&&state.turnActs.list.length)messages.append(turnActsRow(state.turnActs));
   // Respostes ràpides que el vent proposa al final del seu missatge.
   if(state.suggest?.thread===state.active?.id&&!state.busy)messages.append(suggestRow(state.suggest));
   const last=state.history[state.history.length-1];if(last&&last.from!=='user'&&!state.busy){const opts=root.gregalChoices?root.gregalChoices.extract(last.text):[];if(opts.length){const row=el('div','vw-choices');for(const o of opts)row.append(btn(o,()=>{if(!input)return;state.replyOnce=last.speaker_id||null;input.value=o;composer.requestSubmit();},'vw-choice'));messages.append(row);}}
@@ -869,9 +905,14 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   // La targeta de permís va dins del fil, sota l'últim missatge (com a la maqueta).
   if(asksBox)messages.append(asksBox);
   messages.scrollTop=follow?messages.scrollHeight:top;}
- async function submit(){if(state.preparing)return;state.preparing=true;try{await submitRequest();}finally{state.preparing=false;}}
- async function submitRequest(){
-  const text=input.value.trim();if(!text||state.busy)return;state.draft=text;
+ async function submit(){
+  // Mentre el vent treballa en aquest fil, el que escrius s'hi afegeix (no espera el torn).
+  if(state.busy&&steerable()){const text=input.value.trim();if(text)await steerChat(text);return;}
+  if(state.preparing)return;state.preparing=true;try{await submitRequest();}finally{state.preparing=false;}}
+ async function submitRequest(queued=null){
+  const typed=queued==null,text=(typed?input.value:queued).trim();if(!text)return;
+  if(state.busy){if(typed&&steerable())await steerChat(text);return;}
+  const keep=typed?'':input?.value||'';if(typed)state.draft=text;
   const anyone=state.recipient==='auto'||state.recipient==='crew';
   const prepareWork=state.view!=='chat'&&!state.active?.legacyWind&&(anyone||state.active?.project);
   const work=prepareWork&&(await call('/api/winds/intent','POST',{message:text})).intent==='work';
@@ -924,12 +965,13 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
    if(sentTo.workspace)await switchFolder(sentTo.workspace);
    state.pending={thread:sentTo.id,wind:sentTo.legacyWind?sentTo.wind:sentTo.members?.length===1?sentTo.members[0]:null,phase:'thinking',text:''};
    if(epoch===(state.chatEpoch||0)){
-    state.history.push({from:'user',text,optimistic:true});state.draft='';state.view='chat';render();
+    state.history.push({from:'user',text,optimistic:true});state.draft=keep;state.view='chat';render();
    }
    const data=await streamChat(sentTo,text,turn,progress);
    if(data.cancelat){restore();state.notice={thread:sentTo.id,text:t('Torn aturat','Turn stopped')};}
    else if(current()){
     state.history=data.history||state.history;
+    state.turnActs=Array.isArray(data.actions)&&data.actions.length?{thread:sentTo.id,list:data.actions}:null;
     suggestOther(sentTo,text);
     if(sentTo.legacyWind)refreshSolo().then(()=>renderNav());
     if(data.failed?.length)state.notice={thread:sentTo.id,text:t('No han pogut completar el torn: ','Could not complete the turn: ')+data.failed.join(', ')+(data.failed_reason?' · '+root.gregalFriendlyRunError(data.failed_reason):'')};
@@ -939,6 +981,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
    if(chatTurn===turn)chatTurn=null;
    state.pending=null;state.busy=false;
    if(state.view==='chat')render();
+   if(sentTo)sendAfter(sentTo.id);
   }
  }
  const statusName=value=>({started:t('En marxa','Running'),working:t('En marxa','Running'),done:t('Enllestit','Complete'),completed:t('Enllestit','Complete'),failed:t('Cal revisar-ho','Needs attention'),cancelled:t('Aturat','Stopped'),waiting:t('En espera','Waiting')})[value]||value;

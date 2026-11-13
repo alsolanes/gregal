@@ -849,8 +849,16 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val _windAsks = MutableStateFlow<List<GregalApi.WindAsk>>(emptyList())
     val windAsks: StateFlow<List<GregalApi.WindAsk>> = _windAsks.asStateFlow()
 
-    internal fun handleWindAskEvent(e: GregalApi.WindStreamEvent) {
+    // Diverses feines alhora: el que ha arribat tard al torn (steer_unread)
+    // surt sol com a missatge nou quan el torn acaba (flushLateSteer).
+    private val lateSteer = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
+
+    internal fun handleWindAskEvent(e: GregalApi.WindStreamEvent, threadId: String = "", rotllana: Boolean = false) {
         when (e) {
+            is GregalApi.WindStreamEvent.SteerUnread -> if (threadId.isNotEmpty()) {
+                val k = (if (rotllana) "rot:" else "wind:") + threadId
+                lateSteer[k] = lateSteer[k].orEmpty() + e.texts
+            }
             is GregalApi.WindStreamEvent.Ask -> _windAsks.value = _windAsks.value.filter { it.key != e.ask.key } + e.ask
             is GregalApi.WindStreamEvent.AskResolved -> _windAsks.value = _windAsks.value.filter { it.key != e.key }
             is GregalApi.WindStreamEvent.DoneRotllana -> if (e.failed.isNotEmpty()) {
@@ -3195,6 +3203,25 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         if (complete) _lastWindReply.value = id to System.currentTimeMillis()
         _windBusy.value = _windBusy.value - id
         endLive(id)
+        flushLateSteer(id, rotllana = false)
+    }
+
+    /**
+     * Envia el que ha arribat tard al torn que acaba. El primer obre un torn
+     * nou; els altres hi entren com a steer (el vent ja torna a treballar).
+     * La bombolla local del steer es treu: el missatge nou en posa una altra.
+     */
+    internal fun flushLateSteer(id: String, rotllana: Boolean) {
+        val texts = lateSteer.remove((if (rotllana) "rot:" else "wind:") + id).orEmpty()
+        if (texts.isEmpty()) return
+        val store = if (rotllana) _rotllanaChat else _windChat
+        var cur = store.value[id].orEmpty()
+        for (t in texts) {
+            val i = cur.indexOfLast { it.from == "user" && it.text == t }
+            if (i >= 0) cur = cur.filterIndexed { j, _ -> j != i }
+        }
+        store.value = store.value + (id to cur)
+        for (t in texts) if (rotllana) sendRotllanaMessage(id, t) else sendWindMessage(id, t)
     }
 
     /** Vents amb una veu proactiva que encara no has obert (cor, recordatoris). */
@@ -3811,7 +3838,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                                         setStreamingBubble(rotllanaId, text, rotllana = true)
                                     }
                                 }
-                                else -> handleWindAskEvent(e)
+                                else -> handleWindAskEvent(e, rotllanaId, true)
                             }
                         }
                     }
@@ -3843,6 +3870,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (isCompanionOrigin(source, epoch)) {
                     _rotllanaBusy.value = _rotllanaBusy.value - rotllanaId; endLive(rotllanaId)
                     if (before.lastOrNull()?.kind == "question") followCrew(rotllanaId)
+                    flushLateSteer(rotllanaId, rotllana = true)
                 }
                 GregalNotifications.workFinished(appContext, answered && isCompanionOrigin(source, epoch), message, answer,
                     target, displayName, partial, if (isCompanionOrigin(source, epoch)) turnError else "")
@@ -5401,7 +5429,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     // ja s'ha acabat al servidor (409), es reenvia com a missatge nou.
     private fun steerWind(windId: String, msg: String, queuedTs: Long = 0L) {
         val source = _conn.value
-        _windChat.value = _windChat.value + (windId to (_windChat.value[windId].orEmpty() + PetMsg("user", msg, ts = if (queuedTs > 0) queuedTs else System.currentTimeMillis())))
+        _windChat.value = _windChat.value + (windId to (_windChat.value[windId].orEmpty() + PetMsg("user", msg, kind = "steer", ts = if (queuedTs > 0) queuedTs else System.currentTimeMillis())))
         viewModelScope.launch {
             val delivered = withContext(Dispatchers.IO) {
                 runCatching { GregalApi(baseUrlOf(source.host, source.port), source.token).steerTurn(windId = windId, text = msg) }.getOrDefault(false)
@@ -5417,7 +5445,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun steerRotllana(rotllanaId: String, msg: String) {
         val source = _conn.value
-        _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to (_rotllanaChat.value[rotllanaId].orEmpty() + PetMsg("user", msg, ts = System.currentTimeMillis())))
+        _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to (_rotllanaChat.value[rotllanaId].orEmpty() + PetMsg("user", msg, kind = "steer", ts = System.currentTimeMillis())))
         viewModelScope.launch {
             val delivered = withContext(Dispatchers.IO) {
                 runCatching { GregalApi(baseUrlOf(source.host, source.port), source.token).steerTurn(rotllanaId = rotllanaId, text = msg) }.getOrDefault(false)
@@ -5528,7 +5556,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                                         setStreamingBubble(windId, text)
                                     }
                                 }
-                                else -> handleWindAskEvent(e)
+                                else -> handleWindAskEvent(e, windId, false)
                             }
                         }
                     }
@@ -5623,7 +5651,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                                         setStreamingBubble(windId, text)
                                     }
                                 }
-                                else -> handleWindAskEvent(e)
+                                else -> handleWindAskEvent(e, windId, false)
                             }
                         }
                     }
@@ -5714,7 +5742,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                                         setStreamingBubble(rotllanaId, text, rotllana = true)
                                     }
                                 }
-                                else -> handleWindAskEvent(e)
+                                else -> handleWindAskEvent(e, rotllanaId, true)
                             }
                         }
                     }
@@ -5739,7 +5767,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 turnError = turnFailed(source, epoch, rotllanaId, true, e)
             } finally {
                 aturats.remove(rotllanaId) // un «atura» que arriba tard no amaga el proper error
-                if (isCompanionOrigin(source, epoch)) { _rotllanaBusy.value = _rotllanaBusy.value - rotllanaId; endLive(rotllanaId) }
+                if (isCompanionOrigin(source, epoch)) { _rotllanaBusy.value = _rotllanaBusy.value - rotllanaId; endLive(rotllanaId); flushLateSteer(rotllanaId, rotllana = true) }
                 GregalNotifications.workFinished(appContext, answered && isCompanionOrigin(source, epoch), "", answer,
                     target, displayName, partial, if (isCompanionOrigin(source, epoch)) turnError else "")
             }

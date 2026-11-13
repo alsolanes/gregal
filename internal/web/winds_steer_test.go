@@ -141,3 +141,27 @@ func TestBeginWindTurnOpensSteerBox(t *testing.T) {
 		t.Fatal("amb el torn tancat la bústia ha de rebutjar")
 	}
 }
+
+// Diverses feines alhora: el que escrius mentre treballa queda al fil (abans
+// de la resposta que ja ho té en compte) i el que arriba tard torna al client.
+func TestWindSteerTakenAndLeft(t *testing.T) {
+	key := turnKey{scope: "/t", kind: "wind", id: "w-many"}
+	end := windSteerBegin(key)
+	defer end()
+	windSteerQueue(key, "i mira el temps de demà", false)
+	injectaSteer(key, nil)
+	windSteerQueue(key, "i una tercera cosa", false)
+	taken := windSteerTaken(key)
+	if len(taken) != 1 || taken[0].Role != "user" || taken[0].Content != "i mira el temps de demà" || taken[0].Ts == 0 {
+		t.Fatalf("taken = %+v", taken)
+	}
+	if again := windSteerTaken(key); len(again) != 0 {
+		t.Fatalf("taken s'ha de buidar: %+v", again)
+	}
+	if left := windSteerLeft(key); len(left) != 1 || left[0] != "i una tercera cosa" {
+		t.Fatalf("left = %v", left)
+	}
+	if left := windSteerLeft(key); len(left) != 0 {
+		t.Fatalf("left s'ha de buidar: %v", left)
+	}
+}

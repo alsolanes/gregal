@@ -287,6 +287,14 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 	ctx, doneTurn := s.beginWindTurn("wind", wind.ID, ctx)
 	defer doneTurn()
 	ctx = s.interactiveWindCtx(s.withWindSteerKey(withLinkBase(ctx, r), "wind", wind.ID))
+	steerKey := turnKey{scope: s.sessDir(), kind: "wind", id: wind.ID}
+	// El que li has escrit mentre treballava i ja no ha arribat a llegir
+	// torna al client, que l'envia com a missatge nou.
+	steerLeft := func() {
+		if left := windSteerLeft(steerKey); len(left) > 0 {
+			emit("steer_unread", map[string]any{"texts": left})
+		}
+	}
 	// Si una decisió no arriba en directe, el torn s'aparca i allibera el
 	// goroutine; es reprèn com un run quan es respon (winds_ask.go).
 	spot := &windParkSpot{wind: wind.ID, thread: hist.name}
@@ -385,6 +393,7 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 		for _, n := range tornTexte.narracions(reply) {
 			history = append(history, llm.Message{Role: "assistant", Content: n, Ts: time.Now().Unix()})
 		}
+		history = append(history, windSteerTaken(steerKey)...)
 		history = append(history, llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix(), ID: msgID, Shots: s.turnShotsFor(turnShots)})
 		history, err = s.commitWindTurn(wind, hist, gotGen, history)
 		if err != nil {
@@ -392,6 +401,7 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 			return
 		}
 		s.noteParkedDecision(parked.ID, msgID)
+		steerLeft()
 		emit("done", map[string]any{"reply": reply, "wind": wind.ID, "parcial": false, "history": petHistoryJSON(history),
 			"waiting": map[string]any{"id": parked.ID, "runId": parked.RunID, "messageId": msgID}})
 		return
@@ -401,6 +411,7 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 			emit("error", map[string]any{"error": "aturat", "cancelat": true})
 			return
 		}
+		steerLeft()
 		fail(http.StatusBadGateway, redactError(err))
 		return
 	}
@@ -422,6 +433,8 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 	for _, n := range tornTexte.narracions(reply) {
 		history = append(history, llm.Message{Role: "assistant", Content: n, Ts: time.Now().Unix()})
 	}
+	// El que has escrit mentre treballava, abans de la resposta que ja ho té en compte.
+	history = append(history, windSteerTaken(steerKey)...)
 	history = append(history, llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix(), Shots: s.turnShotsFor(turnShots)})
 	history, err = s.commitWindTurn(wind, hist, gotGen, history)
 	if err != nil {
@@ -431,6 +444,7 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 	s.startWindLearn(wind, msg, reply)
 	s.startWindMemoryLearn(wind, msg, reply)
 	s.startWindLessons(wind, msg, reply, res.hist)
+	steerLeft()
 	emit("done", map[string]any{"reply": reply, "wind": wind.ID, "parcial": res.parcial, "history": petHistoryJSON(history), "actions": remindActionsSince(s.remindOwner(), wind.ID, turnStart)})
 }
 
@@ -591,6 +605,12 @@ func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stre
 	members := s.rotMembersOf(rot)
 	turnCtx, doneTurn := s.beginWindTurn("rotllana", rot.ID, context.Background())
 	defer doneTurn()
+	rotSteerKey := turnKey{scope: s.sessDir(), kind: "rotllana", id: rot.ID}
+	rotSteerLeft := func() {
+		if left := windSteerLeft(rotSteerKey); len(left) > 0 {
+			emit("steer_unread", map[string]any{"texts": left})
+		}
+	}
 	emit("phase", map[string]string{"phase": "thinking"})
 	var failed []string
 	var lastErr error
@@ -696,6 +716,7 @@ func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stre
 			continue
 		}
 		reply += s.windDocLinks(tVeu, reply)
+		conversation = append(conversation, windSteerTaken(rotSteerKey)...)
 		conversation = append(conversation, llm.Message{Role: "assistant", Content: reply, SpeakerID: sp.ID, SpeakerName: sp.Name, Ts: time.Now().Unix()})
 		veus = append(veus, veu{sp, reply})
 		// Cada veu acabada es desa de seguida (amb el missatge de l'usuari, la
@@ -735,6 +756,7 @@ func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stre
 		return
 	}
 	log.Printf("vents rotllana %s: tria %.1fs · %s", rot.ID, routeDur.Seconds(), strings.Join(tempsVeus, " · "))
+	rotSteerLeft()
 	if len(veus) == 0 {
 		// Preserve the draft on failure. A deliberate silence is not an error.
 		if lastErr != nil {

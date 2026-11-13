@@ -915,3 +915,19 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-shots-big { display:block; max-width:100%; max-height:calc(85dvh - 200px); margin:0 auto; border-radius:12px; border:1px solid var(--line); background:var(--surface); }
 .vw-shots-nav { display:flex; justify-content:center; align-items:center; gap:14px; margin-top:10px; font-size:13px; color:var(--muted); }
 .vw-shots-nav button:disabled { opacity:.35; cursor:default; }
+
+/* Diverses feines alhora: el que escrius mentre treballa s'afegeix al torn en curs. */
+.vw-steer-tag { display:block; margin-top:4px; font-size:11px; color:var(--muted); text-align:right; }
+.vw-steer-tag::before { content:"↳ "; }
+
+/* Avisos programats en aquest torn (l'Android ho fa amb TurnActionCard). */
+.vw-turn-acts { display:grid; gap:6px; margin:8px 0 4px 46px; max-width:560px; }
+.vw-turn-act { display:flex; align-items:center; gap:10px; padding:8px 12px; border:1px solid color-mix(in srgb, var(--accent) 35%, transparent); background:color-mix(in srgb, var(--accent) 10%, transparent); border-radius:14px; }
+.vw-turn-act-icon { font-size:17px; }
+.vw-turn-act-copy { flex:1; min-width:0; display:grid; gap:1px; font-size:13px; }
+.vw-turn-act-copy strong { color:var(--ink); font-weight:600; }
+.vw-turn-act-copy span { color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.vw-turn-act-undo { background:transparent; border:0; color:var(--ink); font-weight:600; font-size:13px; padding:10px 8px; border-radius:8px; cursor:pointer; }
+.vw-turn-act-undo:hover { background:color-mix(in srgb, var(--ink) 8%, transparent); }
+/* La marca del que has afegit mentre treballava, llegible dins la bombolla. */
+.vw-user .vw-steer-tag { color:inherit; opacity:.72; }

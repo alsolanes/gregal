@@ -1887,6 +1887,10 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                         fontWeight = FontWeight.SemiBold, modifier = Modifier.clip(GregalShape.xs).clickable(onClick = onDiscard)
                             .padding(horizontal = 10.dp, vertical = 12.dp).testTag("discard-queued"))
                 }
+            } else if (m.kind == "steer") {
+                // Escrit mentre treballava: entra a la feina en curs (diverses feines alhora).
+                Text("↳ " + (if (lang == "en") "Added to the work in progress" else "Ho afegeix a la feina en curs"),
+                    style = GregalType.chatMeta, color = Muted, modifier = Modifier.padding(top = 3.dp, end = 4.dp).testTag("steer-tag"))
             } else if (receipt.isNotEmpty() && showMeta) {
                 Text(receipt, style = GregalType.chatMeta, color = Muted,
                     modifier = Modifier.padding(top = 3.dp, end = 4.dp))

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"gregal/internal/agent"
 	"gregal/internal/llm"
@@ -25,6 +26,9 @@ import (
 type windSteerBox struct {
 	mu    sync.Mutex
 	inbox []string
+	// taken: els que el model ja ha llegit i encara no s'han desat al fil
+	// (windSteerTaken). Sense això, en acabar el torn desapareixien.
+	taken []llm.Message
 	stop  context.CancelFunc // talla la crida al model en curs (interrupt)
 	abort bool
 }
@@ -76,6 +80,42 @@ func windSteerQueue(key turnKey, text string, interrupt bool) bool {
 
 // windSteerDrain buida la bústia del torn (cridat pel bucle entre passos).
 func windSteerDrain(key turnKey) []string {
+	windSteerRegistry.Lock()
+	b := windSteerRegistry.boxes[key]
+	windSteerRegistry.Unlock()
+	if b == nil {
+		return nil
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	out := b.inbox
+	b.inbox = nil
+	for _, m := range out {
+		b.taken = append(b.taken, llm.Message{Role: "user", Content: m, Ts: time.Now().Unix()})
+	}
+	return out
+}
+
+// windSteerTaken torna (i oblida) els missatges que el torn ja ha llegit:
+// qui desa el fil els hi posa abans de la resposta, que ja els ha tingut en
+// compte.
+func windSteerTaken(key turnKey) []llm.Message {
+	windSteerRegistry.Lock()
+	b := windSteerRegistry.boxes[key]
+	windSteerRegistry.Unlock()
+	if b == nil {
+		return nil
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	out := b.taken
+	b.taken = nil
+	return out
+}
+
+// windSteerLeft treu els missatges que han arribat massa tard (el model ja
+// havia acabat): el client els envia com a missatge nou quan el torn acaba.
+func windSteerLeft(key turnKey) []string {
 	windSteerRegistry.Lock()
 	b := windSteerRegistry.boxes[key]
 	windSteerRegistry.Unlock()

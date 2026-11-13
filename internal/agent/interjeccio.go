@@ -16,7 +16,9 @@ import (
 func GuiaInterjeccio(text string) string {
 	return "The user sent this message while you were working:\n\n" + text +
 		"\n\nTake it into account from now on. If it changes what they want, adjust or stop the current approach; " +
-		"if it adds a requirement or a correction, apply it; otherwise carry on. Do not redo work that is already done " +
+		"if it adds a requirement or a correction, apply it; if it is a separate request, do it too in this same turn " +
+		"(before or after the current task, whichever is quicker) and cover both in your final answer; otherwise carry on. " +
+		"Do not redo work that is already done " +
 		"and do not ask for confirmation unless the message really leaves you unable to continue."
 }
 

@@ -74,4 +74,11 @@ class WindStreamTest {
         assertNull(api.parseWindStreamEvent("token", "no-json"))
         assertNull(api.parseWindStreamEvent("desconegut", """{"a":1}"""))
     }
+
+    /** Diverses feines alhora: el que arriba tard torna perquè s'enviï després. */
+    @Test fun steerUnreadCarriesTheLateMessages() {
+        val e = api.parseWindStreamEvent("steer_unread", """{"texts":["i mira el temps", " ", "i el correu"]}""")
+        assertEquals(listOf("i mira el temps", "i el correu"), (e as GregalApi.WindStreamEvent.SteerUnread).texts)
+        assertNull(api.parseWindStreamEvent("steer_unread", """{"texts":[]}"""))
+    }
 }
