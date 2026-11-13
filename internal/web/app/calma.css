@@ -120,8 +120,8 @@ body.desktop.mac #side .brand { padding-left:82px; }
 /* Vents: la mateixa barra (winds-workspace.css, que es carrega després,
    amagava la capçalera i l'estrenyia). «Nova sessió» sí que s'amaga: Vents
    en té una de pròpia. */
-html body.shell-winds #side > .brand { display:flex; }
-@media(min-width:1001px) { html body.shell-winds #side { width:272px; min-width:272px; background:var(--sidebar); } }
+html body:is(.shell-winds,.winds-side) #side > .brand { display:flex; }
+@media(min-width:1001px) { html body:is(.shell-winds,.winds-side) #side { width:272px; min-width:272px; background:var(--sidebar); } }
 
 /* ---------- Pestanyes i capçalera ---------- */
 #sessionTabs { background:var(--bg); border-bottom:0; height:40px; min-height:40px; padding:4px 14px 0; }

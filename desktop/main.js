@@ -3,9 +3,11 @@
 const { app, BrowserWindow, Menu, Notification, dialog, globalShortcut, ipcMain, nativeTheme, screen, shell, session, webContents: electronWebContents } = require("electron");
 const { QUICK_NOTE_ACCELERATOR, showQuickNote, registerQuickNote } = require("./quick-note");
 
-// TITLEBAR_H ha de casar amb l'alçada de #sessionTabs a index.html: és
-// aquella fila la que fa de barra de títol.
-const TITLEBAR_H = 38;
+// TITLEBAR_H ha de casar amb l'alçada de la fila de dalt de tot a
+// index.html, que és la que fa de barra de títol. Des que les pestanyes de
+// sessió van dins de la capçalera (una sola barra), aquesta fila és #top i fa
+// 48 px (calma.css); abans era #sessionTabs.
+const TITLEBAR_H = 48;
 
 const http = require("http");
 const https = require("https");

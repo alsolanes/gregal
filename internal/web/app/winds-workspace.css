@@ -6,9 +6,9 @@ body.shell-winds, :root[data-product="vents"] body { --vw-accent:var(--accent); 
 body.shell-winds #ventsPage { overflow:hidden; min-height:0; padding:0; }
 body.shell-winds #top { display:none; }
 body.shell-winds #ventsPage > .winds-page,body.shell-winds #windsListCard { display:none!important; }
-body.shell-winds #side > .brand,body.shell-winds #side .side-quick { display:none; }
-body.shell-winds #side { background:var(--panel); width:230px; min-width:230px; }
-body.shell-winds #windContextNav { border:0; padding:0; min-height:0; }
+body:is(.shell-winds,.winds-side) #side > .brand,body:is(.shell-winds,.winds-side) #side .side-quick { display:none; }
+body:is(.shell-winds,.winds-side) #side { background:var(--panel); width:230px; min-width:230px; }
+body:is(.shell-winds,.winds-side) #windContextNav { border:0; padding:0; min-height:0; }
 body.shell-winds .side-scroll { overflow:auto; }
 .wind-workspace { display:flex; flex-direction:column; height:100%; min-height:0; color:var(--text); font-size:14px; line-height:1.65; background:var(--bg); }
 .wind-workspace *,.vw-nav *,.vw-dialog * { box-sizing:border-box; }
@@ -271,7 +271,7 @@ label.vw-pick-card > span:last-child { min-width:0; overflow:hidden; text-overfl
 .vw-mobile-menu:hover { background:var(--hover-alt); color:var(--ink); }
 .vw-mobile-menu .vw-ic { width:18px; height:18px; }
 @media(min-width:1500px) { .vw-content { padding-left:max(40px,calc((100% - 900px)/2)); padding-right:max(40px,calc((100% - 900px)/2)); } }
-@media(max-width:1000px) { body.shell-winds #side { width:210px; min-width:210px; } .vw-content { padding-left:28px; padding-right:28px; } .vw-actions { max-width:140px; } }
+@media(max-width:1000px) { body:is(.shell-winds,.winds-side) #side { width:210px; min-width:210px; } .vw-content { padding-left:28px; padding-right:28px; } .vw-actions { max-width:140px; } }
 @media(max-width:760px) {
  .vw-top { padding:0 18px; gap:9px; min-height:50px; } .vw-top > span:last-of-type { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
  .vw-content { padding:26px 20px; } .vw-home { padding-top:40px; } .vw-welcome h1 { font-size:36px; }
@@ -288,12 +288,12 @@ label.vw-pick-card > span:last-child { min-width:0; overflow:hidden; text-overfl
  .vw-mobile-nav button[data-selected="true"] .vw-nav-svg { color:var(--accent-hi); }
  .vw-library-item { flex-wrap:wrap; gap:10px; } .vw-actions { max-width:none; width:100%; justify-content:flex-start; padding-left:53px; }
  .vw-thread-view { padding-top:18px; padding-bottom:12px; } .vw-heading h1 { font-size:24px; }
- body.shell-winds #side.vw-open { display:flex; visibility:visible; margin-left:0; width:230px; min-width:230px; }
+ body:is(.shell-winds,.winds-side) #side.vw-open { display:flex; visibility:visible; margin-left:0; width:230px; min-width:230px; }
  body.shell-winds:not(.vw-drawer) #navRail { display:none; }
  /* La barra de Vents (Vents · Racó · Automatitzacions) viu dins del calaix, sota la marca:
     fixada a dalt de tot tapava el logo i el selector Codi/Vents. */
  body.shell-winds.vw-drawer #side #navRail { position:static; }
- body.shell-winds #side.vw-open { width:272px; min-width:272px; max-width:86vw; }
+ body:is(.shell-winds,.winds-side) #side.vw-open { width:272px; min-width:272px; max-width:86vw; }
 }
 @media(prefers-reduced-motion:reduce) { .wind-workspace *,.vw-nav * { transition:none!important; } .vw-thinking-dots i { animation:none; opacity:.6; } .vw-demo-turn,.vw-demo.is-playing .vw-demo-thread::after { animation:none; } }
 /* Wiki: pages as readable cards, opened in a wider reading dialog. */
@@ -412,9 +412,9 @@ input.vw-ask-free:focus { border-color:color-mix(in srgb, var(--accent) 55%, var
 /* Un sol sistema amb Codi: la barra lateral amb les mides de #navRail (calma.css); el compositor,
    l'enviament, els botons i les pastilles surten de les mateixes mides que Codi (refine.css,
    polish.css), i tots dos productes tenen un sol accent: el del tema. */
-html body.shell-winds .vw-nav-item.vw-nav-icon, html body.shell-winds .vw-nav-item.vw-project { font-size:14px!important; padding:8px 12px; color:var(--text); }
-html body.shell-winds .vw-nav-item.vw-thread { font-size:13px!important; }
-html body.shell-winds .vw-nav-item:focus-visible, html body.shell-winds .vw-send:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+html body:is(.shell-winds,.winds-side) .vw-nav-item.vw-nav-icon, html body:is(.shell-winds,.winds-side) .vw-nav-item.vw-project { font-size:14px!important; padding:8px 12px; color:var(--text); }
+html body:is(.shell-winds,.winds-side) .vw-nav-item.vw-thread { font-size:13px!important; }
+html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(.shell-winds,.winds-side) .vw-send:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
 
 /* ---- Passada de qualitat: un sol joc d'icones, files que s'escurcen bé,
    diàlegs amb l'acció a la vista i el mateix ritme de títols que Codi ---- */

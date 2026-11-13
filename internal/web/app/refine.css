@@ -359,3 +359,183 @@ body:not(.desktop) #sessionTabs.single:not(:has(.session-error)) { display:none;
 #mpick .mp-prov { font-size:10.5px; letter-spacing:.06em; }
 #suggest .sg-item { font-family:inherit; align-items:baseline; }
 #suggest .sg-item b { font-family:var(--mono); font-size:.95em; }
+
+/* ---------- Barra lateral de Codi: una sola línia ----------
+   Contenidors a 10 px de la vora; icones, capçaleres i converses comencen a
+   x = 22 i les etiquetes amb icona a x = 52. Totes les files fan 34 px i cada
+   secció té el mateix aire a sobre (abans: files de 38/30/32 px i text a
+   15, 16, 23, 39 i 52). «html body» per guanyar les regles antigues. */
+html body #side .brand { padding:0 14px 0 18px; }
+html body #side #productSwitch { margin:6px 10px 12px; }
+html body #side .side-quick { margin:0 10px 10px; }
+html body #side .side-quick-btn { margin-bottom:0; padding:0 11px; gap:12px; }
+html body #side #navRail { padding:0 10px; }
+html body #side #navRail .rail-main { gap:2px; }
+html body #side #navRail .rail-main > .nav-item, html body #side #sideMore > summary { min-height:34px; padding:0 12px; gap:12px; }
+html body #side #sideMore > summary { gap:0; }
+html body #side :is(.sidebar-section-head, .conv-head) { padding:18px 12px 6px 22px; min-height:0; }
+html body #side #projectList { margin:0 10px; }
+html body #side #projectList .sidebar-project-row { min-height:34px; padding-right:0; }
+html body #side #projectList .project-open { min-height:34px; padding:0 12px; gap:12px; }
+html body #side #projectList .project-folder-ico { width:18px; height:16px; flex:0 0 18px; }
+html body #side .conv-search { padding:2px 10px 4px; }
+html body #side #convSearch { min-height:34px; padding:0 12px; }
+html body #side #convs { padding:0 10px 10px; }
+html body #side .conv-grup { padding:12px 12px 4px; }
+html body #side .conv { min-height:34px; padding:0 12px; display:flex; align-items:center; }
+html body #side .side-foot { padding:8px 10px 8px 22px; }
+
+/* ---------- Barra lateral de Codi: jerarquia ----------
+   Text fort per a la navegació; les converses en to secundari (contrast
+   >= 5.7:1 als tres temes) i blanques en passar-hi o obertes. El projecte
+   seleccionat es marca amb text i icona, sense fons que competeixi amb
+   «Xat». «Nova sessió» és una fila més amb el + en accent; el cercador
+   porta lupa. */
+html body #side .conv { color:var(--muted); }
+html body #side .conv:hover, html body #side .conv:focus-within { color:var(--ink); }
+html body #side .conv:is(.active,.current) { color:var(--ink); }
+html body #projectList .sidebar-project.selected > .sidebar-project-row { background:transparent; }
+html body #projectList .sidebar-project.selected .project-open { color:var(--ink); font-weight:550; }
+html body #projectList .sidebar-project.selected .project-folder-ico { color:var(--accent-hi); }
+html body #projectList .sidebar-project-row:hover { background:var(--surface); }
+html body #side .conv-search { position:relative; }
+html body #side .conv-search::before { content:''; position:absolute; left:22px; top:calc(50% - 1px); width:15px; height:15px; transform:translateY(-50%); background:var(--faint);
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='6.5'/%3E%3Cpath d='M16 16l4 4'/%3E%3C/svg%3E") center/15px no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='6.5'/%3E%3Cpath d='M16 16l4 4'/%3E%3C/svg%3E") center/15px no-repeat; pointer-events:none; }
+html body #side #convSearch { padding-left:42px; }
+html body #side #newchat.side-quick-btn { border-color:transparent; background:transparent; font-weight:550; }
+html body #side #newchat.side-quick-btn:hover { background:var(--surface); border-color:transparent; }
+html body #side #newchat > span:first-child { color:var(--accent-hi); }
+html body #side #convSearch { background:var(--hover); border-color:transparent; }
+html body #side #convSearch:focus { background:var(--surface); border-color:var(--line-hi); }
+
+/* ---------- Barra lateral de Codi: peu llegible ----------
+   El nom és el mateix del compositor; l'identificador tècnic queda al
+   tooltip. La mida s'aplica al text: #endpoint tenia un font propi de 10 px. */
+html body #side .side-foot .endpoint-row { color:var(--muted); }
+html body #side #endpoint { font-size:12px; line-height:1.4; }
+
+/* ---------- Barra lateral de Vents: opció A, compacta ----------
+   Files de 34 px com a Codi, etiquetes alineades i «Nova conversa» sense
+   vora. Les capçaleres mantenen l'alçada també quan porten el botó +. */
+html body:is(.shell-winds,.winds-side) #side .vw-nav { padding:12px 10px 20px; gap:2px; }
+html body:is(.shell-winds,.winds-side) #side .vw-nav .vw-new { min-height:34px; height:34px; padding:0 12px; gap:12px; border:0; border-radius:8px; margin-bottom:8px; background:transparent; font-size:14px; }
+html body:is(.shell-winds,.winds-side) #side .vw-new > .vw-ic { color:var(--accent-hi); flex:0 0 18px; }
+html body:is(.shell-winds,.winds-side) #side .vw-new:hover { background:var(--surface); }
+html body:is(.shell-winds,.winds-side) #side .vw-nav :is(.vw-nav-item.vw-nav-icon,.vw-nav-item.vw-project,.vw-nav-item.vw-nav-channel,.vw-nav-item.vw-thread) { display:flex; align-items:center; box-sizing:border-box; min-height:34px; height:34px; padding:0 12px; gap:12px; }
+html body:is(.shell-winds,.winds-side) #side .vw-nav :is(.vw-nav-svg,.vw-folder,.winds-face) { width:18px; height:18px; margin-inline:0; flex:0 0 18px; }
+html body:is(.shell-winds,.winds-side) #side .vw-nav .vw-section-label { box-sizing:border-box; height:44px; min-height:44px; padding:14px 12px 6px; align-items:center; line-height:24px; }
+html body:is(.shell-winds,.winds-side) #side .vw-section-label .vw-small { width:24px; height:24px; }
+html body:is(.shell-winds,.winds-side) #side .vw-nav .vw-nav-channel { font-size:14px!important; }
+html body:is(.shell-winds,.winds-side) #side .vw-nav .vw-thread { color:var(--muted); }
+html body:is(.shell-winds,.winds-side) #side .vw-thread:is(:hover,:focus-visible,[aria-current="page"]) { color:var(--ink); }
+html body:is(.shell-winds,.winds-side) #side .vw-more > .vw-nav-item:not(summary) { padding-left:30px; }
+html body:is(.shell-winds,.winds-side) #side .vw-nav .vw-project[data-selected="true"] { background:transparent; font-weight:550; color:var(--ink); }
+html body:is(.shell-winds,.winds-side) #side .vw-project[data-selected="true"] .vw-folder { color:var(--accent-hi); }
+
+/* ---------- Capçalera de Codi: opció A, integrada ----------
+   Projecte sense fons, botons de 32 px i separació de les accions de sessió.
+   A amplades mòbils es conserva la composició existent. */
+@media (min-width:761px) {
+  html body:not(.shell-winds) #top { gap:12px; padding:0 16px; }
+  html body:not(.shell-winds) #top #menu, html body:not(.shell-winds) #top .top-meta .icon-btn, html body:not(.shell-winds) #topSessionNew .icon-btn { width:32px; height:32px; flex:none; border-radius:8px; color:var(--muted); }
+  html body:not(.shell-winds) #top :is(#menu,.top-meta .icon-btn):hover, html body:not(.shell-winds) #topSessionNew .icon-btn:hover { background:var(--surface); color:var(--ink); }
+  html body:not(.shell-winds) #top .breadcrumb { flex:0 1 auto; min-width:0; }
+  html body:not(.shell-winds) #top .project-heading { gap:8px; min-width:0; }
+  html body:not(.shell-winds) #top .folder-chip { flex:0 1 auto; min-width:0; border-radius:8px; height:32px; background:transparent; border:0; }
+  html body:not(.shell-winds) #top .folder-chip-main { gap:8px; padding:0 8px; }
+  html body:not(.shell-winds) #top #project { font-size:13px; font-weight:550; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  html body:not(.shell-winds) #top .folder-chip-caret { width:24px; flex:none; border-left:0; }
+  html body:not(.shell-winds) #topSessionNew { flex:none; margin-left:0; padding-left:8px; gap:2px; border-left:1px solid var(--line); }
+  html body:not(.shell-winds) #top .top-meta { gap:4px; flex:none; }
+  html body:not(.shell-winds) #top .folder-chip:hover { background:var(--surface); }
+}
+
+/* ---------- Compositor de Codi: opció A, fila flexible ----------
+   Model i raonament primer; planificació, permisos i accions al final.
+   Els controls passen de línia quan falta amplada. */
+@media (min-width:761px) {
+  html body:not(.shell-winds) #composer #box { padding:16px 16px 12px 20px; }
+  html body:not(.shell-winds) #box textarea#in { font-size:16px; line-height:1.5; min-height:36px; }
+  html body:not(.shell-winds) #composer .composer-row { margin-top:12px; gap:6px; align-items:center; display:flex; flex-wrap:wrap; row-gap:8px; }
+  html body:not(.shell-winds) #composer :is(#modelPill,#thinkPill,#planFirst,#permBtn) { min-height:32px; height:32px; font-size:12px; }
+  html body:not(.shell-winds) #composer :is(#micBtn,#attach) { width:32px; height:32px; min-width:32px; border-radius:8px; color:var(--muted); }
+  html body:not(.shell-winds) #composer :is(#micBtn,#attach):hover { background:var(--hover); color:var(--ink); }
+  html body:not(.shell-winds) #composer #modelPill { max-width:240px; order:0; }
+  html body:not(.shell-winds) #composer #thinkPill { order:1; }
+  html body:not(.shell-winds) #composer .composer-row > .spacer { order:2; display:block; flex:1; }
+  html body:not(.shell-winds) #composer :is(#modeChip,.mode-switch) { order:3; }
+  html body:not(.shell-winds) #composer #planFirst { order:4; }
+  html body:not(.shell-winds) #composer #permBtn { order:5; }
+  html body:not(.shell-winds) #composer #micBtn { order:6; }
+  html body:not(.shell-winds) #composer #attach { order:7; }
+  html body:not(.shell-winds) #composer #send { order:8; margin-left:auto; }
+}
+
+/* ---------- Fil de Codi: opció A, més lleuger ----------
+   La resposta destaca sobre els passos acabats, agrupats amb una línia
+   lateral. El resum final conserva les accions amb un separador discret. */
+@media (min-width:761px) {
+  html body:not(.shell-winds) #main { gap:22px; }
+  html body:not(.shell-winds) #main > .msg.a .body { font-size:15.5px; line-height:1.72; }
+  html body:not(.shell-winds) #main > .msg.u .msg-inner { border-color:transparent; padding:10px 16px; }
+  html body:not(.shell-winds) #main .work-group:not(.failed):not(.running) { border-color:transparent; border-radius:8px; }
+  html body:not(.shell-winds) #main .work-group:not(.failed):not(.running) > summary { min-height:34px; padding:6px 10px; border:0; border-radius:8px; }
+  html body:not(.shell-winds) #main .work-group:not(.failed):not(.running) .wg-body { border-left:1px solid var(--line); margin-left:16px; padding:8px 0 4px 14px; gap:6px; }
+  html body:not(.shell-winds) #main .wg-body .tool.done { border:0; border-radius:8px; background:var(--hover); padding:8px 10px; }
+  html body:not(.shell-winds) #main .run-summary { border:0; border-top:1px solid var(--line); border-radius:0; padding:12px 0 0; gap:8px 10px; background:transparent; }
+  html body:not(.shell-winds) #main .run-summary-file { border-color:transparent; background:transparent; color:var(--accent-hi); }
+  html body:not(.shell-winds) #main .run-summary-file:hover { background:var(--hover); }
+}
+
+/* ---------- Preferències i panells: opció A ---------- */
+@media (min-width:761px) {
+html body #prefsModal .pf-nav { padding:12px 10px; gap:2px; }
+html body #prefsModal .pf-nav button { min-height:34px; padding:0 12px; gap:12px; font-size:13px; }
+html body #prefsModal .pf-nav button.on { background:var(--accent-soft); color:var(--ink); }
+html body #prefsModal .pf-search { background-color:var(--hover); border-color:transparent; }
+html body #prefsModal .pf-gtitle { font-size:22px; font-weight:550; }
+html body #prefsModal .pf-gdesc { font-size:13px; line-height:1.55; margin:6px 0 10px; }
+html body #prefsModal .pf-lab b { font-size:14px; font-weight:550; }
+html body #prefsModal .pf-lab > span { font-size:12.5px; line-height:1.55; }
+html body #prefsModal .pf-row { padding:12px 0; }
+html body #toolDock .tool-dock-tabs { min-height:50px; gap:4px; }
+html body #toolDock .tool-dock-tabs button { min-height:32px; padding:5px 10px; font-size:13px; }
+html body #toolDock .page-copy { font-size:13px; line-height:1.55; }
+}@media (min-width:761px) {
+html body #prefsModal .pf-main { background:var(--bg); }
+html body #prefsModal .pf-nav { background:var(--sidebar); border-right:0; }
+html body #prefsModal .pf-row { border-bottom:0; }
+html body #prefsModal .pf-group { padding:20px 0 16px; }
+html body #toolDock .tool-dock-tabs button { border-radius:6px; background:transparent; border-bottom:2px solid transparent; }
+html body #toolDock .tool-dock-tabs button.active { border-bottom-color:var(--accent-hi); color:var(--ink); background:transparent; }
+html body #toolDock .tool-dock-tabs button:hover { background:var(--hover); }
+}
+@media (min-width:761px) {
+html body #toolDock .page-head { gap:8px; align-items:center; }
+html body #toolDock .page-head > .page-copy { flex:1 1 100%; margin:0 0 4px; }
+html body #toolDock .page-head > button { min-height:32px; padding:5px 10px; font-size:13px; }
+}
+
+/* ---------- Capçalera de Codi: una sola barra ----------
+   Les pestanyes de sessió (shell-layout.js les mou dins de #top) van
+   darrere del xip de la carpeta, separades per una línia fina. Abans eren
+   dues franges —40 px de pestanyes i 48 de capçalera— amb el nom del
+   projecte repetit a totes dues. A Vents no s'aplica: allà no hi ha #top. */
+html body.tabs-inline #top #sessionTabs {
+  height:auto; min-height:0; flex:0 1 auto; min-width:0; align-items:center;
+  padding:0 0 0 10px; margin-left:2px; background:transparent;
+  border-bottom:0; border-left:1px solid var(--line); overflow-x:auto; overflow-y:hidden;
+}
+html body.tabs-inline #top #sessionTabs.single { justify-content:flex-start; height:auto; min-height:0; }
+html body.tabs-inline #top .session-tab {
+  height:30px; padding:0 10px; border:0; border-radius:8px; background:transparent;
+  box-shadow:none; font-size:13px;
+}
+html body.tabs-inline #top .session-tab:hover { background:var(--hover); color:var(--ink); }
+html body.tabs-inline #top .session-tab.active { background:var(--surface); color:var(--ink); font-weight:550; }
+html body.tabs-inline #top .session-tab.new { width:28px; height:28px; min-width:28px; padding:0; margin:0; }
+/* La franja ja no hi és: ara és la capçalera la que fa de barra de títol a
+   l'escriptori (l'alçada ha de casar amb TITLEBAR_H de desktop/main.js). */
+html body.desktop.tabs-inline #top { -webkit-app-region:drag; padding-right:150px; }
+html body.desktop.tabs-inline #top :is(button,input,.session-tab,.folder-chip) { -webkit-app-region:no-drag; }

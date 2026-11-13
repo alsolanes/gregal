@@ -2,6 +2,13 @@ package xyz.solanes.gregal
 
 import androidx.compose.foundation.layout.imePadding
 
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.MailOutline
+import androidx.compose.material.icons.rounded.Settings
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Column
@@ -84,8 +91,6 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val updateMsg by vm.updateMsg.collectAsState()
     val info by vm.update.collectAsState()
     val prog by vm.updateProg.collectAsState()
-    val ctx = LocalContext.current
-    val vc = remember { vm.versionCodeInstalada() }
     // Només s'ensenya la targeta si el manifest és més nou que el
     // versionCode instal·lat (si no, seria un botó que no fa res).
     val teNova = info?.takeIf { it.isAvailable }
@@ -94,226 +99,230 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     var nomSing by remember { mutableStateOf(VentNom.singular) }
     var nomPlur by remember { mutableStateOf(VentNom.plural) }
     var nomsDesats by remember { mutableStateOf(false) }
+    val conn by vm.conn.collectAsState()
+    val admin by vm.isAdmin.collectAsState()
+    val simple by vm.simpleVents.collectAsState()
+    val requestedPage by vm.prefsPage.collectAsState()
+    val page = requestedPage.takeIf { it.available(!simple, admin) } ?: PrefsPage.Index
+    val scroll = androidx.compose.runtime.key(page) { rememberScrollState() }
+    fun open(target: PrefsPage) = vm.openPreferences(target)
     GregalBg {
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
-                GregalTopBar(t("prefs.title"), idioma, onMenu = onMenu)
+                GregalTopBar(page.title(idioma), idioma,
+                    onMenu = if (page == PrefsPage.Index) onMenu else null,
+                    onBack = if (page != PrefsPage.Index) ({ vm.back() }) else null)
             },
             snackbarHost = { NoticeHost(vm) },
         ) { pad ->
-            Column(Modifier.fillMaxSize().padding(pad).imePadding().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 104.dp)) {
-                // On corre Gregal i amb quin model: abans no es veia enlloc
-                // fora del calaix, i la clau només es podia posar des del
-                // desplegable del model.
-                val conn by vm.conn.collectAsState()
-                PrefsSection(t("app.prefs.server"))
-                GCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
-                    SettingsRow(
-                        Icons.Rounded.Dns, t("app.prefs.server"),
-                        if (conn.local) t("app.server.thisDevice") else t("app.prefs.serverRemote", "${conn.host}:${conn.port}"),
-                        tint = Onada,
-                        trailing = { TextButton(onClick = { vm.switchServer() }) { Text(t("app.server.switch"), color = Sea) } },
-                    )
-                    HorizontalDivider(Modifier.padding(start = 66.dp), color = Line)
-                    SettingsRow(
-                        Icons.Rounded.AutoAwesome, t("app.prefs.model"),
-                        st.provider.ifBlank { "—" } + if (st.model.isNotBlank()) " · " + st.model else "",
-                    )
-                    // B7: com arriben els avisos (push opcional o comprovació periòdica).
-                    if (!conn.local) {
-                        HorizontalDivider(Modifier.padding(start = 66.dp), color = Line)
-                        PushStatusRow(conn, idioma)
+            Column(Modifier.fillMaxSize().padding(pad).imePadding().verticalScroll(scroll)
+                .padding(start = 16.dp, end = 16.dp, bottom = 32.dp)) {
+                when (page) {
+                    PrefsPage.Index -> {
+                        PrefsLink(PrefsPage.General, idioma, if (idioma == "en") "Language, connection, notifications and updates" else "Idioma, connexió, avisos i actualitzacions", ::open)
+                        PrefsLink(PrefsPage.Appearance, idioma, if (idioma == "en") "Theme and personalisation" else "Tema i personalització", ::open)
+                        PrefsSection("Agent")
+                        PrefsLink(PrefsPage.Models, idioma, if (idioma == "en") "Current model and provider" else "Model actual i proveïdor", ::open)
+                        if (!simple) PrefsLink(PrefsPage.Permissions, idioma, if (idioma == "en") "Approvals and reviewer" else "Aprovacions i revisor", ::open)
+                        PrefsSection(if (idioma == "en") "Application" else "Aplicació")
+                        PrefsLink(PrefsPage.Connections, idioma, if (idioma == "en") "Accounts, calendar and email" else "Comptes, calendari i correu", ::open)
+                        if (admin) PrefsLink(PrefsPage.Server, idioma, if (idioma == "en") "Server administration" else "Administració del servidor", ::open)
                     }
-                }
-                // Convidar algú (la Marta) des del mòbil: abans calia la web.
-                val admin by vm.isAdmin.collectAsState()
-                if (!conn.local && admin) {
-                    Spacer(Modifier.height(10.dp))
-                    InviteCard(vm, idioma, conn.host + if (conn.host.startsWith("https://")) "" else ":" + conn.port)
-                }
-                Spacer(Modifier.height(10.dp))
-                ConnectionsCard(vm, idioma)
-                if (admin) {
-                    Spacer(Modifier.height(10.dp))
-                    ServerPowersCard(vm, idioma)
-                }
-                Spacer(Modifier.height(12.dp))
-                val simple by vm.simpleVents.collectAsState()
-
-                // On treballen els vents. Des del mòbil no es podia canviar i
-                // era el que decidia sobre quin codi treballava l'agent.
-                // Al Vents net no hi surt: els vents ja treballen a la seva carpeta.
-                if (!simple) {
-                    PrefsSection(t("app.carpeta.title"))
-                    GCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
-                        SettingsRow(
-                            Icons.Rounded.FolderOpen,
-                            st.project.ifBlank { t("app.carpeta.none") },
-                            camiCurt(st.cwd) + (if (st.branch.isNotBlank()) " · " + st.branch else ""),
-                            tint = Sea,
-                            trailing = {
-                                TextButton(onClick = { vm.go(Screen.Carpeta) }) { Text(t("app.carpeta.change"), color = Sea) }
-                            },
-                        )
-                    }
-                }
-
-                Spacer(Modifier.height(12.dp))
-                // El model i la clau són del servidor: només els toca qui l'administra.
-                if (conn.local || admin) ProviderSetup(vm, current = st.provider, change = true)
-
-                PrefsSection(t("prefs.appearance"))
-                GCard(Modifier.fillMaxWidth()) {
-                    Text(t("prefs.theme"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(10.dp))
-                    ChoicePills(listOf("sistema" to t("prefs.theme.system"), "fosc" to t("prefs.theme.dark"), "clar" to t("prefs.theme.light")), tema, { vm.setTema(it) })
-                    Spacer(Modifier.height(8.dp))
-                    Text(t("app.prefs.themeHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
-                    Spacer(Modifier.height(18.dp))
-                    Text(t("prefs.appTheme"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(8.dp))
-                    Text(t("prefs.appThemeHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
-                    Spacer(Modifier.height(10.dp))
-                    // El mostrari ensenya la paleta de debò: dues bombolles i
-                    // l'accent, amb el clar/fosc que tens triat ara mateix.
-                    val foscAra = esFosc(tema, isSystemInDarkTheme())
-                    Row(
-                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        for (tem in GregalTemes) {
-                            TemaMostra(
-                                tem = tem, fosc = foscAra, triat = temaApp == tem.id,
-                                nom = t("prefs.tema." + tem.id),
-                            ) { vm.setTemaApp(tem.id) }
+                    PrefsPage.General -> {
+                        PrefsGroup(Modifier.fillMaxWidth()) {
+                            Text(t("prefs.lang"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(10.dp))
+                            ChoicePills(listOf("system" to t("app.prefs.languageSystem"), "ca" to "Català", "en" to "English"), idiomaChoice, { vm.setIdioma(it) })
                         }
+                        PrefsSection(t("app.prefs.server"))
+                        SettingsRow(Icons.Rounded.Dns, if (conn.local) t("app.server.thisDevice") else "${conn.host}:${conn.port}",
+                            trailing = { TextButton(onClick = { vm.switchServer() }) { Text(t("app.server.switch")) } })
+                        if (!conn.local) PrefsLink(PrefsPage.Notifications, idioma, if (idioma == "en") "Device notification status" else "Estat dels avisos del dispositiu", ::open)
+                        PreferenceSwitchRow(t("prefs.codingTools"), t("prefs.codingToolsHelp"), !simple) { vm.setSimpleVents(!it) }
+                        PrefsLink(PrefsPage.About, idioma, "Gregal Android ${vm.versionNameInstalada()}", ::open)
                     }
-                    Spacer(Modifier.height(18.dp))
-                    Text(t("prefs.lang"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(10.dp))
-                    ChoicePills(listOf("system" to t("app.prefs.languageSystem"), "ca" to "Català", "en" to "English"), idiomaChoice, { vm.setIdioma(it) })
-                }
-
-                PrefsSection(t("prefs.ventsName"))
-                GCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 10.dp)) {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(t("prefs.ventsNameHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            androidx.compose.material3.OutlinedTextField(nomSing, { nomSing = it.take(20) }, singleLine = true,
-                                label = { Text(t("prefs.ventsNameSing")) }, modifier = Modifier.weight(1f))
-                            androidx.compose.material3.OutlinedTextField(nomPlur, { nomPlur = it.take(20) }, singleLine = true,
-                                label = { Text(t("prefs.ventsNamePlur")) }, modifier = Modifier.weight(1f))
+                    PrefsPage.About -> {
+                        PrefsSection(t("app.settings.version"))
+                        PrefsGroup(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
+                            SettingsRow(
+                                Icons.Rounded.SystemUpdate, "Gregal Android ${vm.versionNameInstalada()}",
+                                updateMsg.ifBlank { "vc${vm.versionCodeInstalada()}" }, tint = Lila,
+                                trailing = { TextButton(onClick = { vm.checkUpdate() }) { Text(t("app.settings.checkUpdates"), color = Sea) } },
+                            )
                         }
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Button(onClick = { vm.desaNomsDelVent(nomSing, nomPlur); nomsDesats = true }) { Text(t("prefs.ventsNameSave")) }
-                            if (nomsDesats) Text(t("prefs.ventsNameSaved"), color = Sea, fontSize = 12.5.sp)
-                            Spacer(Modifier.weight(1f))
-                            TextButton(onClick = { nomSing = ""; nomPlur = ""; vm.desaNomsDelVent("", ""); nomsDesats = false }) {
-                                Text(t("prefs.ventsNameReset"))
-                            }
-                        }
-                    }
-                }
-
-                PrefsSection(t("prefs.vents"))
-                GCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
-                    PreferenceSwitchRow(t("prefs.capHome"), t("prefs.capHomeHelp"), capHome) { vm.setCapHome(it) }
-                    HorizontalDivider(color = Line.copy(alpha = .5f))
-                    PreferenceSwitchRow(t("prefs.motion"), t("prefs.motionHelp"), expressiveMotion) { vm.setExpressiveMotion(it) }
-                    HorizontalDivider(color = Line.copy(alpha = .5f))
-                    PreferenceSwitchRow(t("prefs.codingTools"), t("prefs.codingToolsHelp"), !simple) { vm.setSimpleVents(!it) }
-                }
-
-                if (!simple) {
-
-                PrefsSection(t("prefs.perms"))
-                GCard(Modifier.fillMaxWidth()) {
-                    Text(t("prefs.perms.help"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
-                    Spacer(Modifier.height(10.dp))
-                    ChoicePills(
-                        listOf("ask" to t("app.perm.ask"), "edits" to t("app.perm.edits"), "full" to t("app.perm.full")),
-                        st.access.ifBlank { "edits" },
-                        { vm.setAccess(it) },
-                    )
-                }
-
-                PrefsSection(t("prefs.reviewer"))
-                GCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
-                    Row(
-                        Modifier.fillMaxWidth().toggleable(st.autoReview, role = Role.Switch) { vm.setReviewer(it) }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        Box(Modifier.size(36.dp).background(Sand.copy(alpha = 0.14f), RoundedCornerShape(11.dp)), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Rounded.Lock, null, tint = Sand, modifier = Modifier.size(20.dp))
-                        }
-                        Text(t("prefs.reviewer.help"), color = Tinta, fontSize = 14.sp, lineHeight = 19.sp, modifier = Modifier.weight(1f))
-                        Switch(checked = st.autoReview, onCheckedChange = null,
-                            colors = SwitchDefaults.colors(checkedTrackColor = Sea, checkedThumbColor = OnSea))
-                    }
-                }
-
-                PrefsSection(t("prefs.verify"))
-                GCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
-                    Row(
-                        Modifier.fillMaxWidth().toggleable(st.verify == "auto", role = Role.Switch) { vm.setVerify(it) }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        Box(Modifier.size(36.dp).background(Green.copy(alpha = 0.14f), RoundedCornerShape(11.dp)), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Rounded.Verified, null, tint = Green, modifier = Modifier.size(20.dp))
-                        }
-                        Text(t("prefs.verify.help"), color = Tinta, fontSize = 14.sp, lineHeight = 19.sp, modifier = Modifier.weight(1f))
-                        Switch(checked = st.verify == "auto", onCheckedChange = null,
-                            colors = SwitchDefaults.colors(checkedTrackColor = Sea, checkedThumbColor = OnSea))
-                    }
-                }
-
-                }
-
-                PrefsSection(t("app.settings.version"))
-                GCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
-                    SettingsRow(
-                        Icons.Rounded.SystemUpdate, "Gregal Android ${vm.versionNameInstalada()}",
-                        updateMsg.ifBlank { "vc${vm.versionCodeInstalada()}" }, tint = Lila,
-                        trailing = { TextButton(onClick = { vm.checkUpdate() }) { Text(t("app.settings.checkUpdates"), color = Sea) } },
-                    )
-                }
-                teNova?.let { r ->
-                    Spacer(Modifier.height(8.dp))
-                    GlassCard(Modifier.fillMaxWidth(), hi = true) {
-                        Column(Modifier.padding(12.dp)) {
-                            Text(t("app.update.install", r.latestVersion), color = Sea, fontSize = 15.sp)
-                            if (r.changelog.isNotEmpty()) {
-                                Spacer(Modifier.height(4.dp))
-                                Text(r.changelog, color = Tinta, style = GregalType.bodySmall)
-                            }
+                        teNova?.let { r ->
                             Spacer(Modifier.height(8.dp))
-                            if (prog >= 0) {
-                                // Baixant: barra + percentatge, sense botons.
-                                LinearProgressIndicator(
-                                    progress = { prog / 100f },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    color = Sea, trackColor = Line,
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                Text(t("app.update.downloadProgress", prog), color = Muted, fontSize = 12.sp)
-                            } else {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Button(onClick = { vm.baixaIInstalla() }) { Text(t("app.update.downloadInstall")) }
-                                    Spacer(Modifier.width(8.dp))
-                                    OutlinedButton(onClick = { vm.ignoraAquestaVersio() }) {
-                                        Text(t("app.update.silence"))
+                            GlassCard(Modifier.fillMaxWidth(), hi = true) {
+                                Column(Modifier.padding(12.dp)) {
+                                    Text(t("app.update.install", r.latestVersion), color = Sea, fontSize = 15.sp)
+                                    if (r.changelog.isNotEmpty()) {
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(r.changelog, color = Tinta, style = GregalType.bodySmall)
+                                    }
+                                    Spacer(Modifier.height(8.dp))
+                                    if (prog >= 0) {
+                                        // Baixant: barra + percentatge, sense botons.
+                                        LinearProgressIndicator(
+                                            progress = { prog / 100f },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            color = Sea, trackColor = Line,
+                                        )
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(t("app.update.downloadProgress", prog), color = Muted, fontSize = 12.sp)
+                                    } else {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Button(onClick = { vm.baixaIInstalla() }) { Text(t("app.update.downloadInstall")) }
+                                            Spacer(Modifier.width(8.dp))
+                                            OutlinedButton(onClick = { vm.ignoraAquestaVersio() }) {
+                                                Text(t("app.update.silence"))
+                                            }
+                                        }
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(
+                                            t("app.update.shaHelp"),
+                                            color = Faint, fontSize = 11.sp,
+                                        )
                                     }
                                 }
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    t("app.update.shaHelp"),
-                                    color = Faint, fontSize = 11.sp,
-                                )
                             }
                         }
+                    }
+                    PrefsPage.Appearance -> {
+                        PrefsLink(PrefsPage.Theme, idioma, t("prefs.theme.system"), ::open)
+                        PrefsLink(PrefsPage.Palette, idioma, t("prefs.tema." + temaApp), ::open)
+                        PrefsLink(PrefsPage.Names, idioma,
+                            listOf(VentNom.singular, VentNom.plural).filter { it.isNotBlank() }.joinToString(" · ")
+                                .ifBlank { t("prefs.ventsNameHelp") }, ::open)
+                        PreferenceSwitchRow(t("prefs.capHome"), t("prefs.capHomeHelp"), capHome) { vm.setCapHome(it) }
+                        PreferenceSwitchRow(t("prefs.motion"), t("prefs.motionHelp"), expressiveMotion) { vm.setExpressiveMotion(it) }
+                    }
+                    PrefsPage.Theme -> {
+                        Text(t("prefs.theme"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(10.dp))
+                        ChoicePills(listOf("sistema" to t("prefs.theme.system"), "fosc" to t("prefs.theme.dark"), "clar" to t("prefs.theme.light")), tema, { vm.setTema(it) })
+                        Spacer(Modifier.height(8.dp))
+                        Text(t("app.prefs.themeHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+                    }
+                    PrefsPage.Palette -> {
+                        Text(t("prefs.appTheme"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(8.dp))
+                        Text(t("prefs.appThemeHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+                        Spacer(Modifier.height(10.dp))
+                        // El mostrari ensenya la paleta de debò: dues bombolles i
+                        // l'accent, amb el clar/fosc que tens triat ara mateix.
+                        val foscAra = esFosc(tema, isSystemInDarkTheme())
+                        Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            for (tem in GregalTemes) {
+                                TemaMostra(
+                                    tem = tem, fosc = foscAra, triat = temaApp == tem.id,
+                                    nom = t("prefs.tema." + tem.id),
+                                ) { vm.setTemaApp(tem.id) }
+                            }
+                        }
+                        Spacer(Modifier.height(18.dp))
+                    }
+                    PrefsPage.Names -> {
+                        PrefsSection(t("prefs.ventsName"))
+                        PrefsGroup(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 10.dp)) {
+                            Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(t("prefs.ventsNameHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    androidx.compose.material3.OutlinedTextField(nomSing, { nomSing = it.take(20) }, singleLine = true,
+                                        label = { Text(t("prefs.ventsNameSing")) }, modifier = Modifier.weight(1f))
+                                    androidx.compose.material3.OutlinedTextField(nomPlur, { nomPlur = it.take(20) }, singleLine = true,
+                                        label = { Text(t("prefs.ventsNamePlur")) }, modifier = Modifier.weight(1f))
+                                }
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Button(onClick = { vm.desaNomsDelVent(nomSing, nomPlur); nomsDesats = true }) { Text(t("prefs.ventsNameSave")) }
+                                    if (nomsDesats) Text(t("prefs.ventsNameSaved"), color = Sea, fontSize = 12.5.sp)
+                                    Spacer(Modifier.weight(1f))
+                                    TextButton(onClick = { nomSing = ""; nomPlur = ""; vm.desaNomsDelVent("", ""); nomsDesats = false }) {
+                                        Text(t("prefs.ventsNameReset"))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    PrefsPage.Notifications -> {
+                        if (!conn.local) PushStatusRow(conn, idioma)
+                    }
+                    PrefsPage.Provider -> {
+                        if (conn.local || admin) ProviderSetup(vm, current = st.provider, change = true)
+                    }
+                    PrefsPage.Models -> {
+                        SettingsRow(Icons.Rounded.AutoAwesome, t("app.prefs.model"),
+                            st.provider.ifBlank { "—" } + if (st.model.isNotBlank()) " · " + st.model else "")
+                        if (conn.local || admin) PrefsLink(PrefsPage.Provider, idioma, st.provider, ::open)
+                        if (!simple) {
+                            PrefsSection(t("prefs.verify"))
+                            PrefsGroup(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
+                                Row(
+                                    Modifier.fillMaxWidth().toggleable(st.verify == "auto", role = Role.Switch) { vm.setVerify(it) }
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+                                ) {
+                                    Box(Modifier.size(36.dp).background(Green.copy(alpha = 0.14f), RoundedCornerShape(11.dp)), contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Rounded.Verified, null, tint = Green, modifier = Modifier.size(20.dp))
+                                    }
+                                    Text(t("prefs.verify.help"), color = Tinta, fontSize = 14.sp, lineHeight = 19.sp, modifier = Modifier.weight(1f))
+                                    Switch(checked = st.verify == "auto", onCheckedChange = null,
+                                        colors = SwitchDefaults.colors(checkedTrackColor = Sea, checkedThumbColor = OnSea))
+                                }
+                            }
+
+                        }
+                    }
+                    PrefsPage.Permissions -> {
+                        PrefsGroup(Modifier.fillMaxWidth()) {
+                            for (mode in listOf("ask", "edits", "full")) {
+                                val selected = st.access.ifBlank { "edits" } == mode
+                                Row(Modifier.fillMaxWidth().selectable(selected, role = Role.RadioButton) { vm.setAccess(mode) }
+                                    .heightIn(min = 64.dp).padding(vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically) {
+                                    RadioButton(selected, onClick = null)
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(t("app.perm.$mode"), color = Ink, fontSize = 15.sp)
+                                        Text(t("app.perm.${mode}Help"), color = Muted, fontSize = 12.5.sp, lineHeight = 18.sp)
+                                    }
+                                }
+                            }
+                        }
+
+                        PrefsSection(t("prefs.reviewer"))
+                        PrefsGroup(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
+                            Row(
+                                Modifier.fillMaxWidth().toggleable(st.autoReview, role = Role.Switch) { vm.setReviewer(it) }
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            ) {
+                                Box(Modifier.size(36.dp).background(Sand.copy(alpha = 0.14f), RoundedCornerShape(11.dp)), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Rounded.Lock, null, tint = Sand, modifier = Modifier.size(20.dp))
+                                }
+                                Text(t("prefs.reviewer.help"), color = Tinta, fontSize = 14.sp, lineHeight = 19.sp, modifier = Modifier.weight(1f))
+                                Switch(checked = st.autoReview, onCheckedChange = null,
+                                    colors = SwitchDefaults.colors(checkedTrackColor = Sea, checkedThumbColor = OnSea))
+                            }
+                        }
+                    }
+                    PrefsPage.Connections -> {
+                        PrefsLink(PrefsPage.Accounts, idioma, if (idioma == "en") "Services, status and permissions" else "Serveis, estat i permisos", ::open)
+                        PrefsLink(PrefsPage.CalendarMail, idioma, "Google Calendar · Gmail", ::open)
+                    }
+                    PrefsPage.Accounts -> ConnexionsEntry(conn, idioma)
+                    PrefsPage.CalendarMail -> {
+                        PrefsLink(PrefsPage.Calendar, idioma, t("app.conn.calName"), ::open)
+                        PrefsLink(PrefsPage.Mail, idioma, t("app.conn.mailUser"), ::open)
+                        PrefsLink(PrefsPage.Briefing, idioma, t("app.conn.briefHelp"), ::open)
+                    }
+                    PrefsPage.Calendar, PrefsPage.Mail, PrefsPage.Briefing -> ConnectionsCard(vm, idioma, page)
+                    PrefsPage.Server -> {
+                        if (!conn.local && admin) InviteCard(vm, idioma, conn.host + if (conn.host.startsWith("https://")) "" else ":" + conn.port)
+                        if (admin) ServerPowersCard(vm, idioma)
                     }
                 }
             }
@@ -321,11 +330,39 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     }
 }
 
+/** Quiet settings groups, with no repeated frame around each control. */
+@Composable
+private fun PrefsGroup(modifier: Modifier = Modifier, padding: PaddingValues = PaddingValues(12.dp), content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    Column(modifier.padding(padding), content = content)
+}
+
+@Composable
+private fun PrefsLink(page: PrefsPage, lang: String, detail: String, open: (PrefsPage) -> Unit) {
+    val icon = when (page) {
+        PrefsPage.Appearance, PrefsPage.Palette, PrefsPage.Theme -> Icons.Rounded.Palette
+        PrefsPage.Models -> Icons.Rounded.AutoAwesome
+        PrefsPage.Permissions -> Icons.Rounded.Lock
+        PrefsPage.Connections, PrefsPage.Accounts -> Icons.Rounded.Link
+        PrefsPage.CalendarMail, PrefsPage.Calendar -> Icons.Rounded.CalendarMonth
+        PrefsPage.Mail -> Icons.Rounded.MailOutline
+        PrefsPage.Server -> Icons.Rounded.Dns
+        else -> Icons.Rounded.Settings
+    }
+    Row(Modifier.fillMaxWidth().clickable { open(page) }.heightIn(min = 72.dp).padding(horizontal = 8.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Icon(icon, null, tint = Muted, modifier = Modifier.size(24.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(page.title(lang), color = Ink, fontSize = 15.sp)
+            Text(detail, color = Muted, fontSize = 12.5.sp, lineHeight = 18.sp)
+        }
+        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = Muted)
+    }
+}
 /** Títol de secció de preferències: el mateix estil discret de tota l'app. */
 @Composable
 private fun PrefsSection(text: String) {
     Text(
-        text.uppercase(), style = GregalType.overline, color = Faint,
+        text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Faint,
         modifier = Modifier.padding(start = 4.dp, top = 22.dp, bottom = 8.dp),
     )
 }
@@ -380,7 +417,7 @@ private fun InviteCard(vm: GregalViewModel, lang: String, server: String) {
     val ctx = LocalContext.current
     var code by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
-    GCard(Modifier.fillMaxWidth()) {
+    PrefsGroup(Modifier.fillMaxWidth()) {
         Text(tr(lang, "app.invite.title"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(4.dp))
         Text(tr(lang, "app.invite.help"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
@@ -416,7 +453,7 @@ private fun ServerPowersCard(vm: GregalViewModel, lang: String) {
     val p = sp ?: return
     var notes by remember(p.notes) { mutableStateOf(p.notes) }
     var saving by remember { mutableStateOf(false) }
-    GCard(Modifier.fillMaxWidth()) {
+    PrefsGroup(Modifier.fillMaxWidth()) {
         PreferenceSwitchRowPlain(tr(lang, "app.powers.title"), tr(lang, "app.powers.help"), p.enabled) { vm.setServerPowers(enabled = it) }
         if (p.tools.isNotEmpty()) Text(tr(lang, "app.powers.machine", p.tools.joinToString(", ")), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
         p.tunnels.forEach { (url, what) -> Text(url + "  →  " + what, color = Ink, fontSize = 12.5.sp) }
@@ -451,13 +488,18 @@ private fun PreferenceSwitchRowPlain(title: String, help: String, checked: Boole
  * resum del matí d'aquest compte. Els vents només llegeixen: mai no envien.
  */
 @Composable
-private fun ConnectionsCard(vm: GregalViewModel, lang: String) {
+private fun ConnectionsCard(vm: GregalViewModel, lang: String, page: PrefsPage) {
     val c by vm.connections.collectAsState()
     val msg by vm.connectionsMsg.collectAsState()
     val winds by vm.winds.collectAsState()
     val uris = androidx.compose.ui.platform.LocalUriHandler.current
     LaunchedEffect(Unit) { vm.loadConnections() }
-    val cs = c ?: return
+    val cs = c
+    if (cs == null) {
+        Text(msg.ifBlank { if (lang == "en") "Loading connections…" else "Carregant connexions…" }, color = Muted)
+        TextButton(onClick = { vm.loadConnections() }) { Text(if (lang == "en") "Retry" else "Torna-ho a provar") }
+        return
+    }
     var calName by remember { mutableStateOf("") }
     var calUrl by remember { mutableStateOf("") }
     var mailUser by remember(cs.mailUser) { mutableStateOf(cs.mailUser) }
@@ -465,61 +507,63 @@ private fun ConnectionsCard(vm: GregalViewModel, lang: String) {
     var briefOn by remember(cs.briefingOn) { mutableStateOf(cs.briefingOn) }
     var briefTime by remember(cs.briefingTime) { mutableStateOf(cs.briefingTime) }
     var briefWind by remember(cs.briefingWind, winds) { mutableStateOf(cs.briefingWind.ifBlank { (winds.firstOrNull { it.specialty == "organisation" } ?: winds.firstOrNull())?.id.orEmpty() }) }
-    GCard(Modifier.fillMaxWidth()) {
-        Text(tr(lang, "app.conn.title"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+    PrefsGroup(Modifier.fillMaxWidth()) {
         Text(tr(lang, "app.conn.help"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
-        // B5: el model únic de connexions (connectors, calendaris, bústies, sessions a l'ordinador).
-        ConnexionsEntry(vm.conn.value, lang)
         Spacer(Modifier.height(12.dp))
-        Text("Google Calendar", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-        Text(tr(lang, "app.conn.calHelp"), color = Muted, fontSize = 12.sp, lineHeight = 16.sp,
-            modifier = Modifier.clickable { uris.openUri("https://calendar.google.com/calendar/r/settings") })
-        cs.calendars.forEach { (name, url) ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("$name · $url", color = Ink, fontSize = 12.5.sp, modifier = Modifier.weight(1f))
-                TextButton(onClick = { vm.saveConnections(org.json.JSONObject().put("remove_calendar", name), tr(lang, "app.conn.removed")) }) { Text(tr(lang, "app.conn.remove"), color = Sea) }
-            }
-        }
-        androidx.compose.material3.OutlinedTextField(calName, { calName = it }, label = { Text(tr(lang, "app.conn.calName")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        androidx.compose.material3.OutlinedTextField(calUrl, { calUrl = it.trim() }, label = { Text(tr(lang, "app.conn.calUrl")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        androidx.compose.material3.OutlinedButton(onClick = {
-            vm.saveConnections(org.json.JSONObject().put("add_calendar", org.json.JSONObject().put("name", calName).put("url", calUrl)), tr(lang, "app.conn.calAdded"))
-            calName = ""; calUrl = ""
-        }, enabled = calUrl.isNotBlank(), shape = RoundedCornerShape(14.dp)) { Text(tr(lang, "app.conn.add")) }
-
-        Spacer(Modifier.height(12.dp))
-        Text("Gmail", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-        Text(tr(lang, "app.conn.mailHelp"), color = Muted, fontSize = 12.sp, lineHeight = 16.sp,
-            modifier = Modifier.clickable { uris.openUri("https://myaccount.google.com/apppasswords") })
-        androidx.compose.material3.OutlinedTextField(mailUser, { mailUser = it.trim() }, label = { Text(tr(lang, "app.conn.mailUser")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        androidx.compose.material3.OutlinedTextField(mailPass, { mailPass = it }, label = { Text(tr(lang, if (cs.mailConnected) "app.conn.mailPassSaved" else "app.conn.mailPass")) },
-            singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            androidx.compose.material3.OutlinedButton(onClick = {
-                vm.saveConnections(org.json.JSONObject().put("mail", org.json.JSONObject().put("host", "imap.gmail.com").put("port", 993).put("user", mailUser).put("password", mailPass)), tr(lang, "app.conn.mailOk"))
-                mailPass = ""
-            }, enabled = mailUser.isNotBlank() && (mailPass.isNotBlank() || cs.mailConnected), shape = RoundedCornerShape(14.dp)) {
-                Text(tr(lang, if (cs.mailConnected) "app.conn.save" else "app.conn.connect"))
-            }
-            if (cs.mailConnected) TextButton(onClick = { vm.saveConnections(org.json.JSONObject().put("remove_mail", true), tr(lang, "app.conn.mailOff")) }) { Text(tr(lang, "app.conn.disconnect"), color = Sea) }
-        }
-
-        Spacer(Modifier.height(12.dp))
-        PreferenceSwitchRowPlain(tr(lang, "app.conn.brief"), tr(lang, "app.conn.briefHelp"), briefOn) { briefOn = it }
-        if (briefOn) {
-            androidx.compose.material3.OutlinedTextField(briefTime, { briefTime = it.trim() }, label = { Text(tr(lang, "app.conn.briefTime")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            Text(tr(lang, "app.conn.briefWind"), color = Muted, fontSize = 12.5.sp)
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                winds.forEach { w ->
-                    androidx.compose.material3.FilterChip(selected = w.id == briefWind, onClick = { briefWind = w.id }, label = { Text(w.name) })
+        if (page == PrefsPage.Calendar) {
+            Text("Google Calendar", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(tr(lang, "app.conn.calHelp"), color = Muted, fontSize = 12.sp, lineHeight = 16.sp,
+                modifier = Modifier.clickable { uris.openUri("https://calendar.google.com/calendar/r/settings") })
+            cs.calendars.forEach { (name, url) ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("$name · $url", color = Ink, fontSize = 12.5.sp, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { vm.saveConnections(org.json.JSONObject().put("remove_calendar", name), tr(lang, "app.conn.removed")) }) { Text(tr(lang, "app.conn.remove"), color = Sea) }
                 }
             }
-        }
-        androidx.compose.material3.OutlinedButton(onClick = {
-            vm.saveConnections(org.json.JSONObject().put("briefing", org.json.JSONObject().put("enabled", briefOn).put("time", briefTime).put("wind", briefWind)),
-                tr(lang, if (briefOn) "app.conn.briefOk" else "app.conn.briefOff"))
-        }, enabled = !briefOn || (briefWind.isNotBlank() && Regex("^\\d{2}:\\d{2}$").matches(briefTime)), shape = RoundedCornerShape(14.dp)) { Text(tr(lang, "app.conn.save")) }
+            androidx.compose.material3.OutlinedTextField(calName, { calName = it }, label = { Text(tr(lang, "app.conn.calName")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            androidx.compose.material3.OutlinedTextField(calUrl, { calUrl = it.trim() }, label = { Text(tr(lang, "app.conn.calUrl")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            androidx.compose.material3.OutlinedButton(onClick = {
+                vm.saveConnections(org.json.JSONObject().put("add_calendar", org.json.JSONObject().put("name", calName).put("url", calUrl)), tr(lang, "app.conn.calAdded"))
+                calName = ""; calUrl = ""
+            }, enabled = calUrl.isNotBlank(), shape = RoundedCornerShape(14.dp)) { Text(tr(lang, "app.conn.add")) }
 
+            Spacer(Modifier.height(12.dp))
+        }
+        if (page == PrefsPage.Mail) {
+            Text("Gmail", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(tr(lang, "app.conn.mailHelp"), color = Muted, fontSize = 12.sp, lineHeight = 16.sp,
+                modifier = Modifier.clickable { uris.openUri("https://myaccount.google.com/apppasswords") })
+            androidx.compose.material3.OutlinedTextField(mailUser, { mailUser = it.trim() }, label = { Text(tr(lang, "app.conn.mailUser")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            androidx.compose.material3.OutlinedTextField(mailPass, { mailPass = it }, label = { Text(tr(lang, if (cs.mailConnected) "app.conn.mailPassSaved" else "app.conn.mailPass")) },
+                singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                androidx.compose.material3.OutlinedButton(onClick = {
+                    vm.saveConnections(org.json.JSONObject().put("mail", org.json.JSONObject().put("host", "imap.gmail.com").put("port", 993).put("user", mailUser).put("password", mailPass)), tr(lang, "app.conn.mailOk"))
+                    mailPass = ""
+                }, enabled = mailUser.isNotBlank() && (mailPass.isNotBlank() || cs.mailConnected), shape = RoundedCornerShape(14.dp)) {
+                    Text(tr(lang, if (cs.mailConnected) "app.conn.save" else "app.conn.connect"))
+                }
+                if (cs.mailConnected) TextButton(onClick = { vm.saveConnections(org.json.JSONObject().put("remove_mail", true), tr(lang, "app.conn.mailOff")) }) { Text(tr(lang, "app.conn.disconnect"), color = Sea) }
+            }
+
+            Spacer(Modifier.height(12.dp))
+        }
+        if (page == PrefsPage.Briefing) {
+            PreferenceSwitchRowPlain(tr(lang, "app.conn.brief"), tr(lang, "app.conn.briefHelp"), briefOn) { briefOn = it }
+            if (briefOn) {
+                androidx.compose.material3.OutlinedTextField(briefTime, { briefTime = it.trim() }, label = { Text(tr(lang, "app.conn.briefTime")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Text(tr(lang, "app.conn.briefWind"), color = Muted, fontSize = 12.5.sp)
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    winds.forEach { w ->
+                        androidx.compose.material3.FilterChip(selected = w.id == briefWind, onClick = { briefWind = w.id }, label = { Text(w.name) })
+                    }
+                }
+            }
+            androidx.compose.material3.OutlinedButton(onClick = {
+                vm.saveConnections(org.json.JSONObject().put("briefing", org.json.JSONObject().put("enabled", briefOn).put("time", briefTime).put("wind", briefWind)),
+                    tr(lang, if (briefOn) "app.conn.briefOk" else "app.conn.briefOff"))
+            }, enabled = !briefOn || (briefWind.isNotBlank() && Regex("^\\d{2}:\\d{2}$").matches(briefTime)), shape = RoundedCornerShape(14.dp)) { Text(tr(lang, "app.conn.save")) }
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { vm.testConnections() }) { Text(tr(lang, "app.conn.test"), color = Sea) }
             if (msg.isNotBlank()) Text(msg, color = Muted, fontSize = 12.5.sp, modifier = Modifier.weight(1f))

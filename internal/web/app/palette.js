@@ -63,6 +63,10 @@
       a.push({ label: T('nav.automations'), icon: 'automatitzacions', run: () => g.setView && g.setView('automatitzacions') });
       a.push({ label: T('product.openCodi'), icon: 'agent', run: () => { location.href = '/'; } });
     }
+    if (producte() !== 'jocs') {
+      a.push({ label: T('nav.memory'), icon: 'knowledge', run: () => g.setView && g.setView('memoria') });
+      a.push({ label: T('library.title'), icon: 'publicacions', run: () => g.setView && g.setView('publicacions') });
+    }
     // Notes a mà (notes-quick.js): obrir-les o començar-ne una.
     const qn = window.gregalQuickNotes;
     if (qn) {

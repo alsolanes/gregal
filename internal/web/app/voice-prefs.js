@@ -63,6 +63,12 @@ export const voicePrefs = {
   async bind(cos) {
     const box = cos && cos.querySelector('#prefsVoice');
     if (!box) return;
+    const section = box.closest('#prefsVoiceSec');
+    const available = window.gregalPlugins;
+    if (available?.loaded() && !available.list().some(plugin => plugin.id === 'arena' && plugin.enabled)) {
+      if (section) section.hidden = true;
+      return;
+    }
     await this.load();
     if (!box.isConnected) return;
     // Sense els jocs al servidor (Gregal; són a l'app Gregal Jocs), les veus
@@ -73,6 +79,7 @@ export const voicePrefs = {
       if (sec) sec.hidden = true;
       return;
     }
+    if (section) section.hidden = false;
     const paint =() => { box.innerHTML = this.html(); wire(); };
     const msg = (t, bad) => { const m = box.querySelector('#prefsVoiceMsg'); if (m) { m.hidden = !t; m.textContent = t || ''; m.classList.toggle('error', !!bad); } };
     const poll = () => {

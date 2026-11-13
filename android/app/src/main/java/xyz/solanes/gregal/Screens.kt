@@ -1,6 +1,7 @@
 package xyz.solanes.gregal
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -1520,7 +1521,7 @@ fun SessionsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
             topBar = { GregalTopBar(tr(lang, "nav.convs"), lang, onMenu = onMenu, actions = {
                 RefreshAction(lang, carregant) { vm.loadSessions() }
                 IconButton(onClick = { vm.newSession(); vm.go(Screen.Chat) }) {
-                    Icon(Icons.Rounded.Add, tr(lang, "nav.new"), tint = Ink)
+                    Icon(Icons.Rounded.Add, tr(lang, "nav.new"), tint = Sea)
                 }
             }) },
             snackbarHost = { NoticeHost(vm) },
@@ -1536,10 +1537,10 @@ fun SessionsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     OutlinedTextField(filtre, { filtre = it }, Modifier.fillMaxWidth(),
                         placeholder = { Text(tr(lang, "app.sess.search"), color = Faint) }, singleLine = true,
                         leadingIcon = { Icon(Icons.Rounded.Search, null, tint = Muted) },
-                        shape = RoundedCornerShape(50),
+                        shape = RoundedCornerShape(14.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedContainerColor = Superficie, unfocusedContainerColor = Superficie,
-                            unfocusedBorderColor = Line, focusedBorderColor = Sea.copy(alpha = 0.6f),
+                            unfocusedBorderColor = Color.Transparent, focusedBorderColor = Sea.copy(alpha = 0.6f),
                         ))
                     Spacer(Modifier.height(4.dp))
                 }
@@ -1549,37 +1550,44 @@ fun SessionsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 }
                 grups.forEach { (g, items) ->
                     item {
-                        Text(convGroupLabel(g, lang).uppercase(), color = Faint, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-                            letterSpacing = 1.4.sp, modifier = Modifier.padding(start = 4.dp, top = 16.dp, bottom = 6.dp))
+                        Text(convGroupLabel(g, lang), color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(start = 4.dp, top = 16.dp, bottom = 6.dp))
                     }
                     items(items, key = { it.name }) { s ->
                         val look = s.look()
                         // Una conversa amb un vent porta la seva cara; la rotllana i
                         // l'agent, la seva icona. El tipus també en paraules.
                         val wind = if (look.kind == ConvKind.WIND) winds.firstOrNull { it.name == look.title } else null
-                        GCard(onClick = { vm.resumeSession(s.name) }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            padding = PaddingValues(start = 12.dp, top = 12.dp, bottom = 12.dp, end = 4.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(44.dp).background(
-                                    (wind?.let { Color(it.argb) } ?: if (look.kind == ConvKind.GROUP) Lila else Sea).copy(alpha = 0.16f),
-                                    RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
-                                    if (wind != null) WindFace(size = 38, accent = Color(wind.argb), style = wind.faceStyle)
-                                    else Icon(if (look.kind == ConvKind.GROUP) Icons.Rounded.Forum else Icons.Rounded.ChatBubbleOutline, null,
-                                        tint = if (look.kind == ConvKind.GROUP) Lila else Sea, modifier = Modifier.size(21.dp))
+                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                            .background(if (s.current) Sea.copy(alpha = .14f) else Color.Transparent)
+                            .clickable { vm.resumeSession(s.name) }.heightIn(min = 72.dp)
+                            .padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+                                if (wind != null) WindFace(size = 28, accent = Color(wind.argb), style = wind.faceStyle)
+                                else Icon(if (look.kind == ConvKind.GROUP) Icons.Rounded.Forum else Icons.Rounded.ChatBubbleOutline, null,
+                                    tint = Muted, modifier = Modifier.size(21.dp))
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(look.title, fontWeight = if (s.current) FontWeight.SemiBold else FontWeight.Normal, fontSize = 15.5.sp, color = if (s.current) Ink else Tinta,
+                                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                val count = if (s.msgs == 1) tr(lang, "app.sess.oneMessage")
+                                    else tr(lang, "app.sess.messages", s.msgs)
+                                val kind = tr(lang, when (look.kind) { ConvKind.WIND -> "app.sess.kindWind"; ConvKind.GROUP -> "app.sess.kindGroup"; ConvKind.AGENT -> "app.sess.kindAgent" })
+                                Text("$kind · $count · ${ago(s.moment, lang = lang)}" +
+                                    if (s.current) " · ${tr(lang, "app.sess.current")}" else "",
+                                    fontSize = 12.5.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            var menu by remember(s.name) { mutableStateOf(false) }
+                            Box {
+                                IconButton(onClick = { menu = true }) {
+                                    Icon(Icons.Rounded.MoreVert, tr(lang, "app.goals.more"), tint = Muted)
                                 }
-                                Spacer(Modifier.width(12.dp))
-                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                    Text(look.title, fontWeight = FontWeight.SemiBold, fontSize = 15.5.sp, color = Ink,
-                                        maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                    val count = if (s.msgs == 1) tr(lang, "app.sess.oneMessage")
-                                        else tr(lang, "app.sess.messages", s.msgs)
-                                    val kind = tr(lang, when (look.kind) { ConvKind.WIND -> "app.sess.kindWind"; ConvKind.GROUP -> "app.sess.kindGroup"; ConvKind.AGENT -> "app.sess.kindAgent" })
-                                    Text("$kind · $count · ${ago(s.moment, lang = lang)}" +
-                                        if (s.current) " · ${tr(lang, "app.sess.current")}" else "",
-                                        fontSize = 12.5.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                }
-                                IconButton(onClick = { confirma = s.name }) {
-                                    Icon(Icons.Rounded.Delete, tr(lang, "app.sess.delete"), tint = Faint, modifier = Modifier.size(20.dp))
+                                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                                    DropdownMenuItem(text = { Text(tr(lang, "app.sess.delete")) },
+                                        leadingIcon = { Icon(Icons.Rounded.Delete, null) },
+                                        onClick = { menu = false; confirma = s.name })
                                 }
                             }
                         }

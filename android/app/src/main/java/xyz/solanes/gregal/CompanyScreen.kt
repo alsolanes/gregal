@@ -1015,7 +1015,7 @@ internal fun InboxHeader(title: String, count: Int, favorite: Boolean = false, l
         Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 18.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title.uppercase(), color = Muted, style = GregalType.overline,
+        Text(title, color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f))
         if (favorite) IconButton(onClick = onAddSection) {
             Icon(Icons.Rounded.Folder, tr(lang, "app.vents.newSection"), tint = Muted, modifier = Modifier.size(16.dp))
@@ -1026,7 +1026,7 @@ internal fun InboxHeader(title: String, count: Int, favorite: Boolean = false, l
 /** «Comença un xat»: el tall entre converses i vents sense parlar. */
 @Composable
 internal fun InboxDivider(lang: String) {
-    Text(tr(lang, "app.vents.startChat").uppercase(), color = Muted, style = GregalType.overline,
+    Text(tr(lang, "app.vents.startChat"), color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
         modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 4.dp))
 }
 
@@ -1071,8 +1071,8 @@ internal fun ConversationRow(
             mood = mood ?: if (busy) WindMood.THINKING else WindMood.IDLE, showKit = faces.size <= 1)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(title, fontSize = 15.sp, fontWeight = if (unread) FontWeight.Bold else FontWeight.SemiBold,
-                    color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Text(title, fontSize = 15.sp, fontWeight = if (unread) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (unread) Ink else Tinta, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 if (receipt.isNotBlank()) Text(receipt, color = Muted, fontSize = 11.sp)
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

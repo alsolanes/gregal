@@ -1,13 +1,13 @@
 // Extres del xat: preguntes al marge (/btw), resums de sessió (/recap i el
 // botó «Resumeix» quan tornes a una sessió amb novetats) i memòria
 // automàtica (les notes que Gregal decideix desar en acabar un torn de codi,
-// amb un avís efímer i «Desfés», i la secció de memòria a Preferències amb el
+// amb un avís efímer i «Desfés», i el panell de memòria del projecte amb el
 // diff abans d'aplicar una consolidació).
 //
 // Res d'això toca el torn en marxa ni l'historial: /btw i /recap són
 // crides al marge, i les notes les escriu el servidor sol.
 // El mòdul s'enganxa a la pàgina per fora (escolta el composer en fase de
-// captura i observa el panell de preferències) per no engreixar index.html.
+// captura i exposa el panell de memòria) per no engreixar index.html.
 (function () {
   const $ = id => document.getElementById(id);
   const G = () => window.gregal;
@@ -218,8 +218,10 @@
     } catch (e) {}
   }
 
-  // ---- Preferències: secció de memòria ----
+  // ---- Eines del projecte: memòria ----
   async function memorySection(body) {
+    if (!body) return;
+    body.replaceChildren();
     const sec = document.createElement('section');
     sec.id = 'memSection';
     sec.className = 'prefs-section mem-section';
@@ -228,8 +230,7 @@
     sec.querySelector('p').textContent = T('extras.mem.help', 'Durable notes in .gregal/memory.md that every session reads.');
     const list = sec.querySelector('.mem-notes'), diffBox = sec.querySelector('.mem-diff'), tidy = sec.querySelector('.mem-tidy');
     tidy.textContent = T('extras.mem.tidy', 'Tidy notes');
-    // Preferències va per grups: la memòria del projecte és de «Models i agent».
-    (body.querySelector('#prefsG-agent .pf-gbody') || body).appendChild(sec);
+    body.appendChild(sec);
     const paint = notes => {
       list.replaceChildren();
       if (!notes.length) { const li = document.createElement('li'); li.className = 'faint'; li.textContent = T('extras.mem.none', 'No project notes yet.'); list.append(li); }
@@ -313,11 +314,24 @@
       wasBusy = busy;
     }, 1500);
     setInterval(markSeen, 20000);
-    const body = $('prefsBody');
-    if (body) new MutationObserver(() => {
-      if (body.children.length && !$('memSection')) memorySection(body);
-    }).observe(body, { childList: true });
-    window.gregalExtras = { btw, recap };
+    const loadMemory = () => memorySection($('projectMemoryBody'));
+    const memoryBack = $('projectMemoryBack');
+    const paintMemoryBack = () => {
+      if (!memoryBack) return;
+      memoryBack.hidden = window.gregalProduct !== 'vents';
+      memoryBack.textContent = T('library.back', 'Back');
+      memoryBack.onclick = () => G().setView('vents');
+    };
+    paintMemoryBack();
+    document.addEventListener('gregal:idioma', () => { paintMemoryBack(); if (G().viewActual?.() === 'memoria') loadMemory(); });
+    let memoryCwd = G().state?.cwd;
+    document.addEventListener('gregal:state', event => {
+      const cwd = event.detail?.cwd;
+      if (cwd !== memoryCwd && G().viewActual?.() === 'memoria') loadMemory();
+      memoryCwd = cwd;
+    });
+    window.gregalExtras = { btw, recap, loadMemory };
+    if (G().viewActual?.() === 'memoria') loadMemory();
   }
   function start() {
     if (G() && G().api) { wire(); return; }

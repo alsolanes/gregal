@@ -1,17 +1,14 @@
 // prefs: un sol lloc per a les preferències.
 //
-// Abans estaven escampades: ⚙ obria els proveïdors, ⋯ tenia la vista del
-// transcript, i el mode de permís vivia a la capçalera. Res d'aparença. Ara
-// hi ha un panell amb grups —General, Aparença, Models i agent, Integracions,
-// Plugins, Extres i Avançat— i el que triïs es recorda al navegador.
+// Pàgines separades per a preferències personals, models, permisos,
+// habilitats, connexions, funcions opcionals i administració. La cerca
+// global porta a cada pàgina; el contingut del projecte viu a les eines.
 // T i posaLang porten àlies perquè aquí ja hi ha una `aplica` (d'aparença)
 // i la `t` es fa servir de variable de bucle en uns quants map.
 import { t as T, idioma, posa as posaLang, IDIOMES } from './i18n.js';
 import { desktopUpdates } from './desktop-updates.js';
 import { chromeExt } from './chrome-ext.js';
 import { wordAddin } from './word-addin.js';
-import { shares } from './export.js';
-import { webs } from './webs.js';
 import { connexions } from './connexions.js';
 import { funPrefs } from './fun-prefs.js';
 import { brands } from './brands.js';
@@ -20,6 +17,7 @@ import { voicePrefs } from './voice-prefs.js';
 import { collective } from './collective.js';
 import { profileSync } from './profile-sync.js';
 import { onboarding } from './onboarding.js';
+import { PREFS_PAGES, resolvePrefsPage, prefsNavPage, prefsPageAvailable, searchPrefsPages } from './prefs-navigation.js';
 
 const $ = id => document.getElementById(id);
 const G = () => window.gregal;
@@ -50,22 +48,24 @@ const diu = (m, text, dolent) => { m.textContent = text || ''; m.classList.toggl
 // Títol i descripció de cada grup. Els que han canviat de contingut porten
 // el text aquí; la resta, el d'i18n.js.
 const GRUPS = {
-  general: () => [T('prefs.group.general'), L("L'idioma, quant detall mostra la conversa, el dictat per veu i si les preferències viatgen amb el teu compte.",
-    'Language, how much detail the conversation shows, voice dictation and whether your preferences travel with your account.')],
-  appearance: () => [T('prefs.group.appearance'), L('Tema, densitat, mida del text, com es diuen els ajudants i els brandings del servidor.',
-    "Theme, density, text size, what the helpers are called and the server's brandings.")],
-  agent: () => [T('prefs.group.agent'), T('prefs.group.agent.desc')],
-  integrations: () => [T('prefs.group.integrations'), L('Gregal amb les teves eines: el calendari i el correu, Chrome, Word i els enllaços que has compartit.',
-    'Gregal with your tools: calendar and email, Chrome, Word and the links you have shared.')],
-  plugins: () => [T('prefs.group.plugins'), L("Funcions opcionals d'aquest servidor i les veus que narren els jocs. Un plugin apagat desapareix del menú i de l'app del mòbil, i deixa de treballar en segon pla.",
-    'Optional features of this server and the voices that narrate the games. A disabled plugin disappears from the menu and the phone app, and stops working in the background.')],
-  extras: () => [T('prefs.group.extras'), L('Les coses divertides: el penell, la mascota i el to de les retrospectives.',
-    'The fun bits: the weathervane, the mascot and the tone of retrospectives.')],
-  advanced: () => [T('prefs.group.advanced'), L("Dreceres de teclat, funcions experimentals, actualitzacions i, si administres el servidor, els comptes i els poders de servidor.",
-    "Keyboard shortcuts, experimental features, updates and, if you run the server, accounts and server powers.")],
+  general: () => [T('prefs.group.general'), L('Idioma, conversa, dictat, sincronització i ús quotidià de Gregal.', 'Language, conversation, dictation, sync and everyday use of Gregal.')],
+  appearance: () => [L('Aparença i personalització', 'Appearance and personalization'), L('Tema, mida del text i detalls personals de la interfície.', 'Theme, text size and personal touches in the interface.')],
+  models: () => [L('Models', 'Models'), L('Proveïdors, models disponibles i segona opinió automàtica.', 'Providers, available models and automatic second opinions.')],
+  permissions: () => [L('Permisos', 'Permissions'), L('Quan es demana aprovació per executar accions i qui les revisa.', 'When actions require approval and who reviews them.')],
+  skills: () => [L('Habilitats', 'Skills'), L('Procediments i coneixements addicionals que l’agent pot consultar quan encaixen amb la feina.', 'Additional procedures and knowledge the agent can consult when they fit the task.')],
+  connections: () => [L('Connexions', 'Connections'), L('Tria què vols connectar. Cada connexió té la seva pàgina.', 'Choose what to connect. Each connection has its own page.')],
+  connected: () => [L('Comptes connectats', 'Connected accounts'), L('Estat i permisos dels serveis connectats.', 'Status and permissions of connected services.')],
+  calendar: () => [L('Calendari i correu', 'Calendar and email'), L('Google Calendar, Gmail i el resum del matí.', 'Google Calendar, Gmail and the morning briefing.')],
+  chrome: () => [L('Chrome', 'Chrome'), L('Extensió i accés al navegador.', 'Browser extension and access.')],
+  word: () => [L('Word', 'Word'), L('Instal·lació i ús del complement.', 'Add-in installation and use.')],
+  plugins: () => [L('Funcions opcionals', 'Optional features'), L('Activa només les funcions que vols tenir disponibles.', 'Enable only the features you want to use.')],
+  server: () => [L('Servidor', 'Server'), L('Configuració compartida i administració del servidor.', 'Shared configuration and server administration.')],
+  identity: () => [L('Identitat del servidor', 'Server identity'), L('Colors, tipografies i logotip compartits per tot el servidor.', 'Colors, fonts and logo shared across the server.')],
+  accounts: () => [L('Comptes del servidor', 'Server accounts'), L('Perfils, administradors i invitacions.', 'Profiles, administrators and invitations.')],
+  powers: () => [L('Capacitats del servidor', 'Server capabilities'), L('Accions sobre la màquina i notes del servidor.', 'Actions on the machine and server notes.')],
 };
 // Destins de prefs.obre() que no són un grup sencer.
-const ANCORES = { calendar: 'prefsConn', voice: 'prefsVoiceSec', models: 'prefsModelRow', accounts: 'prefsAccounts', powers: 'prefsPowers' };
+const ANCORES = { voice: 'prefsVoiceSec', models: 'prefsModelRow' };
 
 // Icones dels plugins (el servidor en dona un emoji; aquí, el joc de l'app).
 const PLUGIN_ICONS = { corner: 'sparkles', games: 'ball', arena: 'trophy' };
@@ -179,6 +179,9 @@ function atrapa(e, box) {
 
 export const prefs = {
   tornaFocus: null,
+  activePage: 'general',
+  pendingPage: null,
+  admin: null,
 
   init() {
     Object.keys(OPCIONS).forEach(aplica);
@@ -207,12 +210,13 @@ export const prefs = {
     desktopUpdates.init();
     plugins.init();
     const cerca = $('prefsSearch');
-    if (cerca) cerca.oninput = () => this.filtra();
+    if (cerca) cerca.oninput = () => { this.filtra(); if ($('prefsMain')) $('prefsMain').scrollTop = 0; };
     // Quan canvien els plugins (des d'aquí o d'una altra pestanya), la
     // secció es repinta si és oberta.
     document.addEventListener('gregal:plugins', () => {
+      if (plugins.loaded()) this.admin = plugins.isAdmin();
       const box = $('prefsPlugins');
-      if (box && modal && modal.classList.contains('on')) { box.innerHTML = this.pluginsHTML(); this.lligaPlugins(); this.filtra(); }
+      if (box && modal && modal.classList.contains('on')) { box.innerHTML = this.pluginsHTML(); this.lligaPlugins(); voicePrefs.bind($('prefsBody')); this.filtra(); }
     });
     // Un model nou (des del primer inici o d'una altra finestra): la fila es posa al dia.
     document.addEventListener('gregal:model-ready', () => { if (modal && modal.classList.contains('on')) this.carregaModel(); });
@@ -256,18 +260,26 @@ export const prefs = {
     if (!modal.classList.contains('on')) this.tornaFocus = document.activeElement;
     const cerca = $('prefsSearch');
     if (cerca) cerca.value = '';
+    const target = typeof grup === 'string' ? grup : this.activePage;
+    this.pendingPage = resolvePrefsPage(target);
     this.pinta();
     modal.classList.add('on');
-    this.ves(grup);
+    this.ves(target);
     // Les posicions només existeixen amb el modal visible.
     this.marcaNav();
     if (cerca && !(window.matchMedia && window.matchMedia('(pointer:coarse)').matches)) cerca.focus();
   },
   ves(grup) {
     const main = $('prefsMain');
-    if (!main || typeof grup !== 'string') return;
-    const g = $(ANCORES[grup] || ('prefsG-' + grup));
-    if (g) main.scrollTop = g.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop - 8;
+    if (!main) return;
+    const target = typeof grup === 'string' ? grup : this.activePage;
+    this.pendingPage = resolvePrefsPage(target);
+    const search = $('prefsSearch');
+    if (search) search.value = '';
+    this.filtra();
+    main.scrollTop = 0;
+    const anchor = $(ANCORES[target]);
+    if (anchor && !anchor.closest('.pf-group[hidden]')) main.scrollTop = anchor.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop - 8;
   },
   tanca() {
     const modal = $('prefsModal');
@@ -335,6 +347,9 @@ export const prefs = {
     const seg = (k, ara2, valors, label) => '<div class="pf-seg" data-k="' + k + '" role="group" aria-label="' + esc(T(label)) + '">' +
       valors.map(([v, clau]) => '<button type="button" class="' + (v === ara2 ? 'on' : '') + '" aria-pressed="' + (v === ara2) + '" data-v="' + v + '">' + T(clau) + '</button>').join('') +
       '</div>';
+    const cards = ids => '<div class="pf-page-cards">' + ids.map(id =>
+      '<button type="button" class="pf-page-card" data-prefs-page="' + id + '" data-prefs-card="' + id + '"><b>' + esc(GRUPS[id]()[0]) +
+      '</b><span>' + esc(GRUPS[id]()[1]) + '</span></button>').join('') + '</div>';
     const grups = [
       ['general', 'gear',
         fila('prefs.lang', 'prefs.lang.help', seg('idioma', idioma(), IDIOMES.map(([v, nom]) => [v, nom]), 'prefs.lang')) +
@@ -342,45 +357,52 @@ export const prefs = {
           [['summary', 'prefs.detail.summary'], ['normal', 'prefs.density.normal'], ['verbose', 'prefs.detail.verbose']], 'prefs.detail')) +
         funPrefs.dictationRow() +
         // El perfil de la persona (tema, idioma, densitat…) viatja amb el compte.
-        fila('prefs.sync', 'prefs.sync.help', check('prefsSync', profileSync.enabled(), T('prefs.sync')))],
-      ['appearance', 'palette', this.select('tema') + this.segment('densitat') + this.segment('mida') + collective.section() + brands.section()],
-      ['agent', 'model',
+        fila('prefs.sync', 'prefs.sync.help', check('prefsSync', profileSync.enabled(), T('prefs.sync'))) +
+        '<h3 class="pf-sec">' + esc(L('Ajuda i aplicació', 'Help and application')) + '</h3>' +
+        fila('prefs.shortcuts', 'prefs.shortcuts.help', '<button type="button" class="pf-open" id="prefsKeys">' + esc(L('Mostra', 'Show')) + '</button>') + desktopUpdates.section()],
+      ['appearance', 'palette', this.select('tema') + this.segment('densitat') + this.segment('mida') +
+        '<h3 class="pf-sec">' + esc(L('Personalització', 'Personalization')) + '</h3>' + collective.section() + funPrefs.section()],
+      ['models', 'model',
         // Què fa servir ara i si pot respondre (es pinta quan respon el servidor).
         '<div class="pf-row" id="prefsModelRow"><div class="pf-lab"><b>' + esc(T('prefs.providers')) + '</b><span>' + esc(T('prefs.providers.help')) + '</span></div>' +
         '<div class="pf-btns"><button type="button" class="pf-open" id="prefsProv">' + esc(L('Models i connexions…', 'Models & connections…')) + '</button></div></div>' +
-        fila('prefs.perms', 'prefs.perms.help', seg('perm', perm,
-          [['ask', 'perm.ask'], ['edits', 'perm.edits'], ['full', 'perm.full']], 'prefs.perms')) +
-        // El revisor de permisos és avançat: fora del composer, aquí.
-        fila('prefs.reviewer', 'prefs.reviewer.help', check('prefsReviewer', G().state && G().state.auto_review, T('prefs.reviewer'))) +
         // El revisor passava el model per sobre de CADA resposta i no hi
         // havia manera d'apagar-lo des de la finestra: només editant el
         // config a mà o des del TUI. Aquí és on el busques.
-        fila('prefs.verify', 'prefs.verify.help', check('prefsVerify', this.verifyAuto(), T('prefs.verify'))) +
-        '<h3 class="pf-sec">' + T('prefs.skills') + '</h3>' +
-        '<p class="pf-skills-help">' + T('prefs.skills.help') + '</p>' +
-        '<div id="prefsSkills"><div class="pf-skills-status">' + T('prefs.skills.loading') + '</div></div>'],
-      // Calendari i correu: abans era el primer de General, i empenyia
-      // l'idioma avall. És una integració amb Google, com les altres.
-      ['integrations', 'plug', '<div id="prefsConn" class="pf-conn"></div>' + connexions.section() + chromeExt.section() + wordAddin.section() + shares.section() + webs.section()],
+        fila('prefs.verify', 'prefs.verify.help', check('prefsVerify', this.verifyAuto(), T('prefs.verify')))],
+      ['permissions', 'key', fila('prefs.perms', 'prefs.perms.help', seg('perm', perm,
+        [['ask', 'perm.ask'], ['edits', 'perm.edits'], ['full', 'perm.full']], 'prefs.perms')) +
+        fila('prefs.reviewer', 'prefs.reviewer.help', check('prefsReviewer', G().state && G().state.auto_review, T('prefs.reviewer')))],
+      ['skills', 'knowledge', '<div id="prefsSkills"><div class="pf-skills-status">' + T('prefs.skills.loading') + '</div></div>'],
+      ['connections', 'plug', cards(['connected', 'calendar', 'chrome', 'word'])],
+      ['connected', 'plug', connexions.section()],
+      ['calendar', 'calendar', '<div id="prefsConn" class="pf-conn"></div>'],
+      ['chrome', 'navegador', chromeExt.section()],
+      ['word', 'office', wordAddin.section()],
       // Les veus només serveixen per als jocs (plugins): hi van a sota.
       ['plugins', 'puzzle', '<div id="prefsPlugins">' + this.pluginsHTML() + '</div>' +
-        '<div id="prefsVoiceSec" class="pf-sub"><h3 class="pf-sec">' + esc(T('prefs.group.voice')) + '</h3>' + voicePrefs.section() + '</div>'],
-      ['extras', 'sparkles', funPrefs.section()],
-      ['advanced', 'sliders',
-        fila('prefs.shortcuts', 'prefs.shortcuts.help', '<button type="button" class="pf-open" id="prefsKeys">' + esc(L('Mostra', 'Show')) + '</button>') +
-        funPrefs.kanbanRow() +
-        desktopUpdates.section() +
-        '<div id="prefsAccounts" class="pf-sub" hidden></div><div id="prefsPowers" class="pf-sub" hidden></div>'],
+        '<h3 class="pf-sec">' + esc(L('Experimentals', 'Experimental')) + '</h3>' + funPrefs.kanbanRow() +
+        '<div id="prefsVoiceSec" class="pf-sub" hidden><h3 class="pf-sec">' + esc(T('prefs.group.voice')) + '</h3>' + voicePrefs.section() + '</div>'],
+      ['server', 'server', cards(['identity', 'accounts', 'powers'])],
+      ['identity', 'palette', brands.section()],
+      ['accounts', 'users', '<div id="prefsAccounts" class="pf-sub" hidden></div>'],
+      ['powers', 'server', '<div id="prefsPowers" class="pf-sub" hidden></div>'],
     ];
     cos.innerHTML =
       '<nav class="pf-nav" aria-label="' + T('prefs.title') + '">' +
-      grups.map(([id, icona]) => '<button type="button" data-g="' + id + '"><span class="pf-nav-ic" aria-hidden="true">' + icon(icona) + '</span>' + esc(GRUPS[id]()[0]) + '</button>').join('') +
+      grups.filter(([id]) => !PREFS_PAGES.find(page => page.id === id)?.parent).map(([id, icona]) => {
+        const label = id === 'general' ? L('Personal', 'Personal') : id === 'models' ? L('Agent', 'Agent') : id === 'connections' ? L('Aplicació', 'Application') : '';
+        return (label ? '<div class="pf-nav-label">' + esc(label) + '</div>' : '') +
+          '<button type="button" data-g="' + id + '" data-prefs-page="' + id + '"><span class="pf-nav-ic" aria-hidden="true">' + icon(icona) + '</span>' + esc(id === 'appearance' ? T('prefs.group.appearance') : GRUPS[id]()[0]) + '</button>';
+      }).join('') +
       '</nav><div class="pf-main" id="prefsMain">' +
-      grups.map(([id, , dins]) => '<section class="pf-group" id="prefsG-' + id + '" data-g="' + id + '" aria-labelledby="prefsT-' + id + '">' +
-        '<header class="pf-ghead"><h3 class="pf-gtitle" id="prefsT-' + id + '">' + esc(GRUPS[id]()[0]) + '</h3>' +
+      grups.map(([id, , dins]) => '<section class="pf-group" id="prefsG-' + id + '" data-g="' + id + '" aria-labelledby="prefsT-' + id + '" hidden>' +
+        (PREFS_PAGES.find(page => page.id === id)?.parent ? '<button class="pf-back" type="button" data-prefs-page="' + prefsNavPage(id) + '">' + esc(L('Torna a ', 'Back to ') + GRUPS[prefsNavPage(id)]()[0]) + '</button>' : '') +
+        '<header class="pf-ghead"><h3 class="pf-gtitle" id="prefsT-' + id + '" tabindex="-1">' + esc(GRUPS[id]()[0]) + '</h3>' +
         '<p class="pf-gdesc">' + esc(GRUPS[id]()[1]) + '</p></header>' +
         '<div class="pf-gbody">' + dins + '</div></section>').join('') +
-      '<p class="pf-noresults" id="prefsNoResults" hidden>' + T('prefs.search.empty') + '</p></div>';
+      '<section id="prefsSearchResults" aria-live="polite" hidden><h3 class="pf-gtitle">' + esc(L('Resultats de la cerca', 'Search results')) + '</h3>' +
+      '<div id="prefsSearchLinks"></div><p class="pf-noresults" id="prefsNoResults" hidden>' + T('prefs.search.empty') + '</p></section></div>';
 
     cos.querySelectorAll('.pf-seg').forEach(seg => {
       seg.querySelectorAll('button').forEach(b => {
@@ -427,7 +449,7 @@ export const prefs = {
     this.carregaAccounts();
     this.carregaPowers();
     this.carregaConnexions();
-    connexions.bind(cos);
+    connexions.bind(cos).then(() => this.filtra());
     const k = $('prefsKeys');
     if (k) k.onclick = () => { this.tanca(); this.obreDreceres(); };
     this.lligaPlugins();
@@ -436,20 +458,15 @@ export const prefs = {
     desktopUpdates.bind(cos);
     chromeExt.bind(cos, () => this.repinta());
     wordAddin.bind(cos, () => this.repinta());
-    shares.bind(cos);
-    webs.bind(cos);
     funPrefs.bind(cos);
     // Repintar conserva el desplaçament: la secció de brandings és llarga.
     brands.bind(cos, () => this.repinta());
-    // Índex: un clic hi baixa; en desplaçar-te, marca el grup que mires.
-    const main = $('prefsMain');
-    cos.querySelectorAll('.pf-nav button').forEach(b => {
-      b.onclick = () => {
-        const g = $('prefsG-' + b.dataset.g);
-        if (g && main) main.scrollTo({ top: g.offsetTop - main.offsetTop, behavior: 'smooth' });
-      };
-    });
-    if (main) main.onscroll = () => this.marcaNav();
+    cos.onclick = event => {
+      const button = event.target.closest('[data-prefs-page]');
+      if (!button || !cos.contains(button)) return;
+      this.ves(button.dataset.prefsPage);
+      $('prefsT-' + this.activePage)?.focus({ preventScroll: true });
+    };
     this.filtra();
   },
 
@@ -463,6 +480,7 @@ export const prefs = {
     if (p0) p0.onclick = obreProv;
     const info = await onboarding.status();
     if (!info || !row.isConnected) return;
+    this.admin = !!info.admin;
     const lab = el('div', 'pf-lab'), btns = el('div', 'pf-btns');
     lab.append(el('b', '', T('prefs.providers')));
     if (info.needs && !info.admin) {
@@ -784,67 +802,64 @@ export const prefs = {
   repinta() {
     const main = $('prefsMain');
     const top = main ? main.scrollTop : 0;
+    this.pendingPage = this.activePage;
     this.pinta();
     const m2 = $('prefsMain');
     if (m2) m2.scrollTop = top;
   },
 
   marcaNav() {
-    const main = $('prefsMain');
-    if (!main || !main.offsetParent) return;
-    const grups = [...main.querySelectorAll('.pf-group:not([hidden])')];
-    let actiu = grups[0];
-    for (const g of grups) {
-      if (g.offsetTop - main.offsetTop - main.scrollTop <= 24) actiu = g;
-    }
-    // Al final de tot, l'últim grup (pot ser massa curt per arribar a dalt).
-    if (main.scrollTop > 0 && main.scrollTop + main.clientHeight >= main.scrollHeight - 4 && grups.length) actiu = grups[grups.length - 1];
     document.querySelectorAll('#prefsBody .pf-nav button').forEach(b => {
-      const on = !!actiu && b.dataset.g === actiu.dataset.g;
+      const on = b.dataset.g === prefsNavPage(this.activePage);
       b.classList.toggle('on', on);
-      if (on) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current');
+      if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
   },
 
-  // filtra amaga les files que no contenen el que busques (sense accents
-  // ni majúscules). Un grup o subtítol que coincideix es mostra sencer. Un
-  // bloc que porta el seu propi subtítol (calendari, comptes, poders…) es
-  // compta com una secció a part.
+  pageAvailable(id) {
+    const ready = name => { const node = $(name); return !!node && !node.hidden && !!node.childElementCount; };
+    return prefsPageAvailable(id, {
+      admin: this.admin ?? (plugins.loaded() && plugins.isAdmin()),
+      accounts: ready('prefsAccounts'), powers: ready('prefsPowers'),
+      connected: ready('prefsConnexions'), calendar: ready('prefsConn'),
+    });
+  },
+
+  // La cerca retorna pàgines, no torna a convertir les preferències en
+  // una llista contínua. Les files carregades pels mòduls conserven els
+  // seus estats (ocult, desactivat, connectat…) i els seus gestors.
   filtra() {
-    const inp = $('prefsSearch');
-    const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-    const q = norm(inp ? inp.value.trim() : '');
+    const q = $('prefsSearch')?.value.trim() || '';
     const main = $('prefsMain');
     if (!main) return;
-    let total = 0;
-    main.querySelectorAll('.pf-group').forEach(g => {
-      const items = [...g.querySelector('.pf-gbody').children];
-      const capGrup = !q || norm(g.querySelector('.pf-gtitle').textContent).includes(q);
-      let visibles = 0;
-      let cap = null, capMostra = false, capFills = 0;
-      const tancaCap = () => { if (cap) cap.hidden = !(capMostra || capFills > 0); };
-      for (const el of items) {
-        if (el.matches('h3.pf-sec')) {
-          tancaCap();
-          cap = el; capMostra = capGrup || norm(el.textContent).includes(q); capFills = 0;
-          continue;
-        }
-        // Un bloc buit i amagat (comptes sense servidor de comptes) es queda amagat.
-        if (el.matches('.pf-sub, .pf-conn') && !el.childElementCount) { el.hidden = true; continue; }
-        if (el.querySelector(':scope > h3.pf-sec')) { tancaCap(); cap = null; capMostra = false; }
-        const ok = capGrup || (cap && capMostra) || norm(el.textContent).includes(q) ||
-          [...el.querySelectorAll('[aria-label],[placeholder]')].some(x => norm((x.getAttribute('aria-label') || '') + ' ' + (x.getAttribute('placeholder') || '')).includes(q));
-        el.hidden = !ok;
-        if (ok) { visibles++; capFills++; }
+    if (this.pendingPage && this.pageAvailable(this.pendingPage)) {
+      this.activePage = this.pendingPage;
+      this.pendingPage = null;
+    } else if (this.pendingPage && this.pageAvailable(prefsNavPage(this.pendingPage))) {
+      this.activePage = prefsNavPage(this.pendingPage);
+    }
+    if (!this.pageAvailable(this.activePage)) this.activePage = 'general';
+    const searchable = [];
+    main.querySelectorAll('.pf-group').forEach(group => {
+      const id = group.dataset.g, available = this.pageAvailable(id);
+      group.hidden = !!q || !available || id !== this.activePage;
+      if (available && q) {
+        const copy = group.cloneNode(true);
+        copy.querySelectorAll('[hidden]').forEach(node => node.remove());
+        searchable.push({ id, title: GRUPS[id]()[0], description: GRUPS[id]()[1], text: copy.textContent });
       }
-      tancaCap();
-      g.hidden = !(capGrup || visibles > 0);
-      if (!g.hidden) total++;
-      const nb = document.querySelector('#prefsBody .pf-nav button[data-g="' + g.dataset.g + '"]');
-      if (nb) nb.hidden = g.hidden;
     });
-    const buit = $('prefsNoResults');
-    if (buit) buit.hidden = total > 0;
+    document.querySelectorAll('#prefsBody [data-prefs-card], #prefsBody .pf-nav button').forEach(button => {
+      button.hidden = !this.pageAvailable(button.dataset.prefsCard || button.dataset.g);
+    });
+    const results = $('prefsSearchResults');
+    if (results) {
+      results.hidden = !q;
+      const hits = q ? searchPrefsPages(q, searchable) : [];
+      $('prefsSearchLinks').innerHTML = hits.map(page => '<button type="button" class="pf-search-result" data-prefs-page="' + page.id + '"><b>' +
+        esc(page.title) + '</b><span>' + esc(page.description) + '</span></button>').join('');
+      $('prefsNoResults').hidden = !q || !!hits.length;
+    }
     this.marcaNav();
   },
 

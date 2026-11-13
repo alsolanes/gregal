@@ -84,6 +84,8 @@
   section(t('Recursos','Resources'));
   const pc=btn('',()=>openComputer(),'vw-nav-item vw-nav-icon');pc.append(navIcon('computer'),el('span','',t('Ordinador','Computer')));nav.append(pc);
   for(const item of [['notes','Notes','Notes'],['saved','Desat','Saved']])nav.append(navRow(item));
+  const memory=btn('',()=>root.gregal.setView('memoria'),'vw-nav-item vw-nav-icon');memory.append(navIcon('wiki'),el('span','',t('Memòria del projecte','Project memory')));nav.append(memory);
+  const publications=btn('',()=>root.gregal.setView('publicacions'),'vw-nav-item vw-nav-icon');publications.append(navIcon('saved'),el('span','',t('Comparticions','Sharing')));nav.append(publications);
   // «Automatitzacions» no hi va: ja és al capdamunt de la barra (Vents ·
   // Racó · Automatitzacions), que es veu des de totes les pàgines de Vents.
   // La resta d'espais, plegats (s'obre sol si n'hi ha un d'obert).
@@ -177,7 +179,10 @@
  }
  const modelActual=()=>models.current||models.work||root.gregal?.state?.model||'';
  function paintModel(button){
-  const full=modelActual(),id=full?full.split('/').slice(1).join('/')||full:'',name=id?id.replace(/[-_]+/g,' ').replace(/\s+/g,' ').trim():t('Model','Model');
+  // El nom bonic és el mateix que al compositor de Codi i al peu de la barra
+  // lateral (model-name.js); abans aquí sortia «deepseek v4.1 flash».
+  const full=modelActual(),id=full?full.split('/').slice(1).join('/')||full:'',
+   name=id?((root.gregalModelName&&root.gregalModelName(id))||id.replace(/[-_]+/g,' ').replace(/\s+/g,' ').trim()):t('Model','Model');
   const chev=el('span','vw-model-chev');chev.setAttribute('aria-hidden','true');
   button.replaceChildren(el('span','vw-model-name',name),chev);
   button.title=t('Model dels vents: ','Winds model: ')+(full||'—')+(models.current?'':t(' (el de la feina)',' (same as work)'));

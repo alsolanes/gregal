@@ -38,6 +38,12 @@ var gregalMu sync.Mutex
 // no formin un cicle d'inicialització.
 var gregalWindTool func(*Server, context.Context, string) (string, error)
 
+// El càrrec de Gregal a la portada dels vents, en els dos idiomes.
+const (
+	gregalRoleCA = "El teu assistent"
+	gregalRoleEN = "Your assistant"
+)
+
 func init() { gregalWindTool = (*Server).runWindTool }
 
 // ensureGregalWind crea Gregal si el compte encara no el té: amb el nom, el
@@ -58,6 +64,15 @@ func (s *Server) ensureGregalWind() (companion.Wind, bool) {
 				w = saved
 			}
 		}
+		// El càrrec es va desar en l'idioma d'aleshores i es quedava així: a la
+		// portada sortia «Your assistant» amb la finestra en català. Si encara
+		// és un dels dos per defecte, segueix l'idioma d'ara.
+		if role := s.tr(gregalRoleCA, gregalRoleEN); w.Role != role && (w.Role == gregalRoleCA || w.Role == gregalRoleEN) {
+			w.Role = role
+			if saved, err := s.winds.Save(w); err == nil {
+				w = saved
+			}
+		}
 		return w, true
 	}
 	cap := s.loadCap()
@@ -71,7 +86,7 @@ func (s *Server) ensureGregalWind() (companion.Wind, bool) {
 	}
 	w, err := s.winds.SaveNew(companion.Wind{
 		Name: name, Color: color, Style: cap.Style, Persona: gregalPersona,
-		Role: s.tr("El teu assistent", "Your assistant"),
+		Role: s.tr(gregalRoleCA, gregalRoleEN),
 	}, gregalWindID)
 	if err != nil {
 		return companion.Wind{}, false

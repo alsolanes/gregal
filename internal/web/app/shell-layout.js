@@ -3,10 +3,16 @@
   'use strict';
   const $=id=>document.getElementById(id);
   const tools={fitxers:['fitxersPage','nav.files'],canvis:['canvisPage','nav.changes'],terminal:['terminalPage','nav.terminal'],navegador:['navegadorPage','nav.browser'],knowledge:['knowledgePage','nav.knowledge']};
+  if(root.gregalProduct==='codi') tools.memoria=['memoriaPage','nav.memory'];
   const title=key=>root.gregalT?.(key)||key;
   const body=$('toolDockBody');
   let opener=null;
   for(const [id] of Object.values(tools)) if($(id)) body.append($(id));
+  if(tools.memoria) {
+    const tab=document.createElement('button');tab.type='button';tab.dataset.view='memoria';tab.dataset.i18n='nav.memory';tab.textContent=title('nav.memory');
+    tab.onclick=()=>root.gregal.setView('memoria');
+    $('toolDock').querySelector('.tool-dock-tabs').append(tab);
+  }
   // Calma: una sola barra lateral. El rail (destins i «Més») hi entra sota
   // «Nova conversa», el logo fa de capçalera i les eines del peu (dreceres,
   // preferències) van al peu de la barra. Es mouen els mateixos nodes: els
@@ -43,6 +49,23 @@
       moreMenu.prepend(b);
     }
   }
+  // Una sola barra a dalt (Codi): les pestanyes de sessió entren a la
+  // capçalera, darrere del xip de la carpeta. Abans eren dues franges de 40 i
+  // 48 px amb el nom del projecte repetit. És el mateix node, així que
+  // panels.js hi continua pintant igual; a l'escriptori la capçalera passa a
+  // fer de barra de títol (index.html) i a Vents no es toca res.
+  const tabs=$('sessionTabs'), crumb=document.querySelector('#top .breadcrumb'), wrap=$('wrap');
+  if(tabs && crumb && wrap && root.gregalProduct!=='vents') {
+    // En pantalla estreta la capçalera ja es reparteix en graella: allà les
+    // pestanyes es queden on eren, en una franja a part.
+    const ancora=tabs.nextElementSibling, ample=matchMedia('(min-width:761px)');
+    const colloca=()=>{
+      if(ample.matches) { if(tabs.parentElement!==$('top')) crumb.after(tabs); }
+      else if(tabs.parentElement!==wrap) wrap.insertBefore(tabs,ancora);
+      document.body.classList.toggle('tabs-inline',ample.matches);
+    };
+    colloca(); ample.addEventListener('change',colloca);
+  }
   const windList=$('windsListCard');
   if(windList) $('windContextNav').append(windList);
   function sync(view) {
@@ -51,8 +74,14 @@
     $('toolDock').hidden=!tool;
     document.body.classList.toggle('has-tool-dock',!!tool);
     document.body.classList.toggle('shell-winds',view==='vents');
-    $('conversationNav').hidden=view==='vents';
-    $('windContextNav').hidden=view!=='vents';
+    // A Vents, el menú és el dels vents també a les pàgines d'eina
+    // (Comparticions, Memòria…): abans s'amagava i la barra lateral es
+    // quedava amb tres entrades soltes. «shell-winds» continua lligat a la
+    // vista, perquè vesteix la zona central; «winds-side», a la barra.
+    const sideVents=view==='vents'||root.gregalProduct==='vents';
+    document.body.classList.toggle('winds-side',sideVents);
+    $('conversationNav').hidden=sideVents;
+    $('windContextNav').hidden=!sideVents;
     $('toolDockTitle').textContent=tool?title(tool[1]):'';
   }
   root.gregalShell={isTool:view=>!!tools[view],sync};

@@ -259,12 +259,19 @@ export const sessions = {
     // franja de títol amb ＋ i ⎇＋ (calma.css amaga la pestanya sola).
     bar.classList.toggle('single', list.length <= 1);
     bar.innerHTML = '';
+    // La carpeta ja la diu el xip de la capçalera, al costat mateix de les
+    // pestanyes: posar-la també a cada pestanya feia que «proj» hi sortís dues
+    // vegades. Només s'hi afegeix quan la sessió treballa en una altra.
+    const aqui = (list.find(s => s.id === this.current) || {}).project || '';
     list.forEach(s => {
       const tab = document.createElement('button');
       tab.dataset.sessionId = s.id;
       tab.className = 'session-tab' + (s.id === this.current ? ' active' : '') + (s.busy ? ' busy' : '') + (pending?.has(s.id) ? ' needs-input' : '');
       // Una sessió encara sense missatges no té títol: mai no s'ha de veure l'id intern.
-      const name = s.title || (s.id === 'default' ? s.project || T('sessions.main') : (s.project ? T('sessions.untitled') + ' · ' + s.project : T('sessions.untitled')));
+      const fora = s.project && s.project !== aqui ? s.project : '';
+      const name = s.title || (s.id === 'default'
+        ? (fora || T('sessions.main'))
+        : (fora ? T('sessions.untitled') + ' · ' + fora : T('sessions.untitled')));
       // El tooltip diu on treballa: nom, ruta sencera i, si n'és, el worktree.
       tab.title = name + '\n' + (s.cwd || '') + (s.worktree ? '\n' + T('sessions.worktreeBadge') + s.worktree : '') +
         (pending?.has(s.id) ? T('sessions.needsInput') : s.busy ? T('sessions.working') : '');

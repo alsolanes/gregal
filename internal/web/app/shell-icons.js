@@ -13,6 +13,8 @@
     canvis:'M8 4v16 M4 8l4-4 4 4 M16 20V4 M12 16l4 4 4-4',
     fitxers:'M3 7V5h7l2 2h9v13H3z',
     knowledge:'M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z M5 17a3 3 0 0 1 3-3h10 M9 8h5',
+    memoria:'M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z M5 17a3 3 0 0 1 3-3h10 M9 8h5',
+    publicacions:'M10 7H7a5 5 0 0 0 0 10h3 M14 7h3a5 5 0 0 1 0 10h-3 M8 12h8',
     terminal:'M4 5h16v14H4z M7 9l3 3-3 3 M13 15h4',
     grafs:'M12 7v4 M5 15v-4h14v4 M9 3h6v4H9z M2 15h6v6H2z M16 15h6v6h-6z',
     workshop:'M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6 M16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6 M3 20c0-3 2.2-5 5-5s5 2 5 5 M11 20c0-3 2.2-5 5-5s5 2 5 5',

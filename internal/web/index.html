@@ -1594,8 +1594,10 @@ body.sense-inspector #inspector { display:none; }
 <body data-professional-shell="gregal-code-agent">
 <nav id="navRail" aria-label="Main navigation" data-i18n-aria="shell.navigation">
   <a class="rail-brand" href="#" aria-label="Gregal"><span class="brand-mark"><img src="/app/icon.png" width="30" height="30" alt="Gregal"></span></a>
-  <div class="rail-main"><button class="rail-item nav-item active side-view" data-view="agent" data-also="fitxers canvis terminal navegador knowledge"><span class="nav-icon">›_</span><span data-i18n="shell.chat">Chat</span></button><button class="rail-item nav-item side-view" data-view="vents"><span class="nav-icon">◍</span><span data-i18n="nav.winds">Winds</span></button><button class="rail-item nav-item side-view" data-view="raco"><span class="nav-icon">✦</span><span data-i18n="nav.corner">Corner</span></button><button class="rail-item nav-item side-view" data-view="partits"><span class="nav-icon">🏈</span><span data-i18n="nav.games">Games</span></button><button class="rail-item nav-item side-view" data-view="arena"><span class="nav-icon">🏆</span><span data-i18n="nav.arena">Arena</span></button><button class="rail-item nav-item side-view" data-view="kanban" hidden><span class="nav-icon">▦</span><span data-i18n="kanban.nav">Kanban</span></button><button class="rail-item nav-item side-view" data-view="automatitzacions"><span class="nav-icon">◷</span><span data-i18n="nav.automations">Automations</span></button><button class="rail-item nav-item side-view" data-view="programat"><span class="nav-icon">◷</span><span data-i18n="ui.scheduled">Scheduled</span></button></div>
+  <div class="rail-main"><button class="rail-item nav-item active side-view" data-view="agent" data-also="fitxers canvis terminal navegador knowledge memoria"><span class="nav-icon">›_</span><span data-i18n="shell.chat">Chat</span></button><button class="rail-item nav-item side-view" data-view="vents"><span class="nav-icon">◍</span><span data-i18n="nav.winds">Winds</span></button><button class="rail-item nav-item side-view" data-view="raco"><span class="nav-icon">✦</span><span data-i18n="nav.corner">Corner</span></button><button class="rail-item nav-item side-view" data-view="partits"><span class="nav-icon">🏈</span><span data-i18n="nav.games">Games</span></button><button class="rail-item nav-item side-view" data-view="arena"><span class="nav-icon">🏆</span><span data-i18n="nav.arena">Arena</span></button><button class="rail-item nav-item side-view" data-view="kanban" hidden><span class="nav-icon">▦</span><span data-i18n="kanban.nav">Kanban</span></button><button class="rail-item nav-item side-view" data-view="automatitzacions"><span class="nav-icon">◷</span><span data-i18n="nav.automations">Automations</span></button><button class="rail-item nav-item side-view" data-view="programat"><span class="nav-icon">◷</span><span data-i18n="ui.scheduled">Scheduled</span></button></div>
   <details id="sideMore" class="rail-more"><summary title="More" aria-label="More" data-i18n-title="nav.more" data-i18n-aria="nav.more">⋯</summary><div class="rail-more-menu side-main"><button class="nav-item side-view" data-view="knowledge"><span class="nav-icon">▥</span><span data-i18n="nav.knowledge">Knowledge</span></button>
+      <button class="nav-item side-view" data-view="memoria"><span class="nav-icon"></span><span data-i18n="nav.memory">Project memory</span></button>
+      <button class="nav-item side-view" data-view="publicacions"><span class="nav-icon"></span><span data-i18n="nav.publications">Sharing</span></button>
 <button class="nav-item side-view" data-view="workshop" data-also="team"><span class="nav-icon">▦</span><span data-i18n="nav.agents">Agents</span><span class="nav-badge busy" id="navAgentsBadge" hidden></span></button>
 <button class="nav-item side-view" data-view="objectius"><span class="nav-icon">○</span><span data-i18n="nav.goals">Goals</span></button>
 <button class="nav-item side-view" data-view="github"><span class="nav-icon">⎇</span><span>GitHub</span></button>
@@ -1962,6 +1964,18 @@ body.sense-inspector #inspector { display:none; }
         </div>
       </section>
       <!-- Coneixement: col·leccions i memòries (app/knowledge.js la pinta). -->
+      <section class="workspace-page" id="memoriaPage" hidden>
+        <div class="page-inner">
+          <header class="page-head"><h1 data-i18n="extras.mem.section">Project memory</h1><button type="button" class="ghost" id="projectMemoryBack" hidden></button></header>
+          <div id="projectMemoryBody"></div>
+        </div>
+      </section>
+      <section class="workspace-page" id="publicacionsPage" hidden>
+        <div class="page-inner">
+          <header class="page-head"><div><h1 data-i18n="library.title">Sharing and publishing</h1><p class="page-copy" data-i18n="library.lead">Manage shared links and published sites.</p></div><button type="button" class="ghost" id="publicationsBack"></button></header>
+          <div id="publicationsBody"></div>
+        </div>
+      </section>
       <section class="workspace-page" id="knowledgePage" hidden>
         <div class="page-inner" id="knowledgeRoot"></div>
       </section>
@@ -2223,8 +2237,8 @@ let currentView = 'agent';
 // (/jocs/: l'Arena i la lliga), cadascun amb les seves vistes.
 const PRODUCT = ['vents', 'jocs'].includes(document.documentElement.dataset.product) ? document.documentElement.dataset.product : 'codi';
 const PRODUCT_VIEWS = {
-  codi: ['agent', 'objectius', 'kanban', 'programat', 'mcp', 'activitat', 'github', 'office', 'team', 'canvis', 'fitxers', 'knowledge', 'terminal', 'navegador', 'grafs', 'workshop'],
-  vents: ['vents', 'raco', 'automatitzacions'],
+  codi: ['agent', 'objectius', 'kanban', 'programat', 'mcp', 'activitat', 'github', 'office', 'team', 'canvis', 'fitxers', 'knowledge', 'memoria', 'publicacions', 'terminal', 'navegador', 'grafs', 'workshop'],
+  vents: ['vents', 'raco', 'automatitzacions', 'memoria', 'publicacions'],
   jocs: ['arena', 'partits'],
 };
 const PRODUCT_HOME = { codi: 'agent', vents: 'vents', jocs: 'arena' };
@@ -2267,7 +2281,7 @@ function setView(view) {
   const previousView = currentView;
   // Les vistes dels plugins apagats (app/plugins.js) no s'obren.
   if (window.gregalPlugins && !window.gregalPlugins.viewAllowed(view)) view = 'agent';
-  currentView = ['agent','objectius','vents','raco','partits','arena','kanban','programat','automatitzacions','mcp','activitat','github','office','team','canvis','fitxers','knowledge','terminal','navegador','grafs','workshop'].includes(view) ? view : productHome();
+  currentView = ['agent','objectius','vents','raco','partits','arena','kanban','programat','automatitzacions','mcp','activitat','github','office','team','canvis','fitxers','knowledge','memoria','publicacions','terminal','navegador','grafs','workshop'].includes(view) ? view : productHome();
   if (!productAllows(currentView)) currentView = productHome();
   // Fora del Codi, les vistes que no són la dels vents no porten res del codi
   // (sessió nova, projectes, converses de l'agent, carpeta del projecte).
@@ -2291,6 +2305,8 @@ function setView(view) {
   $('canvisPage').hidden = currentView !== 'canvis';
   $('fitxersPage').hidden = currentView !== 'fitxers';
   $('knowledgePage').hidden = currentView !== 'knowledge';
+  $('memoriaPage').hidden = currentView !== 'memoria';
+  $('publicacionsPage').hidden = currentView !== 'publicacions';
   $('terminalPage').hidden = currentView !== 'terminal';
   $('navegadorPage').hidden = currentView !== 'navegador';
   $('grafsPage').hidden = currentView !== 'grafs';
@@ -2322,6 +2338,8 @@ function setView(view) {
   if (currentView === 'vents') window.loadWindsPage?.();
   if (currentView === 'mcp') loadMcpPage();
   if (currentView === 'knowledge' && window.gregalKnowledge) window.gregalKnowledge.load();
+  if (currentView === 'memoria') window.gregalExtras?.loadMemory();
+  if (currentView === 'publicacions') window.gregalPublications?.load(previousView);
   document.querySelectorAll('[data-view]').forEach(b => {
     // «Agents» agrupa dues vistes (sala en directe i equip): el botó de la
     // barra queda marcat a totes dues.
@@ -3242,7 +3260,8 @@ async function refresh(options = {}) {
   if (window.gregalLang) window.gregalLang(r.lang);
   const fullModel = r.provider + '/' + r.model;
   $('model').textContent = r.model_name || (window.gregalModelName && window.gregalModelName(r.model)) || r.model; $('modelPill').title = gregalT('ui.chooseModel') + ' · ' + fullModel;
-  $('endpoint').textContent = fullModel;
+  $('endpoint').textContent = $('model').textContent;
+  $('endpoint').title = fullModel;
   $('branch').textContent = r.branch || 'workspace';
   $('project').textContent = r.project || gregalT('ui.project'); $('project').title = r.cwd || '';
   $('activeWorkspacePath').textContent = r.cwd || '';
@@ -3300,7 +3319,7 @@ function paintPerm() {
   const pb = $('permBtn');
   if (!pb) return;
   const p = PERMS.find(x => x[0] === permMode) || PERMS[1];
-  // Cadenat obert = no pregunta res (autonomia total).
+  // Cadenat obert = sense aprovació manual de les accions permeses.
   const obert = permMode === 'full';
   const icon = pb.querySelector('.perm-icon');
   if (icon) icon.innerHTML = obert ? ICONA_PANY.obert : ICONA_PANY.tancat;
@@ -3313,8 +3332,8 @@ function paintPerm() {
   const actua = !state || uiMode(state.mode) === 'act';
   pb.classList.toggle('inactiu', uiMode(state?.mode) === 'plan');
   pb.classList.toggle('lectura', lectura);
-  // Sense preguntes i a Actua, tot el compositor ho diu: la vora canvia de
-  // color i no cal mirar la icona per saber que l'agent no demanarà res.
+  // A Actua amb autonomia total, la vora també indica que les accions
+  // permeses s'executen sense aprovació manual.
   const box = $('box');
   if (box) box.classList.toggle('perm-risc', obert && actua);
   // «Edicions automàtiques» mentia si el config força edit: ask (cada edició
@@ -4916,6 +4935,7 @@ refresh();
 <script src="/app/home.js"></script>
 <script src="/app/folder.js"></script>
 <script src="/app/extras.js"></script>
+<script type="module" src="/app/publications.js"></script>
 <script type="module" src="/app/fun.js"></script>
 <script src="/app/caps.js"></script>
 <div id="gregal-parsed" hidden></div>

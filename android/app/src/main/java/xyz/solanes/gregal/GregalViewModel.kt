@@ -538,9 +538,18 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val _backStack = MutableStateFlow<List<Screen>>(emptyList())
     val backStack: StateFlow<List<Screen>> = _backStack
 
+    private val _prefsPage = MutableStateFlow(PrefsPage.Index)
+    val prefsPage: StateFlow<PrefsPage> = _prefsPage
+
+    fun openPreferences(page: PrefsPage = PrefsPage.Index) {
+        go(Screen.Prefs)
+        _prefsPage.value = page
+    }
+
     fun go(s: Screen) {
         val cur = _screen.value
         if (s != cur) {
+            if (s == Screen.Prefs) _prefsPage.value = PrefsPage.Index
             _backStack.value = if (cur == Screen.Pairing || s == Screen.Pairing) emptyList() else _backStack.value + cur
             _screen.value = s
         }
@@ -599,6 +608,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
      * ha on tornar (l'app pot sortir).
      */
     fun back(): Boolean {
+        if (_screen.value == Screen.Prefs && _prefsPage.value != PrefsPage.Index) {
+            _prefsPage.value = _prefsPage.value.parent
+            return true
+        }
         val stack = _backStack.value
         if (stack.isNotEmpty()) {
             _screen.value = stack.last()
