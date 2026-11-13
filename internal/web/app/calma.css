@@ -157,6 +157,9 @@ html[data-product="vents"] #sessionTabs > *, html[data-product="jocs"] #sessionT
   letter-spacing:-.01em; color:var(--ink); margin:0 0 6px; display:flex; align-items:center; justify-content:center; gap:14px; }
 /* El logo de debò (amb els ulls): una màscara el deixava en silueta. */
 #hero h1::before { content:''; width:34px; height:34px; flex:none; background:url('/app/icon.png') center/contain no-repeat; }
+/* Centrat òptic: el text (el que pesa) va sobre l'eix del compositor i el logo penja a l'esquerra;
+   el mateix espai buit a la dreta (logo + separació) compensa la caixa. */
+#hero h1 { padding-right:48px; }
 :root[data-theme="calma"] #hero h1::before, :root[data-theme="calma"] #side .brand .rail-brand img { filter:hue-rotate(160deg) saturate(.8) brightness(1.02); }
 #conversationPane:has(#hero:not([hidden])) #hint { display:none; }
 #heroMore .home-recent { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; border:0; }

@@ -787,3 +787,10 @@ body .workshop-bay { container-type:inline-size; container-name:bay; }
 .run-summary-file { padding:2px 8px; border:1px solid var(--line); border-radius:7px; background:var(--surface); font-size:var(--t1); }
 .run-summary-actions { margin:0 0 0 auto; }
 .run-summary-action { min-height:28px; padding:3px 10px; font-size:var(--t1); }
+/* Canvi de model: un separador discret amb el nom bonic, no «model → proveïdor/id». */
+.msg.sys:has(.model-switch) { display:flex; justify-content:center; max-width:none; opacity:1; }
+.model-switch { font:var(--t1)/1.4 inherit; font-family:inherit; color:var(--muted); padding:3px 12px; border:1px solid var(--line); border-radius:999px; }
+.model-switch b { color:var(--ink); font-weight:600; }
+#modelPill.mp-flash { animation:mpFlash 1.3s ease-out; }
+@keyframes mpFlash { 0% { box-shadow:0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); background:color-mix(in srgb, var(--accent) 16%, transparent); } 100% { box-shadow:0 0 0 10px transparent; background:transparent; } }
+@media (prefers-reduced-motion: reduce) { #modelPill.mp-flash { animation:none; } }

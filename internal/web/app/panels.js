@@ -1119,7 +1119,14 @@ export const models = {
       const res = await G().api('/api/model', { method: 'POST', body: JSON.stringify({ model: m.sel }) });
       if (!res.ok) { foot.innerHTML = '<div class="mp-err">' + esc(await res.text()) + '</div>'; return; }
       this.remember(m.sel);
-      G().sys(T('models.changed') + m.sel);
+      // Amb el fil buit, cap línia (tapava la salutació): el xip del model ja diu el nou
+      // nom i fa un flaix. Amb conversa, un separador discret amb el nom bonic.
+      const nice = (window.gregalModelName && window.gregalModelName(m.id)) || m.id;
+      if (document.querySelector('#log .msg.u')) {
+        G().add('sys', '', '<span class="model-switch" title="' + esc(m.sel) + '">⇄ ' + esc(T('models.nowAnswers')) + ' <b>' + esc(nice) + '</b></span>');
+      }
+      const pill = document.getElementById('modelPill');
+      if (pill) { pill.classList.remove('mp-flash'); void pill.offsetWidth; pill.classList.add('mp-flash'); setTimeout(() => pill.classList.remove('mp-flash'), 1400); }
       G().activityItem('model', m.sel, T('models.roleActivity') + (this.data.role || ''), 'ok');
       this.close();
       G().refresh();

@@ -1546,6 +1546,7 @@ const CA = {
   'models.noneAvailable': 'Ara no hi ha models disponibles. Revisa l’estat dels proveïdors a continuació.',
   'models.noneListed': 'Cap proveïdor ha llistat models. Comprova la configuració dels proveïdors.',
   'models.validating': 'validant ',
+  'models.nowAnswers': 'Ara respon',
   'models.changed': 'model → ',
   'models.roleActivity': 'rol ',
   'attach.images': 'Imatges…',
@@ -3669,6 +3670,7 @@ const EN = {
   'models.noneAvailable': 'No models available right now. Check provider status below.',
   'models.noneListed': 'No provider listed models. Check provider configuration.',
   'models.validating': 'validating ',
+  'models.nowAnswers': 'Now answering:',
   'models.changed': 'model → ',
   'models.roleActivity': 'role ',
 

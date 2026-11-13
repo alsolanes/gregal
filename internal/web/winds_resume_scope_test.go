@@ -43,3 +43,30 @@ func quoteJSONPath(p string) string {
 	b, _ := json.Marshal(p)
 	return string(b)
 }
+
+// Escriure un joc o una web a ~/gregal/projectes/<nom> és feina del vent: no
+// demana permís encara que el projecte obert sigui un altre (B14, «zefir»).
+func TestWindProjectesFolderIsTheWindsOwn(t *testing.T) {
+	projectes := t.TempDir()
+	t.Setenv("GREGAL_PROJECTES", projectes)
+	codi := t.TempDir()
+	pol := &agent.Policy{ProjectDir: codi, Tools: map[string]string{"write": "ask"}}
+	joc := `{"path":` + quoteJSONPath(filepath.Join(projectes, "zefir", "js", "game.js")) + `,"content":"x"}`
+	if pol.WindAutoAllow("write", joc) {
+		t.Fatal("sense la regla, la carpeta de projectes queda fora")
+	}
+	if !windProjectesPolicy(pol, "write", joc).WindAutoAllow("write", joc) {
+		t.Fatal("dins ~/gregal/projectes, escriure ha de passar sol")
+	}
+	fora := `{"path":` + quoteJSONPath(filepath.Join(t.TempDir(), "x.js")) + `,"content":"x"}`
+	if windProjectesPolicy(pol, "write", fora) != pol {
+		t.Fatal("fora de projectes, la política no canvia")
+	}
+	if windProjectesPolicy(pol, "write", `{"path":"zefir/x.js","content":"x"}`) != pol {
+		t.Fatal("una ruta relativa no guanya la carpeta de projectes")
+	}
+	deny := &agent.Policy{ProjectDir: codi, Tools: map[string]string{"write": "deny"}}
+	if windProjectesPolicy(deny, "write", joc).WindAutoAllow("write", joc) {
+		t.Fatal("un deny del config continua manant")
+	}
+}

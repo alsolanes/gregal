@@ -706,6 +706,15 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  async function connectFor(a){const win=root.open('about:blank','gregal-connexio');const site=String(a.site||'');const body=site.startsWith('con-')?{id:site}:{service:'mcp',provider:site.replace(/^mcp:/,'')};try{const r=await call('/api/connexions/connect','POST',body);if(win)win.location.href=r.authUrl;}catch(e){if(win)win.close();const m=String(e&&e.message||'');fail(/needs_client_id/.test(m)?new Error(t("Aquest proveïdor necessita que l'administrador hi registri Gregal. Mentrestant, pots iniciar sessió al navegador de l'ordinador.","This provider needs the administrator to register Gregal with it. Meanwhile, you can sign in on the computer's browser.")):e);}}
  async function loadAsks(){try{state.asks=(await call('/api/winds/pending')).pending||[];paintAsks();}catch(e){}}
  // Targetes d'aprovació i de pregunta: el torn del vent espera aquí.
+ function askPlain(a){
+  const m=/^(write|edit|patch)\s+(.+)$/.exec(String(a.what||'').trim());if(!m)return '';
+  const w=state.winds.find(x=>x.id===a.wind),who=w?.name||t('El vent','The wind');
+  const full=m[2].replace(/\\/g,'/'),parts=full.split('/'),file=parts.pop()||full;
+  let dir=parts.join('/');const k=dir.search(/\/gregal\/projectes(\/|$)/i);
+  if(k>=0)dir=t('Projectes','Projects')+(dir.slice(k+17)?' › '+dir.slice(k+18):'');else dir=parts.slice(-2).join('/');
+  const verb=m[1]==='write'?t('vol crear o escriure','wants to write'):t('vol modificar','wants to edit');
+  return who+' '+verb+' '+file+(dir?' '+t('a','in')+' '+dir:'');
+ }
  function paintAsks(){
   const box=page?.querySelector('.vw-asks');if(!box)return;box.replaceChildren();
   for(const a of state.asks){
@@ -734,7 +743,9 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
     const free=el('input','vw-ask-free');free.placeholder=t('Una altra cosa…','Something else…');free.setAttribute('aria-label',free.placeholder);free.onkeydown=e=>{if(e.key==='Enter'&&free.value.trim()){e.preventDefault();answerAsk(a,{answer:free.value.trim()});}};card.append(free);
    }else{
     card.append(el('strong','',askTitle(a.kind)),el('small','vw-ask-wait',t('Espera la teva resposta','Waiting for you')));
-    if(a.what)card.append(el('code','',a.what));
+    // Dit en pla: qui ho demana i què vol fer («Gregal vol escriure game.js a Projectes › zefir/js»); l'ordre crua, a sota.
+    const plain=askPlain(a);if(plain)card.append(el('p','vw-ask-plain',plain));
+    if(a.what){const raw=el('code','',a.what);if(plain)raw.className='vw-ask-raw';card.append(raw);}
     const row=el('div','vw-ask-actions');row.append(btn(t('Rebutja','Decline'),()=>answerAsk(a,{approve:false}),'vw-ask-decline'),btn(t('Permet','Allow'),()=>answerAsk(a,{approve:true}),'vw-ask-allow'));card.append(row);
    }
    box.append(card);

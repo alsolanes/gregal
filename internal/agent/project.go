@@ -122,3 +122,7 @@ func resolveInexistent(abs string) string {
 		curr = parent
 	}
 }
+
+// ToolPath és toolPath per a qui decideix permisos fora del paquet (la ruta
+// que escriu o llegeix una eina de fitxers; "" si no n'hi ha).
+func ToolPath(name, argsJSON string) string { return toolPath(name, argsJSON) }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -395,6 +396,13 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			// d'aquí (escriure i executar dins del projecte, sense res
 			// destructiu): si no, demanar codi al vent sempre acaba en «falta
 			// permís». Tot «deny» continua denegat.
+			// La carpeta de projectes dels vents (~/gregal/projectes) és seva: un
+			// joc o una web que hi construeixen no ha de demanar permís fitxer a
+			// fitxer encara que el projecte obert sigui un altre. Només rutes
+			// absolutes (una relativa es resol contra el projecte obert).
+			if decision == "ask" && interactive {
+				pol = windProjectesPolicy(pol, name, argsJSON)
+			}
 			if decision == "ask" && interactive && pol.WindAutoAllow(name, argsJSON) {
 				decision, reason = "allow", "ordre del xat del vent ("+reason+")"
 			}
@@ -631,4 +639,21 @@ func planSpecs() []llm.ToolSpec {
 		}
 	}
 	return out
+}
+
+// windProjectesPolicy: si l'eina escriu dins la carpeta de projectes dels vents
+// (ruta absoluta), una còpia de la política amb aquella carpeta com a projecte;
+// si no, la mateixa. Tot «deny» i les eines destructives continuen igual.
+func windProjectesPolicy(pol *agent.Policy, name, argsJSON string) *agent.Policy {
+	pd := projectesDir()
+	if pol == nil || pd == "" {
+		return pol
+	}
+	tp := agent.ToolPath(name, argsJSON)
+	if tp == "" || !filepath.IsAbs(tp) || !agent.InsideProject(pd, tp) {
+		return pol
+	}
+	cp := *pol
+	cp.ProjectDir = pd
+	return &cp
 }
