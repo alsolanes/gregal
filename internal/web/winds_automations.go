@@ -86,7 +86,9 @@ func (s *Server) automationOf(j jobs.Job, winds map[string]companion.Wind, allWi
 	}
 	it := AutomationItem{
 		ID: j.ID, Wind: w.ID, WindName: w.Name, WindColor: w.Color, WindStyle: w.Style,
-		Title: strings.TrimSpace(j.Name), Enabled: j.Enabled,
+		// «Responsabilitat · …» és el nom intern de la feina programada d'una
+		// responsabilitat (vigilar un preu…): a la llista només es diu què fa.
+		Title: strings.TrimPrefix(strings.TrimSpace(j.Name), "Responsabilitat · "), Enabled: j.Enabled,
 		LastAt: j.LastAt, LastStatus: j.LastStatus,
 	}
 	switch {

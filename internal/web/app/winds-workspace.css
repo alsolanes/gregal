@@ -877,3 +877,13 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 /* Mentre una targeta de permís espera, el vent no «treballa en la resposta»:
    t'espera a tu. La bombolla de treballant sobrava (i sortia sota la targeta). */
 .vw-messages:has(.vw-asks-inline .vw-ask) .vw-pending:not(:has(.vw-stream-text)) { display:none; }
+
+/* Feina, com la pantalla de tasques de Duet: seccions amb un comptador. */
+.vw-feina-sec { margin:26px 0 0; max-width:820px; }
+.vw-feina-sec[hidden] { display:none; }
+.vw-feina-h { display:flex; align-items:center; gap:8px; margin:0 0 10px; font-size:13px; font-weight:600; color:var(--muted); }
+.vw-feina-n { font-size:11.5px; font-weight:700; color:var(--on-accent, var(--bg)); background:var(--accent); border-radius:999px; padding:1px 7px; }
+.vw-feina-n[hidden] { display:none; }
+.vw-feina-asks { margin:0; }
+.vw-feina-live { display:flex; align-items:center; gap:10px; }
+.vw-feina-auto .auto-status:empty { display:none; }

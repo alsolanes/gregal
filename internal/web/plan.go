@@ -419,7 +419,7 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 					Command string `json:"command"`
 				}
 				if json.Unmarshal([]byte(argsJSON), &a) == nil {
-					if r, risky := tools.Risky(a.Command, scope.workspace, serviceHome()); risky {
+					if r, risky := windRisky(a.Command, scope.workspace, projectesDir(), serviceHome()); risky {
 						if decision == "allow" {
 							decision, reason = "ask", "needs your approval: "+r.Kind
 						}
@@ -645,6 +645,21 @@ func planSpecs() []llm.ToolSpec {
 		}
 	}
 	return out
+}
+
+// windRisky és tools.Risky per als vents: esborrar dins de la seva carpeta de
+// projectes (~/gregal/projectes) també és feina pròpia, encara que el projecte
+// obert sigui un altre. Sense això, «cd ~/gregal/projectes/web && rm x» demanava
+// permís (des que Risky segueix els cd). Instal·lar, baixar o tocar serveis
+// continuen demanant-lo sempre, i esborrar la carpeta sencera també.
+func windRisky(cmd, workspace, projectes, home string) (tools.Risk, bool) {
+	r, risky := tools.Risky(cmd, workspace, home)
+	if risky && r.Kind == "delete" && projectes != "" {
+		if _, again := tools.Risky(cmd, projectes, home); !again {
+			return tools.Risk{}, false
+		}
+	}
+	return r, risky
 }
 
 // windProjectesPolicy: si l'eina escriu dins la carpeta de projectes dels vents

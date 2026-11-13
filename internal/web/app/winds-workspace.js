@@ -118,7 +118,7 @@
   if(!mounted)return;
   const savedScroll=state.view==='chat'&&messages&&messages.dataset.thread===state.active?.id&&!nearChatEnd(messages)?messages.scrollTop:null;
   renderNav();page.replaceChildren();messages=null;asksBox=null;input=null;composer=null;
-  const top=el('header','vw-top');const menu=iconOnly('menu',t('Obre la navegació','Open navigation'),()=>{if(matchMedia('(max-width:760px)').matches){setDrawer(!document.body.classList.contains('vw-drawer'));return;}const side=$('side');const reopen=side.classList.contains('closed')||side.classList.contains('compact');if(reopen&&root.setSideCompact)root.setSideCompact(false);if(root.setSide)root.setSide(reopen);},'vw-mobile-menu');menu.setAttribute('aria-expanded',String(document.body.classList.contains('vw-drawer')));top.append(menu,el('span','',t('Vents','Winds')),el('span','vw-separator','/'),state.view==='chat'?owner():el('span','',state.active?.name||squadName(state.squad)));
+  const top=el('header','vw-top');const menu=iconOnly('menu',t('Obre la navegació','Open navigation'),()=>{if(matchMedia('(max-width:760px)').matches){setDrawer(!document.body.classList.contains('vw-drawer'));return;}const side=$('side');const reopen=side.classList.contains('closed')||side.classList.contains('compact');if(reopen&&root.setSideCompact)root.setSideCompact(false);if(root.setSide)root.setSide(reopen);},'vw-mobile-menu');menu.setAttribute('aria-expanded',String(document.body.classList.contains('vw-drawer')));top.append(menu,el('span','',t('Vents','Winds')),el('span','vw-separator','/'),state.view==='chat'?owner():el('span','',state.view==='tasks'?t('Feina','Work'):(state.active?.name||squadName(state.squad))));
   // «La colla» ja és a la barra lateral (i a la de sota, al mòbil): aquí només hi van les accions del fil obert.
   // Fil de Gregal (B14): a dalt només la seva cara, flotant, i l'ordinador; la lluïssor floreix en obrir.
   const gregalHome=state.view==='chat'&&state.active?.wind==='gregal';page.classList.toggle('vw-gregal',gregalHome);
@@ -557,7 +557,31 @@
  function projectView(){heading(state.active.name,t('Un lloc per conversar, treballar i trobar els resultats.','A place to talk, work and find the results.'));const path=el('p','vw-project-path');path.append(folder(),el('span','',state.active.path));content.append(path);content.append(iconBtn('plus',t('Nova conversa al projecte','New project conversation'),()=>{state.active={...state.active,project:true};state.view='home';render();},'vw-button vw-add'));const chats=state.chats.filter(c=>c.workspace===state.active.path);for(const c of chats)content.append(linkRow(c.name,()=>openChat(c)));taskList(state.tasks.filter(task=>task.workspace===state.active.path));}
  // El pati: la colla jugant; la feina real els porta al taller (winds-pati.js).
  function patiView(){content.classList.add('vw-pati-view');heading(t('El pati','The playground'),t('La colla a l’hora del pati. Fes clic en un vent per saber què fa i què pensa; arrossega’n uns quants al cercle de guix per fer una rotllana o encarregar-los una feina.','The crew at playtime. Click a wind to see what it is doing and thinking; drag a few into the chalk circle to start a chat or give them a task.'));if(!state.winds.length){content.append(el('p','vw-empty',t('Encara no hi ha cap vent al pati.','No winds in the playground yet.')));return;}root.gregalPati?.mount(content,{winds:state.winds,tasks:state.tasks,talkTo,openChat,openThread:id=>openChat(state.chats.find(c=>c.id===id)||{id,name:'',members:[]}),call,notify:text=>{if(status)status.textContent=text;},refreshTasks:async()=>(await call('/api/winds/tasks?summary=1')).tasks||[]});}
- function tasks(){heading(t('La feina, a la vista.','Your work, in view.'),t('Progrés real, comprovacions i resultats que pots obrir.','Real progress, checks and results you can open.'));if(state.busy)content.append(btn(t('Torna a la feina en marxa','Return to current work'),()=>route('task',state.liveActive||{name:state.liveSnapshot?.task||'',live:true}),'vw-recent'));taskList(state.tasks);const routines=el('section');content.append(routines);showRoutines(routines).catch(fail);}
+ function tasks(){
+  // Feina, com la pantalla de tasques de Duet: tot el que Gregal fa per tu.
+  // T'espera (les mateixes targetes de permís del fil), Ara (el torn en marxa i
+  // les feines de la colla que corren), Programat (vigilàncies, recordatoris i
+  // rutines) i Fet. Abans només hi sortien les feines de la colla: la feina del
+  // mateix Gregal i els permisos pendents no es veien enlloc fora del fil.
+  heading(t('Feina','Work'),t('El que Gregal fa per tu: el que t’espera, el que fa ara, el que té programat i el que ha acabat.','What Gregal does for you: what is waiting for you, what it is doing now, what is scheduled and what is done.'));
+  const section=(cls,title)=>{const s=el('section','vw-feina-sec '+cls),h=el('h3','vw-feina-h'),n=el('span','vw-feina-n');h.append(el('span','',title),n);s.append(h);content.append(s);
+   const set=k=>{n.textContent=k?String(k):'';n.hidden=!k;};return {s,set};};
+  const wait=section('vw-feina-wait',t('T’espera','Waiting for you'));wait.s.append(el('div','vw-asks vw-feina-asks'));
+  wait.set(state.asks.length);wait.s.hidden=!state.asks.length;paintAsks();loadAsks();
+  const live=(state.tasks||[]).filter(x=>['started','working','running'].includes(x.status)),done=(state.tasks||[]).filter(x=>!live.includes(x));
+  if(state.busy||live.length){
+   const now=section('vw-feina-now',t('Ara','Now'));now.set((state.busy?1:0)+live.length);
+   if(state.busy){const row=btn('',()=>route('task',state.liveActive||{name:state.liveSnapshot?.task||'',live:true}),'vw-task-row vw-feina-live');
+    const w=state.winds.find(x=>x.id==='gregal');if(w)row.append(face(w));
+    row.append(el('strong','',t('Gregal hi està treballant','Gregal is working on it')),el('span','vw-task-state is-running',t('Mira-ho ›','See it ›')));now.s.append(row);}
+   if(live.length)taskList(live);
+  }
+  const sch=section('vw-feina-sched',t('Programat','Scheduled')),box=el('div','vw-feina-auto');sch.s.append(box);
+  if(root.gregalVentsActivity?.renderAutomations)root.gregalVentsActivity.renderAutomations(box,{compact:true,onCount:n=>sch.set(n)}).catch(fail);
+  sch.s.append(iconBtn('plus',t('Una nova rutina','New routine'),newRoutine,'vw-button vw-add'));
+  const fet=section('vw-feina-done',t('Fet','Done'));fet.set(done.length);
+  if(done.length)taskList(done);else fet.s.append(el('p','vw-muted',t('Quan Gregal o la colla acabin una feina llarga, el resultat quedarà aquí per obrir-lo.','When Gregal or the crew finish a long task, the result stays here for you to open.')));
+ }
  
 async function wikiView(){
   heading(t('Wiki dels vents','Winds wiki'),t('Resums que es queden: el que s\'ha parlat, en pàgines.','Summaries that stay: what was talked about, as pages.'));
@@ -782,6 +806,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   }
   // Una petició nova no pot quedar sota el compositor: el fil baixa fins a la targeta sencera.
   if(box===asksBox&&box.childElementCount>abans)requestAnimationFrame(()=>{if(messages)messages.scrollTop=messages.scrollHeight;});
+  const fw=page?.querySelector('.vw-feina-wait');if(fw){fw.hidden=!state.asks.length;const n=fw.querySelector('.vw-feina-n');if(n){n.textContent=state.asks.length||'';n.hidden=!state.asks.length;}}
  }
  function paintHistory(){const top=messages.scrollTop,follow=nearChatEnd(messages);messages.replaceChildren();let voice='',asked=false;const H=state.history,who=m=>m?(m.from==='user'?'user':(m.speaker_id||m.from||'')):null;for(let hi=0;hi<H.length;hi++){const item=H[hi];const user=item.from==='user';
   // Un altre vent agafa el fil després d'un missatge teu: una línia ho diu, en lloc que el vent ho expliqui.

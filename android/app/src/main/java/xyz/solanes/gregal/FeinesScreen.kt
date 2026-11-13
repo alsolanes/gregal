@@ -4,6 +4,9 @@ import android.annotation.SuppressLint
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -84,12 +87,21 @@ internal fun FeinesButton(lang: String, running: Int, onClick: () -> Unit) {
     }
 }
 
+/**
+ * Feina, com la pantalla de tasques de Duet: tot el que Gregal fa per tu.
+ * T'espera (permisos i preguntes, les mateixes targetes del fil), Ara (el que
+ * corre), Programat (vigilàncies, recordatoris i rutines amb la propera hora) i
+ * Fet (feines acabades amb els fitxers). Abans només hi sortien les feines de
+ * la colla; un permís pendent no es veia enlloc si no eres al fil.
+ */
 @Composable
 internal fun FeinesDialog(vm: GregalViewModel, lang: String, onOpenThread: (String) -> Unit, onDismiss: () -> Unit) {
     val tasks by vm.windTasks.collectAsState()
     val tasksError by vm.windTasksError.collectAsState()
+    val asks by vm.windAsks.collectAsState()
+    val autos by vm.automations.collectAsState()
     var file by remember { mutableStateOf<Pair<WindTask, String>?>(null) }
-    LaunchedEffect(Unit) { vm.loadWindTasks() }
+    LaunchedEffect(Unit) { vm.loadWindTasks(); vm.loadWindAsks(); vm.loadAutomations("") }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxWidth().fillMaxHeight(0.85f).padding(top = 16.dp)) {
@@ -98,27 +110,53 @@ internal fun FeinesDialog(vm: GregalViewModel, lang: String, onOpenThread: (Stri
                     IconButton(onClick = onDismiss) { Text("✕", color = Muted, fontSize = 16.sp) }
                 }
                 val list = tasks
+                val programat = autos[""]?.items.orEmpty()
+                val running = list.orEmpty().filter { it.running }
+                val done = list.orEmpty().filterNot { it.running }
                 when {
-                    list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    list == null && asks.isEmpty() && programat.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = Sea)
                     }
-                    list.isEmpty() && tasksError.isNotEmpty() -> Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center) {
-                        Text(tr(lang, "app.feines.loadFailed"), color = Ink, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(6.dp))
-                        Text(tasksError, color = Muted, fontSize = 13.sp)
-                        Spacer(Modifier.height(12.dp))
-                        androidx.compose.material3.OutlinedButton(onClick = { vm.loadWindTasks() }) { Text(tr(lang, "app.chat.retry")) }
-                    }
-                    list.isEmpty() -> Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center) {
-                        Text(tr(lang, "app.feines.empty"), color = Ink, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(6.dp))
-                        Text(tr(lang, "app.feines.emptyHelp"), color = Muted, fontSize = 14.sp)
-                    }
-                    else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 20.dp)) {
-                        items(list, key = { it.id }) { t ->
-                            FeinaRow(lang, t, onFile = { f -> file = t to f }, onThread = {
-                                onDismiss(); onOpenThread(t.thread)
-                            })
+                    list.orEmpty().isEmpty() && tasksError.isNotEmpty() && asks.isEmpty() && programat.isEmpty() ->
+                        Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center) {
+                            Text(tr(lang, "app.feines.loadFailed"), color = Ink, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(6.dp))
+                            Text(tasksError, color = Muted, fontSize = 13.sp)
+                            Spacer(Modifier.height(12.dp))
+                            androidx.compose.material3.OutlinedButton(onClick = { vm.loadWindTasks() }) { Text(tr(lang, "app.chat.retry")) }
+                        }
+                    list.orEmpty().isEmpty() && asks.isEmpty() && programat.isEmpty() ->
+                        Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center) {
+                            Text(tr(lang, "app.feines.empty"), color = Ink, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(6.dp))
+                            Text(tr(lang, "app.feines.emptyHelp"), color = Muted, fontSize = 14.sp)
+                        }
+                    else -> LazyColumn(Modifier.fillMaxSize().testTag("feines-list"), contentPadding = PaddingValues(bottom = 20.dp)) {
+                        if (asks.isNotEmpty()) {
+                            item(key = "h-asks") { FeinesSection(tr(lang, "app.feines.sec.waiting"), asks.size) }
+                            item(key = "asks") { WindAskCards(vm, lang, Sea, busy = false) }
+                        }
+                        if (running.isNotEmpty()) {
+                            item(key = "h-now") { FeinesSection(tr(lang, "app.feines.sec.now"), running.size) }
+                            items(running, key = { "r-" + it.id }) { t ->
+                                FeinaRow(lang, t, onFile = { f -> file = t to f }, onThread = { onDismiss(); onOpenThread(t.thread) })
+                            }
+                        }
+                        if (programat.isNotEmpty()) {
+                            item(key = "h-sched") { FeinesSection(tr(lang, "app.feines.sec.scheduled"), programat.size) }
+                            items(programat, key = { "a-" + it.id }) { a ->
+                                Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                                    WindAutomationRow(lang, a, showWind = true, onAction = { item, action -> vm.automationAction(item, action, "") })
+                                }
+                            }
+                        }
+                        item(key = "h-done") { FeinesSection(tr(lang, "app.feines.sec.done"), done.size) }
+                        if (done.isEmpty()) item(key = "done-empty") {
+                            Text(tr(lang, "app.feines.doneEmpty"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp,
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+                        }
+                        items(done, key = { "d-" + it.id }) { t ->
+                            FeinaRow(lang, t, onFile = { f -> file = t to f }, onThread = { onDismiss(); onOpenThread(t.thread) })
                         }
                     }
                 }
@@ -126,6 +164,19 @@ internal fun FeinesDialog(vm: GregalViewModel, lang: String, onOpenThread: (Stri
         }
     }
     file?.let { (t, f) -> FeinaFileDialog(vm, lang, t, f) { file = null } }
+}
+
+@Composable
+private fun FeinesSection(title: String, count: Int) {
+    Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, color = Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        if (count > 0) {
+            Spacer(Modifier.width(8.dp))
+            Box(Modifier.clip(RoundedCornerShape(50)).background(Sea).padding(horizontal = 7.dp, vertical = 1.dp)) {
+                Text(count.toString(), color = OnSea, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
 }
 
 @Composable

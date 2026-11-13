@@ -113,6 +113,7 @@ export async function renderAutomations(box, opts = {}) {
   const draw = () => {
     box.dataset.filter = filter;
     box.replaceChildren(status);
+    if (typeof opts.onCount === 'function') opts.onCount(items.length);
     if (!items.length) {
       box.append(el('p', 'auto-empty', wind
         ? tx('Aquest vent encara no té res programat. Demana-li un recordatori o una rutina al xat.', 'This wind has nothing scheduled yet. Ask it for a reminder or a routine in the chat.')
@@ -120,7 +121,8 @@ export async function renderAutomations(box, opts = {}) {
           'Nothing scheduled yet. Just ask: “remind me tomorrow at 9”, “every morning check for concerts”, or turn on a wind’s watch.')));
       return;
     }
-    if (!wind) {
+    // compact: dins de Feina, només les files (sense resum ni filtres).
+    if (!wind && !opts.compact) {
       const sum = el('div', 'act-summary');
       for (const [n, a, b] of [[counts.today, 'avui', 'today'], [counts.week, 'aquesta setmana', 'this week'], [counts.paused, 'en pausa', 'paused']]) {
         const c = el('div', 'act-count'); c.append(el('strong', '', String(n || 0)), el('span', '', tx(a, b))); sum.append(c);
@@ -135,7 +137,7 @@ export async function renderAutomations(box, opts = {}) {
     if (kinds.has('watch')) options.push(['watch', tx('Vigilàncies', 'Watches')]);
     if (kinds.has('routine')) options.push(['routine', tx('Rutines', 'Routines')]);
     if (counts.paused) options.push(['paused', tx('En pausa', 'Paused')]);
-    if (options.length > 2) box.append(chips(options, filter, k => { filter = k; draw(); }));
+    if (options.length > 2 && !opts.compact) box.append(chips(options, filter, k => { filter = k; draw(); }));
     const shown = filterItems(items, filter);
     if (!shown.length) box.append(el('p', 'auto-empty', tx('Res en aquest filtre.', 'Nothing in this filter.')));
     for (const a of shown) box.append(row(a));

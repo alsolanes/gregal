@@ -158,3 +158,30 @@ func TestHandlePlanContinuaSenseExploracio(t *testing.T) {
 		t.Fatalf("continuar sense res=%d, volia 409", rec.Code)
 	}
 }
+
+// Esborrar dins de la carpeta de projectes dels vents és feina pròpia, també
+// amb un cd abans (com ho escriuen els models): no ha de demanar permís. Fora
+// d'aquí, o la carpeta sencera, sí.
+func TestWindRiskyKeepsTheWindsProjectsFolderTheirOwn(t *testing.T) {
+	base := t.TempDir()
+	open := filepath.Join(base, "proj")
+	projectes := filepath.Join(base, "gregal", "projectes")
+	web := filepath.ToSlash(filepath.Join(projectes, "club-basquet"))
+	for _, cmd := range []string{
+		`cd "` + web + `" && rm -f _check.js && ls -la`,
+		`rm -f "` + web + `/_check.js"`,
+	} {
+		if r, risky := windRisky(cmd, open, projectes, base); risky {
+			t.Errorf("%q no havia de preguntar: %+v", cmd, r)
+		}
+	}
+	for _, cmd := range []string{
+		`cd "` + filepath.ToSlash(filepath.Join(base, "altre")) + `" && rm -f x.txt`,
+		`rm -rf "` + filepath.ToSlash(projectes) + `"`,
+		`cd "` + web + `" && npm install -g serve`,
+	} {
+		if _, risky := windRisky(cmd, open, projectes, base); !risky {
+			t.Errorf("%q havia de preguntar", cmd)
+		}
+	}
+}
