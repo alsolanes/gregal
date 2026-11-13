@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.AutoStories
 import androidx.compose.material.icons.rounded.Shield
+import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Construction
 import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.Folder
@@ -132,6 +133,7 @@ internal fun VentsExploreSheet(
     onWiki: (() -> Unit)? = null,
     onFeines: (() -> Unit)? = null,
     onRules: (() -> Unit)? = null,
+    onFes: (() -> Unit)? = null,
     onCrew: (() -> Unit)? = null,
     onWorkspace: (() -> Unit)? = null,
 ) {
@@ -143,6 +145,7 @@ internal fun VentsExploreSheet(
             Spacer(Modifier.weight(1f))
             Text(ventsCopy(lang, "exploreHelp"), color = Muted, fontSize = 12.sp)
         }
+        if (onFes != null) ExploreRow(lang, if (en) "Do" else "Fes", if (en) "Templates: today list, email triage, compare prices…" else "Plantilles: llista del dia, triatge del correu, compara preus…", Icons.Rounded.Bolt, onFes)
         if (onActivity != null) ExploreRow(lang, tr(lang, "act.title"), tr(lang, "explore.activity"), Icons.Rounded.Schedule, onActivity)
         if (onSaved != null) ExploreRow(lang, tr(lang, "saved.title"), tr(lang, "explore.saved"), Icons.Rounded.Folder, onSaved)
         if (onCrew != null) ExploreRow(lang, tr(lang, "app.crew.title"), ventsCopy(lang, "explore.crew"), Icons.Rounded.Groups, onCrew)

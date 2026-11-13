@@ -118,6 +118,7 @@ fun CompanyScreen(vm: GregalViewModel, openDrawer: () -> Unit) {
 fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLibrary: () -> Unit = {}, openPet: (Pet?) -> Unit) {
     var feinesOpen by remember { mutableStateOf(false) }
     var rulesOpen by remember { mutableStateOf(false) }
+    var fesOpen by remember { mutableStateOf(false) }
     var homeProfile by remember { mutableStateOf(false) }
     var guideOpen by remember { mutableStateOf(false) }
     var homeComputer by remember { mutableStateOf(false) }
@@ -389,6 +390,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                                     onWiki = { wikiOpen = true; exploreOpen = false },
                                     onFeines = { feinesOpen = true; exploreOpen = false },
                                     onRules = { rulesOpen = true; exploreOpen = false },
+                                    onFes = { fesOpen = true; exploreOpen = false },
                                     onCrew = { vm.openCrew(); exploreOpen = false },
                                     onWorkspace = if (vm.simpleVents.value) null else ({ exploreOpen = false; vm.go(Screen.Carpeta) }))
                             }
@@ -560,6 +562,8 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     SharedInvitePopup(vm, lang) { vm.openVentsChat("shared:$it") }
     if (programatsOpen) ProgramatsDialog(vm, lang) { programatsOpen = false }
     if (rulesOpen) RulesDialog(conn, lang) { rulesOpen = false }
+    // Fes: la plantilla va a Gregal en el seu fil (com quan hi escrius).
+    if (fesOpen) FesDialog(lang, onSend = { msg -> vm.openVentsChat("wind:gregal"); vm.sendWindMessage("gregal", msg) }) { fesOpen = false }
     if (feinesOpen) FeinesDialog(vm, lang, onOpenThread = { vm.openVentsChat("rot:$it") }) { feinesOpen = false }
     if (watchHome) ResponsabilitatsSheet(conn, lang, winds) { watchHome = false }
     if (homeProfile) VentetProfile(vm, lang) { homeProfile = false }

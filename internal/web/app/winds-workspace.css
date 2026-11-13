@@ -963,3 +963,24 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-secret-input:focus { outline:none; border-color:var(--accent); }
 .vw-secret-show { border:1px solid var(--line); background:transparent; color:var(--ink); border-radius:10px; padding:0 14px; font-size:13px; cursor:pointer; }
 .vw-secret-note { display:block; margin-top:6px; color:var(--muted); }
+
+
+/* Fes: plantilles per començar (com la pestanya Do de Duet). */
+.vw-fes { display:grid; gap:22px; max-width:980px; }
+.vw-fes-group h2 { font-size:13px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin:0 0 10px; }
+.vw-fes-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px; }
+.vw-fes-card { border:1px solid var(--line); border-radius:14px; background:var(--surface); display:grid; gap:8px; padding:4px; position:relative; }
+.vw-fes-main { display:flex; align-items:flex-start; gap:12px; text-align:left; padding:12px; border:0; border-radius:11px; background:transparent; color:var(--ink); cursor:pointer; font:inherit; }
+.vw-fes-main:hover { background:color-mix(in srgb, var(--ink) 5%, transparent); }
+.vw-fes-icon { font-size:22px; line-height:1; margin-top:1px; }
+.vw-fes-text { display:grid; gap:3px; min-width:0; }
+.vw-fes-text strong { font-size:14.5px; font-weight:600; }
+.vw-fes-text small { font-size:12.5px; color:var(--muted); }
+.vw-fes-form { display:none; gap:6px; padding:0 8px 8px; }
+.vw-fes-card.is-open .vw-fes-form { display:flex; }
+.vw-fes-input { flex:1; min-width:0; padding:9px 11px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--ink); font:inherit; font-size:14px; }
+.vw-fes-input:focus { outline:none; border-color:var(--accent); }
+.vw-fes-go { border:0; border-radius:10px; background:var(--accent); color:var(--on-accent, #0d0e11); font-weight:600; padding:0 14px; cursor:pointer; }
+.vw-fes-daily { position:absolute; top:10px; right:10px; border:1px solid var(--line); background:transparent; color:var(--muted); border-radius:999px; font-size:11.5px; padding:4px 9px; cursor:pointer; }
+.vw-fes-daily:hover { color:var(--ink); border-color:var(--accent); }
+.vw-fes-card:has(.vw-fes-daily) .vw-fes-main { padding-right:86px; }
