@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## v1.77.0 - 2026-11-14 - Xats amb fotos, receptes i plans
+
+- **Xats amb fotos.** Quan un vent et fa un pla o una recepta, la targeta porta
+  una foto a dalt; si el vent no n'ha posat cap, Gregal en busca una. Dues o
+  tres fotos seguides fan una galeria.
+- **Receptes de debò.** Temps, dificultat i racions que pots canviar amb − i +
+  (les quantitats es recalculen), ingredients per marcar, passos numerats amb
+  el temps de cada un i un consell.
+- **Plans en línia de temps.** Escapades, dies i horaris amb les hores, el
+  total i les fonts.
+- **Opcions més clares.** Les comparacions poden portar foto i numeració, amb
+  la recomanada destacada.
+- **Millor text.** Les llistes de coses per fer es poden marcar, els passos
+  surten numerats i el consell que importa, destacat. A l'escriptori i a
+  l'Android.
+
 ## v1.76.0 - 2026-11-14 - Imatges dels vents i A prop teu a l'abast
 
 - **Els vents fan imatges.** Demana a un vent que et dibuixi alguna cosa i la
