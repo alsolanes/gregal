@@ -3153,6 +3153,9 @@ func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, req
 		s.emitGoal(emit, lastReply)
 	}
 	emit("done", map[string]string{"reply": lastReply})
+	// El torn s'ha acabat: si el mòbil és fora de l'app, ha de saber-ho. Va
+	// per les novetats (push + sondeig + dedupe de l'app), no per un camí nou.
+	s.recordTornAcabat(lastReply)
 	s.autosave()
 	verdict := ""
 	if verifica && feinaDeVeritat(journalAbans, tools.Active.Seq(), diffAbans, tools.GitDiff(ws)) {

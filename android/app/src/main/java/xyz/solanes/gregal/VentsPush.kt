@@ -117,6 +117,12 @@ object VentsPush {
         val n = try {
             AvuiJson.novetat(GregalApi(baseUrlOf(p.host, p.port), p.token).get("/api/winds/novetats?id=$id").toString())
         } catch (_: Throwable) { null } ?: return // d'un altre compte (404), esborrada o sense xarxa
+        // El torn acabat pot haver avisat ja des del fil (app en segon pla amb
+        // la connexió viva): el push del servidor no ha de duplicar-lo.
+        if (n.source == "torn" && GregalNotifications.turnJustNotified(origin, System.currentTimeMillis())) {
+            NoticeLedger.mark(app, origin, listOf(id))
+            return
+        }
         if (n.quiet) return
         val fresh = NoticeLedger.claim(app, origin, listOf(n), p.usuari)
         if (fresh.isEmpty() || !WindNotifications.canNotify(app)) return
