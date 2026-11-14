@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## v1.76.0 - 2026-11-14 - Imatges dels vents i A prop teu a l'abast
+
+- **Els vents fan imatges.** Demana a un vent que et dibuixi alguna cosa i la
+  imatge surt a la conversa, a l'escriptori i a l'Android. Fa servir el model
+  d'imatges que tinguis configurat o, si no, un servei gratuït.
+- **Pregunta-li.** Un vent pot convidar l'altre a la mateixa conversa quan en
+  sap més d'un tema.
+- **Prova «A prop teu» ara mateix.** El botó «Prova-ho ara» mira amb qualsevol
+  lloc sense activar ni desar res i ensenya què t'arribaria, amb les fonts i
+  el que ha buscat. Si no troba res, t'ho diu.
+- **La festa major, amb temps.** T'avisa de les dates fins a 45 dies abans, et
+  porta el programa quan surt i, durant la festa, les activitats del dia.
+- **A prop teu, fàcil de trobar a l'Android.** Té entrada pròpia al menú i és a
+  Automatitzacions, com a l'escriptori. «Canals» ara es diu «Especialistes».
+
 ## v1.75.1 - 2026-11-14 - A prop teu, context i velocitats de debò
 
 - **A prop teu.** Gregal et porta el que passa a prop d'on ets: concerts,
