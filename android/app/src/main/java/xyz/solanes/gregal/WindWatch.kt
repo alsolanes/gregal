@@ -384,6 +384,10 @@ object WindNotifications {
         .build()
 
     /** Una veu nova d'un vent: nom + resum; tocar-la obre el seu xat a la instància que la va provocar. */
+    /** La rotllana d'una novetat: una feina de la colla («feina:<id>») o una resposta seva que vas demanar i no vas veure («resposta:<id>»). */
+    internal fun rotOf(source: String): String =
+        listOf("feina:", "resposta:").firstOrNull { source.startsWith(it) }?.let { source.removePrefix(it) }.orEmpty()
+
     fun veu(ctx: Context, n: WindNovetat, origin: String = "") {
         if (Build.VERSION.SDK_INT >= 33 &&
             ctx.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
@@ -391,7 +395,7 @@ object WindNotifications {
         val source = NotificationOrigins.effective(ctx, origin)
         val nom = n.name.ifBlank { text(ctx, "app.vents.notif.wind") }
         val cos = JobSchedule.excerpt(n.text, 600)
-        val rot = n.source.removePrefix("feina:").takeIf { n.source.startsWith("feina:") }.orEmpty()
+        val rot = WindNotifications.rotOf(n.source)
         val target = if (rot.isNotEmpty()) "rot:$rot" else "wind:${n.wind}"
         val builder = Notification.Builder(ctx, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_gregal)

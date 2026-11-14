@@ -138,8 +138,11 @@ class NotifContinuityTest {
         assertFalse(PushLogic.needsRegister("", "t", "o", "o", 0, 10))
     }
 
-    @Test fun `sense configuracio FCM no hi ha transport`() {
-        assertNull(VentsPush.transport)
+    @Test fun `el transport FCM hi es nomes si l'APK porta Firebase`() {
+        // Amb gregal.fcm.config (Gradle, fora del repositori) es compila src/fcm; sense, no.
+        val compiled = runCatching { Class.forName("xyz.solanes.gregal.fcm.FcmTransport") }.isSuccess
+        if (compiled) assertNotNull(VentsPush.transport) else assertNull(VentsPush.transport)
+        // Sense servidor desat ni registre, el push mai no és actiu.
         assertFalse(VentsPush.active(ApplicationProvider.getApplicationContext()))
     }
 

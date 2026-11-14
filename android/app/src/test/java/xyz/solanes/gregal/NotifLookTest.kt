@@ -26,6 +26,12 @@ class NotifLookTest {
         assertEquals(NotifKind.SPORTS, NotifLook.of("heartbeat", "", "El Barça juga avui el partit de lliga a les 21h", hour = 15))
         assertEquals(NotifKind.MUSIC, NotifLook.of("heartbeat", "", "Hi ha un concert nou dels teus a Barcelona", hour = 15))
         assertEquals(NotifKind.DONE, NotifLook.of("feina:abc", "", "Feina feta"))
+        // La resposta que vas demanar i no vas veure (app tancada): no s'endevina pel text.
+        assertEquals(NotifKind.DONE, NotifLook.of("resposta", "", "Aquí tens el preu del tren"))
+        assertEquals(NotifKind.DONE, NotifLook.of("resposta:r-1", "", "Hem parlat del concert"))
+        assertEquals("r-1", WindNotifications.rotOf("resposta:r-1"))
+        assertEquals("abc", WindNotifications.rotOf("feina:abc"))
+        assertEquals("", WindNotifications.rotOf("resposta"))
         assertEquals(NotifKind.FAILED, NotifLook.of("job", "Resum del matí", "", failed = true))
         assertEquals(NotifKind.SPARK, NotifLook.of("heartbeat", "", "M'he recordat d'una cosa que et pot agradar", hour = 15))
     }

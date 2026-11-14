@@ -222,7 +222,9 @@ func (s *Server) avuiFromVoice(w companion.Wind, source, job, text string) (stri
 	now := time.Now().In(s.loadConnections().zone())
 	urgent := source == "remind" || strings.HasPrefix(source, "feina:") || isBriefingJob(job)
 	quiet := !urgent && (inQuietHours(now, st.QuietFrom, st.QuietTo) || st.Level == "calm")
-	if isBriefingJob(job) {
+	// Una resposta que vas demanar (winds_absent.go): sona sempre, fins i tot en
+	// hores tranquil·les, i no és cap targeta d'«Avui»: ja és al fil.
+	if isBriefingJob(job) || isReplySource(source) {
 		return "", true
 	}
 	title := cardTitle(text)

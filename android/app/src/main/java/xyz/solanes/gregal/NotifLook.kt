@@ -52,7 +52,8 @@ object NotifLook {
         if (failed) return NotifKind.FAILED
         val s = source.lowercase(Locale.ROOT)
         if (s == "remind") return NotifKind.REMINDER
-        if (s.startsWith("feina:")) return NotifKind.DONE
+        // Una feina de la colla, o la resposta que vas demanar i no vas veure (app tancada).
+        if (s.startsWith("feina:") || s == "resposta" || s.startsWith("resposta:")) return NotifKind.DONE
         if (s == "football") return NotifKind.SPORTS
         // El títol mana: «Previsió del temps» no és el resum encara que digui «bon dia».
         val named = title.lowercase(Locale.ROOT)

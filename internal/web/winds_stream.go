@@ -435,12 +435,15 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 	}
 	// El que has escrit mentre treballava, abans de la resposta que ja ho té en compte.
 	history = append(history, windSteerTaken(steerKey)...)
-	history = append(history, llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix(), Shots: s.turnShotsFor(turnShots)})
+	replyID := newMessageID()
+	history = append(history, llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix(), ID: replyID, Shots: s.turnShotsFor(turnShots)})
 	history, err = s.commitWindTurn(wind, hist, gotGen, history)
 	if err != nil {
 		fail(http.StatusInternalServerError, "no s'ha pogut desar la conversa")
 		return
 	}
+	// Has tancat l'app mentre treballava: que soni igualment (winds_absent.go).
+	s.noteReplyIfAway(r, wind, replySource, replyID, reply)
 	s.startWindLearn(wind, msg, reply)
 	s.startWindMemoryLearnInThread(wind, msg, reply, hist)
 	s.startWindLessons(wind, msg, reply, res.hist)
@@ -600,6 +603,7 @@ func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stre
 	type veu struct {
 		wind companion.Wind
 		text string
+		id   string
 	}
 	var veus []veu
 	members := s.rotMembersOf(rot)
@@ -717,8 +721,9 @@ func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stre
 		}
 		reply += s.windDocLinks(tVeu, reply)
 		conversation = append(conversation, windSteerTaken(rotSteerKey)...)
-		conversation = append(conversation, llm.Message{Role: "assistant", Content: reply, SpeakerID: sp.ID, SpeakerName: sp.Name, Ts: time.Now().Unix()})
-		veus = append(veus, veu{sp, reply})
+		voiceID := newMessageID()
+		conversation = append(conversation, llm.Message{Role: "assistant", Content: reply, SpeakerID: sp.ID, SpeakerName: sp.Name, Ts: time.Now().Unix(), ID: voiceID})
+		veus = append(veus, veu{sp, reply, voiceID})
 		// Cada veu acabada es desa de seguida (amb el missatge de l'usuari, la
 		// primera vegada): si una veu posterior falla, aquesta no es perd.
 		if err := saveRotllanaHistory(s, rot.ID, conversation); err != nil {
@@ -731,7 +736,7 @@ func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stre
 			emit("reply", map[string]any{"wind": sp.ID, "history": s.rotllanaHistoryJSON(conversation)})
 		}
 	}
-	var summaryReply string
+	var summaryReply, summaryID string
 	if len(veus) >= 2 && !parcial && lastErr == nil && !isContinue && rotllanaVolDebat(msg) {
 		ctx, cancel := context.WithTimeout(turnCtx, rotllanaTurnTimeout)
 		emit("phase", map[string]string{"phase": "speaker:" + speakingWind.ID})
@@ -740,7 +745,8 @@ func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stre
 			lastErr = err
 			failed = append(failed, speakingWind.Name)
 		} else if summary != "" {
-			final := append(conversation, llm.Message{Role: "assistant", Content: summary, SpeakerID: speakingWind.ID, SpeakerName: speakingWind.Name, Ts: time.Now().Unix()})
+			summaryID = newMessageID()
+			final := append(conversation, llm.Message{Role: "assistant", Content: summary, SpeakerID: speakingWind.ID, SpeakerName: speakingWind.Name, Ts: time.Now().Unix(), ID: summaryID})
 			if err := saveRotllanaHistory(s, rot.ID, final); err != nil {
 				lastErr = err
 				failed = append(failed, speakingWind.Name)
@@ -765,6 +771,12 @@ func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stre
 			emit("done", map[string]any{"reply": map[string]string{}, "silenci": true, "history": s.rotllanaHistoryJSON(base)})
 		}
 		return
+	}
+	// Has tancat l'app mentre parlaven: l'avís porta a la primera veu (o al resum).
+	if summaryReply != "" {
+		s.noteReplyIfAway(r, speakingWind, replySource+":"+rot.ID, summaryID, summaryReply)
+	} else {
+		s.noteReplyIfAway(r, veus[0].wind, replySource+":"+rot.ID, veus[0].id, veus[0].text)
 	}
 	if strings.TrimSpace(msg) != "" {
 		for _, v := range veus {
