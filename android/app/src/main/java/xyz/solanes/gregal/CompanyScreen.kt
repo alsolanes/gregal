@@ -455,6 +455,17 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                     weather = if (ww != null && forecast != null) ({
                         WeatherCard(lang, forecast, Color(ww.argb), compact = true) { vm.openVentsChat("wind:" + ww.id) }
                     }) else null,
+                    local = {
+                        val localInfo by vm.local.collectAsState()
+                        val localMsg by vm.localMsg.collectAsState()
+                        val localFound by vm.localFound.collectAsState()
+                        LaunchedEffect(conn) { vm.loadLocal() }
+                        LocalInfoCard(
+                            lang, localInfo, winds, localMsg, localFound,
+                            onSave = { vm.saveLocal(it) }, onLocate = { la, lo -> vm.locateLocal(la, lo) },
+                            onLocateFailed = { vm.localMessage(it) }, onRun = { vm.runLocal() }, onForget = { vm.forgetLocal() },
+                        )
+                    },
                 )
             } else LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(bottom = 24.dp)) {
                 if (manage) {

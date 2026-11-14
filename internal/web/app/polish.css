@@ -794,3 +794,14 @@ body .workshop-bay { container-type:inline-size; container-name:bay; }
 #modelPill.mp-flash { animation:mpFlash 1.3s ease-out; }
 @keyframes mpFlash { 0% { box-shadow:0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); background:color-mix(in srgb, var(--accent) 16%, transparent); } 100% { box-shadow:0 0 0 10px transparent; background:transparent; } }
 @media (prefers-reduced-motion: reduce) { #modelPill.mp-flash { animation:none; } }
+
+/* «A prop teu» (vents-local.js) */
+.local-form { display:flex; flex-direction:column; gap:10px; }
+.local-place { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.local-results { display:flex; flex-wrap:wrap; gap:6px; }
+.local-results:empty { display:none; }
+.local-form > .auto-btn { align-self:flex-start; }
+.local-topics { display:flex; flex-wrap:wrap; gap:6px 14px; border:1px solid var(--line); border-radius:8px; padding:8px 12px; margin:0; }
+.local-topics legend { padding:0 4px; color:var(--muted); font-size:13px; }
+.local-topic, .local-check { display:flex; align-items:flex-start; gap:8px; font-size:14px; line-height:1.4; }
+.local-row { display:flex; flex-wrap:wrap; gap:8px; }

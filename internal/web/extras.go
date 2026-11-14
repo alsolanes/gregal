@@ -38,6 +38,8 @@ func (h *Hub) extraRoutes(handle func(string, http.HandlerFunc)) {
 	handle("/api/winds/threads", h.route((*Server).handleWindThreads))
 	handle("/api/winds/avui", h.route((*Server).handleWindsAvui))
 	handle("/api/winds/avui/settings", h.route((*Server).handleWindsAvuiSettings))
+	handle("/api/winds/local", h.route((*Server).handleWindsLocal))
+	handle("/api/winds/local/locate", h.route((*Server).handleWindsLocalLocate))
 	handle("/api/winds/calaix", h.route((*Server).handleWindsCalaix))
 	handle("/api/winds/weather", h.route((*Server).handleWindsWeather))
 	handle("/api/winds/weather/places", h.route((*Server).handleWindsWeatherPlaces))

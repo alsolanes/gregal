@@ -131,6 +131,8 @@ internal fun AvuiTray(
     modifier: Modifier = Modifier,
     /** El temps del vent del temps (si en tens un amb lloc principal), sota la data. */
     weather: (@Composable () -> Unit)? = null,
+    /** «A prop teu» (VentsLocal.kt), sota els ajustos. */
+    local: (@Composable () -> Unit)? = null,
 ) {
     val p = LocalPal.current
     Column(
@@ -167,6 +169,7 @@ internal fun AvuiTray(
         } else AvuiEnd(lang, view.done.size)
         Spacer(Modifier.height(20.dp))
         AvuiSettingsCard(lang, view.settings, onSettings)
+        if (local != null) { Spacer(Modifier.height(12.dp)); local() }
     }
 }
 

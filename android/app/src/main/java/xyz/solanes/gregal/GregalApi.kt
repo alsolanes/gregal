@@ -910,6 +910,22 @@ class GregalApi(val base: String, val token: String) {
         return AvuiJson.settings(read("/api/winds/avui/settings", "POST", body.toString()))
     }
 
+    // --- «A prop teu» (VentsLocal.kt, /api/winds/local) ---
+
+    fun localInfo(): LocalInfo = LocalJson.view(read("/api/winds/local"))
+
+    fun saveLocalInfo(i: LocalInfo): LocalInfo = LocalJson.view(read("/api/winds/local", "POST", LocalJson.body(i).toString()))
+
+    /** action: run | forget. Torna la vista (forget) o null (run). */
+    fun localAction(action: String): LocalInfo? {
+        val raw = read("/api/winds/local", "POST", JSONObject().put("action", action).toString())
+        return if (action == "forget") LocalJson.view(raw) else null
+    }
+
+    /** El nom del lloc (ciutat o barri) a partir de coordenades aproximades; no desa res. */
+    fun localLocate(lat: Double, lon: Double): LocalPlace =
+        LocalJson.located(read("/api/winds/local/locate", "POST", LocalJson.locateBody(lat, lon).toString()))
+
     /** Resposta d'un torn amb streaming (SSE per POST). */
     sealed interface WindStreamEvent {
         data class Phase(val phase: String) : WindStreamEvent

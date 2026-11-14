@@ -227,6 +227,11 @@ func (s *Server) avuiFromVoice(w companion.Wind, source, job, text string) (stri
 	if isBriefingJob(job) || isReplySource(source) {
 		return "", true
 	}
+	// «A prop teu» ja ha posat una targeta per novetat, cadascuna amb la
+	// seva font (winds_local.go): aquí només es decideix si sona.
+	if source == localSourceName {
+		return "", !quiet
+	}
 	title := cardTitle(text)
 	if title == "" {
 		return "", !quiet

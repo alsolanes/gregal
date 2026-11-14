@@ -7,6 +7,7 @@
 import { idioma } from './i18n.js';
 import { renderAutomations } from './vents-activity.js';
 import { renderResponsabilitats } from './vents-responsabilitats.js';
+import { renderLocal } from './vents-local.js';
 import { t } from './i18n.js';
 
 const $ = id => document.getElementById(id);
@@ -77,6 +78,15 @@ async function render(box) {
   if (briefRoutine) cardBtns.append(btn(tx('Envia-me’l ara', 'Send it now'), () => act(() => post('/api/winds/rutines/run', { id: briefRoutine.id }), tx('En marxa: et sortirà al xat del vent i com a notificació.', 'Running: it will show up in the wind’s chat and as a notification.'))));
   card.append(cardBtns);
   box.append(card);
+
+  // «A prop teu» (vents-local.js): novetats de la zona a «Avui», amb la font.
+  const local = section(tx('A prop teu', 'Near you'), tx('Concerts, festes majors, esdeveniments, obertures de botigues i locals i notícies del lloc on ets. Arriben a «Avui» amb la font, i respecten les hores tranquil·les.',
+    'Concerts, local festivals, events, shop and venue openings and news from where you are. They arrive in Today with their source, and respect quiet hours.'));
+  local.id = 'autoLocal';
+  const localBox = el('div', 'local-box');
+  local.append(localBox);
+  box.append(local);
+  await renderLocal(localBox, windList).catch(e => localBox.replaceChildren(el('p', 'auto-help', tx('No s’ha pogut carregar: ', 'Could not load: ') + (e.message || e))));
 
   // Responsabilitats (B6): el que vigilen de manera continuada, amb fonts,
   // pressupost i «per què?» (com ResponsabilitatsSheet d'Android).

@@ -211,6 +211,10 @@ func (s *Server) executeJob(ctx context.Context, job jobs.Job, queued runs.Run) 
 	if strings.HasPrefix(job.ID, respJobPrefix) {
 		return s.executeResponsibility(jobCtx, job, queued)
 	}
+	// «A prop teu» (winds_local.go): novetats de la zona, amb font, a «Avui».
+	if isLocalJob(job.ID) {
+		return s.executeLocalInfo(jobCtx, job, queued)
+	}
 	// Els jobs de vent (id wind-<vent>) tenen consigna pròpia: el vent vigila
 	// el seu tema amb cerques web i només parla si troba algo que valgui la
 	// pena. El missatge entra al seu xat (company-<vent>).

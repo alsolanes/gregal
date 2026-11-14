@@ -1042,6 +1042,58 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // --- «A prop teu» (VentsLocal.kt) ---
+    private val _local = MutableStateFlow<LocalInfo?>(null)
+    val local: StateFlow<LocalInfo?> = _local.asStateFlow()
+    private val _localMsg = MutableStateFlow<String?>(null)
+    val localMsg: StateFlow<String?> = _localMsg.asStateFlow()
+    private val _localFound = MutableStateFlow<LocalPlace?>(null)
+    val localFound: StateFlow<LocalPlace?> = _localFound.asStateFlow()
+
+    private fun localCall(okMsg: String?, block: suspend (GregalApi) -> LocalInfo?) {
+        val c = _conn.value
+        viewModelScope.launch {
+            try {
+                val v = withContext(Dispatchers.IO) { block(c.api()) }
+                if (_conn.value == c) { if (v != null) _local.value = v; _localMsg.value = okMsg }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                if (_conn.value == c) _localMsg.value = LocalLogic.serverMessage(e).ifBlank { tr(_idioma.value, "app.local.error") }
+            }
+        }
+    }
+
+    fun loadLocal() = localCall(null) { it.localInfo() }
+
+    fun saveLocal(i: LocalInfo) {
+        _localFound.value = null
+        localCall(tr(_idioma.value, if (i.enabled) "app.local.saved" else "app.local.savedOff")) { it.saveLocalInfo(i) }
+    }
+
+    fun runLocal() = localCall(tr(_idioma.value, "app.local.running")) { it.localAction("run") }
+
+    fun forgetLocal() {
+        _localFound.value = null
+        localCall(tr(_idioma.value, "app.local.forgotten")) { it.localAction("forget") }
+    }
+
+    /** Coordenades aproximades del mòbil → nom del lloc (el servidor no desa res). */
+    fun locateLocal(lat: Double, lon: Double) {
+        val c = _conn.value
+        _localMsg.value = tr(_idioma.value, "app.local.locating")
+        viewModelScope.launch {
+            try {
+                val place = withContext(Dispatchers.IO) { c.api().localLocate(lat, lon) }
+                if (_conn.value == c) { _localFound.value = place; _localMsg.value = tr(_idioma.value, "app.local.found", place.label) }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                if (_conn.value == c) _localMsg.value = LocalLogic.serverMessage(e).ifBlank { tr(_idioma.value, "app.local.noLocation") }
+            }
+        }
+    }
+
+    fun localMessage(msg: String?) { _localMsg.value = msg }
+
     fun loadConnections() {
         val c = _conn.value
         viewModelScope.launch {
