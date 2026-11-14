@@ -18,6 +18,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -150,3 +157,108 @@ internal fun rememberDictation(lang: String, onText: (String) -> Unit): (() -> U
 /** Afegeix el que s'ha dictat al que ja hi havia al camp. */
 internal fun appendDictated(current: String, dictated: String): String =
     (current.trimEnd() + " " + dictated.trim()).trim()
+
+/**
+ * Conversa per veu (com dots): escolta (el reconeixedor del sistema), envia sol,
+ * llegeix la resposta en veu alta (VentsSpeaker) i torna a escoltar fins que
+ * l'atures. Si no sents res dues vegades seguides, s'atura sola. La web fa el
+ * mateix a winds-workspace.js (voiceListen / voiceReply).
+ */
+internal class VoiceConversation {
+    var on by androidx.compose.runtime.mutableStateOf(false)
+    /** listening | thinking | speaking */
+    var phase by androidx.compose.runtime.mutableStateOf("")
+    var empty = 0
+    var listen: () -> Unit = {}
+    /** La resposta que ja hi havia quan has parlat: aquesta no es llegeix. */
+    var before = ""
+}
+
+internal fun voiceTalkCopy(lang: String, key: String): String {
+    val en = lang == "en"
+    return when (key) {
+        "talk" -> if (en) "Voice conversation" else "Conversa per veu"
+        "listening" -> if (en) "Listening…" else "T'escolto…"
+        "thinking" -> if (en) "Thinking…" else "Hi penso…"
+        "speaking" -> if (en) "Answering…" else "Et responc…"
+        "stop" -> if (en) "Stop" else "Atura"
+        else -> key
+    }
+}
+
+/** Torna el controlador, o null si el telèfon no té reconeixedor de veu. */
+@Composable
+internal fun rememberVoiceConversation(lang: String, onHeard: (String) -> Unit): VoiceConversation? {
+    val ctx = LocalContext.current
+    val conv = remember { VoiceConversation() }
+    val available = remember {
+        try { ctx.packageManager.queryIntentActivities(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH), 0).isNotEmpty() } catch (_: Exception) { false }
+    }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
+        if (!conv.on) return@rememberLauncherForActivityResult
+        val said = res.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim().orEmpty()
+        if (said.isEmpty()) {
+            conv.empty++
+            if (conv.empty >= 2) { conv.on = false; conv.phase = "" } else conv.listen()
+        } else {
+            conv.empty = 0
+            conv.phase = "thinking"
+            onHeard(said)
+        }
+    }
+    if (!available) return null
+    conv.listen = {
+        conv.phase = "listening"
+        val tag = speechLocale(lang).toLanguageTag()
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            .putExtra(RecognizerIntent.EXTRA_LANGUAGE, tag)
+            .putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, tag)
+            .putExtra(RecognizerIntent.EXTRA_PROMPT, voiceCopy(lang, "prompt"))
+        try { launcher.launch(intent) } catch (_: Exception) { conv.on = false; conv.phase = "" }
+    }
+    return conv
+}
+
+/** Engega o atura la conversa per veu. */
+internal fun VoiceConversation.toggle() {
+    if (on) { on = false; phase = ""; VentsSpeaker.stop() } else { on = true; empty = 0; listen() }
+}
+
+/**
+ * La resposta ha arribat: es llegeix i, quan acaba de parlar, es torna a escoltar.
+ * [key] identifica la resposta perquè no es llegeixi dues vegades.
+ */
+@Composable
+internal fun VoiceConversationEffects(conv: VoiceConversation, lang: String, busy: Boolean, replyKey: String, replyText: String) {
+    val ctx = LocalContext.current
+    val speaking by VentsSpeaker.speaking.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(conv.on, busy, replyKey) {
+        if (conv.on && conv.phase == "thinking" && !busy && replyKey.isNotEmpty() && replyKey != conv.before) {
+            conv.phase = "speaking"
+            VentsSpeaker.speak(ctx, "voice:$replyKey", replyText, lang)
+        }
+    }
+    androidx.compose.runtime.LaunchedEffect(speaking) {
+        if (conv.on && conv.phase == "speaking" && speaking == null) conv.listen()
+    }
+}
+
+/** La franja sobre el camp mentre dura la conversa per veu. */
+@Composable
+internal fun VoiceConversationStrip(conv: VoiceConversation, lang: String, accent: Color) {
+    if (!conv.on) return
+    androidx.compose.foundation.layout.Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(999.dp))
+            .background(accent.copy(alpha = 0.14f))
+            .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
+            .testTag("voice-strip"),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        androidx.compose.material3.Text("🎙️ " + voiceTalkCopy(lang, conv.phase.ifEmpty { "listening" }), color = Ink, fontSize = 14.sp,
+            modifier = Modifier.weight(1f))
+        androidx.compose.material3.TextButton(onClick = { conv.toggle() }) { androidx.compose.material3.Text(voiceTalkCopy(lang, "stop"), color = Ink) }
+    }
+}
+

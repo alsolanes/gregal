@@ -23,6 +23,7 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.AutoStories
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.Face
 import androidx.compose.material.icons.rounded.Construction
 import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.Folder
@@ -134,6 +135,7 @@ internal fun VentsExploreSheet(
     onFeines: (() -> Unit)? = null,
     onRules: (() -> Unit)? = null,
     onFes: (() -> Unit)? = null,
+    onApres: (() -> Unit)? = null,
     onCrew: (() -> Unit)? = null,
     onWorkspace: (() -> Unit)? = null,
 ) {
@@ -150,6 +152,7 @@ internal fun VentsExploreSheet(
         if (onSaved != null) ExploreRow(lang, tr(lang, "saved.title"), tr(lang, "explore.saved"), Icons.Rounded.Folder, onSaved)
         if (onCrew != null) ExploreRow(lang, tr(lang, "app.crew.title"), ventsCopy(lang, "explore.crew"), Icons.Rounded.Groups, onCrew)
         if (onFeines != null) ExploreRow(lang, tr(lang, "app.feines.title"), ventsCopy(lang, "explore.feines"), Icons.Rounded.Construction, onFeines)
+        if (onApres != null) ExploreRow(lang, apresCopy(lang, "title"), if (en) "What it has learned about you, to forget anything" else "El que ha après de tu, per oblidar el que vulguis", Icons.Rounded.Face, onApres)
         if (onRules != null) ExploreRow(lang, rulesCopy(lang, "title"), if (en) "What it can do alone, what it asks and what never" else "Què pot fer sol, què pregunta i què mai", Icons.Rounded.Shield, onRules)
         if (onProgramats != null) ExploreRow(lang, tr(lang, "app.programats.open"), ventsCopy(lang, "explore.programats"), Icons.Rounded.Schedule, onProgramats)
         if (onWiki != null) ExploreRow(lang, tr(lang, "app.wiki.open"), ventsCopy(lang, "explore.wiki"), Icons.Rounded.AutoStories, onWiki)

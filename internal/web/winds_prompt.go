@@ -67,7 +67,7 @@ func windChatTurns(previous []llm.Message) []llm.Message {
 	total := 0
 	for i := len(previous) - 1; i >= 0 && len(picked) < windTurnsMaxMsgs; i-- {
 		m := previous[i]
-		if m.Role != "user" && m.Role != "assistant" {
+		if m.Role != "user" && m.Role != "assistant" || m.Kind == memoryKind {
 			continue
 		}
 		text := strings.TrimSpace(m.Content)

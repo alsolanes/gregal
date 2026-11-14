@@ -64,6 +64,10 @@ func petHistoryJSON(history []llm.Message) []map[string]any {
 			from = "user"
 		}
 		row := map[string]any{"id": messageID(m), "from": from, "text": m.Content}
+		// «📝 Ho recordaré»: el que ha après d'aquest torn (winds_apres.go).
+		if m.Kind == memoryKind {
+			row["kind"] = memoryKind
+		}
 		if m.Ts > 0 {
 			row["ts"] = m.Ts
 		}

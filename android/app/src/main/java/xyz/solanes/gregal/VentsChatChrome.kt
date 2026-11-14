@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.Send
@@ -235,9 +236,11 @@ internal fun VentsComposer(
     /** Feines en marxa: la franja de 32 dp sobre el camp, que les obre. */
     workCount: Int = 0,
     onWork: (() -> Unit)? = null,
+    /** Conversa per veu (parla i et respon en veu alta), al «+». */
+    onVoiceTalk: (() -> Unit)? = null,
     onSend: () -> Unit,
 ) {
-    val hasTools = onAttachDoc != null || onAttachImage != null || onMode != null || onPerm != null || onWorkspace != null || onPreview != null
+    val hasTools = onAttachDoc != null || onAttachImage != null || onMode != null || onPerm != null || onWorkspace != null || onPreview != null || onVoiceTalk != null
     var showPlus by remember { mutableStateOf(false) }
     val ringColor = if (accent != Color.Unspecified) accent else Sea
     Column(Modifier.fillMaxWidth().background(Superficie)) {
@@ -374,6 +377,14 @@ internal fun VentsComposer(
                                     onClick = { showPlus = false; onMode(m) },
                                 )
                             }
+                        }
+                        if (onVoiceTalk != null) {
+                            DropdownMenuItem(
+                                leadingIcon = { Icon(Icons.Rounded.GraphicEq, null, tint = Sea) },
+                                text = { Text(voiceTalkCopy(lang, "talk"), color = Ink, fontSize = 14.sp) },
+                                onClick = { showPlus = false; onVoiceTalk() },
+                                modifier = Modifier.testTag("voice-talk"),
+                            )
                         }
                         if (onPerm != null && st != null) {
                             HorizontalDivider(color = Line)

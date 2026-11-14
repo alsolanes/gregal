@@ -442,7 +442,7 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 		return
 	}
 	s.startWindLearn(wind, msg, reply)
-	s.startWindMemoryLearn(wind, msg, reply)
+	s.startWindMemoryLearnInThread(wind, msg, reply, hist)
 	s.startWindLessons(wind, msg, reply, res.hist)
 	steerLeft()
 	emit("done", map[string]any{"reply": reply, "wind": wind.ID, "parcial": res.parcial, "history": petHistoryJSON(history), "actions": remindActionsSince(s.remindOwner(), wind.ID, turnStart)})

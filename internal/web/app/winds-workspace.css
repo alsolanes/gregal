@@ -984,3 +984,34 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-fes-daily { position:absolute; top:10px; right:10px; border:1px solid var(--line); background:transparent; color:var(--muted); border-radius:999px; font-size:11.5px; padding:4px 9px; cursor:pointer; }
 .vw-fes-daily:hover { color:var(--ink); border-color:var(--accent); }
 .vw-fes-card:has(.vw-fes-daily) .vw-fes-main { padding-right:86px; }
+
+
+/* «Ho recordaré»: el que ha après del torn. */
+.vw-memory { display:flex; align-items:center; gap:10px; margin:2px 0 8px 46px; padding:8px 8px 8px 12px; max-width:560px; border:1px dashed var(--line); border-radius:12px; font-size:13px; }
+.vw-memory-icon { font-size:15px; }
+.vw-memory-copy { flex:1; min-width:0; display:grid; gap:1px; }
+.vw-memory-copy strong { color:var(--ink); font-weight:600; font-size:12.5px; }
+.vw-memory-copy span { color:var(--muted); }
+.vw-memory-undo { border:0; background:transparent; color:var(--ink); font-weight:600; font-size:12.5px; padding:8px 10px; border-radius:8px; cursor:pointer; }
+.vw-memory-undo:hover { background:color-mix(in srgb, var(--ink) 8%, transparent); }
+.vw-memory.is-forgot { opacity:.6; }
+.vw-apres .vw-rule-head .vw-face, .vw-apres .vw-rule-head > span:first-child { width:22px; height:22px; }
+.vw-apres .vw-rule-head { align-items:center; }
+.vw-apres .vw-rule-head > :first-child:not(strong) { width:26px !important; height:26px !important; min-width:26px; flex:none; }
+.vw-apres .vw-rule-head > :first-child:not(strong) :is(svg,img,canvas) { width:100% !important; height:100% !important; }
+
+
+/* Veu: dictar i conversa per veu. */
+.vw-voice-mic, .vw-voice-talk { display:grid; place-items:center; width:36px; height:36px; padding:0; border:0; border-radius:50%; background:transparent; color:var(--muted); cursor:pointer; }
+.vw-voice-mic:hover, .vw-voice-talk:hover { color:var(--ink); background:color-mix(in srgb, var(--ink) 7%, transparent); }
+.vw-voice-mic.is-on, .vw-voice-talk.is-on { color:var(--on-accent, #0d0e11); background:var(--accent); }
+.vw-voice-strip { display:flex; align-items:center; gap:10px; margin:0 auto 8px; padding:8px 8px 8px 14px; max-width:420px; border:1px solid color-mix(in srgb, var(--accent) 45%, transparent); background:color-mix(in srgb, var(--accent) 12%, transparent); border-radius:999px; font-size:13.5px; color:var(--ink); }
+.vw-voice-strip[hidden] { display:none; }
+.vw-voice-label { flex:1; }
+.vw-voice-bars { display:inline-flex; gap:3px; align-items:center; height:16px; }
+.vw-voice-bars i { width:3px; height:6px; border-radius:2px; background:var(--accent); animation:vw-voice 1s ease-in-out infinite; }
+.vw-voice-bars i:nth-child(2) { animation-delay:.15s; } .vw-voice-bars i:nth-child(3) { animation-delay:.3s; } .vw-voice-bars i:nth-child(4) { animation-delay:.45s; }
+.vw-voice-strip[data-phase="thinking"] .vw-voice-bars i { animation-duration:2.2s; opacity:.6; }
+@keyframes vw-voice { 0%,100% { height:5px; } 50% { height:16px; } }
+@media (prefers-reduced-motion: reduce) { .vw-voice-bars i { animation:none; height:10px; } }
+.vw-voice-stop { border:0; border-radius:999px; background:var(--ink); color:var(--bg); font-weight:600; font-size:12.5px; padding:6px 12px; cursor:pointer; }

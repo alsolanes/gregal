@@ -3204,6 +3204,24 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _windBusy.value = _windBusy.value - id
         endLive(id)
         flushLateSteer(id, rotllana = false)
+        // La memòria s'aprèn en segon pla: es torna a mirar el fil per ensenyar «Ho recordaré».
+        if (complete) viewModelScope.launch {
+            for (wait in listOf(9_000L, 12_000L)) {
+                kotlinx.coroutines.delay(wait)
+                if (id in _windBusy.value) return@launch
+                if (_windChat.value[id].orEmpty().lastOrNull()?.kind == "memory") return@launch
+                loadWindChat(id)
+            }
+        }
+    }
+
+    /** «Oblida-ho» de l'avís «Ho recordaré» (POST /api/winds/apres). */
+    fun forgetLearned(windId: String, facts: List<String>) {
+        val c = _conn.value
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) { runCatching { c.api().forgetApres(windId, facts) }.getOrDefault(false) }
+            if (!ok) notify(appText("act.failed"))
+        }
     }
 
     /**

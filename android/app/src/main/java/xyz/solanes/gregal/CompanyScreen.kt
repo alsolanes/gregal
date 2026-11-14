@@ -119,6 +119,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     var feinesOpen by remember { mutableStateOf(false) }
     var rulesOpen by remember { mutableStateOf(false) }
     var fesOpen by remember { mutableStateOf(false) }
+    var apresOpen by remember { mutableStateOf(false) }
     var homeProfile by remember { mutableStateOf(false) }
     var guideOpen by remember { mutableStateOf(false) }
     var homeComputer by remember { mutableStateOf(false) }
@@ -391,6 +392,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                                     onFeines = { feinesOpen = true; exploreOpen = false },
                                     onRules = { rulesOpen = true; exploreOpen = false },
                                     onFes = { fesOpen = true; exploreOpen = false },
+                                    onApres = { apresOpen = true; exploreOpen = false },
                                     onCrew = { vm.openCrew(); exploreOpen = false },
                                     onWorkspace = if (vm.simpleVents.value) null else ({ exploreOpen = false; vm.go(Screen.Carpeta) }))
                             }
@@ -562,6 +564,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     SharedInvitePopup(vm, lang) { vm.openVentsChat("shared:$it") }
     if (programatsOpen) ProgramatsDialog(vm, lang) { programatsOpen = false }
     if (rulesOpen) RulesDialog(conn, lang) { rulesOpen = false }
+    if (apresOpen) ApresDialog(conn, lang) { apresOpen = false }
     // Fes: la plantilla va a Gregal en el seu fil (com quan hi escrius).
     if (fesOpen) FesDialog(lang, onSend = { msg -> vm.openVentsChat("wind:gregal"); vm.sendWindMessage("gregal", msg) }) { fesOpen = false }
     if (feinesOpen) FeinesDialog(vm, lang, onOpenThread = { vm.openVentsChat("rot:$it") }) { feinesOpen = false }
@@ -1241,7 +1244,10 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                 val m = msgs[idx]
                 // Aire segons bàndol: juntes les del mateix, separades en canviar.
                 val gap = if (idx > 0 && m.from != msgs[idx - 1].from) 16.dp else 4.dp
-                Column(Modifier.padding(top = gap)) {
+                if (m.kind == "memory") {
+                    val facts = remember(m.text) { m.text.lines().map { it.trim() }.filter { it.isNotEmpty() } }
+                    MemoryNotice(lang, facts) { vm.forgetLearned(wind.id, facts) }
+                } else Column(Modifier.padding(top = gap)) {
                     BubbleIn("dm#$idx", animate = idx >= liveFrom) {
                         WindBubble(m, accent, lang = lang,
                             onCopy = {
@@ -1307,6 +1313,17 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         }
         // Mentre Gregal fa servir el seu ordinador, la miniatura en directe a sobre del camp.
         if (home) GregalWorkStrip(chatConn, lang, accent, working = isBusy || resuming.contains(wind.id)) { computerOpen = true }
+        // Conversa per veu: escolta, envia, llegeix la resposta i torna a escoltar.
+        val lastReply = msgs.lastOrNull { it.from != "user" && it.kind != "memory" && !it.streaming }
+        val replyKey = lastReply?.let { "${it.ts}:${it.text.hashCode()}" }.orEmpty()
+        val voiceConv = rememberVoiceConversation(lang) { said ->
+            follow.requestFollow()
+            vm.sendWindMessage(wind.id, said)
+        }
+        if (voiceConv != null) {
+            VoiceConversationEffects(voiceConv, lang, isBusy, replyKey, lastReply?.text.orEmpty())
+            VoiceConversationStrip(voiceConv, lang, accent)
+        }
         VentsComposer(lang, field, { field = it }, tr(lang, "app.company.windChatHint", wind.name), canSend,
             busy = busy.contains(wind.id), accent = accent, st = st,
             onAttachDoc = { pickDocs.launch("*/*") },
@@ -1316,6 +1333,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             onWorkspace = if (vm.simpleVents.value) null else ({ vm.go(Screen.Carpeta) }),
             onStop = if (busy.contains(wind.id)) ({ vm.cancelWindTurn(wind.id) }) else null,
             onPreview = { vm.openPreview() },
+            onVoiceTalk = voiceConv?.let { c -> { c.before = replyKey; c.toggle() } },
             showModePill = !vm.simpleVents.value) {
             val body = field.text
             val target = resolveMention(body, winds)
