@@ -5,9 +5,11 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // Un proveïdor remot sondejat en un procés no es torna a sondejar en el
@@ -55,5 +57,28 @@ func dialA(addr string) func(ctx context.Context, network, _ string) (net.Conn, 
 	return func(ctx context.Context, network, _ string) (net.Conn, error) {
 		var d net.Dialer
 		return d.DialContext(ctx, network, addr)
+	}
+}
+
+// En obrir una conversa (abans de cap torn ni sondeig) la finestra desada ja
+// es veu, encara que el sondeig sigui de fa dies: abans l'escriptori ensenyava
+// el defecte de 32K amb halogen (131072) fins que el primer torn sondejava.
+func TestWindowDiskEsVeuSenseSondejarEncaraQueSiguiVell(t *testing.T) {
+	WindowsPathOverride = filepath.Join(t.TempDir(), "windows.json")
+	defer func() { WindowsPathOverride = "" }()
+	base := "https://llm.example.test/v1"
+	vell := time.Now().Add(-72 * time.Hour).Format(time.RFC3339)
+	raw := `{"probed":{"` + base + `":"` + vell + `"},"windows":{"` + base + `|halogen-x":131072}}`
+	if err := os.WriteFile(WindowsPathOverride, []byte(raw), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ResetWindows()
+	defer ResetWindows()
+	if n, ok := KnownWindow(base, "halogen-x"); !ok || n != 131072 {
+		t.Fatalf("finestra desada = %d, %v", n, ok)
+	}
+	// Vell: s'ha de tornar a preguntar (per si ha canviat), però mentrestant ja es veu.
+	if sondejatRecent(base) {
+		t.Fatal("un sondeig de fa tres dies no és recent")
 	}
 }

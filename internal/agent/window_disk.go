@@ -78,17 +78,19 @@ func carregaWindowDisk() {
 	d := llegeixWindowDisk(path)
 	windowMu.Lock()
 	defer windowMu.Unlock()
-	for base, t := range d.Probed {
-		if time.Since(t) >= windowDiskTTL {
-			continue
-		}
-		windowDiskProbed[base] = t
-		for k, n := range d.Windows {
-			if strings.HasPrefix(k, base+"|") && n > 0 {
-				if _, ja := windowCache[k]; !ja {
-					windowCache[k] = n
-				}
+	// Les finestres valen encara que el sondeig sigui vell: la d'un model
+	// gairebé mai canvia, i és millor que el defecte de 32K. El TTL només
+	// decideix quan cal tornar a preguntar (windowDiskProbed).
+	for k, n := range d.Windows {
+		if n > 0 {
+			if _, ja := windowCache[k]; !ja {
+				windowCache[k] = n
 			}
+		}
+	}
+	for base, t := range d.Probed {
+		if time.Since(t) < windowDiskTTL {
+			windowDiskProbed[base] = t
 		}
 	}
 }

@@ -44,8 +44,12 @@ func LearnWindow(base, model string, n int) {
 	windowMu.Unlock()
 }
 
-// KnownWindow torna la finestra apresa d'un model, si n'hi ha.
+// KnownWindow torna la finestra apresa d'un model, si n'hi ha. Mira també
+// el que s'ha après en altres processos (windows.json): sense això, en obrir
+// una conversa a l'escriptori es veia el defecte de 32K fins que el primer
+// torn tornava a sondejar el proveïdor.
 func KnownWindow(base, model string) (int, bool) {
+	carregaWindowDisk()
 	windowMu.Lock()
 	defer windowMu.Unlock()
 	n, ok := windowCache[windowKey(base, model)]

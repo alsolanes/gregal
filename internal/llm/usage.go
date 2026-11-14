@@ -24,6 +24,32 @@ type UsageMeter struct {
 	// parent és el comptador que ja hi havia al context quan s'ha penjat
 	// aquest: un run dins d'un altre (verificació, flows) suma a tots dos.
 	parent *UsageMeter
+	// timings són els de l'última crida que els ha donat (llama.cpp, Ollama,
+	// halogen): la velocitat mesurada pel servidor mateix. timingsN compta
+	// quantes crides n'han donat, per saber si una crida concreta en porta.
+	timings  LocalTimings
+	timingsN int
+}
+
+// AddTimings apunta els timings d'una crida (nil = el servidor no n'ha donat).
+func (m *UsageMeter) AddTimings(t *LocalTimings) {
+	if m == nil || t == nil {
+		return
+	}
+	defer m.parent.AddTimings(t)
+	m.mu.Lock()
+	m.timings, m.timingsN = *t, m.timingsN+1
+	m.mu.Unlock()
+}
+
+// Timings torna els últims timings del servidor i quantes crides n'han donat.
+func (m *UsageMeter) Timings() (LocalTimings, int) {
+	if m == nil {
+		return LocalTimings{}, 0
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.timings, m.timingsN
 }
 
 // Add suma el consum d'una crida. Una crida sense usage (el proveïdor no
@@ -132,6 +158,7 @@ func (r *usageCall) local(t *LocalTimings) {
 
 func (r *usageCall) done() {
 	r.m.Add(r.last)
+	r.m.AddTimings(r.t)
 }
 
 // streamOptions demana l'usage a l'últim event d'un stream (OpenAI i la

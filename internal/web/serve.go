@@ -1083,7 +1083,7 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		"model_name":      modelDisplayName(role.Model),
 		"think_effective": role.Think,
 		"used_tokens":     max(llm.EstimateTokens(s.convo), int(s.lastPrompt.Load())),
-		"context_window":  agent.Window(s.cfg, role),
+		"context_window":  s.windowForState(role),
 		// Transcript curt perquè canviar de pestanya no perdi l'historial
 		// visible (abans switchTo buidava el fil i només deia "Sessió · id").
 		"transcript":         transcriptView(s.convo, transcriptLimit),
@@ -4593,4 +4593,20 @@ func Open(url string) {
 		return
 	}
 	_ = exec.Command("xdg-open", url).Start()
+}
+
+// windowForState és la finestra que es mostra. Si encara no se sap (un model
+// que no s'ha fet servir mai), la demana al proveïdor en segon pla: el proper
+// refresc de l'estat ja la té, en lloc del defecte fins al primer torn.
+func (s *Server) windowForState(role config.Role) int {
+	n, src := agent.WindowSource(s.cfg, role)
+	if src == "defecte" && role.ContextWindow == 0 {
+		cfg := s.cfg
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			agent.DetectRoleWindows(ctx, cfg, role)
+		}()
+	}
+	return n
 }
