@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## v1.75.1 - 2026-11-14 - A prop teu, context i velocitats de debò
+
+- **A prop teu.** Gregal et porta el que passa a prop d'on ets: concerts,
+  festes majors, esdeveniments, obertures i notícies locals, cadascun amb la
+  font. Tu tries què vols i què no, i fins on; si no hi ha res, no diu res.
+- **El context real dels models.** En obrir una conversa ja es veu la
+  finestra de context que declara el model (per exemple 128K amb halogen), no
+  32K fins al primer torn.
+- **Velocitats de debò.** Si el servidor mesura la velocitat, es mostra la
+  seva; si no, es compta del primer token real a l'últim, i quan la resposta
+  arriba de cop no s'ensenya cap xifra impossible.
+- La 1.75.0 es va compilar amb canvis a mig fer; aquesta és la versió neta.
+
 ## v1.75.0 - 2026-11-14 - Avisos de les respostes amb l'app tancada
 
 - **La resposta et sona encara que hagis tancat l'app.** Si tanques Gregal
