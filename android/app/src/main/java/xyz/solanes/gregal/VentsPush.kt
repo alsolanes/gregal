@@ -92,6 +92,12 @@ object VentsPush {
                 sp.edit().putString("token", token).putString("origin", origin)
                     .putLong("at", System.currentTimeMillis()).putBoolean("enabled", ok).apply()
                 Log.i(TAG, "push: registrat al servidor (enabled=" + ok + ")")
+                // El servidor ja pot avisar: és el moment de demanar el permís
+                // del telèfon (una sola vegada). Sense permís, Android 13+
+                // llença tots els avisos en silenci i no hi ha cap error.
+                if (ok && !NotifPermission.granted(app)) {
+                    NotifPermission.requestFor(app, NotifAskReason.PUSH)
+                }
             } catch (e: Throwable) {
                 // Sense servidor ara: es tornarà a provar a la propera passada.
                 Log.i(TAG, "push: no s'ha pogut registrar: " + e.javaClass.simpleName + " " + (e.message ?: ""))
@@ -131,11 +137,14 @@ object VentsPush {
 }
 
 /** Estat del push per a Preferències: què arriba i com, sense configuració amagada. */
-enum class PushState { ACTIVE, NOT_CONFIGURED, APP_ONLY, SERVER_ONLY, UNKNOWN }
+enum class PushState { ACTIVE, NOT_CONFIGURED, APP_ONLY, SERVER_ONLY, UNKNOWN, BLOCKED }
 
 object PushStatusLogic {
     /** [serverMode]: "fcm" | "polling" | "" (servidor antic o sense resposta). */
-    fun state(appHasFcm: Boolean, serverMode: String): PushState = when {
+    // `notifGranted`: el permís del telèfon. És el cas que enganya —tot
+    // muntat i cap avís—, així que mana sobre tota la resta.
+    fun state(appHasFcm: Boolean, serverMode: String, notifGranted: Boolean = true): PushState = when {
+        !notifGranted -> PushState.BLOCKED
         serverMode.isBlank() -> if (appHasFcm) PushState.UNKNOWN else PushState.NOT_CONFIGURED
         serverMode == "fcm" && appHasFcm -> PushState.ACTIVE
         serverMode == "fcm" -> PushState.SERVER_ONLY
@@ -147,6 +156,7 @@ object PushStatusLogic {
         val en = lang == "en"
         return when (s) {
             PushState.ACTIVE -> if (en) "Push active (FCM): notifications arrive with the app closed" else "Push actiu (FCM): els avisos arriben amb l'app tancada"
+            PushState.BLOCKED -> if (en) "Notifications are blocked on the phone: allow them in Android settings" else "El telèfon té les notificacions bloquejades: permet-les als ajustos d'Android"
             PushState.NOT_CONFIGURED -> if (en) "Push not configured: foreground connection and periodic checks" else "Push no configurat: connexió de primer pla i comprovació periòdica"
             PushState.SERVER_ONLY -> if (en) "Push not configured in this app build: periodic checks" else "Push no configurat en aquesta app: comprovació periòdica"
             PushState.APP_ONLY -> if (en) "Push not configured on the server (fcm-service-account.json): periodic checks" else "Push no configurat al servidor (fcm-service-account.json): comprovació periòdica"
@@ -160,14 +170,29 @@ object PushStatusLogic {
 /** Fila de Preferències amb l'estat del push del servidor actual. */
 @androidx.compose.runtime.Composable
 internal fun PushStatusRow(conn: Conn, lang: String) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     var mode by androidx.compose.runtime.remember(conn) { androidx.compose.runtime.mutableStateOf("") }
     androidx.compose.runtime.LaunchedEffect(conn) {
         mode = if (conn.local) "polling" else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             try { conn.api().get("/api/v2/push").optString("mode") } catch (_: Throwable) { "" }
         }
     }
+    val granted = NotifPermission.granted(ctx)
+    val state = PushStatusLogic.state(VentsPush.transport != null, mode, granted)
     SettingsRow(
         androidx.compose.material.icons.Icons.Rounded.Notifications, PushStatusLogic.title(lang),
-        PushStatusLogic.text(lang, PushStatusLogic.state(VentsPush.transport != null, mode)),
+        PushStatusLogic.text(lang, state),
+        // Bloquejades: la fila porta als ajustos del telèfon, que és l'únic
+        // lloc on es pot arreglar un permís denegat.
+        onClick = if (state == PushState.BLOCKED) {
+            {   try {
+                    ctx.startActivity(
+                        android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                            .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, ctx.packageName)
+                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                } catch (_: Exception) {
+                } }
+        } else null,
     )
 }

@@ -197,6 +197,12 @@ class NotifContinuityTest {
         assertEquals(PushState.NOT_CONFIGURED, PushStatusLogic.state(appHasFcm = false, serverMode = "polling"))
         assertEquals(PushState.NOT_CONFIGURED, PushStatusLogic.state(false, ""))
         assertTrue(PushStatusLogic.text("ca", PushState.NOT_CONFIGURED).startsWith("Push no configurat"))
+        // Tot muntat i el permís del telèfon denegat: és el cas que enganya,
+        // i ha de sortir dit a Preferències en lloc de «Push actiu».
+        assertEquals(PushState.BLOCKED, PushStatusLogic.state(appHasFcm = true, serverMode = "fcm", notifGranted = false))
+        assertEquals(PushState.ACTIVE, PushStatusLogic.state(appHasFcm = true, serverMode = "fcm", notifGranted = true))
+        assertTrue(PushStatusLogic.text("ca", PushState.BLOCKED).contains("bloquejades"))
+        assertTrue(PushStatusLogic.text("en", PushState.BLOCKED).contains("blocked"))
         assertTrue(PushStatusLogic.text("en", PushState.NOT_CONFIGURED).startsWith("Push not configured"))
     }
 
