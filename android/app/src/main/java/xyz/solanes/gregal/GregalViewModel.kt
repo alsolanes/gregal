@@ -1563,6 +1563,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _connected.value = true
         _signInReason.value = ""
         clearNotice()
+        // El token de push es registra en connectar, no només quan algú encén
+        // el Vigilant: amb l'app tancada l'avís ha d'arribar igual (dots i
+        // Duet el donen d'alta a la primera obertura). No bloqueja: obre fil.
+        try { VentsPush.ensureRegistered(appContext) } catch (_: Throwable) {}
         attachToRunning()
     }
 

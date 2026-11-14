@@ -230,7 +230,14 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
     implementation("com.squareup.okhttp3:okhttp:5.4.0")
     implementation("com.squareup.okhttp3:okhttp-sse:5.4.0")
-    if (fcmOn) implementation("com.google.firebase:firebase-messaging:24.1.2")
+    if (fcmOn) {
+        implementation("com.google.firebase:firebase-messaging:24.1.2")
+        // firebase-messaging arrossega androidx.fragment 1.1.0 (del 2018) i el
+        // lint el marca com a incompatible amb registerForActivityResult. La
+        // build de Vents no fa servir fragments, però la versió ha de ser
+        // moderna perquè la release passi el lint.
+        implementation("androidx.fragment:fragment:1.8.5")
+    }
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")

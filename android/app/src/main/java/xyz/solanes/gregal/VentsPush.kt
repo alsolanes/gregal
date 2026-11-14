@@ -1,6 +1,7 @@
 package xyz.solanes.gregal
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -36,8 +37,12 @@ object PushLogic {
         data["id"]?.takeIf { data["k"] == "novetat" && ID.matches(it) }
 
     /** Cal tornar a registrar el token? (nou token, nou origen o fa més de [REFRESH_MS]). */
-    fun needsRegister(token: String, lastToken: String, origin: String, lastOrigin: String, lastAt: Long, now: Long): Boolean =
-        token.isNotBlank() && (token != lastToken || origin != lastOrigin || now - lastAt > REFRESH_MS)
+    // `lastEnabled` és el que va contestar el servidor l'última vegada. Si era
+    // fals (encara no tenia push), s'ha de tornar a provar a la propera
+    // obertura: si no, el telèfon es queda sense avisos fins a 24 h.
+    fun needsRegister(token: String, lastToken: String, origin: String, lastOrigin: String, lastAt: Long,
+                      lastEnabled: Boolean, now: Long): Boolean =
+        token.isNotBlank() && (token != lastToken || origin != lastOrigin || !lastEnabled || now - lastAt > REFRESH_MS)
 
     const val REFRESH_MS = 24 * 3600_000L
 }
@@ -45,6 +50,7 @@ object PushLogic {
 object VentsPush {
     private const val PREFS = "gregal_push"
     private const val TRANSPORT = "xyz.solanes.gregal.fcm.FcmTransport"
+    private const val TAG = "gregal-push"
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -62,22 +68,33 @@ object VentsPush {
 
     /** Registra el token al servidor desat si cal. No bloqueja: fil propi. */
     fun ensureRegistered(ctx: Context, fresh: String? = null) {
-        val t = transport ?: return
+        // Traça sense secrets: mai el token, només si hi és i què ha fallat.
+        // Sense això, un push que no arriba no deixa cap rastre al telèfon.
+        val t = transport ?: run { Log.i(TAG, "push: sense transport FCM en aquesta APK"); return }
         val app = ctx.applicationContext
         Thread {
             try {
                 val p = Prefs(app)
-                val origin = NotificationOrigins.remote(p)?.id ?: return@Thread
-                val token = fresh ?: t.token(app) ?: return@Thread
+                val origin = NotificationOrigins.remote(p)?.id
+                if (origin == null) { Log.i(TAG, "push: sense servidor desat, no es registra"); return@Thread }
+                val token = fresh ?: t.token(app)
+                if (token == null) { Log.i(TAG, "push: el telèfon no ha donat cap token (GMS?)"); return@Thread }
                 val sp = prefs(app)
                 if (!PushLogic.needsRegister(token, sp.getString("token", "").orEmpty(), origin,
-                        sp.getString("origin", "").orEmpty(), sp.getLong("at", 0L), System.currentTimeMillis())) return@Thread
+                        sp.getString("origin", "").orEmpty(), sp.getLong("at", 0L),
+                        sp.getBoolean("enabled", false), System.currentTimeMillis())) {
+                    Log.i(TAG, "push: token ja registrat en aquest servidor")
+                    return@Thread
+                }
                 val api = GregalApi(baseUrlOf(p.host, p.port), p.token)
                 val r = api.post("/api/v2/push", JSONObject().put("token", token).put("platform", "android"))
+                val ok = r.optBoolean("enabled", false)
                 sp.edit().putString("token", token).putString("origin", origin)
-                    .putLong("at", System.currentTimeMillis()).putBoolean("enabled", r.optBoolean("enabled", false)).apply()
-            } catch (_: Throwable) {
+                    .putLong("at", System.currentTimeMillis()).putBoolean("enabled", ok).apply()
+                Log.i(TAG, "push: registrat al servidor (enabled=" + ok + ")")
+            } catch (e: Throwable) {
                 // Sense servidor ara: es tornarà a provar a la propera passada.
+                Log.i(TAG, "push: no s'ha pogut registrar: " + e.javaClass.simpleName + " " + (e.message ?: ""))
             }
         }.start()
     }

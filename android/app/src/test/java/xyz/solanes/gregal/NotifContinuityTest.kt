@@ -131,16 +131,28 @@ class NotifContinuityTest {
     }
 
     @Test fun `registre del token nomes quan cal`() {
-        assertTrue(PushLogic.needsRegister("t", "", "o", "o", 0, 10))
-        assertFalse(PushLogic.needsRegister("t", "t", "o", "o", 0, 10))
-        assertTrue(PushLogic.needsRegister("t", "t", "o2", "o", 0, 10))
-        assertTrue(PushLogic.needsRegister("t", "t", "o", "o", 0, PushLogic.REFRESH_MS + 1))
-        assertFalse(PushLogic.needsRegister("", "t", "o", "o", 0, 10))
+        assertTrue(PushLogic.needsRegister("t", "", "o", "o", 0, true, 10))
+        assertFalse(PushLogic.needsRegister("t", "t", "o", "o", 0, true, 10))
+        assertTrue(PushLogic.needsRegister("t", "t", "o2", "o", 0, true, 10))
+        assertTrue(PushLogic.needsRegister("t", "t", "o", "o", 0, true, PushLogic.REFRESH_MS + 1))
+        assertFalse(PushLogic.needsRegister("", "t", "o", "o", 0, true, 10))
     }
 
-    @Test fun `sense configuracio FCM no hi ha transport`() {
-        assertNull(VentsPush.transport)
-        assertFalse(VentsPush.active(ApplicationProvider.getApplicationContext()))
+    // El servidor va dir que no podia enviar push (encara no tenia Firebase):
+    // no s'ha d'esperar 24 h per tornar-ho a provar.
+    @Test fun `si el servidor no podia enviar push es torna a provar`() {
+        assertTrue(PushLogic.needsRegister("t", "t", "o", "o", 1_000, false, 2_000))
+        assertFalse(PushLogic.needsRegister("t", "t", "o", "o", 1_000, true, 2_000))
+    }
+
+    // L'APK pot portar Firebase o no segons `gregal.fcm.config` (cada fork el
+    // seu): la prova ha de dir la veritat en els dos casos, no assumir-ne un.
+    @Test fun `el transport hi es nomes si l APK porta Firebase`() {
+        val fcmBuilt = runCatching { Class.forName("xyz.solanes.gregal.fcm.FcmTransport") }.isSuccess
+        assertEquals(fcmBuilt, VentsPush.transport != null)
+        if (!fcmBuilt) {
+            assertFalse(VentsPush.active(ApplicationProvider.getApplicationContext()))
+        }
     }
 
     // ---- stream ----
