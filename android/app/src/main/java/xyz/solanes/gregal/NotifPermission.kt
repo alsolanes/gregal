@@ -12,7 +12,8 @@ import androidx.activity.result.contract.ActivityResultContracts
  * Una única política del permís d'avisos (Android 13+), B7.
  *
  * - Mai a l'arrencada ni «perquè sí»: només quan l'usuari fa una cosa que
- *   el justifica (demanar un recordatori, encendre la vigilància d'un vent).
+ *   el justifica (demanar un recordatori, encendre la vigilància d'un vent,
+ *   o connectar-se a un servidor que ja pot enviar avisos: PUSH).
  * - Una sola vegada. Si diu que no, la decisió és durable: no es torna a
  *   mostrar el diàleg ni en aquesta sessió ni en cap altra. Qui el vulgui
  *   activar després ho fa des de la targeta «Feina en segon pla» (Feines),
@@ -22,7 +23,7 @@ import androidx.activity.result.contract.ActivityResultContracts
  */
 
 /** Per què es vol avisar. Null = ningú no ho ha demanat (arrencada, sondeig…). */
-enum class NotifAskReason { REMINDER, WATCH, USER }
+enum class NotifAskReason { REMINDER, WATCH, USER, PUSH }
 
 /** El que queda desat entre sessions. */
 data class NotifAskState(

@@ -3153,6 +3153,9 @@ func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, req
 		s.emitGoal(emit, lastReply)
 	}
 	emit("done", map[string]string{"reply": lastReply})
+	// El torn s'ha acabat: si el mòbil és fora de l'app, ha de saber-ho. Va
+	// per les novetats (push + sondeig + dedupe de l'app), no per un camí nou.
+	s.recordTornAcabat(lastReply)
 	s.autosave()
 	verdict := ""
 	if verifica && feinaDeVeritat(journalAbans, tools.Active.Seq(), diffAbans, tools.GitDiff(ws)) {
@@ -3430,13 +3433,19 @@ func (s *Server) waitApproval(ctx context.Context, emit func(string, any), id, n
 		}
 	}
 	emit("approve_request", req)
+	// El torn es quedarà esperant: si l'app és fora, ho ha de saber. Amb l'app
+	// oberta no notifica (ella mateixa ho veu a la pantalla).
+	avís := s.recordTornNecessita(name)
 	oblida := func() {
 		s.mu.Lock()
 		delete(s.approvals, key)
 		s.mu.Unlock()
+		// Contestat o caducat: l'avís d'espera ja no té sentit.
+		s.forgetTorn(avís)
 	}
 	select {
 	case ok := <-ch:
+		oblida()
 		return ok, false
 	case <-ctx.Done():
 		oblida()
@@ -3497,13 +3506,17 @@ func (s *Server) waitQuestion(ctx context.Context, emit func(string, any), id, q
 	limit, para, segons := s.esperaResposta()
 	defer para()
 	emit("question_request", map[string]any{"key": key, "call_id": id, "query": query, "options": labels, "timeout_s": segons})
+	// Igual que amb el permís: una pregunta sense contestar atura el torn.
+	avís := s.recordTornNecessita(query)
 	oblida := func() {
 		s.mu.Lock()
 		delete(s.questions, key)
 		s.mu.Unlock()
+		s.forgetTorn(avís)
 	}
 	select {
 	case ans := <-ch:
+		oblida()
 		return ans, false
 	case <-ctx.Done():
 		oblida()

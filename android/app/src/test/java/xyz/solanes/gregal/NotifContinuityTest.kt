@@ -131,19 +131,28 @@ class NotifContinuityTest {
     }
 
     @Test fun `registre del token nomes quan cal`() {
-        assertTrue(PushLogic.needsRegister("t", "", "o", "o", 0, 10))
-        assertFalse(PushLogic.needsRegister("t", "t", "o", "o", 0, 10))
-        assertTrue(PushLogic.needsRegister("t", "t", "o2", "o", 0, 10))
-        assertTrue(PushLogic.needsRegister("t", "t", "o", "o", 0, PushLogic.REFRESH_MS + 1))
-        assertFalse(PushLogic.needsRegister("", "t", "o", "o", 0, 10))
+        assertTrue(PushLogic.needsRegister("t", "", "o", "o", 0, true, 10))
+        assertFalse(PushLogic.needsRegister("t", "t", "o", "o", 0, true, 10))
+        assertTrue(PushLogic.needsRegister("t", "t", "o2", "o", 0, true, 10))
+        assertTrue(PushLogic.needsRegister("t", "t", "o", "o", 0, true, PushLogic.REFRESH_MS + 1))
+        assertFalse(PushLogic.needsRegister("", "t", "o", "o", 0, true, 10))
     }
 
-    @Test fun `el transport FCM hi es nomes si l'APK porta Firebase`() {
-        // Amb gregal.fcm.config (Gradle, fora del repositori) es compila src/fcm; sense, no.
-        val compiled = runCatching { Class.forName("xyz.solanes.gregal.fcm.FcmTransport") }.isSuccess
-        if (compiled) assertNotNull(VentsPush.transport) else assertNull(VentsPush.transport)
-        // Sense servidor desat ni registre, el push mai no és actiu.
-        assertFalse(VentsPush.active(ApplicationProvider.getApplicationContext()))
+    // El servidor va dir que no podia enviar push (encara no tenia Firebase):
+    // no s'ha d'esperar 24 h per tornar-ho a provar.
+    @Test fun `si el servidor no podia enviar push es torna a provar`() {
+        assertTrue(PushLogic.needsRegister("t", "t", "o", "o", 1_000, false, 2_000))
+        assertFalse(PushLogic.needsRegister("t", "t", "o", "o", 1_000, true, 2_000))
+    }
+
+    // L'APK pot portar Firebase o no segons `gregal.fcm.config` (cada fork el
+    // seu): la prova ha de dir la veritat en els dos casos, no assumir-ne un.
+    @Test fun `el transport hi es nomes si l APK porta Firebase`() {
+        val fcmBuilt = runCatching { Class.forName("xyz.solanes.gregal.fcm.FcmTransport") }.isSuccess
+        assertEquals(fcmBuilt, VentsPush.transport != null)
+        if (!fcmBuilt) {
+            assertFalse(VentsPush.active(ApplicationProvider.getApplicationContext()))
+        }
     }
 
     // ---- stream ----
@@ -188,6 +197,12 @@ class NotifContinuityTest {
         assertEquals(PushState.NOT_CONFIGURED, PushStatusLogic.state(appHasFcm = false, serverMode = "polling"))
         assertEquals(PushState.NOT_CONFIGURED, PushStatusLogic.state(false, ""))
         assertTrue(PushStatusLogic.text("ca", PushState.NOT_CONFIGURED).startsWith("Push no configurat"))
+        // Tot muntat i el permís del telèfon denegat: és el cas que enganya,
+        // i ha de sortir dit a Preferències en lloc de «Push actiu».
+        assertEquals(PushState.BLOCKED, PushStatusLogic.state(appHasFcm = true, serverMode = "fcm", notifGranted = false))
+        assertEquals(PushState.ACTIVE, PushStatusLogic.state(appHasFcm = true, serverMode = "fcm", notifGranted = true))
+        assertTrue(PushStatusLogic.text("ca", PushState.BLOCKED).contains("bloquejades"))
+        assertTrue(PushStatusLogic.text("en", PushState.BLOCKED).contains("blocked"))
         assertTrue(PushStatusLogic.text("en", PushState.NOT_CONFIGURED).startsWith("Push not configured"))
     }
 

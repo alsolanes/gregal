@@ -108,6 +108,11 @@ object GregalNotifications {
 
     /** Pair starts/finishes with the same target. Empty target preserves legacy callers. */
     fun workStarted(context: Context, target: String = "", displayName: String = "", origin: String = "") {
+        // Amb el push funcionant no cal mantenir el procés viu ni una
+        // notificació fixa a la barra mentre treballa: el servidor avisa quan
+        // el torn s'acaba o quan es queda esperant el teu permís (winds_torn).
+        // Sense push (servidor sense Firebase, app vella) es queda com abans.
+        if (VentsPush.active(context)) return
         val key = WorkKey(NotificationOrigins.effective(context, origin), target)
         val start = synchronized(lock) {
             val previous = activeWork[key]
@@ -217,6 +222,10 @@ object GregalNotifications {
             val manager = context.getSystemService(NotificationManager::class.java)
             val identity = NotificationNavigation.identity(source, target.ifBlank { "screen:$SCREEN_CHAT" })
             manager.notify("gregal-work:$identity", identity.hashCode(), b.build())
+            // Marcat per no avisar dues vegades si el servidor també envia el
+            // push del torn (VentsPush.onMessage el mira).
+            lastTurnOrigin = source
+            lastTurnAt = System.currentTimeMillis()
         } catch (_: Exception) {
             // Permís revocat entre la comprovació i l'avís: no és motiu per caure.
         }
@@ -283,6 +292,15 @@ object GregalNotifications {
     /** Pantalla que obre l'avís: el xat, que és on viu la conversa. */
     const val SCREEN_CHAT = "chat"
     const val EXTRA_SCREEN = "xyz.solanes.gregal.SCREEN"
+
+    // Últim avís de «torn acabat» que ha sortit d'aquí (l'app amb el fil obert
+    // en segon pla). El push del servidor el consulta per no duplicar-lo.
+    @Volatile private var lastTurnAt = 0L
+    @Volatile private var lastTurnOrigin = ""
+
+    /** Cert si aquest origen ja ha avisat d'un torn fa menys de [windowMs]. */
+    fun turnJustNotified(origin: String, now: Long, windowMs: Long = 120_000L): Boolean =
+        origin.isNotBlank() && origin == lastTurnOrigin && lastTurnAt > 0 && now - lastTurnAt in 0 until windowMs
 
     private fun canNotify(context: Context): Boolean =
         Build.VERSION.SDK_INT < 33 ||
