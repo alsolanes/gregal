@@ -51,3 +51,17 @@ test('mai no surten coordenades exactes ni es desen', async () => {
     assert.equal('place' in m.payloadFrom({ topics: [] }), false);
   });
 });
+
+test('«Prova-ho ara» no porta consentiment ni activa res, i diu què ha passat', async () => {
+  await withLang('ca', m => {
+    const body = m.payloadFrom({ ...st, enabled: true, consent: true, wind: 'ponent' });
+    const p = m.tryPayload(body);
+    assert.equal(p.action, 'try');
+    assert.equal(p.place.label, 'Gràcia, Barcelona');
+    assert.equal(p.wind, 'ponent');
+    assert.ok(!('enabled' in p) && !('consent' in p) && !('lat' in p));
+    assert.match(m.tryHeadline({ state: 'running', wind: 'Ponent', place: 'Vic', seconds: 12 }), /Ponent està mirant què hi ha a Vic… \(12 s\)/);
+    assert.match(m.tryHeadline({ state: 'done', place: 'Vic', nothing: true, items: [] }), /No ha trobat res nou a Vic/);
+    assert.match(m.tryHeadline({ state: 'done', place: 'Vic', seconds: 40, items: [{}, {}] }), /Ha trobat 2 coses a Vic en 40 s/);
+  });
+});

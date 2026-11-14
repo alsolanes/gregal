@@ -414,7 +414,7 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			}
 			// El calaix del vent: només escriu a les dades del mateix vent (cap fitxer
 			// de la persona), així que també el poden fer servir les vigilàncies.
-			if name == "calaix" {
+			if name == "calaix" || name == "image" {
 				return "allow", "eina del vent"
 			}
 			// remind_list només llegeix: cap problema ni en mode lectura.

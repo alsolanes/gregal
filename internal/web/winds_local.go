@@ -371,7 +371,12 @@ func (s *Server) localInfoBrief(w companion.Wind, st localSettings, now time.Tim
 	b.WriteString(`
 HOW:
 - Use web_search and web_fetch. Look at the town council's agenda and news, local and regional press, venue and festival pages, neighbourhood associations. Search in the local language too.
-- Things that happen in the next 14 days, or news from the last 3 days. Nothing older.
+- Things that happen in the next 14 days, or news from the last 3 days. Nothing older.`)
+	if localWants(st, "festes") {
+		b.WriteString(`
+- FESTA MAJOR: always find out when the next festa major (the main town or neighbourhood festival) of the place is. If it starts within the next 45 days, bring it as an ahead item with its dates even if the programme is not out yet ("Festa Major de X: del 15 al 21 d'agost"). Once the programme is published, bring the highlights with their days ("Programa de la Festa Major de X: …"). While it is on, bring that day's or that weekend's best activities.`)
+	}
+	b.WriteString(`
 - ONLY real items you read on a web page. Every item MUST carry the URL of the page where you read it. Never invent an item, a date or a URL.
 - Best and most useful first, at most 6. Dates and times in the user's local time.
 - If there is nothing new worth telling, reply exactly: (res) — never write a message saying you found nothing: the user hears nothing at all.
@@ -669,6 +674,15 @@ func (s *Server) handleWindsLocal(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			writeJSON(w, s.localView())
+			return
+		case "try":
+			// «Prova-ho ara» (winds_local_try.go): amb el formulari, sense desar.
+			t, err := s.startLocalTry(req)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			writeJSON(w, map[string]any{"try": t.ID})
 			return
 		case "run":
 			localMu.Lock()

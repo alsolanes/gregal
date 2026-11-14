@@ -253,6 +253,7 @@ label.vw-pick-card > span:last-child { min-width:0; overflow:hidden; text-overfl
 .vw-message-text p,.vw-result-text p { margin:8px 0; }
 /* Images a wind chose to show: framed and bounded, never full-size in the thread. */
 .vw-message-text img.md-img,.vw-result-text img.md-img { display:block; max-width:min(100%,440px); max-height:340px; width:auto; height:auto; object-fit:contain; border-radius:12px; margin:12px 0; background:var(--surface); border:1px solid var(--line); }
+.vw-message-text img.gregal-img,.vw-result-text img.gregal-img { cursor:zoom-in; min-height:120px; }
 .vw-back { flex:none; align-self:flex-start; background:transparent; color:var(--muted); border:0; font-size:12px!important; padding:0 0 12px; }
 .vw-deliverable { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:20px; margin:15px 0; display:flex; flex-wrap:wrap; gap:9px; }
 .vw-deliverable h2 { width:100%; font-size:14px; font-weight:500; margin:0 0 8px; }

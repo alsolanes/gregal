@@ -1094,6 +1094,38 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     fun localMessage(msg: String?) { _localMsg.value = msg }
 
+    private val _localTry = MutableStateFlow<LocalTryResult?>(null)
+    val localTry: StateFlow<LocalTryResult?> = _localTry.asStateFlow()
+    private var localTryJob: kotlinx.coroutines.Job? = null
+
+    /** «Prova-ho ara»: una mirada amb el formulari; es mostra allà mateix. */
+    fun tryLocal(i: LocalInfo) {
+        if (i.place.label.isBlank()) { _localMsg.value = tr(_idioma.value, "app.local.tryNeedPlace"); return }
+        if (i.topics.isEmpty()) { _localMsg.value = tr(_idioma.value, "app.local.needTopic"); return }
+        val c = _conn.value
+        localTryJob?.cancel()
+        _localMsg.value = null
+        _localTry.value = LocalTryResult(place = i.place.label)
+        localTryJob = viewModelScope.launch {
+            try {
+                val id = withContext(Dispatchers.IO) { c.api().localTryStart(i) }
+                while (true) {
+                    val r = withContext(Dispatchers.IO) { c.api().localTry(id) }
+                    if (_conn.value != c) return@launch
+                    _localTry.value = r
+                    if (r.state != "running") break
+                    kotlinx.coroutines.delay(2000)
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                if (_conn.value == c) {
+                    _localTry.value = null
+                    _localMsg.value = LocalLogic.serverMessage(e).ifBlank { tr(_idioma.value, "app.local.error") }
+                }
+            }
+        }
+    }
+
     fun loadConnections() {
         val c = _conn.value
         viewModelScope.launch {

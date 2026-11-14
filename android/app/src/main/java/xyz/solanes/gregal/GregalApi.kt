@@ -399,6 +399,9 @@ class GregalApi(val base: String, val token: String) {
 
     fun officeDownload(id: String): ByteArray = download("/api/office/download?id=" + id)
 
+    /** Una imatge que ha fet un vent (VentsImages.kt): la ruta ja validada. */
+    fun windImage(path: String): ByteArray = download(path)
+
     /** Proveïdors: llista del servidor amb estat de clau (emmascarada). */
     fun getProviders(): List<ProviderInfo> {
         val r = exec("/api/providers", "GET")
@@ -921,6 +924,13 @@ class GregalApi(val base: String, val token: String) {
         val raw = read("/api/winds/local", "POST", JSONObject().put("action", action).toString())
         return if (action == "forget") LocalJson.view(raw) else null
     }
+
+    /** «Prova-ho ara»: comença una mirada amb el formulari, sense desar res. Torna l'id. */
+    fun localTryStart(i: LocalInfo): String =
+        JSONObject(read("/api/winds/local", "POST", LocalJson.tryBody(i).toString())).optString("try")
+
+    fun localTry(id: String): LocalTryResult =
+        LocalJson.tryResult(read("/api/winds/local/try?id=" + java.net.URLEncoder.encode(id, "UTF-8")))
 
     /** El nom del lloc (ciutat o barri) a partir de coordenades aproximades; no desa res. */
     fun localLocate(lat: Double, lon: Double): LocalPlace =

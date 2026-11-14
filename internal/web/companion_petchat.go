@@ -68,6 +68,11 @@ func petHistoryJSON(history []llm.Message) []map[string]any {
 		if m.Kind == memoryKind {
 			row["kind"] = memoryKind
 		}
+		// Un altre vent convidat al fil (winds_invite.go): la seva cara i el seu nom.
+		if m.Kind == guestKind {
+			row["kind"] = guestKind
+			row["speaker_id"], row["speaker_name"] = m.SpeakerID, m.SpeakerName
+		}
 		if m.Ts > 0 {
 			row["ts"] = m.Ts
 		}

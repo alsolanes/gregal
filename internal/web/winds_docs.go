@@ -167,10 +167,11 @@ func (s *Server) windDocLinks(since time.Time, reply string) string {
 		}
 		fmt.Fprintf(&b, "\n📄 [%s](%s)", d.name, d.link)
 	}
+	imgs := s.windImageLinks(since, reply)
 	if b.Len() == 0 {
-		return ""
+		return imgs
 	}
-	return "\n" + b.String()
+	return "\n" + b.String() + imgs
 }
 
 // handleWindDoc baixa un document de la carpeta dels vents.

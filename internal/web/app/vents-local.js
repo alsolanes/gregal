@@ -175,11 +175,70 @@ export async function renderLocal(box, winds = []) {
     catch (e) { say(tx('No s’ha pogut desar: ', 'Couldn’t save: ') + (e.message || e), true); }
   };
   acts.append(btn(st.enabled ? tx('Desa', 'Save') : tx('Activa', 'Turn on'), () => save(true), 'auto-btn primary'));
+  // «Prova-ho ara»: amb el que hi ha al formulari, sense activar ni desar res.
+  const tryBox = el('div', 'local-try'); tryBox.setAttribute('aria-live', 'polite');
+  acts.append(btn(tx('Prova-ho ara', 'Try it now'), () => runTry(payloadFrom(form), tryBox, say)));
   if (st.enabled) {
     acts.append(btn(tx('Mira-ho ara', 'Look now'), async () => { try { await post('/api/winds/local', { action: 'run' }); say(tx('En marxa: el que trobi sortirà a «Avui».', 'Running: what it finds will show up in Today.')); } catch (e) { say(e.message || String(e), true); } }));
     acts.append(btn(tx('Apaga', 'Turn off'), () => save(false)));
   }
   if (st.place?.label || st.consent) acts.append(btn(tx('Oblida el meu lloc', 'Forget my place'), async () => { try { await post('/api/winds/local', { action: 'forget' }); await renderLocal(box, winds); } catch (e) { say(e.message || String(e), true); } }));
-  f.append(acts, status);
+  f.append(acts, status, tryBox);
   box.append(f);
+}
+
+/** El cos de la prova: només el que la mirada necessita (mai coordenades). */
+export function tryPayload(body) {
+  const out = { action: 'try', topics: body.topics || [], interests: body.interests || '', avoid: body.avoid || '', radius_km: body.radius_km || 10 };
+  if (body.wind) out.wind = body.wind;
+  if (body.place) out.place = body.place;
+  return out;
+}
+
+/** Text de l'estat d'una prova. */
+export function tryHeadline(t) {
+  if (!t) return '';
+  if (t.state === 'running') return tx(`${t.wind || 'El vent'} està mirant què hi ha a ${t.place}… (${t.seconds || 0} s)`, `${t.wind || 'The wind'} is looking at what is on in ${t.place}… (${t.seconds || 0} s)`);
+  if (t.state === 'error') return tx('La prova ha fallat: ', 'The try failed: ') + (t.error || '');
+  if (t.nothing) return tx(`No ha trobat res nou a ${t.place} per als propers dies. Quan estigui activat, en aquest cas no t’avisaria de res.`, `Nothing new found in ${t.place} for the coming days. When it is on, it would stay quiet in this case.`);
+  const n = (t.items || []).length;
+  return tx(`Ha trobat ${n} ${n === 1 ? 'cosa' : 'coses'} a ${t.place} en ${t.seconds || 0} s. Activat, t’arribarien així a «Avui»:`, `Found ${n} ${n === 1 ? 'thing' : 'things'} in ${t.place} in ${t.seconds || 0} s. When it is on, they would reach Today like this:`);
+}
+
+async function runTry(body, box, say) {
+  if (!body.place || !body.place.label) { say(tx('Tria un lloc per provar-ho (pot ser qualsevol, no cal que sigui el teu).', 'Choose a place to try it (any place, it does not need to be yours).'), true); return; }
+  if (!(body.topics || []).length) { say(tx('Tria almenys un tema.', 'Choose at least one topic.'), true); return; }
+  box.replaceChildren();
+  let t;
+  try { t = await post('/api/winds/local', tryPayload(body)); } catch (e) { say(e.message || String(e), true); return; }
+  say('');
+  const id = t.try;
+  const head = el('p', 'local-try-head');
+  box.append(head);
+  for (;;) {
+    let cur;
+    try { cur = await getJSON('/api/winds/local/try?id=' + encodeURIComponent(id)); } catch (e) { head.textContent = e.message || String(e); return; }
+    head.textContent = tryHeadline(cur);
+    if (cur.state !== 'running') { paintTry(box, cur); return; }
+    await new Promise(r => setTimeout(r, 2000));
+  }
+}
+
+function paintTry(box, t) {
+  const list = el('ul', 'local-try-items');
+  for (const it of t.items || []) {
+    const li = el('li', 'local-try-item');
+    const title = el('strong', '', it.title);
+    li.append(el('small', 'local-try-topic', (it.section === 'ahead' ? tx('Properament', 'Coming up') : tx('Per saber', 'Worth knowing')) + ' · ' + it.topic), title);
+    if (it.detail) li.append(el('span', 'local-try-detail', it.detail));
+    const a = el('a', 'local-try-src', tx('Font: ', 'Source: ') + it.host); a.href = it.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    li.append(a);
+    if (it.repeated) li.append(el('small', 'auto-help', tx('Ja te l’havia dit: activat, no el repetiria.', 'Already told you: when it is on, it would not repeat it.')));
+    list.append(li);
+  }
+  if (list.children.length) box.append(list);
+  const notes = [];
+  if (t.dropped) notes.push(tx(`${t.dropped} descartades (sense font, d’un tema que no has triat o massa).`, `${t.dropped} dropped (no source, a topic you did not choose, or too many).`));
+  if ((t.searches || []).length) notes.push(tx('Ha buscat: ', 'It searched: ') + t.searches.map(q => '«' + q + '»').join(', '));
+  for (const n of notes) box.append(el('p', 'auto-help', n));
 }

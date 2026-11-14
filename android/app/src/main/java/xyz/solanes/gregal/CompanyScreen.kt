@@ -459,11 +459,13 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                         val localInfo by vm.local.collectAsState()
                         val localMsg by vm.localMsg.collectAsState()
                         val localFound by vm.localFound.collectAsState()
+                        val localTry by vm.localTry.collectAsState()
                         LaunchedEffect(conn) { vm.loadLocal() }
                         LocalInfoCard(
                             lang, localInfo, winds, localMsg, localFound,
                             onSave = { vm.saveLocal(it) }, onLocate = { la, lo -> vm.locateLocal(la, lo) },
                             onLocateFailed = { vm.localMessage(it) }, onRun = { vm.runLocal() }, onForget = { vm.forgetLocal() },
+                            tryResult = localTry, onTry = { vm.tryLocal(it) },
                         )
                     },
                 )
@@ -1259,6 +1261,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     val facts = remember(m.text) { m.text.lines().map { it.trim() }.filter { it.isNotEmpty() } }
                     MemoryNotice(lang, facts) { vm.forgetLearned(wind.id, facts) }
                 } else Column(Modifier.padding(top = gap)) {
+                    if (m.kind == "guest" && m.speakerName.isNotBlank()) GuestJoinsLine(lang, m.speakerName)
                     BubbleIn("dm#$idx", animate = idx >= liveFrom) {
                         WindBubble(m, accent, lang = lang,
                             onCopy = {
@@ -1734,6 +1737,9 @@ internal fun MdImage(url: String, alt: String, link: Color, lang: String) {
                 // es baixa amb la clau, com els documents.
                 if (url.startsWith("gregal-image:")) {
                     decodeChatBytes(gregalImageBytes(ctx, url.removePrefix("gregal-image:")))
+                } else if (isWindImageUrl(url)) {
+                    // Una imatge que ha fet un vent: també es baixa amb la clau.
+                    decodeChatBytes(windImageBytes(ctx, url))
                 } else loadChatBitmap(url)
             }
             if (got != null) {

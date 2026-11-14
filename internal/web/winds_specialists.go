@@ -284,6 +284,12 @@ func mustWinds(s *Server) []companion.Wind {
 // vent ni consumir-ne l'historial. Cada vent contesta només amb el seu
 // ofici i la seva memòria de coneixements.
 func (s *Server) windAskOnce(parent context.Context, wind companion.Wind, task string) (string, string, error) {
+	return s.windAskOnceAs(parent, wind, "[Question from the main agent] "+task)
+}
+
+// windAskOnceAs és windAskOnce amb el missatge sencer (winds_invite.go hi
+// posa la conversa i la pregunta de la persona).
+func (s *Server) windAskOnceAs(parent context.Context, wind companion.Wind, msg string) (string, string, error) {
 	ctx, cancel := context.WithTimeout(parent, windTurnTimeout)
 	defer cancel()
 	if err := ctx.Err(); err != nil {
@@ -291,7 +297,6 @@ func (s *Server) windAskOnce(parent context.Context, wind companion.Wind, task s
 	}
 	// An inherited interactive scope must not let a consultation mutate files.
 	ctx = s.readOnlyWindCtx(ctx)
-	msg := "[Question from the main agent] " + task
 	start := time.Now()
 	s.mu.Lock()
 	_, logRole := s.windRoleRef()

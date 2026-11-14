@@ -176,7 +176,7 @@ func (s *Server) windRulesBrief() string {
 var windRulesReadTools = map[string]bool{
 	"read": true, "read_file": true, "glob": true, "grep": true, "files": true, "symbols": true, "lsp": true, "ls": true,
 	"search_files": true, "read_image": true, "web_search": true, "web_fetch": true, "web_images": true,
-	"remind_list": true, "todo": true, "question": true, "wind": true, "delegate": true, "calaix": true,
+	"remind_list": true, "todo": true, "question": true, "wind": true, "delegate": true, "calaix": true, "image": true,
 	"viewer": true, "knowledge_search": true, "bash_output": true,
 }
 

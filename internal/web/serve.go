@@ -244,6 +244,7 @@ func New(cfg *config.Config, cfgPath string) *Server {
 	s.registerRutinaTeachTool()
 	s.registerRespWatchTool()
 	s.registerCalaixTool()
+	s.registerImageTool()
 	// Enviar fitxers al xat: l'eina viu a les eines i el servidor web és qui sap
 	// on publicar-los (enllaç amb clau pròpia, sense sessió).
 	tools.PublicarFitxer = s.publicaFitxer

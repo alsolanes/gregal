@@ -109,8 +109,12 @@ private fun ChatImageViewer(bmp: ImageBitmap, url: String, alt: String, lang: St
             ) {
                 val caption = chatImageCaption(alt, url)
                 if (caption.isNotEmpty()) Text(caption, color = Color.White, fontSize = 13.sp)
-                TextButton(onClick = { try { uri.openUri(url) } catch (_: Exception) { } }, contentPadding = PaddingValues(0.dp)) {
-                    Text(tr(lang, "app.vents.imageSource"), color = Color.White, fontSize = 13.sp)
+                // Les imatges dels vents viuen al teu servidor (amb clau): no
+                // tenen cap «lloc d'origen» que el navegador pugui obrir.
+                if (url.startsWith("http://") || url.startsWith("https://")) {
+                    TextButton(onClick = { try { uri.openUri(url) } catch (_: Exception) { } }, contentPadding = PaddingValues(0.dp)) {
+                        Text(tr(lang, "app.vents.imageSource"), color = Color.White, fontSize = 13.sp)
+                    }
                 }
             }
         }

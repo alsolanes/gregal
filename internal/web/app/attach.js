@@ -29,6 +29,16 @@ export const attach = {
       e.preventDefault();
       this.baixaDocument(a.getAttribute('href'), a.textContent);
     });
+    // Imatges que fan els vents (md.js les deixa amb data-gregal-img): també
+    // volen la clau, així que es baixen per fetch i van com a blob.
+    const sel = 'img[data-gregal-img]:not([src])';
+    const scan = n => { if (n.nodeType !== 1) return; if (n.matches(sel)) this.carregaImatge(n); else n.querySelectorAll(sel).forEach(i => this.carregaImatge(i)); };
+    new MutationObserver(ms => { for (const m of ms) m.addedNodes.forEach(scan); }).observe(document.body, { childList: true, subtree: true });
+    scan(document.body);
+    document.addEventListener('click', e => {
+      const img = e.target.closest && e.target.closest('img[data-gregal-img][src^="blob:"]');
+      if (img) window.open(img.src, '_blank', 'noopener');
+    });
     const pick = $('docPick');
     if (pick) pick.onchange = async () => {
       const fs = [...pick.files];
@@ -167,6 +177,23 @@ export const attach = {
     }
     G().activityItem('office', msg('attach.docAdded', { name: d.name }), d.kind.toUpperCase(), 'ok');
     return d;
+  },
+
+  imatges: new Map(),
+  async carregaImatge(img) {
+    const href = img.getAttribute('data-gregal-img');
+    // Un src provisional: així el MutationObserver no la torna a agafar.
+    img.setAttribute('src', 'data:image/gif;base64,R0lGODlhAQABAAAAACw=');
+    try {
+      let url = this.imatges.get(href);
+      if (!url) {
+        const r = await G().api(href);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        url = URL.createObjectURL(await r.blob());
+        this.imatges.set(href, url);
+      }
+      img.src = url;
+    } catch { img.style.display = 'none'; }
   },
 
   async baixaDocument(href, label) {

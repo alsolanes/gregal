@@ -24,6 +24,9 @@
     t = t.replace(/`([^`\n]+)`/g, (m, c) => { codes.push("<code>" + c + "</code>"); return "<<C" + (codes.length - 1) + "<<C"; });
     // ![alt](http://…) — imatge; abans que l'enllaç perquè el prefix ! el distingeix.
     t = t.replace(/!\[([^\]\n]*)\]\((https?:\/\/[^\s)]+)\)/g, (m, alt, src) => '<img class="md-img" src="' + src + '" alt="' + esc(alt) + '" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display=\'none\'">');
+    // ![alt](/api/winds/image?id=…) — una imatge que ha fet un vent: l'API vol
+    // la clau, així que l'app la baixa i hi posa el src (attach.js).
+    t = t.replace(/!\[([^\]\n]*)\]\((\/api\/winds\/image\?id=[a-f0-9]{24}\.(?:jpg|png|webp))\)/g, '<img class="md-img gregal-img" data-gregal-img="$2" alt="$1" loading="lazy">');
     // [text](/api/winds/doc?…) — un document que ha fet un vent (o un adjunt
     // editat): l'app el baixa amb la seva autenticació (attach.js).
     t = t.replace(/\[([^\]\n]+)\]\((\/api\/(?:winds\/doc|office\/download)\?[^\s)"<]+)\)/g, '<a href="$2" class="gregal-doc" data-gregal-doc="1">$1</a>');

@@ -72,6 +72,27 @@ data class LocalInfo(
     val nextDueAt: String = "",
 )
 
+/** Una cosa trobada a «Prova-ho ara». */
+data class LocalTryItem(
+    val section: String, val topic: String, val title: String, val detail: String,
+    val url: String, val host: String, val repeated: Boolean,
+)
+
+/** L'estat de «Prova-ho ara» (GET /api/winds/local/try). */
+data class LocalTryResult(
+    val id: String = "",
+    /** running | done | error */
+    val state: String = "running",
+    val place: String = "",
+    val wind: String = "",
+    val items: List<LocalTryItem> = emptyList(),
+    val dropped: Int = 0,
+    val searches: List<String> = emptyList(),
+    val nothing: Boolean = false,
+    val error: String = "",
+    val seconds: Int = 0,
+)
+
 /** Lectura i escriptura pures de /api/winds/local (es proven sense xarxa). */
 object LocalJson {
     val RADII = listOf(2, 5, 10, 25, 50)
@@ -123,6 +144,39 @@ object LocalJson {
                 .put("country", i.place.country).put("source", i.place.source),
         )
         return o
+    }
+
+    /** «Prova-ho ara»: el formulari sense activar ni consentiment (mai coordenades). */
+    fun tryBody(i: LocalInfo): JSONObject {
+        val o = JSONObject().put("action", "try")
+            .put("topics", JSONArray(i.topics))
+            .put("interests", i.interests).put("avoid", i.avoid).put("radius_km", i.radiusKm)
+        if (i.wind.isNotBlank()) o.put("wind", i.wind)
+        if (i.place.label.isNotBlank()) o.put(
+            "place",
+            JSONObject().put("label", i.place.label).put("region", i.place.region)
+                .put("country", i.place.country).put("source", i.place.source),
+        )
+        return o
+    }
+
+    fun tryResult(raw: String): LocalTryResult {
+        val o = JSONObject(raw)
+        val items = o.optJSONArray("items") ?: JSONArray()
+        val searches = o.optJSONArray("searches") ?: JSONArray()
+        return LocalTryResult(
+            id = o.optString("id"), state = o.optString("state").ifBlank { "running" },
+            place = o.optString("place"), wind = o.optString("wind"),
+            items = (0 until items.length()).mapNotNull { k ->
+                items.optJSONObject(k)?.let {
+                    LocalTryItem(it.optString("section"), it.optString("topic"), it.optString("title"), it.optString("detail"),
+                        it.optString("url"), it.optString("host"), it.optBoolean("repeated"))
+                }?.takeIf { it.title.isNotBlank() && it.url.startsWith("http") }
+            },
+            dropped = o.optInt("dropped"),
+            searches = (0 until searches.length()).map { searches.optString(it) }.filter { it.isNotBlank() },
+            nothing = o.optBoolean("nothing"), error = o.optString("error"), seconds = o.optInt("seconds"),
+        )
     }
 
     /** El que surt del mòbil: dues xifres decimals (~1 km). */
@@ -198,6 +252,8 @@ internal fun LocalInfoCard(
     onRun: () -> Unit,
     onForget: () -> Unit,
     modifier: Modifier = Modifier,
+    tryResult: LocalTryResult? = null,
+    onTry: (LocalInfo) -> Unit = {},
 ) {
     val p = LocalPal.current
     val ctx = LocalContext.current
@@ -318,9 +374,13 @@ internal fun LocalInfoCard(
                 TextButton(onClick = onRun, modifier = Modifier.testTag("local-run")) { Text(tr(lang, "app.local.run"), color = p.sea) }
                 TextButton(onClick = { problem = null; onSave(draft.copy(enabled = false)) }, modifier = Modifier.testTag("local-off")) { Text(tr(lang, "app.local.turnOff"), color = Muted) }
             }
+            // «Prova-ho ara»: amb el que hi ha aquí, sense activar ni desar res.
+            TextButton(onClick = { problem = null; onTry(draft) }, enabled = tryResult?.state != "running",
+                modifier = Modifier.testTag("local-try")) { Text(tr(lang, "app.local.try"), color = p.sea) }
             if (base.place.label.isNotBlank() || base.consent)
                 TextButton(onClick = onForget, modifier = Modifier.testTag("local-forget")) { Text(tr(lang, "app.local.forget"), color = Muted) }
         }
+        if (tryResult != null) LocalTryPanel(lang, tryResult)
     }
 }
 
@@ -347,4 +407,40 @@ private fun LocalField(value: String, onChange: (String) -> Unit, hint: String, 
         ),
         modifier = modifier,
     )
+}
+
+/** Text de l'estat de «Prova-ho ara» (es prova sense UI). */
+internal fun localTryHeadline(lang: String, t: LocalTryResult): String = when {
+    t.state == "running" -> tr(lang, "app.local.tryRunning", t.wind.ifBlank { "…" }, t.place, t.seconds)
+    t.state == "error" -> tr(lang, "app.local.tryFailed", t.error)
+    t.nothing || t.items.isEmpty() -> tr(lang, "app.local.tryNothing", t.place)
+    else -> tr(lang, "app.local.tryFound", t.items.size, t.place, t.seconds)
+}
+
+@Composable
+private fun LocalTryPanel(lang: String, t: LocalTryResult) {
+    val p = LocalPal.current
+    val uri = androidx.compose.ui.platform.LocalUriHandler.current
+    Column(
+        Modifier.fillMaxWidth().clip(GregalShape.lg).background(Superficie.copy(alpha = .6f))
+            .border(1.dp, Line, GregalShape.lg).padding(12.dp).testTag("local-try-panel"),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(localTryHeadline(lang, t), color = Ink, style = GregalType.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+            modifier = Modifier.testTag("local-try-head"))
+        t.items.forEach { item ->
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(tr(lang, if (item.section == "ahead") "app.local.tryAhead" else "app.local.tryFyi") + " · " + item.topic,
+                    color = Muted, style = GregalType.caption)
+                Text(item.title, color = Ink, style = GregalType.bodySmall.copy(fontWeight = FontWeight.Medium))
+                if (item.detail.isNotBlank()) Text(item.detail, color = Muted, style = GregalType.caption)
+                Text(tr(lang, "app.local.trySource", item.host), color = p.sea, fontSize = 12.sp,
+                    modifier = Modifier.clickable { try { uri.openUri(item.url) } catch (_: Exception) { } })
+                if (item.repeated) Text(tr(lang, "app.local.tryRepeated"), color = Muted, style = GregalType.caption)
+            }
+        }
+        if (t.dropped > 0) Text(tr(lang, "app.local.tryDropped", t.dropped), color = Muted, style = GregalType.caption)
+        if (t.searches.isNotEmpty()) Text(tr(lang, "app.local.trySearched", t.searches.joinToString(", ") { "«" + it + "»" }),
+            color = Muted, style = GregalType.caption)
+    }
 }

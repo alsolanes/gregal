@@ -74,6 +74,10 @@ func windChatTurns(previous []llm.Message) []llm.Message {
 		if text == "" {
 			continue
 		}
+		// Un vent convidat (winds_invite.go): no ho va dir el vent d'aquest fil.
+		if m.Kind == guestKind && m.SpeakerName != "" {
+			text = "[" + m.SpeakerName + ", another wind the user invited into this chat, said:] " + text
+		}
 		if r := []rune(text); len(r) > windTurnMaxChars {
 			text = string(r[:windTurnMaxChars]) + " […]"
 		}
