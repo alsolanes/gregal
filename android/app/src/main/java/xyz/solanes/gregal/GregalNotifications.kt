@@ -108,6 +108,11 @@ object GregalNotifications {
 
     /** Pair starts/finishes with the same target. Empty target preserves legacy callers. */
     fun workStarted(context: Context, target: String = "", displayName: String = "", origin: String = "") {
+        // Amb el push funcionant no cal mantenir el procés viu ni una
+        // notificació fixa a la barra mentre treballa: el servidor avisa quan
+        // el torn s'acaba o quan es queda esperant el teu permís (winds_torn).
+        // Sense push (servidor sense Firebase, app vella) es queda com abans.
+        if (VentsPush.active(context)) return
         val key = WorkKey(NotificationOrigins.effective(context, origin), target)
         val start = synchronized(lock) {
             val previous = activeWork[key]

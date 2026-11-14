@@ -17,13 +17,28 @@ const tornAvísMax = 400
 // en lloc de muntar un segon sistema d'avisos. No crea cap targeta de la
 // safata «Avui»: un torn no és una cosa per decidir, només una cosa que has
 // demanat i s'ha acabat.
-func (s *Server) recordTornAcabat(reply string) {
+func (s *Server) recordTornAcabat(reply string) { _ = s.recordTornText(reply) }
+
+// recordTornNecessita avisa que el torn no pot seguir sense el teu permís o la
+// teva resposta. Sense això, un torn aturat esperant no es veia fins que
+// obries l'app: era el buit que tapava la notificació fixa de «torn en curs».
+func (s *Server) recordTornNecessita(què string) string {
+	què = strings.TrimSpace(què)
+	if què == "" {
+		return ""
+	}
+	return s.recordTornText("Espero el teu permís per a «" + què + "»: obre l'app i decideix-ho.")
+}
+
+// recordTornText és el camí comú: una novetat del vent de casa (source «torn»)
+// que viatja pel push, el sondeig i el registre de duplicats de l'app.
+func (s *Server) recordTornText(reply string) string {
 	if s == nil {
-		return
+		return ""
 	}
 	text := strings.TrimSpace(reply)
 	if text == "" {
-		return
+		return ""
 	}
 	if r := []rune(text); len(r) > tornAvísMax {
 		text = strings.TrimSpace(string(r[:tornAvísMax])) + "…"
@@ -44,4 +59,24 @@ func (s *Server) recordTornAcabat(reply string) {
 		ID: n.ID, Wind: n.Wind, Source: n.Source, Ts: n.Ts,
 	})
 	s.pushNovetat(n)
+	return n.ID
+}
+
+// forgetTorn esborra una novetat del torn que ja no té sentit (el permís s'ha
+// contestat o ha caducat): si no, l'app podria avisar d'una espera que ja no hi
+// és quan la trobés en el sondeig.
+func (s *Server) forgetTorn(id string) {
+	if s == nil || id == "" {
+		return
+	}
+	novetatsMu.Lock()
+	all := loadNovetats(s)
+	out := make([]windNovetat, 0, len(all))
+	for _, n := range all {
+		if n.ID != id {
+			out = append(out, n)
+		}
+	}
+	saveNovetats(s, out)
+	novetatsMu.Unlock()
 }

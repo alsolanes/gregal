@@ -57,3 +57,22 @@ func TestRecordTornAcabatEscurça(t *testing.T) {
 		t.Fatalf("llargada %d (calia %d amb «…»)", len(r), tornAvísMax+1)
 	}
 }
+
+// Un torn aturat esperant el teu permís també avisa; quan el contestes, l'avís
+// s'esborra (si no, el sondeig el trobaria i avisaria d'una espera que ja no hi és).
+func TestRecordTornNecessitaISEsborra(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := remindTestServer(t)
+	id := s.recordTornNecessita("escriure un correu")
+	if id == "" {
+		t.Fatal("sense id: no s'ha creat l'avís")
+	}
+	got := getNovetats(t, s, 0)
+	if len(got) != 1 || !strings.Contains(got[0].Text, "escriure un correu") {
+		t.Fatalf("avís d'espera = %+v", got)
+	}
+	s.forgetTorn(id)
+	if got := getNovetats(t, s, 0); len(got) != 0 {
+		t.Fatalf("contestat i encara hi és: %+v", got)
+	}
+}
