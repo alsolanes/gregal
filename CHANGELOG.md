@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+## v1.74.0 - 2026-11-14 - Diverses feines alhora, regles i veu
+
+- **Diverses feines alhora al mateix fil.** Mentre Gregal treballa, demana-li
+  una altra cosa («I de pas…») i la fa en el mateix torn. El que escrius mentre
+  treballa ara es desa al fil, i el que arriba tard s'envia sol quan acaba. La
+  web ensenya els avisos programats al torn amb «Desfés».
+- **Regles en llenguatge natural.** A Regles dius què pot fer sol, què t'ha de
+  preguntar i què no ha de fer mai. Un revisor les comprova abans de cada
+  acció: «Mai» no es fa i «Pregunta'm» treu la targeta que cita la regla.
+- **Formulari segur per a claus i contrasenyes.** Quan en necessita una, surt
+  un camp amagat al fil; el valor va xifrat al servidor i ni el fil ni el model
+  el veuen mai.
+- **Fes.** Plantilles per començar d'un toc: llista del dia, triatge del
+  correu, compara preus, planifica un viatge… Les del dia, també cada dia.
+- **Aprèn i ho diu.** «📝 Ho recordaré» al fil quan aprèn alguna cosa teva, amb
+  «Oblida-ho», i una pantalla «Què sap de tu» per veure-ho i oblidar-ho tot.
+- **Conversa per veu.** Dicta, o parla-hi i et respon en veu alta, fins que
+  l'aturis.
+- Tot a l'escriptori i a l'Android.
+
 ## v1.73.0 - 2026-11-13 - Gregal torna amb captures del que ha fet
 
 - **Gregal torna amb captures del que ha fet.** Quan fa servir el navegador,
