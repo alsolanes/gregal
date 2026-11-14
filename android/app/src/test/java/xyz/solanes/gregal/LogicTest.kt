@@ -250,8 +250,9 @@ class ToolTextTest {
     fun caselles() {
         val segs = splitMd("- [ ] pendent\n- [x] fet\n- normal")
         val texts = segs.filterIsInstance<Seg.Text>().map { it.t }
-        assertTrue(texts.any { it.startsWith("☐ ") })
-        assertTrue(texts.any { it.startsWith("☑ ") })
+        // Les caselles són elements propis (es poden marcar: RichCards.kt).
+        val tasks = segs.filterIsInstance<Seg.Task>()
+        assertEquals(listOf(false, true), tasks.map { it.done })
         assertTrue(texts.any { it.startsWith("• ") })
         assertTrue(segs.none { it is Seg.Text && (it as Seg.Text).t.contains("[ ]") })
     }

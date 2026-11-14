@@ -338,7 +338,7 @@
   const doneSteps=steps.filter(x=>x.done);
   if(doneSteps.length){const trail=el('div','vw-steps');trail.setAttribute('aria-label',t('Passos fets','Steps done'));for(const x of doneSteps.slice(-4))trail.append(el('span','vw-step',x.label+(x.n>1?' ×'+x.n:'')));if(doneSteps.length>4)trail.prepend(el('span','vw-step vw-step-more','+'+(doneSteps.length-4)));copy.append(trail);}
   // Streamed text is formatted as it arrives, like the finished message it becomes.
-  if(writing){const body=el('div','vw-message-text vw-stream-text'),shown=choicesStrip(withoutSpeaker(pending.text,wind?.name)).replace(/```(?:chart|gregal-plot)\n[\s\S]*?```/g,'\n_'+t('Preparant un gràfic…','Preparing a chart…')+'_\n');if(root.gregalMD)body.innerHTML=root.gregalMD.render(shown);else body.textContent=shown;copy.append(body);}
+  if(writing){const body=el('div','vw-message-text vw-stream-text'),shown=choicesStrip(withoutSpeaker(pending.text,wind?.name)).replace(/```(?:chart|gregal-plot)\n[\s\S]*?```/g,'\n_'+t('Preparant un gràfic…','Preparing a chart…')+'_\n').replace(/```(?:gregal-[a-z]+|chart)[ \n](?![\s\S]*```)[\s\S]*$/,'\n_'+t('Preparant la targeta…','Preparing the card…')+'_\n');if(root.gregalMD)body.innerHTML=root.gregalMD.render(shown);else body.textContent=shown;copy.append(body);}
   row.append(copy);messages.append(row);if(follow)messages.scrollTop=messages.scrollHeight;
  }
  function schedulePending(){

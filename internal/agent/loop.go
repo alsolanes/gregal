@@ -90,7 +90,7 @@ func Specs() []llm.ToolSpec {
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"query": str, "count": map[string]any{"type": "integer"},
 			}, "required": []string{"query"}}},
-		{Name: "web_images", Description: "Search for IMAGES about a topic (the configured SearXNG, otherwise Wikimedia Commons: freely licensed photos of places, people, artworks and objects). Returns a few results with title, page and the image URL itself, ready to embed in your reply as ![title](image-url). Only embed an image when it truly helps (a photo, diagram, album cover...); never decorate text with random images.",
+		{Name: "web_images", Description: "Search for IMAGES about a topic (the configured SearXNG, otherwise Wikimedia Commons: freely licensed photos of places, people, artworks and objects). Returns a few results with title, page and the image URL itself, ready to embed in your reply as ![title](image-url) or to use as the image of a card. A real photo of the place, dish, product or thing you talk about makes the answer much better; never a random or unrelated picture.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"query": str, "count": map[string]any{"type": "integer"},
 			}, "required": []string{"query"}}},

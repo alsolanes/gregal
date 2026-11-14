@@ -1715,6 +1715,32 @@ private fun loadChatBitmap(url: String): ImageBitmap? {
 @Composable
 internal fun MdImage(url: String, alt: String, link: Color, lang: String) {
     val uri = LocalUriHandler.current
+    val (bmp, failed) = rememberChatImage(url)
+    when {
+        bmp != null -> ChatImageFrame(bmp, url, alt, lang)
+        failed -> Text(
+            alt.ifBlank { url }, fontSize = 13.sp, color = link,
+            textDecoration = TextDecoration.Underline,
+            modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                .clickable { try { uri.openUri(url) } catch (_: Exception) { } }
+                .padding(vertical = 2.dp),
+        )
+        else -> Surface(
+            color = CodeDark, shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth().height(160.dp),
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp, color = link)
+            }
+        }
+    }
+}
+
+/** Baixa una imatge del xat (web, foto penjada o d'un vent) amb la memòria
+ *  compartida. Torna (bitmap o null, ha fallat). Ho fan servir el markdown i
+ *  les targetes riques (RichCards.kt). */
+@Composable
+internal fun rememberChatImage(url: String): Pair<ImageBitmap?, Boolean> {
     var bmp by remember(url) { mutableStateOf(chatImageCache[url]) }
     var failed by remember(url) { mutableStateOf(false) }
     val ctx = LocalContext.current
@@ -1736,24 +1762,7 @@ internal fun MdImage(url: String, alt: String, link: Color, lang: String) {
             } else failed = true
         }
     }
-    when {
-        bmp != null -> ChatImageFrame(bmp!!, url, alt, lang)
-        failed -> Text(
-            alt.ifBlank { url }, fontSize = 13.sp, color = link,
-            textDecoration = TextDecoration.Underline,
-            modifier = Modifier.clip(RoundedCornerShape(8.dp))
-                .clickable { try { uri.openUri(url) } catch (_: Exception) { } }
-                .padding(vertical = 2.dp),
-        )
-        else -> Surface(
-            color = CodeDark, shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.fillMaxWidth().height(160.dp),
-        ) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp, color = link)
-            }
-        }
-    }
+    return bmp to failed
 }
 
 /**
@@ -2004,6 +2013,7 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                             is Rich.Table -> MdTable(b.headers, b.rows, lang)
                             is Rich.Result -> GregalResultCard(b.spec, if (accent != Color.Unspecified) accent else Sea, lang, tsMillis)
                             is Rich.Chart -> ChartBlock(b.spec, accent, dark)
+                            is Rich.Card -> RichCardBlock(b.card, if (accent != Color.Unspecified) accent else Sea, lang)
                             is Rich.Image -> MdImage(
                                 b.url, b.alt,
                                 link, lang,

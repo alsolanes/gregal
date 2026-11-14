@@ -1158,6 +1158,7 @@ fun AssistantResponse(text: String, lang: String = "ca", streaming: Boolean = fa
                 is Rich.Table -> MdTable(b.headers, b.rows, lang)
                 is Rich.Result -> GregalResultCard(b.spec, Sea)
                 is Rich.Chart -> ChartBlock(b.spec, Sea, false)
+                is Rich.Card -> RichCardBlock(b.card, Sea, lang)
                 is Rich.Image -> MdImage(b.url, b.alt, Sea, lang)
             }
         }

@@ -423,6 +423,7 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 	if err == nil && res.parcial && esRespostaMecanica(reply) {
 		reply = fraseTornAturat(res.motiu, s.cfg.Lang())
 	}
+	reply = s.windCardImages(reply)
 	reply += s.windDocLinks(turnStart, reply)
 	history := append([]llm.Message(nil), base...)
 	if !isContinue {
@@ -719,6 +720,7 @@ func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stre
 		if reply == "" {
 			continue
 		}
+		reply = s.windCardImages(reply)
 		reply += s.windDocLinks(tVeu, reply)
 		conversation = append(conversation, windSteerTaken(rotSteerKey)...)
 		voiceID := newMessageID()

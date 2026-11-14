@@ -203,6 +203,7 @@ internal fun MdPageBody(src: String, lang: String, onLink: ((String) -> Unit)? =
                 is Rich.Table -> MdTable(b.headers, b.rows, lang)
                 is Rich.Result -> GregalResultCard(b.spec, Sea)
                 is Rich.Chart -> ChartBlock(b.spec, accent, dark)
+                is Rich.Card -> RichCardBlock(b.card, accent, lang)
                 is Rich.Image -> MdImage(b.url, b.alt, link, lang)
             }
         }

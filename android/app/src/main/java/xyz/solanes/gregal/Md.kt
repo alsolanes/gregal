@@ -24,6 +24,10 @@ sealed interface Seg {
     data class Table(val headers: List<String>, val rows: List<List<String>>) : Seg
     data class Chart(val spec: ChartSpec) : Seg
     data class Result(val spec: ResultSpec) : Seg
+    /** Recepta o pla (RichCards.kt). */
+    data class Card(val card: RichCard) : Seg
+    /** Element de checklist («- [ ] …»); groupRich n'ajunta els seguits. */
+    data class Task(val done: Boolean, val inner: List<Seg>) : Seg
 }
 
 /** Bloc ric per emetre composables (text corregut, codi, taula o imatge). */
@@ -34,6 +38,7 @@ sealed interface Rich {
     data class Chart(val spec: ChartSpec) : Rich
     data class Image(val alt: String, val url: String) : Rich
     data class Result(val spec: ResultSpec) : Rich
+    data class Card(val card: RichCard) : Rich
 }
 
 /** Parteix markdown lleuger en segments (tots els detalls, testeable). */
@@ -49,10 +54,16 @@ fun splitMd(src: String): List<Seg> {
         if (b > 0) out += splitBlockLines(rest.substring(0, b))
         val end = rest.indexOf("```", b + 3)
         if (end < 0) {
-            out += listOf(Seg.Block("", rest.substring(b + 3).trim('\n')))
+            val open = rest.substring(b + 3)
+            // Una targeta o un gràfic a mig escriure (en directe): no el JSON en cru.
+            out += if (open.startsWith("gregal-") || open.startsWith("chart")) listOf(Seg.Italic("…"))
+                else listOf(Seg.Block("", open.trim('\n')))
             break
         }
-        val inner = rest.substring(b + 3, end).trim('\n')
+        var inner = rest.substring(b + 3, end).trim('\n')
+        // «```gregal-recipe {…}» a la mateixa línia (els models ho fan): el JSON
+        // passa a la línia següent, com si l'hagués escrit bé.
+        Regex("^(gregal-[a-z]+|chart)[ \\t]+(\\{[\\s\\S]*)$").find(inner)?.let { inner = it.groupValues[1] + "\n" + it.groupValues[2] }
         val nl = inner.indexOf('\n')
         if (nl > 0 && !inner.substring(0, nl).contains(' ') && inner.substring(0, nl).length <= 20) {
             val lang = inner.substring(0, nl)
@@ -64,6 +75,11 @@ fun splitMd(src: String): List<Seg> {
                 val spec = parseResultSpec(body.trim())
                 if (spec != null) out += listOf(Seg.Result(spec))
                 else out += listOf(Seg.Block("json", body))
+            } else if (lang == "gregal-recipe" || lang == "gregal-plan") {
+                // Targetes riques (com md.js): si el JSON no s'aguanta, codi.
+                val card = if (lang == "gregal-recipe") parseRecipeSpec(body.trim())?.let { RichCard.Recipe(it) }
+                    else parsePlanSpec(body.trim())?.let { RichCard.Plan(it) }
+                out += listOf(if (card != null) Seg.Card(card) else Seg.Block("json", body))
             } else if (lang == "chart" || lang == "gregal-plot") {
                 val spec = parseChartSpec(body.trim())
                 if (spec != null) out += listOf(Seg.Chart(spec))
@@ -142,8 +158,7 @@ private fun splitBlockLines(s: String): List<Seg> {
         val task = taskRe.find(line)
         if (task != null) {
             val done = task.groups[1]!!.value.trim().lowercase() == "x"
-            out += listOf(Seg.Text(if (done) "☑ " else "☐ "))
-            out += parseInline(task.groups[2]!!.value)
+            out += listOf(Seg.Task(done, parseInline(task.groups[2]!!.value)))
             i++
             continue
         }
@@ -329,10 +344,44 @@ fun groupRich(segs: List<Seg>): List<Rich> {
                 flush()
                 out += Rich.Result(seg.spec)
             }
+            is Seg.Card -> {
+                flush()
+                out += Rich.Card(seg.card)
+            }
+            is Seg.Task -> {
+                // Les caselles seguides (entre elles només hi ha salts de línia) fan una checklist.
+                val prev = out.lastOrNull() as? Rich.Card
+                val checks = prev?.card as? RichCard.Checks
+                if (checks != null && run.all { it is Seg.Text && it.t.isBlank() }) {
+                    run = mutableListOf()
+                    out[out.size - 1] = Rich.Card(RichCard.Checks(checks.items + (seg.done to seg.inner)))
+                } else {
+                    flush()
+                    out += Rich.Card(RichCard.Checks(listOf(seg.done to seg.inner)))
+                }
+            }
             else -> run += seg
         }
     }
     flush()
+    return galleries(out)
+}
+
+/** Dues o més fotos seguides (sense text entremig) fan una galeria. */
+private fun galleries(blocks: List<Rich>): List<Rich> {
+    val out = mutableListOf<Rich>()
+    var i = 0
+    while (i < blocks.size) {
+        var j = i
+        while (j < blocks.size && blocks[j] is Rich.Image) j++
+        if (j - i >= 2) {
+            out += Rich.Card(RichCard.Gallery(blocks.subList(i, j).map { (it as Rich.Image).alt to it.url }))
+            i = j
+        } else {
+            out += blocks[i]
+            i++
+        }
+    }
     return out
 }
 
@@ -404,6 +453,28 @@ fun renderSegs(segs: List<Seg>, codeBg: Color, activity: Boolean = false, link: 
                     withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(seg.spec.title) }
                     append("\n")
                     seg.spec.rows.forEach { r -> append(listOf(r.lead, r.text, r.value).filter { it.isNotBlank() }.joinToString(" · ") + "\n") }
+                }
+                is Seg.Task -> {
+                    append(if (seg.done) "☑ " else "☐ ")
+                    append(renderSegs(seg.inner, codeBg, activity, link).text)
+                }
+                // Recepta o pla en text pla: el títol i el que hi ha a dins.
+                is Seg.Card -> {
+                    append("\n")
+                    when (val c = seg.card) {
+                        is RichCard.Recipe -> {
+                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(c.spec.title) }
+                            append("\n")
+                            c.spec.ingredients.forEach { append("• " + listOf(it.name, it.qty).filter { x -> x.isNotBlank() }.joinToString(" · ") + "\n") }
+                            c.spec.steps.forEachIndexed { k, st -> append("${k + 1}. ${st.text}\n") }
+                        }
+                        is RichCard.Plan -> {
+                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(c.spec.title) }
+                            append("\n")
+                            c.spec.items.forEach { append(listOf(it.time, it.title).filter { x -> x.isNotBlank() }.joinToString(" · ") + "\n") }
+                        }
+                        else -> {}
+                    }
                 }
                 // El gràfic és bloc propi (Rich.Chart); en text pla, resum.
                 is Seg.Chart -> {

@@ -76,7 +76,7 @@ internal fun ChatImageFrame(bmp: ImageBitmap, url: String, alt: String, lang: St
 /** Pantalla completa: fons fosc, pessic per ampliar, doble toc per tornar a
  *  la mida, i un botó per obrir la imatge al seu lloc d'origen. */
 @Composable
-private fun ChatImageViewer(bmp: ImageBitmap, url: String, alt: String, lang: String, onClose: () -> Unit) {
+internal fun ChatImageViewer(bmp: ImageBitmap, url: String, alt: String, lang: String, onClose: () -> Unit) {
     val uri = LocalUriHandler.current
     var scale by remember { mutableStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }

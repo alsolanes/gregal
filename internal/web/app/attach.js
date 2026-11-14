@@ -32,7 +32,46 @@ export const attach = {
     // Imatges que fan els vents (md.js les deixa amb data-gregal-img): també
     // volen la clau, així que es baixen per fetch i van com a blob.
     const sel = 'img[data-gregal-img]:not([src])';
-    const scan = n => { if (n.nodeType !== 1) return; if (n.matches(sel)) this.carregaImatge(n); else n.querySelectorAll(sel).forEach(i => this.carregaImatge(i)); };
+    const scan = n => {
+      if (n.nodeType !== 1) return;
+      if (n.matches(sel)) this.carregaImatge(n); else n.querySelectorAll(sel).forEach(i => this.carregaImatge(i));
+      n.querySelectorAll('input.gc-check, input.md-check').forEach(c => { if (checks.get(checkKey(c))) c.checked = true; });
+    };
+    // Checklists i ingredients (md.js): el que marques es recorda en aquest
+    // aparell, també quan la conversa es torna a pintar.
+    const checks = {
+      all() { try { return JSON.parse(localStorage.getItem('gregal-checks') || '{}'); } catch { return {}; } },
+      get(k) { return !!this.all()[k]; },
+      set(k, on) {
+        const all = this.all();
+        if (on) all[k] = Date.now(); else delete all[k];
+        const keys = Object.keys(all);
+        if (keys.length > 600) keys.sort((a, b) => all[a] - all[b]).slice(0, keys.length - 600).forEach(x => delete all[x]);
+        try { localStorage.setItem('gregal-checks', JSON.stringify(all)); } catch {}
+      },
+    };
+    const checkKey = c => {
+      const li = c.closest('li'), box = c.closest('.gregal-card, ul, ol');
+      const head = box?.querySelector('.gc-title')?.textContent || box?.textContent.slice(0, 80) || '';
+      let h = 0;
+      for (const ch of head + '\u0001' + (li?.textContent || '')) h = (h * 31 + ch.charCodeAt(0)) | 0;
+      return 'c' + (h >>> 0).toString(36);
+    };
+    document.addEventListener('change', e => {
+      const c = e.target;
+      if (c.matches && c.matches('input.gc-check, input.md-check')) checks.set(checkKey(c), c.checked);
+    });
+    // Recepta: − / + canvien les racions i recalculen les quantitats.
+    document.addEventListener('click', e => {
+      const b = e.target.closest && e.target.closest('.gregal-recipe .gc-less, .gregal-recipe .gc-more');
+      if (!b) return;
+      const card = b.closest('.gregal-recipe'), base = +card.dataset.serves || 0;
+      if (!base) return;
+      const now = Math.max(1, Math.min(99, (+card.dataset.now || base) + (b.classList.contains('gc-more') ? 1 : -1)));
+      card.dataset.now = now;
+      card.querySelectorAll('.gc-serves-n').forEach(n => { n.textContent = now; });
+      card.querySelectorAll('.gc-qty').forEach(q => { q.textContent = globalThis.gregalMD?.scaleQty ? globalThis.gregalMD.scaleQty(q.dataset.qty, base, now) : q.dataset.qty; });
+    });
     new MutationObserver(ms => { for (const m of ms) m.addedNodes.forEach(scan); }).observe(document.body, { childList: true, subtree: true });
     scan(document.body);
     document.addEventListener('click', e => {

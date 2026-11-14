@@ -365,6 +365,7 @@ func (s *Server) windDelegate(parent context.Context, wind companion.Wind, task 
 	if res.parcial && esRespostaMecanica(reply) {
 		reply = fraseTornAturat(res.motiu, s.cfg.Lang())
 	}
+	reply = s.windCardImages(reply)
 	reply += s.windDocLinks(start, reply)
 	history = append(history,
 		llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()},

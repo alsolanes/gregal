@@ -34,7 +34,9 @@ data class ResultRow(val lead: String, val text: String, val value: String, val 
     val pick: Boolean = false, val url: String = "")
 data class ResultSpec(val title: String, val subtitle: String = "", val icon: String = "",
     val rows: List<ResultRow> = emptyList(), val sources: List<Pair<String, String>> = emptyList(),
-    val moreLabel: String = "", val moreUrl: String = "")
+    val moreLabel: String = "", val moreUrl: String = "",
+    /** Foto de dalt (web o d'un vent) i files numerades 01, 02… (com md.js). */
+    val image: String = "", val numbered: Boolean = false)
 
 /** Pura: llegeix el JSON del bloc; null si no és una targeta vàlida (llavors surt com a codi). */
 internal fun parseResultSpec(raw: String): ResultSpec? {
@@ -57,7 +59,8 @@ internal fun parseResultSpec(raw: String): ResultSpec? {
     }.take(6)
     val more = o.optJSONObject("more")
     return ResultSpec(title, o.optString("subtitle").trim(), o.optString("icon").trim().take(4), rows, sources,
-        more?.optString("label")?.trim().orEmpty(), more?.optString("url")?.trim().orEmpty())
+        more?.optString("label")?.trim().orEmpty(), more?.optString("url")?.trim().orEmpty(),
+        cardImageUrl(o.optString("image")), o.optBoolean("numbered"))
 }
 
 private val SourceDots = listOf(Color(0xFFC9152B), Color(0xFF2E7D32), Color(0xFF1565C0), Color(0xFFEF6C00), Color(0xFF6A1B9A), Color(0xFF00838F))
@@ -92,6 +95,7 @@ internal fun GregalResultCard(spec: ResultSpec, accent: Color, lang: String = "c
     val link = readableLink(accent, LocalPal.current.dark)
     Column(Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(shape).background(Superficie).border(1.dp, Line, shape)
         .testTag("gregal-result")) {
+        if (spec.image.isNotEmpty()) ResultHero(spec.image, spec.title, lang)
         Row(Modifier.padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (spec.icon.isNotEmpty()) Box(Modifier.size(30.dp).clip(RoundedCornerShape(10.dp)).background(accent.copy(alpha = .14f)),
@@ -101,12 +105,13 @@ internal fun GregalResultCard(spec: ResultSpec, accent: Color, lang: String = "c
                 if (spec.subtitle.isNotEmpty()) Text(spec.subtitle, color = Muted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
         }
-        spec.rows.forEach { r ->
+        spec.rows.forEachIndexed { k, r ->
             HorizontalDivider(color = Line)
             Row(Modifier.fillMaxWidth().then(if (r.pick) Modifier.background(ok.copy(alpha = .09f)) else Modifier)
                 .then(if (r.url.isNotEmpty()) Modifier.clickable(role = Role.Button) { uri.openUri(r.url) } else Modifier)
                 .heightIn(min = 44.dp).padding(start = 14.dp, end = if (r.url.isNotEmpty()) 8.dp else 14.dp, top = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (spec.numbered) Text((k + 1).toString().padStart(2, '0'), color = Faint, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 if (r.lead.isNotEmpty()) Text(r.lead, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1,
                     overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(min = 96.dp, max = 160.dp))
                 Column(Modifier.weight(1f)) {

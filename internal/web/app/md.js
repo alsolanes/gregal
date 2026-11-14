@@ -91,27 +91,24 @@
     u = String(u || "").trim();
     return /^https?:\/\//i.test(u) ? esc(u) : "";
   }
-  function resultCard(code) {
+  // Una imatge de targeta: una foto de la web (http/https) o una que ha fet un
+  // vent (/api/winds/image, que l'app baixa amb la clau: attach.js).
+  const WIND_IMG = /^\/api\/winds\/image\?id=[a-f0-9]{24}\.(?:jpg|png|webp)$/;
+  function cardImage(u, alt) {
+    u = String(u || "").trim();
+    const a = esc(String(alt || "").trim());
+    if (WIND_IMG.test(u)) return '<img class="gc-hero gregal-img" data-gregal-img="' + esc(u) + '" alt="' + a + '" loading="lazy">';
+    const url = safeUrl(u);
+    return url ? '<img class="gc-hero" src="' + url + '" alt="' + a + '" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">' : "";
+  }
+  const str = (v) => esc(String(v == null ? "" : v).trim());
+  function parseCard(code) {
     let o;
-    try { o = JSON.parse(unesc(code)); } catch (_) { return ""; }
-    if (!o || typeof o !== "object") return "";
-    const title = String(o.title || "").trim();
-    const rows = (Array.isArray(o.rows) ? o.rows : []).filter((r) => r && (r.lead || r.text)).slice(0, 5);
-    if (!title || !rows.length) return "";
-    const str = (v) => esc(String(v == null ? "" : v).trim());
-    let h = '<div class="gregal-result">';
-    h += '<div class="gr-head">' + (o.icon ? '<span class="gr-icon">' + str(String(o.icon).slice(0, 4)) + "</span>" : "") +
-      '<div><strong>' + esc(title) + "</strong>" + (o.subtitle ? "<small>" + str(o.subtitle) + "</small>" : "") + "</div></div>";
-    for (const r of rows) {
-      const url = safeUrl(r.url);
-      // Com a Android: el nom a dalt, la descripció a sota (més suau) i el preu a la dreta.
-      const inner = '<span class="gr-main">' + (r.lead ? '<span class="gr-lead">' + str(r.lead) + "</span>" : "") +
-        (r.text ? '<span class="gr-text' + (r.lead ? "" : " gr-solo") + '">' + str(r.text) + "</span>" : "") +
-        (r.tag ? "<em>" + str(r.tag) + "</em>" : "") + '</span><span class="gr-value">' + str(r.value) + "</span>";
-      h += url ? '<a class="gr-row' + (r.pick ? " gr-pick" : "") + '" href="' + url + '" target="_blank" rel="noopener">' + inner + "</a>"
-        : '<div class="gr-row' + (r.pick ? " gr-pick" : "") + '">' + inner + "</div>";
-    }
-    // Cada web una vegada (pel domini; si no hi ha enllaç, pel nom), com resultSourceNames a Android.
+    try { o = JSON.parse(unesc(code)); } catch (_) { return null; }
+    return o && typeof o === "object" && !Array.isArray(o) ? o : null;
+  }
+  // Peu de fonts compartit (punts, «N fonts», «més»): com a les opcions.
+  function sourcesFoot(o) {
     const seen = new Set();
     const sources = (Array.isArray(o.sources) ? o.sources : []).slice(0, 6).map((x) => {
       const url = String((x && x.url) || "");
@@ -121,33 +118,145 @@
       return { url, name: site || String((x && x.name) || "") };
     }).filter((x) => x.name && !seen.has(x.name) && seen.add(x.name));
     const more = o.more && typeof o.more === "object" ? o.more : null;
-    // Peu com a la maqueta: punts superposats (cada un és la web, amb el nom
-    // al títol), «N fonts» i, si el missatge té hora, «· fa X min» (stamp).
-    if (sources.length || (more && more.label)) {
-      const dots = sources.map((x, i) => {
-        const url = safeUrl(x.url), name = str(x.name);
-        const dot = '<i class="gr-dot gr-dot' + (i % 6) + '"></i>';
-        return url ? '<a href="' + url + '" target="_blank" rel="noopener" title="' + name + '" aria-label="' + name + '">' + dot + "</a>"
-          : '<span title="' + name + '">' + dot + "</span>";
-      }).join("");
-      const count = sources.length === 1 ? label("result.sources.one", "1 source")
-        : label("result.sources.n", "{n} sources").replace("{n}", sources.length);
-      h += '<div class="gr-foot"><span class="gr-sources">' + (sources.length ? '<span class="gr-dots">' + dots + '</span><span class="gr-age">' + count + "</span>" : "") + "</span>";
-      if (more && more.label) {
-        const url = safeUrl(more.url);
-        h += url ? '<a class="gr-more" href="' + url + '" target="_blank" rel="noopener">' + str(more.label) + " ›</a>" : '<span class="gr-more">' + str(more.label) + "</span>";
-      }
-      h += "</div>";
+    if (!sources.length && !(more && more.label)) return "";
+    const dots = sources.map((x, i) => {
+      const url = safeUrl(x.url), name = str(x.name);
+      const dot = '<i class="gr-dot gr-dot' + (i % 6) + '"></i>';
+      return url ? '<a href="' + url + '" target="_blank" rel="noopener" title="' + name + '" aria-label="' + name + '">' + dot + "</a>"
+        : '<span title="' + name + '">' + dot + "</span>";
+    }).join("");
+    const count = sources.length === 1 ? label("result.sources.one", "1 source")
+      : label("result.sources.n", "{n} sources").replace("{n}", sources.length);
+    let h = '<div class="gr-foot"><span class="gr-sources">' + (sources.length ? '<span class="gr-dots">' + dots + '</span><span class="gr-age">' + count + "</span>" : "") + "</span>";
+    if (more && more.label) {
+      const url = safeUrl(more.url);
+      h += url ? '<a class="gr-more" href="' + url + '" target="_blank" rel="noopener">' + str(more.label) + " ›</a>" : '<span class="gr-more">' + str(more.label) + "</span>";
     }
     return h + "</div>";
   }
 
+  // La quantitat d'un ingredient per a n racions: escala el primer número
+  // («400 g» → «600 g», «1,5 l», «½ ceba»); el que no en té («al gust») no canvia.
+  const FRACTIONS = { "¼": 0.25, "½": 0.5, "¾": 0.75, "⅓": 1 / 3, "⅔": 2 / 3 };
+  function scaleQty(qty, from, to) {
+    qty = String(qty || "");
+    if (!from || !to || from === to) return qty;
+    // «1/2» és mitja, no un 1: la fracció escrita amb barra va primer.
+    const m = /(\d+)\/(\d+)|(\d+(?:[.,]\d+)?)(?:\s*([¼½¾⅓⅔]))?|([¼½¾⅓⅔])/.exec(qty);
+    if (!m) return qty;
+    const frac = m[4] || m[5];
+    const comma = m[3] && m[3].includes(",");
+    const n = m[1] ? (+m[2] ? +m[1] / +m[2] : 0)
+      : (m[3] ? parseFloat(m[3].replace(",", ".")) : 0) + (frac ? FRACTIONS[frac] : 0);
+    if (!n) return qty;
+    let v = n * to / from;
+    v = v >= 10 ? Math.round(v) : Math.round(v * 4) / 4;
+    let s = Number.isInteger(v) ? String(v) : String(+v.toFixed(2));
+    if (comma) s = s.replace(".", ",");
+    return qty.slice(0, m.index) + s + qty.slice(m.index + m[0].length);
+  }
+
+  // Recepta (```gregal-recipe {json}): racions que es poden canviar, ingredients
+  // per marcar, passos amb el temps de cada un i un consell. attach.js fa anar
+  // els botons; aquí només hi ha l'HTML (tot escapat).
+  function recipeCard(code) {
+    const o = parseCard(code);
+    if (!o) return "";
+    const title = String(o.title || "").trim();
+    const ing = (Array.isArray(o.ingredients) ? o.ingredients : []).filter((x) => x && (x.name || typeof x === "string")).slice(0, 30);
+    const steps = (Array.isArray(o.steps) ? o.steps : []).filter((x) => x && (x.text || typeof x === "string")).slice(0, 20);
+    if (!title || (!ing.length && !steps.length)) return "";
+    const serves = Math.max(0, Math.min(99, parseInt(o.servings, 10) || 0));
+    let h = '<div class="gregal-card gregal-recipe"' + (serves ? ' data-serves="' + serves + '"' : "") + ">";
+    h += cardImage(o.image, title);
+    h += '<div class="gc-body"><strong class="gc-title">' + esc(title) + "</strong>";
+    const meta = [];
+    if (o.time) meta.push('<span class="gc-meta-time">' + str(o.time) + "</span>");
+    if (o.level) meta.push('<span class="gc-meta-level">' + str(o.level) + "</span>");
+    if (serves) meta.push('<span class="gc-meta-serves">' + label("card.serves", "{n} servings").replace("{n}", '<b class="gc-serves-n">' + serves + "</b>") + "</span>");
+    if (meta.length) h += '<div class="gc-meta">' + meta.join("") + "</div>";
+    if (ing.length) {
+      h += '<div class="gc-sub"><span>' + label("card.ingredients", "Ingredients") + "</span>";
+      if (serves) h += '<span class="gc-stepper"><button type="button" class="gc-less" aria-label="−">−</button><b class="gc-serves-n">' + serves +
+        '</b><button type="button" class="gc-more" aria-label="+">+</button></span>';
+      h += "</div><ul class=\"gc-checks\">";
+      for (const x of ing) {
+        const name = typeof x === "string" ? x : x.name, qty = typeof x === "string" ? "" : String(x.qty || "");
+        h += '<li><label><input type="checkbox" class="gc-check"><span class="gc-name">' + inline(esc(String(name).trim())) + "</span>" +
+          (qty ? '<span class="gc-qty" data-qty="' + esc(qty) + '">' + esc(qty) + "</span>" : "") + "</label></li>";
+      }
+      h += "</ul>";
+    }
+    if (steps.length) {
+      if (ing.length) h += '<div class="gc-sub"><span>' + label("card.steps", "Steps") + "</span></div>";
+      h += '<ol class="gc-steps">';
+      for (const x of steps) {
+        const text = typeof x === "string" ? x : x.text;
+        const min = typeof x === "object" ? parseInt(x.minutes, 10) || 0 : 0;
+        h += "<li><span>" + inline(esc(String(text).trim())) + "</span>" + (min ? '<em class="gc-timer">' + min + " min</em>" : "") + "</li>";
+      }
+      h += "</ol>";
+    }
+    if (o.tip) h += '<p class="gc-tip">' + inline(esc(String(o.tip).trim())) + "</p>";
+    return h + "</div>" + sourcesFoot(o) + "</div>";
+  }
+
+  // Pla o seqüència (```gregal-plan {json}): una línia de temps amb hores,
+  // una foto a dalt, el pressupost i les fonts. Serveix per a escapades,
+  // dies, horaris o qualsevol cosa que va en ordre.
+  function planCard(code) {
+    const o = parseCard(code);
+    if (!o) return "";
+    const title = String(o.title || "").trim();
+    const items = (Array.isArray(o.items) ? o.items : []).filter((x) => x && (x.title || x.text)).slice(0, 12);
+    if (!title || !items.length) return "";
+    let h = '<div class="gregal-card gregal-plan">' + cardImage(o.image, title) + '<div class="gc-body">';
+    if (o.kicker) h += '<span class="gc-kicker">' + str(o.kicker) + "</span>";
+    h += '<strong class="gc-title">' + esc(title) + "</strong>";
+    if (o.subtitle) h += '<span class="gc-subtitle">' + str(o.subtitle) + "</span>";
+    h += '<ol class="gc-timeline">';
+    for (const x of items) {
+      h += '<li><span class="gc-time">' + str(x.time) + '</span><span class="gc-what"><b>' + inline(esc(String(x.title || x.text).trim())) + "</b>" +
+        (x.detail ? "<small>" + inline(esc(String(x.detail).trim())) + "</small>" : "") + "</span></li>";
+    }
+    h += "</ol>";
+    if (o.total) {
+      const t = o.total && typeof o.total === "object" ? o.total : { label: label("card.total", "Total"), value: o.total };
+      h += '<div class="gc-total"><span>' + str(t.label) + "</span><b>" + str(t.value) + "</b></div>";
+    }
+    return h + "</div>" + sourcesFoot(o) + "</div>";
+  }
+
+  function resultCard(code) {
+    let o;
+    try { o = JSON.parse(unesc(code)); } catch (_) { return ""; }
+    if (!o || typeof o !== "object") return "";
+    const title = String(o.title || "").trim();
+    const rows = (Array.isArray(o.rows) ? o.rows : []).filter((r) => r && (r.lead || r.text)).slice(0, 5);
+    if (!title || !rows.length) return "";
+    let h = '<div class="gregal-result' + (o.numbered ? " gr-numbered" : "") + '">' + cardImage(o.image, title);
+    h += '<div class="gr-head">' + (o.icon ? '<span class="gr-icon">' + str(String(o.icon).slice(0, 4)) + "</span>" : "") +
+      '<div><strong>' + esc(title) + "</strong>" + (o.subtitle ? "<small>" + str(o.subtitle) + "</small>" : "") + "</div></div>";
+    rows.forEach((r, k) => {
+      const url = safeUrl(r.url);
+      // Com a Android: el nom a dalt, la descripció a sota (més suau) i el preu a la dreta.
+      const inner = (o.numbered ? '<span class="gr-rank">' + String(k + 1).padStart(2, "0") + "</span>" : "") + '<span class="gr-main">' + (r.lead ? '<span class="gr-lead">' + str(r.lead) + "</span>" : "") +
+        (r.text ? '<span class="gr-text' + (r.lead ? "" : " gr-solo") + '">' + str(r.text) + "</span>" : "") +
+        (r.tag ? "<em>" + str(r.tag) + "</em>" : "") + '</span><span class="gr-value">' + str(r.value) + "</span>";
+      h += url ? '<a class="gr-row' + (r.pick ? " gr-pick" : "") + '" href="' + url + '" target="_blank" rel="noopener">' + inner + "</a>"
+        : '<div class="gr-row' + (r.pick ? " gr-pick" : "") + '">' + inner + "</div>";
+    });
+    // Peu: punts (cada web una vegada), «N fonts» i, si el missatge té hora,
+    // «· fa X min» (stamp).
+    return h + sourcesFoot(o) + "</div>";
+  }
+
   function codeBlock(lang, code) {
     const cos = code.replace(/\n$/, "");
-    if (lang === "gregal-result") {
-      const card = resultCard(cos);
-      if (card) return card;
-    }
+    const card = lang === "gregal-result" ? resultCard(cos)
+      : lang === "gregal-recipe" ? recipeCard(cos)
+      : lang === "gregal-plan" ? planCard(cos) : "";
+    if (card) return card;
     // ```chart (el format dels vents i d'Android) i ```gregal-plot són el mateix gràfic.
     if (lang === 'gregal-plot' || lang === 'chart') return '<pre class="codeblock lang-gregal-plot"><code>' + cos + '</code></pre>';
     return '<div class="codeblock"><div class="codehead"><span>' + (lang || label("md.code", "code")) +
@@ -176,7 +285,11 @@
     // Blocs de codi abans de res: el seu contingut no es toca (ni s'hi
     // busquen llistes ni títols).
     const blocks = [];
-    let t = esc(text).replace(/```([\w+-]*)[^\n]*\n([\s\S]*?)(```|$)/g, (m, l, c) => {
+    let t = esc(text).replace(/```([\w+-]*)([^\n]*)(?:\n([\s\S]*?))?(```|$)/g, (m, l, rest, c) => {
+      c = c || "";
+      // Els models escriuen sovint la targeta a la mateixa línia de l'obertura
+      // («```gregal-recipe {…}»): el JSON és el contingut, no el nom del bloc.
+      if (/^(?:gregal-[a-z]+|chart)$/.test(l) && rest.trim().startsWith("{")) c = rest.trim() + "\n" + c;
       blocks.push(codeBlock(l, c));
       return "<<B" + (blocks.length - 1) + "<<B";
     });
@@ -185,7 +298,14 @@
     const out = [];
     let para = [];
     const flushPara = () => {
-      if (para.length) { out.push("<p>" + inline(para.join("<br>")) + "</p>"); para = []; }
+      if (!para.length) return;
+      const html = inline(para.join("<br>"));
+      // Un paràgraf només d'imatges és una galeria: una foto gran, o dues o
+      // tres en fila (abans sortien l'una sota l'altra, cadascuna a mitja amplada).
+      const imgs = html.match(/<img [^>]*>/g) || [];
+      if (imgs.length && !html.replace(/<img [^>]*>|<br>|\s/g, "")) out.push('<div class="md-gallery md-gallery-' + Math.min(imgs.length, 3) + '">' + imgs.join("") + "</div>");
+      else out.push("<p>" + html + "</p>");
+      para = [];
     };
 
     for (let i = 0; i < lines.length; i++) {
@@ -217,7 +337,7 @@
         const stack = []; // {ol: bool, indent: n}
         // Una llista numerada separada per línies en blanc («1.», buit, «2.»)
         // arriba a trossos: start manté la numeració (abans tot eren «1.»).
-        const open = (ol, indent, n) => { out.push(ol ? (n > 1 ? '<ol start="' + n + '">' : "<ol>") : "<ul>"); stack.push({ ol, indent }); };
+        const open = (ol, indent, n) => { out.push(ol ? (n > 1 ? '<ol start="' + n + '" style="counter-reset:md-step ' + (n - 1) + '">' : "<ol>") : "<ul>"); stack.push({ ol, indent }); };
         const close = () => { const s = stack.pop(); out.push(s.ol ? "</ol>" : "</ul>"); };
         while (i < lines.length && (m = listItem(lines[i]))) {
           const indent = m[1].length, ol = /\d/.test(m[2]);
@@ -227,7 +347,8 @@
           else if (stack[stack.length - 1].ol !== ol) { close(); open(ol, indent, num); }
           let item = m[3];
           const task = /^\[( |x|X)\]\s+(.*)$/.exec(item);
-          if (task) item = '<input type="checkbox" disabled' + (task[1] !== " " ? " checked" : "") + "> " + task[2];
+          // Checklist: es pot marcar (attach.js en recorda l'estat en aquest aparell).
+          if (task) { out.push('<li class="md-task"><label><input type="checkbox" class="md-check"' + (task[1] !== " " ? " checked" : "") + "><span>" + inline(task[2]) + "</span></label></li>"); i++; continue; }
           out.push("<li>" + inline(item) + "</li>");
           i++;
         }
@@ -258,7 +379,7 @@
     });
   }
 
-  const api = { render, inline, esc, stamp };
+  const api = { render, inline, esc, stamp, scaleQty };
   root.gregalMD = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
