@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Computer
 import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
@@ -179,14 +180,16 @@ private fun SimpleVentsDrawer(
                 val tasks by vm.windTasks.collectAsState()
                 val en = lang == "en"
                 // Direcció visual §2.6: poques coses, totes útils. Gregal és la portada;
-                // els especialistes són canals; els recursos, a sota.
+                // després els especialistes; els recursos, a sota.
                 val gregal = winds.firstOrNull { it.id == "gregal" }
                 DrawerRow(gregal?.name ?: tr(lang, "nav.company"), home && panel == null, { vm.openVentsPanel(null); nav(Screen.Company) }) { DrawerWindIcon(vm) }
                 val running = tasks.orEmpty().count { it.running }
                 DrawerRow(if (en) "Work" else "Feina" + "", false, { close(); vm.openVentsPanel("work") }, Icons.Rounded.Construction, badge = running)
                 DrawerRow(if (en) "Watching" else "Vigilant", false, { close(); vm.openVentsPanel("watch") }, Icons.Rounded.Visibility)
-                DrawerRow(if (en) "Reminders" else "Recordatoris", screen == Screen.Automatitzacions, { nav(Screen.Automatitzacions) }, Icons.Rounded.Alarm)
-                DrawerSection(if (en) "Channels" else "Canals")
+                DrawerRow(if (en) "Reminders" else "Recordatoris", screen == Screen.Automatitzacions && panel != "local", { nav(Screen.Automatitzacions) }, Icons.Rounded.Alarm)
+                DrawerRow(tr(lang, "app.local.title"), false, { vm.openVentsPanel("local"); nav(Screen.Automatitzacions) }, Icons.Rounded.Place)
+                // Els altres vents: abans «Canals», que no deia què hi havia.
+                DrawerSection(if (en) "Specialists" else "Especialistes")
                 winds.filter { it.id != "gregal" }.take(5).forEach { w ->
                     DrawerRow(w.name + if (w.role.isNotBlank()) " · " + w.role else "", false, { close(); vm.openVentsPanel(null); vm.openVentsChat("wind:" + w.id) }) {
                         WindHalo(Color(w.argb), w.faceStyle, size = 24, online = false, showKit = false)

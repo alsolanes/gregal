@@ -141,6 +141,10 @@ internal fun AutomatitzacionsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
         vm.loadFlows()
     }
     LaunchedEffect(Unit) { carrega() }
+    // Des del menú «A prop teu»: la targeta ja oberta.
+    val panel by vm.ventsPanel.collectAsState()
+    val localOpen = androidx.compose.runtime.remember { panel == "local" }
+    LaunchedEffect(Unit) { if (panel == "local") vm.openVentsPanel(null) }
 
     // Els recordatoris i plans dels vents ja surten a dalt: aquí només la
     // feina programada que no és de cap vent i els fluxos.
@@ -160,6 +164,7 @@ internal fun AutomatitzacionsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
             item(key = "ajuda") {
                 Text(tr(lang, "act.help"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
             }
+            item(key = "local") { LocalInfoSection(vm, lang, startOpen = localOpen) }
             item(key = "vents") { WindAutomationList(vm, lang) }
             for (grup in altres) {
                 item(key = "cap-" + grup.clau) {

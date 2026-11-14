@@ -74,4 +74,19 @@ class LocalTryTest {
         ui.onNodeWithText("Font: vic.cat").assertExists()
         ui.onNodeWithText("Ja te l’havia dit: activat, no el repetiria.").assertExists()
     }
+
+    @Test fun desDelMenuLaTargetaJaSurtOberta() {
+        ui.setContent {
+            CompositionLocalProvider(LocalWindMotion provides false, LocalPal provides DarkPal) {
+                MaterialTheme(colorScheme = DarkPal.scheme()) {
+                    Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                        LocalInfoCard("ca", LocalInfo(), emptyList(), null, null,
+                            onSave = {}, onLocate = { _, _ -> }, onLocateFailed = {}, onRun = {}, onForget = {},
+                            startOpen = true)
+                    }
+                }
+            }
+        }
+        ui.onNodeWithTag("local-try").performScrollTo().assertExists()
+    }
 }

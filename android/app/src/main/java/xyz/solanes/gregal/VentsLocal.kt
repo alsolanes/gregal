@@ -234,6 +234,24 @@ internal fun coarseLocation(ctx: Context, onResult: (Location?) -> Unit) {
     } else onResult(last)
 }
 
+/** «A prop teu» lligada al ViewModel: a «Avui» i a Automatitzacions (com a l'escriptori). */
+@Composable
+internal fun LocalInfoSection(vm: GregalViewModel, lang: String, startOpen: Boolean = false, modifier: Modifier = Modifier) {
+    val conn by vm.conn.collectAsState()
+    val winds by vm.winds.collectAsState()
+    val localInfo by vm.local.collectAsState()
+    val localMsg by vm.localMsg.collectAsState()
+    val localFound by vm.localFound.collectAsState()
+    val localTry by vm.localTry.collectAsState()
+    LaunchedEffect(conn) { vm.loadLocal() }
+    LocalInfoCard(
+        lang, localInfo, winds, localMsg, localFound,
+        onSave = { vm.saveLocal(it) }, onLocate = { la, lo -> vm.locateLocal(la, lo) },
+        onLocateFailed = { vm.localMessage(it) }, onRun = { vm.runLocal() }, onForget = { vm.forgetLocal() },
+        modifier = modifier, tryResult = localTry, onTry = { vm.tryLocal(it) }, startOpen = startOpen,
+    )
+}
+
 /**
  * La targeta «A prop teu» de la safata «Avui». [info] null = carregant.
  * [found] és el lloc que ha trobat la ubicació del mòbil (encara sense desar).
@@ -254,12 +272,13 @@ internal fun LocalInfoCard(
     modifier: Modifier = Modifier,
     tryResult: LocalTryResult? = null,
     onTry: (LocalInfo) -> Unit = {},
+    startOpen: Boolean = false,
 ) {
     val p = LocalPal.current
     val ctx = LocalContext.current
     val base = info ?: LocalInfo()
     var draft by remember(info) { mutableStateOf(base) }
-    var open by remember { mutableStateOf(false) }
+    var open by remember { mutableStateOf(startOpen) }
     var problem by remember { mutableStateOf<String?>(null) }
     var typed by remember(info) { mutableStateOf("") }
     LaunchedEffect(found) { if (found != null && found.label.isNotBlank()) draft = draft.copy(place = found) }

@@ -74,13 +74,13 @@
   nav.replaceChildren(iconBtn('plus',t('Nova conversa','New conversation'),newChat,'vw-new'));
   const navRow=([id,a,b])=>{const n=btn('',()=>route(id),'vw-nav-item vw-nav-icon');n.append(navIcon(id),el('span','',t(a,b)));n.setAttribute('aria-current',state.view===id?'page':'false');return n;};
   // Com el menú d'Android (direcció visual §2.6): Gregal i la seva feina; els
-  // especialistes com a canals; els recursos a sota. Poques coses, totes útils.
+  // especialistes; els recursos a sota. Poques coses, totes útils.
   const gregal=state.winds.find(w=>w.id==='gregal');
   const home=navRow(['home','Inici','Home']);if(gregal){home.querySelector('span:last-child').textContent=gregal.name||'Gregal';}nav.append(home);
   nav.append(navRow(['fes','Fes','Do']));
   nav.append(navRow(['tasks','Feina','Work']));
   const specialists=state.winds.filter(w=>w.id!=='gregal').slice(0,5);
-  if(specialists.length){section(t('Canals','Channels'));for(const w of specialists){const n=btn('',()=>talkTo(w).catch(fail),'vw-nav-item vw-nav-channel');n.append(face(w),el('span','',w.name));const role=roleName(w);if(role)n.title=w.name+' · '+role;n.setAttribute('aria-current',state.view==='chat'&&state.active?.wind===w.id?'page':'false');nav.append(n);}}
+  if(specialists.length){section(t('Especialistes','Specialists'));for(const w of specialists){const n=btn('',()=>talkTo(w).catch(fail),'vw-nav-item vw-nav-channel');n.append(face(w),el('span','',w.name));const role=roleName(w);if(role)n.title=w.name+' · '+role;n.setAttribute('aria-current',state.view==='chat'&&state.active?.wind===w.id?'page':'false');nav.append(n);}}
   nav.append(navRow(['crew','La colla','Crew']));
   section(t('Recursos','Resources'));
   const pc=btn('',()=>openComputer(),'vw-nav-item vw-nav-icon');pc.append(navIcon('computer'),el('span','',t('Ordinador','Computer')));nav.append(pc);
