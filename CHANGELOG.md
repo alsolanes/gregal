@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v1.75.0 - 2026-11-14 - Avisos de les respostes amb l'app tancada
+
+- **La resposta et sona encara que hagis tancat l'app.** Si tanques Gregal
+  mentre treballa, en acabar t'avisa al mòbil i l'avís obre el missatge exacte,
+  també en hores tranquil·les. Abans la resposta es desava però no avisava.
+- **Gregal Vents amb push.** L'app d'Android ara porta Firebase: amb el
+  servidor configurat, els avisos arriben a l'instant amb l'app tancada, en
+  lloc d'esperar la comprovació de cada 15 minuts. Ho veus a Preferències ›
+  «Avisos en segon pla».
+
 ## v1.74.0 - 2026-11-14 - Diverses feines alhora, regles i veu
 
 - **Diverses feines alhora al mateix fil.** Mentre Gregal treballa, demana-li
