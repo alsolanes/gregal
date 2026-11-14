@@ -80,6 +80,12 @@ object VentsPush {
                 val token = fresh ?: t.token(app)
                 if (token == null) { Log.i(TAG, "push: el telèfon no ha donat cap token (GMS?)"); return@Thread }
                 val sp = prefs(app)
+                // El servidor ja va dir que podia enviar en un registre
+                // anterior: si el telèfon té els avisos bloquejats, s'ha de
+                // demanar el permís a cada obertura, no pas esperar 24 h.
+                if (sp.getBoolean("enabled", false) && !NotifPermission.granted(app)) {
+                    NotifPermission.requestFor(app, NotifAskReason.PUSH)
+                }
                 if (!PushLogic.needsRegister(token, sp.getString("token", "").orEmpty(), origin,
                         sp.getString("origin", "").orEmpty(), sp.getLong("at", 0L),
                         sp.getBoolean("enabled", false), System.currentTimeMillis())) {
@@ -95,9 +101,7 @@ object VentsPush {
                 // El servidor ja pot avisar: és el moment de demanar el permís
                 // del telèfon (una sola vegada). Sense permís, Android 13+
                 // llença tots els avisos en silenci i no hi ha cap error.
-                if (ok && !NotifPermission.granted(app)) {
-                    NotifPermission.requestFor(app, NotifAskReason.PUSH)
-                }
+                if (ok) { NotifPermission.requestFor(app, NotifAskReason.PUSH) }
             } catch (e: Throwable) {
                 // Sense servidor ara: es tornarà a provar a la propera passada.
                 Log.i(TAG, "push: no s'ha pogut registrar: " + e.javaClass.simpleName + " " + (e.message ?: ""))
