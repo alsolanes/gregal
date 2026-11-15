@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.78.0 - 2026-11-15 - Fotos a les respostes
+
 - **Fotos a les respostes.** Quan preguntes per un lloc, un plat, un llibre o
   una persona, la resposta del vent porta la seva foto després del primer
   paràgraf, encara que el model no n'hagi buscat cap. Als consells i a les
