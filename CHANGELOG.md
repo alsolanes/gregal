@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## v1.80.0 - 2026-11-15 - Rutines i webs des del mòbil, colors nous
+
+- **Rutines des del xat.** «Cada matí feiner a les 8 envia'm les notícies de…»
+  ara crea una rutina de debò al servidor (cada dia, feiners, caps de setmana,
+  uns dies o cada N hores), que es veu i s'atura a Automatitzacions.
+- **Webs des del mòbil.** Demana una web i el vent la fa, la prova i la publica
+  sense esperar permisos dins de la seva carpeta; si el servidor no té adreça
+  pública, t'avisa que l'enllaç només va a casa.
+- **Colors nous, «Vent a favor».** Mar fosc, blanc trencat i llima; enviar és un
+  avió de paper. També en tema clar, a l'Android i al terminal.
+- **Xat més net.** Capçalera amb nom i rol, línies de lectura més curtes, «Ho
+  recordaré» en una línia, permisos compactes i una barra lateral més curta.
+- **Android endreçat.** «Avui» al menú, sense entrades repetides, Desat i La
+  colla a l'abast, i la ubicació d'«A prop teu» al dia quan obres l'app.
+
 ## v1.79.0 - 2026-11-15 - Targetes amb l'estil nou
 
 - **Targetes amb l'estil nou.** El pla és compacte: l'hora en una píndola, el
