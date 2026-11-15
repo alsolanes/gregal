@@ -89,4 +89,12 @@ class LocalTryTest {
         }
         ui.onNodeWithTag("local-try").performScrollTo().assertExists()
     }
+
+    @Test fun unTallDeXarxaCurtNoFaFallarLaProva() {
+        val blip = java.io.IOException("timeout")
+        assertFalse(LocalLogic.tryGivesUp(blip, 1))
+        assertFalse(LocalLogic.tryGivesUp(ApiException("HTTP 502: bad gateway"), 3))
+        assertTrue(LocalLogic.tryGivesUp(blip, LocalLogic.TRY_MAX_MISSES))
+        assertTrue(LocalLogic.tryGivesUp(ApiException("HTTP 404: aquesta prova ja no hi és"), 1))
+    }
 }

@@ -98,9 +98,11 @@ func (s *Server) startLocalTry(req localSettingsReq) (*localTry, error) {
 			delete(localTries.m, id)
 			continue
 		}
+		// Ja n'hi ha una en marxa (un segon toc, o el mòbil ha perdut el
+		// fil): es torna aquella, i el client la segueix fins al final.
 		if t.owner == owner && t.State == "running" {
 			localTries.Unlock()
-			return nil, errors.New(s.tr("ja hi ha una prova en marxa: espera que acabi", "a try is already running: wait for it to finish"))
+			return t, nil
 		}
 	}
 	t := &localTry{ID: avuiID(), State: "running", Place: st.Place.Label, Wind: w.Name, Items: []localTryItem{}, Searches: []string{}, Started: now.Unix(), owner: owner}

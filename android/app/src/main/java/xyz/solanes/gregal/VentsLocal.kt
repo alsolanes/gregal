@@ -219,6 +219,16 @@ object LocalLogic {
     fun toggleTopic(i: LocalInfo, id: String): LocalInfo =
         i.copy(topics = if (id in i.topics) i.topics - id else i.topics + id)
 
+    /** «Prova-ho ara»: preguntes seguides que poden fallar (~30 s) abans de rendir-se. */
+    const val TRY_MAX_MISSES = 10
+
+    /**
+     * Si cal deixar de seguir la prova després d'un error en preguntar: un tall
+     * de xarxa curt no (la prova segueix al servidor); si ja no hi és (404), sí.
+     */
+    fun tryGivesUp(e: Throwable, misses: Int): Boolean =
+        misses >= TRY_MAX_MISSES || (e.message ?: "").startsWith("HTTP 404")
+
     /** El missatge d'un error del servidor sense «HTTP 400:». */
     fun serverMessage(e: Throwable): String =
         (e.message ?: "").replace(Regex("""^HTTP \d+:\s*"""), "").trim()

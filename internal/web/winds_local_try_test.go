@@ -108,3 +108,32 @@ func TestLocalTryMarksRepeatedAndSaysWhenNothing(t *testing.T) {
 		t.Fatalf("nothing found = %+v", got)
 	}
 }
+
+// Un segon toc mentre la primera prova va (o el mòbil ha perdut el fil i
+// ho torna a provar) no és un error: torna la que ja va, i s'hi enganxa.
+func TestLocalTryTwiceFollowsTheRunningOne(t *testing.T) {
+	s := localTestServer(t)
+	old := localInfoLoop
+	release := make(chan struct{})
+	localInfoLoop = func(_ *Server, _ context.Context, _ string) (exploracio, error) {
+		<-release
+		return exploracio{text: localReply}, nil
+	}
+	t.Cleanup(func() { localInfoLoop = old })
+
+	body := `{"action":"try","place":{"label":"Gràcia"},"topics":["concerts","news"]}`
+	var first, second struct{ Try string }
+	_ = json.Unmarshal(localPost(t, s, body).Body.Bytes(), &first)
+	rec := localPost(t, s, body)
+	if rec.Code != 200 {
+		t.Fatalf("second tap: %d %s", rec.Code, rec.Body.String())
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &second)
+	if first.Try == "" || second.Try != first.Try {
+		t.Fatalf("second tap started another try: %q vs %q", first.Try, second.Try)
+	}
+	close(release)
+	if got := localTryGet(t, s, second.Try); got.State != "done" || len(got.Items) != 2 {
+		t.Fatalf("followed try = %+v", got)
+	}
+}

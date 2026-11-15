@@ -1144,8 +1144,15 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         localTryJob = viewModelScope.launch {
             try {
                 val id = withContext(Dispatchers.IO) { c.api().localTryStart(i) }
+                var misses = 0
                 while (true) {
-                    val r = withContext(Dispatchers.IO) { c.api().localTry(id) }
+                    val r = try {
+                        withContext(Dispatchers.IO) { c.api().localTry(id) }.also { misses = 0 }
+                    } catch (e: Exception) {
+                        if (e is CancellationException || LocalLogic.tryGivesUp(e, ++misses)) throw e
+                        kotlinx.coroutines.delay(3000)
+                        continue
+                    }
                     if (_conn.value != c) return@launch
                     _localTry.value = r
                     if (r.state != "running") break

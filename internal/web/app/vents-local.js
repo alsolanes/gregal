@@ -205,6 +205,9 @@ export function tryHeadline(t) {
   return tx(`Ha trobat ${n} ${n === 1 ? 'cosa' : 'coses'} a ${t.place} en ${t.seconds || 0} s. Activat, t’arribarien així a «Avui»:`, `Found ${n} ${n === 1 ? 'thing' : 'things'} in ${t.place} in ${t.seconds || 0} s. When it is on, they would reach Today like this:`);
 }
 
+/** Preguntes seguides que poden fallar abans de rendir-se (~30 s). */
+export const tryMaxMisses = 10;
+
 async function runTry(body, box, say) {
   if (!body.place || !body.place.label) { say(tx('Tria un lloc per provar-ho (pot ser qualsevol, no cal que sigui el teu).', 'Choose a place to try it (any place, it does not need to be yours).'), true); return; }
   if (!(body.topics || []).length) { say(tx('Tria almenys un tema.', 'Choose at least one topic.'), true); return; }
@@ -215,9 +218,16 @@ async function runTry(body, box, say) {
   const id = t.try;
   const head = el('p', 'local-try-head');
   box.append(head);
+  // La mirada triga un minut o dos: un tall de xarxa curt no la fa fallar,
+  // es torna a preguntar (la prova segueix al servidor).
+  let misses = 0;
   for (;;) {
     let cur;
-    try { cur = await getJSON('/api/winds/local/try?id=' + encodeURIComponent(id)); } catch (e) { head.textContent = e.message || String(e); return; }
+    try { cur = await getJSON('/api/winds/local/try?id=' + encodeURIComponent(id)); misses = 0; } catch (e) {
+      if (++misses >= tryMaxMisses || /ja no hi és|is gone/.test(e.message || '')) { head.textContent = e.message || String(e); return; }
+      await new Promise(r => setTimeout(r, 3000));
+      continue;
+    }
     head.textContent = tryHeadline(cur);
     if (cur.state !== 'running') { paintTry(box, cur); return; }
     await new Promise(r => setTimeout(r, 2000));
