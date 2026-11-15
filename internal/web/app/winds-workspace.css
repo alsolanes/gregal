@@ -1186,3 +1186,31 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-messages .vw-ask > strong { font-size:14px; }
 .vw-messages .vw-ask-actions { justify-content:flex-start; }
 .vw-messages .vw-ask-actions button { flex:0 0 auto; min-height:34px; padding:0 18px; font-size:13.5px; }
+
+/* Comparteix un missatge (share-msg.js): un botó discret que apareix en passar
+   per sobre i un menú petit (text, WhatsApp, Telegram, persona, enllaç). */
+.vw-message { position:relative; }
+.gshare-btn { position:absolute; top:10px; right:0; width:30px; height:30px; display:grid; place-items:center; border:1px solid var(--line); border-radius:9px; background:var(--surface); color:var(--muted); cursor:pointer; opacity:0; transition:opacity .15s, color .15s, border-color .15s; padding:0; }
+.gshare-btn svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.vw-message:hover .gshare-btn, .gshare-btn:focus-visible { opacity:1; }
+.gshare-btn:hover { color:var(--ink); border-color:var(--accent); }
+@media (hover:none) { .gshare-btn { opacity:.7; } }
+.gshare-menu { position:fixed; z-index:1000; width:270px; padding:6px; border-radius:14px; background:var(--surface-hi, var(--surface)); border:1px solid var(--line); box-shadow:0 18px 50px rgba(0,0,0,.35); display:flex; flex-direction:column; gap:1px; }
+.gshare-item { display:flex; flex-direction:column; align-items:flex-start; gap:1px; text-align:left; padding:9px 11px; border:0; border-radius:9px; background:none; color:var(--ink); font:inherit; font-size:14px; cursor:pointer; }
+.gshare-item small { color:var(--muted); font-size:12px; }
+.gshare-item:hover, .gshare-item:focus-visible { background:color-mix(in srgb, var(--accent) 14%, transparent); outline:none; }
+.gshare-item:disabled { opacity:.6; cursor:progress; }
+.gshare-sep { margin-top:4px; border-top:1px solid var(--line); border-radius:0 0 9px 9px; padding-top:11px; }
+.gshare-people { display:flex; flex-wrap:wrap; gap:6px; padding:6px 8px; }
+.gshare-person { border:1px solid var(--line); border-radius:999px; background:none; color:var(--text); padding:5px 11px; font:inherit; font-size:13px; cursor:pointer; }
+.gshare-person.on { background:var(--accent); color:var(--on-accent, var(--bg)); border-color:var(--accent); }
+.gshare-send { margin-left:auto; border:0; border-radius:999px; background:var(--send-bg, var(--accent)); color:var(--send-fg, var(--bg)); padding:6px 14px; font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
+.gshare-send:disabled { opacity:.45; cursor:default; }
+.gshare-status { margin:0; padding:0 11px; font-size:12.5px; color:var(--muted); white-space:pre-wrap; overflow-wrap:anywhere; }
+.gshare-status:not(:empty) { padding:8px 11px 6px; }
+.gshare-status.bad { color:var(--peach, #F2B48E); }
+/* Desat: el que t'ha enviat algú de l'app, pintat com al xat. */
+.saved-received .saved-md { max-height:340px; overflow:auto; font-size:14px; }
+.saved-received.unread { border-color:var(--accent); }
+.saved-actions { display:flex; gap:8px; align-items:center; margin-top:8px; }
+.saved-actions .gshare-btn { position:static; opacity:1; }

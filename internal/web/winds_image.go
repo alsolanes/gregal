@@ -405,6 +405,10 @@ func (s *Server) handleWindImage(w http.ResponseWriter, r *http.Request) {
 	}
 	p := filepath.Join(s.windImagesDir(), id)
 	if _, err := os.Stat(p); err != nil {
+		// Una foto que algú de l'app t'ha enviat (winds_share.go).
+		p = s.inboxImagePath(id)
+	}
+	if _, err := os.Stat(p); err != nil {
 		http.Error(w, "imatge inexistent", http.StatusNotFound)
 		return
 	}

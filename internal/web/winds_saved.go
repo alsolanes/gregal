@@ -26,7 +26,7 @@ import (
 // l'autor i el moment. Els documents que ja no existeixen no surten.
 
 type SavedItem struct {
-	Kind     string `json:"kind"` // doc | web | chart | image | card | link
+	Kind     string `json:"kind"` // doc | web | chart | image | card | link | received
 	Title    string `json:"title"`
 	URL      string `json:"url,omitempty"`
 	Spec     string `json:"spec,omitempty"` // gràfic: el JSON del bloc
@@ -35,6 +35,11 @@ type SavedItem struct {
 	WindName string `json:"wind_name"`
 	Where    string `json:"where,omitempty"` // nom de la rotllana; buit = xat propi
 	Ts       int64  `json:"ts"`
+	// received: el que una altra persona de l'app t'ha enviat (winds_share.go).
+	// ID és el de la safata; Text, el missatge per pintar-lo com a targeta.
+	Text   string `json:"text,omitempty"`
+	From   string `json:"from,omitempty"`
+	Unread bool   `json:"unread,omitempty"`
 }
 
 var (
@@ -240,6 +245,18 @@ func (s *Server) handleWindsSaved(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		items = append(items, got...)
+	}
+	if strings.TrimSpace(r.URL.Query().Get("wind")) == "" {
+		if me := s.sharedMe(); me != "" {
+			inboxMu.Lock()
+			box := s.inboxLoad(me)
+			inboxMu.Unlock()
+			for _, it := range box {
+				items = append(items, SavedItem{Kind: "received", Title: it.Title, ID: it.ID, Text: it.Text, From: it.From,
+					WindName: it.WindName, Ts: it.Ts, Unread: !it.Read})
+			}
+			sort.SliceStable(items, func(a, b int) bool { return items[a].Ts > items[b].Ts })
+		}
 	}
 	base := requestBase(r)
 	counts := map[string]int{}

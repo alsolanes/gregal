@@ -23,6 +23,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
@@ -72,6 +74,10 @@ data class WindSaved(
     val windName: String,
     val where: String,
     val ts: Long,
+    /** received: el que algú de l'app t'ha enviat (id = el de la safata). */
+    val text: String = "",
+    val from: String = "",
+    val unread: Boolean = false,
 )
 
 object WindActivityJson {
@@ -99,6 +105,7 @@ object WindActivityJson {
             WindSaved(
                 x.optString("kind"), x.optString("title"), x.optString("url"), x.optString("spec"), x.optString("id"),
                 x.optString("wind"), x.optString("wind_name"), x.optString("where"), x.optLong("ts"),
+                x.optString("text"), x.optString("from"), x.optBoolean("unread"),
             )
         }
     }
@@ -340,7 +347,7 @@ fun WindSavedGallery(vm: GregalViewModel, lang: String, wind: String = "", onOpe
         val kinds = got.map { it.kind }.toSet()
         val options = buildList {
             add("" to tr(lang, "saved.f.made"))
-            for (k in listOf("doc", "web", "chart", "image", "card", "link")) if (k in kinds) add(k to tr(lang, "saved.kind.$k"))
+            for (k in listOf("received", "doc", "web", "chart", "image", "card", "link")) if (k in kinds) add(k to tr(lang, "saved.kind.$k"))
         }
         FilterChips(options, filter) { filter = it }
         if (wind.isBlank()) {
@@ -350,7 +357,12 @@ fun WindSavedGallery(vm: GregalViewModel, lang: String, wind: String = "", onOpe
         val shown = (if (filter.isBlank()) made else got.filter { it.kind == filter })
             .filter { windFilter.isBlank() || it.wind == windFilter }
         if (shown.isEmpty()) Text(tr(lang, "saved.noneHere"), color = Muted, fontSize = 13.sp)
+        // Vist: el que t'han enviat deixa de ser nou (winds_share.go).
+        LaunchedEffect(got.count { it.unread }) {
+            if (got.any { it.unread }) withContext(Dispatchers.IO) { ShareApi.markRead(vm.conn.value.api()) }
+        }
         for (s in shown.take(150)) {
+            if (s.kind == "received") { key("rcv" + s.id) { ReceivedCard(vm, lang, s, onRemoved = { vm.loadSaved(wind) }) }; continue }
             key(s.kind + s.url + s.id + s.spec.hashCode()) { SavedRow(lang, s, showWind = wind.isBlank(), onOpen = {
                 when {
                     s.kind == "card" -> onOpenCard?.invoke(s)

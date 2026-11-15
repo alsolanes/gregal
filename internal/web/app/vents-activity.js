@@ -236,7 +236,7 @@ export async function renderAutomations(box, opts = {}) {
 }
 
 const SAVED = {
-  doc: ['📄', 'Documents', 'Documents'], web: ['🌐', 'Webs', 'Websites'], chart: ['📊', 'Gràfics', 'Charts'],
+  received: ['📨', 'Rebut', 'Received'], doc: ['📄', 'Documents', 'Documents'], web: ['🌐', 'Webs', 'Websites'], chart: ['📊', 'Gràfics', 'Charts'],
   image: ['🖼️', 'Imatges', 'Images'], card: ['🗂️', 'Fitxes', 'Cards'], link: ['🔗', 'Fonts', 'Sources'],
 };
 
@@ -296,13 +296,27 @@ export async function renderSaved(box, opts = {}) {
     } else if (it.kind === 'image') {
       const img = el('img', 'saved-img'); img.src = it.url; img.alt = it.title || ''; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
       const a = el('a'); a.href = it.url; a.target = '_blank'; a.rel = 'noopener'; a.append(img); c.append(a);
+    } else if (it.kind === 'received') {
+      // Algú de l'app t'ho ha enviat (winds_share.go): el missatge sencer, com al xat.
+      if (it.unread) c.classList.add('unread');
+      const md = el('div', 'saved-md vw-message-text md');
+      if (window.gregalMD) md.innerHTML = window.gregalMD.render(it.text || ''); else md.textContent = it.text || '';
+      c.append(md);
+      const row = el('div', 'saved-actions');
+      if (window.gregalShare) row.append(window.gregalShare.button(() => it.text || '', { from: it.wind_name || '' }));
+      row.append(btn(tx('Treu-ho', 'Remove'), async () => {
+        try { await api('/api/winds/inbox', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id, action: 'forget' }) }); items = items.filter(x => x !== it); draw(); } catch (_) {}
+      }, 'auto-btn subtle'));
+      c.append(row);
     } else if (it.kind === 'card' && opts.onCard) {
       c.append(btn(tx('Obre la fitxa', 'Open card'), () => opts.onCard(it), 'auto-btn subtle'));
     }
-    c.append(el('p', 'saved-meta', [wind ? '' : it.wind_name, it.where, dayText(it.ts)].filter(Boolean).join(' · ')));
+    c.append(el('p', 'saved-meta', [it.kind === 'received' ? tx('De ', 'From ') + it.from + (it.wind_name ? ' · ' + it.wind_name : '') : wind ? '' : it.wind_name, it.where, dayText(it.ts)].filter(Boolean).join(' · ')));
     return c;
   };
   draw();
+  // Vist: el que t'han enviat deixa de ser nou.
+  if (items.some(i => i.unread)) api('/api/winds/inbox', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: '*', action: 'read' }) }).catch(() => {});
 }
 
 window.gregalVentsActivity = { renderAutomations, renderSaved, whenText, filterItems };

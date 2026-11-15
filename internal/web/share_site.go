@@ -126,7 +126,7 @@ func (s *Server) handleShareSite(w http.ResponseWriter, r *http.Request) {
 	} else {
 		n := 0
 		for _, x := range listShares(owner) {
-			if x.Kind == "site" {
+			if x.Kind == "site" && !x.Clip {
 				n++
 			}
 		}

@@ -54,6 +54,9 @@ type shareMeta struct {
 	// Source és la carpeta d'on surt una web publicada amb l'eina publish:
 	// tornar-la a publicar actualitza el mateix enllaç.
 	Source string `json:"source,omitempty"`
+	// Clip: un missatge o una targeta compartits amb enllaç (winds_share.go),
+	// no una web: no compta per al límit de webs.
+	Clip bool `json:"clip,omitempty"`
 }
 
 var (

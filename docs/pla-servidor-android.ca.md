@@ -59,7 +59,12 @@ La zona horària no ha calgut: el servidor és al PC de casa.
   obrir-se; el servidor les fa servir per a avisos, rutines, temps i A prop teu.
 - Menú d'Android endreçat: Avui accessible, sense duplicats, noms clars.
 
-### Fase 2: compartir
+### Fase 2: compartir — FETA (15/11)
+Escriptori: botó de compartir a cada resposta (copia, WhatsApp, Telegram, a algú
+de l'app, enllaç públic). Android: prémer llarg una resposta obre el full (text,
+imatge de la bombolla, copia, a algú de l'app, enllaç). El que reps surt a
+Desat («Rebut») i el teu Gregal t'avisa. L'enllaç pinta les targetes, les fotos i
+els gràfics igual que l'app, i avisa si l'adreça només va a casa.
 - Botó «Comparteix» a cada missatge i targeta: com a imatge (targeta
   renderitzada) o text, pel full de compartir d'Android (WhatsApp, Telegram…).
 - Desa i envia a una altra persona de l'app (pla, menú, gràfic, recepta), que

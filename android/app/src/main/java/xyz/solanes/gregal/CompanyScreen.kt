@@ -1210,6 +1210,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     LaunchedEffect(openNewsTs) { if (openNewsTs != null) { vm.loadWindChat(wind.id); vm.markWindNewsSeen(wind.id) } }
     // B7: fil visible = novetats llegides a tot arreu; obrir des d'un avís porta al missatge exacte.
     val chatConn by vm.conn.collectAsState()
+    var shareTarget by remember { mutableStateOf<ShareTarget?>(null) }
+    shareTarget?.let { t -> ShareSheet(vm, lang, t, onDismiss = { shareTarget = null }) }
     ThreadReadEffect(chatConn, wind.id, openNewsTs)
     FocusMessageEffect("wind:${wind.id}", listState, msgs.map { it.id })
     val follow = rememberChatFollow(listState, wind.id)
@@ -1278,17 +1280,24 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     MemoryNotice(lang, facts) { vm.forgetLearned(wind.id, facts) }
                 } else Column(Modifier.padding(top = gap)) {
                     if (m.kind == "guest" && m.speakerName.isNotBlank()) GuestJoinsLine(lang, m.speakerName)
+                    val cap = rememberBubbleCapture()
                     BubbleIn("dm#$idx", animate = idx >= liveFrom) {
+                        Box(if (m.from != "user") cap.modifier else Modifier) {
                         WindBubble(m, accent, lang = lang,
                             onCopy = {
-                                clipboard.setText(AnnotatedString(stripMdInline(m.text)))
-                                scope.launch { vm.notify(tr(lang, "app.vents.copied")) }
+                                // Prémer llarg una resposta obre «Comparteix» (Share.kt); la teva, la copia.
+                                if (m.from != "user" && !m.streaming) shareTarget = ShareTarget(m.text, wind.name, cap.shot)
+                                else {
+                                    clipboard.setText(AnnotatedString(stripMdInline(m.text)))
+                                    scope.launch { vm.notify(tr(lang, "app.vents.copied")) }
+                                }
                             },
                             onContinue = if (!isBusy) ({ follow.requestFollow(); vm.sendWindContinue(wind.id) }) else null,
                             onRetry = if (!isBusy) ({ follow.requestFollow(); vm.retryLastWindTurn(wind.id) }) else null,
                             onTransfer = if (vm.canTransferToServer() && !isBusy) ({ askTransfer = true }) else null,
                             onDiscard = if (m.kind == "queued") ({ vm.discardQueued(wind.id, m.ts) }) else null,
                             onCopied = { scope.launch { vm.notify(tr(lang, "app.vents.linkCopied")) } })
+                        }
                     }
                     // B6: un missatge que ve d'una responsabilitat diu per què.
                     if (m.proactive) TextButton(onClick = { whyId = m.id },
@@ -1469,6 +1478,8 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
     var field by rememberSaveable(rot.id, stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var groupProfile by remember(rot.id) { mutableStateOf(false) }
     var askTransfer by remember(rot.id) { mutableStateOf(false) }
+    var shareTarget by remember { mutableStateOf<ShareTarget?>(null) }
+    shareTarget?.let { t -> ShareSheet(vm, lang, t, onDismiss = { shareTarget = null }) }
     var showPerm by remember(rot.id) { mutableStateOf(false) }
     var speakerProfile by remember(rot.id) { mutableStateOf<Wind?>(null) }
     val st by vm.state.collectAsState()
@@ -1567,20 +1578,27 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp, bottom = 4.dp))
                 if (msgs[idx].kind == "round") Text("· " + tr(lang, "app.crew.round"), color = Muted, fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp, bottom = 4.dp))
+                val cap = rememberBubbleCapture()
+                val rm = resolved.message
                 BubbleIn("rot#$idx", animate = idx >= liveFrom) {
+                Box(if (rm.from != "user") cap.modifier else Modifier) {
                 WindBubble(resolved.message, if (resolved.message.from == "user") rotAccent else resolved.wind?.let { Color(it.argb) } ?: Sea,
                     lang = lang, speaker = if (firstOfRun) resolved.wind else null,
                     speakerName = if (firstOfRun) resolved.name.ifBlank { tr(lang, "app.vents.windSpeaker") } else "",
                     onSpeakerClick = { resolved.wind?.let { speakerProfile = it } },
                     indent = 0.dp,
                     onCopy = {
-                        clipboard.setText(AnnotatedString(stripMdInline(resolved.message.text)))
-                        scope.launch { vm.notify(tr(lang, "app.vents.copied")) }
+                        if (rm.from != "user" && !rm.streaming) shareTarget = ShareTarget(rm.text, resolved.name, cap.shot)
+                        else {
+                            clipboard.setText(AnnotatedString(stripMdInline(rm.text)))
+                            scope.launch { vm.notify(tr(lang, "app.vents.copied")) }
+                        }
                     },
                     onContinue = if (!busy.contains(rot.id)) ({ follow.requestFollow(); vm.sendRotllanaContinue(rot.id, resolved.message.speakerId) }) else null,
                     onRetry = if (!busy.contains(rot.id)) ({ follow.requestFollow(); vm.retryLastRotllanaTurn(rot.id) }) else null,
                     onTransfer = if (vm.canTransferToServer() && !busy.contains(rot.id)) ({ askTransfer = true }) else null,
                     onCopied = { scope.launch { vm.notify(tr(lang, "app.vents.linkCopied")) } })
+                }
                 }
                 if (msgs[idx].kind == "question" && idx == msgs.lastIndex) CrewQuestionCard(lang, rotAccent)
                 }
