@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## v1.81.0 - 2026-11-15 - Comparteix respostes, plans i gràfics
+
+- **Comparteix qualsevol resposta.** Cada missatge d'un vent té un botó
+  «Comparteix»: copia'l o envia'l per WhatsApp o Telegram, amb els plans,
+  menús, comparacions, rutes i gràfics passats a text llegible.
+- **Envia-ho a algú de Gregal.** Li arriba a Desat → Rebut, amb les fotos, i el
+  seu Gregal l'avisa. Des d'allà ho pot treure o tornar a compartir.
+- **Enllaç públic de només lectura.** Una pàgina que pinta la targeta com a
+  l'app (fotos, gràfics, tema clar o fosc) i s'obre sense compte; si l'adreça
+  només va a casa, t'avisa.
+- **A l'Android, també com a imatge.** Mantén premuda una resposta i comparteix
+  la bombolla tal com la veus.
+
 ## v1.80.0 - 2026-11-15 - Rutines i webs des del mòbil, colors nous
 
 - **Rutines des del xat.** «Cada matí feiner a les 8 envia'm les notícies de…»
