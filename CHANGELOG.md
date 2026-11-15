@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v1.82.1 - 2026-11-15 - Sortir de l'app ja no fa fallar el torn
+
+- **Sortir de l'app ja no fa fallar el torn.** Si preguntes alguna cosa i
+  surts de l'app abans que acabi, el vent hi segueix treballant al servidor;
+  el mòbil diu que t'avisarà, t'envia «Resposta rebuda» quan arriba i la
+  mostra en tornar, en lloc de «El torn ha fallat».
+
 ## v1.82.0 - 2026-11-15 - Colors sense barreja
 
 - **Colors sense barreja.** El tema fosc deixa el mar blau per un grafit amb un
