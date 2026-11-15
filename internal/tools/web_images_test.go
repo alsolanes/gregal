@@ -51,9 +51,9 @@ func TestWebImagesCommonsFallback(t *testing.T) {
 	}))
 	defer srv.Close()
 	t.Setenv("SEARXNG_URL", "")
-	saved := commonsAPI
-	commonsAPI = srv.URL
-	t.Cleanup(func() { commonsAPI = saved })
+	saved, savedLead := commonsAPI, wikiLeadAPI
+	commonsAPI, wikiLeadAPI = srv.URL, ""
+	t.Cleanup(func() { commonsAPI, wikiLeadAPI = saved, savedLead })
 	out, err := WebImages(context.Background(), "Camp Nou", 6)
 	if err != nil {
 		t.Fatal(err)
@@ -64,5 +64,31 @@ func TestWebImagesCommonsFallback(t *testing.T) {
 	}
 	if !strings.Contains(out, "1. Camp Nou obres 2025") || !strings.Contains(out, "page: https://commons.wikimedia.org/wiki/File:Camp_Nou_obres_2025.jpg") {
 		t.Fatalf("títol o pàgina malament:\n%s", out)
+	}
+}
+
+func TestWebImagesPutsTheArticlePhotoFirst(t *testing.T) {
+	allowLocalFetch = true
+	commons := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"query":{"pages":{"1":{"title":"File:Home dormint.jpg","index":1,"imageinfo":[{"thumburl":"https://upload.wikimedia.org/dorm.jpg","descriptionurl":"https://commons.wikimedia.org/wiki/File:d.jpg","mime":"image/jpeg"}]}}}}`))
+	}))
+	defer commons.Close()
+	wiki := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("prop") != "pageimages" || r.URL.Query().Get("gsrsearch") != "La plaça del Diamant" {
+			t.Errorf("consulta inesperada: %s", r.URL.RawQuery)
+		}
+		_, _ = w.Write([]byte(`{"query":{"pages":{"42":{"title":"The Time of the Doves","thumbnail":{"source":"https://upload.wikimedia.org/coberta.jpg"}}}}}`))
+	}))
+	defer wiki.Close()
+	t.Setenv("SEARXNG_URL", "")
+	saved, savedLead := commonsAPI, wikiLeadAPI
+	commonsAPI, wikiLeadAPI = commons.URL, wiki.URL+"/w/api.php"
+	t.Cleanup(func() { commonsAPI, wikiLeadAPI = saved, savedLead })
+	out, err := WebImages(context.Background(), "La plaça del Diamant", 6)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(out, "1. The Time of the Doves\n   image: https://upload.wikimedia.org/coberta.jpg") || !strings.Contains(out, "2. Home dormint") {
+		t.Fatalf("la foto de l'article ha d'anar primer:\n%s", out)
 	}
 }

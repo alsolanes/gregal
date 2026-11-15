@@ -256,6 +256,14 @@ class ToolTextTest {
         assertTrue(texts.any { it.startsWith("• ") })
         assertTrue(segs.none { it is Seg.Text && (it as Seg.Text).t.contains("[ ]") })
     }
+
+    @Test
+    fun fotoPendentNoEsVeu() {
+        val segs = splitMd("Gaudí.\n\n![Sagrada Família](image: Sagrada Familia)\n\nVes-hi. ![Park](image: Park Gu")
+        assertTrue(segs.none { it is Seg.Image })
+        assertTrue(segs.none { it is Seg.Text && (it as Seg.Text).t.contains("image:") })
+        assertTrue(segs.any { it is Seg.Text && (it as Seg.Text).t.contains("Ves-hi.") })
+    }
 }
 
 class ChatRowsTest {

@@ -1361,6 +1361,11 @@ func WebImages(ctx context.Context, query string, count int) (string, error) {
 	}
 	var hits []ImageHit
 	var searxErr error
+	// Primer, la foto principal de l'article de la Viquipèdia: és la que
+	// representa la cosa (la basílica, el plat, la persona, la coberta del
+	// llibre). La cerca de Commons sola torna sovint una foto qualsevol que
+	// només passa allà («un home dormint a la plaça del Diamant»).
+	lead, leadOK := wikiLeadImage(ctx, wikiLeadAPI, query)
 	if base := SearXNGBase(); base != "" {
 		hits, searxErr = searxImages(ctx, base, query)
 	}
@@ -1370,6 +1375,15 @@ func WebImages(ctx context.Context, query string, count int) (string, error) {
 			return "", fmt.Errorf("%v; Wikimedia Commons: %v", searxErr, err)
 		}
 		hits = commons
+	}
+	if leadOK {
+		rest := []ImageHit{lead}
+		for _, h := range hits {
+			if h.Img != lead.Img {
+				rest = append(rest, h)
+			}
+		}
+		hits = rest
 	}
 	if len(hits) == 0 {
 		return "", fmt.Errorf("cap imatge per a %q", query)
@@ -1408,6 +1422,53 @@ func searxImages(ctx context.Context, base, query string) ([]ImageHit, error) {
 		hits = append(hits, ImageHit{Title: strings.TrimSpace(r.Title), Page: strings.TrimSpace(r.URL), Img: img})
 	}
 	return hits, nil
+}
+
+// wikiLeadAPI és l'API de la Viquipèdia en anglès (les consultes d'imatge
+// són en anglès); buida, no es fa servir. Els tests la substitueixen.
+var wikiLeadAPI = "https://en.wikipedia.org/w/api.php"
+
+// wikiLeadImage: la imatge principal del primer article que surt per a la
+// consulta, en miniatura de 960 px. Si l'article no en té, res.
+func wikiLeadImage(ctx context.Context, api, query string) (ImageHit, bool) {
+	if api == "" || strings.TrimSpace(query) == "" {
+		return ImageHit{}, false
+	}
+	q := url.Values{}
+	q.Set("action", "query")
+	q.Set("format", "json")
+	q.Set("generator", "search")
+	q.Set("gsrsearch", query)
+	q.Set("gsrlimit", "1")
+	q.Set("prop", "pageimages")
+	q.Set("piprop", "thumbnail")
+	q.Set("pithumbsize", "960")
+	body, err := webGet(ctx, api+"?"+q.Encode(), "application/json", 500_000)
+	if err != nil {
+		return ImageHit{}, false
+	}
+	var data struct {
+		Query struct {
+			Pages map[string]struct {
+				Title     string `json:"title"`
+				Thumbnail struct {
+					Source string `json:"source"`
+				} `json:"thumbnail"`
+			} `json:"pages"`
+		} `json:"query"`
+	}
+	if json.Unmarshal(body, &data) != nil {
+		return ImageHit{}, false
+	}
+	for _, p := range data.Query.Pages {
+		src := p.Thumbnail.Source
+		if !strings.HasPrefix(src, "https://") || strings.Contains(strings.ToLower(src), ".svg") {
+			continue
+		}
+		page := strings.TrimSuffix(api, "/w/api.php") + "/wiki/" + url.PathEscape(strings.ReplaceAll(p.Title, " ", "_"))
+		return ImageHit{Title: p.Title, Page: page, Img: src}, true
+	}
+	return ImageHit{}, false
 }
 
 // commonsAPI és l'API de Wikimedia Commons; els tests la substitueixen.

@@ -176,8 +176,13 @@ private fun splitBlockLines(s: String): List<Seg> {
     return out
 }
 
+// ![nom](image: consulta): la foto que el servidor encara ha de buscar
+// (winds_card_images.go). Mentre arriba la resposta, no es veu.
+private val pendingPhoto = Regex("""!\[[^\]\n]*]\(\s*image:[^)\n]*(?:\)|$)""")
+
 /** Inline públic per reutilitzar (cel·les de taula). */
-fun parseInline(s: String): List<Seg> {
+fun parseInline(src: String): List<Seg> {
+    val s = if (src.contains("image:")) src.replace(pendingPhoto, "") else src
     if (s.isEmpty()) return emptyList()
     val out = mutableListOf<Seg>()
     val buf = StringBuilder()

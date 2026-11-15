@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Fotos a les respostes.** Quan preguntes per un lloc, un plat, un llibre o
+  una persona, la resposta del vent porta la seva foto després del primer
+  paràgraf, encara que el model no n'hagi buscat cap. Als consells i a les
+  converses no se n'hi posa.
+- **Fotos que representen la cosa.** Primer la imatge principal de l'article
+  de la Viquipèdia (la basílica, el plat, el retrat, la coberta) i, si no
+  n'hi ha, Wikimedia Commons. Abans sortia sovint una foto qualsevol.
+- **Targetes que no es perden.** Si el model repeteix un tros d'una targeta de
+  pla o de recepta, Gregal l'arregla i la targeta surt amb la foto.
+
 ## v1.77.0 - 2026-11-14 - Xats amb fotos, receptes i plans
 
 - **Xats amb fotos.** Quan un vent et fa un pla o una recepta, la targeta porta

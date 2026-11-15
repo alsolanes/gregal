@@ -22,6 +22,9 @@
   function inline(t) {
     const codes = [];
     t = t.replace(/`([^`\n]+)`/g, (m, c) => { codes.push("<code>" + c + "</code>"); return "<<C" + (codes.length - 1) + "<<C"; });
+    // ![alt](image: consulta) — la foto que el servidor encara ha de buscar
+    // (winds_card_images.go): mentre arriba la resposta, no es veu.
+    t = t.replace(/!\[[^\]\n]*\]\(\s*image:[^)\n]*(?:\)|$)/g, "");
     // ![alt](http://…) — imatge; abans que l'enllaç perquè el prefix ! el distingeix.
     t = t.replace(/!\[([^\]\n]*)\]\((https?:\/\/[^\s)]+)\)/g, (m, alt, src) => '<img class="md-img" src="' + src + '" alt="' + esc(alt) + '" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display=\'none\'">');
     // ![alt](/api/winds/image?id=…) — una imatge que ha fet un vent: l'API vol

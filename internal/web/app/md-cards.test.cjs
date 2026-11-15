@@ -76,3 +76,10 @@ test('el JSON a la mateixa línia de l\'obertura també és una targeta', () => 
   assert.ok(one.includes('gregal-plan') && one.includes('Fi.'), one);
   assert.ok(md.render('```js title\nconst a = 1\n```').includes('const'), 'a normal code block keeps its body');
 });
+
+test('la foto pendent (image: consulta) no es veu mentre arriba la resposta', () => {
+  const h = md.render('Gaudí.\n\n![Sagrada Família](image: Sagrada Familia Barcelona)\n\nVes-hi.\n\n![Park Güell](image: Park Gu');
+  assert.ok(!h.includes('image:'), h);
+  assert.ok(!h.includes('Sagrada Família') && !h.includes('Park'), h);
+  assert.ok(h.includes('Ves-hi.'), h);
+});

@@ -200,7 +200,7 @@ func rotllanaChatBrief(s *Server, rot Rotllana, speakingWind companion.Wind, con
 	// diferent. El pressupost baixa a 9.400 perquè els noms i la consigna de
 	// conversa han de continuar cabent al sostre de 20k del brief.
 	transcript := agent.TranscriptDigestSpeakers(conversation, 9400)
-	brief = system + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + transcript + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first (to read any URL use web_fetch, never curl: shell downloads are blocked); if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed. Never invent facts. When a picture genuinely helps, find it with web_images and embed it as ![title](image-url) on its own line; never invent an image URL." +
+	brief = system + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + transcript + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first (to read any URL use web_fetch, never curl: shell downloads are blocked); if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed. Never invent facts. If it is about a specific place, dish, product, artwork or person, put a photo line after your first sentence: ![name](image: 2-4 English words); the app turns it into a real photo." +
 		"\n\nSpeak only as yourself. For a requested deliverable, start working if you have what you need. If one missing choice would materially change it, ask that one question with concrete options." + windRemindBrief(speakingWind.ID) + windFollowupBrief(speakingWind) + windCodeBrief + s.windLessonsBrief(speakingWind.ID) + onTreballa + companion.ReplyLanguageBrief(msg)
 	return system, brief
 }
@@ -423,7 +423,7 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 	if err == nil && res.parcial && esRespostaMecanica(reply) {
 		reply = fraseTornAturat(res.motiu, s.cfg.Lang())
 	}
-	reply = s.windCardImages(reply)
+	reply = s.windSubjectPhoto(msg, s.windCardImages(reply))
 	reply += s.windDocLinks(turnStart, reply)
 	history := append([]llm.Message(nil), base...)
 	if !isContinue {
