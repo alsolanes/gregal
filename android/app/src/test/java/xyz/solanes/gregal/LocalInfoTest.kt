@@ -59,6 +59,16 @@ class LocalInfoTest {
         assertEquals("cal el teu consentiment", LocalLogic.serverMessage(ApiException("HTTP 400: cal el teu consentiment")))
     }
 
+    @Test fun elLlocDelMobilEsTornaAMirarSolNomesSiVeDelMobil() {
+        assertTrue(LocalLogic.autoLocateDue(0L, 20_000_000L))
+        assertFalse(LocalLogic.autoLocateDue(10_000_000L, 10_000_000L + 3_600_000L))
+        assertTrue(LocalLogic.autoLocateDue(10_000_000L, 10_000_000L + LocalLogic.AUTO_LOCATE_MS))
+        assertTrue(LocalLogic.followsDevice(LocalInfo(consent = true, place = LocalPlace("Vic", source = "device"))))
+        // Un lloc triat a mà no el canvia el GPS; sense consentiment, res.
+        assertFalse(LocalLogic.followsDevice(LocalInfo(consent = true, place = LocalPlace("Gràcia", source = "manual"))))
+        assertFalse(LocalLogic.followsDevice(LocalInfo(consent = false, place = LocalPlace("Vic", source = "device"))))
+    }
+
     @Test fun maiNoSurtenCoordenadesExactes() {
         val loc = LocalJson.locateBody(41.403712, 2.156789)
         assertEquals(41.4, loc.getDouble("lat"), 0.0)

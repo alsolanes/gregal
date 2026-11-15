@@ -46,7 +46,11 @@ comparar, fer webs i servir-les, notícies diàries i compartir coses.
 
 ## Fases
 
-### Fase 1: que el que demanes funcioni (petit, alt impacte)
+### Fase 1: que el que demanes funcioni — FETA (15/11)
+Provat al sandbox: «cada matí feiner a les 8 les notícies…» crea dues rutines de
+debò (feiners i caps de setmana); «fes-me una web… i publica-la» la construeix,
+la prova i la publica sense demanar res, i diu clar si l'enllaç només va a casa.
+La zona horària no ha calgut: el servidor és al PC de casa.
 - Eina `programa` per als vents: rutina diària/feiners/cada N hores des del xat
   («cada matí a les 8, notícies de…»), amb llista i «atura-ho».
 - Webs des del mòbil sense esperes: el vent ho sap fer, cap aprovació dins del

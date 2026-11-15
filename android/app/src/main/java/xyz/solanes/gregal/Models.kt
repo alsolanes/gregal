@@ -412,7 +412,24 @@ data class JobItem(
     /** Última execució i franja següent en RFC 3339 (per a l'alarma d'Android). */
     val lastAt: String = "",
     val nextDueAt: String = "",
+    /** Dies d'una feina diària (0 = diumenge … 6 = dissabte); buit, cada dia. */
+    val days: List<Int> = emptyList(),
 )
+
+/** Dies d'una rutina en paraules: «feiners», «caps de setmana», «dl, dj»; buit si és cada dia. */
+fun jobDaysLabel(days: List<Int>, lang: String): String {
+    if (days.isEmpty()) return ""
+    val set = days.toSet()
+    val en = lang == "en"
+    return when {
+        set == setOf(1, 2, 3, 4, 5) -> if (en) "Weekdays" else "Feiners"
+        set == setOf(0, 6) -> if (en) "Weekends" else "Caps de setmana"
+        else -> {
+            val names = if (en) listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat") else listOf("dg", "dl", "dt", "dc", "dj", "dv", "ds")
+            days.filter { it in 0..6 }.joinToString(", ") { names[it] }
+        }
+    }
+}
 
 /** Execució d'un job (output en markdown per al render ric). */
 data class RunItem(

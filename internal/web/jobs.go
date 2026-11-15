@@ -368,6 +368,11 @@ func (s *Server) handleJobSave(w http.ResponseWriter, r *http.Request) {
 				if _, supplied := body["wind"]; !supplied {
 					j.Wind = old.Wind
 				}
+				// Els dies d'una rutina (eina routine) es conserven si el client
+				// (una app antiga, el formulari) no els envia.
+				if _, supplied := body["days"]; !supplied {
+					j.Days = old.Days
+				}
 			}
 		}
 	}

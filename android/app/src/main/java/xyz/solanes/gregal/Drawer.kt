@@ -48,6 +48,8 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.Bookmark
+import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -161,7 +163,7 @@ private fun SimpleVentsDrawer(
 ) {
     val user by vm.usuari.collectAsState()
     val panel by vm.ventsPanel.collectAsState()
-    val codeScreens = setOf(Screen.Chat, Screen.Sessions, Screen.Carpeta, Screen.Work, Screen.Webs)
+    val codeScreens = setOf(Screen.Chat, Screen.Sessions, Screen.Carpeta, Screen.Work)
     var codeOpen by rememberSaveable { mutableStateOf(false) }
     CappedFontScale(1.5f) {
         Column(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 8.dp)) {
@@ -183,10 +185,11 @@ private fun SimpleVentsDrawer(
                 // després els especialistes; els recursos, a sota.
                 val gregal = winds.firstOrNull { it.id == "gregal" }
                 DrawerRow(gregal?.name ?: tr(lang, "nav.company"), home && panel == null, { vm.openVentsPanel(null); nav(Screen.Company) }) { DrawerWindIcon(vm) }
+                DrawerRow(if (en) "Today" else "Avui", home && panel == "today", { close(); vm.openVentsPanel("today"); nav(Screen.Company) }, Icons.Rounded.WbSunny)
                 val running = tasks.orEmpty().count { it.running }
-                DrawerRow(if (en) "Work" else "Feina" + "", false, { close(); vm.openVentsPanel("work") }, Icons.Rounded.Construction, badge = running)
+                DrawerRow(if (en) "Work" else "Feina", false, { close(); vm.openVentsPanel("work") }, Icons.Rounded.Construction, badge = running)
                 DrawerRow(if (en) "Watching" else "Vigilant", false, { close(); vm.openVentsPanel("watch") }, Icons.Rounded.Visibility)
-                DrawerRow(if (en) "Reminders" else "Recordatoris", screen == Screen.Automatitzacions && panel != "local", { nav(Screen.Automatitzacions) }, Icons.Rounded.Alarm)
+                DrawerRow(if (en) "Automations" else "Automatitzacions", screen == Screen.Automatitzacions && panel != "local", { nav(Screen.Automatitzacions) }, Icons.Rounded.Alarm)
                 DrawerRow(tr(lang, "app.local.title"), false, { vm.openVentsPanel("local"); nav(Screen.Automatitzacions) }, Icons.Rounded.Place)
                 // Els altres vents: abans «Canals», que no deia què hi havia.
                 DrawerSection(if (en) "Specialists" else "Especialistes")
@@ -199,15 +202,16 @@ private fun SimpleVentsDrawer(
                 DrawerRow(if (en) "New specialist" else "Nou especialista", false, { close(); vm.showWindCreator(true) }, Icons.Rounded.Add, muted = true)
                 DrawerSection(if (en) "Resources" else "Recursos")
                 DrawerRow(if (en) "Computer" else "Ordinador", false, { close(); vm.openVentsPanel("computer") }, Icons.Rounded.Computer)
-                DrawerRow(if (en) "Connections" else "Connexions", screen == Screen.Prefs && vm.prefsPage.collectAsState().value in setOf(PrefsPage.Connections, PrefsPage.Accounts, PrefsPage.CalendarMail, PrefsPage.Calendar, PrefsPage.Mail, PrefsPage.Briefing), { nav(Screen.Prefs); vm.openPreferences(PrefsPage.Connections) }, Icons.Rounded.Link)
+                DrawerRow(if (en) "Saved" else "Desat", screen == Screen.Desat, { nav(Screen.Desat) }, Icons.Rounded.Bookmark)
+                DrawerRow(if (en) "The crew" else "La colla", false, { close(); vm.openVentsPanel(null); nav(Screen.Company); vm.openCrew() }, Icons.Rounded.Groups)
                 DrawerRow(webCopy(lang, "title"), screen == Screen.Webs, { nav(Screen.Webs); vm.loadWebs() }, Icons.Rounded.Language)
                 DrawerRow(tr(lang, "nav.notes"), screen == Screen.Notes, { nav(Screen.Notes); vm.loadNotes() }, Icons.Rounded.EditNote)
                 HorizontalDivider(Modifier.padding(vertical = 8.dp, horizontal = 8.dp), color = Line)
                 DrawerRow(guideIntro(lang).first, false, { close(); vm.openVentsPanel("guide") }, Icons.Rounded.AutoAwesome)
                 DrawerRow(tr(lang, "app.vents.myWinds"), home && panel == "directory", { close(); vm.openVentsPanel("directory") }, Icons.Rounded.Groups, muted = true)
                 // Programar des del mòbil: l'agent de codi, les seves converses, el
-                // projecte i les feines, plegats. (Objectius, gràfics, Office i Retro
-                // continuen a Preferències → Eines de programació.)
+                // projecte i les feines, plegats. Objectius, gràfics, Office i Retro
+                // surten amb Preferències → «Eines de programació» activat.
                 val showCode = codeOpen || screen in codeScreens
                 DrawerRow(tr(lang, "app.nav.sectionCode"), false, { codeOpen = !showCode }, muted = true) {
                     Icon(if (showCode) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, modifier = Modifier.size(22.dp))
@@ -219,8 +223,7 @@ private fun SimpleVentsDrawer(
                         project.ifEmpty { tr(lang, "app.nav.project") } + if (branch.isNotBlank()) " · $branch" else "",
                         screen == Screen.Carpeta, { nav(Screen.Carpeta) }, Icons.Rounded.FolderOpen,
                     )
-                    DrawerRow(tr(lang, "app.work.title"), screen == Screen.Work, { nav(Screen.Work) }, Icons.Rounded.Construction)
-                    DrawerRow(webCopy(lang, "title"), screen == Screen.Webs, { nav(Screen.Webs); vm.loadWebs() }, Icons.Rounded.Language)
+                    DrawerRow(if (en) "Code work" else "Feina de codi", screen == Screen.Work, { nav(Screen.Work) }, Icons.Rounded.Construction)
                 }
             }
             HorizontalDivider(Modifier.padding(vertical = 6.dp, horizontal = 8.dp), color = Line)

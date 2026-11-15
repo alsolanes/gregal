@@ -82,7 +82,7 @@ internal fun agrupaAutomatitzacions(
 
     val programades = jobs.filter { it.kind == "daily" || it.kind == "interval" || it.kind == "event" }.map { j ->
         val quan = when (j.kind) {
-            "daily" -> j.time
+            "daily" -> jobDaysLabel(j.days, lang).let { d -> if (d.isEmpty()) j.time else "$d · ${j.time}" }
             "interval" -> if (lang == "en") "Every ${j.intervalH}h" else "Cada ${j.intervalH} h"
             else -> j.nextDue
         }

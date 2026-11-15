@@ -23,6 +23,9 @@ type Job struct {
 	Kind       string     `json:"kind"` // "daily" | "interval" | "event" | "remind" | "manual"
 	Time       string     `json:"time"` // "HH:MM" (daily, hora local)
 	IntervalH  float64    `json:"interval_h"`
+	// Days limita una feina diària a uns dies de la setmana (0 = diumenge …
+	// 6 = dissabte). Buit vol dir cada dia, com sempre.
+	Days       []int      `json:"days,omitempty"`
 	Enabled    bool       `json:"enabled"`
 	Notify     bool       `json:"notify"`
 	LastAt     *time.Time `json:"last_at,omitempty"`
@@ -312,6 +315,19 @@ func (s *Store) Runs(jobID string, n int) ([]Run, error) {
 // NextDue calcula la franja programada vigent: si ja ha passat i no s'ha
 // executat, retorna el passat (Due() dirà que toca); si ja s'ha cobert,
 // la següent franja. Zero = manual o deshabilitat.
+// dayAllowed: sense dies triats, tots ho són.
+func dayAllowed(days []int, d time.Weekday) bool {
+	if len(days) == 0 {
+		return true
+	}
+	for _, x := range days {
+		if x == int(d) {
+			return true
+		}
+	}
+	return false
+}
+
 func NextDue(j Job, now time.Time) time.Time {
 	if !j.Enabled {
 		return time.Time{}
@@ -324,10 +340,18 @@ func NextDue(j Job, now time.Time) time.Time {
 		}
 		slot := time.Date(now.Year(), now.Month(), now.Day(), hm.Hour(), hm.Minute(), 0, 0, now.Location())
 		if slot.After(now) {
-			slot = slot.Add(-24 * time.Hour)
+			slot = slot.AddDate(0, 0, -1)
+		}
+		// Amb dies triats, la franja és l'última d'un dia permès.
+		for i := 0; i < 7 && !dayAllowed(j.Days, slot.Weekday()); i++ {
+			slot = slot.AddDate(0, 0, -1)
 		}
 		if j.LastAt != nil && !j.LastAt.Before(slot) {
-			return slot.Add(24 * time.Hour)
+			next := slot.AddDate(0, 0, 1)
+			for i := 0; i < 7 && !dayAllowed(j.Days, next.Weekday()); i++ {
+				next = next.AddDate(0, 0, 1)
+			}
+			return next
 		}
 		return slot
 	case "interval":

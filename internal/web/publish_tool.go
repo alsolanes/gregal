@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -44,6 +46,11 @@ func (s *Server) runPublishTool(ctx context.Context, workspace, argsJSON string)
 		return "", err
 	}
 	link := absLink(linkBaseOf(ctx), "/share/"+m.ID+"/")
+	if publicBase() == "" && linkIsPrivate(link) {
+		// Sense adreça pública (GREGAL_PUBLIC_URL), l'enllaç és el de casa:
+		// el vent ho ha de dir, no prometre que s'obre a tot arreu.
+		return fmt.Sprintf("Published %q (%d files, %d KB).\nLink: %s\nIt only opens on the same network as the server (home Wi-Fi or the VPN): this server has no public address yet. Tell the user that plainly; to open it from anywhere the server needs a public URL (a Cloudflare tunnel, in Webs i apps).\nFolder: %s\nPublishing this folder again updates the same link.", m.Title, m.Files, (m.Bytes+1023)/1024, link, dir), nil
+	}
 	return fmt.Sprintf("Published %q (%d files, %d KB).\nPublic link (opens on any device, also the phone): %s\nFolder: %s\nPublishing this folder again updates the same link.", m.Title, m.Files, (m.Bytes+1023)/1024, link, dir), nil
 }
 
@@ -143,4 +150,23 @@ func (s *Server) runPublishNamed(ctx context.Context, dir, name, vis, title stri
 		out += "\nIt was published PRIVATE: making a name public the first time needs the user's confirmation. Ask them; they can also switch it to public from the Webs list."
 	}
 	return out, nil
+}
+
+// linkIsPrivate: l'enllaç només s'obre des de casa (IP privada, de bucle,
+// de Tailscale/CGNAT, o un nom sense domini com «gregal» o «pc.local»).
+func linkIsPrivate(link string) bool {
+	u, err := url.Parse(link)
+	if err != nil || u.Hostname() == "" {
+		return false // relatiu: el client hi posa la seva adreça
+	}
+	host := u.Hostname()
+	if ip := net.ParseIP(host); ip != nil {
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() {
+			return true
+		}
+		_, cgnat, _ := net.ParseCIDR("100.64.0.0/10")
+		return cgnat.Contains(ip)
+	}
+	h := strings.ToLower(host)
+	return !strings.Contains(h, ".") || strings.HasSuffix(h, ".local") || strings.HasSuffix(h, ".lan") || strings.HasSuffix(h, ".home") || strings.HasSuffix(h, ".internal")
 }

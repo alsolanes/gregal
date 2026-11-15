@@ -363,6 +363,8 @@ class MainActivity : ComponentActivity() {
         // una passada immediata recupera feines i notícies sense esperar
         // el primer tic de cap sondeig.
         vm.onForegrounded()
+        // «A prop teu» amb la ubicació del mòbil: si t'has mogut, el servidor ho sap.
+        vm.refreshDeviceLocation(applicationContext)
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {

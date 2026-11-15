@@ -1310,7 +1310,7 @@ class GregalApi(val base: String, val token: String) {
                 intervalH = j.intervalH, enabled = j.enabled,
                 notify = j.notify, lastStatus = j.lastStatus,
                 nextDue = j.nextDue,
-                lastAt = j.lastAt, nextDueAt = j.nextDueAt,
+                lastAt = j.lastAt, nextDueAt = j.nextDueAt, days = j.days,
             )
         }
 
@@ -1881,6 +1881,7 @@ internal class JobDto(
     val notify: Boolean = true, @SerialName("last_status") val lastStatus: String = "",
     @SerialName("next_due") val nextDue: String = "",
     @SerialName("last_at") val lastAt: String = "", @SerialName("next_due_at") val nextDueAt: String = "",
+    val days: List<Int> = emptyList(),
 )
 
 @Serializable internal class JobsDto(val jobs: List<JobDto> = emptyList())

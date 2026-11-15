@@ -47,7 +47,7 @@ func (s *Server) crewPublish(ctx context.Context, req crewPublishReq, ca bool) s
 	link := ""
 	for _, l := range strings.Split(out, "\n") {
 		// «Public link (…): <url>»; sense adreça base coneguda l'enllaç és relatiu (/share/…).
-		if strings.HasPrefix(l, "Public link") {
+		if strings.HasPrefix(l, "Public link") || strings.HasPrefix(l, "Link: ") {
 			if i := strings.LastIndex(l, ": "); i >= 0 {
 				link = strings.TrimSpace(l[i+2:])
 			}

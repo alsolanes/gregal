@@ -242,6 +242,7 @@ func New(cfg *config.Config, cfgPath string) *Server {
 	s.modelOverride = s.defaultModelOverrides()
 	s.registerRemindTool()
 	s.registerRutinaTeachTool()
+	s.registerRoutineTool()
 	s.registerRespWatchTool()
 	s.registerCalaixTool()
 	s.registerImageTool()

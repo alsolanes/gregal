@@ -426,7 +426,7 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			}
 			// remind_edit toca els recordatoris existents de l'usuari:
 			// mateix tractament que remind (res en mode lectura).
-			if name == "remind_edit" || name == "routine_teach" || name == "watch" {
+			if name == "remind_edit" || name == "routine_teach" || name == "routine" || name == "watch" {
 				if agent.ReadOnlyMode(scope.mode) {
 					return "deny", s.tr("mode de només lectura: no es poden editar els avisos", "read-only mode: cannot edit reminders")
 				}
@@ -732,6 +732,31 @@ func windProjectesPolicy(pol *agent.Policy, name, argsJSON string) *agent.Policy
 		return pol
 	}
 	tp := agent.ToolPath(name, argsJSON)
+	// publish i app porten la carpeta a «dir», no a «path»: sense això, una
+	// web feta a ~/gregal/projectes demanava permís per publicar-la des del
+	// mòbil (on ningú no el pot donar a temps).
+	if tp == "" && (name == "publish" || name == "app") {
+		var a struct {
+			Dir string `json:"dir"`
+		}
+		_ = json.Unmarshal([]byte(argsJSON), &a)
+		tp = strings.TrimSpace(a.Dir)
+	}
+	// Una ordre que treballa a la carpeta de projectes («cd …/projectes/web &&
+	// npm install») hi té el projecte: la resta de controls (ordres perilloses,
+	// escriure fora) es fan contra aquesta carpeta.
+	if tp == "" && (name == "bash" || name == "bash_background") {
+		var a struct {
+			Command string `json:"command"`
+		}
+		_ = json.Unmarshal([]byte(argsJSON), &a)
+		norm := func(p string) string { return strings.ToLower(filepath.ToSlash(p)) }
+		if strings.Contains(norm(a.Command), norm(pd)+"/") {
+			cp := *pol
+			cp.ProjectDir = pd
+			return &cp
+		}
+	}
 	if tp == "" || !filepath.IsAbs(tp) || !agent.InsideProject(pd, tp) {
 		return pol
 	}

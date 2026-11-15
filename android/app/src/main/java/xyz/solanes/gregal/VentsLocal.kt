@@ -187,6 +187,14 @@ object LocalJson {
 }
 
 object LocalLogic {
+    /** Cada quan es torna a mirar sol on és el mòbil. */
+    const val AUTO_LOCATE_MS = 3 * 3_600_000L
+
+    fun autoLocateDue(lastMs: Long, nowMs: Long): Boolean = nowMs - lastMs >= AUTO_LOCATE_MS
+
+    /** Només si hi ha consentiment i el lloc desat ve del mòbil (no un de triat a mà). */
+    fun followsDevice(i: LocalInfo): Boolean = i.consent && i.place.source == "device"
+
     /** null si es pot activar; si no, la clau del que falta (mateixes regles que el servidor). */
     fun enableProblem(i: LocalInfo): String? = when {
         !i.consent -> "app.local.needConsent"

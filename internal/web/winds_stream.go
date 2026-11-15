@@ -109,7 +109,7 @@ func streamPhase(names string) string {
 	switch {
 	case strings.Contains(n, "web_search") || strings.Contains(n, "web_fetch") || strings.Contains(n, "browser"):
 		return "searching"
-	case strings.Contains(n, "remind"):
+	case strings.Contains(n, "remind") || strings.Contains(n, "routine"):
 		return "scheduling"
 	default:
 		return "working"
@@ -122,10 +122,9 @@ func streamPhase(names string) string {
 const windCodeBrief = "\n\nBUILDING (a website, a game, a program, a script): you are a specialist who finishes the job, without asking for permission for normal work inside the project." +
 	"\n1. PROJECT: create <projects folder>/<slug>/ and keep every file there, never in the Gregal repo root." +
 	"\n2. BUILD with read/grep/glob/write/edit/patch, and run commands with bash inside the project (python, node, npm install, pip install, go build: all fine there). curl only against 127.0.0.1/localhost to test your own app; to read a web page use web_fetch; browser libraries from a CDN <script src> or installed inside the project." +
-	"\n3. TEST before saying it works: a syntax check (node --check, python -m py_compile), run it, curl it." +
+	"\n3. TEST before saying it works: a syntax check (node --check, python -m py_compile), run it, curl it; to see a page use browser open/read/screenshot, never eval (that waits for the user)." +
 	"\n4. DELIVER: keep private review or scoring tools local unless the user requests publication. For a site or game meant to be public call publish {dir, title} and give its link. Something that needs a server (an API, data saved on the server, a multiplayer game) → call app {action:start, name, dir, command}; it must listen on 127.0.0.1 at $PORT and use RELATIVE URLs (fetch('api/x'), not '/api/x'); test it and give the link. Never start servers with bash, nohup or a trailing &." +
-	"\n5. Browser code: wrap localStorage in try/catch (published pages run sandboxed)." +
-	"\n6. REPORT at the end (here you may use up to 8 lines): what you built, the folder, the link, and how you checked it. If something could not be done, say exactly what and why."
+	"\n5. Browser code: wrap localStorage in try/catch (published pages run sandboxed)."
 
 // windEstilBrief és com s'informa d'una feina feta (fitxers, ordres,
 // publicar): el que la persona llegeix al mòbil. Sense això els vents

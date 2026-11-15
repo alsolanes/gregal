@@ -1096,6 +1096,37 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * La ubicació del mòbil és la que mana (el servidor és a casa, el mòbil
+     * va amb tu). Si «A prop teu» fa servir el lloc del mòbil i hi has donat
+     * permís, en obrir l'app es torna a mirar (com a molt cada 3 h) i, si has
+     * canviat de poble, es desa el nou nom. Res de coordenades al servidor.
+     */
+    fun refreshDeviceLocation(ctx: android.content.Context) {
+        val prefs = ctx.getSharedPreferences("gregal_local", android.content.Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        if (!LocalLogic.autoLocateDue(prefs.getLong("auto_at", 0L), now)) return
+        val c = _conn.value
+        viewModelScope.launch {
+            val info = runCatching { withContext(Dispatchers.IO) { c.api().localInfo() } }.getOrNull() ?: return@launch
+            if (!LocalLogic.followsDevice(info)) return@launch
+            coarseLocation(ctx) { loc ->
+                if (loc == null) return@coarseLocation
+                prefs.edit().putLong("auto_at", now).apply()
+                viewModelScope.launch {
+                    try {
+                        val place = withContext(Dispatchers.IO) { c.api().localLocate(loc.latitude, loc.longitude) }
+                        if (_conn.value != c || place.label.isBlank() || place.label == info.place.label) return@launch
+                        val saved = withContext(Dispatchers.IO) { c.api().saveLocalInfo(info.copy(place = place.copy(source = "device"))) }
+                        if (_conn.value == c) _local.value = saved
+                    } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                    }
+                }
+            }
+        }
+    }
+
     fun localMessage(msg: String?) { _localMsg.value = msg }
 
     private val _localTry = MutableStateFlow<LocalTryResult?>(null)
