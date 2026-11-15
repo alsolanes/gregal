@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v1.82.0 - 2026-11-15 - Colors sense barreja
+
+- **Colors sense barreja.** El tema fosc deixa el mar blau per un grafit amb un
+  punt de verd, i la llima només surt on hi ha acció: els seleccionats, les
+  hores dels plans i els passos de les receptes són neutres amb el text en
+  llima, i els gràfics prenen els colors de la paleta. A l'escriptori,
+  l'Android i el terminal.
+- **Android: el text del camp d'escriure, centrat.** Ja no queda més amunt que
+  el «+» i el micròfon.
+
 ## v1.81.1 - 2026-11-15 - A prop teu: «Prova-ho ara» sense errors
 
 - **«Prova-ho ara» d'A prop teu, sense errors.** Un tall de xarxa curt (al
