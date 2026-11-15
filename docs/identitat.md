@@ -32,15 +32,15 @@ text is at least 4.5:1 (WCAG 2.2 AA) and APCA Lc ≥ 90; even `faint` passes
 | `escumaClara` | `#E4F98F` | primary hover and animation highlight |
 | `arena` | `#F2B48E` | **warning**, CODE mode |
 | `onada` | `#7FD6C2` | **playful secondary** (aqua): weathervane gusts, celebrations, autonomous mode, diff hunks |
-| `algua` | `#24383F` | subdued lines, rails and decorative borders |
-| `fons` | `#0F1B21` | main background |
-| `abisme` | `#0B1519` | deeper background: sidebar, panels and code blocks |
-| `night` | `#16262E` | raised surfaces: cards, inputs and menus |
-| `superficieAlta` | `#203640` | hovered or selected surface (highest elevation) |
-| `text` | `#DCE5DF` | primary text, including assistant responses |
+| `algua` | `#2B3531` | subdued lines, rails and decorative borders |
+| `fons` | `#121715` | main background |
+| `abisme` | `#0D110F` | deeper background: sidebar, panels and code blocks |
+| `night` | `#1A211E` | raised surfaces: cards, inputs and menus |
+| `superficieAlta` | `#242D29` | hovered or selected surface (highest elevation) |
+| `text` | `#DDE4DF` | primary text, including assistant responses |
 | `ink` | `#F2F5EF` | strong text: headings and brand name |
-| `slate` | `#A3B5AF` | muted text: metadata and descriptions |
-| `faint` | `#8FA29C` | subdued text: keyboard hints and version (still ≥4.5:1) |
+| `slate` | `#A8B3AD` | muted text: metadata and descriptions |
+| `faint` | `#909C96` | subdued text: keyboard hints and version (still ≥4.5:1) |
 | `green` | `#86E3A6` | success, additions and completed tools |
 | `red` | `#FF8F86` | danger: errors, deletions and denied actions |
 | `lila` | `#C9B2FF` | **info**: GOAL mode text |

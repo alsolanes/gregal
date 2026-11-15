@@ -75,7 +75,7 @@ fun CarpetaScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     GCard(Modifier.fillMaxWidth()) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                             Box(
-                                Modifier.size(44.dp).background(Sea.copy(alpha = 0.14f), CircleShape),
+                                Modifier.size(44.dp).background(SeaSoft(0.14f), CircleShape),
                                 contentAlignment = Alignment.Center,
                             ) { Text(inicialsProjecte(projecte), color = Sea, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {

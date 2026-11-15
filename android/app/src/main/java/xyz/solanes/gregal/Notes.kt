@@ -691,7 +691,7 @@ private fun NotesList(vm: GregalViewModel, lang: String, page: NotesPage?, onMen
 @Composable
 private fun AgendaCard(vm: GregalViewModel, lang: String, items: List<AgendaItem>) {
     val groups = remember(items) { agendaGroups(items) }
-    Surface(color = Sea.copy(alpha = 0.08f), shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
+    Surface(color = SeaSoft(0.08f), shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(tr(lang, "notes.agenda").uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp)
             var shown = 0

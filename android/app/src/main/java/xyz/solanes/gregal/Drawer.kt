@@ -252,7 +252,7 @@ private fun DrawerRow(label: String, selected: Boolean, onClick: () -> Unit, mut
     val shape = RoundedCornerShape(14.dp)
     Row(
         Modifier.fillMaxWidth().clip(shape)
-            .background(if (selected) Sea.copy(alpha = 0.14f) else Color.Transparent)
+            .background(if (selected) SeaSoft(0.14f) else Color.Transparent)
             .clickable(onClick = onClick)
             .semantics { this.selected = selected }
             .heightIn(min = 48.dp).padding(horizontal = 14.dp),

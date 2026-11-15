@@ -46,17 +46,19 @@
 /* GENERAT des d'internal/tema (go test ./internal/web -run TestCSSAlDia -update).
    No l'editis a mà: canvia la paleta a internal/tema/tema.go. */
 :root {
-  --bg:#0F1B21; --sidebar:#0B1519; --panel:#0B1519;
-  --surface:#16262E; --surface-hi:#203640; --line:rgba(207,227,218,.10);
-  --line-hi:rgba(207,227,218,.20); --ink:#F2F5EF; --text:#DCE5DF;
-  --muted:#A3B5AF; --faint:#8FA29C; --accent:#D4F25A;
+  --bg:#121715; --sidebar:#0D110F; --panel:#0D110F;
+  --surface:#1A211E; --surface-hi:#242D29; --line:rgba(207,227,218,.10);
+  --line-hi:rgba(207,227,218,.20); --ink:#F2F5EF; --text:#DDE4DF;
+  --muted:#A8B3AD; --faint:#909C96; --accent:#D4F25A;
   --accent-hi:#E4F98F; --green:#86E3A6; --amber:#F2B48E;
   --red:#FF8F86; --onada:#7FD6C2; --lila:#C9B2FF;
   --lila-fons:#2A2645; --hover:rgba(255,255,255,.05); --hover-alt:rgba(255,255,255,.08);
-  --raised:rgba(255,255,255,.02); --edge:rgba(255,255,255,.12); --accent-soft:rgba(212,242,90,.10);
-  --accent-soft-hi:rgba(212,242,90,.20); --ok-soft:rgba(134,227,166,.12); --ombra:rgba(0,0,0,.45);
-  --amber-soft:rgba(242,180,142,.14); --red-soft:rgba(255,143,134,.12); --codi-fons:#0B1519;
-  --codi-vora:rgba(207,227,218,.20);
+  --raised:rgba(255,255,255,.02); --edge:rgba(255,255,255,.12); --accent-soft:rgba(242,245,239,.07);
+  --accent-soft-hi:rgba(242,245,239,.12); --ok-soft:rgba(134,227,166,.12); --ombra:rgba(0,0,0,.45);
+  --amber-soft:rgba(242,180,142,.14); --red-soft:rgba(255,143,134,.12); --codi-fons:#0D110F;
+  --codi-vora:rgba(207,227,218,.20); --chart-1:#D4F25A; --chart-2:#7FD6C2;
+  --chart-3:#F2B48E; --chart-4:#C9B2FF; --chart-5:#86E3A6;
+  --chart-6:#FF8F86;
   --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;
   /* Escala tipogràfica: cinc mides i prou, res per sota d'11.5px.
      --fs és la del cos i la mou Preferències; la resta hi van lligades. */
@@ -75,7 +77,9 @@
   --raised:rgba(16,32,42,.02); --edge:rgba(16,32,42,.12); --accent-soft:rgba(23,50,61,.10);
   --accent-soft-hi:rgba(23,50,61,.20); --ok-soft:rgba(47,107,31,.12); --ombra:rgba(16,32,42,.16);
   --amber-soft:rgba(154,78,30,.14); --red-soft:rgba(194,51,46,.12); --codi-fons:#E4E9E3;
-  --codi-vora:rgba(16,32,42,.28);
+  --codi-vora:rgba(16,32,42,.28); --chart-1:#0A6E62; --chart-2:#9A4E1E;
+  --chart-3:#2F6B1F; --chart-4:#7444D6; --chart-5:#C2332E;
+  --chart-6:#17323D;
 }
 :root[data-theme="gpt"] {
   --bg:#FFFFFF; --sidebar:#F9F9F9; --panel:#F9F9F9;
@@ -88,7 +92,9 @@
   --raised:rgba(13,13,13,.02); --edge:rgba(13,13,13,.12); --accent-soft:rgba(16,163,127,.10);
   --accent-soft-hi:rgba(16,163,127,.20); --ok-soft:rgba(21,128,61,.12); --ombra:rgba(13,13,13,.16);
   --amber-soft:rgba(180,83,9,.14); --red-soft:rgba(220,38,38,.12); --codi-fons:#F9F9F9;
-  --codi-vora:rgba(16,163,127,.28);
+  --codi-vora:rgba(16,163,127,.28); --chart-1:#0E7490; --chart-2:#B45309;
+  --chart-3:#15803D; --chart-4:#7C3AED; --chart-5:#DC2626;
+  --chart-6:#10A37F;
 }
 :root[data-theme="claude"] {
   --bg:#F0EEE6; --sidebar:#E7E2D3; --panel:#E7E2D3;
@@ -101,7 +107,9 @@
   --raised:rgba(31,30,29,.02); --edge:rgba(31,30,29,.12); --accent-soft:rgba(193,95,60,.10);
   --accent-soft-hi:rgba(193,95,60,.20); --ok-soft:rgba(46,125,79,.12); --ombra:rgba(31,30,29,.16);
   --amber-soft:rgba(150,113,27,.14); --red-soft:rgba(193,59,46,.12); --codi-fons:#E7E2D3;
-  --codi-vora:rgba(193,95,60,.28);
+  --codi-vora:rgba(193,95,60,.28); --chart-1:#58746B; --chart-2:#96711B;
+  --chart-3:#2E7D4F; --chart-4:#6D4FA8; --chart-5:#C13B2E;
+  --chart-6:#C15F3C;
 }
 :root[data-theme="opencode"] {
   --bg:#0A0A0C; --sidebar:#121216; --panel:#121216;
@@ -114,7 +122,9 @@
   --raised:rgba(255,255,255,.02); --edge:rgba(255,255,255,.12); --accent-soft:rgba(232,131,58,.10);
   --accent-soft-hi:rgba(232,131,58,.20); --ok-soft:rgba(74,222,128,.12); --ombra:rgba(0,0,0,.45);
   --amber-soft:rgba(217,164,65,.14); --red-soft:rgba(249,112,102,.12); --codi-fons:#121216;
-  --codi-vora:rgba(232,131,58,.20);
+  --codi-vora:rgba(232,131,58,.20); --chart-1:#E8833A; --chart-2:#6FC7BD;
+  --chart-3:#D9A441; --chart-4:#B49DF5; --chart-5:#4ADE80;
+  --chart-6:#F97066;
 }
 :root[data-theme="mistral"] {
   --bg:#FFFBF4; --sidebar:#F5EEE2; --panel:#F5EEE2;
@@ -127,7 +137,9 @@
   --raised:rgba(26,20,13,.02); --edge:rgba(26,20,13,.12); --accent-soft:rgba(206,78,0,.10);
   --accent-soft-hi:rgba(206,78,0,.20); --ok-soft:rgba(21,128,61,.12); --ombra:rgba(26,20,13,.16);
   --amber-soft:rgba(168,106,8,.14); --red-soft:rgba(220,38,38,.12); --codi-fons:#F5EEE2;
-  --codi-vora:rgba(206,78,0,.28);
+  --codi-vora:rgba(206,78,0,.28); --chart-1:#14707E; --chart-2:#A86A08;
+  --chart-3:#15803D; --chart-4:#7C3AED; --chart-5:#DC2626;
+  --chart-6:#CE4E00;
 }
 :root[data-theme="gemini"] {
   --bg:#F8FAFF; --sidebar:#E9EFFA; --panel:#E9EFFA;
@@ -140,7 +152,9 @@
   --raised:rgba(11,27,51,.02); --edge:rgba(11,27,51,.12); --accent-soft:rgba(26,115,232,.10);
   --accent-soft-hi:rgba(26,115,232,.20); --ok-soft:rgba(21,128,61,.12); --ombra:rgba(11,27,51,.16);
   --amber-soft:rgba(180,83,9,.14); --red-soft:rgba(220,38,38,.12); --codi-fons:#E9EFFA;
-  --codi-vora:rgba(26,115,232,.28);
+  --codi-vora:rgba(26,115,232,.28); --chart-1:#9333EA; --chart-2:#B45309;
+  --chart-3:#15803D; --chart-4:#6D28D9; --chart-5:#DC2626;
+  --chart-6:#1A73E8;
 }
 :root[data-theme="grok"] {
   --bg:#000000; --sidebar:#0D0D0F; --panel:#0D0D0F;
@@ -153,8 +167,12 @@
   --raised:rgba(255,255,255,.02); --edge:rgba(255,255,255,.12); --accent-soft:rgba(245,245,245,.10);
   --accent-soft-hi:rgba(245,245,245,.20); --ok-soft:rgba(74,222,128,.12); --ombra:rgba(0,0,0,.45);
   --amber-soft:rgba(217,164,65,.14); --red-soft:rgba(249,112,102,.12); --codi-fons:#0D0D0F;
-  --codi-vora:rgba(245,245,245,.20);
+  --codi-vora:rgba(245,245,245,.20); --chart-1:#F5F5F5; --chart-2:#8E8E93;
+  --chart-3:#D9A441; --chart-4:#C4B5FD; --chart-5:#4ADE80;
+  --chart-6:#F97066;
 }
+
+
 
 
 

@@ -20,14 +20,14 @@ class PaletaTest {
 
     @Test
     fun foscTeElsHexosDeLaWeb() {
-        assertEquals("#0F1B21", hex(DarkPal.deepTop))     // --bg (fons)
-        assertEquals("#0B1519", hex(DarkPal.deepBottom))  // --sidebar/--panel (abisme)
-        assertEquals("#16262E", hex(DarkPal.surface))     // --surface (night)
-        assertEquals("#203640", hex(DarkPal.surfaceHi))   // --surface-hi
+        assertEquals("#121715", hex(DarkPal.deepTop))     // --bg (fons)
+        assertEquals("#0D110F", hex(DarkPal.deepBottom))  // --sidebar/--panel (abisme)
+        assertEquals("#1A211E", hex(DarkPal.surface))     // --surface (night)
+        assertEquals("#242D29", hex(DarkPal.surfaceHi))   // --surface-hi
         assertEquals("#F2F5EF", hex(DarkPal.ink))         // --ink
-        assertEquals("#DCE5DF", hex(DarkPal.text))        // --text
-        assertEquals("#A3B5AF", hex(DarkPal.muted))       // --muted (slate)
-        assertEquals("#8FA29C", hex(DarkPal.faint))       // --faint
+        assertEquals("#DDE4DF", hex(DarkPal.text))        // --text
+        assertEquals("#A8B3AD", hex(DarkPal.muted))       // --muted (slate)
+        assertEquals("#909C96", hex(DarkPal.faint))       // --faint
         assertEquals("#D4F25A", hex(DarkPal.sea))         // --accent (escuma)
         assertEquals("#E4F98F", hex(DarkPal.seaClara))    // --accent-hi
         assertEquals("#F2B48E", hex(DarkPal.sand))        // --amber (arena)
@@ -36,8 +36,8 @@ class PaletaTest {
         assertEquals("#FF8F86", hex(DarkPal.red))         // --red
         assertEquals("#C9B2FF", hex(DarkPal.lila))        // --lila
         assertEquals("#2A2645", hex(DarkPal.lilaFons))    // --lila-fons
-        assertEquals("#24383F", hex(DarkPal.algua))       // docs: línies/algua
-        assertEquals("#0F1B21", hex(DarkPal.onSea))       // text sobre l'accent: fons
+        assertEquals("#2B3531", hex(DarkPal.algua))       // docs: línies/algua
+        assertEquals("#121715", hex(DarkPal.onSea))       // text sobre l'accent: fons
     }
 
     @Test

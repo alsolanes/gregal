@@ -277,7 +277,7 @@ private fun MoodBar(current: String, busy: Boolean, lang: String, onPick: (Strin
 @Composable
 private fun MoodChip(label: String, on: Boolean, enabled: Boolean, onClick: () -> Unit) {
     Surface(
-        shape = RoundedCornerShape(50), color = if (on) Sea.copy(alpha = 0.16f) else CodeDark,
+        shape = RoundedCornerShape(50), color = if (on) SeaSoft(0.16f) else CodeDark,
         border = BorderStroke(1.dp, if (on) Sea.copy(alpha = 0.6f) else Line),
         modifier = Modifier.clip(RoundedCornerShape(50)).clickable(onClick = onClick, enabled = enabled),
     ) {
@@ -289,7 +289,7 @@ private fun MoodChip(label: String, on: Boolean, enabled: Boolean, onClick: () -
 @Composable
 private fun SevChip(label: String, n: Int, color: Color?, on: Boolean, onClick: () -> Unit) {
     Surface(
-        shape = RoundedCornerShape(50), color = if (on) Sea.copy(alpha = 0.16f) else CodeDark,
+        shape = RoundedCornerShape(50), color = if (on) SeaSoft(0.16f) else CodeDark,
         border = BorderStroke(1.dp, if (on) Sea.copy(alpha = 0.6f) else Line),
         modifier = Modifier.clip(RoundedCornerShape(50)).clickable(onClick = onClick),
     ) {
@@ -360,7 +360,7 @@ private fun RetroMessageRow(
                     }
                     m.reactions.forEach { r ->
                         Surface(
-                            shape = RoundedCornerShape(50), color = if (r.mine) Sea.copy(alpha = 0.16f) else CodeDark,
+                            shape = RoundedCornerShape(50), color = if (r.mine) SeaSoft(0.16f) else CodeDark,
                             border = BorderStroke(1.dp, if (r.mine) Sea.copy(alpha = 0.5f) else Color.Transparent),
                             modifier = Modifier.clip(RoundedCornerShape(50)).clickable { onReact(r.emoji) },
                         ) {

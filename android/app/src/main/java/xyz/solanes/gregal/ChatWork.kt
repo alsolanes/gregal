@@ -213,7 +213,7 @@ fun WorkGroupCard(work: WorkGroup, activity: Activity?, statusLine: String, lang
                 // El #retro d'aquest torn: el xat amb els agents sobre què han fet.
                 if (!running && onRetro != null) {
                     Surface(
-                        shape = RoundedCornerShape(50), color = Sea.copy(alpha = 0.13f),
+                        shape = RoundedCornerShape(50), color = SeaSoft(0.13f),
                         modifier = Modifier.padding(end = 4.dp).clip(RoundedCornerShape(50)).clickable(onClick = onRetro),
                     ) {
                         Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -353,7 +353,7 @@ fun LiveAnswer(text: String, lang: String) {
 fun PlanFirstToggle(on: Boolean, enabled: Boolean, lang: String, onToggle: () -> Unit) {
     Row(
         Modifier.height(36.dp).clip(RoundedCornerShape(50))
-            .background(if (on) Sea.copy(alpha = 0.14f) else Color.Transparent)
+            .background(if (on) SeaSoft(0.14f) else Color.Transparent)
             .clickable(enabled = enabled, role = Role.Switch, onClick = onToggle)
             .semantics { contentDescription = tr(lang, "app.mode.planFirst") + " · " + tr(lang, "app.mode.planFirstHelp") }
             .padding(horizontal = 11.dp).testTag("plan-first"),
@@ -491,7 +491,7 @@ fun PermissionDialog(st: ServerState, lang: String, onPick: (String) -> Unit, on
                     val sel = id == cur
                     Surface(
                         shape = RoundedCornerShape(14.dp),
-                        color = if (sel) Sea.copy(alpha = 0.12f) else CodeDark,
+                        color = if (sel) SeaSoft(0.12f) else CodeDark,
                         border = BorderStroke(1.dp, if (sel) Sea.copy(alpha = 0.5f) else Color.Transparent),
                         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
                             .clickable(role = Role.RadioButton) { onPick(id) }.testTag("perm-$id"),

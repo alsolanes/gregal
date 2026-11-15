@@ -70,7 +70,7 @@ type Tema struct {
 	Sintaxi Sintaxi
 }
 
-// Fosc és el tema de casa, «Vent a favor»: mar fosc blau-verd i un accent
+// Fosc és el tema de casa, «Vent a favor»: grafit fosc amb un punt de verd (sense blau, que amb la llima feia una barreja estranya) i un accent
 // llima que només surt on hi ha acció (enviar, botons, focus, navegació
 // activa i enllaços). El préssec (arena) i l'aigua (onada) són els tocs
 // càlid i juganer, i surten poc.
@@ -79,34 +79,34 @@ type Tema struct {
 func Fosc() Tema {
 	return Tema{
 		Nom:            "fosc",
-		Fons:           "#0F1B21",
-		Abisme:         "#0B1519",
-		Night:          "#16262E",
-		SuperficieAlta: "#203640",
+		Fons:           "#121715",
+		Abisme:         "#0D110F",
+		Night:          "#1A211E",
+		SuperficieAlta: "#242D29",
 		Ink:            "#F2F5EF",
-		Text:           "#DCE5DF",
-		Slate:          "#A3B5AF",
-		Faint:          "#8FA29C",
+		Text:           "#DDE4DF",
+		Slate:          "#A8B3AD",
+		Faint:          "#909C96",
 		Escuma:         "#D4F25A",
 		EscumaClara:    "#E4F98F",
 		Arena:          "#F2B48E",
 		Onada:          "#7FD6C2",
-		Algua:          "#24383F",
+		Algua:          "#2B3531",
 		Lila:           "#C9B2FF",
 		LilaFons:       "#2A2645",
 		Green:          "#86E3A6",
 		Red:            "#FF8F86",
-		BoxIdle:        "#5E7279",
+		BoxIdle:        "#66726C",
 		Vora:           "#CFE3DA",
 		Sintaxi: Sintaxi{
 			Paraula:   "#C4A8FF", // lila
 			Cadena:    "#6EDB95", // green
 			Numero:    "#F5C451", // arena
-			Comentari: "#7D869A",
-			Funcio:    "#A3B0FF", // escuma clara
+			Comentari: "#7F8C86",
+			Funcio:    "#C6E98A", // llima suau
 			Tipus:     "#5CE1D6", // onada
-			Operador:  "#A3AABA", // slate
-			Nom:       "#E4E7EF", // text
+			Operador:  "#A6B0AB", // slate
+			Nom:       "#E2E8E4", // text
 		},
 	}
 }
@@ -141,11 +141,11 @@ func Clar() Tema {
 			Paraula:   "#7444D6", // lila clar
 			Cadena:    "#187A41", // green clar
 			Numero:    "#9A5B00", // arena clar
-			Comentari: "#5F6879", // faint clar
-			Funcio:    "#3D47C7", // escuma clara
+			Comentari: "#5C6862", // faint clar
+			Funcio:    "#4A6B12", // llima fosca
 			Tipus:     "#0A776F", // onada clar
-			Operador:  "#545D71", // slate clar
-			Nom:       "#1F2433", // text clar
+			Operador:  "#56615B", // slate clar
+			Nom:       "#1F2925", // text clar
 		},
 	}
 }

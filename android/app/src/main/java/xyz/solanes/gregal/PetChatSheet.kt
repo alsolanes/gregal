@@ -135,7 +135,7 @@ private fun PetBubble(m: GregalViewModel.PetMsg, accent: Long) {
                 bottomStart = if (mine) 14.dp else 3.dp,
                 bottomEnd = if (mine) 3.dp else 14.dp,
             ),
-            color = if (mine) Sea.copy(alpha = 0.14f) else Color(accent.toInt()).copy(alpha = 0.16f),
+            color = if (mine) SeaSoft(0.14f) else Color(accent.toInt()).copy(alpha = 0.16f),
             modifier = Modifier.widthIn(max = 300.dp),
         ) {
             Text(

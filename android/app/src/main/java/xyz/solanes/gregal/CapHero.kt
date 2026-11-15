@@ -269,7 +269,7 @@ internal fun CapActions(lang: String, pet: CapPet, asleep: Boolean, onFeed: (Str
 @Composable
 private fun CapChip(icon: String, label: String, highlight: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
     Surface(onClick = onClick, enabled = enabled, shape = RoundedCornerShape(16.dp),
-        color = if (highlight) Sea.copy(alpha = .25f) else Superficie.copy(alpha = .7f)) {
+        color = if (highlight) SeaSoft(.25f) else Superficie.copy(alpha = .7f)) {
         Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(icon, fontSize = 13.sp)
@@ -323,7 +323,7 @@ internal fun CapDecisionRow(vm: GregalViewModel, lang: String, p: GregalViewMode
         val learners = d.novices.mapNotNull { id -> winds.firstOrNull { it.id == id }?.name } + d.create.map { it.name }
         if (learners.isNotEmpty()) {
             Surface(onClick = { vm.capToggleCourse() }, shape = RoundedCornerShape(14.dp),
-                color = if (course) Sea.copy(alpha = .22f) else Superficie.copy(alpha = .7f),
+                color = if (course) SeaSoft(.22f) else Superficie.copy(alpha = .7f),
                 modifier = Modifier.fillMaxWidth().testTag("cap-course")) {
                 Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {

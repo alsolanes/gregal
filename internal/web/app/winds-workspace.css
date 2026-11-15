@@ -404,7 +404,7 @@ button.vw-choice { white-space:normal; text-align:left; }
 /* ---- Preguntes, aprovacions i respostes ràpides dels vents ---- */
 .vw-asks { display:flex; flex-direction:column; gap:10px; margin:0 0 10px; }
 .vw-asks:empty { display:none; }
-.vw-ask { display:flex; flex-direction:column; gap:9px; padding:14px 16px; border:1px solid color-mix(in srgb,var(--accent) 45%,var(--line-hi)); border-radius:var(--r-md,12px); background:var(--surface); box-shadow:var(--lift); }
+.vw-ask { display:flex; flex-direction:column; gap:9px; padding:14px 16px; border:1px solid var(--line-hi); border-radius:var(--r-md,12px); background:var(--surface); box-shadow:var(--lift); }
 .vw-ask > strong { color:var(--ink); font-size:14.5px; font-weight:600; }
 .vw-ask-wait { color:var(--muted); font-size:11.5px; margin-top:-6px; }
 .vw-ask code { display:block; white-space:pre-wrap; word-break:break-all; font-size:12.5px; padding:9px 11px; border-radius:8px; background:var(--bg); color:var(--ink); max-height:6.5em; overflow:auto; }
@@ -422,7 +422,7 @@ input.vw-ask-free:focus { border-color:color-mix(in srgb, var(--accent) 55%, var
    amb una pregunta en pla («Vols que esborri x?»), on és i si es pot desfer,
    l'ordre plegada i el botó amb el verb a l'esquerra. */
 .vw-asks-inline { margin:6px 0 4px 58px; max-width:760px; }
-.vw-ask.vw-ask-plan { border-radius:18px; border-color:color-mix(in srgb, var(--accent) 55%, transparent); background:color-mix(in srgb, var(--accent) 7%, var(--surface)); box-shadow:none; gap:10px; }
+.vw-ask.vw-ask-plan { border-radius:18px; border-color:var(--line-hi); background:var(--surface); box-shadow:none; gap:10px; }
 .vw-ask-head { display:flex; gap:10px; align-items:flex-start; }
 .vw-ask-head strong { display:block; color:var(--ink); font-size:15px; font-weight:600; line-height:1.35; }
 .vw-ask-sub { display:block; color:var(--muted); font-size:13px; margin-top:2px; line-height:1.4; }
@@ -845,7 +845,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .gregal-result .gr-head { display:flex; align-items:center; gap:10px; padding:12px 14px 8px; }
 .gregal-result .gr-head strong { display:block; font-size:15px; color:var(--ink); }
 .gregal-result .gr-head small { display:block; font-size:12px; color:var(--muted); }
-.gregal-result .gr-icon { display:grid; place-items:center; width:30px; height:30px; border-radius:10px; background:color-mix(in srgb, var(--accent) 14%, transparent); }
+.gregal-result .gr-icon { display:grid; place-items:center; width:30px; height:30px; border-radius:10px; background:var(--surface-hi); }
 .gregal-result .gr-row { display:flex; gap:12px; align-items:center; padding:9px 14px; border-top:1px solid var(--line); color:var(--ink); text-decoration:none; font-size:13.5px; font-weight:400; }
 .gregal-result .gr-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
 .gregal-result .gr-lead { font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -930,7 +930,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 
 /* Avisos programats en aquest torn (l'Android ho fa amb TurnActionCard). */
 .vw-turn-acts { display:grid; gap:6px; margin:8px 0 4px 46px; max-width:560px; }
-.vw-turn-act { display:flex; align-items:center; gap:10px; padding:8px 12px; border:1px solid color-mix(in srgb, var(--accent) 35%, transparent); background:color-mix(in srgb, var(--accent) 10%, transparent); border-radius:14px; }
+.vw-turn-act { display:flex; align-items:center; gap:10px; padding:8px 12px; border:1px solid color-mix(in srgb, var(--accent) 35%, transparent); background:var(--surface-hi); border-radius:14px; }
 .vw-turn-act-icon { font-size:17px; }
 .vw-turn-act-copy { flex:1; min-width:0; display:grid; gap:1px; font-size:13px; }
 .vw-turn-act-copy strong { color:var(--ink); font-weight:600; }
@@ -1013,7 +1013,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-voice-mic, .vw-voice-talk { display:grid; place-items:center; width:36px; height:36px; padding:0; border:0; border-radius:50%; background:transparent; color:var(--muted); cursor:pointer; }
 .vw-voice-mic:hover, .vw-voice-talk:hover { color:var(--ink); background:color-mix(in srgb, var(--ink) 7%, transparent); }
 .vw-voice-mic.is-on, .vw-voice-talk.is-on { color:var(--on-accent, #0d0e11); background:var(--accent); }
-.vw-voice-strip { display:flex; align-items:center; gap:10px; margin:0 auto 8px; padding:8px 8px 8px 14px; max-width:420px; border:1px solid color-mix(in srgb, var(--accent) 45%, transparent); background:color-mix(in srgb, var(--accent) 12%, transparent); border-radius:999px; font-size:13.5px; color:var(--ink); }
+.vw-voice-strip { display:flex; align-items:center; gap:10px; margin:0 auto 8px; padding:8px 8px 8px 14px; max-width:420px; border:1px solid color-mix(in srgb, var(--accent) 45%, transparent); background:var(--surface-hi); border-radius:999px; font-size:13.5px; color:var(--ink); }
 .vw-voice-strip[hidden] { display:none; }
 .vw-voice-label { flex:1; }
 .vw-voice-bars { display:inline-flex; gap:3px; align-items:center; height:16px; }
@@ -1044,8 +1044,8 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .gregal-card .gc-sub { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-top:10px; border-top:1px solid var(--line); font-size:15px; font-weight:700; color:var(--ink); }
 .gregal-card .gc-stepper { display:inline-flex; align-items:center; gap:10px; }
 .gregal-card .gc-stepper b { min-width:18px; text-align:center; font-variant-numeric:tabular-nums; }
-.gregal-card .gc-stepper button { width:32px; height:32px; border-radius:10px; border:0; background:color-mix(in srgb, var(--accent) 16%, transparent); color:var(--accent-hi); font-size:18px; line-height:1; cursor:pointer; }
-.gregal-card .gc-stepper button:hover { background:color-mix(in srgb, var(--accent) 26%, transparent); }
+.gregal-card .gc-stepper button { width:32px; height:32px; border-radius:10px; border:0; background:var(--surface-hi); color:var(--accent-hi); font-size:18px; line-height:1; cursor:pointer; }
+.gregal-card .gc-stepper button:hover { background:var(--hover-alt); }
 .gregal-card ul.gc-checks { list-style:none; margin:-4px 0 0; padding:0; }
 .gregal-card .gc-checks li { border-bottom:1px solid var(--line); margin:0; }
 .gregal-card .gc-checks li:last-child { border-bottom:0; }
@@ -1059,11 +1059,11 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .gregal-card ol.gc-steps { list-style:none; margin:0; padding:0; }
 .gregal-card .gc-steps li { counter-increment:gc; position:relative; display:flex; align-items:flex-start; gap:10px; padding:0 0 14px 42px; margin:0; font-size:14px; line-height:1.5; }
 .gregal-card ol.gc-steps { counter-reset:gc; }
-.gregal-card .gc-steps li::before { content:counter(gc); position:absolute; left:0; top:-3px; width:28px; height:28px; border-radius:50%; display:grid; place-items:center; font-size:13px; font-weight:700; background:color-mix(in srgb, var(--accent) 16%, transparent); color:var(--accent-hi); }
+.gregal-card .gc-steps li::before { content:counter(gc); position:absolute; left:0; top:-3px; width:28px; height:28px; border-radius:50%; display:grid; place-items:center; font-size:13px; font-weight:700; background:var(--surface-hi); color:var(--accent-hi); }
 .gregal-card .gc-steps li:not(:last-child)::after { content:''; position:absolute; left:13.5px; top:28px; bottom:2px; width:1px; background:var(--line-hi); }
 .gregal-card .gc-steps li:last-child { padding-bottom:0; }
 .gregal-card .gc-steps li > span { flex:1; }
-.gregal-card .gc-timer { flex:none; font-style:normal; font-size:12px; font-weight:600; padding:2px 9px; border-radius:999px; background:color-mix(in srgb, var(--accent) 14%, transparent); color:var(--accent-hi); white-space:nowrap; }
+.gregal-card .gc-timer { flex:none; font-style:normal; font-size:12px; font-weight:600; padding:2px 9px; border-radius:999px; background:var(--surface-hi); color:var(--accent-hi); white-space:nowrap; }
 .gregal-card .gc-timer::after { content:' ⏱'; }
 .gregal-card .gc-tip, :is(.vw-message-text,.vw-result-text) blockquote { margin:2px 0 0; padding:2px 0 2px 14px; border-left:3px solid var(--accent); font-style:italic; color:var(--text); }
 :is(.vw-message-text,.vw-result-text) blockquote { margin:12px 0; }
@@ -1098,7 +1098,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
    counter-reset quan la llista no comença per 1). */
 :is(.vw-message-text,.vw-result-text) ol:not([class]) { list-style:none; counter-reset:md-step; padding-left:0; }
 :is(.vw-message-text,.vw-result-text) ol:not([class]) > li { counter-increment:md-step; position:relative; padding-left:36px; margin:8px 0; }
-:is(.vw-message-text,.vw-result-text) ol:not([class]) > li::before { content:counter(md-step); position:absolute; left:0; top:0; width:24px; height:24px; border-radius:50%; display:grid; place-items:center; font-size:12px; font-weight:700; line-height:1; background:color-mix(in srgb, var(--accent) 16%, transparent); color:var(--accent-hi); }
+:is(.vw-message-text,.vw-result-text) ol:not([class]) > li::before { content:counter(md-step); position:absolute; left:0; top:0; width:24px; height:24px; border-radius:50%; display:grid; place-items:center; font-size:12px; font-weight:700; line-height:1; background:var(--surface-hi); color:var(--accent-hi); }
 
 /* Targetes, estil del disseny «Escapades»: pla compacte amb l'hora en
    píndola, pressupost amb icona, «Detalls» que obre la resta, botons d'acció
@@ -1106,7 +1106,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .gregal-card ol.gc-agenda { list-style:none; margin:2px 0 0; padding:0; }
 .gregal-card .gc-agenda li { display:flex; align-items:baseline; gap:14px; margin:0; padding:9px 0; border-bottom:1px solid var(--line); }
 .gregal-card .gc-agenda li:last-child { border-bottom:0; }
-.gregal-card .gc-pill { flex:none; min-width:62px; text-align:center; padding:3px 10px; border-radius:10px; font-weight:700; font-size:15px; font-variant-numeric:tabular-nums; background:color-mix(in srgb, var(--lime, var(--accent)) 24%, transparent); color:var(--ink); }
+.gregal-card .gc-pill { flex:none; min-width:62px; text-align:center; padding:3px 10px; border-radius:10px; font-weight:700; font-size:15px; font-variant-numeric:tabular-nums; background:var(--surface-hi); color:var(--accent-hi); }
 .gregal-card .gc-agenda .gc-what { display:flex; flex-direction:column; gap:2px; min-width:0; }
 .gregal-card .gc-agenda .gc-what b { font-weight:500; font-size:16px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .gregal-card .gc-agenda .gc-detail { font-size:13px; color:var(--muted); display:none; }
@@ -1198,7 +1198,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .gshare-menu { position:fixed; z-index:1000; width:270px; padding:6px; border-radius:14px; background:var(--surface-hi, var(--surface)); border:1px solid var(--line); box-shadow:0 18px 50px rgba(0,0,0,.35); display:flex; flex-direction:column; gap:1px; }
 .gshare-item { display:flex; flex-direction:column; align-items:flex-start; gap:1px; text-align:left; padding:9px 11px; border:0; border-radius:9px; background:none; color:var(--ink); font:inherit; font-size:14px; cursor:pointer; }
 .gshare-item small { color:var(--muted); font-size:12px; }
-.gshare-item:hover, .gshare-item:focus-visible { background:color-mix(in srgb, var(--accent) 14%, transparent); outline:none; }
+.gshare-item:hover, .gshare-item:focus-visible { background:var(--hover-alt); outline:none; }
 .gshare-item:disabled { opacity:.6; cursor:progress; }
 .gshare-sep { margin-top:4px; border-top:1px solid var(--line); border-radius:0 0 9px 9px; padding-top:11px; }
 .gshare-people { display:flex; flex-wrap:wrap; gap:6px; padding:6px 8px; }

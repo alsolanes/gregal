@@ -58,7 +58,7 @@ data class GregalPalette(
     val sendFg: Color get() = if (dark) onSea else Color(0xFFD4F25A)
     /** La teva bombolla: blanc trencat en fosc, mar en clar (com el tauler). */
     val userBubble: Color get() = if (dark) Color(0xFFEEF1EC) else Color(0xFF17323D)
-    val onUserBubble: Color get() = if (dark) Color(0xFF10202A) else Color(0xFFF2F5EF)
+    val onUserBubble: Color get() = if (dark) Color(0xFF141C18) else Color(0xFFF2F5EF)
     /** Colors de les sèries dels gràfics: vius en tots dos temes (girar el to
      *  de l'accent donava grisos amb el mar del tema clar). */
     val chart: List<Color> get() = if (dark)
@@ -71,23 +71,23 @@ val DarkPal = GregalPalette(
     seaClara = Color(0xFFE4F98F),   // escumaClara
     sand = Color(0xFFF2B48E),       // arena (avís)
     onada = Color(0xFF7FD6C2),      // aqua juganer
-    algua = Color(0xFF24383F),
-    deepTop = Color(0xFF0F1B21),    // fons
-    deepBottom = Color(0xFF0B1519), // abisme: sidebar/panells
-    surface = Color(0xFF16262E),    // night
-    surfaceHi = Color(0xFF203640),  // superficieAlta
+    algua = Color(0xFF2B3531),
+    deepTop = Color(0xFF121715),    // fons
+    deepBottom = Color(0xFF0D110F), // abisme: sidebar/panells
+    surface = Color(0xFF1A211E),    // night
+    surfaceHi = Color(0xFF242D29),  // superficieAlta
     ink = Color(0xFFF2F5EF),
-    text = Color(0xFFDCE5DF),
-    muted = Color(0xFFA3B5AF),
-    faint = Color(0xFF8FA29C),
+    text = Color(0xFFDDE4DF),
+    muted = Color(0xFFA8B3AD),
+    faint = Color(0xFF909C96),
     green = Color(0xFF86E3A6),
     red = Color(0xFFFF8F86),
     lila = Color(0xFFC9B2FF),
     lilaFons = Color(0xFF2A2645),
     line = Color(0x1ACFE3DA),       // gris fred #C9D1E6 al 10%
     lineHi = Color(0x33CFE3DA),     // gris fred al 20%
-    abyss = Color(0xFF0B1519),
-    onSea = Color(0xFF0F1B21),      // sobre l'accent: text fosc (fons)
+    abyss = Color(0xFF0D110F),
+    onSea = Color(0xFF121715),      // sobre l'accent: text fosc (fons)
     dark = true,
 )
 
@@ -126,12 +126,14 @@ val LocalPal = compositionLocalOf { DarkPal }
 fun GregalPalette.scheme(): ColorScheme {
     val low = lerp(deepTop, surface, 0.5f)
     val high = lerp(surface, surfaceHi, 0.5f)
-    val secondaryBox = lerp(surface, sea, if (dark) 0.22f else 0.14f)
-    val primaryBox = lerp(surface, sea, if (dark) 0.28f else 0.18f)
+    // En fosc, els contenidors són neutres (la llima barrejada amb el grafit
+    // feia oliva); l'accent queda per al text i les icones.
+    val secondaryBox = if (dark) lerp(surface, ink, 0.10f) else lerp(surface, sea, 0.14f)
+    val primaryBox = if (dark) lerp(surface, ink, 0.14f) else lerp(surface, sea, 0.18f)
     val errorBox = lerp(surface, red, if (dark) 0.20f else 0.12f)
     return if (dark) darkColorScheme(
         primary = sea, onPrimary = onSea, secondary = onada, onSecondary = deepTop,
-        tertiary = lila, outline = Color(0xFF5E7279), outlineVariant = algua, // outline = boxIdle (3:1)
+        tertiary = lila, outline = Color(0xFF66726C), outlineVariant = algua, // outline = boxIdle (3:1)
         background = deepTop, surface = surface, surfaceVariant = surfaceHi,
         onBackground = ink, onSurface = ink, onSurfaceVariant = muted, error = red,
         primaryContainer = primaryBox, onPrimaryContainer = ink,
@@ -422,6 +424,10 @@ fun esFosc(mode: String, systemDark: Boolean): Boolean = when (mode) {
 // Getters temàtics amb els noms de sempre: els call sites no canvien.
 val Sea @Composable @ReadOnlyComposable get() = LocalPal.current.sea
 val SeaClara @Composable @ReadOnlyComposable get() = LocalPal.current.seaClara
+/** Fons d'un estat seleccionat o destacat. En fosc és neutre (la llima
+ *  barrejada amb el grafit feia oliva); en clar, l'accent tenyit com sempre. */
+fun GregalPalette.soft(alpha: Float): Color = if (dark) ink.copy(alpha = alpha * 0.7f) else sea.copy(alpha = alpha)
+@Composable @ReadOnlyComposable fun SeaSoft(alpha: Float): Color = LocalPal.current.soft(alpha)
 val Sand @Composable @ReadOnlyComposable get() = LocalPal.current.sand
 val Onada @Composable @ReadOnlyComposable get() = LocalPal.current.onada
 val Algua @Composable @ReadOnlyComposable get() = LocalPal.current.algua

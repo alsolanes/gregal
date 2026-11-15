@@ -63,7 +63,7 @@ func CSSColors(t Tema) []string {
 		lineA, lineB = ".14", ".28"
 	}
 	velA, velB := ".05", ".08"
-	return []string{
+	return append([]string{
 		"--bg:" + t.Fons,
 		"--sidebar:" + t.Abisme,
 		"--panel:" + t.Abisme,
@@ -87,8 +87,8 @@ func CSSColors(t Tema) []string {
 		"--hover-alt:" + vel(tint(t), velB),
 		"--raised:" + vel(tint(t), ".02"),
 		"--edge:" + vel(tint(t), ".12"),
-		"--accent-soft:" + vel(t.Escuma, ".10"),
-		"--accent-soft-hi:" + vel(t.Escuma, ".20"),
+		"--accent-soft:" + soft(t, ".10"),
+		"--accent-soft-hi:" + soft(t, ".20"),
 		"--ok-soft:" + vel(t.Green, ".12"),
 		"--ombra:" + ombra(t),
 		"--amber-soft:" + vel(t.Arena, ".14"),
@@ -97,7 +97,36 @@ func CSSColors(t Tema) []string {
 		// el CSS en pugui fer servir algun (vores, fons dels blocs).
 		"--codi-fons:" + t.Abisme,
 		"--codi-vora:" + vel(vora(t), lineB),
+	}, chartColors(t)...)
+}
+
+// chartColors: les sèries dels gràfics surten de la paleta (com a Android,
+// GregalPalette.chart); sense això Chart.js posava el blau de sempre al
+// costat de la llima.
+func chartColors(t Tema) []string {
+	cs := []string{t.Escuma, t.Onada, t.Arena, t.Lila, t.Green, t.Red}
+	if t.Clar {
+		// En clar l'escuma és gairebé negra: primer els tons vius.
+		cs = []string{t.Onada, t.Arena, t.Green, t.Lila, t.Red, t.Escuma}
 	}
+	out := make([]string, len(cs))
+	for i, c := range cs {
+		out[i] = fmt.Sprintf("--chart-%d:%s", i+1, c)
+	}
+	return out
+}
+
+// soft és el fons dels estats seleccionats. Al tema de casa és neutre (la
+// llima al 10% sobre el grafit feia oliva); l'accent queda per a la icona o
+// el text. Els altres temes el tenyeixen amb la seva marca, com sempre.
+func soft(t Tema, alfa string) string {
+	if t.Nom == "fosc" {
+		if alfa == ".10" {
+			return vel(t.Ink, ".07")
+		}
+		return vel(t.Ink, ".12")
+	}
+	return vel(t.Escuma, alfa)
 }
 
 func ombra(t Tema) string {

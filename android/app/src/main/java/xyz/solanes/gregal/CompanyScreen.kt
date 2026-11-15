@@ -702,7 +702,7 @@ private fun VentsWelcome(vm: GregalViewModel, lang: String) {
         Text(if (user.isNotBlank()) tr(lang, "app.vents.welcomeHi", user) else tr(lang, "app.vents.welcomeHiAnon"),
             color = Ink, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center)
         Text(tr(lang, "app.vents.welcomeBody"), color = Muted, fontSize = 15.sp, lineHeight = 21.sp, textAlign = TextAlign.Center)
-        if (daily != null) Surface(shape = RoundedCornerShape(26.dp), color = Sea.copy(alpha = 0.09f),
+        if (daily != null) Surface(shape = RoundedCornerShape(26.dp), color = SeaSoft(0.09f),
             border = androidx.compose.foundation.BorderStroke(1.dp, Sea.copy(alpha = 0.30f)), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -762,7 +762,7 @@ private fun NewCrewMembersCard(vm: GregalViewModel, lang: String) {
     val (squad, missing) = remember(squads, winds) { missingSquadMembers(squads, winds) } ?: return
     val names = missing.map { m -> m.name + " (" + (if (lang == "ca") m.ca else m.en).lowercase() + ")" }
     val joined = if (names.size == 1) names[0] else names.dropLast(1).joinToString(", ") + tr(lang, "app.crew.newAnd") + names.last()
-    Surface(shape = RoundedCornerShape(20.dp), color = Sea.copy(alpha = 0.08f),
+    Surface(shape = RoundedCornerShape(20.dp), color = SeaSoft(0.08f),
         border = androidx.compose.foundation.BorderStroke(1.dp, Sea.copy(alpha = 0.30f)),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp).testTag("crew-new")) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically,
@@ -794,7 +794,7 @@ private fun SquadsRow(vm: GregalViewModel, lang: String) {
     if (squads.isEmpty()) return
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = Sea.copy(alpha = 0.08f),
+        color = SeaSoft(0.08f),
         border = androidx.compose.foundation.BorderStroke(1.dp, Sea.copy(alpha = 0.30f)),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp)
             .clip(RoundedCornerShape(20.dp)).clickable { expanded = !expanded },
@@ -862,7 +862,7 @@ private fun WindsModelRow(vm: GregalViewModel, lang: String) {
     LaunchedEffect(Unit) { vm.loadModels() }
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = Sea.copy(alpha = 0.08f),
+        color = SeaSoft(0.08f),
         border = androidx.compose.foundation.BorderStroke(1.dp, Sea.copy(alpha = 0.30f)),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp)
             .clip(RoundedCornerShape(20.dp)).clickable(onClick = { picker = true }),
@@ -1097,7 +1097,7 @@ internal fun ConversationRow(
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 8.dp).heightIn(min = 68.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(if (unread) Sea.copy(alpha = .07f) else Color.Transparent)
+            .background(if (unread) SeaSoft(.07f) else Color.Transparent)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -2227,7 +2227,7 @@ private fun CrewMemberRow(lang: String, w: Wind, why: String, isNew: Boolean) {
     val accent = Color(w.argb)
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
-            .background(if (isNew) Sea.copy(alpha = 0.08f) else SuperficieAlta.copy(alpha = 0.5f))
+            .background(if (isNew) SeaSoft(0.08f) else SuperficieAlta.copy(alpha = 0.5f))
             .border(1.dp, if (isNew) Sea.copy(alpha = 0.35f) else Line, RoundedCornerShape(18.dp))
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -2237,7 +2237,7 @@ private fun CrewMemberRow(lang: String, w: Wind, why: String, isNew: Boolean) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(w.name, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 if (isNew) Text(tr(lang, "app.crew.new").uppercase(), color = Sea, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 0.8.sp, modifier = Modifier.background(Sea.copy(alpha = 0.14f), RoundedCornerShape(999.dp)).padding(horizontal = 7.dp, vertical = 2.dp))
+                    letterSpacing = 0.8.sp, modifier = Modifier.background(SeaSoft(0.14f), RoundedCornerShape(999.dp)).padding(horizontal = 7.dp, vertical = 2.dp))
             }
             Text(w.role, color = Muted, fontSize = 12.5.sp)
             if (why.isNotBlank()) Text(why, color = Tinta, fontSize = 12.5.sp, lineHeight = 17.sp)
@@ -2279,7 +2279,7 @@ internal fun WhereSwitch(vm: GregalViewModel, lang: String) {
             fun Option(selected: Boolean, enabled: Boolean, onClick: () -> Unit, content: @Composable RowScope.() -> Unit) {
                 Row(
                     Modifier.weight(1f).clip(RoundedCornerShape(18.dp))
-                        .background(if (selected) Sea.copy(alpha = .22f) else Color.Transparent)
+                        .background(if (selected) SeaSoft(.22f) else Color.Transparent)
                         .clickable(enabled = enabled && !selected && !switching, onClick = onClick)
                         .semantics { this.selected = selected }
                         .padding(vertical = 9.dp, horizontal = 10.dp),

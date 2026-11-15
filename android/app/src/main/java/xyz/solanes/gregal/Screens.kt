@@ -233,7 +233,7 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
             }
             if (remot) {
                 if (reason.isNotEmpty()) {
-                    Surface(shape = RoundedCornerShape(16.dp), color = Sea.copy(alpha = 0.12f), modifier = Modifier.fillMaxWidth()) {
+                    Surface(shape = RoundedCornerShape(16.dp), color = SeaSoft(0.12f), modifier = Modifier.fillMaxWidth()) {
                         Text(reason, color = Ink, fontSize = 14.sp, modifier = Modifier.padding(14.dp))
                     }
                     Spacer(Modifier.height(12.dp))
@@ -1036,7 +1036,7 @@ fun PairModeTabs(lang: String, mode: String, onMode: (String) -> Unit) {
         Row(Modifier.padding(4.dp)) {
             listOf("login" to "app.pair.tabLogin", "invite" to "app.pair.tabInvite", "key" to "app.pair.tabKey").forEach { (m, k) ->
                 val on = m == mode
-                Surface(shape = RoundedCornerShape(12.dp), color = if (on) Sea.copy(alpha = 0.22f) else androidx.compose.ui.graphics.Color.Transparent,
+                Surface(shape = RoundedCornerShape(12.dp), color = if (on) SeaSoft(0.22f) else androidx.compose.ui.graphics.Color.Transparent,
                     modifier = Modifier.weight(1f).clickable { onMode(m) }) {
                     Text(tr(lang, k), color = if (on) Ink else Muted, fontSize = 14.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
                         textAlign = TextAlign.Center, modifier = Modifier.padding(vertical = 10.dp))
@@ -1560,7 +1560,7 @@ fun SessionsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         // l'agent, la seva icona. El tipus també en paraules.
                         val wind = if (look.kind == ConvKind.WIND) winds.firstOrNull { it.name == look.title } else null
                         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                            .background(if (s.current) Sea.copy(alpha = .14f) else Color.Transparent)
+                            .background(if (s.current) SeaSoft(.14f) else Color.Transparent)
                             .clickable { vm.resumeSession(s.name) }.heightIn(min = 72.dp)
                             .padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 4.dp),
                             verticalAlignment = Alignment.CenterVertically) {

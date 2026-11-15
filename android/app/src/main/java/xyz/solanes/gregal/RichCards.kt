@@ -343,12 +343,12 @@ private fun RecipeCard(spec: RecipeSpec, link: Color, lang: String) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 spec.steps.forEachIndexed { i, st ->
                     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Box(Modifier.size(28.dp).clip(CircleShape).background(link.copy(alpha = .16f)), contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(28.dp).clip(CircleShape).background(LocalPal.current.surfaceHi), contentAlignment = Alignment.Center) {
                             Text((i + 1).toString(), color = link, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
                         Text(st.text, color = Ink, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.weight(1f).padding(top = 3.dp))
                         if (st.minutes > 0) Text("${st.minutes} min ⏱", color = link, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.clip(RoundedCornerShape(50)).background(link.copy(alpha = .14f)).padding(horizontal = 9.dp, vertical = 3.dp))
+                            modifier = Modifier.clip(RoundedCornerShape(50)).background(LocalPal.current.surfaceHi).padding(horizontal = 9.dp, vertical = 3.dp))
                     }
                 }
             }
@@ -360,7 +360,7 @@ private fun RecipeCard(spec: RecipeSpec, link: Color, lang: String) {
 
 @Composable
 private fun StepButton(label: String, link: Color, description: String, onClick: () -> Unit) {
-    Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(link.copy(alpha = .16f))
+    Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(LocalPal.current.surfaceHi)
         .clickable(role = Role.Button, onClick = onClick).semantics { contentDescription = description },
         contentAlignment = Alignment.Center) {
         Text(label, color = link, fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -409,8 +409,9 @@ private fun PlanCard(spec: PlanSpec, link: Color, lang: String) {
             show.forEachIndexed { i, it ->
                 if (i > 0) HorizontalDivider(color = Line)
                 Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    if (it.time.isNotEmpty()) Text(it.time, color = Ink, fontWeight = FontWeight.Bold, fontSize = 15.sp,
-                        modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(Lime.copy(alpha = .24f)).widthIn(min = 62.dp)
+                    // Neutra amb l'hora en llima (barrejar la llima amb el fons feia oliva).
+                    if (it.time.isNotEmpty()) Text(it.time, color = link, fontWeight = FontWeight.Bold, fontSize = 15.sp,
+                        modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(LocalPal.current.surfaceHi).widthIn(min = 62.dp)
                             .padding(horizontal = 10.dp, vertical = 3.dp).testTag("plan-time"),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     Column(Modifier.weight(1f).padding(top = 2.dp)) {

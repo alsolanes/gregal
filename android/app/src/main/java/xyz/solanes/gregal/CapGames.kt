@@ -191,7 +191,7 @@ fun CapWardrobe(lang: String, st: CapState, fresh: List<String>, onWear: (String
                             val worn = o.id == pet.outfit
                             Surface(onClick = { if (owned) onWear(if (worn) "" else o.id) }, enabled = owned,
                                 shape = RoundedCornerShape(14.dp),
-                                color = if (worn) Sea.copy(alpha = .3f) else SuperficieAlta.copy(alpha = if (owned) .8f else .35f),
+                                color = if (worn) SeaSoft(.3f) else SuperficieAlta.copy(alpha = if (owned) .8f else .35f),
                                 modifier = Modifier.size(64.dp).testTag("outfit-${o.id}")) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                                     Text(if (owned) o.emoji else "🔒", fontSize = 24.sp)
