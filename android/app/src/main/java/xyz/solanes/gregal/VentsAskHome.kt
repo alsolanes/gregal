@@ -450,7 +450,7 @@ internal fun AskComposer(lang: String, text: String, onText: (String) -> Unit, b
             }
             Spacer(Modifier.width(4.dp))
         }
-        Box(Modifier.weight(1f).padding(vertical = 10.dp)) {
+        Box(Modifier.weight(1f).padding(top = 0.dp, bottom = 12.dp)) {
             BasicTextField(
                 text, onText, textStyle = TextStyle(color = Ink, fontSize = 16.sp, lineHeight = 22.sp),
                 cursorBrush = SolidColor(Sea), maxLines = 5,

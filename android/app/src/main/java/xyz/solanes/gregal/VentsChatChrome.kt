@@ -305,7 +305,8 @@ internal fun VentsComposer(
                 .workingRing(active = busy, corner = 28.dp, color = ringColor)
                 .clip(RoundedCornerShape(28.dp)).background(SuperficieAlta)
                 .border(1.dp, Line, RoundedCornerShape(28.dp))
-                .padding(start = if (hasTools) 4.dp else 18.dp, end = 5.dp, top = 5.dp, bottom = 5.dp),
+                .padding(start = if (hasTools) 4.dp else 18.dp, end = 5.dp, top = 5.dp, bottom = 5.dp)
+                .testTag("vents-composer-bar"),
             verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             if (hasTools) {
@@ -397,7 +398,7 @@ internal fun VentsComposer(
                     }
                 }
             }
-            Box(Modifier.weight(1f).heightIn(min = 40.dp).padding(vertical = 10.dp), contentAlignment = Alignment.CenterStart) {
+            Box(Modifier.weight(1f).heightIn(min = 40.dp), contentAlignment = Alignment.TopStart) {
                 // La pista va dins del camp (decorationBox): així el camp i la pista són un sol node.
                 BasicTextField(
                     value = field, onValueChange = onChange, maxLines = 5,

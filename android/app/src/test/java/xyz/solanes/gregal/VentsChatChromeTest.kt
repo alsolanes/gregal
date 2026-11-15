@@ -26,6 +26,22 @@ import org.robolectric.annotation.LooperMode
 class VentsChatChromeTest {
     @get:Rule val ui = createComposeRule()
 
+    @Test fun composerFieldHasCompactTopInset() {
+        ui.setContent {
+            CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
+                MaterialTheme(colorScheme = LightPal.scheme()) {
+                    var field by remember { mutableStateOf(TextFieldValue("test")) }
+                    VentsComposer("ca", field, { field = it }, "Escriu…", canSend = true) {}
+                }
+            }
+        }
+        ui.waitForIdle()
+        val barTop = ui.onNodeWithTag("vents-composer-bar").getBoundsInRoot().top
+        val fieldTop = ui.onNodeWithTag("vents-composer-field").getBoundsInRoot().top
+        val inset = fieldTop - barTop
+        assertTrue("massa espai sobre el text: $inset", inset <= 13.dp)
+    }
+
     @Test fun composerRetainsDraftAndOnlySendsNonBlankText() {
         var sent = ""
         ui.setContent {
