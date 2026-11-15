@@ -53,54 +53,65 @@ data class GregalPalette(
     val pillDark: Color get() = surface
     val bubbleDark: Color get() = surface
     val codeDark: Color get() = surfaceHi
+    /** Enviar: en fosc, llima amb el glif de mar; en clar, el cercle de mar amb el glif llima. */
+    val sendBg: Color get() = sea
+    val sendFg: Color get() = if (dark) onSea else Color(0xFFD4F25A)
+    /** La teva bombolla: blanc trencat en fosc, mar en clar (com el tauler). */
+    val userBubble: Color get() = if (dark) Color(0xFFEEF1EC) else Color(0xFF17323D)
+    val onUserBubble: Color get() = if (dark) Color(0xFF10202A) else Color(0xFFF2F5EF)
+    /** Colors de les sèries dels gràfics: vius en tots dos temes (girar el to
+     *  de l'accent donava grisos amb el mar del tema clar). */
+    val chart: List<Color> get() = if (dark)
+        listOf(Color(0xFFD4F25A), Color(0xFF7FD6C2), Color(0xFFF2B48E), Color(0xFFC9B2FF), Color(0xFF8FC7FF), Color(0xFFFF9FB2))
+        else listOf(Color(0xFF0E7C66), Color(0xFFC4622D), Color(0xFF5E8000), Color(0xFF7444D6), Color(0xFF2F6FD6), Color(0xFFC2335E))
 }
 
 val DarkPal = GregalPalette(
-    sea = Color(0xFF8193FF),        // escuma: blau Gregal
-    seaClara = Color(0xFFA3B0FF),   // escumaClara
-    sand = Color(0xFFF5C451),       // arena (avís)
-    onada = Color(0xFF5CE1D6),      // aqua juganer
-    algua = Color(0xFF2C3240),
-    deepTop = Color(0xFF13151B),    // fons
-    deepBottom = Color(0xFF0E1015), // abisme: sidebar/panells
-    surface = Color(0xFF1A1D25),    // night
-    surfaceHi = Color(0xFF242833),  // superficieAlta
-    ink = Color(0xFFF3F5FA),
-    text = Color(0xFFE4E7EF),
-    muted = Color(0xFFA3AABA),
-    faint = Color(0xFF8890A2),
-    green = Color(0xFF6EDB95),
-    red = Color(0xFFFF8A85),
-    lila = Color(0xFFC4A8FF),
-    lilaFons = Color(0xFF2A2245),
-    line = Color(0x1AC9D1E6),       // gris fred #C9D1E6 al 10%
-    lineHi = Color(0x33C9D1E6),     // gris fred al 20%
-    abyss = Color(0xFF0E1015),
-    onSea = Color(0xFF13151B),      // sobre l'accent: text fosc (fons)
+    sea = Color(0xFFD4F25A),        // escuma: blau Gregal
+    seaClara = Color(0xFFE4F98F),   // escumaClara
+    sand = Color(0xFFF2B48E),       // arena (avís)
+    onada = Color(0xFF7FD6C2),      // aqua juganer
+    algua = Color(0xFF24383F),
+    deepTop = Color(0xFF0F1B21),    // fons
+    deepBottom = Color(0xFF0B1519), // abisme: sidebar/panells
+    surface = Color(0xFF16262E),    // night
+    surfaceHi = Color(0xFF203640),  // superficieAlta
+    ink = Color(0xFFF2F5EF),
+    text = Color(0xFFDCE5DF),
+    muted = Color(0xFFA3B5AF),
+    faint = Color(0xFF8FA29C),
+    green = Color(0xFF86E3A6),
+    red = Color(0xFFFF8F86),
+    lila = Color(0xFFC9B2FF),
+    lilaFons = Color(0xFF2A2645),
+    line = Color(0x1ACFE3DA),       // gris fred #C9D1E6 al 10%
+    lineHi = Color(0x33CFE3DA),     // gris fred al 20%
+    abyss = Color(0xFF0B1519),
+    onSea = Color(0xFF0F1B21),      // sobre l'accent: text fosc (fons)
     dark = true,
 )
 
 val LightPal = GregalPalette(
-    sea = Color(0xFF4F5BE8),
-    seaClara = Color(0xFF3D47C7),
-    sand = Color(0xFF9A5B00),
-    onada = Color(0xFF0A776F),
-    algua = Color(0xFFD5DAE4),
-    deepTop = Color(0xFFF6F7FA),
-    deepBottom = Color(0xFFEEF0F5),
+    sea = Color(0xFF17323D),
+    seaClara = Color(0xFF0D232C),
+    sand = Color(0xFF9A4E1E),
+    onada = Color(0xFF0A6E62),
+    algua = Color(0xFFD2DBD3),
+    deepTop = Color(0xFFEEF1EC),
+    deepBottom = Color(0xFFE4E9E3),
     surface = Color(0xFFFFFFFF),
-    surfaceHi = Color(0xFFE5E8F0),
-    ink = Color(0xFF0E1220),
-    text = Color(0xFF1F2433),
-    muted = Color(0xFF545D71),
-    faint = Color(0xFF5F6879),
-    green = Color(0xFF187A41),
-    red = Color(0xFFC92A35),
+    surfaceHi = Color(0xFFDEE5DE),
+    ink = Color(0xFF10202A),
+    text = Color(0xFF1C2D35),
+    muted = Color(0xFF4C5F5C),
+    faint = Color(0xFF52645E),
+    green = Color(0xFF2F6B1F),
+    red = Color(0xFFC2332E),
     lila = Color(0xFF7444D6),
     lilaFons = Color(0xFFEEE8FD),
-    line = Color(0x241E2A4A),       // navy #1E2A4A al 14%
-    lineHi = Color(0x471E2A4A),     // navy al 28%
-    abyss = Color(0xFFEEF0F5),
+    line = Color(0x2410202A),       // navy #1E2A4A al 14%
+    lineHi = Color(0x4710202A),     // navy al 28%
+    abyss = Color(0xFFE4E9E3),
     onSea = Color(0xFFFFFFFF),      // sobre l'accent: blanc
     dark = false,
 )
@@ -120,7 +131,7 @@ fun GregalPalette.scheme(): ColorScheme {
     val errorBox = lerp(surface, red, if (dark) 0.20f else 0.12f)
     return if (dark) darkColorScheme(
         primary = sea, onPrimary = onSea, secondary = onada, onSecondary = deepTop,
-        tertiary = lila, outline = Color(0xFF626B80), outlineVariant = algua, // outline = boxIdle (3:1)
+        tertiary = lila, outline = Color(0xFF5E7279), outlineVariant = algua, // outline = boxIdle (3:1)
         background = deepTop, surface = surface, surfaceVariant = surfaceHi,
         onBackground = ink, onSurface = ink, onSurfaceVariant = muted, error = red,
         primaryContainer = primaryBox, onPrimaryContainer = ink,
@@ -133,7 +144,7 @@ fun GregalPalette.scheme(): ColorScheme {
         surfaceContainerHigh = high, surfaceContainerHighest = surfaceHi,
     ) else lightColorScheme(
         primary = sea, onPrimary = onSea, secondary = onada, onSecondary = Color.White,
-        tertiary = lila, outline = Color(0xFF7E879B), outlineVariant = algua, // outline = boxIdle (3:1)
+        tertiary = lila, outline = Color(0xFF7A8A86), outlineVariant = algua, // outline = boxIdle (3:1)
         background = deepTop, surface = surface, surfaceVariant = surfaceHi,
         onBackground = ink, onSurface = ink, onSurfaceVariant = muted, error = red,
         primaryContainer = primaryBox, onPrimaryContainer = ink,
@@ -435,3 +446,9 @@ val BubbleDark @Composable @ReadOnlyComposable get() = LocalPal.current.surface
 val CodeDark @Composable @ReadOnlyComposable get() = LocalPal.current.surfaceHi
 val Abyss @Composable @ReadOnlyComposable get() = LocalPal.current.abyss
 val OnSea @Composable @ReadOnlyComposable get() = LocalPal.current.onSea
+/** La llima del tauler de marca: ressalts (píndoles, «la millor opció») en tots dos temes. */
+val Lime = Color(0xFFD4F25A)
+val SendBg @Composable @ReadOnlyComposable get() = LocalPal.current.sendBg
+val SendFg @Composable @ReadOnlyComposable get() = LocalPal.current.sendFg
+val UserBubble @Composable @ReadOnlyComposable get() = LocalPal.current.userBubble
+val OnUserBubble @Composable @ReadOnlyComposable get() = LocalPal.current.onUserBubble

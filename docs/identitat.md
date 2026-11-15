@@ -17,7 +17,7 @@ to be sea foam and sand); the roles are what matter.
 
 **Principles.** Near-neutral cool grays (a hint of blue, like the sky when the
 northeast wind clears it) carry 90% of the screen. One confident accent, the
-*Gregal blue*, appears only where there is something to do: primary buttons,
+*lime* of the «Vent a favor» brand board (deep sea-navy background, off-white text, lime, sage and peach), appears only where there is something to do: primary buttons,
 focus rings, the active navigation item and links. Semantic colors (success,
 warning, danger, info) are reserved for state. The playful aqua (`onada`) is
 the rare fun touch: mascot, celebrations, retro reactions, autonomous mode.
@@ -28,23 +28,23 @@ text is at least 4.5:1 (WCAG 2.2 AA) and APCA Lc ≥ 90; even `faint` passes
 
 | name | hex | role |
 |---|---|---|
-| `escuma` | `#8193FF` | **primary accent** (Gregal blue): buttons, focus, active nav, links |
-| `escumaClara` | `#A3B0FF` | primary hover and animation highlight |
-| `arena` | `#F5C451` | **warning**, CODE mode |
-| `onada` | `#5CE1D6` | **playful secondary** (aqua): weathervane gusts, celebrations, autonomous mode, diff hunks |
-| `algua` | `#2C3240` | subdued lines, rails and decorative borders |
-| `fons` | `#13151B` | main background |
-| `abisme` | `#0E1015` | deeper background: sidebar, panels and code blocks |
-| `night` | `#1A1D25` | raised surfaces: cards, inputs and menus |
-| `superficieAlta` | `#242833` | hovered or selected surface (highest elevation) |
-| `text` | `#E4E7EF` | primary text, including assistant responses |
-| `ink` | `#F3F5FA` | strong text: headings and brand name |
-| `slate` | `#A3AABA` | muted text: metadata and descriptions |
-| `faint` | `#8890A2` | subdued text: keyboard hints and version (still ≥4.5:1) |
-| `green` | `#6EDB95` | success, additions and completed tools |
-| `red` | `#FF8A85` | danger: errors, deletions and denied actions |
-| `lila` | `#C4A8FF` | **info**: GOAL mode text |
-| `lilaFons` | `#2A2245` | GOAL mode badge background |
+| `escuma` | `#D4F25A` | **primary accent** (lime, «Vent a favor»): send, buttons, focus, active nav, links |
+| `escumaClara` | `#E4F98F` | primary hover and animation highlight |
+| `arena` | `#F2B48E` | **warning**, CODE mode |
+| `onada` | `#7FD6C2` | **playful secondary** (aqua): weathervane gusts, celebrations, autonomous mode, diff hunks |
+| `algua` | `#24383F` | subdued lines, rails and decorative borders |
+| `fons` | `#0F1B21` | main background |
+| `abisme` | `#0B1519` | deeper background: sidebar, panels and code blocks |
+| `night` | `#16262E` | raised surfaces: cards, inputs and menus |
+| `superficieAlta` | `#203640` | hovered or selected surface (highest elevation) |
+| `text` | `#DCE5DF` | primary text, including assistant responses |
+| `ink` | `#F2F5EF` | strong text: headings and brand name |
+| `slate` | `#A3B5AF` | muted text: metadata and descriptions |
+| `faint` | `#8FA29C` | subdued text: keyboard hints and version (still ≥4.5:1) |
+| `green` | `#86E3A6` | success, additions and completed tools |
+| `red` | `#FF8F86` | danger: errors, deletions and denied actions |
+| `lila` | `#C9B2FF` | **info**: GOAL mode text |
+| `lilaFons` | `#2A2645` | GOAL mode badge background |
 
 Web hairlines (`--line`, `--line-hi`, `--codi-vora`) are a cool gray
 (`#C9D1E6`) at 10% and 20% opacity, not the accent: the accent stays scarce.
@@ -57,21 +57,21 @@ darker so they read on white and white text reads on them (all ≥4.5:1).
 
 | name | hex | role |
 |---|---|---|
-| `escumaClar` | `#4F5BE8` | **primary accent** on light backgrounds |
-| `escumaClaraClar` | `#3D47C7` | primary hover |
-| `arenaClar` | `#9A5B00` | **warning**, CODE mode |
-| `onadaClar` | `#0A776F` | playful secondary (deep aqua) |
-| `fonsClar` | `#F6F7FA` | main background |
-| `abismeClar` | `#EEF0F5` | sidebar and panels |
+| `escumaClar` | `#17323D` | **primary accent** on light backgrounds |
+| `escumaClaraClar` | `#0D232C` | primary hover |
+| `arenaClar` | `#9A4E1E` | **warning**, CODE mode |
+| `onadaClar` | `#0A6E62` | playful secondary (deep aqua) |
+| `fonsClar` | `#EEF1EC` | main background |
+| `abismeClar` | `#E4E9E3` | sidebar and panels |
 | `nightClar` | `#FFFFFF` | surfaces: cards and inputs |
-| `superficieAltaClar` | `#E5E8F0` | hovered surface |
-| `textClar` | `#1F2433` | primary text |
-| `inkClar` | `#0E1220` | strong text |
-| `slateClar` | `#545D71` | muted text |
-| `faintClar` | `#5F6879` | subdued text (≥4.5:1 even on `superficieAltaClar`) |
-| `alguaClar` | `#D5DAE4` | hairlines, rails and borders |
-| `greenClar` | `#187A41` | success and additions |
-| `redClar` | `#C92A35` | danger: errors and deletions |
+| `superficieAltaClar` | `#DEE5DE` | hovered surface |
+| `textClar` | `#1C2D35` | primary text |
+| `inkClar` | `#10202A` | strong text |
+| `slateClar` | `#4C5F5C` | muted text |
+| `faintClar` | `#52645E` | subdued text (≥4.5:1 even on `superficieAltaClar`) |
+| `alguaClar` | `#D2DBD3` | hairlines, rails and borders |
+| `greenClar` | `#2F6B1F` | success and additions |
+| `redClar` | `#C2332E` | danger: errors and deletions |
 | `lilaClar` | `#7444D6` | info: GOAL mode text |
 | `lilaFonsClar` | `#EEE8FD` | GOAL mode background |
 

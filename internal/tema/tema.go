@@ -70,33 +70,34 @@ type Tema struct {
 	Sintaxi Sintaxi
 }
 
-// Fosc és el tema de casa: pissarra freda gairebé neutra (un punt de blau,
-// com el cel quan bufa el gregal) i un sol accent, el blau del vent, que
-// només surt on hi ha acció: botons, focus, navegació activa i enllaços.
+// Fosc és el tema de casa, «Vent a favor»: mar fosc blau-verd i un accent
+// llima que només surt on hi ha acció (enviar, botons, focus, navegació
+// activa i enllaços). El préssec (arena) i l'aigua (onada) són els tocs
+// càlid i juganer, i surten poc.
 // L'aigua (onada) és el toc juganer i surt poc: mascota, celebracions,
 // reaccions. L'elevació es fa amb superfícies més clares, no amb ombres.
 func Fosc() Tema {
 	return Tema{
 		Nom:            "fosc",
-		Fons:           "#13151B",
-		Abisme:         "#0E1015",
-		Night:          "#1A1D25",
-		SuperficieAlta: "#242833",
-		Ink:            "#F3F5FA",
-		Text:           "#E4E7EF",
-		Slate:          "#A3AABA",
-		Faint:          "#8890A2",
-		Escuma:         "#8193FF",
-		EscumaClara:    "#A3B0FF",
-		Arena:          "#F5C451",
-		Onada:          "#5CE1D6",
-		Algua:          "#2C3240",
-		Lila:           "#C4A8FF",
-		LilaFons:       "#2A2245",
-		Green:          "#6EDB95",
-		Red:            "#FF8A85",
-		BoxIdle:        "#626B80",
-		Vora:           "#C9D1E6",
+		Fons:           "#0F1B21",
+		Abisme:         "#0B1519",
+		Night:          "#16262E",
+		SuperficieAlta: "#203640",
+		Ink:            "#F2F5EF",
+		Text:           "#DCE5DF",
+		Slate:          "#A3B5AF",
+		Faint:          "#8FA29C",
+		Escuma:         "#D4F25A",
+		EscumaClara:    "#E4F98F",
+		Arena:          "#F2B48E",
+		Onada:          "#7FD6C2",
+		Algua:          "#24383F",
+		Lila:           "#C9B2FF",
+		LilaFons:       "#2A2645",
+		Green:          "#86E3A6",
+		Red:            "#FF8F86",
+		BoxIdle:        "#5E7279",
+		Vora:           "#CFE3DA",
 		Sintaxi: Sintaxi{
 			Paraula:   "#C4A8FF", // lila
 			Cadena:    "#6EDB95", // green
@@ -116,26 +117,26 @@ func Clar() Tema {
 	return Tema{
 		Nom:            "clar",
 		Clar:           true,
-		Fons:           "#F6F7FA",
-		Abisme:         "#EEF0F5",
+		Fons:           "#EEF1EC",
+		Abisme:         "#E4E9E3",
 		Night:          "#FFFFFF",
-		SuperficieAlta: "#E5E8F0",
-		Ink:            "#0E1220",
-		Text:           "#1F2433",
-		Slate:          "#545D71",
+		SuperficieAlta: "#DEE5DE",
+		Ink:            "#10202A",
+		Text:           "#1C2D35",
+		Slate:          "#4C5F5C",
 		// Faint passa AA (≥4,5:1) fins i tot sobre la superfície alta.
-		Faint:       "#5F6879",
-		Escuma:      "#4F5BE8",
-		EscumaClara: "#3D47C7",
-		Arena:       "#9A5B00",
-		Onada:       "#0A776F",
-		Algua:       "#D5DAE4",
+		Faint:       "#52645E",
+		Escuma:      "#17323D",
+		EscumaClara: "#0D232C",
+		Arena:       "#9A4E1E",
+		Onada:       "#0A6E62",
+		Algua:       "#D2DBD3",
 		Lila:        "#7444D6",
 		LilaFons:    "#EEE8FD",
-		Green:       "#187A41",
-		Red:         "#C92A35",
-		BoxIdle:     "#7E879B",
-		Vora:        "#1E2A4A",
+		Green:       "#2F6B1F",
+		Red:         "#C2332E",
+		BoxIdle:     "#7A8A86",
+		Vora:        "#10202A",
 		Sintaxi: Sintaxi{
 			Paraula:   "#7444D6", // lila clar
 			Cadena:    "#187A41", // green clar

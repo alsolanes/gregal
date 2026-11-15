@@ -43,7 +43,7 @@ fun PlotCard(spec: PlotSpec, lang: String = "ca") {
 private fun PlotContent(spec: PlotSpec, lang: String, view: PlotView, change: (PlotView) -> Unit,
                         enlarged: Boolean, expandOrClose: () -> Unit) {
     val pal = LocalPal.current
-    val colors = listOf(pal.sea, pal.sand, pal.green, pal.lila, pal.red, pal.onada)
+    val colors = pal.chart
     // Selection does not rebuild the geometry or restart a running drag gesture.
     val geometry = remember(spec, view.hidden, view.start, view.window) { PlotGeometry(spec, view) }
     val latestView by rememberUpdatedState(view)

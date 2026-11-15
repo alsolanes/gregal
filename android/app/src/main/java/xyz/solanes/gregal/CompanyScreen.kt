@@ -1908,8 +1908,8 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
     // Bombolla pròpia plena amb l'accent de l'app: la grisa (Ink a l'11%) es
     // confonia amb les dels vents, tenyides i fosques també. Ara el que
     // escrius tu es veu d'una ullada, com a qualsevol missatgeria.
-    val ownBackground = Sea
-    val ownText = OnSea
+    val ownBackground = UserBubble
+    val ownText = OnUserBubble
     // L'hora arriba del backend en segons Unix; els missatges creats en aquesta
     // sessió (enviats per l'app) són en millis. Unificat a millis una sola volta.
     val tsMillis = remember(m.ts) { if (m.ts > 10_000_000_000L) m.ts else m.ts * 1000L }

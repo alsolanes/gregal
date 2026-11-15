@@ -186,7 +186,13 @@ private fun hsvToRgb(h: Float, s: Float, v: Float): Triple<Float, Float, Float> 
 fun ChartBlock(spec: ChartSpec, accent: Color, dark: Boolean) {
     val ink = if (dark) Color(0xFFF2EDE3) else Ink
     val grid = ink.copy(alpha = 0.14f)
-    val palette = remember(accent, spec.series.size) { chartPalette(accent, spec.series.size.coerceAtLeast(1)) }
+    // Una sèrie: l'accent del vent en fosc; en clar (accent de mar) i amb
+    // diverses sèries, els colors vius del tema.
+    val pal = LocalPal.current
+    val palette = remember(accent, pal, spec.series.size) {
+        val n = spec.series.size.coerceAtLeast(1)
+        if (n == 1 && pal.dark) listOf(accent) else List(n) { pal.chart[it % pal.chart.size] }
+    }
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
             .background(if (dark) Color(0xFF23201A) else Color(0xFFF6F1E7))

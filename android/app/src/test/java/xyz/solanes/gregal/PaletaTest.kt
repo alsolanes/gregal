@@ -20,56 +20,56 @@ class PaletaTest {
 
     @Test
     fun foscTeElsHexosDeLaWeb() {
-        assertEquals("#13151B", hex(DarkPal.deepTop))     // --bg (fons)
-        assertEquals("#0E1015", hex(DarkPal.deepBottom))  // --sidebar/--panel (abisme)
-        assertEquals("#1A1D25", hex(DarkPal.surface))     // --surface (night)
-        assertEquals("#242833", hex(DarkPal.surfaceHi))   // --surface-hi
-        assertEquals("#F3F5FA", hex(DarkPal.ink))         // --ink
-        assertEquals("#E4E7EF", hex(DarkPal.text))        // --text
-        assertEquals("#A3AABA", hex(DarkPal.muted))       // --muted (slate)
-        assertEquals("#8890A2", hex(DarkPal.faint))       // --faint
-        assertEquals("#8193FF", hex(DarkPal.sea))         // --accent (escuma)
-        assertEquals("#A3B0FF", hex(DarkPal.seaClara))    // --accent-hi
-        assertEquals("#F5C451", hex(DarkPal.sand))        // --amber (arena)
-        assertEquals("#5CE1D6", hex(DarkPal.onada))       // --onada
-        assertEquals("#6EDB95", hex(DarkPal.green))       // --green
-        assertEquals("#FF8A85", hex(DarkPal.red))         // --red
-        assertEquals("#C4A8FF", hex(DarkPal.lila))        // --lila
-        assertEquals("#2A2245", hex(DarkPal.lilaFons))    // --lila-fons
-        assertEquals("#2C3240", hex(DarkPal.algua))       // docs: línies/algua
-        assertEquals("#13151B", hex(DarkPal.onSea))       // text sobre l'accent: fons
+        assertEquals("#0F1B21", hex(DarkPal.deepTop))     // --bg (fons)
+        assertEquals("#0B1519", hex(DarkPal.deepBottom))  // --sidebar/--panel (abisme)
+        assertEquals("#16262E", hex(DarkPal.surface))     // --surface (night)
+        assertEquals("#203640", hex(DarkPal.surfaceHi))   // --surface-hi
+        assertEquals("#F2F5EF", hex(DarkPal.ink))         // --ink
+        assertEquals("#DCE5DF", hex(DarkPal.text))        // --text
+        assertEquals("#A3B5AF", hex(DarkPal.muted))       // --muted (slate)
+        assertEquals("#8FA29C", hex(DarkPal.faint))       // --faint
+        assertEquals("#D4F25A", hex(DarkPal.sea))         // --accent (escuma)
+        assertEquals("#E4F98F", hex(DarkPal.seaClara))    // --accent-hi
+        assertEquals("#F2B48E", hex(DarkPal.sand))        // --amber (arena)
+        assertEquals("#7FD6C2", hex(DarkPal.onada))       // --onada
+        assertEquals("#86E3A6", hex(DarkPal.green))       // --green
+        assertEquals("#FF8F86", hex(DarkPal.red))         // --red
+        assertEquals("#C9B2FF", hex(DarkPal.lila))        // --lila
+        assertEquals("#2A2645", hex(DarkPal.lilaFons))    // --lila-fons
+        assertEquals("#24383F", hex(DarkPal.algua))       // docs: línies/algua
+        assertEquals("#0F1B21", hex(DarkPal.onSea))       // text sobre l'accent: fons
     }
 
     @Test
     fun clarTeElsHexosDeLaWeb() {
-        assertEquals("#F6F7FA", hex(LightPal.deepTop))    // --bg
-        assertEquals("#EEF0F5", hex(LightPal.deepBottom)) // --sidebar/--panel
+        assertEquals("#EEF1EC", hex(LightPal.deepTop))    // --bg
+        assertEquals("#E4E9E3", hex(LightPal.deepBottom)) // --sidebar/--panel
         assertEquals("#FFFFFF", hex(LightPal.surface))    // --surface
-        assertEquals("#E5E8F0", hex(LightPal.surfaceHi))  // --surface-hi
-        assertEquals("#0E1220", hex(LightPal.ink))        // --ink
-        assertEquals("#1F2433", hex(LightPal.text))       // --text
-        assertEquals("#545D71", hex(LightPal.muted))      // --muted
-        assertEquals("#5F6879", hex(LightPal.faint))      // --faint
-        assertEquals("#4F5BE8", hex(LightPal.sea))        // --accent
-        assertEquals("#3D47C7", hex(LightPal.seaClara))   // --accent-hi
-        assertEquals("#9A5B00", hex(LightPal.sand))       // --amber
-        assertEquals("#0A776F", hex(LightPal.onada))      // --onada
-        assertEquals("#187A41", hex(LightPal.green))      // --green
-        assertEquals("#C92A35", hex(LightPal.red))        // --red
+        assertEquals("#DEE5DE", hex(LightPal.surfaceHi))  // --surface-hi
+        assertEquals("#10202A", hex(LightPal.ink))        // --ink
+        assertEquals("#1C2D35", hex(LightPal.text))       // --text
+        assertEquals("#4C5F5C", hex(LightPal.muted))      // --muted
+        assertEquals("#52645E", hex(LightPal.faint))      // --faint
+        assertEquals("#17323D", hex(LightPal.sea))        // --accent
+        assertEquals("#0D232C", hex(LightPal.seaClara))   // --accent-hi
+        assertEquals("#9A4E1E", hex(LightPal.sand))       // --amber
+        assertEquals("#0A6E62", hex(LightPal.onada))      // --onada
+        assertEquals("#2F6B1F", hex(LightPal.green))      // --green
+        assertEquals("#C2332E", hex(LightPal.red))        // --red
         assertEquals("#7444D6", hex(LightPal.lila))       // --lila
         assertEquals("#EEE8FD", hex(LightPal.lilaFons))   // --lila-fons
-        assertEquals("#D5DAE4", hex(LightPal.algua))      // docs: alguaClar
+        assertEquals("#D2DBD3", hex(LightPal.algua))      // docs: alguaClar
         assertEquals("#FFFFFF", hex(LightPal.onSea))      // text sobre l'accent: blanc
     }
 
     @Test
     fun liniesSonGrisFredINoAccent() {
-        // --line: rgba(201,209,230,.10) / .20 al fosc
-        assertEquals("#C9D1E6", hex(DarkPal.line))
+        // --line: rgba(207,227,218,.10) / .20 al fosc (sàlvia pàl·lida)
+        assertEquals("#CFE3DA", hex(DarkPal.line))
         assertEquals(0x1A, alfa(DarkPal.line))
         assertEquals(0x33, alfa(DarkPal.lineHi))
-        // --line: rgba(30,42,74,.14) / .28 al clar
-        assertEquals("#1E2A4A", hex(LightPal.line))
+        // --line: rgba(16,32,42,.14) / .28 al clar (la tinta de mar)
+        assertEquals("#10202A", hex(LightPal.line))
         assertEquals(0x24, alfa(LightPal.line))
         assertEquals(0x47, alfa(LightPal.lineHi))
     }

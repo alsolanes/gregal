@@ -15,7 +15,7 @@ import (
 
 // Identitat Gregal — "el gregal": pissarra freda i el blau del vent.
 // Fosc per defecte, pensat per terminals dark. Cap color genèric:
-// el primari és escuma (#8193FF, el blau del gregal) i l'avís és arena (#F5C451).
+// el primari és escuma (#D4F25A, la llima de «Vent a favor») i l'avís és arena (#F2B48E).
 
 // Els colors no porten valor a la declaració: amb un valor aquí es
 // congelen en carregar-se el paquet i el tema ja no es pot canviar. Els

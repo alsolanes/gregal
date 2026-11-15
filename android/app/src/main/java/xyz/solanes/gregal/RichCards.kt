@@ -235,11 +235,11 @@ private fun CardActions(actions: List<CardAction>, link: Color) {
     Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 4.dp), horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)) {
         val main = actions[0]
-        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Ink)
+        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Sea)
             .clickable(role = Role.Button) { say(main.prompt) }.heightIn(min = 56.dp).padding(horizontal = 22.dp).testTag("card-cta"),
             verticalAlignment = Alignment.CenterVertically) {
-            Text(main.label, color = Superficie, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = link, modifier = Modifier.size(26.dp))
+            Text(main.label, color = OnSea, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = SendFg, modifier = Modifier.size(26.dp))
         }
         if (main.note.isNotEmpty()) Text(main.note, color = Muted, fontSize = 12.sp, modifier = Modifier.fillMaxWidth().padding(start = 4.dp))
         actions.getOrNull(1)?.let { alt ->
@@ -410,7 +410,7 @@ private fun PlanCard(spec: PlanSpec, link: Color, lang: String) {
                 if (i > 0) HorizontalDivider(color = Line)
                 Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     if (it.time.isNotEmpty()) Text(it.time, color = Ink, fontWeight = FontWeight.Bold, fontSize = 15.sp,
-                        modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(link.copy(alpha = .18f)).widthIn(min = 62.dp)
+                        modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(Lime.copy(alpha = .24f)).widthIn(min = 62.dp)
                             .padding(horizontal = 10.dp, vertical = 3.dp).testTag("plan-time"),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     Column(Modifier.weight(1f).padding(top = 2.dp)) {
@@ -479,8 +479,8 @@ private fun RouteCard(spec: RouteSpec, link: Color, lang: String) {
                 HorizontalDivider(color = Line)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (meta.isNotEmpty()) Text(meta, color = Muted, fontSize = 14.sp)
-                    if (spec.badge.isNotEmpty()) Text(spec.badge, color = Ink, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
-                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(link.copy(alpha = .22f)).padding(horizontal = 9.dp, vertical = 3.dp))
+                    if (spec.badge.isNotEmpty()) Text(spec.badge, color = Color(0xFF10202A), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Lime).padding(horizontal = 9.dp, vertical = 3.dp))
                     Spacer(Modifier.weight(1f))
                     if (spec.price.isNotEmpty()) Text(spec.price, color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                 }

@@ -9,21 +9,25 @@
 
 /* ---------- Paletes ---------- */
 :root, :root[data-theme="dark"] {
-  /* Fosc de la marca (grafit blavós, el mateix que tema.go i Android), no
-     el gris neutre d'abans: més profunditat i un sol accent. */
-  --bg:#14161B; --sidebar:#101217; --panel:#101217;
-  --surface:#1C1F26; --surface-hi:#252932; --line:rgba(200,210,235,.08);
-  --line-hi:rgba(200,210,235,.15); --ink:#F2F4F8; --text:#DFE3EA;
-  --muted:#A4ABB8; --faint:#8C93A1; --accent:#8193FF; --accent-hi:#A3B0FF;
-  --accent-soft:rgba(129,147,255,.12); --accent-soft-hi:rgba(129,147,255,.22);
+  /* «Vent a favor» (tauler de marca): mar fosc blau-verd, blanc trencat i
+     l'accent llima; el mateix que tema.go i Android. */
+  --bg:#0F1B21; --sidebar:#0B1519; --panel:#0B1519;
+  --surface:#16262E; --surface-hi:#203640; --line:rgba(207,227,218,.09);
+  --line-hi:rgba(207,227,218,.17); --ink:#F2F5EF; --text:#DCE5DF;
+  --muted:#A3B5AF; --faint:#8FA29C; --accent:#D4F25A; --accent-hi:#E4F98F;
+  --accent-soft:rgba(212,242,90,.12); --accent-soft-hi:rgba(212,242,90,.22);
+  --peach:#F2B48E; --sage:#8FA39E; --lime:#D4F25A;
   --hover:rgba(255,255,255,.05); --hover-alt:rgba(255,255,255,.08);
-  --codi-fons:#101217; --codi-vora:var(--line-hi);
+  --codi-fons:#0B1519; --codi-vora:var(--line-hi);
   /* El text sobre l'accent és el fons del tema: fosc en temes foscos,
-     blanc en els clars. Enllaços i «envia» segueixen l'accent de cada tema
-     (abans eren verd menta a tots, també sobre blanc). */
+     blanc en els clars. */
   --on-accent:var(--bg);
+  /* La teva bombolla, com al tauler: blanc trencat amb text de mar. */
+  --user-bubble:#EEF1EC; --on-user-bubble:#10202A;
+  /* Enviar: llima amb el glif de mar. */
+  --send-bg:var(--accent); --send-fg:var(--bg); --send-glow:rgba(212,242,90,.35);
 }
-:root[data-theme="dark"] { --composer:#1C1F26; }
+:root[data-theme="dark"] { --composer:#16262E; }
 :root[data-theme="calma"] {
   color-scheme:dark;
   --bg:#1B1A19; --sidebar:#151413; --panel:#151413;
@@ -39,10 +43,13 @@
   --codi-fons:#151413; --codi-vora:rgba(255,240,225,.16);
   --composer:#252322; --on-accent:#1B1A19;
 }
-:root[data-theme="light"] { --composer:#FFFFFF; --on-accent:#FFFFFF; }
+:root[data-theme="light"] { --composer:#FFFFFF; --on-accent:#FFFFFF;
+  --user-bubble:#17323D; --on-user-bubble:#F2F5EF; --peach:#C46A3A; --sage:#5E726D; --lime:#D4F25A;
+  /* Enviar en clar: el cercle de mar amb el glif llima (com el tauler). */
+  --send-bg:#17323D; --send-fg:#D4F25A; --send-glow:rgba(23,50,61,.28); }
 /* --faint és text (dates, capçaleres): ≥ 4.5:1 sobre --bg, --sidebar i --surface
    en els tres temes (abans el fosc feia 4.35 sobre --surface i Calma 3.8). */
-:root[data-theme="light"] { --faint:#59627A; }
+:root[data-theme="light"] { --faint:#52645E; }
 
 /* ---------- Barra lateral: una sola columna ---------- */
 #side { width:272px; min-width:272px; }
@@ -184,7 +191,8 @@ html[data-product="vents"] #sessionTabs > *, html[data-product="jocs"] #sessionT
 #composer #modelPill { order:20; }
 #composer .composer-row > .spacer { order:10; }
 #composer #attach, #composer .icon-btn { order:21; }
-#composer #send { order:30; width:36px; height:36px; background:var(--chat-send,var(--accent)); color:var(--on-accent); }
+#composer #send { order:30; width:40px; height:40px; border-radius:50%; background:var(--send-bg,var(--chat-send,var(--accent))); color:var(--send-fg,var(--on-accent)); box-shadow:0 6px 18px -6px var(--send-glow,transparent); transition:transform .14s ease; }
+#composer #send:active { transform:scale(.92); }
 #composer .mode-switch { border:0; padding:0; background:transparent; }
 #composer #modePicker { min-height:30px; padding:3px 6px; border:0; border-radius:7px; background:transparent; color:var(--muted); font:500 12px var(--sans,system-ui); cursor:pointer; }
 #composer #modePicker:hover { background:var(--hover); color:var(--ink); }

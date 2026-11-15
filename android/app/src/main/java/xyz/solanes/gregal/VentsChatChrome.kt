@@ -38,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -418,16 +419,18 @@ internal fun VentsComposer(
             // com a steer, sense aturar el torn); sense text, «atura».
             when {
                 busy && onStop != null && field.text.isBlank() -> IconButton(onClick = onStop,
-                    modifier = Modifier.minimumInteractiveComponentSize().size(GregalChat.send).clip(CircleShape).background(Sand.copy(alpha = 0.9f))) {
-                    Icon(Icons.Rounded.Stop, tr(lang, "app.vents.stop"), tint = Superficie, modifier = Modifier.size(20.dp))
+                    modifier = Modifier.minimumInteractiveComponentSize().size(GregalChat.send).clip(CircleShape).background(SendBg)) {
+                    Icon(Icons.Rounded.Stop, tr(lang, "app.vents.stop"), tint = SendFg, modifier = Modifier.size(20.dp))
                 }
                 field.text.isBlank() && dictate != null -> IconButton(onClick = dictate,
                     modifier = Modifier.minimumInteractiveComponentSize().size(GregalChat.send).clip(CircleShape).background(Ink.copy(alpha = .08f))) {
                     Icon(Icons.Rounded.Mic, voiceCopy(lang, "dictate"), tint = Ink, modifier = Modifier.size(21.dp))
                 }
                 else -> IconButton(onClick = onSend, enabled = canSend,
-                    modifier = Modifier.minimumInteractiveComponentSize().size(GregalChat.send).clip(CircleShape).background(if (canSend) Ink else Ink.copy(alpha = .12f))) {
-                    Icon(Icons.Rounded.ArrowUpward, tr(lang, "app.vents.send"), tint = if (canSend) Superficie else Muted, modifier = Modifier.size(20.dp))
+                    modifier = Modifier.minimumInteractiveComponentSize().size(GregalChat.send).clip(CircleShape).background(if (canSend) SendBg else SuperficieAlta)) {
+                    // Avió de paper, com al tauler de marca (abans una fletxa amunt).
+                    Icon(Icons.AutoMirrored.Rounded.Send, tr(lang, "app.vents.send"), tint = if (canSend) SendFg else Muted,
+                        modifier = Modifier.size(20.dp).graphicsLayer { rotationZ = -30f; translationX = 1.5f })
                 }
             }
         }

@@ -60,9 +60,9 @@ class PlotTypesHostUiTest {
                 for (y in bounds.top.toInt().coerceAtLeast(0) until bounds.bottom.toInt().coerceAtMost(image.height)) {
                     for (x in bounds.left.toInt().coerceAtLeast(0) until bounds.right.toInt().coerceAtMost(image.width)) {
                         val pixel = image.getPixel(x, y)
-                        // Count the saturated blue accent/fill, not neutral grid/background.
-                        if (android.graphics.Color.blue(pixel) - android.graphics.Color.red(pixel) > 30 &&
-                            android.graphics.Color.blue(pixel) - android.graphics.Color.green(pixel) > 25) colored++
+                        // Count saturated accent/fill pixels (any hue: the accent is lime now), not neutral grid/background.
+                        val r = android.graphics.Color.red(pixel); val g = android.graphics.Color.green(pixel); val b = android.graphics.Color.blue(pixel)
+                        if (maxOf(r, g, b) - minOf(r, g, b) > 60) colored++
                     }
                 }
                 org.junit.Assert.assertTrue("$type must render filled geometry, got $colored pixels", colored > 1500)

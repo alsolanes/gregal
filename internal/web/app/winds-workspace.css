@@ -78,12 +78,19 @@ button.vw-model:hover,button.vw-model:focus-visible { color:var(--ink); backgrou
 .vw-model-row[aria-selected="true"] span::before { content:'✓ '; color:var(--accent-hi); }
 .vw-model-empty { margin:6px 4px; font-size:12px; color:var(--faint); }
 /* Enviar: el #send de Codi (40 px, accent del tema, fletxa de 17 px, hover amb --accent-hi). */
-.vw-send { display:grid; place-items:center; flex:0 0 40px; margin-left:auto; width:40px; min-width:40px; height:40px; min-height:40px; padding:0; border-radius:50%; border:0; background:var(--accent); color:var(--on-accent, var(--bg)); line-height:0; align-self:center; }
-.vw-send svg { display:block; width:17px; height:17px; pointer-events:none; }
-.vw-send:hover { background:var(--accent-hi); }
+.vw-send { display:grid; place-items:center; flex:0 0 44px; margin-left:auto; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; border-radius:50%; border:0; background:var(--send-bg, var(--accent)); color:var(--send-fg, var(--on-accent, var(--bg))); line-height:0; align-self:center; box-shadow:0 6px 18px -6px var(--send-glow, transparent); transition:transform .14s ease, box-shadow .14s ease, background .14s ease, opacity .14s ease; }
+.vw-send svg { display:block; width:20px; height:20px; pointer-events:none; transform:translate(-1px,1px); transition:transform .18s ease; }
+.vw-send:not(:disabled):not([data-empty="true"]):hover svg { transform:translate(1px,-1px) rotate(-6deg); }
+.vw-send:not(:disabled):active { transform:scale(.92); }
+/* Buit: el botó hi és però en repòs (sense llum); amb text, s'encén. */
+.vw-send[data-empty="true"]:not([data-busy="true"]) { background:var(--surface-hi); color:var(--muted); box-shadow:none; }
+.vw-send[data-busy="true"] svg rect { rx:3px; }
+.vw-send:not([data-empty="true"]):hover { filter:brightness(1.06); box-shadow:0 8px 22px -6px var(--send-glow, transparent); }
 .vw-send:not(:disabled):hover { transform:scale(1.06); }
 .vw-send:disabled { opacity:.65; cursor:default; }
-.vw-send[data-busy="true"] { background:var(--surface-hi); color:var(--text); box-shadow:inset 0 0 0 1px var(--line-hi); }
+.vw-send[data-busy="true"] { background:var(--send-bg, var(--accent)); color:var(--send-fg, var(--bg)); box-shadow:0 0 0 4px var(--accent-soft); animation:vw-send-pulse 1.6s ease-in-out infinite; }
+@keyframes vw-send-pulse { 50% { box-shadow:0 0 0 7px var(--accent-soft); } }
+@media (prefers-reduced-motion: reduce) { .vw-send, .vw-send svg { transition:none; } .vw-send[data-busy="true"] { animation:none; } }
 .vw-folder-under { margin:6px 18px 0; font-size:10.5px; opacity:.8; }
 .vw-folder-under .vw-folder { width:13px; height:13px; }
 .vw-folder-under span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -728,13 +735,13 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-messages .vw-message.vw-run-cont:not(.vw-user) > div > strong { display:none; }
 .vw-messages .vw-message.vw-run-cont > :is(.winds-face,.vw-shared-person) { visibility:hidden; }
 .vw-messages .vw-message > .winds-face { width:34px; height:34px; }
-.vw-messages .vw-reading > div { max-width:min(calc(100% - 48px), 820px); padding:2px 0; }
+.vw-messages .vw-reading > div { max-width:min(calc(100% - 48px), 740px); padding:2px 0; }
 .vw-messages .vw-user > div {
-  background:var(--chat-send, var(--accent)); color:var(--on-accent); border:0;
+  background:var(--user-bubble, var(--chat-send, var(--accent))); color:var(--on-user-bubble, var(--on-accent)); border:0;
   border-radius:var(--vw-bubble); padding:10px 16px 11px; max-width:min(72%, 620px);
 }
 .vw-messages .vw-message.vw-user.vw-run-last > div { border-bottom-right-radius:var(--vw-tail); }
-.vw-messages .vw-user .vw-message-text { font-size:16px; line-height:23px; color:var(--on-accent); }
+.vw-messages .vw-user .vw-message-text { font-size:16px; line-height:23px; color:var(--on-user-bubble, var(--on-accent)); }
 .vw-messages .vw-user .vw-message-text a { color:inherit; }
 /* La bombolla en directe té la mateixa forma que la que serà. */
 .vw-messages .vw-pending { padding-top:14px; }
@@ -744,7 +751,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-messages .vw-step { font-size:12px; line-height:18px; padding:0 8px; border-radius:999px; background:color-mix(in srgb, var(--ink) 6%, transparent); color:var(--muted); }
 .vw-messages .vw-step::before { content:"✓ "; color:#1E9E6A; }
 .vw-messages .vw-step-more::before { content:""; }
-.vw-messages .vw-pending.vw-reading .vw-pending-copy { background:transparent; padding:2px 0; border-radius:0; max-width:min(calc(100% - 48px), 820px); }
+.vw-messages .vw-pending.vw-reading .vw-pending-copy { background:transparent; padding:2px 0; border-radius:0; max-width:min(calc(100% - 48px), 740px); }
 /* «Per què?» (B6), sota el text, discret. */
 .vw-messages .vw-why { display:inline-block; margin-top:6px; padding:2px 10px; border:1px solid var(--line-hi); border-radius:999px; background:transparent; color:var(--muted); font-size:12px; text-decoration:none; cursor:pointer; }
 .vw-messages .vw-why:hover { color:var(--ink); border-color:var(--ink); }
@@ -884,7 +891,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 /* Al fil de Gregal, a dalt només la cara, la guia i l'ordinador: les notes ja són al menú (i a Ctrl+Alt+N). */
 .vw-top.vw-top-gregal .qn-launch-vw { display:none; }
 /* El mapa de preguntes a la dreta, discret fins que hi passes el ratolí. */
-.wind-workspace .pnav { opacity:.3; transition:opacity .15s; }
+.wind-workspace .pnav { opacity:.12; transition:opacity .15s; }
 .wind-workspace .pnav:hover, .wind-workspace .pnav:focus-within { opacity:1; }
 .vw-ask .vw-ask-plain { margin:6px 0 4px; font-size:14px; color:var(--ink); }
 .vw-ask code.vw-ask-raw { font-size:11.5px; opacity:.7; }
@@ -1099,7 +1106,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .gregal-card ol.gc-agenda { list-style:none; margin:2px 0 0; padding:0; }
 .gregal-card .gc-agenda li { display:flex; align-items:baseline; gap:14px; margin:0; padding:9px 0; border-bottom:1px solid var(--line); }
 .gregal-card .gc-agenda li:last-child { border-bottom:0; }
-.gregal-card .gc-pill { flex:none; min-width:62px; text-align:center; padding:3px 10px; border-radius:10px; font-weight:700; font-size:15px; font-variant-numeric:tabular-nums; background:color-mix(in srgb, var(--accent) 18%, transparent); color:var(--ink); }
+.gregal-card .gc-pill { flex:none; min-width:62px; text-align:center; padding:3px 10px; border-radius:10px; font-weight:700; font-size:15px; font-variant-numeric:tabular-nums; background:color-mix(in srgb, var(--lime, var(--accent)) 24%, transparent); color:var(--ink); }
 .gregal-card .gc-agenda .gc-what { display:flex; flex-direction:column; gap:2px; min-width:0; }
 .gregal-card .gc-agenda .gc-what b { font-weight:500; font-size:16px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .gregal-card .gc-agenda .gc-detail { font-size:13px; color:var(--muted); display:none; }
@@ -1120,10 +1127,10 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 
 .gc-actions { display:none; flex-direction:column; align-items:stretch; gap:6px; margin:12px 0 4px; max-width:560px; }
 .gc-sayable .gc-actions { display:flex; }
-.gc-actions .gc-cta { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:15px 22px; border:0; border-radius:16px; background:var(--ink); color:var(--surface); font:inherit; font-size:18px; font-weight:750; cursor:pointer; text-align:left; transition:transform .12s, filter .12s; }
+.gc-actions .gc-cta { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:15px 22px; border:0; border-radius:16px; background:var(--accent); color:var(--on-accent); box-shadow:0 8px 22px -10px var(--send-glow, transparent); font:inherit; font-size:18px; font-weight:750; cursor:pointer; text-align:left; transition:transform .12s, filter .12s; }
 .gc-actions .gc-cta:hover { filter:brightness(1.08); }
 .gc-actions .gc-cta:active { transform:scale(.99); }
-.gc-actions .gc-cta svg { flex:none; width:26px; height:26px; fill:none; stroke:var(--accent); stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+.gc-actions .gc-cta svg { flex:none; width:26px; height:26px; fill:none; stroke:var(--send-fg, var(--on-accent)); stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
 .gc-actions .gc-note { font-size:12px; color:var(--muted); padding:0 4px; }
 .gc-actions .gc-alt { align-self:center; border:0; background:none; padding:6px 10px; font:inherit; font-size:15px; font-weight:600; color:var(--accent-hi); cursor:pointer; }
 .gc-actions .gc-alt:hover { text-decoration:underline; }
@@ -1138,7 +1145,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .gregal-route .gc-line i { flex:1; height:1.5px; background:var(--line-hi); }
 .gregal-route .gc-line span { font-size:18px; line-height:1; }
 .gregal-route .gc-legfoot { display:flex; align-items:center; gap:10px; padding-top:12px; border-top:1px solid var(--line); font-size:14px; color:var(--muted); }
-.gregal-route .gc-badge { font-style:normal; font-size:12px; font-weight:650; padding:3px 9px; border-radius:8px; background:color-mix(in srgb, var(--accent) 22%, transparent); color:var(--ink); white-space:nowrap; }
+.gregal-route .gc-badge { font-style:normal; font-size:12px; font-weight:650; padding:3px 9px; border-radius:8px; background:var(--lime, var(--accent)); color:#10202A; white-space:nowrap; }
 .gregal-route .gc-price { margin-left:auto; font-size:20px; font-weight:750; color:var(--ink); white-space:nowrap; }
 .gregal-route ul.gc-alts { list-style:none; margin:0; padding:0 16px; border-top:1px solid var(--line); }
 .gregal-route .gc-alts li { margin:0; border-bottom:1px solid var(--line); }
@@ -1148,3 +1155,34 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .gregal-route .gc-alts b { font-weight:600; }
 .gregal-route .gc-alts i { font-style:normal; color:var(--muted); font-size:18px; }
 .gregal-route .gc-mode { width:22px; height:22px; fill:none; stroke:var(--ink); stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+
+/* ---- Acabat professional (15/11) ----
+   Capçalera de Gregal com la dels altres xats (cara, nom i rol a l'esquerra),
+   sense la lluïssor gran; «Ho recordaré» en una línia; línies de lectura de
+   ~75 caràcters. */
+.wind-workspace.vw-gregal::before { animation:none; opacity:.07; height:34%; }
+.vw-top.vw-top-gregal { display:flex; align-items:center; gap:12px; min-height:60px; padding-top:0; border-bottom:1px solid var(--line); }
+.vw-top.vw-top-gregal > :first-child:not(.vw-mobile-menu) { display:none; }
+.vw-top.vw-top-gregal .vw-gregal-face { justify-self:auto; display:flex; align-items:center; gap:11px; width:auto; height:44px; padding:4px 12px 4px 4px; border-radius:12px; }
+.vw-top.vw-top-gregal .vw-gregal-face:hover { background:var(--hover); }
+.vw-top.vw-top-gregal .vw-gregal-face .winds-face { width:32px; height:32px; }
+.vw-gregal-who { display:flex; flex-direction:column; align-items:flex-start; line-height:1.2; text-align:left; }
+.vw-gregal-name { font-size:15px; font-weight:650; color:var(--ink); }
+.vw-gregal-role { font-size:12.5px; color:var(--muted); }
+.vw-top.vw-top-gregal .vw-gregal-actions, .vw-top.vw-top-gregal > .vw-gregal-pc { margin-left:auto; }
+.vw-top.vw-top-gregal :is(.vw-gregal-pc,.vw-gregal-guide) { width:36px; height:36px; }
+
+.vw-memory { gap:8px; margin:0 0 10px 46px; padding:2px 0; max-width:740px; border:0; border-radius:0; font-size:12.5px; }
+.vw-memory-icon { display:grid; place-items:center; width:18px; height:18px; border-radius:50%; background:var(--accent-soft-hi); }
+.vw-memory-icon svg { width:12px; height:12px; fill:none; stroke:var(--accent-hi); stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; }
+.vw-memory-copy { display:flex; align-items:baseline; gap:6px; min-width:0; }
+.vw-memory-copy strong { flex:none; color:var(--text); font-weight:600; font-size:12.5px; }
+.vw-memory-copy strong::after { content:'·'; margin-left:6px; color:var(--faint); font-weight:400; }
+.vw-memory-copy span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); }
+.vw-memory-undo { padding:2px 6px; font-weight:500; color:var(--muted); }
+.vw-memory-undo:hover { color:var(--ink); }
+/* Permís: a la columna de lectura, compacte; els botons a la mida del text. */
+.vw-messages .vw-asks-inline .vw-ask, .vw-messages .vw-ask { max-width:740px; margin-left:0; padding:12px 14px; gap:8px; box-shadow:none; border-color:color-mix(in srgb, var(--accent) 35%, var(--line-hi)); }
+.vw-messages .vw-ask > strong { font-size:14px; }
+.vw-messages .vw-ask-actions { justify-content:flex-start; }
+.vw-messages .vw-ask-actions button { flex:0 0 auto; min-height:34px; padding:0 18px; font-size:13.5px; }
