@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.79.0 - 2026-11-15 - Targetes amb l'estil nou
+
 - **Targetes amb l'estil nou.** El pla és compacte: l'hora en una píndola, el
   que toca en una línia, el pressupost amb icona i «Detalls» per veure la resta.
 - **Botons per seguir.** Sota una targeta, el vent pot posar el pas següent
