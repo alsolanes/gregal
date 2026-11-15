@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v1.81.1 - 2026-11-15 - A prop teu: «Prova-ho ara» sense errors
+
+- **«Prova-ho ara» d'A prop teu, sense errors.** Un tall de xarxa curt (al
+  mòbil, sobretot) ja no fa fallar la prova, i tornar a tocar el botó segueix la
+  que ja va en lloc de dir que n'hi ha una en marxa.
+
 ## v1.81.0 - 2026-11-15 - Comparteix respostes, plans i gràfics
 
 - **Comparteix qualsevol resposta.** Cada missatge d'un vent té un botó
