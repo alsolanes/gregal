@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Rule
 import org.junit.Test
@@ -23,6 +24,23 @@ import org.robolectric.annotation.LooperMode
 class VentsExperienceTest {
     @get:Rule val ui = createComposeRule()
     private fun vm() = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
+
+    @Test fun askComposerHasCompactTopInset() {
+        val text = mutableStateOf("test")
+        ui.setContent {
+            CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
+                MaterialTheme(colorScheme = LightPal.scheme()) {
+                    VentsOpening("ca", "Aleix", text.value, { text.value = it }, busy = false,
+                        onPhoto = null, onDoc = null, onSend = {})
+                }
+            }
+        }
+        ui.waitForIdle()
+        val barTop = ui.onNodeWithTag("ask-bar").getBoundsInRoot().top
+        val fieldTop = ui.onNodeWithTag("ask-input").getBoundsInRoot().top
+        val inset = fieldTop - barTop
+        org.junit.Assert.assertTrue("massa espai sobre el text: $inset", inset <= 9.dp)
+    }
 
     @Test fun newInstallOpensTheThreadWithIntroAndSuggestions() {
         val text = mutableStateOf("")
