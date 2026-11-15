@@ -314,7 +314,7 @@ internal fun VentsComposer(
                 Box {
                     IconButton(
                         onClick = { showPlus = true },
-                        modifier = Modifier.size(40.dp).clip(CircleShape),
+                        modifier = Modifier.size(48.dp).clip(CircleShape),
                     ) {
                         Icon(Icons.Rounded.Add, tr(lang, "app.mode.more"), tint = Ink, modifier = Modifier.size(20.dp))
                     }
@@ -399,7 +399,9 @@ internal fun VentsComposer(
                     }
                 }
             }
-            Box(Modifier.weight(1f).heightIn(min = 40.dp), contentAlignment = Alignment.TopStart) {
+            // Tan alt com el botó de la dreta (48 dp amb el target tàctil) i
+            // centrat: a 40 dp i a dalt, la pista quedava més amunt que les icones.
+            Box(Modifier.weight(1f).heightIn(min = 48.dp), contentAlignment = Alignment.CenterStart) {
                 // La pista va dins del camp (decorationBox): així el camp i la pista són un sol node.
                 BasicTextField(
                     value = field, onValueChange = onChange, maxLines = 5,

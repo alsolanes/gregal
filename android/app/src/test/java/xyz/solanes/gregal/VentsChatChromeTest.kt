@@ -26,7 +26,9 @@ import org.robolectric.annotation.LooperMode
 class VentsChatChromeTest {
     @get:Rule val ui = createComposeRule()
 
-    @Test fun composerFieldHasCompactTopInset() {
+    /** El text (o la pista) va centrat a la barra, a la mateixa alçada que el
+     *  «+» i el micròfon: abans quedava més amunt. */
+    @Test fun composerTextIsVerticallyCentred() {
         ui.setContent {
             CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
                 MaterialTheme(colorScheme = LightPal.scheme()) {
@@ -36,10 +38,10 @@ class VentsChatChromeTest {
             }
         }
         ui.waitForIdle()
-        val barTop = ui.onNodeWithTag("vents-composer-bar").getBoundsInRoot().top
-        val fieldTop = ui.onNodeWithTag("vents-composer-field").getBoundsInRoot().top
-        val inset = fieldTop - barTop
-        assertTrue("massa espai sobre el text: $inset", inset <= 13.dp)
+        val bar = ui.onNodeWithTag("vents-composer-bar").getBoundsInRoot()
+        val f = ui.onNodeWithTag("vents-composer-field").getBoundsInRoot()
+        val off = ((f.top + f.bottom) - (bar.top + bar.bottom)) / 2
+        assertTrue("el text no va centrat a la barra: $off", off <= 1.5.dp && off >= (-1.5).dp)
     }
 
     @Test fun composerRetainsDraftAndOnlySendsNonBlankText() {
