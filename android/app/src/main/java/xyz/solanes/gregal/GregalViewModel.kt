@@ -612,6 +612,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             _prefsPage.value = _prefsPage.value.parent
             return true
         }
+        if (_screen.value == Screen.Company && _ventsPanel.value != null) {
+            openVentsPanel(null)
+            return true
+        }
         val stack = _backStack.value
         if (stack.isNotEmpty()) {
             _screen.value = stack.last()

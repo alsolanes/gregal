@@ -70,6 +70,17 @@ class BackStackTest {
     }
 
     @Test
+    fun openingVentsPanelBackClosesPanelBeforeLeavingCompany() {
+        val v = vm()
+        v.openVentsPanel("chats")
+        assertEquals(Screen.Company, v.screen.value)
+        assertEquals("chats", v.ventsPanel.value)
+        assertTrue(v.back())
+        assertEquals(Screen.Company, v.screen.value)
+        assertEquals(null, v.ventsPanel.value)
+        assertFalse(v.back())
+    }
+    @Test
     fun ventsXatObertEnrereElTanca() {
         val v = vm()
         v.openVentsChat("wind:tramuntana")
