@@ -57,6 +57,15 @@ func (s *Server) beginWindTurn(kind, id string, parent context.Context) (context
 	return ctx, done
 }
 
+// windTurnBusy diu si un vent o una rotllana té un torn en marxa. El mòbil ho
+// mira quan ha perdut el fil del flux (ha sortit de l'app): si encara hi
+// treballa, espera la resposta en lloc de donar el torn per fallat.
+func (s *Server) windTurnBusy(kind, id string) bool {
+	windTurnRegistry.Lock()
+	defer windTurnRegistry.Unlock()
+	return windTurnRegistry.turns[turnKey{scope: s.sessDir(), kind: kind, id: id}] != nil
+}
+
 // cancelWindTurn atura el torn en curs d'un vent o rotllana. Torna fals si no
 // n'hi havia cap (l'operació és idempotent: la UI no ha de fallar).
 func (s *Server) cancelWindTurn(kind, id string) bool {

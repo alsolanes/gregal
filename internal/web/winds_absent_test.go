@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -69,4 +70,32 @@ func countNovetats(s *Server, messageID string) int {
 		}
 	}
 	return n
+}
+
+// El mòbil que ha perdut el flux pregunta si el vent encara hi treballa: el
+// GET del xat diu busy mentre el torn és viu i deixa de dir-ho quan acaba.
+func TestWindChatSaysBusyWhileTheTurnRuns(t *testing.T) {
+	rig := sharedTestRig(t)
+	s := rig.aleix
+	busy := func() bool {
+		rec := httptest.NewRecorder()
+		s.handleWindChat(rec, httptest.NewRequest(http.MethodGet, "/api/winds/chat?wind="+rig.mestral.ID, nil))
+		if rec.Code != 200 {
+			t.Fatalf("GET xat: %d %s", rec.Code, rec.Body.String())
+		}
+		var out struct{ Busy bool }
+		_ = json.Unmarshal(rec.Body.Bytes(), &out)
+		return out.Busy
+	}
+	if busy() {
+		t.Fatal("busy sense cap torn")
+	}
+	_, done := s.beginWindTurn("wind", rig.mestral.ID, context.Background())
+	if !busy() {
+		t.Fatal("amb el torn en marxa, el GET ha de dir busy")
+	}
+	done()
+	if busy() {
+		t.Fatal("el torn ja ha acabat")
+	}
 }

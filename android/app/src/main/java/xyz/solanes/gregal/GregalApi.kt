@@ -1018,7 +1018,13 @@ class GregalApi(val base: String, val token: String) {
             if (code in listOf(404, 405, 501)) throw WindStreamUnavailable()
             if (code !in 200..299) throw ApiException("HTTP $code: ${bodyText(r).take(200)}")
             if (r.header("Content-Type").orEmpty().startsWith("text/html")) throw WindStreamUnavailable()
-            readEvents(r) { ev, data -> data.isNotEmpty() && onRaw(ev, data) }
+            // El servidor ja ha acceptat el torn: si ara cau la xarxa (has
+            // sortit de l'app, el mòbil l'ha congelada), el torn hi segueix.
+            try {
+                readEvents(r) { ev, data -> data.isNotEmpty() && onRaw(ev, data) }
+            } catch (e: IOException) {
+                throw StreamLost(e)
+            }
         }
     }
 
@@ -1121,7 +1127,7 @@ class GregalApi(val base: String, val token: String) {
         streamPost(windThreadPath("/api/winds/chat/stream", session), windChatPayload(windId, message, cont)) { e ->
             if (e is WindStreamEvent.DoneWind) done = e.reply else onEvent(e)
         }
-        return done ?: throw ApiException("stream tancat sense done")
+        return done ?: throw StreamLost(null)
     }
 
     fun rotllanaChatStream(rotllanaId: String, message: String, wind: String = "", cont: Boolean = false, onEvent: (WindStreamEvent) -> Unit): Triple<String, String, List<GregalViewModel.PetMsg>> {
@@ -1130,7 +1136,7 @@ class GregalApi(val base: String, val token: String) {
             if (e is WindStreamEvent.DoneRotllana) done = e
             onEvent(e)
         }
-        val d = done ?: throw ApiException("stream tancat sense done")
+        val d = done ?: throw StreamLost(null)
         return Triple(d.wind, d.text, d.history)
     }
 
@@ -1154,6 +1160,17 @@ class GregalApi(val base: String, val token: String) {
         } catch (e: ApiException) {
             if (e.message?.startsWith("HTTP 409") == true) false else throw e
         }
+    }
+
+    /** El fil i si el torn encara corre al servidor (servidor antic: busy fals). */
+    fun windTurnState(windId: String, session: String = ""): Pair<List<GregalViewModel.PetMsg>, Boolean> {
+        val o = getAs<HistoryDto>(windThreadPath("/api/winds/chat?wind=$windId", session))
+        return o.history.map { it.toPetMsg() } to o.busy
+    }
+
+    fun rotllanaTurnState(rotllanaId: String): Pair<List<GregalViewModel.PetMsg>, Boolean> {
+        val o = getAs<HistoryDto>("/api/winds/rotllana?rotlla=$rotllanaId")
+        return o.history.map { it.toPetMsg() } to o.busy
     }
 
     fun getWindChat(windId: String): List<GregalViewModel.PetMsg> = getWindThread(windId).second
@@ -1380,6 +1397,13 @@ class ApiException(msg: String) : Exception(msg)
 
 /** Known absent endpoint only: safe to fall back without executing work twice. */
 class WindStreamUnavailable : Exception("SSE endpoint unavailable")
+
+/**
+ * El flux s'ha tallat després que el servidor acceptés el torn (sortir de
+ * l'app, xarxa). No és una fallada: el torn segueix al servidor i la resposta
+ * es desa; el client l'ha d'anar a buscar en lloc de dir que ha fallat.
+ */
+class StreamLost(cause: Throwable?) : IOException("stream lost", cause)
 
 /**
  * L'hora d'un missatge en mil·lisegons. El servidor la desa en segons; abans
@@ -1678,7 +1702,7 @@ internal class PetMsgDto(
 @Serializable
 internal class MsgShotDto(val id: String = "", val title: String = "", val url: String = "", val shotUrl: String = "")
 
-@Serializable internal class HistoryDto(val history: List<PetMsgDto> = emptyList(), val session: String = "")
+@Serializable internal class HistoryDto(val history: List<PetMsgDto> = emptyList(), val session: String = "", val busy: Boolean = false)
 
 @Serializable internal class WindTextDto(val wind: String = "", val text: String = "")
 

@@ -156,7 +156,7 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 		hist.mu.RLock()
 		messages := append([]llm.Message(nil), hist.messages...)
 		hist.mu.RUnlock()
-		writeJSON(w, map[string]any{"rotllana": rot.ID, "history": s.rotllanaHistoryJSON(messages)})
+		writeJSON(w, map[string]any{"rotllana": rot.ID, "history": s.rotllanaHistoryJSON(messages), "busy": s.windTurnBusy("rotllana", rot.ID)})
 		return
 	}
 	if r.Method != http.MethodPost {

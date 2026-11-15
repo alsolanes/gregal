@@ -3996,6 +3996,14 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         hist.ifEmpty { sentHistory + if (replyText.isBlank()) emptyList() else listOf(PetMsg("pet", replyText)) }, System.currentTimeMillis(), sentHistory))
                     partial = hist.lastOrNull { it.from == "pet" }?.parcial == true
                     replyText.let { if (it.isNotBlank()) { answered = true; answer = it } }
+                } catch (_: StreamLost) {
+                    val hist = awaitDetachedTurn(source, epoch, rotllanaId, true, "", message) ?: throw ApiException(appText("app.chat.turnFailed"))
+                    if (!isCompanionOrigin(source, epoch)) return@launch
+                    _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to ventsRecency.completed(source, "rot", rotllanaId, hist, System.currentTimeMillis(), sentHistory))
+                    val last = hist.lastOrNull { it.from == "pet" }
+                    partial = last?.parcial == true
+                    if (!last?.text.isNullOrBlank()) { answered = true; answer = last?.text.orEmpty() }
+                    detachedNoticeSeen(last, target)
                 } catch (_: WindStreamUnavailable) {
                     dropStreamingBubble(rotllanaId, rotllana = true)
                     val (wind, text, hist) = withContext(Dispatchers.IO) { source.api().rotllanaChat(rotllanaId, message, wind) }
@@ -5645,7 +5653,53 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         "scheduling" -> appText("app.vents.streamScheduling")
         "thinking" -> appText("app.vents.streamThinking")
         "speaker" -> appText("app.vents.streamSpeaker")
+        "detached" -> appText("app.vents.streamDetached")
         else -> appText("app.vents.streamWorking")
+    }
+
+    /**
+     * El flux s'ha tallat (has sortit de l'app i el mòbil ha congelat la
+     * connexió) però el torn segueix al servidor, que el desa i t'avisa quan
+     * acaba (novetat: push o el vigilant). Aquí s'espera el fil nou sense dir
+     * que ha fallat; torna null només si el servidor ja no hi treballa i no hi
+     * ha resposta (aleshores sí que ha fallat de debò).
+     */
+    private suspend fun awaitDetachedTurn(source: Conn, epoch: Long, id: String, rotllana: Boolean, thread: String, sent: String): List<PetMsg>? {
+        val known = (if (rotllana) _rotllanaChat else _windChat).value[id].orEmpty().filterNot { it.streaming }
+        dropStreamingBubble(id, rotllana = rotllana)
+        live(id) { it.copy(phase = "detached", writing = false, tool = "") }
+        if (!source.local) WindWatch.schedule(appContext, WindWatch.SOON_MS)
+        val deadline = System.currentTimeMillis() + DetachedTurn.WAIT_MS
+        var misses = 0
+        while (System.currentTimeMillis() < deadline) {
+            kotlinx.coroutines.delay(DetachedTurn.POLL_MS)
+            if (!isCompanionOrigin(source, epoch)) return null
+            val (hist, busy) = try {
+                withContext(Dispatchers.IO) { if (rotllana) source.api().rotllanaTurnState(id) else source.api().windTurnState(id, thread) }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                if (++misses >= DetachedTurn.MAX_MISSES) return null
+                continue
+            }
+            misses = 0
+            if (DetachedTurn.answered(hist, known, sent)) return hist
+            if (!busy) return null
+        }
+        return null
+    }
+
+    /**
+     * La resposta ja és a la pantalla (o l'avisarà workFinished): la novetat
+     * que el servidor ha deixat perquè el client no hi era no ha de tornar a
+     * sonar quan la trobi el vigilant o el push.
+     */
+    private fun detachedNoticeSeen(reply: PetMsg?, target: String) {
+        val id = reply?.id.orEmpty()
+        if (id.isBlank()) return
+        val origin = NotificationOrigins.effective(appContext, "")
+        // Si el vigilant o el push ja l'han fet sonar, workFinished calla.
+        if (NoticeLedger.load(appContext, origin).containsKey("m:$id")) GregalNotifications.skipNextAnswer(target)
+        NoticeLedger.mark(appContext, origin, listOf("m:$id"))
     }
 
     fun sendWindMessage(windId: String, text: String) = sendWindMessage(windId, text, 0L)
@@ -5719,6 +5773,17 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         // quan l'eina remind s'ha cridat (mai d'una promesa buida).
                         showTurnActions(windId, r)
                         WindWatch.reminded(appContext, r.remindAt, remote = !source.local) // B7: permís en context
+                    }
+                } catch (_: StreamLost) {
+                    // Has sortit de l'app: el torn segueix al servidor.
+                    val hist = awaitDetachedTurn(source, epoch, windId, false, thread, msg) ?: throw ApiException(appText("app.chat.turnFailed"))
+                    if (isCompanionOrigin(source, epoch)) {
+                        _windChat.value = _windChat.value + (windId to ventsRecency.completed(source, "wind", windId, hist, System.currentTimeMillis()))
+                        val last = hist.lastOrNull { it.from == "pet" }
+                        partial = last?.parcial == true
+                        answered = !last?.text.isNullOrBlank()
+                        answer = last?.text.orEmpty()
+                        detachedNoticeSeen(last, target)
                     }
                 } catch (_: WindStreamUnavailable) {
                     dropStreamingBubble(windId)
@@ -5818,6 +5883,15 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         showTurnActions(windId, r)
                         WindWatch.reminded(appContext, r.remindAt, remote = !source.local) // B7: permís en context
                     }
+                } catch (_: StreamLost) {
+                    val hist = awaitDetachedTurn(source, epoch, windId, false, thread, "") ?: throw ApiException(appText("app.chat.turnFailed"))
+                    if (isCompanionOrigin(source, epoch)) {
+                        _windChat.value = _windChat.value + (windId to ventsRecency.completed(source, "wind", windId, hist, System.currentTimeMillis()))
+                        val last = hist.lastOrNull { it.from == "pet" }
+                        partial = last?.parcial == true
+                        if (!last?.text.isNullOrBlank()) { answered = true; answer = last?.text.orEmpty() }
+                        detachedNoticeSeen(last, target)
+                    }
                 } catch (_: WindStreamUnavailable) {
                     dropStreamingBubble(windId)
                     val r = withContext(Dispatchers.IO) { source.api().windChat(windId, "", cont = true, session = thread) }
@@ -5900,6 +5974,15 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                             ventsRecency.completed(source, "rot", rotllanaId, hist, System.currentTimeMillis(), before))
                     partial = hist.lastOrNull { it.from == "pet" }?.parcial == true
                     replyText.let { if (it.isNotBlank()) { answered = true; answer = it } }
+                } catch (_: StreamLost) {
+                    val hist = awaitDetachedTurn(source, epoch, rotllanaId, true, "", "") ?: throw ApiException(appText("app.chat.turnFailed"))
+                    if (isCompanionOrigin(source, epoch)) {
+                        _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to ventsRecency.completed(source, "rot", rotllanaId, hist, System.currentTimeMillis(), before))
+                        val last = hist.lastOrNull { it.from == "pet" }
+                        partial = last?.parcial == true
+                        if (!last?.text.isNullOrBlank()) { answered = true; answer = last?.text.orEmpty() }
+                        detachedNoticeSeen(last, target)
+                    }
                 } catch (_: WindStreamUnavailable) {
                     dropStreamingBubble(rotllanaId, rotllana = true)
                     val (_, replyText, hist) = withContext(Dispatchers.IO) { source.api().rotllanaChat(rotllanaId, "", wind, cont = true) }

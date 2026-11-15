@@ -230,7 +230,7 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 		hist.mu.RLock()
 		messages := append([]llm.Message(nil), hist.messages...)
 		hist.mu.RUnlock()
-		writeJSON(w, map[string]any{"wind": wind.ID, "session": hist.name, "history": petHistoryJSON(messages)})
+		writeJSON(w, map[string]any{"wind": wind.ID, "session": hist.name, "history": petHistoryJSON(messages), "busy": s.windTurnBusy("wind", wind.ID)})
 		return
 	}
 	// DELETE buida la conversa amb el vent (el vent es queda).

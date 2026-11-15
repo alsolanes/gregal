@@ -158,6 +158,11 @@ object GregalNotifications {
         try { context.getSystemService(NotificationManager::class.java).notify(WORK_ID, working(context)) } catch (_: Exception) { }
     }
 
+    /** Respostes que ja han sonat per un altre camí (novetat del servidor). */
+    private val skipAnswer = mutableSetOf<String>()
+
+    fun skipNextAnswer(target: String) = synchronized(lock) { skipAnswer.add(target) }
+
     fun workFinished(
         context: Context, hasAnswer: Boolean, userText: String = "", answer: String = "",
         target: String = "", displayName: String = "", partial: Boolean = false, error: String = "",
@@ -182,6 +187,8 @@ object GregalNotifications {
             } catch (_: Exception) {
             }
         }
+        val skip = synchronized(lock) { skipAnswer.remove(target) }
+        if (skip && error.isBlank()) return
         if ((!hasAnswer && !partial && error.isBlank()) || AppVisibility.foreground || !canNotify(context)) return
         ensureChannel(context)
         val titleKey = when {
