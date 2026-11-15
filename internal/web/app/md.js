@@ -111,7 +111,7 @@
     return o && typeof o === "object" && !Array.isArray(o) ? o : null;
   }
   // Peu de fonts compartit (punts, «N fonts», «més»): com a les opcions.
-  function sourcesFoot(o) {
+  function sourcesFoot(o, extra) {
     const seen = new Set();
     const sources = (Array.isArray(o.sources) ? o.sources : []).slice(0, 6).map((x) => {
       const url = String((x && x.url) || "");
@@ -121,7 +121,7 @@
       return { url, name: site || String((x && x.name) || "") };
     }).filter((x) => x.name && !seen.has(x.name) && seen.add(x.name));
     const more = o.more && typeof o.more === "object" ? o.more : null;
-    if (!sources.length && !(more && more.label)) return "";
+    if (!sources.length && !(more && more.label) && !extra) return "";
     const dots = sources.map((x, i) => {
       const url = safeUrl(x.url), name = str(x.name);
       const dot = '<i class="gr-dot gr-dot' + (i % 6) + '"></i>';
@@ -135,7 +135,77 @@
       const url = safeUrl(more.url);
       h += url ? '<a class="gr-more" href="' + url + '" target="_blank" rel="noopener">' + str(more.label) + " ›</a>" : '<span class="gr-more">' + str(more.label) + "</span>";
     }
+    return h + (extra || "") + "</div>";
+  }
+
+  // Botons d'acció sota la targeta: el primer (o el marcat primary) és el gran
+  // i fosc; el segon, un enllaç discret. En tocar-los s'envia el prompt (o el
+  // text del botó) com a resposta; només es veuen on el xat ho sap fer.
+  function cardActions(o) {
+    const list = (Array.isArray(o.actions) ? o.actions : []).filter((a) => a && String(a.label || "").trim()).slice(0, 2);
+    if (!list.length) return "";
+    const k = list.findIndex((a) => a.primary);
+    if (k > 0) list.unshift(list.splice(k, 1)[0]);
+    const say = (a) => esc(String(a.prompt || a.label).trim().slice(0, 400));
+    let h = '<div class="gc-actions">';
+    h += '<button type="button" class="gc-cta" data-gregal-say="' + say(list[0]) + '"><span>' + str(list[0].label) + '</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>';
+    if (list[0].note) h += '<small class="gc-note">' + str(list[0].note) + "</small>";
+    if (list[1]) h += '<button type="button" class="gc-alt" data-gregal-say="' + say(list[1]) + '">' + str(list[1].label) + "</button>";
     return h + "</div>";
+  }
+
+  function detailsToggle() {
+    return '<button type="button" class="gc-toggle" data-gc-toggle aria-expanded="false"><span class="gc-open-l">' + label("card.details", "Details") +
+      '</span><span class="gc-close-l">' + label("card.less", "Less") + '</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg></button>';
+  }
+
+  const TICKET = '<svg class="gc-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5 15.5 4l1.4 3.2a2 2 0 0 0 2.6 1.1L21 12 9.5 16.5 8.1 13.3a2 2 0 0 0-2.6-1.1z"/></svg>';
+  // Icones de línia per al trajecte (els emojis canvien d'un sistema a l'altre).
+  const PATHS = {
+    train: '<rect x="6" y="3" width="12" height="14" rx="3"/><path d="M6 11h12M9 21l1.5-4M15 21l-1.5-4"/><circle cx="9.5" cy="14" r=".6"/><circle cx="14.5" cy="14" r=".6"/>',
+    bus: '<rect x="5" y="3" width="14" height="15" rx="2.5"/><path d="M5 10h14M8 21v-3M16 21v-3"/><circle cx="8.5" cy="14.5" r=".6"/><circle cx="15.5" cy="14.5" r=".6"/>',
+    plane: '<path d="M10.5 3.5c.8-.8 2.2-.8 3 0 .4.4.5.9.5 1.4V9l6 4v2l-6-2v4l2 1.5V20l-3.5-1L9 20v-1.5l2-1.5v-4l-6 2v-2l6-4V4.9c0-.5.1-1 .5-1.4z"/>',
+    car: '<path d="M5 16V12l2-5h10l2 5v4M3 16h18v2H3zM5 12h14"/><circle cx="8" cy="16" r="1.5"/><circle cx="16" cy="16" r="1.5"/>',
+    walk: '<circle cx="13" cy="4.5" r="1.5"/><path d="M10 21l2-6 3 3v3M9 12l2-4 3 1 2 3M12 15l-1-4"/>',
+    boat: '<path d="M4 15h16l-2 4H6zM7 15V9h10v6M12 9V4"/>',
+  };
+  const ALIAS = { rail: "train", metro: "train", tram: "train", coach: "bus", flight: "plane", drive: "car", bike: "walk", ferry: "boat" };
+  const modeIcon = (m) => {
+    m = String(m || "").toLowerCase(); m = ALIAS[m] || m;
+    return PATHS[m] ? '<svg class="gc-mode" viewBox="0 0 24 24" aria-hidden="true">' + PATHS[m] + "</svg>" : "→";
+  };
+
+  // ```gregal-route: un trajecte (d'on a on, hores, servei, durada, preu) amb
+  // les alternatives a sota, com la targeta de bitllet del disseny.
+  function routeCard(code) {
+    const o = parseCard(code);
+    if (!o) return "";
+    const depart = String(o.depart || "").trim(), arrive = String(o.arrive || "").trim();
+    if (!depart || !arrive || !(o.from || o.from_stop) || !(o.to || o.to_stop)) return "";
+    const icon = modeIcon(o.mode);
+    let h = '<div class="gregal-card gregal-route">' + cardImage(o.image, String(o.title || "")) + '<div class="gc-body">';
+    h += '<span class="gc-kicker">' + str(o.from || o.from_stop) + ' <span class="gc-arrow">→</span> ' + str(o.to || o.to_stop) + "</span>";
+    if (o.title) h += '<strong class="gc-title">' + str(o.title) + "</strong>";
+    h += '<div class="gc-leg"><div class="gc-end"><b>' + esc(depart) + "</b><small>" + str(o.from_stop || o.from) + '</small></div>' +
+      '<div class="gc-line" aria-hidden="true"><i></i><span>' + icon + '</span><i></i></div>' +
+      '<div class="gc-end gc-arr"><b>' + esc(arrive) + "</b><small>" + str(o.to_stop || o.to) + "</small></div></div>";
+    const meta = [o.service, o.duration].filter((x) => String(x || "").trim()).map((x) => str(x)).join(" · ");
+    if (meta || o.badge || o.price) {
+      h += '<div class="gc-legfoot"><span>' + meta + "</span>" + (o.badge ? '<em class="gc-badge">' + str(o.badge) + "</em>" : "") +
+        (o.price ? '<b class="gc-price">' + str(o.price) + "</b>" : "") + "</div>";
+    }
+    h += "</div>";
+    const alts = (Array.isArray(o.alternatives) ? o.alternatives : []).filter((a) => a && (a.time || a.service)).slice(0, 4);
+    if (alts.length) {
+      h += '<ul class="gc-alts">';
+      for (const a of alts) {
+        const url = safeUrl(a.url);
+        const inner = "<span>" + [a.time, a.service].filter((x) => String(x || "").trim()).map((x) => str(x)).join(" · ") + "</span><b>" + str(a.price) + "</b>" + (url ? "<i>›</i>" : "");
+        h += "<li>" + (url ? '<a href="' + url + '" target="_blank" rel="noopener">' + inner + "</a>" : "<div>" + inner + "</div>") + "</li>";
+      }
+      h += "</ul>";
+    }
+    return h + sourcesFoot(o) + "</div>" + cardActions(o);
   }
 
   // La quantitat d'un ingredient per a n racions: escala el primer número
@@ -201,7 +271,7 @@
       h += "</ol>";
     }
     if (o.tip) h += '<p class="gc-tip">' + inline(esc(String(o.tip).trim())) + "</p>";
-    return h + "</div>" + sourcesFoot(o) + "</div>";
+    return h + "</div>" + sourcesFoot(o) + "</div>" + cardActions(o);
   }
 
   // Pla o seqüència (```gregal-plan {json}): una línia de temps amb hores,
@@ -217,17 +287,22 @@
     if (o.kicker) h += '<span class="gc-kicker">' + str(o.kicker) + "</span>";
     h += '<strong class="gc-title">' + esc(title) + "</strong>";
     if (o.subtitle) h += '<span class="gc-subtitle">' + str(o.subtitle) + "</span>";
-    h += '<ol class="gc-timeline">';
-    for (const x of items) {
-      h += '<li><span class="gc-time">' + str(x.time) + '</span><span class="gc-what"><b>' + inline(esc(String(x.title || x.text).trim())) + "</b>" +
-        (x.detail ? "<small>" + inline(esc(String(x.detail).trim())) + "</small>" : "") + "</span></li>";
-    }
+    // Compacte, com al disseny: quatre files (hora + què) i la resta, amb els
+    // detalls, en obrir «Detalls».
+    const SHOW = 4;
+    let hidden = items.length > SHOW;
+    h += '<ol class="gc-agenda">';
+    items.forEach((x, k) => {
+      if (x.detail) hidden = true;
+      h += "<li" + (k >= SHOW ? ' class="gc-extra"' : "") + ">" + (x.time ? '<span class="gc-pill">' + str(x.time) + "</span>" : "") + '<span class="gc-what"><b>' + inline(esc(String(x.title || x.text).trim())) + "</b>" +
+        (x.detail ? '<small class="gc-detail">' + inline(esc(String(x.detail).trim())) + "</small>" : "") + "</span></li>";
+    });
     h += "</ol>";
     if (o.total) {
       const t = o.total && typeof o.total === "object" ? o.total : { label: label("card.total", "Total"), value: o.total };
-      h += '<div class="gc-total"><span>' + str(t.label) + "</span><b>" + str(t.value) + "</b></div>";
+      h += '<div class="gc-budget">' + TICKET + "<span>" + str(t.label) + (t.label ? " · " : "") + "<b>" + str(t.value) + "</b></span></div>";
     }
-    return h + "</div>" + sourcesFoot(o) + "</div>";
+    return h + "</div>" + sourcesFoot(o, hidden ? detailsToggle() : "") + "</div>" + cardActions(o);
   }
 
   function resultCard(code) {
@@ -251,14 +326,15 @@
     });
     // Peu: punts (cada web una vegada), «N fonts» i, si el missatge té hora,
     // «· fa X min» (stamp).
-    return h + sourcesFoot(o) + "</div>";
+    return h + sourcesFoot(o) + "</div>" + cardActions(o);
   }
 
   function codeBlock(lang, code) {
     const cos = code.replace(/\n$/, "");
     const card = lang === "gregal-result" ? resultCard(cos)
       : lang === "gregal-recipe" ? recipeCard(cos)
-      : lang === "gregal-plan" ? planCard(cos) : "";
+      : lang === "gregal-plan" ? planCard(cos)
+      : lang === "gregal-route" ? routeCard(cos) : "";
     if (card) return card;
     // ```chart (el format dels vents i d'Android) i ```gregal-plot són el mateix gràfic.
     if (lang === 'gregal-plot' || lang === 'chart') return '<pre class="codeblock lang-gregal-plot"><code>' + cos + '</code></pre>';

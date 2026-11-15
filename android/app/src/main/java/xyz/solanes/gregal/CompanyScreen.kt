@@ -1240,6 +1240,9 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         val scope = rememberCoroutineScope()
         val awayFromLatest = msgs.isNotEmpty() && !follow.following
         Box(Modifier.weight(1f)) {
+        // Els botons d'acció de les targetes (RichCards.kt) envien el seu text al vent.
+        val cardSay: (String) -> Unit = { text -> if (!busy.contains(wind.id)) { follow.requestFollow(); vm.sendWindMessage(wind.id, text) } }
+        CompositionLocalProvider(LocalCardSay provides cardSay) {
         LazyColumn(
             Modifier.fillMaxSize(),
             state = listState,
@@ -1320,6 +1323,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                         label = liveNow?.let { l -> windVisibleWork(lang, l) ?: windStallNote(lang, l, quietNow(true)) })
                 }
             }
+        }
         }
         if (awayFromLatest) LatestPill(lang) {
             follow.requestFollow(); scope.launch { listState.scrollToLatest() }

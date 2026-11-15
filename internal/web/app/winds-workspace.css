@@ -1092,3 +1092,59 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 :is(.vw-message-text,.vw-result-text) ol:not([class]) { list-style:none; counter-reset:md-step; padding-left:0; }
 :is(.vw-message-text,.vw-result-text) ol:not([class]) > li { counter-increment:md-step; position:relative; padding-left:36px; margin:8px 0; }
 :is(.vw-message-text,.vw-result-text) ol:not([class]) > li::before { content:counter(md-step); position:absolute; left:0; top:0; width:24px; height:24px; border-radius:50%; display:grid; place-items:center; font-size:12px; font-weight:700; line-height:1; background:color-mix(in srgb, var(--accent) 16%, transparent); color:var(--accent-hi); }
+
+/* Targetes, estil del disseny «Escapades»: pla compacte amb l'hora en
+   píndola, pressupost amb icona, «Detalls» que obre la resta, botons d'acció
+   i la targeta de trajecte. */
+.gregal-card ol.gc-agenda { list-style:none; margin:2px 0 0; padding:0; }
+.gregal-card .gc-agenda li { display:flex; align-items:baseline; gap:14px; margin:0; padding:9px 0; border-bottom:1px solid var(--line); }
+.gregal-card .gc-agenda li:last-child { border-bottom:0; }
+.gregal-card .gc-pill { flex:none; min-width:62px; text-align:center; padding:3px 10px; border-radius:10px; font-weight:700; font-size:15px; font-variant-numeric:tabular-nums; background:color-mix(in srgb, var(--accent) 18%, transparent); color:var(--ink); }
+.gregal-card .gc-agenda .gc-what { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.gregal-card .gc-agenda .gc-what b { font-weight:500; font-size:16px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.gregal-card .gc-agenda .gc-detail { font-size:13px; color:var(--muted); display:none; }
+.gregal-card .gc-agenda .gc-extra { display:none; }
+.gregal-card .gc-moreitems { font-size:12px; font-weight:650; color:var(--muted); margin-top:-6px; }
+.gregal-card.gc-open .gc-agenda .gc-extra { display:flex; }
+.gregal-card.gc-open .gc-agenda .gc-detail { display:block; }
+.gregal-card.gc-open .gc-agenda .gc-what b { white-space:normal; }
+.gregal-card.gc-open .gc-moreitems { display:none; }
+.gregal-card .gc-budget { display:flex; align-items:center; gap:10px; padding-top:4px; font-size:15px; color:var(--muted); }
+.gregal-card .gc-budget b { color:var(--ink); font-weight:750; }
+.gregal-card .gc-ico { flex:none; width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linejoin:round; }
+:is(.gregal-result,.gregal-card) .gc-toggle { margin-left:auto; display:inline-flex; align-items:center; gap:4px; border:0; background:none; padding:0; font:inherit; font-size:13px; font-weight:650; color:var(--accent-hi); cursor:pointer; }
+.gregal-card .gc-toggle svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; transition:transform .15s; }
+.gregal-card .gc-toggle .gc-close-l, .gregal-card.gc-open .gc-toggle .gc-open-l { display:none; }
+.gregal-card.gc-open .gc-toggle .gc-close-l { display:inline; }
+.gregal-card.gc-open .gc-toggle svg { transform:rotate(90deg); }
+
+.gc-actions { display:none; flex-direction:column; align-items:stretch; gap:6px; margin:12px 0 4px; max-width:560px; }
+.gc-sayable .gc-actions { display:flex; }
+.gc-actions .gc-cta { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:15px 22px; border:0; border-radius:16px; background:var(--ink); color:var(--surface); font:inherit; font-size:18px; font-weight:750; cursor:pointer; text-align:left; transition:transform .12s, filter .12s; }
+.gc-actions .gc-cta:hover { filter:brightness(1.08); }
+.gc-actions .gc-cta:active { transform:scale(.99); }
+.gc-actions .gc-cta svg { flex:none; width:26px; height:26px; fill:none; stroke:var(--accent); stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+.gc-actions .gc-note { font-size:12px; color:var(--muted); padding:0 4px; }
+.gc-actions .gc-alt { align-self:center; border:0; background:none; padding:6px 10px; font:inherit; font-size:15px; font-weight:600; color:var(--accent-hi); cursor:pointer; }
+.gc-actions .gc-alt:hover { text-decoration:underline; }
+
+.gregal-route .gc-arrow { margin:0 4px; }
+.gregal-route .gc-leg { display:flex; align-items:center; gap:12px; margin-top:2px; }
+.gregal-route .gc-end { display:flex; flex-direction:column; gap:2px; }
+.gregal-route .gc-end b { font-size:34px; line-height:1; font-weight:750; letter-spacing:-.02em; font-variant-numeric:tabular-nums; color:var(--ink); }
+.gregal-route .gc-end small { font-size:13px; color:var(--muted); }
+.gregal-route .gc-arr { text-align:right; align-items:flex-end; }
+.gregal-route .gc-line { flex:1; display:flex; align-items:center; gap:8px; min-width:40px; padding-bottom:18px; }
+.gregal-route .gc-line i { flex:1; height:1.5px; background:var(--line-hi); }
+.gregal-route .gc-line span { font-size:18px; line-height:1; }
+.gregal-route .gc-legfoot { display:flex; align-items:center; gap:10px; padding-top:12px; border-top:1px solid var(--line); font-size:14px; color:var(--muted); }
+.gregal-route .gc-badge { font-style:normal; font-size:12px; font-weight:650; padding:3px 9px; border-radius:8px; background:color-mix(in srgb, var(--accent) 22%, transparent); color:var(--ink); white-space:nowrap; }
+.gregal-route .gc-price { margin-left:auto; font-size:20px; font-weight:750; color:var(--ink); white-space:nowrap; }
+.gregal-route ul.gc-alts { list-style:none; margin:0; padding:0 16px; border-top:1px solid var(--line); }
+.gregal-route .gc-alts li { margin:0; border-bottom:1px solid var(--line); }
+.gregal-route .gc-alts li:last-child { border-bottom:0; }
+.gregal-route .gc-alts :is(a,div) { display:flex; align-items:center; gap:10px; padding:11px 0; color:var(--ink); text-decoration:none; font-size:15px; font-variant-numeric:tabular-nums; }
+.gregal-route .gc-alts span { flex:1; font-weight:600; }
+.gregal-route .gc-alts b { font-weight:600; }
+.gregal-route .gc-alts i { font-style:normal; color:var(--muted); font-size:18px; }
+.gregal-route .gc-mode { width:22px; height:22px; fill:none; stroke:var(--ink); stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }

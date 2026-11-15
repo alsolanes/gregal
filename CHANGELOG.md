@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Targetes amb l'estil nou.** El pla és compacte: l'hora en una píndola, el
+  que toca en una línia, el pressupost amb icona i «Detalls» per veure la resta.
+- **Botons per seguir.** Sota una targeta, el vent pot posar el pas següent
+  («Prepara el pla») i una alternativa («Una altra idea»): un toc i ho envies.
+- **Targeta de trajecte.** D'on a on, sortida i arribada grans, el servei, la
+  millor opció destacada, el preu i les alternatives. A l'escriptori i a
+  l'Android.
+
 ## v1.78.0 - 2026-11-15 - Fotos a les respostes
 
 - **Fotos a les respostes.** Quan preguntes per un lloc, un plat, un llibre o

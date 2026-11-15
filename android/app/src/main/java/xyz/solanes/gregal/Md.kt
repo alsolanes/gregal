@@ -75,9 +75,10 @@ fun splitMd(src: String): List<Seg> {
                 val spec = parseResultSpec(body.trim())
                 if (spec != null) out += listOf(Seg.Result(spec))
                 else out += listOf(Seg.Block("json", body))
-            } else if (lang == "gregal-recipe" || lang == "gregal-plan") {
+            } else if (lang == "gregal-recipe" || lang == "gregal-plan" || lang == "gregal-route") {
                 // Targetes riques (com md.js): si el JSON no s'aguanta, codi.
                 val card = if (lang == "gregal-recipe") parseRecipeSpec(body.trim())?.let { RichCard.Recipe(it) }
+                    else if (lang == "gregal-route") parseRouteSpec(body.trim())?.let { RichCard.Route(it) }
                     else parsePlanSpec(body.trim())?.let { RichCard.Plan(it) }
                 out += listOf(if (card != null) Seg.Card(card) else Seg.Block("json", body))
             } else if (lang == "chart" || lang == "gregal-plot") {
@@ -477,6 +478,10 @@ fun renderSegs(segs: List<Seg>, codeBg: Color, activity: Boolean = false, link: 
                             withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(c.spec.title) }
                             append("\n")
                             c.spec.items.forEach { append(listOf(it.time, it.title).filter { x -> x.isNotBlank() }.joinToString(" · ") + "\n") }
+                        }
+                        is RichCard.Route -> {
+                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(c.spec.from + " → " + c.spec.to) }
+                            append(" · " + listOf(c.spec.depart + "–" + c.spec.arrive, c.spec.service, c.spec.price).filter { x -> x.isNotBlank() }.joinToString(" · ") + "\n")
                         }
                         else -> {}
                     }

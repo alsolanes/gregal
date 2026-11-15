@@ -83,4 +83,53 @@ class RichCardsTest {
         ui.onNodeWithText("Cigrons cuits").performClick()
         ui.onNodeWithText("8 min ⏱").assertExists()
     }
+
+    private val plan = "```gregal-plan\n" +
+        """{"title":"Girona, al teu ritme","items":[{"time":"08:05","title":"Tren","detail":"Avant"},{"time":"10:00","title":"Barri Vell"},""" +
+        """{"time":"13:30","title":"Dinar"},{"time":"16:00","title":"Onyar"},{"time":"18:10","title":"Tornada"}],""" +
+        """"actions":[{"label":"Una altra idea"},{"label":"Prepara el pla","prompt":"Prepara el pla amb reserves","primary":true}]}""" + "\n```"
+
+    @Test fun elTrajecteIlesAccionsEsLlegeixenComAlEscriptori() {
+        val p = ((richBlocksLive(plan).single() as Rich.Card).card as RichCard.Plan).spec
+        assertEquals(listOf("Prepara el pla", "Una altra idea"), p.actions.map { it.label })
+        assertEquals("Prepara el pla amb reserves", p.actions[0].prompt)
+        assertEquals("Una altra idea", p.actions[1].prompt)
+        val r = richBlocksLive("```gregal-route\n{\"from\":\"Barcelona\",\"to\":\"Girona\",\"depart\":\"08:05\",\"arrive\":\"08:45\",\"from_stop\":\"Sants\",\"mode\":\"Train\",\"price\":\"17,40 €\",\"alternatives\":[{\"time\":\"08:16\",\"service\":\"R11\",\"url\":\"javascript:x\"}]}\n```")
+        val route = ((r.single() as Rich.Card).card as RichCard.Route).spec
+        assertEquals("Sants", route.fromStop)
+        assertEquals("Girona", route.toStop)
+        assertEquals("train", route.mode)
+        assertEquals("", route.alternatives.single().url)
+        assertNull(parseRouteSpec("{\"from\":\"A\",\"depart\":\"08:00\"}"))
+    }
+
+    @Test fun elPlaEsCompacteIElsBotonsEnvienLaResposta() {
+        val card = (richBlocksLive(plan).single() as Rich.Card).card
+        val said = mutableListOf<String>()
+        ui.setContent {
+            CompositionLocalProvider(LocalWindMotion provides false, LocalPal provides DarkPal, LocalCardSay provides { t: String -> said += t }) {
+                MaterialTheme(colorScheme = DarkPal.scheme()) {
+                    Column(Modifier.verticalScroll(rememberScrollState())) { RichCardBlock(card, DarkPal.sea, "ca") }
+                }
+            }
+        }
+        ui.onNodeWithText("Tornada").assertDoesNotExist()
+        ui.onNodeWithText("Avant").assertDoesNotExist()
+        ui.onNodeWithTag("plan-details").performClick()
+        ui.onNodeWithText("Tornada").assertExists()
+        ui.onNodeWithText("Avant").assertExists()
+        ui.onNodeWithTag("card-cta").performClick()
+        ui.onNodeWithTag("card-alt").performClick()
+        assertEquals(listOf("Prepara el pla amb reserves", "Una altra idea"), said)
+    }
+
+    @Test fun senseXatQueEnviiNoHiHaBotons() {
+        val card = (richBlocksLive(plan).single() as Rich.Card).card
+        ui.setContent {
+            CompositionLocalProvider(LocalWindMotion provides false, LocalPal provides DarkPal) {
+                MaterialTheme(colorScheme = DarkPal.scheme()) { Column { RichCardBlock(card, DarkPal.sea, "ca") } }
+            }
+        }
+        ui.onNodeWithTag("card-cta").assertDoesNotExist()
+    }
 }

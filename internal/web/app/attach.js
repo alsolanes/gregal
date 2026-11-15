@@ -72,6 +72,18 @@ export const attach = {
       card.querySelectorAll('.gc-serves-n').forEach(n => { n.textContent = now; });
       card.querySelectorAll('.gc-qty').forEach(q => { q.textContent = globalThis.gregalMD?.scaleQty ? globalThis.gregalMD.scaleQty(q.dataset.qty, base, now) : q.dataset.qty; });
     });
+    // Targetes: «Detalls» obre la resta del pla; un botó d'acció envia el seu
+    // text com a resposta (el xat escolta «gregal-say»).
+    document.addEventListener('click', e => {
+      const t = e.target.closest && e.target.closest('[data-gc-toggle]');
+      if (t) {
+        const card = t.closest('.gregal-card');
+        if (card) t.setAttribute('aria-expanded', String(card.classList.toggle('gc-open')));
+        return;
+      }
+      const say = e.target.closest && e.target.closest('[data-gregal-say]');
+      if (say) say.dispatchEvent(new CustomEvent('gregal-say', { bubbles: true, detail: { text: say.dataset.gregalSay } }));
+    });
     new MutationObserver(ms => { for (const m of ms) m.addedNodes.forEach(scan); }).observe(document.body, { childList: true, subtree: true });
     scan(document.body);
     document.addEventListener('click', e => {

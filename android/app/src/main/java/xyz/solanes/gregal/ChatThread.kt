@@ -31,7 +31,7 @@ internal const val READING_CHARS = 900
  */
 internal fun chatSurfaceFor(text: String, blocks: List<Rich> = richBlocksLive(text)): ChatSurface = when {
     text.trim().length > READING_CHARS -> ChatSurface.READING
-    blocks.any { it is Rich.Table || it is Rich.Code || it is Rich.Chart || (it is Rich.Card && (it.card is RichCard.Recipe || it.card is RichCard.Plan)) } -> ChatSurface.READING
+    blocks.any { it is Rich.Table || it is Rich.Code || it is Rich.Chart || (it is Rich.Card && (it.card is RichCard.Recipe || it.card is RichCard.Plan || it.card is RichCard.Route)) } -> ChatSurface.READING
     else -> ChatSurface.BUBBLE
 }
 

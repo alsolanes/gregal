@@ -7,7 +7,18 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
+import androidx.compose.material.icons.rounded.DirectionsBoat
+import androidx.compose.material.icons.rounded.DirectionsBus
+import androidx.compose.material.icons.rounded.DirectionsCar
+import androidx.compose.material.icons.rounded.Flight
+import androidx.compose.material.icons.rounded.NorthEast
+import androidx.compose.material.icons.rounded.ConfirmationNumber
+import androidx.compose.material.icons.rounded.Train
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,6 +36,8 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.json.JSONArray
@@ -38,25 +51,41 @@ import org.json.JSONObject
 sealed interface RichCard {
     data class Recipe(val spec: RecipeSpec) : RichCard
     data class Plan(val spec: PlanSpec) : RichCard
+    /** Un trajecte (```gregal-route): d'on a on, hores, servei, preu i alternatives. */
+    data class Route(val spec: RouteSpec) : RichCard
     /** Checklist del markdown («- [ ] …»): cada element, marcat o no, i el text. */
     data class Checks(val items: List<Pair<Boolean, List<Seg>>>) : RichCard
     /** Dues o més fotos seguides. */
     data class Gallery(val images: List<Pair<String, String>>) : RichCard
 }
 
+/** Un botó sota la targeta: el primer és el gran; en tocar-lo s'envia [prompt]. */
+data class CardAction(val label: String, val prompt: String, val primary: Boolean = false, val note: String = "")
+
 data class RecipeIngredient(val name: String, val qty: String)
 data class RecipeStep(val text: String, val minutes: Int = 0)
 data class RecipeSpec(
     val title: String, val image: String = "", val time: String = "", val level: String = "", val servings: Int = 0,
     val ingredients: List<RecipeIngredient> = emptyList(), val steps: List<RecipeStep> = emptyList(), val tip: String = "",
-    val sources: List<Pair<String, String>> = emptyList(),
+    val sources: List<Pair<String, String>> = emptyList(), val actions: List<CardAction> = emptyList(),
 )
 data class PlanItem(val time: String, val title: String, val detail: String = "")
 data class PlanSpec(
     val title: String, val kicker: String = "", val subtitle: String = "", val image: String = "",
     val items: List<PlanItem> = emptyList(), val totalLabel: String = "", val totalValue: String = "",
-    val sources: List<Pair<String, String>> = emptyList(),
+    val sources: List<Pair<String, String>> = emptyList(), val actions: List<CardAction> = emptyList(),
 )
+data class RouteAlt(val time: String, val service: String, val price: String, val url: String = "")
+data class RouteSpec(
+    val from: String, val to: String, val depart: String, val arrive: String,
+    val fromStop: String = "", val toStop: String = "", val mode: String = "", val title: String = "", val image: String = "",
+    val service: String = "", val duration: String = "", val badge: String = "", val price: String = "",
+    val alternatives: List<RouteAlt> = emptyList(), val sources: List<Pair<String, String>> = emptyList(),
+    val actions: List<CardAction> = emptyList(),
+)
+
+/** Qui envia el text d'un botó d'acció; null on el xat no ho sap fer (els botons no hi surten). */
+val LocalCardSay = compositionLocalOf<((String) -> Unit)?> { null }
 
 /** Una imatge de targeta que es pot ensenyar: web (http/https) o d'un vent. */
 internal fun cardImageUrl(u: String): String = u.trim().takeIf { it.startsWith("https://") || it.startsWith("http://") || isWindImageUrl(it) }.orEmpty()
@@ -69,6 +98,17 @@ private fun JSONObject.sources(): List<Pair<String, String>> {
         val url = s.optString("url").trim().takeIf { it.startsWith("http") }.orEmpty()
         if (name.isEmpty() && url.isEmpty()) null else name.ifEmpty { url.substringAfter("//").substringBefore('/') } to url
     }.take(6)
+}
+
+/** Pura: les accions d'una targeta (com a molt dues, la principal primer). */
+internal fun JSONObject.cardActions(): List<CardAction> {
+    val list = optJSONArray("actions").objects().mapNotNull {
+        val a = it as? JSONObject ?: return@mapNotNull null
+        val label = a.optString("label").trim()
+        if (label.isEmpty()) null else CardAction(label, a.optString("prompt").trim().ifEmpty { label }.take(400), a.optBoolean("primary"), a.optString("note").trim())
+    }.take(2)
+    val k = list.indexOfFirst { it.primary }
+    return if (k > 0) listOf(list[k]) + list.filterIndexed { i, _ -> i != k } else list
 }
 
 private fun JSONArray?.objects(): List<Any> = if (this == null) emptyList() else (0 until length()).mapNotNull { opt(it) }
@@ -93,7 +133,7 @@ internal fun parseRecipeSpec(raw: String): RecipeSpec? {
     }.take(20)
     if (title.isEmpty() || (ing.isEmpty() && steps.isEmpty())) return null
     return RecipeSpec(title, cardImageUrl(o.optString("image")), o.optString("time").trim(), o.optString("level").trim(),
-        o.optInt("servings").coerceIn(0, 99), ing, steps, o.optString("tip").trim(), o.sources())
+        o.optInt("servings").coerceIn(0, 99), ing, steps, o.optString("tip").trim(), o.sources(), o.cardActions())
 }
 
 /** Pura: el JSON d'un pla; null si no té títol i passos. */
@@ -113,7 +153,25 @@ internal fun parsePlanSpec(raw: String): PlanSpec? {
         else -> "" to ""
     }
     return PlanSpec(title, o.optString("kicker").trim(), o.optString("subtitle").trim(), cardImageUrl(o.optString("image")),
-        items, tl, tv, o.sources())
+        items, tl, tv, o.sources(), o.cardActions())
+}
+
+/** Pura: el JSON d'un trajecte; null sense hores o sense d'on i cap a on. */
+internal fun parseRouteSpec(raw: String): RouteSpec? {
+    val o = runCatching { JSONObject(raw) }.getOrNull() ?: return null
+    val s = { k: String -> o.optString(k).trim() }
+    val from = s("from").ifEmpty { s("from_stop") }
+    val to = s("to").ifEmpty { s("to_stop") }
+    if (s("depart").isEmpty() || s("arrive").isEmpty() || from.isEmpty() || to.isEmpty()) return null
+    val alts = o.optJSONArray("alternatives").objects().mapNotNull {
+        val a = it as? JSONObject ?: return@mapNotNull null
+        val t = a.optString("time").trim()
+        val sv = a.optString("service").trim()
+        if (t.isEmpty() && sv.isEmpty()) null
+        else RouteAlt(t, sv, a.optString("price").trim(), a.optString("url").trim().takeIf { u -> u.startsWith("https://") || u.startsWith("http://") }.orEmpty())
+    }.take(4)
+    return RouteSpec(from, to, s("depart"), s("arrive"), s("from_stop").ifEmpty { from }, s("to_stop").ifEmpty { to }, s("mode").lowercase(),
+        s("title"), cardImageUrl(s("image")), s("service"), s("duration"), s("badge"), s("price"), alts, o.sources(), o.cardActions())
 }
 
 private val fractions = mapOf('¼' to .25, '½' to .5, '¾' to .75, '⅓' to 1.0 / 3, '⅔' to 2.0 / 3)
@@ -160,10 +218,35 @@ private fun rememberCheck(context: String, item: String): MutableState<Boolean> 
 internal fun RichCardBlock(card: RichCard, accent: Color, lang: String) {
     val link = readableLink(accent, LocalPal.current.dark)
     when (card) {
-        is RichCard.Recipe -> RecipeCard(card.spec, link, lang)
-        is RichCard.Plan -> PlanCard(card.spec, link, lang)
+        is RichCard.Recipe -> { RecipeCard(card.spec, link, lang); CardActions(card.spec.actions, link) }
+        is RichCard.Plan -> { PlanCard(card.spec, link, lang); CardActions(card.spec.actions, link) }
+        is RichCard.Route -> { RouteCard(card.spec, link, lang); CardActions(card.spec.actions, link) }
         is RichCard.Checks -> ChecksBlock(card.items, link)
         is RichCard.Gallery -> GalleryBlock(card.images, lang)
+    }
+}
+
+/** Els botons de sota la targeta, com al disseny: el gran (fons de tinta, fletxa
+ *  de l'accent) i, si n'hi ha un segon, un enllaç discret. Només on es poden enviar. */
+@Composable
+private fun CardActions(actions: List<CardAction>, link: Color) {
+    val say = LocalCardSay.current ?: return
+    if (actions.isEmpty()) return
+    Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 4.dp), horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        val main = actions[0]
+        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Ink)
+            .clickable(role = Role.Button) { say(main.prompt) }.heightIn(min = 56.dp).padding(horizontal = 22.dp).testTag("card-cta"),
+            verticalAlignment = Alignment.CenterVertically) {
+            Text(main.label, color = Superficie, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = link, modifier = Modifier.size(26.dp))
+        }
+        if (main.note.isNotEmpty()) Text(main.note, color = Muted, fontSize = 12.sp, modifier = Modifier.fillMaxWidth().padding(start = 4.dp))
+        actions.getOrNull(1)?.let { alt ->
+            Text(alt.label, color = link, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button) { say(alt.prompt) }
+                    .padding(horizontal = 10.dp, vertical = 8.dp).testTag("card-alt"))
+        }
     }
 }
 
@@ -294,7 +377,7 @@ private fun Tip(text: String, link: Color) {
 }
 
 @Composable
-private fun Sources(sources: List<Pair<String, String>>, lang: String) {
+private fun Sources(sources: List<Pair<String, String>>, lang: String, end: @Composable () -> Unit = {}) {
     val uri = LocalUriHandler.current
     HorizontalDivider(color = Line)
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -305,42 +388,116 @@ private fun Sources(sources: List<Pair<String, String>>, lang: String) {
                     .then(if (url.isNotEmpty()) Modifier.clickable(role = Role.Button) { uri.openUri(url) } else Modifier))
             }
         }
-        Text("  " + resultFootText(lang, resultSourceNames(sources).size, 0L), color = Muted, fontSize = 12.sp)
+        if (sources.isNotEmpty()) Text("  " + resultFootText(lang, resultSourceNames(sources).size, 0L), color = Muted, fontSize = 12.sp)
+        Spacer(Modifier.weight(1f))
+        end()
     }
 }
 
+/** El pla compacte, com al disseny: quatre files (l'hora en píndola i què) i,
+ *  amb «Detalls», la resta i els detalls de cada una. */
 @Composable
 private fun PlanCard(spec: PlanSpec, link: Color, lang: String) {
+    var open by remember(spec) { mutableStateOf(false) }
+    val show = if (open) spec.items else spec.items.take(4)
+    val hidden = spec.items.size > 4 || spec.items.any { it.detail.isNotEmpty() }
     CardFrame("gregal-plan", spec.image, spec.title, lang) {
         if (spec.kicker.isNotEmpty()) Text(spec.kicker.uppercase(), color = link, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
         CardTitle(spec.title)
         if (spec.subtitle.isNotEmpty()) Text(spec.subtitle, color = Muted, fontSize = 13.sp)
         Column {
-            spec.items.forEachIndexed { i, it ->
-                Row(Modifier.height(IntrinsicSize.Min)) {
-                    // El punt i la línia que el lliga amb el següent.
-                    Box(Modifier.width(10.dp).fillMaxHeight()) {
-                        Box(Modifier.padding(top = 6.dp).size(10.dp).clip(CircleShape).background(link))
-                        if (i < spec.items.lastIndex) Box(Modifier.padding(start = 4.5.dp, top = 16.dp).width(1.dp).fillMaxHeight().background(link.copy(alpha = .5f)))
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    if (it.time.isNotEmpty()) Text(it.time, color = link, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.widthIn(min = 52.dp))
-                    if (it.time.isNotEmpty()) Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f).padding(bottom = if (i < spec.items.lastIndex) 14.dp else 0.dp)) {
-                        Text(it.title, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        if (it.detail.isNotEmpty()) Text(it.detail, color = Muted, fontSize = 13.sp)
+            show.forEachIndexed { i, it ->
+                if (i > 0) HorizontalDivider(color = Line)
+                Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    if (it.time.isNotEmpty()) Text(it.time, color = Ink, fontWeight = FontWeight.Bold, fontSize = 15.sp,
+                        modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(link.copy(alpha = .18f)).widthIn(min = 62.dp)
+                            .padding(horizontal = 10.dp, vertical = 3.dp).testTag("plan-time"),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Column(Modifier.weight(1f).padding(top = 2.dp)) {
+                        Text(it.title, color = Ink, fontSize = 16.sp, maxLines = if (open) 3 else 1, overflow = TextOverflow.Ellipsis)
+                        if (open && it.detail.isNotEmpty()) Text(it.detail, color = Muted, fontSize = 13.sp)
                     }
                 }
             }
         }
-        if (spec.totalValue.isNotEmpty()) {
-            HorizontalDivider(color = Line)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(spec.totalLabel.ifEmpty { tr(lang, "app.card.total") }, color = Ink, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                Text(spec.totalValue, color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        if (spec.totalValue.isNotEmpty()) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Icon(Icons.Rounded.ConfirmationNumber, null, tint = Muted, modifier = Modifier.size(22.dp))
+            Text(androidx.compose.ui.text.buildAnnotatedString {
+                val label = spec.totalLabel.ifEmpty { tr(lang, "app.card.total") }
+                append("$label · ")
+                pushStyle(androidx.compose.ui.text.SpanStyle(color = Ink, fontWeight = FontWeight.Bold)); append(spec.totalValue); pop()
+            }, color = Muted, fontSize = 15.sp)
+        }
+        if (spec.sources.isNotEmpty() || hidden) Sources(spec.sources, lang) {
+            if (hidden) Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button) { open = !open }
+                .padding(horizontal = 6.dp, vertical = 4.dp).testTag("plan-details"), verticalAlignment = Alignment.CenterVertically) {
+                Text(tr(lang, if (open) "app.card.less_details" else "app.card.details"), color = link, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Icon(Icons.Rounded.NorthEast, null, tint = link, modifier = Modifier.size(15.dp))
             }
         }
-        if (spec.sources.isNotEmpty()) Sources(spec.sources, lang)
+    }
+}
+
+private fun modeIcon(mode: String): ImageVector? = when (mode) {
+    "train", "rail", "metro", "tram" -> Icons.Rounded.Train
+    "bus", "coach" -> Icons.Rounded.DirectionsBus
+    "plane", "flight" -> Icons.Rounded.Flight
+    "car", "drive" -> Icons.Rounded.DirectionsCar
+    "walk", "bike" -> Icons.AutoMirrored.Rounded.DirectionsWalk
+    "boat", "ferry" -> Icons.Rounded.DirectionsBoat
+    else -> null
+}
+
+/** La targeta de trajecte: sortida i arribada grans, el servei, la millor
+ *  opció destacada i les alternatives a sota. */
+@Composable
+private fun RouteCard(spec: RouteSpec, link: Color, lang: String) {
+    val uri = LocalUriHandler.current
+    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(cardShape).background(Superficie).border(1.dp, Line, cardShape).testTag("gregal-route")) {
+        if (spec.image.isNotEmpty()) CardHero(spec.image, spec.title, lang)
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text((spec.from + "  →  " + spec.to).uppercase(), color = link, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
+            if (spec.title.isNotEmpty()) CardTitle(spec.title)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column {
+                    Text(spec.depart, color = Ink, fontSize = 32.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold)
+                    Text(spec.fromStop, color = Muted, fontSize = 13.sp)
+                }
+                Row(Modifier.weight(1f).padding(bottom = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.weight(1f).height(1.5.dp).background(Line))
+                    val icon = modeIcon(spec.mode)
+                    if (icon != null) Icon(icon, null, tint = Ink, modifier = Modifier.size(22.dp)) else Text("→", color = Ink)
+                    Box(Modifier.weight(1f).height(1.5.dp).background(Line))
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(spec.arrive, color = Ink, fontSize = 32.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold)
+                    Text(spec.toStop, color = Muted, fontSize = 13.sp)
+                }
+            }
+            val meta = listOf(spec.service, spec.duration).filter { it.isNotEmpty() }.joinToString(" · ")
+            if (meta.isNotEmpty() || spec.badge.isNotEmpty() || spec.price.isNotEmpty()) {
+                HorizontalDivider(color = Line)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (meta.isNotEmpty()) Text(meta, color = Muted, fontSize = 14.sp)
+                    if (spec.badge.isNotEmpty()) Text(spec.badge, color = Ink, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(link.copy(alpha = .22f)).padding(horizontal = 9.dp, vertical = 3.dp))
+                    Spacer(Modifier.weight(1f))
+                    if (spec.price.isNotEmpty()) Text(spec.price, color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                }
+            }
+        }
+        if (spec.alternatives.isNotEmpty()) Column(Modifier.padding(horizontal = 16.dp)) {
+            spec.alternatives.forEach { a ->
+                HorizontalDivider(color = Line)
+                Row(Modifier.fillMaxWidth().then(if (a.url.isNotEmpty()) Modifier.clickable(role = Role.Button) { uri.openUri(a.url) } else Modifier)
+                    .heightIn(min = 44.dp).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(listOf(a.time, a.service).filter { it.isNotEmpty() }.joinToString(" · "), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text(a.price, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    if (a.url.isNotEmpty()) Text("  ›", color = Muted, fontSize = 18.sp)
+                }
+            }
+        }
+        if (spec.sources.isNotEmpty()) Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) { Sources(spec.sources, lang) }
     }
 }
 

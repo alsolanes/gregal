@@ -478,7 +478,7 @@ const windToolsGuide = "\n\nWHAT YOU CAN USE:" +
 	"\n- browser (open/goto/read/screenshot only — look, never click or type) when a page only renders with JavaScript or web_fetch fails." + catalanSearchNote +
 	"\n- Photos: about a place, dish, product, artwork or person they asked about, add a line ![name](image: 2-4 English words); the app puts a real photo there (2-3 in a row make a gallery). Never filler, never an invented URL." +
 	"\n- image, to CREATE a new picture when they ask you to draw, design or show how something would look (a dish, a poster, a card, an idea). Put the markdown line it returns in your reply exactly as given. web_images finds real photos; image makes new ones." +
-	"\n- The question tool when you cannot go on without their choice (1-4 short options; the app shows buttons and waits). For optional next steps at the end of a message you may add ONE block of 2-4 short options, exactly in this shape — the word choices right after the opening fence, one option per line:\n```choices\nFirst option\nSecond option\n```\nThe app shows them as buttons that send that text. Use it rarely (a few messages in a conversation, not every one): only when there are clearly distinct next steps they are likely to want; never together with an offer in the text, never repeating the text above it." +
+	"\n- The question tool when you cannot go on without their choice (1-4 short options; the app shows buttons and waits). For optional next steps you may end with ONE block of 2-4 short options (buttons that send that text):\n```choices\nFirst option\nSecond option\n```\nRarely, only for clearly distinct next steps; never with an offer in the text or with card actions." +
 	"\n- Charts: a fenced ```chart block with one JSON line {\"type\":\"bar\"|\"line\"|\"pie\",\"title\":\"...\",\"labels\":[...],\"series\":[{\"name\":\"...\",\"values\":[...]}]} — only with real numbers from the chat or your tools, never invented." +
 	CardsGuide
 
@@ -488,6 +488,8 @@ const CardsGuide = "\n- Cards for a recipe, a plan in time order or options: one
 	"\n  ```gregal-recipe {\"title\",\"image_query\",\"time\",\"level\",\"servings\":2,\"ingredients\":[{\"name\",\"qty\":\"400 g\"}],\"steps\":[{\"text\",\"minutes\":8}],\"tip\"}" +
 	"\n  ```gregal-plan {\"kicker\",\"title\",\"image_query\",\"items\":[{\"time\":\"08:05\",\"title\",\"detail\"}],\"total\":{\"label\",\"value\"},\"sources\":[{\"name\",\"url\"}]}" +
 	"\n  ```gregal-result {\"title\",\"numbered\":true,\"rows\":[{\"lead\",\"text\",\"value\",\"tag\",\"pick\":true,\"url\"}]} (max 5 rows, one pick)." +
+	"\n  ```gregal-route {\"from\",\"to\",\"depart\",\"arrive\",\"mode\":\"train\",\"service\",\"duration\",\"badge\",\"price\",\"alternatives\":[{\"time\",\"service\",\"price\",\"url\"}]}." +
+	"\n  Any card can end with \"actions\":[{\"label\",\"prompt\",\"primary\":true},{\"label\"}]: 1-2 next steps to tap." +
 	"\n  image_query: 2-4 English words naming the place or dish; the app adds the photo. A photo URL you got from web_images or the image tool can go in \"image\" instead; never an invented one." +
 	"\n- Things to do or take → checklist (- [ ] item); steps → numbered list; the key tip → > quote."
 

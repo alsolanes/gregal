@@ -41,8 +41,24 @@ test('el pla és una línia de temps amb foto, total i fonts', () => {
   }));
   assert.ok(h.includes('class="gregal-card gregal-plan"'), h);
   assert.ok(h.includes('<img class="gc-hero" src="https://example.com/girona.jpg"'));
-  assert.ok(h.includes('<span class="gc-time">08:05</span>'));
-  assert.ok(h.includes('42 €') && h.includes('gr-foot'));
+  assert.ok(h.includes('<span class="gc-pill">08:05</span>'));
+  assert.ok(h.includes('42 €') && h.includes('gr-foot') && h.includes('gc-budget'));
+  // Hi ha un detall amagat: el peu porta «Detalls».
+  assert.ok(h.includes('data-gc-toggle'), h);
+});
+
+test('el pla llarg ensenya quatre files; les accions i el trajecte surten com al disseny', () => {
+  const items = ['A', 'B', 'C', 'D', 'E', 'F'].map((t, k) => ({ time: '1' + k + ':00', title: t }));
+  const h = md.render(block('gregal-plan', { title: 'Dia llarg', items, actions: [{ label: 'Una altra idea' }, { label: 'Prepara el pla', prompt: 'Prepara-me el pla amb reserves', primary: true }] }));
+  assert.strictEqual((h.match(/class="gc-extra"/g) || []).length, 2, h);
+  assert.ok(h.includes('data-gc-toggle'), h);
+  const cta = h.indexOf('class="gc-cta"'), alt = h.indexOf('class="gc-alt"');
+  assert.ok(cta > 0 && alt > cta && h.includes('data-gregal-say="Prepara-me el pla amb reserves"') && h.includes('data-gregal-say="Una altra idea"'), h);
+  const r = md.render(block('gregal-route', { from: 'Barcelona', to: 'Girona', depart: '08:05', arrive: '08:45', from_stop: 'Sants', mode: 'train', service: 'Avant', duration: '40 min', badge: 'La millor opció', price: '17,40 €',
+    alternatives: [{ time: '08:16', service: 'R11', price: '8,95 €', url: 'https://www.renfe.com/r11' }, { time: '09:32', service: '<b>x</b>' }] }));
+  assert.ok(r.includes('class="gregal-card gregal-route"') && r.includes('<b>08:05</b><small>Sants</small>') && r.includes('class="gc-mode"') && r.includes('gc-badge') && r.includes('17,40 €'), r);
+  assert.ok(r.includes('href="https://www.renfe.com/r11"') && !r.includes('<b>x</b>'), r);
+  assert.strictEqual(md.render(block('gregal-route', { from: 'A', depart: '08:00' })).includes('class="gregal-card gregal-route"'), false);
 });
 
 test('una foto de targeta mai és javascript: ni HTML; la d\'un vent es baixa amb la clau', () => {
