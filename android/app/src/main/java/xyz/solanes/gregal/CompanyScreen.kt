@@ -226,21 +226,46 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     val panel by vm.ventsPanel.collectAsState()
     var panelShown by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(panel) {
-        when (panel) {
-            "directory" -> { exploreOpen = false; searching = false; manage = true }
-            "explore" -> { manage = false; searching = false; exploreOpen = true }
-            "today", "chats" -> { manage = false; searching = false; exploreOpen = false; tab = panel ?: "home" }
-            "new" -> { creation = "chat" }
-            "guide" -> { guideOpen = true }
-            "work" -> { feinesOpen = true }
-            "watch" -> { watchHome = true }
-            "computer" -> { homeComputer = true }
+        if (panel == null) {
+            when (panelShown) {
+                "directory" -> manage = false
+                "explore" -> exploreOpen = false
+                "today", "chats" -> tab = "home"
+                "new" -> creation = null
+                "guide" -> guideOpen = false
+                "work" -> feinesOpen = false
+                "watch" -> watchHome = false
+                "computer" -> homeComputer = false
+            }
+        } else {
+            when (panel) {
+                "directory" -> { exploreOpen = false; searching = false; manage = true }
+                "explore" -> { manage = false; searching = false; exploreOpen = true }
+                "today", "chats" -> { manage = false; searching = false; exploreOpen = false; tab = panel ?: "home" }
+                "new" -> { creation = "chat" }
+                "guide" -> { guideOpen = true }
+                "work" -> { feinesOpen = true }
+                "watch" -> { watchHome = true }
+                "computer" -> { homeComputer = true }
+            }
         }
         panelShown = panel
     }
-    // En tancar-lo (enrere, triar una eina…), el calaix torna a marcar «Vents».
-    LaunchedEffect(manage, exploreOpen, panelShown) {
-        if (panelShown != null && !manage && !exploreOpen) { panelShown = null; vm.openVentsPanel(null) }
+    // El calaix i els fills poden tancar la vista. No esborrem el panell mentre
+    // la secció demanada encara és oberta (p. ex. «Chats» o «Feina»).
+    LaunchedEffect(manage, exploreOpen, tab, feinesOpen, watchHome, homeComputer, guideOpen, creation, panelShown) {
+        val stillOpen = when (panelShown) {
+            "directory" -> manage
+            "explore" -> exploreOpen
+            "today", "chats" -> tab == panelShown
+            "new" -> creation != null
+            "guide" -> guideOpen
+            "work" -> feinesOpen
+            "watch" -> watchHome
+            "computer" -> homeComputer
+            else -> false
+        }
+        if (panelShown != null && !stillOpen) { panelShown = null; vm.openVentsPanel(null) }
     }
     androidx.activity.compose.BackHandler(enabled = exploreOpen && !manage && open == null && !creator.first) { exploreOpen = false }
     var libraryOpen by remember { mutableStateOf(false) }
@@ -2447,34 +2472,32 @@ private data class LatestChatLayout(
 
 
 /**
- * En acabar un torn, una resposta que no cap a la pantalla es llegeix des del
- * principi: es posa el seu inici a dalt i es deixa de seguir el final (surt
- * «Últims ↓»). Sense això, la vista quedava a la cua i es començava a llegir
- * pel final. Mentre arriba en directe, es continua seguint el final.
- * [replyIndex]: l'element de la llista on és l'última resposta del vent.
+ * s'ancora a l'inici en aparèixer la primera línia, i deixa d'empènyer el fil
+ * cap amunt a cada fragment. En acabar, si seguia la cua, una resposta llarga
+ * es llegeix des del principi («Últims ↓» permet anar-ne al final).
+ * [replyKey]: la clau de l'element de la darrera resposta del vent.
  */
+internal fun shouldPinLiveReply(following: Boolean, dragging: Boolean, replyVisible: Boolean): Boolean =
+    following && !dragging && replyVisible
+
 @Composable
 internal fun ReadReplyFromStart(list: LazyListState, follow: ChatFollowState, busy: Boolean, replyKey: Any?) {
     var wasBusy by remember(list) { mutableStateOf(busy) }
     // La resposta pot arribar just després que el torn acabi: es llegeix la clau d'ara.
     val reply by rememberUpdatedState(replyKey)
-    // En directe (el text creix): se segueix el final fins que l'inici de la
-    // resposta arriba a dalt; aleshores la vista s'hi queda i surt «Últims ↓».
-    // Abans se seguia la cua fins al final i, en acabar, es saltava enrere a
-    // l'inici: amb el text en directe era un salt cada resposta llarga.
+    // Quan apareix la primera línia de resposta, deixem de perseguir la cua:
+    // el text creix cap avall i el començament queda quiet al lloc on l'has vist.
+    // Si seguíssim cada fragment fins al final, la bombolla sencera pujaria
+    // contínuament mentre el model escriu (el salt que es notava al xat).
     LaunchedEffect(busy, list) {
         if (!busy) return@LaunchedEffect
         snapshotFlow {
-            val key = reply ?: return@snapshotFlow null
-            if (!follow.following || follow.dragging) return@snapshotFlow null
+            val key = reply
             val info = list.layoutInfo
-            info.visibleItemsInfo.firstOrNull { it.key == key }?.let { it.index to (it.offset - info.viewportStartOffset) }
-        }.collect { hit ->
-            val (index, top) = hit ?: return@collect
-            if (top < 0 && follow.following && !follow.dragging) {
-                follow.pause()
-                list.scrollToItem(index)
-            }
+            val visible = key != null && info.visibleItemsInfo.any { it.key == key }
+            Triple(follow.following, follow.dragging, visible)
+        }.collect { (following, dragging, visible) ->
+            if (shouldPinLiveReply(following, dragging, visible)) follow.pause()
         }
     }
     LaunchedEffect(busy) {

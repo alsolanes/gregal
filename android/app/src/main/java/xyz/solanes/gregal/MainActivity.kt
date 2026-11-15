@@ -274,8 +274,9 @@ class MainActivity : ComponentActivity() {
                     val backDepth by vm.backStack.collectAsState()
                     val screenState by vm.screen.collectAsState()
                     val ventsOpen by vm.ventsOpen.collectAsState()
+                    val ventsPanel by vm.ventsPanel.collectAsState()
                     BackHandler(
-                        enabled = drawer.isOpen || (screenState == Screen.Company && ventsOpen != null) || backDepth.isNotEmpty() || screenState != Screen.Company,
+                        enabled = drawer.isOpen || (screenState == Screen.Company && (ventsOpen != null || ventsPanel != null)) || backDepth.isNotEmpty() || screenState != Screen.Company,
                     ) {
                         when {
                             drawer.isOpen -> scope.launch { drawer.close() }
