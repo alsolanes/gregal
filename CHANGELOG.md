@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v1.86.5 - 2026-11-16 - Visor a pantalla completa a l'Android
+
+- **Visor a pantalla completa a l'Android.** Les fotos, les webs dels vents,
+  els dibuixos SVG i HTML i els gràfics del xat s'obren en gran (toc o
+  «⤢ Amplia»). Dins el visor es passa amb les fletxes per tot el que s'ha
+  ensenyat en aquella conversa, i es pot compartir, copiar el codi o obrir al
+  navegador. Les webs dels vents ara s'obren dins l'app.
+- **Gràfics amb els colors del tema.** A l'Android ja no surten sobre un fons
+  marró de la paleta d'abans.
+
 ## v1.86.4 - 2026-11-16 - El navegador es torna a obrir
 
 - **El navegador es torna a obrir.** Un botó amb un globus a la barra de dalt
