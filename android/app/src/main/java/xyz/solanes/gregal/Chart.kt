@@ -183,8 +183,8 @@ private fun hsvToRgb(h: Float, s: Float, v: Float): Triple<Float, Float, Float> 
 
 /** Bloc de gràfic: barres, línies o formatget, amb títol i llegenda. */
 @Composable
-fun ChartBlock(spec: ChartSpec, accent: Color, dark: Boolean) {
-    val ink = if (dark) Color(0xFFF2EDE3) else Ink
+fun ChartBlock(spec: ChartSpec, accent: Color, dark: Boolean, height: androidx.compose.ui.unit.Dp = 190.dp) {
+    val ink = if (dark) LocalPal.current.ink else Ink
     val grid = ink.copy(alpha = 0.14f)
     // Una sèrie: l'accent del vent en fosc; en clar (accent de mar) i amb
     // diverses sèries, els colors vius del tema.
@@ -195,12 +195,18 @@ fun ChartBlock(spec: ChartSpec, accent: Color, dark: Boolean) {
     }
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-            .background(if (dark) Color(0xFF23201A) else Color(0xFFF6F1E7))
+            // Les superfícies del tema (abans un marró de la paleta càlida d'abans).
+            .background(if (dark) LocalPal.current.surface else Color(0xFFF6F1E7))
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (spec.title.isNotBlank()) Text(spec.title, fontSize = 14.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = ink)
-        Canvas(Modifier.fillMaxWidth().height(190.dp)) {
+        val inViewer = LocalInViewer.current
+        if (spec.title.isNotBlank() || !inViewer) Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(spec.title, fontSize = 14.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = ink, modifier = Modifier.weight(1f))
+            // Gran, a pantalla completa (Viewer.kt).
+            if (!inViewer) ExpandChip(Viewer.lang) { Viewer.show(ViewItem.Chart(spec)) }
+        }
+        Canvas(Modifier.fillMaxWidth().height(height)) {
             when (spec.type) {
                 "pie" -> drawPie(this, spec, palette)
                 "line" -> drawLines(this, spec, palette, grid, ink)

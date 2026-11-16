@@ -59,7 +59,7 @@ internal fun ChatImageFrame(bmp: ImageBitmap, url: String, alt: String, lang: St
                 .aspectRatio(chatImageBoxRatio(bmp.width, bmp.height))
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color.Black.copy(alpha = 0.25f))
-                .clickable(onClickLabel = tr(lang, "app.vents.imageOpen")) { full = true },
+                .clickable(onClickLabel = tr(lang, "app.vents.imageOpen")) { Viewer.show(ViewItem.Image(url, alt)) },
             contentAlignment = Alignment.Center,
         ) {
             Image(bitmap = bmp, contentDescription = description, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())

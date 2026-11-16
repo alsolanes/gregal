@@ -69,10 +69,16 @@ object WebPreviewLogic {
         return ""
     }
 
-    /** El document aïllat: la CSP va la primera dins del <head>. */
-    fun srcdoc(kind: String, code: String): String {
+    /** El document aïllat: la CSP va la primera dins del <head>. Amb [fill]
+     *  (el visor a pantalla completa), l'SVG s'amplia fins a omplir la pantalla. */
+    fun srcdoc(kind: String, code: String, fill: Boolean = false): String {
         val meta = "<meta http-equiv=\"Content-Security-Policy\" content=\"$CSP\">"
         val c = code.trim()
+        if (kind == "svg" && fill) {
+            // Percentatges (no vh: el WebView pot carregar abans de tenir alçada)
+            // i un viewBox si no en té, perquè el dibuix s'escali i no només el llenç.
+            return "<!doctype html><html><head>$meta<meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>html,body{margin:0;min-height:100%;background:#fff}body{display:flex;align-items:center;justify-content:center;min-height:100vh}svg{display:block;width:100%;height:auto}</style></head><body>${scalableSvg(c)}</body></html>"
+        }
         if (kind == "svg") {
             return "<!doctype html><html><head>$meta<meta charset=\"utf-8\"><style>html,body{margin:0;height:100%;display:grid;place-items:center;background:#fff}svg{max-width:100%;max-height:100%}</style></head><body>$c</body></html>"
         }
@@ -83,6 +89,25 @@ object WebPreviewLogic {
         }
     }
 
+    private val svgOpen = Regex("""<svg\b[^>]*>""", RegexOption.IGNORE_CASE)
+    private fun svgAttr(tag: String, name: String): String? =
+        Regex("""\s$name\s*=\s*["']([^"']*)["']""", RegexOption.IGNORE_CASE).find(tag)?.groupValues?.get(1)
+
+    /** L'SVG amb viewBox (el treu de width/height si cal) i sense mida fixa:
+     *  així omple la pantalla i el dibuix es fa gran amb el llenç. */
+    fun scalableSvg(code: String): String {
+        val tag = svgOpen.find(code) ?: return code
+        var open = tag.value
+        if (svgAttr(open, "viewBox") == null) {
+            val w = svgAttr(open, "width")?.removeSuffix("px")?.toDoubleOrNull()
+            val h = svgAttr(open, "height")?.removeSuffix("px")?.toDoubleOrNull()
+            if (w != null && h != null && w > 0 && h > 0) open = open.replaceFirst(Regex("<svg", RegexOption.IGNORE_CASE), "<svg viewBox=\"0 0 ${fmt(w)} ${fmt(h)}\"")
+        }
+        open = open.replace(Regex("""\s(width|height)\s*=\s*["'][^"']*["']""", RegexOption.IGNORE_CASE), "")
+        return code.replaceRange(tag.range, open)
+    }
+    private fun fmt(d: Double) = if (d % 1.0 == 0.0) d.toLong().toString() else d.toString()
+
     /** La base del servidor actual (local o remot), per a les adreces /p/. */
     fun serverBase(ctx: Context): String {
         val p = Prefs(ctx)
@@ -92,7 +117,7 @@ object WebPreviewLogic {
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun PreviewWebView(modifier: Modifier, url: String? = null, html: String? = null, allowStorage: Boolean = false) {
+internal fun PreviewWebView(modifier: Modifier, url: String? = null, html: String? = null, allowStorage: Boolean = false) {
     AndroidView(
         modifier = modifier,
         factory = { ctx ->
@@ -141,9 +166,14 @@ internal fun WebCardBlock(spec: WebSpec, link: Color, lang: String) {
                 Text(spec.title, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (spec.path.isNotBlank()) Text(spec.path, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Text(if (lang == "en") "Open ↗" else "Obre ↗", color = link, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+            // «Obre»: a pantalla completa dins l'app (el visor té «obre al navegador»).
+            val inViewer = LocalInViewer.current
+            Text(if (lang == "en") "Open ⤢" else "Obre ⤢", color = link, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.clip(RoundedCornerShape(50)).background(SuperficieAlta)
-                    .clickable { runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(full)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
+                    .clickable {
+                        if (!inViewer) Viewer.show(ViewItem.Web(spec))
+                        else runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(full)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    }
                     .padding(horizontal = 12.dp, vertical = 6.dp).testTag("gregal-web-open"))
         }
         PreviewWebView(Modifier.fillMaxWidth().height(420.dp), url = full, allowStorage = true)
@@ -166,6 +196,8 @@ internal fun CodePreviewBlock(kind: String, code: String, lang: String) {
                     modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) SuperficieAlta else Color.Transparent)
                         .clickable { showCode = isCode }.padding(horizontal = 10.dp, vertical = 4.dp))
             }
+            Spacer(Modifier.weight(1f))
+            if (!LocalInViewer.current) ExpandChip(lang) { Viewer.show(ViewItem.Html(kind, code)) }
         }
         if (showCode) {
             Text(code, color = Ink, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(10.dp))

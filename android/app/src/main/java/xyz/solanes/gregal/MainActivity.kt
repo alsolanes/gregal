@@ -296,6 +296,8 @@ class MainActivity : ComponentActivity() {
                         },
                     ) {
                         GregalBg {
+                            // Visor a pantalla completa (Viewer.kt): fotos, webs i gràfics.
+                            ViewerOverlay(lang)
                             AnimatedContent(targetState = screen, label = "pantalla") { s ->
                                 when (s) {
                                     Screen.Chat -> ChatScreen(vm) { scope.launch { drawer.open() } }

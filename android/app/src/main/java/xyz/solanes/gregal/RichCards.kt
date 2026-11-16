@@ -584,7 +584,7 @@ private fun GalleryTile(image: Pair<String, String>, lang: String, modifier: Mod
     val (bmp, _) = rememberChatImage(url)
     var full by remember { mutableStateOf(false) }
     Box(modifier.clip(RoundedCornerShape(14.dp)).background(CodeDark)
-        .then(if (bmp != null) Modifier.clickable(role = Role.Image) { full = true } else Modifier)) {
+        .then(if (bmp != null) Modifier.clickable(role = Role.Image) { Viewer.show(ViewItem.Image(url, alt)) } else Modifier)) {
         if (bmp != null) Image(bmp, alt, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
     }
     if (full && bmp != null) ChatImageViewer(bmp, url, alt, lang) { full = false }

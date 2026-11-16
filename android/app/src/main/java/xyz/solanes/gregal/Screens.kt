@@ -340,6 +340,8 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val lang by vm.idioma.collectAsState()
     val msgs by vm.msgs.collectAsState()
     val sending by vm.sending.collectAsState()
+    // Visor a pantalla completa (Viewer.kt): el que el Gregal ha ensenyat aquí.
+    ViewerItemsFrom(msgs.filter { it.role == "assistant" && it.kind == "text" }.map { it.text })
     val st by vm.state.collectAsState()
     val approve by vm.approve.collectAsState()
     val preview by vm.preview.collectAsState()

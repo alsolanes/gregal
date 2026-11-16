@@ -1172,6 +1172,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     val tempestaOn by vm.tempesta.collectAsState()
     val turnActionsAll by vm.turnActions.collectAsState()
     val msgs = chats[wind.id].orEmpty()
+    // El visor (Viewer.kt) passa d'una cosa ensenyada a l'altra d'aquesta conversa.
+    ViewerItemsFrom(msgs.filter { it.from != "user" && !it.streaming }.map { it.text })
     val clipboard = LocalClipboardManager.current
     var field by rememberSaveable(wind.id, stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     val accent = Color(wind.argb)
@@ -1485,6 +1487,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
     val busy by vm.rotllanaBusy.collectAsState()
     val live by vm.windLive.collectAsState()
     val msgs = chats[rot.id].orEmpty()
+    ViewerItemsFrom(msgs.filter { it.from != "user" && !it.streaming }.map { it.text })
     val clipboard = LocalClipboardManager.current
     var field by rememberSaveable(rot.id, stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var groupProfile by remember(rot.id) { mutableStateOf(false) }
