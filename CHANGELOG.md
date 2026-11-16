@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v1.86.1 - 2026-11-16 - Fotos que encaixen i un blau suau
+
+- **Fotos que són del plat.** Les receptes i les targetes només porten foto
+  si de debò és del que diuen (el títol o el fitxer de la imatge nomenen el
+  plat o el lloc). Abans es posava la primera imatge trobada i sortien plats
+  que no tocaven; ara, si no n'hi ha cap que encaixi, la targeta va sense.
+- **Un blau suau en lloc de la llima.** L'accent del tema fosc torna a ser el
+  blau del logo, una mica més apagat, sobre un grafit neutre; l'enviar brilla
+  menys. Igual a l'escriptori, l'Android i el terminal.
+
 ## v1.86.0 - 2026-11-16 - Posa ordre als vents
 
 - **«Posa ordre» als vents.** Troba els vents duplicats (mateix nom o mateix
