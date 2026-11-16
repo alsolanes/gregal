@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v1.85.1 - 2026-11-16 - Colors polits a l'escriptori
+
+- **Colors polits a l'escriptori.** El logo i la salutació de la portada de
+  Codi passen del lavanda d'abans a la llima, fora les lluïssors lila,
+  «Autonomia total» avisa només amb el punt ambre, la guia «Què pot fer
+  Gregal» i els punts de les fonts fan servir la paleta, i cada pàgina diu
+  el seu nom a dalt (Desat, Avui, Feina…).
+
 ## v1.85.0 - 2026-11-16 - Els grups responen junts
 
 - **Els grups responen junts.** Quan en un grup hi diuen la seva dos vents o
