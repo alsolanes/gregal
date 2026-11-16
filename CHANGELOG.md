@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## v1.83.0 - 2026-11-16 - Barra d'un sol nivell i webs dins del xat
+
+- **Una barra d'un sol nivell.** Nova conversa i Cerca a dalt; Avui, Feina,
+  Desat i la colla; tots els vents; les converses; i la configuració plegada a
+  sota. Feina porta les pestanyes En marxa · Fes · Automatitzacions i Desat,
+  Desat · Notes · Comparticions. Igual a l'escriptori i a l'Android.
+- **La web que fa un vent, funcionant dins del xat.** La resposta porta la
+  targeta amb la pàgina en marxa i «Obre»; els blocs html i svg tenen Vista i
+  Codi. Aïllat: la pàgina no pot tocar l'app ni la teva sessió.
+- **Llistes ben fetes a l'Android.** Sagnat penjant, nivells i números.
+- **La cerca dels vents ja no baixa fitxers del núvol.** No entra a Nextcloud,
+  OneDrive o Dropbox si no s'hi demana, no obre fotos ni vídeos i s'atura als
+  30 segons.
+- **L'avís de permís, en català** i sense soroll quan el vent només volia
+  provar la seva pròpia pàgina.
+
 ## v1.82.1 - 2026-11-15 - Sortir de l'app ja no fa fallar el torn
 
 - **Sortir de l'app ja no fa fallar el torn.** Si preguntes alguna cosa i
