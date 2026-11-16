@@ -122,7 +122,9 @@
   const prefs=btn('',()=>root.document.getElementById('prefsBtn')?.click(),'vw-nav-item vw-nav-icon');prefs.append(navIcon('settings'),el('span','',t('Preferències','Preferences')));
   more.append(prefs,subRow(['apres','Què sap de tu','About you']),subRow(['rules','Regles','Rules']),shellRow('memoria','Memòria del projecte','Project memory','wiki'),pc,subRow(['library','Biblioteca','Library']),subRow(['wiki','Wiki','Wiki']),subRow(['pati','El pati','Playground']),shellRow('raco','El Racó dels vents','The winds’ corner','pati'));
   more.open=settingsViews.includes(state.view)||(()=>{try{return localStorage.getItem('gregal_vw_more')==='1';}catch{return false;}})();
-  more.addEventListener('toggle',()=>{try{localStorage.setItem('gregal_vw_more',more.open?'1':'0');}catch{}});nav.append(more);
+  // En obrir-lo, la barra baixa fins al final del menú: si no, les opcions
+  // quedaven sota la barra de baix i semblava que no s'obria.
+  more.addEventListener('toggle',()=>{try{localStorage.setItem('gregal_vw_more',more.open?'1':'0');}catch{}if(more.open&&more.isConnected)requestAnimationFrame(()=>more.lastElementChild?.scrollIntoView?.({block:'nearest',behavior:'smooth'}));});nav.append(more);
  }
  // Qui porta la conversa: la cara, el nom i l'ofici. En un grup, les cares de qui hi és.
  function owner(){

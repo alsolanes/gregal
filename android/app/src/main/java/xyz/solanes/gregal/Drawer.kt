@@ -51,6 +51,9 @@ import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.material3.HorizontalDivider
@@ -256,9 +259,17 @@ private fun SimpleVentsDrawer(
 
 /** Un grup plegable de la barra (Feina, Desat, Configuració): una fila i, obert, les seves files. */
 @Composable
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 private fun DrawerGroup(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, open: Boolean, toggle: () -> Unit, badge: Int = 0, content: @Composable () -> Unit) {
-    DrawerRow(label, false, toggle, icon, badge = badge)
-    if (open) Column(Modifier.padding(start = 14.dp)) { content() }
+    // En obrir-lo tu, el calaix baixa fins a les opcions: «Configuració i més»
+    // és a baix de tot i, si no, s'obria fora de la pantalla i semblava mort.
+    val bring = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    var openedByTap by remember { mutableStateOf(false) }
+    DrawerRow(label, false, { openedByTap = !open; toggle() }, icon, badge = badge)
+    if (open) Column(Modifier.padding(start = 14.dp).bringIntoViewRequester(bring)) { content() }
+    LaunchedEffect(open, openedByTap) {
+        if (open && openedByTap) { kotlinx.coroutines.delay(60); bring.bringIntoView(); openedByTap = false }
+    }
 }
 
 @Composable
