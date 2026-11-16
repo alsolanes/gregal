@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## v1.87.0 - 2026-11-16 - Comparacions amb foto i xifres clau
+
+- **Comparacions amb foto.** Quan preguntes «X o Y?» o la diferència entre
+  dues o tres coses, el vent les posa una al costat de l'altra: la foto de
+  cada una, els mateixos trets en files i un veredicte. A l'escriptori i a
+  l'Android.
+- **Xifres clau.** Quan uns quants números són la resposta (quant fa, quant
+  pesa, quants), surten grans, en rajoles.
+- **Galeries quan en demanes diverses.** «Ensenya'm quadres de Miró» en treu
+  2-4 de diferents.
+- **Cada cosa al seu lloc.** Foto per a les coses concretes, gràfic per a les
+  xifres en el temps, targeta per a passos i plans; res en una resposta
+  personal. Les targetes amb el JSON mal tancat es reparen en lloc de sortir
+  com a codi.
+
 ## v1.86.9 - 2026-11-16 - Els vents tornen a buscar fotos
 
 - **Els vents tornen a buscar fotos.** Un vent es podia apuntar com a lliçó
