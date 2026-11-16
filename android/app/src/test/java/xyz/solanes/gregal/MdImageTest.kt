@@ -11,6 +11,17 @@ class MdImageTest {
         assertEquals("gato", img.alt)
         assertEquals("https://x.example/gato.png", img.url)
     }
+    // «![](url)» és una foto (com a l'escriptori), no text amb l'adreça.
+    @Test fun `imatge sense text alternatiu`() {
+        val rich = groupRich(splitMd("Abadia:\n![](https://x.example/abadia.jpg)\nFi."))
+        val img = rich.filterIsInstance<Rich.Image>().single()
+        assertEquals("https://x.example/abadia.jpg", img.url)
+        assertEquals("", img.alt)
+        assertFalse(rich.filterIsInstance<Rich.Inline>().any { r -> r.segs.any { it is Seg.Text && it.t.contains("https://") } })
+    }
+    @Test fun `enllac sense text continua sense ser res`() {
+        assertTrue(splitMd("[](https://x.example/a)").none { it is Seg.Link || it is Seg.Image })
+    }
     @Test fun `enllac normal continua sent Link`() {
         val segs = splitMd("mira [gato](https://x.example/gato.png) ja")
         assertTrue(segs.filterIsInstance<Seg.Image>().isEmpty())

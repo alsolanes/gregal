@@ -402,7 +402,10 @@ func TestWindChatSendsBoundedPreviousTurns(t *testing.T) {
 			t.Errorf("model missing previous context %q", want)
 		}
 	}
-	if strings.Contains(brief, "OLD-SECRET-TURN") || len([]rune(brief)) > 22000 {
+	// El límit és el prompt del vent més la història retallada: si el prompt
+	// creix una mica (p. ex. una regla d'estil), la història continua tenint
+	// sostre; OLD-SECRET-TURN és el que ho demostra.
+	if strings.Contains(brief, "OLD-SECRET-TURN") || len([]rune(brief)) > 22500 {
 		t.Fatalf("history not bounded: %d chars", len([]rune(brief)))
 	}
 	req := httptest.NewRequest(http.MethodGet, "/api/winds/chat?wind=xaloc", nil)

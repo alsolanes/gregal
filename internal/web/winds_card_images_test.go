@@ -188,3 +188,19 @@ func TestImageNeedsTheMainWord(t *testing.T) {
 		t.Fatal("the abbey is Montserrat")
 	}
 }
+
+// L'adreça d'una foto sola en una línia (o un enllaç a una foto) es mostra com
+// a foto; dins d'una frase o d'un bloc de codi, no es toca.
+func TestImageLinksOnTheirOwnLineBecomePhotos(t *testing.T) {
+	in := "Mira:\n\nhttps://upload.wikimedia.org/a/b/Montserrat.jpg\n\n- [El monestir](https://e.org/m.webp?w=800)\n\nAquí hi ha [una foto](https://e.org/x.png) que comento.\n\n```\nhttps://e.org/codi.png\n```"
+	out := embedImageLinks(in)
+	for _, want := range []string{"![](https://upload.wikimedia.org/a/b/Montserrat.jpg)", "- ![El monestir](https://e.org/m.webp?w=800)",
+		"Aquí hi ha [una foto](https://e.org/x.png) que comento.", "```\nhttps://e.org/codi.png\n```"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("falta %q a:\n%s", want, out)
+		}
+	}
+	if same := "Una web: https://e.org/pagina.html"; embedImageLinks(same) != same {
+		t.Fatal("una adreça que no és una foto es queda com era")
+	}
+}

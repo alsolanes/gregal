@@ -37,6 +37,7 @@ var (
 // windCardImages torna el text amb les fotos posades. Com a molt quatre
 // cerques per resposta i 8 s en total.
 func (s *Server) windCardImages(reply string) string {
+	reply = embedImageLinks(reply)
 	hasCard, hasText := strings.Contains(reply, "```gregal-"), strings.Contains(reply, "](image:") || strings.Contains(reply, "]( image:")
 	if !hasCard && !hasText {
 		return reply
@@ -296,4 +297,27 @@ func imageMatches(words []string, hay string) bool {
 		}
 	}
 	return hits >= 2 || longHit
+}
+
+// Una línia que només és l'adreça d'una foto, o un enllaç a una foto, és una
+// foto: el model de vegades l'escriu així en lloc de ![...](...), i llavors es
+// veia l'adreça (sobretot a l'Android). Només línies senceres: un enllaç
+// dins d'una frase continua sent un enllaç.
+var (
+	bareImageLineRe = regexp.MustCompile(`(?mi)^([ 	]*(?:[-*][ 	]+)?)(https?://[^\s<>()]+\.(?:jpe?g|png|webp|gif)(?:\?[^\s<>()]*)?)[ 	]*$`)
+	linkImageLineRe = regexp.MustCompile(`(?mi)^([ 	]*(?:[-*][ 	]+)?)\[([^\]
+]+)\]\((https?://[^\s<>()]+\.(?:jpe?g|png|webp|gif)(?:\?[^\s<>()]*)?)\)[ 	]*$`)
+)
+
+func embedImageLinks(reply string) string {
+	if !strings.Contains(reply, "http") {
+		return reply
+	}
+	// Dins d'un bloc de codi no es toca res.
+	parts := strings.Split(reply, "```")
+	for i := 0; i < len(parts); i += 2 {
+		p := linkImageLineRe.ReplaceAllString(parts[i], "${1}![${2}](${3})")
+		parts[i] = bareImageLineRe.ReplaceAllString(p, "${1}![](${2})")
+	}
+	return strings.Join(parts, "```")
 }

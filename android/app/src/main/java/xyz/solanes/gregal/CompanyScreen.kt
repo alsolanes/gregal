@@ -1728,7 +1728,7 @@ internal fun gregalImageBytes(ctx: android.content.Context, id: String): ByteArr
 
 /** Bitmap del xat a partir dels bytes, reduït a 1024 px de costat com a màxim. */
 internal fun decodeChatBytes(bytes: ByteArray?): ImageBitmap? {
-    if (bytes == null || bytes.isEmpty() || bytes.size > 8 * 1024 * 1024) return null
+    if (bytes == null || bytes.isEmpty() || bytes.size > 12 * 1024 * 1024) return null
     return try {
         val probe = android.graphics.BitmapFactory.Options()
         probe.inJustDecodeBounds = true
@@ -1750,44 +1750,58 @@ private val chatImageCache = object : LinkedHashMap<String, ImageBitmap>(32, 0.7
  *  cridar en IO. Només http(s); tota la resta, null. */
 private fun loadChatBitmap(url: String): ImageBitmap? {
     if (!url.startsWith("http://") && !url.startsWith("https://")) return null
-    return try {
-        val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
-        conn.connectTimeout = 8000
-        conn.readTimeout = 8000
-        conn.instanceFollowRedirects = true
-        conn.connect()
-        if (conn.responseCode !in 200..299) return null
-        if (conn.contentLength > 8 * 1024 * 1024) return null
-        val bytes = conn.inputStream.use { it.readBytes() }
-        if (bytes.size > 8 * 1024 * 1024 || bytes.isEmpty()) return null
-        val probe = android.graphics.BitmapFactory.Options()
-        probe.inJustDecodeBounds = true
-        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, probe)
-        var sample = 1
-        while (maxOf(probe.outWidth, probe.outHeight) / sample > 1024) sample *= 2
-        val opts = android.graphics.BitmapFactory.Options()
-        opts.inSampleSize = sample
-        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)?.asImageBitmap()
-    } catch (_: Exception) {
-        null
+    // Dos intents: un tall de xarxa d'un moment no ha de deixar la foto fora.
+    repeat(2) { attempt ->
+        val bytes = fetchChatImageBytes(url)
+        if (bytes != null) return decodeChatBytes(bytes)
+        if (attempt == 0) Thread.sleep(400)
     }
+    return null
+}
+
+/** Baixa els bytes d'una imatge web com ho faria un navegador: segueix
+ *  redireccions (també de http a https, que HttpURLConnection no fa sol),
+ *  demana una imatge i diu qui és. Abans, una redirecció o un servidor
+ *  exigent deixaven l'adreça en lloc de la foto. Blocant: cridar en IO. */
+internal fun fetchChatImageBytes(start: String, maxBytes: Int = 12 * 1024 * 1024): ByteArray? {
+    var url = start
+    repeat(5) {
+        val conn = try { java.net.URL(url).openConnection() as java.net.HttpURLConnection } catch (_: Exception) { return null }
+        try {
+            conn.connectTimeout = 8000
+            conn.readTimeout = 10000
+            conn.instanceFollowRedirects = false
+            conn.setRequestProperty("User-Agent", "Gregal (Android; +https://github.com/alsolanes/gregal)")
+            conn.setRequestProperty("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8")
+            val code = conn.responseCode
+            if (code in 300..399) {
+                val next = conn.getHeaderField("Location") ?: return null
+                url = java.net.URL(java.net.URL(url), next).toString()
+                if (!url.startsWith("http://") && !url.startsWith("https://")) return null
+                return@repeat
+            }
+            if (code !in 200..299) return null
+            if (conn.contentLength > maxBytes) return null
+            val bytes = conn.inputStream.use { it.readBytes() }
+            return if (bytes.isEmpty() || bytes.size > maxBytes) null else bytes
+        } catch (_: Exception) {
+            return null
+        } finally {
+            conn.disconnect()
+        }
+    }
+    return null
 }
 
 /** Imatge d'un missatge (estil Redde: el vent t'envia fitxers al xat).
- *  Placeholder → foto (toc = obre fora). Si falla, enllaç de text. */
+ *  Placeholder → foto (toc = visor). Si no es pot baixar, no hi és: com a
+ *  l'escriptori, millor res que l'adreça en cru enmig del text. */
 @Composable
 internal fun MdImage(url: String, alt: String, link: Color, lang: String) {
-    val uri = LocalUriHandler.current
     val (bmp, failed) = rememberChatImage(url)
     when {
         bmp != null -> ChatImageFrame(bmp, url, alt, lang)
-        failed -> Text(
-            alt.ifBlank { url }, fontSize = 13.sp, color = link,
-            textDecoration = TextDecoration.Underline,
-            modifier = Modifier.clip(RoundedCornerShape(8.dp))
-                .clickable { try { uri.openUri(url) } catch (_: Exception) { } }
-                .padding(vertical = 2.dp),
-        )
+        failed -> {}
         else -> Surface(
             color = CodeDark, shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth().height(160.dp),

@@ -264,15 +264,19 @@ fun parseInline(src: String): List<Seg> {
         val lb = if (s[i] == '!' && i + 1 < n && s[i + 1] == '[') i + 1 else i
         if (s[lb] == '[') {
             val rb = s.indexOf(']', lb + 1)
-            if (rb > lb + 1 && rb + 1 < n && s[rb + 1] == '(') {
+            // Una imatge pot no tenir text alternatiu («![](url)», com a
+            // l'escriptori); un enllaç sense text, no. Abans la imatge sense
+            // alt sortia com a text amb l'adreça.
+            val isImage = lb == i + 1
+            if (rb > lb + (if (isImage) 0 else 1) && rb + 1 < n && s[rb + 1] == '(') {
                 val rp = s.indexOf(')', rb + 2)
                 if (rp > rb + 2) {
                     val url = s.substring(rb + 2, rp)
                     if (!url.any { it == ' ' || it == '\n' || it == '\t' }) {
                         flush()
-                        val label = s.substring(lb + 1, rb).ifEmpty { url }
+                        val label = s.substring(lb + 1, rb)
                         // ![alt](url) és imatge; [txt](url) és enllaç.
-                        out += if (lb == i + 1) Seg.Image(label, url) else Seg.Link(label, url)
+                        out += if (isImage) Seg.Image(label, url) else Seg.Link(label.ifEmpty { url }, url)
                         i = rp + 1
                         continue
                     }

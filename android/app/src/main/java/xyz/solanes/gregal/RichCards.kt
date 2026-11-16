@@ -271,14 +271,12 @@ private fun CardFrame(tag: String, image: String, title: String, lang: String, c
 @Composable
 private fun CardHero(url: String, alt: String, lang: String) {
     val (bmp, failed) = rememberChatImage(url)
-    var full by remember { mutableStateOf(false) }
     if (failed) return
     Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(CodeDark)
-        .then(if (bmp != null) Modifier.clickable(role = Role.Image) { full = true } else Modifier)
+        .then(if (bmp != null) Modifier.clickable(role = Role.Image) { Viewer.show(ViewItem.Image(url, alt)) } else Modifier)
         .testTag("card-hero")) {
         if (bmp != null) Image(bmp, alt, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
     }
-    if (full && bmp != null) ChatImageViewer(bmp, url, alt, lang) { full = false }
 }
 
 /** La foto de la targeta d'opcions (ResultBlocks.kt). */
