@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## v1.86.7 - 2026-11-16 - Imatges quan les demanes
+
+- **Imatges quan les demanes.** Si demanes imatges i la resposta d'un vent no
+  en porta cap, s'hi afegeix una foto real de la Viquipèdia o Commons, encara
+  que hi hagi gràfics, i ara també d'anatomia o d'objectes. Els vents les
+  posen al xat (no només dins d'una web) i, per a coses reals, fotos reals en
+  lloc de dibuixos inventats.
+- **Fitxers que s'obren.** Un `index.html` enviat pel xat ja es baixa (abans
+  l'enllaç no portava enlloc), i a l'Android els enllaços a fitxers i webs del
+  servidor s'obren amb l'adreça del servidor encara que diguin 127.0.0.1.
+
 ## v1.86.6 - 2026-11-16 - Fotos, no adreces, a l'Android
 
 - **Fotos, no adreces, a l'Android.** Les imatges sense text alternatiu ja es
