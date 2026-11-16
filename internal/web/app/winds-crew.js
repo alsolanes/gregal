@@ -34,14 +34,14 @@
       let settled = false;
       const done = value => { if (!settled) { settled = true; resolve(value); } };
       const d = el('dialog', 'vw-dialog vw-crew-dialog');
-      d.setAttribute('aria-label', t('Convoca la colla', 'Summon a crew'));
+      d.setAttribute('aria-label', t('Fes-ho en grup', 'Do it as a group'));
       const head = el('header');
-      head.append(el('h2', '', t('Convoquem una colla?', 'Summon a crew?')));
+      head.append(el('h2', '', t('Ho fem en grup?', 'Do it as a group?')));
       d.append(head, el('p', 'vw-muted', proposal.create.length
-        ? t('Cap vent no domina tota aquesta feina. Et proposo aquesta colla: en parlaran, un la farà i un altre la revisarà. Els vents nous es queden, amb la seva memòria, per a les feines que vinguin.',
-          'No wind covers all of this yet. Here is a crew: they will discuss it, one builds and another reviews. New winds stay, with their own memory, for future tasks.')
+        ? t('Cap vent no domina tota aquesta feina. Et proposo aquest grup: en parlaran, un la farà i un altre la revisarà. Els vents nous es queden, amb la seva memòria, per a les feines que vinguin.',
+          'No wind covers all of this yet. Here is a group: they will discuss it, one builds and another reviews. New winds stay, with their own memory, for future tasks.')
         : t('Per a aquesta feina hi ha vents que ja en saben, amb el que recorden de feines anteriors. Et proposo reunir-los: en parlaran, un la farà i un altre la revisarà.',
-          'Some winds already know this from earlier work. Here is a crew with them: they will discuss it, one builds and another reviews.')));
+          'Some winds already know this from earlier work. Here is a group with them: they will discuss it, one builds and another reviews.')));
       const list = el('div', 'vw-crew-list');
       for (const r of proposal.reuse || []) {
         const w = winds.find(x => x.id === r.id) || { id: r.id, name: r.name };
@@ -54,11 +54,11 @@
       if (proposal.plan) d.append(el('p', 'vw-crew-plan', proposal.plan));
       const status = el('p', 'vw-error'); status.setAttribute('role', 'status');
       const actions = el('div', 'vw-actions');
-      const later = el('button', 'vw-button', t('Fes-ho amb la colla actual', 'Use the current crew')); later.type = 'button';
-      const go = el('button', 'vw-primary', t('Convoca la colla', 'Summon the crew')); go.type = 'button';
+      const later = el('button', 'vw-button', t('Fes-ho amb aquest grup', 'Use this group')); later.type = 'button';
+      const go = el('button', 'vw-primary', t('Fes-ho en grup', 'Do it as a group')); go.type = 'button';
       later.onclick = () => { d.close(); done(null); };
       go.onclick = async () => {
-        go.disabled = later.disabled = true; status.textContent = t('Convocant la colla…', 'Summoning the crew…');
+        go.disabled = later.disabled = true; status.textContent = t('Fent el grup…', 'Making the group…');
         try {
           const out = await call('/api/winds/crew/start', 'POST', { task, lang, reuse: (proposal.reuse || []).map(r => r.id), create: proposal.create });
           d.close(); done(out.rotllana);

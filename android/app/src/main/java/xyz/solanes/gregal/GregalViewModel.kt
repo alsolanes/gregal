@@ -3947,7 +3947,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             var partial = false
             var turnError = ""
             val target = "rot:$rotllanaId"
-            val displayName = _rotllanes.value.firstOrNull { it.id == rotllanaId }?.name.orEmpty().ifBlank { if (_idioma.value == "en") "Group" else "Rotllana" }
+            val displayName = _rotllanes.value.firstOrNull { it.id == rotllanaId }?.name.orEmpty().ifBlank { if (_idioma.value == "en") "Group" else "Grup" }
             GregalNotifications.workStarted(appContext, target, displayName)
             try {
                 try {
@@ -3986,6 +3986,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                                         setStreamingBubble(rotllanaId, text, rotllana = true)
                                     }
                                 }
+                                is GregalApi.WindStreamEvent.Tempesta -> live(rotllanaId) { it.copy(tempesta = e.agents) }
                                 else -> handleWindAskEvent(e, rotllanaId, true)
                             }
                         }
@@ -5946,7 +5947,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             var partial = false
             var turnError = ""
             val target = "rot:$rotllanaId"
-            val displayName = _rotllanes.value.firstOrNull { it.id == rotllanaId }?.name.orEmpty().ifBlank { if (_idioma.value == "en") "Group" else "Rotllana" }
+            val displayName = _rotllanes.value.firstOrNull { it.id == rotllanaId }?.name.orEmpty().ifBlank { if (_idioma.value == "en") "Group" else "Grup" }
             GregalNotifications.workStarted(appContext, target, displayName)
             try {
                 try {

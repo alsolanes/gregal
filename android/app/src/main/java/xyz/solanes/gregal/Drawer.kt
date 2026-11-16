@@ -204,7 +204,7 @@ private fun SimpleVentsDrawer(
                     DrawerRow(tr(lang, "nav.notes"), screen == Screen.Notes, { nav(Screen.Notes); vm.loadNotes() }, Icons.Rounded.EditNote)
                     DrawerRow(webCopy(lang, "title"), screen == Screen.Webs, { nav(Screen.Webs); vm.loadWebs() }, Icons.Rounded.Language)
                 }
-                DrawerRow(if (en) "The crew" else "La colla", false, { close(); vm.openVentsPanel(null); nav(Screen.Company); vm.openCrew() }, Icons.Rounded.Groups)
+                DrawerRow(if (en) "Your winds" else "Els teus vents", false, { close(); vm.openVentsPanel(null); nav(Screen.Company); vm.openCrew() }, Icons.Rounded.Groups)
                 // Els vents: Gregal primer i tots els especialistes (abans només cinc).
                 DrawerSection(if (en) "Winds" else "Vents")
                 DrawerRow(gregal?.name ?: tr(lang, "nav.company"), home && panel == null, { close(); vm.openVentsPanel(null); nav(Screen.Company) }) { DrawerWindIcon(vm) }

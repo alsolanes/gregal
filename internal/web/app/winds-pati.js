@@ -566,14 +566,14 @@
       panel.replaceChildren();
       panel.hidden = circle.length === 0;
       if (!circle.length) return;
-      panel.append(el('strong', '', t('A la rotllana: ', 'In the circle: ') + circle.map(a => a.w.name).join(', ')));
+      panel.append(el('strong', '', t('Al grup: ', 'In the group: ') + circle.map(a => a.w.name).join(', ')));
       const row = el('div', 'pati-circle-actions');
       const talk = el('button', 'pati-btn primary', circle.length > 1 ? t('Obre una conversa amb ells', 'Start a chat with them') : t('Parla-hi', 'Talk to them'));
       talk.type = 'button';
       talk.onclick = async () => {
         if (circle.length === 1) { ctx.talkTo(circle[0].w); return; }
         const names = circle.map(a => a.w.name).join(', ');
-        const data = await ctx.call('/api/winds/rotllanes', 'POST', { name: t('Rotllana del pati: ', 'Playground circle: ') + names, members: circle.map(a => a.w.id), workspace: '' });
+        const data = await ctx.call('/api/winds/rotllanes', 'POST', { name: t('Grup del pati: ', 'Playground group: ') + names, members: circle.map(a => a.w.id), workspace: '' });
         if (data?.rotllana) ctx.openChat(data.rotllana);
       };
       const job = el('button', 'pati-btn', t('Encarrega’ls una feina', 'Give them a task'));
@@ -603,7 +603,7 @@
         go.disabled = true;
         try {
           await ctx.call('/api/winds/crew/start', 'POST', { task, lang: ca() ? 'ca' : 'en', reuse: circle.map(a => a.w.id), create: [] });
-          ctx.notify(t('La colla se’n va al taller. La seguiràs al cartell, a Feines i al fil.', 'The crew heads to the workshop. Follow it on the sign, in Work and in the thread.'));
+          ctx.notify(t('El grup se’n va al taller. El seguiràs al cartell, a Feina i al fil.', 'The group heads to the workshop. Follow it on the sign, in Work and in the thread.'));
           const crew = [...circle];
           for (const a of crew) { realWork.set(a.w.id, { task }); leaveCircle(a, false); a.until = 0; }
           paintSign([{ task, agents: Object.fromEntries(crew.map((a, i) => [i, a.w.name])), files: [] }]);
@@ -643,7 +643,7 @@
       const talk = el('button', 'pati-btn primary', t('Parla-hi', 'Talk'));
       talk.type = 'button';
       talk.onclick = () => ctx.talkTo(a.w);
-      const toCircle = el('button', 'pati-btn', a.inCircle ? t('Treu-lo de la rotllana', 'Out of the circle') : t('Porta’l a la rotllana', 'Bring to the circle'));
+      const toCircle = el('button', 'pati-btn', a.inCircle ? t('Treu-lo del grup', 'Out of the group') : t('Porta’l al grup', 'Bring into the group'));
       toCircle.type = 'button';
       toCircle.onclick = () => { card.hidden = true; if (a.inCircle) leaveCircle(a); else { joinCircle(a); centerOn(plaza); } };
       row.append(talk, toCircle);
@@ -737,7 +737,7 @@
       <circle cx="${PW - 90}" cy="110" r="34" fill="#BFD5E0" stroke="#8EA9B6" stroke-width="5"/><circle cx="${PW - 90}" cy="110" r="10" fill="#E8F4FA"/><path d="M${PW - 90} 100q-10-26 0-40q10 14 0 40" fill="#9FD3EE" opacity=".8" class="pati-fountain"/>
       <!-- cercle de guix de la rotllana -->
       <ellipse class="pati-chalk" cx="${PW / 2}" cy="${P.circle.y - SKY}" rx="${P.circle.rx}" ry="${P.circle.ry}" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-dasharray="14 10" opacity=".9"/>
-      <text x="${PW / 2}" y="${P.circle.y - SKY + P.circle.ry + 26}" text-anchor="middle" class="pati-label-svg">${t('la rotllana (arrossega-hi vents)', 'the circle (drag winds here)')}</text>
+      <text x="${PW / 2}" y="${P.circle.y - SKY + P.circle.ry + 26}" text-anchor="middle" class="pati-label-svg">${t('el grup (arrossega-hi vents)', 'the group (drag winds here)')}</text>
       <!-- tobogan -->
       <path d="M70 ${TH * 2 - 60}l-10-70h14l10 70M60 ${TH * 2 - 130}h18" fill="none" stroke="#7C8FB0" stroke-width="5"/><path d="M76 ${TH * 2 - 129}q30 6 46 66l-10 4q-16-54-40-58Z" fill="#F2B53A" stroke="#C98E2A" stroke-width="2"/>
       <text x="95" y="${TH * 2 - 22}" text-anchor="middle" class="pati-label-svg">${t('el tobogan', 'the slide')}</text>

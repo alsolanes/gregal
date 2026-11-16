@@ -3,11 +3,13 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"strings"
+	"sync"
+	"testing"
 
 	"gregal/internal/companion"
+	"gregal/internal/config"
 	"gregal/internal/llm"
-	"strings"
-	"testing"
 )
 
 // «@Llevant i @Xaloc, …»: cada nomenat respon un cop, amb la seva crida. Abans
@@ -17,13 +19,20 @@ func TestRotllanaTwoMentionsEachSpeaksOnce(t *testing.T) {
 	s, _ := companionTestServer(t)
 	id := makeRotllanaTrio(t, s)
 	var briefs []string
-	saved := rotllanaVoiceLoop
+	var mu sync.Mutex
+	saved, savedChat := rotllanaVoiceLoop, petChatter
 	rotllanaVoiceLoop = func(_ *Server, _ context.Context, b string, _ ...*routedRole) (exploracio, error) {
+		mu.Lock()
 		briefs = append(briefs, b)
+		mu.Unlock()
 		// El model fa el mateix que hem vist en real: escriu les dues veus.
 		return exploracio{text: "Llevant: Menja un plàtan abans.\nXaloc: I posa't música animada."}, nil
 	}
-	t.Cleanup(func() { rotllanaVoiceLoop = saved })
+	// Sense resposta conjunta (falla): les veus queden visibles, sense plegar.
+	petChatter = func(context.Context, *llm.Client, *config.Config, config.Provider, config.Role, []llm.Message) (string, error) {
+		return "", context.DeadlineExceeded
+	}
+	t.Cleanup(func() { waitBackground(); rotllanaVoiceLoop, petChatter = saved, savedChat })
 
 	rec := postJSON(t, s.handleRotllanaChat, `{"rotllana":"`+id+`","message":"@Llevant i @Xaloc, què faig abans d'entrenar?"}`)
 	if rec.Code != 200 {
@@ -32,9 +41,11 @@ func TestRotllanaTwoMentionsEachSpeaksOnce(t *testing.T) {
 	if len(briefs) != 2 {
 		t.Fatalf("havien de parlar 2 vents, crides=%d", len(briefs))
 	}
-	for i, who := range []string{"Llevant", "Xaloc"} {
-		if !strings.Contains(briefs[i], "Now only YOU, "+who) {
-			t.Fatalf("la crida %d no diu que només parla %s: ...%s", i, who, briefs[i][max(0, len(briefs[i])-400):])
+	// Parlen alhora: cada crida diu a qui li toca, en qualsevol ordre.
+	all := strings.Join(briefs, "\n=====\n")
+	for _, who := range []string{"Llevant", "Xaloc"} {
+		if strings.Count(all, "Now only YOU, "+who) != 1 {
+			t.Fatalf("una crida havia de dir que només parla %s", who)
 		}
 	}
 	var out struct {

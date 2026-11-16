@@ -4293,7 +4293,7 @@ const EN = {
 
 // Winds: desktop work desk, conversations and profile forms.
 Object.assign(CA, {
-  "winds.aSmallCrewByYourSide": "Una petita colla, al teu costat",
+  "winds.aSmallCrewByYourSide": "Uns quants vents, al teu costat",
   "winds.makeRoomForYourIdeas": "Fem lloc a les teves idees.",
   "winds.youSetTheCourseYourWindsHelpYou": "Tu poses el rumb. Els teus vents t’ajuden a fer camí.",
   "winds.new": "＋ Nou",
@@ -4355,7 +4355,7 @@ Object.assign(CA, {
   "winds.chooseADifferentWindToReviewTheWork": "Tria un altre vent per revisar la feina.",
   "winds.aHelpingHandForYourDay": "Una mà per al teu dia a dia",
   "winds.giveThemATask": "Encarrega-li una cosa ↗",
-  "winds.yourCrewStartsWithOneWindCreateOne": "La colla comença amb un vent. Crea’l des de «Nou» i ja li podràs confiar el primer encàrrec.",
+  "winds.yourCrewStartsWithOneWindCreateOne": "Tot comença amb un vent. Crea’l des de «Nou» i ja li podràs confiar el primer encàrrec.",
   "winds.workshopDemoNoRealTaskIsRunning": "Demostració del taller; no s’està executant cap encàrrec real.",
   "winds.theResultWillAppearHereWhenThisStep": "El resultat apareixerà aquí quan acabi aquest pas.",
   "winds.openTheResult": "Obre el resultat ↗",
@@ -4364,7 +4364,7 @@ Object.assign(CA, {
   "winds.filesSavedIn": "Els fitxers es desen a {path}.",
   "winds.automatic": "Automàtic",
   "winds.readyToHelp": "Explica què vols. Els vents es reparteixen la feina i treballen al projecte obert.",
-  "winds.starterCrew": "La teva colla es prepara amb el primer encàrrec. Escriu què vols fer i prem Som-hi.",
+  "winds.starterCrew": "Els teus vents es preparen amb el primer encàrrec. Escriu què vols fer i prem Som-hi.",
   "winds.openWebsite": "Obre la web ↗",
   "winds.toolFinished": "fet",
   "winds.readingFiles": "Llegint fitxers",
@@ -4387,7 +4387,7 @@ Object.assign(CA, {
   "winds.reviewTheProjectAndImplementThisChangeWith": "Revisa el projecte i implementa aquest canvi amb les comprovacions necessàries: ",
   "winds.aTaskIsAlreadyRunningInTheWorkshop": "Ja hi ha un encàrrec en marxa al taller. Espera que acabi o atura’l.",
   "winds.describeWhatYouWouldLikeToAchieve": "Explica què vols aconseguir.",
-  "winds.youDoNotHaveAnyWindsYetCreate": "La colla es prepara amb el teu primer encàrrec.",
+  "winds.youDoNotHaveAnyWindsYetCreate": "Els teus vents es preparen amb el primer encàrrec.",
   "winds.oneWind": "Un vent",
   "winds.newConversationsWillAppearHere": "Les noves converses apareixeran aquí.",
   "winds.oneToOneConversation": "Conversa individual",
@@ -4506,7 +4506,7 @@ Object.assign(CA, {
   "winds.namedConversation": "Conversa · {name}"
 });
 Object.assign(EN, {
-  "winds.aSmallCrewByYourSide": "A small crew by your side",
+  "winds.aSmallCrewByYourSide": "A few winds by your side",
   "winds.makeRoomForYourIdeas": "Make room for your ideas.",
   "winds.youSetTheCourseYourWindsHelpYou": "You set the course. Your winds help you move forward.",
   "winds.new": "＋ New",
@@ -4568,7 +4568,7 @@ Object.assign(EN, {
   "winds.chooseADifferentWindToReviewTheWork": "Choose a different wind to review the work.",
   "winds.aHelpingHandForYourDay": "A helping hand for your day",
   "winds.giveThemATask": "Give them a task ↗",
-  "winds.yourCrewStartsWithOneWindCreateOne": "Your crew starts with one wind. Create one from “New” and give them their first task.",
+  "winds.yourCrewStartsWithOneWindCreateOne": "It all starts with one wind. Create one from “New” and give them their first task.",
   "winds.workshopDemoNoRealTaskIsRunning": "Workshop demo; no real task is running.",
   "winds.theResultWillAppearHereWhenThisStep": "The result will appear here when this step is complete.",
   "winds.openTheResult": "Open the result ↗",
@@ -4577,7 +4577,7 @@ Object.assign(EN, {
   "winds.filesSavedIn": "Files are saved in {path}.",
   "winds.automatic": "Automatic",
   "winds.readyToHelp": "Tell us what you need. Your winds share the work and use the open project.",
-  "winds.starterCrew": "Your crew gets ready with your first task. Tell us what you need and press Let’s go.",
+  "winds.starterCrew": "Your winds get ready with your first task. Tell us what you need and press Let’s go.",
   "winds.openWebsite": "Open website ↗",
   "winds.toolFinished": "done",
   "winds.readingFiles": "Reading files",
@@ -4600,7 +4600,7 @@ Object.assign(EN, {
   "winds.reviewTheProjectAndImplementThisChangeWith": "Review the project and implement this change with the necessary checks: ",
   "winds.aTaskIsAlreadyRunningInTheWorkshop": "A task is already running in the workshop. Wait for it to finish or stop it.",
   "winds.describeWhatYouWouldLikeToAchieve": "Describe what you would like to achieve.",
-  "winds.youDoNotHaveAnyWindsYetCreate": "Your crew gets ready with your first task.",
+  "winds.youDoNotHaveAnyWindsYetCreate": "Your winds get ready with your first task.",
   "winds.oneWind": "One wind",
   "winds.newConversationsWillAppearHere": "New conversations will appear here.",
   "winds.oneToOneConversation": "One-to-one conversation",

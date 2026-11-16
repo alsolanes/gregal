@@ -635,7 +635,178 @@ func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stre
 	var failed []string
 	var lastErr error
 	parcial := false
+	var summaryReply, summaryID string
+	// Un grup amb diverses veus treballa com la Tempesta (winds_tempesta.go):
+	// totes alhora, cadascuna des de la seva especialitat i amb la conversa
+	// sencera; les veus queden plegades («debate») i el que porta el fil en
+	// fa SEMPRE una resposta conjunta. Abans parlaven d'una en una, la
+	// primera proposava i les altres només podien afegir «un risc» o callar,
+	// i la resposta conjunta només sortia si deies «debateu».
+	parallelVoices := len(speakers) >= 2 && !isContinue
+	if parallelVoices {
+		agents := make([]tempestaAgent, len(speakers))
+		for i, sp := range speakers {
+			agents[i] = tempestaAgent{Index: i, Angle: sp.ID, Label: sp.Name, Ca: sp.Name, En: sp.Name, State: "working"}
+		}
+		var amu sync.Mutex
+		var emitMu sync.Mutex
+		emitAgents := func() {
+			amu.Lock()
+			snap := append([]tempestaAgent(nil), agents...)
+			amu.Unlock()
+			emitMu.Lock()
+			emit("tempesta", map[string]any{"agents": snap})
+			emitMu.Unlock()
+		}
+		emitAgents()
+		type veuRes struct {
+			text string
+			res  exploracio
+			err  error
+			at   time.Time
+		}
+		results := make([]veuRes, len(speakers))
+		var wg sync.WaitGroup
+		for si, sp := range speakers {
+			wg.Add(1)
+			go func(si int, sp companion.Wind) {
+				defer wg.Done()
+				tVeu := time.Now()
+				system, brief := rotllanaChatBrief(s, rot, sp, conversation, msg)
+				brief += windDocsBrief + "\n\nNow only YOU, " + sp.Name + ", speak, from your own specialty. The other members answer the same message in parallel and the lead will merge the answers, so give your own concrete view: the facts, the proposal or the risk you see, with sources. Do not ask the user questions and do not speak for the others."
+				ctx, cancel := context.WithTimeout(turnCtx, rotllanaTurnTimeout)
+				defer cancel()
+				ctx = s.readOnlyWindCtx(s.interactiveWindCtx(s.withWindSteerKey(withLinkBase(ctx, r), "rotllana", rot.ID)))
+				ctx = agent.WithSkillsDirs(ctx, s.windSkillsDir(sp.ID))
+				s.mu.Lock()
+				_, logRole := s.windRoleRef()
+				s.mu.Unlock()
+				vl := startTurnLog("rotllana", rot.ID+":"+sp.ID, logRole)
+				// En paral·lel cap veu no escriu a la bombolla: els tokens es descarten
+				// (es veu l'estat de cada veu i, al final, la resposta conjunta).
+				var res exploracio
+				var err error
+				if stream {
+					res, err = rotllanaVoiceLoopStream(s, vl.withUsage(ctx), brief, func(kind, text string) {
+						if kind != "token" && kind != "phase" && kind != "activity" {
+							emitMu.Lock()
+							forwardWindAsk(emit, kind, text)
+							emitMu.Unlock()
+						}
+					})
+				} else {
+					res, err = rotllanaVoiceLoop(s, vl.withUsage(ctx), brief, nil)
+				}
+				vl.finish(err, tornAturat(err), res.parcial, &res.temps)
+				out := ""
+				if err == nil && !(res.parcial && esRespostaMecanica(res.text)) {
+					out = rotllanaOwnReply(stripQuoteTrim(res.text), members, sp)
+				} else if err == nil || !tornAturat(err) {
+					// Com al camí d'una en una: si la cerca falla, la veu respon sense
+					// eines, amb un termini propi (la conversa ja hi és).
+					if p, role, ok := s.sideRoleRef(); ok {
+						s.mu.Lock()
+						cfg, client := s.cfg, s.client
+						s.mu.Unlock()
+						msgs := []llm.Message{{Role: "system", Content: system}}
+						msgs = append(msgs, conversation...)
+						if len(msgs) > 41 {
+							msgs = append(msgs[:1], msgs[len(msgs)-40:]...)
+						}
+						fctx, fcancel := context.WithTimeout(turnCtx, rotllanaFallbackTimeout)
+						plain, perr := petChatter(fctx, client, cfg, p, role, msgs)
+						fcancel()
+						if perr == nil {
+							out, err = rotllanaOwnReply(stripQuoteTrim(plain), members, sp), nil
+						} else {
+							err = perr
+						}
+					}
+				}
+				results[si] = veuRes{text: out, res: res, err: err, at: tVeu}
+				amu.Lock()
+				if out != "" {
+					agents[si].State = "done"
+				} else {
+					agents[si].State = "failed"
+				}
+				amu.Unlock()
+				emitAgents()
+			}(si, sp)
+		}
+		wg.Wait()
+		for si, sp := range speakers {
+			r0 := results[si]
+			if r0.err != nil && tornAturat(r0.err) {
+				lastErr = r0.err
+				continue
+			}
+			if r0.text == "" {
+				if r0.err != nil {
+					lastErr = r0.err
+				}
+				failed = append(failed, sp.Name)
+				continue
+			}
+			parcial = parcial || r0.res.parcial
+			reply := s.windCardImages(r0.text)
+			reply += s.windDocLinks(r0.at, reply)
+			voiceID := newMessageID()
+			conversation = append(conversation, llm.Message{Role: "assistant", Content: reply, SpeakerID: sp.ID, SpeakerName: sp.Name, Ts: time.Now().Unix(), ID: voiceID, Kind: "debate"})
+			veus = append(veus, veu{sp, reply, voiceID})
+			tempsVeus = append(tempsVeus, fmt.Sprintf("%s %.1fs (%s)", sp.Name, time.Since(r0.at).Seconds(), r0.res.temps))
+		}
+		conversation = append(conversation, windSteerTaken(rotSteerKey)...)
+		if len(veus) > 0 {
+			if err := saveRotllanaHistory(s, rot.ID, conversation); err != nil {
+				fail(http.StatusInternalServerError, "no s'ha pogut desar la conversa")
+				return
+			}
+			conversation = commitRotllana(conversation)
+		}
+		// La resposta conjunta, sempre que hi hagi més d'una veu. Si falla, les
+		// veus deixen d'estar plegades: millor llegir-les que no veure res.
+		unfold := func() {
+			for i := range conversation {
+				if conversation[i].Kind == "debate" && conversation[i].Ts >= turnStart.Unix() {
+					conversation[i].Kind = ""
+				}
+			}
+			if err := saveRotllanaHistory(s, rot.ID, conversation); err == nil {
+				conversation = commitRotllana(conversation)
+			}
+		}
+		switch {
+		case len(veus) == 1:
+			unfold()
+		case len(veus) >= 2 && turnCtx.Err() == nil:
+			ctx, cancel := context.WithTimeout(turnCtx, rotllanaTurnTimeout)
+			emit("phase", map[string]string{"phase": "speaker:" + speakingWind.ID})
+			emit("phase", map[string]string{"phase": "writing"})
+			summary, err := s.rotllanaSummary(ctx, rot, speakingWind, conversation, msg)
+			cancel()
+			if err != nil || strings.TrimSpace(summary) == "" {
+				if err != nil {
+					log.Printf("vents rotllana %s: la resposta conjunta ha fallat: %v", rot.ID, err)
+				}
+				unfold()
+			} else {
+				summary = s.windCardImages(summary)
+				summaryID = newMessageID()
+				final := append(conversation, llm.Message{Role: "assistant", Content: summary, SpeakerID: speakingWind.ID, SpeakerName: speakingWind.Name, Ts: time.Now().Unix(), ID: summaryID})
+				if err := saveRotllanaHistory(s, rot.ID, final); err != nil {
+					unfold()
+				} else {
+					conversation = commitRotllana(final)
+					summaryReply = summary
+				}
+			}
+		}
+	}
 	for si, sp := range speakers {
+		if parallelVoices {
+			break
+		}
 		if turnCtx.Err() != nil {
 			break
 		}
@@ -754,8 +925,7 @@ func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stre
 			emit("reply", map[string]any{"wind": sp.ID, "history": s.rotllanaHistoryJSON(conversation)})
 		}
 	}
-	var summaryReply, summaryID string
-	if len(veus) >= 2 && !parcial && lastErr == nil && !isContinue && rotllanaVolDebat(msg) {
+	if !parallelVoices && len(veus) >= 2 && !parcial && lastErr == nil && !isContinue && rotllanaVolDebat(msg) {
 		ctx, cancel := context.WithTimeout(turnCtx, rotllanaTurnTimeout)
 		emit("phase", map[string]string{"phase": "speaker:" + speakingWind.ID})
 		emit("activity", windActivity{Phase: "thinking"})

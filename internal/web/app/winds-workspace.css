@@ -1275,3 +1275,16 @@ dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize
 .vw-tempesta-done .vw-tempesta-state { color:var(--green); }
 @keyframes vwTempestaPulse { 50% { opacity:.35; } }
 @media (prefers-reduced-motion: reduce) { .vw-tempesta-working .vw-tempesta-dot { animation:none; } }
+
+/* Les veus d'un grup que ha treballat alhora, plegades sobre la resposta conjunta. */
+.vw-debate { margin:6px 0 2px 48px; border:1px solid var(--line); border-radius:12px; background:var(--surface); max-width:760px; }
+.vw-debate-head { display:flex; align-items:center; gap:10px; padding:9px 12px; cursor:pointer; list-style:none; color:var(--text); font-size:13px; font-weight:600; }
+.vw-debate-head::-webkit-details-marker { display:none; }
+.vw-debate-head::after { content:'▾'; margin-left:auto; color:var(--muted); }
+.vw-debate[open] .vw-debate-head::after { content:'▴'; }
+.vw-debate-head small { color:var(--muted); font-weight:400; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.vw-debate-faces { display:inline-flex; }
+.vw-debate-faces > * { width:22px; height:22px; margin-right:-6px; }
+.vw-debate-voice { padding:10px 14px; border-top:1px solid var(--line); }
+.vw-debate-who { display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:13px; }
+.vw-debate-who > :first-child { width:22px; height:22px; }

@@ -71,7 +71,7 @@ internal fun askCopy(lang: String, key: String): String {
     return when (key) {
         "home" -> if (en) "Home" else "Inici"
         "chats" -> if (en) "Chats" else "Xats"
-        "sub" -> if (en) "Ask, delegate or plan. Your crew takes care of the rest." else "Pregunta, encarrega o planifica. La colla s’encarrega de la resta."
+        "sub" -> if (en) "Ask, delegate or plan. Your winds take care of the rest." else "Pregunta, encarrega o planifica. Els vents s’encarreguen de la resta."
         "hint" -> if (en) "Ask anything" else "Pregunta el que vulguis"
         "send" -> if (en) "Send" else "Envia"
         "photo" -> if (en) "Add a photo" else "Afegeix una foto"
@@ -88,7 +88,7 @@ internal fun askCopy(lang: String, key: String): String {
         "briefingOn" -> if (en) "Every day at %s" else "Cada dia a les %s"
         "briefingOff" -> if (en) "Calendar and email in two lines, every morning" else "El calendari i el correu en dues línies, cada matí"
         "briefingSetup" -> if (en) "Set it up" else "Configura’l"
-        "withCrew" -> if (en) "With the crew" else "Amb la colla"
+        "withCrew" -> if (en) "As a group" else "En grup"
         "crew" -> if (en) "Ask a specialist" else "Pregunta a un especialista"
         else -> key
     }

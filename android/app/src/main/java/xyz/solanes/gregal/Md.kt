@@ -207,6 +207,12 @@ fun parseInline(src: String): List<Seg> {
         }
     }
     while (i < n) {
+        // «\*» és un asterisc literal (com al markdown de debò i md.js).
+        if (s[i] == '\\' && i + 1 < n && s[i + 1] in "\\*_`[]()#+.!|~-") {
+            buf.append(s[i + 1])
+            i += 2
+            continue
+        }
         if (s.startsWith("**", i)) {
             val end = s.indexOf("**", i + 2)
             if (end > i + 2) {

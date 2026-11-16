@@ -434,7 +434,7 @@
     root.gregalWindDesk?.render(state.winds, face);
     const list = $('windsList'); list.replaceChildren();
     for (const w of state.winds) list.append(row(w.name, w.role || tr('winds.chatWithName', 'Conversa amb {name}', {name:w.name}), [w], () => openChat({ kind:'wind', id:w.id, name:w.name, members:[w.id] }), state.active?.kind === 'wind' && state.active.id === w.id));
-    if (!state.winds.length) list.append(node('p', 'winds-empty', tr("winds.youDoNotHaveAnyWindsYetCreate", "La colla es prepara amb el teu primer encàrrec.")));
+    if (!state.winds.length) list.append(node('p', 'winds-empty', tr("winds.youDoNotHaveAnyWindsYetCreate", "Els teus vents es preparen amb el primer encàrrec.")));
     if (state.winds.length && messageFromHash()) setTimeout(openFromHash, 0);
     const chats = $('windsConversations'); chats.replaceChildren();
     for (const c of state.conversations) chats.append(row(c.name, c.members.length > 1 ? tr('winds.groupCount', 'En grup · {count} vents', {count:c.members.length}) : tr('winds.namedConversation', 'Conversa · {name}', {name:roster(c.members)[0]?.name || tr("winds.oneWind", "Un vent")}), roster(c.members), () => openChat({ ...c, kind:'rotllana' }), state.active?.kind === 'rotllana' && state.active.id === c.id));

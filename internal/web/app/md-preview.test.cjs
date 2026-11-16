@@ -22,3 +22,11 @@ test("el document aïllat no pot sortir a la xarxa", () => {
     assert.ok(doc.indexOf("Content-Security-Policy") < (doc.indexOf("<title>") >= 0 ? doc.indexOf("<title>") : Infinity));
   }
 });
+
+test("md.js: «\*» és un asterisc literal", () => {
+  globalThis.window = globalThis;
+  require("./md.js");
+  const md = globalThis.gregalMD;
+  assert.equal(md.render(String.raw`\* preus de referència`), "<p>* preus de referència</p>");
+  assert.match(md.render(String.raw`2\*3 i **negreta**`), /2\*3 i <b>negreta<\/b>/);
+});

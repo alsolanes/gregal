@@ -1632,6 +1632,8 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                         TypingDots(rotAccent)
                         if (what != null) Text("  " + what, fontSize = 12.sp, color = rotAccent)
                     }
+                    // El grup treballa alhora: què fa cada vent (winds_stream.go).
+                    liveRot?.tempesta?.let { TempestaPanel(lang, it) }
                 }
             }
         }

@@ -22,6 +22,8 @@
   function inline(t) {
     const codes = [];
     t = t.replace(/`([^`\n]+)`/g, (m, c) => { codes.push("<code>" + c + "</code>"); return "<<C" + (codes.length - 1) + "<<C"; });
+    // «\*» és un asterisc literal (com al markdown de debò): es guarda i no fa cursiva.
+    t = t.replace(/\\([\\*_`[\]()#+.!|~-])/g, (m, c) => { codes.push(c); return "<<C" + (codes.length - 1) + "<<C"; });
     // ![alt](image: consulta) — la foto que el servidor encara ha de buscar
     // (winds_card_images.go): mentre arriba la resposta, no es veu.
     t = t.replace(/!\[[^\]\n]*\]\(\s*image:[^)\n]*(?:\)|$)/g, "");

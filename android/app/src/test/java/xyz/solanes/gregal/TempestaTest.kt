@@ -29,3 +29,12 @@ class TempestaTest {
         assertFalse(WindRequests.chat("gregal", "hola").contains("tempesta"))
     }
 }
+
+class MdEscapeTest {
+    @org.junit.Test fun asteriscEscapatEsLiteral() {
+        val segs = parseInline("""~2,60 € \* i 2\*3""")
+        val text = segs.filterIsInstance<Seg.Text>().joinToString("") { it.t }
+        org.junit.Assert.assertEquals("~2,60 € * i 2*3", text)
+        org.junit.Assert.assertTrue(segs.none { it is Seg.Italic })
+    }
+}
