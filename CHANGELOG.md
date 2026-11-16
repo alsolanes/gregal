@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v1.86.6 - 2026-11-16 - Fotos, no adreces, a l'Android
+
+- **Fotos, no adreces, a l'Android.** Les imatges sense text alternatiu ja es
+  veuen (abans sortia l'adreça en cru). Una foto que no es pot baixar no
+  deixa l'enllaç al seu lloc, com a l'escriptori, i el carregador segueix
+  redireccions i torna a provar si la xarxa falla un moment.
+- **Una adreça de foto soltera és una foto.** Si un vent escriu només
+  l'adreça d'una imatge en una línia, es mostra la imatge (també a
+  l'escriptori).
+
 ## v1.86.5 - 2026-11-16 - Visor a pantalla completa a l'Android
 
 - **Visor a pantalla completa a l'Android.** Les fotos, les webs dels vents,
