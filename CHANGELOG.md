@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v1.86.3 - 2026-11-16 - Respostes que es llegeixen millor
+
+- **Respostes que es llegeixen millor.** Les respostes dels vents tenen línies
+  més curtes, més interlineat i aire entre paràgrafs i entre els punts d'una
+  llista; les negretes són més suaus i els vents en fan servir molt menys
+  (una idea clau per paràgraf, no frases senceres). També a l'Android.
+
 ## v1.86.2 - 2026-11-16 - Avui, permisos i avisos
 
 - **«Avui» obre la safata.** A l'escriptori, «Avui» té la seva pàgina (el
