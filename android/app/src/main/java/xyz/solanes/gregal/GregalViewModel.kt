@@ -5702,6 +5702,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         NoticeLedger.mark(appContext, origin, listOf("m:$id"))
     }
 
+    /** «A fons» (Tempesta): els missatges següents als vents els treballen diversos agents alhora. */
+    private val _tempesta = MutableStateFlow(false)
+    val tempesta: StateFlow<Boolean> = _tempesta.asStateFlow()
+    fun toggleTempesta() { _tempesta.value = !_tempesta.value }
+
     fun sendWindMessage(windId: String, text: String) = sendWindMessage(windId, text, 0L)
 
     private fun sendWindMessage(windId: String, text: String, queuedTs: Long) {
@@ -5739,7 +5744,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     // servidor no té /stream (o cau), clàssic de reserva.
                     val buf = WindStreamText()
                     val r = withContext(Dispatchers.IO) {
-                        source.api().windChatStream(windId, msg, session = thread) { e ->
+                        source.api().windChatStream(windId, msg, session = thread, tempesta = _tempesta.value) { e ->
                             reached = true
                             if (!isCompanionOrigin(source, epoch)) return@windChatStream
                             when (e) {
@@ -5758,6 +5763,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                                         setStreamingBubble(windId, text)
                                     }
                                 }
+                                is GregalApi.WindStreamEvent.Tempesta -> live(windId) { it.copy(tempesta = e.agents) }
                                 else -> handleWindAskEvent(e, windId, false)
                             }
                         }

@@ -1162,6 +1162,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     val busy by vm.windBusy.collectAsState()
     val resuming by vm.windResuming.collectAsState()
     val live by vm.windLive.collectAsState()
+    val tempestaOn by vm.tempesta.collectAsState()
     val turnActionsAll by vm.turnActions.collectAsState()
     val msgs = chats[wind.id].orEmpty()
     val clipboard = LocalClipboardManager.current
@@ -1330,6 +1331,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                 item(key = "typing") {
                     WindTypingBubble(lang, wind, accent, liveNow?.mood ?: WindMood.THINKING,
                         label = liveNow?.let { l -> windVisibleWork(lang, l) ?: windStallNote(lang, l, quietNow(true)) })
+                    // Tempesta: què fa cada agent mentre treballen.
+                    liveNow?.tempesta?.let { TempestaPanel(lang, it) }
                 }
             }
         }
@@ -1366,6 +1369,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         }
         VentsComposer(lang, field, { field = it }, tr(lang, "app.company.windChatHint", wind.name), canSend,
             busy = busy.contains(wind.id), accent = accent, st = st,
+            tempesta = tempestaOn, onTempesta = { vm.toggleTempesta() },
             onAttachDoc = { pickDocs.launch("*/*") },
             onAttachImage = { pickPhoto.launch("image/*") },
             onMode = { vm.setMode(it) },

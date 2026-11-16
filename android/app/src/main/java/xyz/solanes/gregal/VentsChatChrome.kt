@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Computer
 import androidx.compose.material.icons.rounded.Menu
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Mic
@@ -46,6 +47,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -239,6 +241,9 @@ internal fun VentsComposer(
     onWork: (() -> Unit)? = null,
     /** Conversa per veu (parla i et respon en veu alta), al «+». */
     onVoiceTalk: (() -> Unit)? = null,
+    /** «A fons» (Tempesta, winds_tempesta.go): diversos vents alhora i una sola resposta. */
+    tempesta: Boolean = false,
+    onTempesta: (() -> Unit)? = null,
     onSend: () -> Unit,
 ) {
     val hasTools = onAttachDoc != null || onAttachImage != null || onMode != null || onPerm != null || onWorkspace != null || onPreview != null || onVoiceTalk != null
@@ -292,6 +297,19 @@ internal fun VentsComposer(
                             )
                         }
                     }
+                }
+            }
+        }
+        if (onTempesta != null) Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 6.dp)) {
+            Surface(onClick = onTempesta, shape = RoundedCornerShape(999.dp),
+                color = if (tempesta) SuperficieAlta else Color.Transparent,
+                border = androidx.compose.foundation.BorderStroke(1.dp, if (tempesta) LineHi else Line),
+                modifier = Modifier.testTag("tempesta-toggle").semantics { stateDescription = if (tempesta) "on" else "off" }) {
+                Row(Modifier.padding(horizontal = 12.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Rounded.AutoAwesome, null, tint = if (tempesta) Sea else Muted, modifier = Modifier.size(14.dp))
+                    Text(if (lang == "en") "Deep" else "A fons", color = if (tempesta) Ink else Muted, fontSize = 12.5.sp,
+                        fontWeight = if (tempesta) FontWeight.SemiBold else FontWeight.Normal)
                 }
             }
         }

@@ -941,6 +941,8 @@ class GregalApi(val base: String, val token: String) {
         data class Phase(val phase: String) : WindStreamEvent
         data class Activity(val phase: String, val tool: String = "", val step: Int = 0) : WindStreamEvent
         data class Token(val token: String) : WindStreamEvent
+        /** Tempesta: l'estat de cada agent (winds_tempesta.go). */
+        data class Tempesta(val agents: List<TempestaAgent>) : WindStreamEvent
         data class DoneWind(val reply: WindReply) : WindStreamEvent
         data class DoneRotllana(val wind: String, val text: String, val history: List<GregalViewModel.PetMsg>, val parcial: Boolean = false, val silenci: Boolean = false, val failed: List<String> = emptyList()) : WindStreamEvent
         data class Error(val message: String) : WindStreamEvent
@@ -1068,6 +1070,7 @@ class GregalApi(val base: String, val token: String) {
                 WindStreamEvent.Activity(a.phase, a.tool.take(48), a.step.coerceAtLeast(0))
             }
             "token" -> WindStreamEvent.Token(o.str("token"))
+            "tempesta" -> WindStreamEvent.Tempesta(TempestaAgent.listOf(data))
             "done" -> if (o.containsKey("history") && o["reply"] is JsonObject) {
                 val d = GregalJson.decodeFromJsonElement<RotllanaDoneDto>(o)
                 val hist = d.history.map { it.toPetMsg() }
@@ -1112,8 +1115,8 @@ class GregalApi(val base: String, val token: String) {
      * servidor no té /stream (antic) o cau abans del done, llança i el
      * cridant cau al clàssic.
      */
-    private fun windChatPayload(windId: String, message: String, cont: Boolean): JSONObject =
-        JSONObject(if (cont) WindRequests.chatContinue(windId) else WindRequests.chat(windId, message))
+    private fun windChatPayload(windId: String, message: String, cont: Boolean, tempesta: Boolean = false): JSONObject =
+        JSONObject(if (cont) WindRequests.chatContinue(windId) else WindRequests.chat(windId, message, tempesta))
 
     // Older servers ignore this query parameter, but reject unknown JSON fields.
     private fun windThreadPath(path: String, session: String): String {
@@ -1122,9 +1125,9 @@ class GregalApi(val base: String, val token: String) {
         return path + separator + "session=" + URLEncoder.encode(session, "UTF-8")
     }
 
-    fun windChatStream(windId: String, message: String, cont: Boolean = false, session: String = "", onEvent: (WindStreamEvent) -> Unit): WindReply {
+    fun windChatStream(windId: String, message: String, cont: Boolean = false, session: String = "", tempesta: Boolean = false, onEvent: (WindStreamEvent) -> Unit): WindReply {
         var done: WindReply? = null
-        streamPost(windThreadPath("/api/winds/chat/stream", session), windChatPayload(windId, message, cont)) { e ->
+        streamPost(windThreadPath("/api/winds/chat/stream", session), windChatPayload(windId, message, cont, tempesta)) { e ->
             if (e is WindStreamEvent.DoneWind) done = e.reply else onEvent(e)
         }
         return done ?: throw StreamLost(null)

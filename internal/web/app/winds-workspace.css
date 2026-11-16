@@ -1257,3 +1257,21 @@ dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize
 :root[data-product="vents"] #side :is(button,a)[data-view="vents"],
 :root[data-product="vents"] #side :is(button,a)[data-view="raco"],
 :root[data-product="vents"] #side :is(button,a)[data-view="automatitzacions"] { display:none !important; }
+
+/* Tempesta (winds_tempesta.go): el botó «A fons» i el tauler dels agents mentre treballen. */
+.vw-tempesta-toggle { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); background:transparent; color:var(--muted); font:inherit; font-size:12.5px; padding:5px 10px; border-radius:999px; cursor:pointer; }
+.vw-tempesta-toggle svg { width:14px; height:14px; }
+.vw-tempesta-toggle:hover { color:var(--ink); background:var(--hover); }
+.vw-tempesta-toggle.on { color:var(--accent-hi); border-color:var(--line-hi); background:var(--surface-hi); font-weight:600; }
+.vw-tempesta { margin-top:8px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:var(--surface); display:flex; flex-direction:column; gap:6px; max-width:520px; }
+.vw-tempesta-head { font-size:12.5px; color:var(--muted); font-weight:600; }
+.vw-tempesta-agent { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text); }
+.vw-tempesta-agent small { color:var(--faint); font-size:11.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
+.vw-tempesta-dot { width:8px; height:8px; border-radius:50%; background:var(--faint); flex:none; }
+.vw-tempesta-working .vw-tempesta-dot { background:var(--accent); animation:vwTempestaPulse 1.2s ease-in-out infinite; }
+.vw-tempesta-done .vw-tempesta-dot { background:var(--green); }
+.vw-tempesta-failed .vw-tempesta-dot { background:var(--red); }
+.vw-tempesta-state { color:var(--muted); font-size:12px; }
+.vw-tempesta-done .vw-tempesta-state { color:var(--green); }
+@keyframes vwTempestaPulse { 50% { opacity:.35; } }
+@media (prefers-reduced-motion: reduce) { .vw-tempesta-working .vw-tempesta-dot { animation:none; } }

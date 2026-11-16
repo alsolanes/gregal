@@ -238,6 +238,8 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 		Session  string `json:"session"`
 		Message  string `json:"message"`
 		Continue bool   `json:"continue"` // reprèn l'última resposta parcial
+		// Tempesta: diversos agents a la vegada i una sola resposta (winds_tempesta.go).
+		Tempesta bool `json:"tempesta"`
 	}
 	if !decodeSmall(w, r, &req) {
 		return
@@ -373,9 +375,22 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 			routed = &routedRole{p: p, role: role}
 			tl.setRole(role)
 		}
-		if stream {
+		switch {
+		case req.Tempesta:
+			// Els agents corren en paral·lel: l'emissió al client, d'un en un.
+			var emitMu sync.Mutex
+			res, err = s.windTempesta(ctx, wind, system, previous, msg, func(kind, text string) {
+				emitMu.Lock()
+				defer emitMu.Unlock()
+				emitTokens(kind, text)
+			}, func(agents []tempestaAgent) {
+				emitMu.Lock()
+				defer emitMu.Unlock()
+				emit("tempesta", map[string]any{"agents": agents})
+			})
+		case stream:
 			res, err = windLoopStream(s, ctx, brief, emitTokens, routed)
-		} else {
+		default:
 			res, err = windLoop(s, ctx, brief, routed)
 		}
 	}

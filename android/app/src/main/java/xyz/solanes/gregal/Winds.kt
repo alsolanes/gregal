@@ -107,6 +107,8 @@ data class WindLive(
     val phase: String = "waiting", val writing: Boolean = false, val voices: Int = 1,
     val startedAt: Long = System.currentTimeMillis(), val lastEventAt: Long = startedAt,
     val tool: String = "", val step: Int = 0, val receivedText: Boolean = false, val speaker: String = "",
+    /** Tempesta: l'estat de cada agent mentre treballen (buit en un torn normal). */
+    val tempesta: List<TempestaAgent> = emptyList(),
 ) {
     val mood: WindMood get() = if (phase == "tool" && tool.isNotBlank()) {
         windMoodOf(state = "working", activity = tool, writing = writing, voices = voices)
@@ -216,8 +218,9 @@ object WindRequests {
         JSONObject().put("name", name).put("color", color).put("role", role).put("style", style)
             .put("persona", persona).apply { if (id.isNotEmpty()) put("id", id) }.toString()
 
-    fun chat(windId: String, message: String): String =
-        JSONObject().put("wind", windId).put("message", message).toString()
+    /** [tempesta]: diversos vents alhora i una sola resposta (winds_tempesta.go). */
+    fun chat(windId: String, message: String, tempesta: Boolean = false): String =
+        JSONObject().put("wind", windId).put("message", message).apply { if (tempesta) put("tempesta", true) }.toString()
 
     /** Reprèn l'última resposta parcial del vent (sense text nou). */
     fun chatContinue(windId: String): String =

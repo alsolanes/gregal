@@ -165,7 +165,11 @@
   model.onclick=e=>{e.stopPropagation();openModelPicker(model).catch(fail);};
   loadModels().then(()=>paintModel(model)).catch(()=>{});
   const send=el('button','vw-send');paintSend(send);
-  pick.append(select);foot.append(pick);if(address)foot.append(address);foot.append(model,...voiceButtons(),send);composer.append(input,foot);
+  // Tempesta: «Pensa-ho a fons» fa treballar diversos vents alhora i en surt una
+  // sola resposta (winds_tempesta.go). Només a la conversa amb un vent.
+  const storm=state.view==='chat'&&state.active?.legacyWind?btn('',()=>{state.tempesta=!state.tempesta;storm.classList.toggle('on',!!state.tempesta);storm.setAttribute('aria-pressed',String(!!state.tempesta));},'vw-tempesta-toggle'+(state.tempesta?' on':'')):null;
+  if(storm){storm.append(icon('sparkles'),el('span','',t('A fons','Deep')));storm.title=t('Pensa-ho a fons: diversos vents hi treballen alhora i t’arriba una sola resposta (més lent i gasta més)','Think it through: several winds work on it at once and you get one answer (slower and uses more)');storm.setAttribute('aria-pressed',String(!!state.tempesta));}
+  pick.append(select);foot.append(pick);if(address)foot.append(address);foot.append(model);if(storm)foot.append(storm);foot.append(...voiceButtons(),send);composer.append(input,foot);
   if(Rec()&&!workspace)content.append(voiceStrip());
   composer.onsubmit=e=>{e.preventDefault();submit().catch(fail);};content.append(composer);paintVoice();
   // La carpeta va fora del quadre d'escriure, a sota i més petita: dins ocupava
@@ -326,7 +330,7 @@
   if(!pending||pending.thread!==state.active?.id)return;
   const wind=state.winds.find(w=>w.id===pending.wind),row=el('article','vw-message vw-pending'),copy=el('div','vw-pending-copy');row.append(face(wind,pending));
   copy.append(el('strong','',wind?.name||t('La colla','Your crew')));
-  const phases={thinking:t('Preparant la resposta','Preparing a response'),searching:t('Cercant informació','Searching for information'),scheduling:t('Preparant el recordatori','Preparing the reminder'),working:t('Treballant en la resposta','Working on the response')};
+  const phases={writing:t('Escrivint la resposta','Writing the response'),thinking:t('Preparant la resposta','Preparing a response'),searching:t('Cercant informació','Searching for information'),scheduling:t('Preparant el recordatori','Preparing the reminder'),working:t('Treballant en la resposta','Working on the response')};
   const activity=el('div','vw-thinking');activity.setAttribute('role',pending.text?'presentation':'status');const dots=el('span','vw-thinking-dots');dots.setAttribute('aria-hidden','true');for(let i=0;i<3;i++)dots.append(el('i'));
   // A crew posts each message to the thread (followCrew repaints it) and also streams it as tokens: if the
   // history already shows this text, the live bubble keeps only the dots instead of a second copy.
@@ -339,6 +343,8 @@
   activity.append(el('span','',writing?t('Escrivint la resposta','Writing the response'):live?live.label:phases[pending.phase]||phases.thinking),dots);copy.append(activity);
   // Com dots o Duet: el que ja ha fet, en una línia discreta sota l'estat.
   const doneSteps=steps.filter(x=>x.done);
+  // Tempesta (winds_tempesta.go): què fa cada agent, i quan escriu la síntesi, que les ajunta.
+  if(Array.isArray(pending.tempesta)&&pending.tempesta.length){const box=el('div','vw-tempesta');const n=pending.tempesta.length,done=pending.tempesta.filter(a=>a.state!=='working').length;box.append(el('div','vw-tempesta-head',done<n?t(n+' vents hi treballen alhora','The '+n+' winds are on it at once'):t('Ajuntant el que han trobat','Merging what they found')));for(const a of pending.tempesta){const r=el('div','vw-tempesta-agent vw-tempesta-'+a.state);r.append(el('span','vw-tempesta-dot'),el('strong','',a.ca?t(a.ca,a.en):a.label),el('small','',String(a.model||'').replace(/^.*\//,'')),el('span','vw-tempesta-state',a.state==='working'?t('treballant','working'):a.state==='done'?'✓':t('no ha pogut','failed')));box.append(r);}copy.append(box);}
   if(doneSteps.length){const trail=el('div','vw-steps');trail.setAttribute('aria-label',t('Passos fets','Steps done'));for(const x of doneSteps.slice(-4))trail.append(el('span','vw-step',x.label+(x.n>1?' ×'+x.n:'')));if(doneSteps.length>4)trail.prepend(el('span','vw-step vw-step-more','+'+(doneSteps.length-4)));copy.append(trail);}
   // Streamed text is formatted as it arrives, like the finished message it becomes.
   if(writing){const body=el('div','vw-message-text vw-stream-text'),shown=choicesStrip(withoutSpeaker(pending.text,wind?.name)).replace(/```(?:chart|gregal-plot)\n[\s\S]*?```/g,'\n_'+t('Preparant un gràfic…','Preparing a chart…')+'_\n').replace(/```(?:gregal-[a-z]+|chart)[ \n](?![\s\S]*```)[\s\S]*$/,'\n_'+t('Preparant la targeta…','Preparing the card…')+'_\n');if(root.gregalMD)body.innerHTML=root.gregalMD.render(shown);else body.textContent=shown;copy.append(body);}
@@ -359,7 +365,7 @@
   turn.destination=destination;paintSend(composer?.querySelector('.vw-send'));
   if(turn.stopping)return {cancelat:true};
   // Una proposta («choices») la continua qui l'ha feta, també en una conversa en grup.
-  const payload=destination.legacyWind?{wind:destination.wind,session:destination.id,message:text}:{rotllana:destination.id,message:text,...((state.replyOnce||state.replyTo)?{wind:state.replyOnce||state.replyTo}:{})};state.replyOnce=null;
+  const payload=destination.legacyWind?{wind:destination.wind,session:destination.id,message:text,...(state.tempesta?{tempesta:true}:{})}:{rotllana:destination.id,message:text,...((state.replyOnce||state.replyTo)?{wind:state.replyOnce||state.replyTo}:{})};state.replyOnce=null;
   const response=await root.api(destination.legacyWind?'/api/winds/chat/stream':'/api/winds/rotllana/stream',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   if(!response.ok||!response.body)throw new Error(t('No s’ha pogut iniciar la resposta.','Could not start the response.'));
   const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='',result=null;
@@ -377,6 +383,7 @@
     if(kind==='reply'){if(Array.isArray(data.history)){progress.history=data.history;if(state.pending?.thread===destination.id)state.pending.text='';if(state.view==='chat'&&state.active?.id===destination.id){state.history=data.history;paintHistory();}}continue;}
     const pending=state.pending;if(!pending||pending.thread!==destination.id)continue;
     if(kind==='phase'){if(data.phase.startsWith('speaker:')){const next=data.phase.slice(8);if(pending.wind&&pending.wind!==next)pending.voices=(pending.voices||1)+1;pending.wind=next;}pending.phase=data.phase.startsWith('speaker:')?'thinking':data.phase;pending.text='';}
+    else if(kind==='tempesta'){pending.tempesta=data.agents||[];}
     else if(kind==='token')pending.text+=data.token||'';
     // Passos de feina (només el nom de l'eina: el servidor no envia arguments ni rutes).
     else if(kind==='activity'){const steps=pending.steps||(pending.steps=[]);if(data.phase==='tool'&&data.tool)steps.push({tool:data.tool,done:false});else if(data.phase==='tool_done'){const open=steps.find(x=>!x.done&&(!data.tool||x.tool===data.tool));if(open)open.done=true;}else continue;}
