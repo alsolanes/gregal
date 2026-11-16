@@ -70,43 +70,43 @@ type Tema struct {
 	Sintaxi Sintaxi
 }
 
-// Fosc és el tema de casa, «Vent a favor»: grafit fosc amb un punt de verd (sense blau, que amb la llima feia una barreja estranya) i un accent
-// llima que només surt on hi ha acció (enviar, botons, focus, navegació
-// activa i enllaços). El préssec (arena) i l'aigua (onada) són els tocs
+// Fosc és el tema de casa: grafit neutre i un accent blau suau (el del logo,
+// una mica més apagat) que només surt on hi ha acció (enviar, botons, focus,
+// navegació activa i enllaços). Abans era llima, i cridava massa. El préssec (arena) i l'aigua (onada) són els tocs
 // càlid i juganer, i surten poc.
 // L'aigua (onada) és el toc juganer i surt poc: mascota, celebracions,
 // reaccions. L'elevació es fa amb superfícies més clares, no amb ombres.
 func Fosc() Tema {
 	return Tema{
 		Nom:            "fosc",
-		Fons:           "#121715",
-		Abisme:         "#0D110F",
-		Night:          "#1A211E",
-		SuperficieAlta: "#242D29",
-		Ink:            "#F2F5EF",
-		Text:           "#DDE4DF",
-		Slate:          "#A8B3AD",
-		Faint:          "#909C96",
-		Escuma:         "#D4F25A",
-		EscumaClara:    "#E4F98F",
+		Fons:           "#131518",
+		Abisme:         "#0E1012",
+		Night:          "#1A1D21",
+		SuperficieAlta: "#24282D",
+		Ink:            "#F2F4F7",
+		Text:           "#DEE2E7",
+		Slate:          "#A7AEB8",
+		Faint:          "#9098A3",
+		Escuma:         "#8A9BF0",
+		EscumaClara:    "#B0BCF7",
 		Arena:          "#F2B48E",
 		Onada:          "#7FD6C2",
-		Algua:          "#2B3531",
+		Algua:          "#2C3137",
 		Lila:           "#C9B2FF",
 		LilaFons:       "#2A2645",
 		Green:          "#86E3A6",
 		Red:            "#FF8F86",
-		BoxIdle:        "#66726C",
-		Vora:           "#CFE3DA",
+		BoxIdle:        "#687079",
+		Vora:           "#CFD6E0",
 		Sintaxi: Sintaxi{
 			Paraula:   "#C4A8FF", // lila
 			Cadena:    "#6EDB95", // green
 			Numero:    "#F5C451", // arena
-			Comentari: "#7F8C86",
+			Comentari: "#7F8791",
 			Funcio:    "#C6E98A", // llima suau
 			Tipus:     "#5CE1D6", // onada
 			Operador:  "#A6B0AB", // slate
-			Nom:       "#E2E8E4", // text
+			Nom:       "#E2E6EB", // text
 		},
 	}
 }

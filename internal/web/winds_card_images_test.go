@@ -13,7 +13,7 @@ func fakeCardImages(t *testing.T, found map[string]string) *[]string {
 	cardImageSearch = func(_ context.Context, q string, _ int) (string, error) {
 		asked = append(asked, q)
 		if u, ok := found[q]; ok {
-			return "1. Foto\n   image: " + u + "\n   page: https://commons.wikimedia.org/x\n", nil
+			return "1. " + q + "\n   image: " + u + "\n   page: https://commons.wikimedia.org/x\n", nil
 		}
 		return "No images found.", nil
 	}
@@ -139,5 +139,52 @@ func TestSubjectPhotoOnlyWhenItFits(t *testing.T) {
 	}
 	if cleanSubject("Here is the subject: a very long sentence that goes on") != "" {
 		t.Fatal("chatty picker output must be ignored")
+	}
+}
+
+
+// La foto ha de ser del que diu la targeta: si la cerca de «Sípia amb pèsols»
+// només troba farcellets de col, la recepta queda sense foto.
+func TestCardPhotoMustMatchTheDish(t *testing.T) {
+	old := cardImageSearch
+	cardImageSearch = func(_ context.Context, q string, _ int) (string, error) {
+		return "1. Cabbage rolls (Sarma)\n   image: https://upload.wikimedia.org/Sarma_dish.jpg\n   page: https://commons.wikimedia.org/x\n" +
+			"2. Stuffed peppers\n   image: https://upload.wikimedia.org/Peppers.jpg\n   page: https://commons.wikimedia.org/y\n", nil
+	}
+	t.Cleanup(func() { cardImageSearch = old })
+	s := &Server{}
+	out := s.windCardImages("```gregal-recipe\n{\"title\":\"Sípia amb pèsols\",\"steps\":[\"Sofregeix\"]}\n```")
+	if strings.Contains(out, "upload.wikimedia.org") {
+		t.Fatalf("a wrong photo is worse than none:\n%s", out)
+	}
+	// I si el segon resultat sí que és sípia amb pèsols, es queda aquest.
+	cardImageSearch = func(_ context.Context, q string, _ int) (string, error) {
+		return "1. Sarma\n   image: https://upload.wikimedia.org/Sarma.jpg\n   page: x\n" +
+			"2. Cuttlefish with peas\n   image: https://upload.wikimedia.org/Sepia_amb_pesols.jpg\n   page: y\n", nil
+	}
+	out = s.windCardImages("```gregal-recipe\n{\"title\":\"Sípia amb pèsols\",\"image_query\":\"cuttlefish with peas\",\"steps\":[\"Sofregeix\"]}\n```")
+	if !strings.Contains(out, "Sepia_amb_pesols.jpg") {
+		t.Fatalf("the matching photo should win:\n%s", out)
+	}
+}
+
+func TestRelevantImageIgnoresFillerWords(t *testing.T) {
+	out := "1. Paella valenciana\n   image: https://e.org/p.jpg\n   page: x\n"
+	if relevantImage("recepta amb arròs", out) != "" {
+		t.Fatal("«recepta» and «amb» say nothing about the photo")
+	}
+	if relevantImage("Paella de marisc", out) != "https://e.org/p.jpg" {
+		t.Fatal("paella matches")
+	}
+}
+
+func TestImageNeedsTheMainWord(t *testing.T) {
+	peas := "1. Green peas\n   image: https://e.org/peas.jpg\n   page: x\n"
+	if relevantImage("cuttlefish with peas", peas) != "" {
+		t.Fatal("a photo of peas alone is not the dish")
+	}
+	abbey := "1. Santa Maria de Montserrat Abbey\n   image: https://e.org/m.jpg\n   page: x\n"
+	if relevantImage("Montserrat monastery", abbey) == "" {
+		t.Fatal("the abbey is Montserrat")
 	}
 }

@@ -29,7 +29,6 @@ var cardImageSearch = tools.WebImages
 
 var (
 	cardBlockRe  = regexp.MustCompile("(?s)```(gregal-(?:plan|recipe|result))([^\\n]*)\\n?(.*?)```")
-	cardImageURL = regexp.MustCompile(`(?m)^\s*image:\s*(https?://\S+)`)
 	// textImageRe: ![alt](image: consulta) — la foto que el vent demana al text.
 	textImageRe = regexp.MustCompile(`!\[([^\]\n]*)\]\(\s*image:\s*([^)\n]{2,80})\)`)
 	blankRunRe  = regexp.MustCompile(`\n[ \t]*\n(?:[ \t]*\n)+`)
@@ -54,10 +53,7 @@ func (s *Server) windCardImages(reply string) string {
 		if err != nil {
 			return ""
 		}
-		if u := cardImageURL.FindStringSubmatch(out); u != nil {
-			return u[1]
-		}
-		return ""
+		return relevantImage(q, out)
 	}
 	if hasCard {
 		reply = cardBlockRe.ReplaceAllStringFunc(reply, func(block string) string {
@@ -198,11 +194,11 @@ func (s *Server) windSubjectPhoto(question, reply string) string {
 	if err != nil {
 		return reply
 	}
-	u := cardImageURL.FindStringSubmatch(out)
-	if u == nil {
+	img := relevantImage(subject, out)
+	if img == "" {
 		return reply
 	}
-	line := "![" + subject + "](" + u[1] + ")"
+	line := "![" + subject + "](" + img + ")"
 	// Després del primer paràgraf (o al final si només n'hi ha un), mai dins
 	// d'una llista, una taula o un bloc de codi.
 	if i := strings.Index(reply, "\n\n"); i > 0 {
@@ -213,4 +209,91 @@ func (s *Server) windSubjectPhoto(question, reply string) string {
 		return line + "\n\n" + reply
 	}
 	return reply + "\n\n" + line
+}
+
+// relevantImage tria, d'entre els resultats de web_images, la primera foto que
+// es diu com el que s'ha buscat: el títol, la pàgina o el nom del fitxer han de
+// compartir una paraula amb sentit de la consulta. Abans es posava la primera
+// que sortia, i una recepta de sípia amb pèsols acabava amb una foto de
+// farcellets de col. Millor cap foto que una que enganya.
+func relevantImage(query, out string) string {
+	words := imageQueryWords(query)
+	if len(words) == 0 {
+		return ""
+	}
+	blocks := strings.Split(out, "\n")
+	title := ""
+	for _, line := range blocks {
+		t := strings.TrimSpace(line)
+		if t == "" {
+			continue
+		}
+		if strings.HasPrefix(t, "image:") {
+			img := strings.TrimSpace(strings.TrimPrefix(t, "image:"))
+			if strings.HasPrefix(img, "http") && imageMatches(words, title+" "+img) {
+				return img
+			}
+			continue
+		}
+		if strings.HasPrefix(t, "page:") {
+			continue
+		}
+		// «1. Títol»: el títol del resultat següent.
+		if i := strings.Index(t, ". "); i > 0 && i < 4 {
+			t = t[i+2:]
+		}
+		title = t
+	}
+	return ""
+}
+
+// imageStop: paraules que no diuen què és (articles, preposicions, «recepta»…).
+var imageStop = map[string]bool{
+	"amb": true, "del": true, "dels": true, "les": true, "els": true, "per": true, "una": true, "uns": true, "the": true, "and": true,
+	"with": true, "from": true, "con": true, "los": true, "las": true, "recepta": true, "recipe": true, "receta": true, "plat": true,
+	"dish": true, "foto": true, "photo": true, "image": true, "casa": true, "home": true, "made": true, "style": true, "tradicional": true,
+	"traditional": true, "catalan": true, "catalana": true, "catala": true,
+}
+
+func imageNorm(s string) string {
+	s = strings.ToLower(s)
+	r := strings.NewReplacer("à", "a", "á", "a", "è", "e", "é", "e", "í", "i", "ï", "i", "ò", "o", "ó", "o", "ú", "u", "ü", "u", "ç", "c", "ñ", "n", "·", "", "%20", " ", "_", " ", "-", " ")
+	return r.Replace(s)
+}
+
+func imageQueryWords(q string) []string {
+	var out []string
+	for _, w := range strings.FieldsFunc(imageNorm(q), func(r rune) bool { return !(r >= 'a' && r <= 'z') && !(r >= '0' && r <= '9') }) {
+		if len(w) >= 3 && !imageStop[w] {
+			out = append(out, w)
+		}
+	}
+	return out
+}
+
+// imageMatches: la foto és del que s'ha buscat si al títol o a l'adreça hi
+// surten dues paraules de la consulta, o la més llarga (la que diu més: a
+// «cuttlefish with peas», una foto de pèsols sols no val). Es compara el
+// començament de cada paraula, per plurals («pesols»/«pesol»).
+func imageMatches(words []string, hay string) bool {
+	h := imageNorm(hay)
+	longest, hits, longHit := 0, 0, false
+	for i, w := range words {
+		if len(w) > len(words[longest]) {
+			longest = i
+		}
+	}
+	for i, w := range words {
+		stem := w
+		if len(stem) > 5 {
+			stem = stem[:5]
+		}
+		if strings.Contains(h, stem) {
+			hits++
+			if i == longest {
+				longHit = true
+			}
+		}
+	}
+	return hits >= 2 || longHit
 }

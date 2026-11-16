@@ -562,12 +562,7 @@ html body.tabs-inline #top .session-tab .nm { overflow:hidden; text-overflow:ell
 body:has(#main .work-group.running) #composer:not(:has(#in:not(:placeholder-shown))) #turnTimer { display:none; }
 
 /* ---------- Polit de colors (tema fosc de casa): un sol accent ----------
-   La marca era lavanda (la paleta d'abans) al costat de l'accent llima. Al
-   tema de casa es tenyeix cap a la llima; els altres temes queden com eren. */
-:root:not([data-theme]) #hero h1::before,
-:root[data-theme="dark"] #hero h1::before { filter:hue-rotate(205deg) saturate(.9) brightness(1.25); }
-:root:not([data-theme]) #side .brand :is(.rail-brand img, .brand-mark img),
-:root[data-theme="dark"] #side .brand :is(.rail-brand img, .brand-mark img),
-:root:not([data-theme]) .rail-brand img, :root[data-theme="dark"] .rail-brand img { filter:hue-rotate(205deg) saturate(.9) brightness(1.25); }
+   L'accent és el blau del logo (més apagat), així que la marca ja hi lliga
+   sense tenyir-la. */
 /* «Autonomia total»: avís amb el punt ambre; el text, del to de la resta. */
 #composer #permBtn.obert { color:var(--text) !important; }

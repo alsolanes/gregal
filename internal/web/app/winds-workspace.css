@@ -882,7 +882,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .gregal-result .gr-sources a { color:var(--muted); text-decoration:none; }
 :is(.gregal-result,.gregal-card) .gr-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin:0 4px 0 6px; vertical-align:middle; }
 /* Els punts de les fonts, amb els colors de la paleta (abans vermell, verd i blau saturats). */
-.gr-dot0{background:var(--chart-1,#D4F25A)}.gr-dot1{background:var(--chart-2,#7FD6C2)}.gr-dot2{background:var(--chart-3,#F2B48E)}.gr-dot3{background:var(--chart-4,#C9B2FF)}.gr-dot4{background:var(--chart-5,#86E3A6)}.gr-dot5{background:var(--chart-6,#FF8F86)}
+.gr-dot0{background:var(--chart-1,#8A9BF0)}.gr-dot1{background:var(--chart-2,#7FD6C2)}.gr-dot2{background:var(--chart-3,#F2B48E)}.gr-dot3{background:var(--chart-4,#C9B2FF)}.gr-dot4{background:var(--chart-5,#86E3A6)}.gr-dot5{background:var(--chart-6,#FF8F86)}
 :is(.gregal-result,.gregal-card) .gr-more { color:var(--accent); font-weight:650; text-decoration:none; white-space:nowrap; }
 /* Canals (especialistes) al menú: cara petita i nom, com a Android. */
 .vw-nav-item.vw-nav-channel { display:flex; align-items:center; gap:9px; }

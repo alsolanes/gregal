@@ -80,7 +80,7 @@ func TestPerDefecteElTemaEsFosc(t *testing.T) {
 	t.Cleanup(func() { SetTema("fosc") })
 	SetTema("clar")
 	SetTema("qualsevol cosa que no sigui clar")
-	if got := strings.ToUpper(string(fons)); got != "#121715" {
+	if got := strings.ToUpper(string(fons)); got != "#131518" {
 		t.Errorf("el defecte ha de ser el fosc, i fons és %s", got)
 	}
 }

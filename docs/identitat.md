@@ -17,7 +17,7 @@ to be sea foam and sand); the roles are what matter.
 
 **Principles.** Near-neutral cool grays (a hint of blue, like the sky when the
 northeast wind clears it) carry 90% of the screen. One confident accent, the
-*lime* of the «Vent a favor» brand board (deep sea-navy background, off-white text, lime, sage and peach), appears only where there is something to do: primary buttons,
+*soft blue* of the logo (a little quieter than the logo itself; it replaced a lime that shouted too much), appears only where there is something to do: primary buttons,
 focus rings, the active navigation item and links. Semantic colors (success,
 warning, danger, info) are reserved for state. The playful aqua (`onada`) is
 the rare fun touch: mascot, celebrations, retro reactions, autonomous mode.
@@ -28,19 +28,19 @@ text is at least 4.5:1 (WCAG 2.2 AA) and APCA Lc ≥ 90; even `faint` passes
 
 | name | hex | role |
 |---|---|---|
-| `escuma` | `#D4F25A` | **primary accent** (lime, «Vent a favor»): send, buttons, focus, active nav, links |
-| `escumaClara` | `#E4F98F` | primary hover and animation highlight |
+| `escuma` | `#8A9BF0` | **primary accent** (soft blue, the logo's): send, buttons, focus, active nav, links |
+| `escumaClara` | `#B0BCF7` | primary hover and animation highlight |
 | `arena` | `#F2B48E` | **warning**, CODE mode |
 | `onada` | `#7FD6C2` | **playful secondary** (aqua): weathervane gusts, celebrations, autonomous mode, diff hunks |
-| `algua` | `#2B3531` | subdued lines, rails and decorative borders |
-| `fons` | `#121715` | main background |
-| `abisme` | `#0D110F` | deeper background: sidebar, panels and code blocks |
-| `night` | `#1A211E` | raised surfaces: cards, inputs and menus |
-| `superficieAlta` | `#242D29` | hovered or selected surface (highest elevation) |
-| `text` | `#DDE4DF` | primary text, including assistant responses |
-| `ink` | `#F2F5EF` | strong text: headings and brand name |
-| `slate` | `#A8B3AD` | muted text: metadata and descriptions |
-| `faint` | `#909C96` | subdued text: keyboard hints and version (still ≥4.5:1) |
+| `algua` | `#2C3137` | subdued lines, rails and decorative borders |
+| `fons` | `#131518` | main background |
+| `abisme` | `#0E1012` | deeper background: sidebar, panels and code blocks |
+| `night` | `#1A1D21` | raised surfaces: cards, inputs and menus |
+| `superficieAlta` | `#24282D` | hovered or selected surface (highest elevation) |
+| `text` | `#DEE2E7` | primary text, including assistant responses |
+| `ink` | `#F2F4F7` | strong text: headings and brand name |
+| `slate` | `#A7AEB8` | muted text: metadata and descriptions |
+| `faint` | `#9098A3` | subdued text: keyboard hints and version (still ≥4.5:1) |
 | `green` | `#86E3A6` | success, additions and completed tools |
 | `red` | `#FF8F86` | danger: errors, deletions and denied actions |
 | `lila` | `#C9B2FF` | **info**: GOAL mode text |
