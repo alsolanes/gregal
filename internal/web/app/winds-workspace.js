@@ -84,9 +84,18 @@
   const navRow=([id,a,b],views=[id])=>{const n=btn('',()=>route(id),'vw-nav-item vw-nav-icon');n.append(navIcon(id==='home'?'today':id),el('span','',t(a,b)));n.setAttribute('aria-current',views.includes(state.view)?'page':'false');return n;};
   nav.append(navRow(['home','Avui','Today']),navRow(['tasks','Feina','Work'],['tasks','task','fes']),navRow(['saved','Desat','Saved'],['saved','notes']));
   // Els vents: Gregal primer i tots els especialistes (abans només cinc).
-  section(t('Vents','Winds'),iconOnly('open',t('Tots els teus vents','All your winds'),()=>route('crew'),'vw-small'));
+  section(t('Vents','Winds'));
+  // Gregal i els cinc que has fet servir fa menys (converses a soles i grups);
+  // si n'hi ha menys, els de l'equip actiu. La resta, a «Tots els vents»:
+  // amb 20 o 30 vents la barra era una llista sense fi.
   const gregal=state.winds.find(w=>w.id==='gregal');
-  for(const w of [gregal,...state.winds.filter(w=>w.id!=='gregal')].filter(Boolean)){const n=btn('',()=>talkTo(w).catch(fail),'vw-nav-item vw-nav-channel');n.append(face(w),el('span','',w.name));const role=roleName(w);if(role)n.title=w.name+' · '+role;n.setAttribute('aria-current',state.view==='chat'&&state.active?.wind===w.id?'page':'false');nav.append(n);}
+  const byId=id=>state.winds.find(w=>w.id===id);
+  const recent=[];const add=w=>{if(w&&w.id!=='gregal'&&!recent.includes(w)&&recent.length<5)recent.push(w);};
+  for(const th of state.solo||[])add(byId(th.wind));
+  for(const c of state.chats||[])for(const id of c.members||[])add(byId(id));
+  for(const w of crew())add(w);
+  for(const w of [gregal,...recent].filter(Boolean)){const n=btn('',()=>talkTo(w).catch(fail),'vw-nav-item vw-nav-channel');n.append(face(w),el('span','',w.name));const role=roleName(w);if(role)n.title=w.name+' · '+role;n.setAttribute('aria-current',state.view==='chat'&&state.active?.wind===w.id?'page':'false');nav.append(n);}
+  if(state.winds.length>recent.length+1){const all=btn('',()=>route('crew'),'vw-nav-item vw-nav-icon vw-nav-more');all.append(navIcon('crew'),el('span','',t('Tots els vents','All winds')),el('small','vw-nav-count',String(state.winds.length)));all.setAttribute('aria-current',state.view==='crew'?'page':'false');nav.append(all);}
   section(t('Converses','Conversations'),iconOnly('plus',t('Nova conversa','New conversation'),newChat,'vw-small'));
   renderThreads(nav);
   if(!state.chats.some(c=>!c.workspace)&&!(state.solo||[]).length)nav.append(el('p','vw-nav-empty',t('Aquí comencen les bones idees.','Good ideas start here.')));
@@ -555,7 +564,44 @@
    d.close();
   },'vw-primary'));
  }
- function team(){heading(t('Tothom té alguna cosa a aportar.','Everyone brings something.'),t('Especialistes amb memòria pròpia i coneixement que pots conservar.','Specialists with their own memory and knowledge you can keep.'));
+ // «Posa ordre» (winds_tidy.go): duplicats (mateix nom o ofici), vents de
+ // prova i vents sense ús. Ajuntar porta tot el de l'un a l'altre (memòria,
+ // converses, rutines, grups) i arxiva el que sobra: es pot recuperar.
+ function tidyLine(w){const bits=[];if(w.msgs)bits.push(t(w.msgs+' missatges',w.msgs+' messages'));if(w.threads>1)bits.push(t(w.threads+' converses',w.threads+' chats'));if(w.memory||w.knowledge)bits.push(t('amb memòria','with memory'));if(w.jobs)bits.push(t(w.jobs+' rutines',w.jobs+' routines'));if(!bits.length)bits.push(t('sense ús','unused'));return (w.role?w.role+' · ':'')+bits.join(' · ');}
+ async function tidyDialog(rep){
+  const d=dialog(t('Posa ordre als vents','Tidy up your winds'));
+  d.classList.add('vw-tidy');
+  const body=el('div','vw-tidy-body');d.append(body);
+  body.append(el('p','vw-muted',t('Ajuntar porta tot el d’un vent a l’altre (memòria, converses, rutines i grups) i arxiva el que sobra. Arxivat vol dir que el pots recuperar des de la biblioteca.','Merging moves everything from one wind into the other (memory, chats, routines and groups) and archives the leftover. Archived means you can restore it from the library.')));
+  const status=el('p','vw-tidy-status');status.setAttribute('role','status');
+  const reload=async()=>{d.close();await load();render();const fresh=await call('/api/winds/tidy').catch(()=>null);if(fresh&&(fresh.groups.length||fresh.test.length||fresh.unused.length))tidyDialog(fresh);};
+  for(const g of rep.groups){
+   const box=el('section','vw-tidy-group');
+   box.append(el('h3','',g.reason==='same_name'?t('Mateix nom: ','Same name: ')+g.winds[0].name:t('Mateix ofici: ','Same trade: ')+(g.winds[0].role||'')));
+   let keep=g.keep;const name='keep-'+g.winds.map(w=>w.id).join('-');
+   for(const w of g.winds){const row=el('label','vw-tidy-row');const r=el('input');r.type='radio';r.name=name;r.value=w.id;r.checked=w.id===keep;r.onchange=()=>{keep=w.id;go.textContent=t('Ajunta-les a ','Merge into ')+(g.winds.find(x=>x.id===keep)?.name||'');};const ww=state.winds.find(x=>x.id===w.id);const txt=el('span','');txt.append(el('strong','',w.name),el('small','',tidyLine(w)));row.append(r);if(ww)row.append(face(ww));row.append(txt);box.append(row);}
+   const go=btn(t('Ajunta-les a ','Merge into ')+(g.winds.find(x=>x.id===keep)?.name||''),async()=>{
+    const others=g.winds.filter(w=>w.id!==keep);const into=g.winds.find(w=>w.id===keep);
+    if(!confirm(t('Tot el de ','Everything from ')+others.map(w=>w.name).join(', ')+t(' passarà a ',' will move into ')+into.name+t('. Després s’arxivaran (es poden recuperar). Endavant?','. Then they will be archived (they can be restored). Go ahead?')))return;
+    go.disabled=true;status.textContent=t('Ajuntant…','Merging…');
+    try{for(const o of others)await call('/api/winds/tidy','POST',{action:'merge',keep,from:o.id});status.textContent=t('Fet.','Done.');await reload();}catch(e){status.textContent=e.message||String(e);go.disabled=false;}
+   },'vw-primary');
+   box.append(go);body.append(box);
+  }
+  const archiveList=(title,list)=>{if(!list.length)return;const box=el('section','vw-tidy-group');box.append(el('h3','',title));for(const w of list){const row=el('div','vw-tidy-row');const ww=state.winds.find(x=>x.id===w.id);if(ww)row.append(face(ww));const txt=el('span','');txt.append(el('strong','',w.name),el('small','',tidyLine(w)));row.append(txt,btn(t('Arxiva','Archive'),async()=>{if(!confirm(t('S’arxivarà ','Archive ')+w.name+t(' (es pot recuperar des de la biblioteca). Endavant?',' (it can be restored from the library)?')))return;try{await call('/api/winds/tidy','POST',{action:'archive',id:w.id});await reload();}catch(e){status.textContent=e.message||String(e);}}));box.append(row);}body.append(box);};
+  archiveList(t('Semblen de prova','Look like tests'),rep.test);
+  archiveList(t('Sense cap ús','Never used'),rep.unused);
+  if(!rep.groups.length&&!rep.test.length&&!rep.unused.length)body.append(el('p','',t('Tot en ordre: no hi ha duplicats ni vents de prova.','All tidy: no duplicates or test winds.')));
+  body.append(status);
+ }
+ async function tidyBanner(){
+  const rep=await call('/api/winds/tidy').catch(()=>null);if(!rep||state.view!=='crew')return;
+  const n=rep.groups.reduce((a,g)=>a+g.winds.length-1,0),tst=rep.test.length,un=rep.unused.length;if(!n&&!tst&&!un)return;
+  const bits=[];if(n)bits.push(t(n===1?'1 vent duplicat':n+' vents duplicats',n===1?'1 duplicate wind':n+' duplicate winds'));if(tst)bits.push(t(tst===1?'1 de prova':tst+' de prova',tst+' test'));if(un)bits.push(t(un===1?'1 sense ús':un+' sense ús',un+' unused'));
+  const card=el('div','vw-tidy-banner');card.append(el('span','',t('Tens ','You have ')+rep.total+t(' vents: ',' winds: ')+bits.join(', ')+'.'),btn(t('Posa ordre','Tidy up'),()=>tidyDialog(rep),'vw-primary'));
+  content.querySelector('.vw-heading')?.after(card);
+ }
+ function team(){heading(t('Tothom té alguna cosa a aportar.','Everyone brings something.'),t('Especialistes amb memòria pròpia i coneixement que pots conservar.','Specialists with their own memory and knowledge you can keep.'));tidyBanner();
   {const tpl=state.squads.find(x=>x.id===state.squad),mine=new Set(crew().map(w=>w.specialty));const missing=crew().length?(tpl?.members||[]).filter(m=>!mine.has(m.key)):[];
    if(missing.length){const card=el('div','vw-newcomers'),faces=el('span','vw-owner-faces');for(const m of missing)faces.append(root.gregalWinds.face({name:m.name,color:m.color,style:m.style,kit:m.key},false));const copy=el('span','');copy.append(el('strong','',t('Vents nous a l’equip: ','New winds in the team: ')),document.createTextNode(missing.map(m=>m.name+' ('+(ca()?m.ca:m.en).toLowerCase()+')').join(t(' i ',' and '))));
     card.append(faces,copy,btn(t('Afegeix-los','Add them'),async()=>{await activate(state.squad);render();},'vw-primary'));content.append(card);}}

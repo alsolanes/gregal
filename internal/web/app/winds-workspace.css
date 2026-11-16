@@ -1287,3 +1287,20 @@ dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize
 .vw-debate-voice { padding:10px 14px; border-top:1px solid var(--line); }
 .vw-debate-who { display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:13px; }
 .vw-debate-who > :first-child { width:22px; height:22px; }
+
+/* «Tots els vents · N» a la barra: la resta de vents, fora de la llista curta. */
+.vw-nav-more { color:var(--muted); }
+.vw-nav-count { margin-left:auto; color:var(--faint); font-size:12px; }
+
+/* «Posa ordre» (winds_tidy.go): avís a la pàgina dels vents i el diàleg. */
+.vw-tidy-banner { display:flex; align-items:center; gap:14px; justify-content:space-between; margin:0 0 18px; padding:12px 16px; border:1px solid var(--line-hi); border-radius:14px; background:var(--surface); color:var(--text); }
+.vw-dialog.vw-tidy { width:min(640px, calc(100vw - 32px)); }
+.vw-tidy-body { display:flex; flex-direction:column; gap:16px; }
+.vw-tidy-group { border:1px solid var(--line); border-radius:14px; padding:12px 14px; display:flex; flex-direction:column; gap:8px; }
+.vw-tidy-group h3 { margin:0 0 2px; font-size:14px; color:var(--ink); }
+.vw-tidy-row { display:flex; align-items:center; gap:10px; padding:4px 0; }
+.vw-tidy-row > span { display:flex; flex-direction:column; flex:1; min-width:0; }
+.vw-tidy-row small { color:var(--muted); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.vw-tidy-row input[type=radio] { accent-color:var(--accent); }
+.vw-tidy-group > .vw-primary { align-self:flex-start; margin-top:4px; }
+.vw-tidy-status { margin:0; color:var(--muted); font-size:13px; }

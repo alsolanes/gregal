@@ -38,3 +38,31 @@ class MdEscapeTest {
         org.junit.Assert.assertTrue(segs.none { it is Seg.Italic })
     }
 }
+
+class DrawerWindsTest {
+    private fun w(id: String) = Wind(id, id.replaceFirstChar { it.uppercase() }, "#8193FF", "")
+
+    @org.junit.Test fun gregalAPartICincRecentsPrimer() {
+        val winds = listOf(w("gregal"), w("a"), w("b"), w("c"), w("d"), w("e"), w("f"), w("g"))
+        val chats = mapOf(
+            "f" to listOf(GregalViewModel.PetMsg("pet", "x", ts = 300L)),
+            "c" to listOf(GregalViewModel.PetMsg("pet", "x", ts = 200L)),
+            "gregal" to listOf(GregalViewModel.PetMsg("pet", "x", ts = 900L)),
+        )
+        val got = drawerRecentWinds(winds, chats).map { it.id }
+        org.junit.Assert.assertEquals(listOf("f", "c", "a", "b", "d"), got)
+    }
+}
+
+@org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
+@org.robolectric.annotation.Config(sdk = [34])
+class TidyLogicTest {
+    @org.junit.Test fun llegeixElsDuplicatsIElQueTeCadascun() {
+        val raw = """{"total":11,"groups":[{"reason":"same_name","keep":"w-1","winds":[{"id":"w-1","name":"Marinada","role":"Compres","msgs":7,"threads":2,"memory":30,"knowledge":0,"jobs":0},{"id":"marinada","name":"Marinada","role":"calma","msgs":0,"threads":0,"memory":0,"knowledge":0,"jobs":0}]}],"test":[{"id":"fdsaf","name":"fdsaf","msgs":0}],"unused":[]}"""
+        val r = TidyLogic.parse(raw)
+        org.junit.Assert.assertEquals(2, r.issues)
+        org.junit.Assert.assertEquals("w-1", r.groups.single().keep)
+        org.junit.Assert.assertEquals("Compres · 7 missatges · 2 converses · amb memòria", TidyLogic.line("ca", r.groups[0].winds[0]))
+        org.junit.Assert.assertEquals("calma · sense ús", TidyLogic.line("ca", r.groups[0].winds[1]))
+    }
+}

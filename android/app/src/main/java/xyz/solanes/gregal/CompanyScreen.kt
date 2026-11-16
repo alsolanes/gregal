@@ -38,6 +38,7 @@ import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.Menu
@@ -193,6 +194,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     val open by vm.ventsOpen.collectAsState()
     var creation by remember { mutableStateOf<String?>(null) }
     var menu by remember { mutableStateOf(false) }
+    var tidyOpen by remember { mutableStateOf(false) }
     var manage by rememberSaveable { mutableStateOf(false) }
     var searching by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -355,6 +357,10 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                                     Icon(if (searching) Icons.Rounded.Close else Icons.Rounded.Search,
                                         tr(lang, if (searching) "app.vents.closeSearch" else "app.vents.search"), tint = Ink)
                                 }
+                            }
+                            // «Posa ordre» (Tidy.kt): duplicats, vents de prova i sense ús.
+                            if (manage) IconButton(onClick = { tidyOpen = true }, modifier = Modifier.testTag("tidy-open")) {
+                                Icon(Icons.Rounded.CleaningServices, if (lang == "en") "Tidy up" else "Posa ordre", tint = Ink)
                             }
                             Box {
                                 IconButton(onClick = { menu = true }) {
@@ -587,6 +593,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     }
     if (libraryOpen) WindLibraryDialog(vm, lang) { libraryOpen = false }
     if (sharedCreate) SharedChatCreator(vm, lang, winds, onClose = { sharedCreate = false }) { vm.openVentsChat("shared:$it") }
+    if (tidyOpen) TidySheet(vm, lang) { tidyOpen = false }
     SharedInvitePopup(vm, lang) { vm.openVentsChat("shared:$it") }
     if (programatsOpen) ProgramatsDialog(vm, lang) { programatsOpen = false }
     if (rulesOpen) RulesDialog(conn, lang) { rulesOpen = false }
