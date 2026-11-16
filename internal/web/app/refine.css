@@ -142,18 +142,18 @@
 /* ---------- Portada: salutació amb degradat i una lluïssor suau ---------- */
 #hero, .vw-home {
   background:
-    radial-gradient(42% 34% at 50% 34%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 72%),
-    radial-gradient(30% 26% at 64% 44%, color-mix(in srgb, var(--lila) 10%, transparent), transparent 70%);
+    radial-gradient(42% 34% at 50% 34%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 72%);
 }
 body.shell-winds .vw-home {
   background:
-    radial-gradient(42% 30% at 50% 22%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 72%),
-    radial-gradient(28% 24% at 62% 30%, color-mix(in srgb, var(--lila) 8%, transparent), transparent 70%);
+    radial-gradient(42% 30% at 50% 22%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 72%);
 }
 #hero h1, .vw-welcome h1 {
   font-family:inherit; font-weight:620; letter-spacing:-.04em;
   font-size:clamp(34px,3.6vw,48px); line-height:1.1;
-  background:linear-gradient(100deg, var(--accent-hi) 0%, var(--lila) 45%, var(--onada) 100%);
+  /* De la tinta a l'accent, com la de Vents: el lila del mig era el «blau»
+     que no lligava amb la llima. */
+  background:linear-gradient(100deg, var(--ink) 10%, var(--accent-hi) 95%);
   -webkit-background-clip:text; background-clip:text; color:transparent;
 }
 /* La salutació de Vents va de la tinta a l'accent del tema, a tots els temes; l'amplada ajustada
@@ -205,8 +205,7 @@ html body #side #navRail .nav-item.active .nav-icon { color:var(--accent-hi); }
 #hero { background:none; }
 #conversationPane:has(#hero:not([hidden])) {
   background:
-    radial-gradient(38% 30% at 50% 44%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 75%),
-    radial-gradient(26% 22% at 60% 52%, color-mix(in srgb, var(--lila) 8%, transparent), transparent 72%);
+    radial-gradient(38% 30% at 50% 44%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 75%);
 }
 #conversationPane:has(#hero:not([hidden])) #composer { background:transparent; }
 
@@ -259,8 +258,7 @@ html body #side #navRail .nav-item.active .nav-icon { color:var(--accent-hi); }
   /* La lluïssor, al voltant de la salutació (al mòbil va a baix), no al buit de dalt. */
   #conversationPane:has(#hero:not([hidden])) {
     background:
-      radial-gradient(60vw 34vh at 50% 74%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 75%),
-      radial-gradient(40vw 24vh at 62% 80%, color-mix(in srgb, var(--lila) 8%, transparent), transparent 72%);
+      radial-gradient(60vw 34vh at 50% 74%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 75%);
   }
 }
 
@@ -562,3 +560,14 @@ html body.tabs-inline #top .session-tab .nm { overflow:hidden; text-overflow:ell
 #turnBar .turn-hint { display:none; }
 #composer:has(#in:not(:placeholder-shown)) #turnBar .turn-hint { display:inline; }
 body:has(#main .work-group.running) #composer:not(:has(#in:not(:placeholder-shown))) #turnTimer { display:none; }
+
+/* ---------- Polit de colors (tema fosc de casa): un sol accent ----------
+   La marca era lavanda (la paleta d'abans) al costat de l'accent llima. Al
+   tema de casa es tenyeix cap a la llima; els altres temes queden com eren. */
+:root:not([data-theme]) #hero h1::before,
+:root[data-theme="dark"] #hero h1::before { filter:hue-rotate(205deg) saturate(.9) brightness(1.25); }
+:root:not([data-theme]) #side .brand :is(.rail-brand img, .brand-mark img),
+:root[data-theme="dark"] #side .brand :is(.rail-brand img, .brand-mark img),
+:root:not([data-theme]) .rail-brand img, :root[data-theme="dark"] .rail-brand img { filter:hue-rotate(205deg) saturate(.9) brightness(1.25); }
+/* «Autonomia total»: avís amb el punt ambre; el text, del to de la resta. */
+#composer #permBtn.obert { color:var(--text) !important; }
