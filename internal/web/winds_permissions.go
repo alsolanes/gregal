@@ -131,14 +131,21 @@ func windSpecs() []llm.ToolSpec {
 const windNotRun = "NOT RUN: this needs the user's explicit approval and wind chat cannot ask for it. Do not retry it and do not stop: find another way inside the project folder (servers: the app tool; stopping something you started: bash_kill or app stop; downloads: web_fetch or a CDN link; files: only inside the project)."
 
 // windSkippedNote és la línia que va al final de la resposta quan alguna
-// acció no s'ha fet.
-func windSkippedNote(reasons []string) string {
+// acció no s'ha fet, en la llengua de la persona. Les comprovacions que el vent
+// volia fer amb el navegador sobre la seva pròpia feina no hi surten: no et
+// treuen res del resultat i la nota només feia soroll. Buida si no queda res.
+func windSkippedNote(en bool, reasons []string) string {
 	seen := map[string]bool{}
 	var uniq []string
+	kept := false
 	for _, r := range reasons {
 		// El motiu pot portar l'ordre sencera (un heredoc de 50 línies):
 		// a la nota, només la primera línia i curta.
 		r, _, _ = strings.Cut(strings.TrimSpace(r), "\n")
+		if low := strings.ToLower(r); strings.HasPrefix(low, "navegador") || strings.HasPrefix(low, "browser") {
+			continue
+		}
+		kept = true
 		if rr := []rune(r); len(rr) > 90 {
 			r = string(rr[:90]) + "…"
 		}
@@ -147,7 +154,13 @@ func windSkippedNote(reasons []string) string {
 			uniq = append(uniq, r)
 		}
 	}
-	note := "(Not run — needs your approval in the main chat"
+	if !kept && len(reasons) > 0 {
+		return ""
+	}
+	note := "(No ho he fet perquè cal el teu permís"
+	if en {
+		note = "(Not done: it needs your permission"
+	}
 	if len(uniq) > 0 {
 		if len(uniq) > 3 {
 			uniq = uniq[:3]

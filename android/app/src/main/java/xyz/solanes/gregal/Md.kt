@@ -28,6 +28,12 @@ sealed interface Seg {
     data class Card(val card: RichCard) : Seg
     /** Element de checklist («- [ ] …»); groupRich n'ajunta els seguits. */
     data class Task(val done: Boolean, val inner: List<Seg>) : Seg
+    /**
+     * Element de llista: [marker] «1.» en les numerades, buit en les de
+     * vinyeta; [level] el sagnat (0, 1, 2). groupRich n'ajunta els seguits en
+     * un bloc que es pinta amb sagnat penjant, com a l'escriptori.
+     */
+    data class Item(val marker: String, val level: Int, val inner: List<Seg>) : Seg
 }
 
 /** Bloc ric per emetre composables (text corregut, codi, taula o imatge). */
@@ -81,6 +87,10 @@ fun splitMd(src: String): List<Seg> {
                     else if (lang == "gregal-route") parseRouteSpec(body.trim())?.let { RichCard.Route(it) }
                     else parsePlanSpec(body.trim())?.let { RichCard.Plan(it) }
                 out += listOf(if (card != null) Seg.Card(card) else Seg.Block("json", body))
+            } else if (lang == "gregal-web") {
+                // La web que el vent ha fet (winds_webcard.go): es veu funcionant.
+                val web = parseWebSpec(body.trim())
+                out += listOf(if (web != null) Seg.Card(RichCard.Web(web)) else Seg.Block("json", body))
             } else if (lang == "chart" || lang == "gregal-plot") {
                 val spec = parseChartSpec(body.trim())
                 if (spec != null) out += listOf(Seg.Chart(spec))
@@ -99,7 +109,8 @@ fun splitMd(src: String): List<Seg> {
 private val headingRe = Regex("^(#{1,6})\\s+(.*)$")
 private val hrRe = Regex("^\\s*(---+|\\*\\*\\*+|___+)\\s*$")
 private val quoteRe = Regex("^\\s*>\\s?(.*)$")
-private val bulletRe = Regex("^\\s*(?:[-*•]|\\d+[.)])\\s+(.*)$")
+private const val TAB = '\t'
+private val bulletRe =Regex("^\\s*(?:[-*•]|\\d+[.)])\\s+(.*)$")
 private val taskRe = Regex("^\\s*(?:[-*•]|\\d+[.)])\\s+\\[([ xX])\\]\\s+(.*)$")
 private val orderedRe = Regex("^\\s*(\\d+[.)])\\s+(.*)$")
 private val tableLineRe = Regex("^\\s*\\|.*\\|\\s*$")
@@ -166,8 +177,8 @@ private fun splitBlockLines(s: String): List<Seg> {
         val b = bulletRe.find(line)
         if (b != null) {
             val ord = orderedRe.find(line)
-            out += listOf(Seg.Text(if (ord != null) ord.groups[1]!!.value + " " else "• "))
-            out += parseInline(b.groups[1]!!.value)
+            val indent = line.takeWhile { it == ' ' || it == TAB }.sumOf { if (it == TAB) 4 else 1 }
+            out += listOf(Seg.Item(ord?.groups?.get(1)?.value?.trimEnd(')', '.')?.plus(".").orEmpty(), (indent / 2).coerceAtMost(2), parseInline(b.groups[1]!!.value)))
             i++
             continue
         }
@@ -354,6 +365,18 @@ fun groupRich(segs: List<Seg>): List<Rich> {
                 flush()
                 out += Rich.Card(seg.card)
             }
+            is Seg.Item -> {
+                // Els elements seguits (entre ells només salts de línia) fan una llista.
+                val prev = out.lastOrNull() as? Rich.Card
+                val list = prev?.card as? RichCard.Bullets
+                if (list != null && run.all { it is Seg.Text && it.t.isBlank() }) {
+                    run = mutableListOf()
+                    out[out.size - 1] = Rich.Card(RichCard.Bullets(list.items + seg))
+                } else {
+                    flush()
+                    out += Rich.Card(RichCard.Bullets(listOf(seg)))
+                }
+            }
             is Seg.Task -> {
                 // Les caselles seguides (entre elles només hi ha salts de línia) fan una checklist.
                 val prev = out.lastOrNull() as? Rich.Card
@@ -434,7 +457,8 @@ fun renderSegs(segs: List<Seg>, codeBg: Color, activity: Boolean = false, link: 
                     withStyle(SpanStyle(fontWeight = FontWeight.Bold, fontSize = size)) {
                         append(renderSegs(seg.inner, codeBg, activity, link).text)
                     }
-                    append("\n")
+                    // El salt el posa la línia següent: un de propi deixava
+                    // una franja buida sota cada títol.
                 }
                 is Seg.Link -> {
                     pushStringAnnotation("URL", seg.url)
@@ -459,6 +483,10 @@ fun renderSegs(segs: List<Seg>, codeBg: Color, activity: Boolean = false, link: 
                     withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(seg.spec.title) }
                     append("\n")
                     seg.spec.rows.forEach { r -> append(listOf(r.lead, r.text, r.value).filter { it.isNotBlank() }.joinToString(" · ") + "\n") }
+                }
+                is Seg.Item -> {
+                    append("  ".repeat(seg.level) + seg.marker.ifEmpty { "•" } + " ")
+                    append(renderSegs(seg.inner, codeBg, activity, link))
                 }
                 is Seg.Task -> {
                     append(if (seg.done) "☑ " else "☐ ")

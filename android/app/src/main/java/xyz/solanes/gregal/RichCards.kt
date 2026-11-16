@@ -57,6 +57,10 @@ sealed interface RichCard {
     data class Checks(val items: List<Pair<Boolean, List<Seg>>>) : RichCard
     /** Dues o més fotos seguides. */
     data class Gallery(val images: List<Pair<String, String>>) : RichCard
+    /** La web que el vent acaba de fer (```gregal-web): es veu funcionant al xat. */
+    data class Web(val spec: WebSpec) : RichCard
+    /** Llista del markdown («- …», «1. …»), amb sagnat penjant i nivells. */
+    data class Bullets(val items: List<Seg.Item>) : RichCard
 }
 
 /** Un botó sota la targeta: el primer és el gran; en tocar-lo s'envia [prompt]. */
@@ -223,6 +227,8 @@ internal fun RichCardBlock(card: RichCard, accent: Color, lang: String) {
         is RichCard.Route -> { RouteCard(card.spec, link, lang); CardActions(card.spec.actions, link) }
         is RichCard.Checks -> ChecksBlock(card.items, link)
         is RichCard.Gallery -> GalleryBlock(card.images, lang)
+        is RichCard.Bullets -> ListBlock(card.items, link)
+        is RichCard.Web -> WebCardBlock(card.spec, link, lang)
     }
 }
 
@@ -518,6 +524,40 @@ private fun ChecksBlock(items: List<Pair<Boolean, List<Seg>>>, link: Color) {
                 Tick(on, link)
                 Text(text, color = if (on) Muted else Ink, fontSize = 15.sp, lineHeight = 21.sp,
                     textDecoration = if (on) TextDecoration.LineThrough else null)
+            }
+        }
+    }
+}
+
+/**
+ * Llista com a l'escriptori: cada element en una fila amb la vinyeta (o el
+ * número dins d'un cercle) i el text, que en partir-se queda sagnat sota el
+ * text i no sota la vinyeta. Els enllaços es poden tocar.
+ */
+@Composable
+private fun ListBlock(items: List<Seg.Item>, link: Color) {
+    val codeBg = CodeDark
+    val uri = androidx.compose.ui.platform.LocalUriHandler.current
+    val pal = LocalPal.current
+    Column(Modifier.fillMaxWidth().testTag("md-list"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        items.forEach { item ->
+            Row(Modifier.fillMaxWidth().padding(start = (item.level * 20).dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (item.marker.isNotEmpty()) {
+                    Box(Modifier.padding(top = 1.dp).size(22.dp).clip(CircleShape).background(pal.ink.copy(alpha = if (pal.dark) .10f else .07f)), contentAlignment = Alignment.Center) {
+                        Text(item.marker.trimEnd('.'), color = link, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    }
+                } else {
+                    Box(Modifier.width(22.dp).height(23.dp), contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(if (item.level == 0) 6.dp else 5.dp).clip(CircleShape)
+                            .background(if (item.level == 0) link else Muted))
+                    }
+                }
+                val rich = remember(item, link) { renderSegs(item.inner, codeBg, link = link) }
+                androidx.compose.foundation.text.ClickableText(
+                    rich, modifier = Modifier.weight(1f),
+                    style = GregalType.chatBody.copy(color = Ink),
+                    onClick = { off -> rich.getStringAnnotations("URL", off, off).firstOrNull()?.let { runCatching { uri.openUri(it.item) } } },
+                )
             }
         }
     }

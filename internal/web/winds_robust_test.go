@@ -63,9 +63,16 @@ func TestWindReadOnlySessionCannotWriteThroughOrdinaryWindRoute(t *testing.T) {
 // Una acció que no es pot aprovar sola no omple la resposta amb un bloc
 // d'error: una línia curta amb el motiu.
 func TestWindSkippedNoteCurta(t *testing.T) {
-	n := windSkippedNote([]string{"autonomous: potentially destructive command", "autonomous: potentially destructive command"})
-	if strings.Count(n, "destructive") != 1 || len(n) > 200 || strings.Contains(n, "REQUIRES APPROVAL") {
+	n := windSkippedNote(false, []string{"autonomous: potentially destructive command", "autonomous: potentially destructive command"})
+	if strings.Count(n, "destructive") != 1 || len(n) > 200 || strings.Contains(n, "REQUIRES APPROVAL") || !strings.Contains(n, "permís") {
 		t.Fatalf("nota: %q", n)
+	}
+	// El vent provant la seva pròpia pàgina amb el navegador no és cosa teva.
+	if n := windSkippedNote(false, []string{"navegador: actua sobre la pàgina (batch)"}); n != "" {
+		t.Fatalf("la comprovació del navegador no ha de sortir: %q", n)
+	}
+	if n := windSkippedNote(true, []string{"autonomous: x"}); !strings.Contains(n, "permission") {
+		t.Fatalf("en anglès: %q", n)
 	}
 	if !strings.Contains(windNotRun, "app") || !strings.Contains(windNotRun, "Do not retry") {
 		t.Fatalf("el model ha de saber com seguir: %q", windNotRun)

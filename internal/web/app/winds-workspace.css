@@ -1214,3 +1214,46 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .saved-received.unread { border-color:var(--accent); }
 .saved-actions { display:flex; gap:8px; align-items:center; margin-top:8px; }
 .saved-actions .gshare-btn { position:static; opacity:1; }
+
+/* Vista prèvia dels blocs html/svg (md-preview.js): pàgina funcionant en un iframe aïllat. */
+.codeblock.gc-preview .codehead { gap:6px; }
+.codeblock.gc-preview .codehead > span { margin-right:4px; }
+.gc-prev-tab { border:0; background:transparent; color:var(--muted); font:inherit; font-size:12px; padding:3px 9px; border-radius:999px; cursor:pointer; }
+.gc-prev-tab.on { background:var(--surface-hi); color:var(--accent-hi); }
+.gc-prev-grow { margin-left:auto; border:0; background:transparent; color:var(--muted); font-size:15px; cursor:pointer; padding:2px 6px; border-radius:6px; }
+.gc-prev-grow:hover, .gc-prev-tab:hover { color:var(--ink); background:var(--hover-alt); }
+.codeblock.gc-preview .copybtn { margin-left:0; }
+.gc-prev-view { background:#fff; border-top:1px solid var(--line); }
+.gc-prev-frame { display:block; width:100%; border:0; background:#fff; resize:vertical; }
+dialog.gc-prev-full { width:min(1200px,94vw); height:88vh; padding:0; border:1px solid var(--line-hi); border-radius:14px; background:var(--surface); overflow:hidden; }
+dialog.gc-prev-full::backdrop { background:rgba(0,0,0,.55); }
+.gc-prev-fullbar { display:flex; justify-content:flex-end; padding:6px 8px; background:var(--surface); }
+.gc-prev-fullbar button { border:0; background:transparent; color:var(--ink); font-size:16px; cursor:pointer; padding:4px 8px; border-radius:8px; }
+dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize:none; }
+
+/* La web d'un vent (gregal-web): capçalera amb el nom i «Obre», i la pàgina funcionant. */
+.gregal-card.gregal-web { padding:0; overflow:hidden; }
+.gregal-web .gw-head { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--line); }
+.gregal-web .gw-icon { width:30px; height:30px; display:grid; place-items:center; border-radius:9px; background:var(--surface-hi); color:var(--accent-hi); flex:none; }
+.gregal-web .gw-name { display:flex; flex-direction:column; min-width:0; flex:1; }
+.gregal-web .gw-name strong { color:var(--ink); font-size:14.5px; }
+.gregal-web .gw-name small { color:var(--muted); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.gregal-web .gw-open { color:var(--accent-hi); text-decoration:none; font-weight:600; font-size:13px; padding:5px 10px; border-radius:999px; background:var(--surface-hi); flex:none; }
+.gregal-web .gw-open:hover { background:var(--hover-alt); }
+.gregal-web .gw-frame { background:#fff; }
+
+/* Barra d'un sol nivell (renderNav): començar i cercar a dalt, grups, vents, converses i configuració plegada. */
+.vw-nav-top { display:flex; flex-direction:column; gap:2px; margin-bottom:6px; }
+.vw-nav-search { color:var(--muted); }
+.vw-nav-search kbd { margin-left:auto; font:inherit; font-size:11px; color:var(--faint); border:1px solid var(--line); border-radius:6px; padding:1px 6px; }
+/* Pestanyes dins d'un grup (Feina, Desat). */
+.vw-page-tabs { display:flex; gap:4px; margin:0 0 14px; padding:3px; border-radius:999px; background:var(--surface); border:1px solid var(--line); width:max-content; max-width:100%; overflow-x:auto; }
+.vw-page-tab { border:0; background:transparent; color:var(--muted); font:inherit; font-size:13px; padding:6px 14px; border-radius:999px; cursor:pointer; white-space:nowrap; }
+.vw-page-tab:hover { color:var(--ink); background:var(--hover); }
+.vw-page-tab.on { background:var(--surface-hi); color:var(--ink); font-weight:600; }
+/* A Vents, les entrades de la carcassa (Vents · Racó · Automatitzacions) ja són
+   dins la barra d'un sol nivell (Avui, Feina › Automatitzacions, Configuració
+   › Racó): no es repeteixen a dalt. */
+:root[data-product="vents"] #side :is(button,a)[data-view="vents"],
+:root[data-product="vents"] #side :is(button,a)[data-view="raco"],
+:root[data-product="vents"] #side :is(button,a)[data-view="automatitzacions"] { display:none !important; }

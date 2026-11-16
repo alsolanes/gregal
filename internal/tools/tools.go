@@ -310,6 +310,7 @@ func Grep(pattern, dir, include string, maxMatches int) (string, error) {
 	}
 	casa := coincidencia(pattern)
 	var out []string
+	budget := newWalkBudget()
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil // continua amb la resta
@@ -319,12 +320,24 @@ func Grep(pattern, dir, include string, maxMatches int) (string, error) {
 			if base == ".git" || base == "node_modules" || base == "dist" || base == "target" {
 				return filepath.SkipDir
 			}
+			// Una carpeta de núvol només es recorre si la cerca és a dins:
+			// obrir-ne els fitxers els baixa (walkguard.go).
+			if path != dir && isCloudDir(base) {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		if include != "" {
 			if ok, _ := filepath.Match(include, d.Name()); !ok {
 				return nil
 			}
+		}
+		if !budget.spend() {
+			return errStop
+		}
+		// Fotos, vídeos, binaris i fitxers només al núvol: no s'obren.
+		if skipRead(d) {
+			return nil
 		}
 		// Lectura limitada a la font: abans os.ReadFile carregava el
 		// fitxer sencer (un model de 39 GB a l'arbre i prou per OOM)
@@ -352,10 +365,14 @@ func Grep(pattern, dir, include string, maxMatches int) (string, error) {
 	if err != nil && !errors.Is(err, errStop) {
 		return "", err
 	}
-	if len(out) == 0 {
-		return "no matches", nil
+	more := ""
+	if budget.hit {
+		more = fmt.Sprintf("\n(search stopped after %d files or %s: narrow the folder or the include pattern)", walkMaxFiles, walkMaxTime)
 	}
-	return strings.Join(out, "\n"), nil
+	if len(out) == 0 {
+		return "no matches" + more, nil
+	}
+	return strings.Join(out, "\n") + more, nil
 }
 
 var errStop = errors.New("topall")
@@ -566,6 +583,9 @@ func Glob(pattern, dir string, max int) (string, error) {
 					if full != dir {
 						return filepath.SkipDir
 					}
+				}
+				if full != dir && isCloudDir(d.Name()) {
+					return filepath.SkipDir
 				}
 				return nil
 			}

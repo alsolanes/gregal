@@ -329,12 +329,27 @@
     return h + sourcesFoot(o) + "</div>" + cardActions(o);
   }
 
+  // La web que el vent ha fet (```gregal-web, winds_webcard.go): la targeta
+  // amb el nom i l'adreça de la previsualització; md-preview.js hi posa
+  // l'iframe aïllat. Només adreces /p/ del mateix servidor.
+  function webCard(code) {
+    const o = parseCard(code);
+    if (!o) return "";
+    const u = String(o.url || "").trim();
+    if (!/^\/p\/[a-f0-9]{8,}\/[^\s"'<>]+$/.test(u)) return "";
+    const title = String(o.title || o.path || "web").trim();
+    return '<div class="gregal-card gregal-web" data-src="' + esc(u) + '"><div class="gw-head"><span class="gw-icon" aria-hidden="true">◧</span><div class="gw-name"><strong>' +
+      esc(title) + '</strong><small>' + esc(String(o.path || "")) + '</small></div><a class="gw-open" href="' + esc(u) + '" target="_blank" rel="noopener noreferrer">' +
+      label("md.open", "Obre") + ' ↗</a></div><div class="gw-frame"></div></div>';
+  }
+
   function codeBlock(lang, code) {
     const cos = code.replace(/\n$/, "");
     const card = lang === "gregal-result" ? resultCard(cos)
       : lang === "gregal-recipe" ? recipeCard(cos)
       : lang === "gregal-plan" ? planCard(cos)
-      : lang === "gregal-route" ? routeCard(cos) : "";
+      : lang === "gregal-route" ? routeCard(cos)
+      : lang === "gregal-web" ? webCard(cos) : "";
     if (card) return card;
     // ```chart (el format dels vents i d'Android) i ```gregal-plot són el mateix gràfic.
     if (lang === 'gregal-plot' || lang === 'chart') return '<pre class="codeblock lang-gregal-plot"><code>' + cos + '</code></pre>';

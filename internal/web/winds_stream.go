@@ -424,6 +424,7 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 	}
 	reply = s.windSubjectPhoto(msg, s.windCardImages(reply))
 	reply += s.windDocLinks(turnStart, reply)
+	reply += s.windWebCards(turnStart, reply)
 	history := append([]llm.Message(nil), base...)
 	if !isContinue {
 		history = append(history, llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()})
@@ -721,6 +722,7 @@ func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stre
 		}
 		reply = s.windCardImages(reply)
 		reply += s.windDocLinks(tVeu, reply)
+		reply += s.windWebCards(tVeu, reply)
 		conversation = append(conversation, windSteerTaken(rotSteerKey)...)
 		voiceID := newMessageID()
 		conversation = append(conversation, llm.Message{Role: "assistant", Content: reply, SpeakerID: sp.ID, SpeakerName: sp.Name, Ts: time.Now().Unix(), ID: voiceID})

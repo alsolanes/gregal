@@ -576,7 +576,9 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 	// Do not depend on a model to relay a skipped action honestly: one short
 	// line with what was not run (not a wall of text that reads as a crash).
 	if requiresApproval {
-		out = strings.TrimSpace(out) + "\n\n" + windSkippedNote(skipped)
+		if note := windSkippedNote(s.cfg != nil && s.cfg.Lang() == "en", skipped); note != "" {
+			out = strings.TrimSpace(out) + "\n\n" + note
+		}
 	}
 	res := exploracio{text: strings.TrimSpace(out), parcial: loop.Parcial, motiu: loop.Motiu, hist: loop.Hist}
 	temps.mu.Lock()

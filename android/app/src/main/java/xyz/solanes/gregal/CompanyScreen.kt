@@ -2045,7 +2045,7 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                                     },
                                 )
                             }
-                            is Rich.Code -> Row(Modifier.horizontalScroll(rememberScrollState())) {
+                            is Rich.Code -> if (WebPreviewLogic.kind(b.lang, b.code).isNotEmpty()) CodePreviewBlock(WebPreviewLogic.kind(b.lang, b.code), b.code, lang) else Row(Modifier.horizontalScroll(rememberScrollState())) {
                                 Text(
                                     b.code,
                                     fontSize = 12.sp,

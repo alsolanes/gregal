@@ -72,7 +72,13 @@ func TestAutomationsUnifiedList(t *testing.T) {
 	if items[2].WindName != "Garbí" || items[2].Title != "esports" || !items[2].CanPause {
 		t.Fatalf("vigilància = %+v", items[2])
 	}
-	if counts.Total != 4 || counts.Today != 1 || counts.Paused != 1 || counts.Week != 3 {
+	// «D'aquí a 30 minuts» només és avui si no passa de mitjanit (el test
+	// fallava si es corria a les 23:30).
+	wantToday := 0
+	if y, m, d := soon.Date(); func() bool { ny, nm, nd := time.Now().Date(); return y == ny && m == nm && d == nd }() {
+		wantToday = 1
+	}
+	if counts.Total != 4 || counts.Today != wantToday || counts.Paused != 1 || counts.Week != 3 {
 		t.Fatalf("comptes = %+v", counts)
 	}
 	only, _ := automationsGet(t, s, "?wind=garbi")

@@ -142,11 +142,23 @@ class MdTest {
 
     @Test
     fun llistesNumeradesEsConserven() {
-        val segs = splitMd("1. primer\n2. segon\n- vinyeta")
-        val texts = segs.filterIsInstance<Seg.Text>().map { it.t }
-        assertTrue(texts.any { it.startsWith("1. ") })
-        assertTrue(texts.any { it.startsWith("2. ") })
-        assertTrue(texts.any { it.startsWith("• ") })
+        val segs = splitMd("1. primer\n2. segon\n- vinyeta\n  - dins")
+        val items = segs.filterIsInstance<Seg.Item>()
+        assertEquals(listOf("1.", "2.", "", ""), items.map { it.marker })
+        assertEquals(listOf(0, 0, 0, 1), items.map { it.level })
+        // Seguits fan un sol bloc de llista (es pinta amb sagnat penjant).
+        val rich = groupRich(segs)
+        assertEquals(1, rich.size)
+        assertEquals(4, ((rich.single() as Rich.Card).card as RichCard.Bullets).items.size)
+    }
+
+    @Test
+    fun unaLlistaEntreParagrafsEsUnBlocPropi() {
+        val rich = groupRich(splitMd("Abans:\n\n- un\n- **dos** amb [enllaç](https://a.cat)\n\nDesprés."))
+        assertEquals(3, rich.size)
+        assertTrue(rich[0] is Rich.Inline && rich[2] is Rich.Inline)
+        val list = (rich[1] as Rich.Card).card as RichCard.Bullets
+        assertTrue(list.items[1].inner.any { it is Seg.Link })
     }
 
     @Test
@@ -253,7 +265,7 @@ class ToolTextTest {
         // Les caselles són elements propis (es poden marcar: RichCards.kt).
         val tasks = segs.filterIsInstance<Seg.Task>()
         assertEquals(listOf(false, true), tasks.map { it.done })
-        assertTrue(texts.any { it.startsWith("• ") })
+        assertEquals(1, segs.filterIsInstance<Seg.Item>().size)
         assertTrue(segs.none { it is Seg.Text && (it as Seg.Text).t.contains("[ ]") })
     }
 

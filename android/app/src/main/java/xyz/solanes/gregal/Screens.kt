@@ -1154,7 +1154,7 @@ fun AssistantResponse(text: String, lang: String = "ca", streaming: Boolean = fa
                     val rich = remember(b) { renderSegs(b.segs, codeBg, link = sea) }
                     BodyText(rich)
                 }
-                is Rich.Code -> CodeBlock(b.lang, b.code, lang)
+                is Rich.Code -> if (WebPreviewLogic.kind(b.lang, b.code).isNotEmpty()) CodePreviewBlock(WebPreviewLogic.kind(b.lang, b.code), b.code, lang) else CodeBlock(b.lang, b.code, lang)
                 is Rich.Table -> MdTable(b.headers, b.rows, lang)
                 is Rich.Result -> GregalResultCard(b.spec, Sea)
                 is Rich.Chart -> ChartBlock(b.spec, Sea, false)
