@@ -90,6 +90,10 @@ var windTurnSteps = 12
 // una veu lenta no pot fer perdre les que ja han acabat. Els tests el redueixen.
 var rotllanaTurnTimeout = 3 * time.Minute
 
+// rotllanaAskTimeout: el termini de la veu que pot demanar permís (la primera,
+// quan el grup fa feina): prou per contestar des del mòbil, com windAskMax.
+var rotllanaAskTimeout = windAskMax
+
 // rotllanaFallbackTimeout dona al xat pla un termini propi quan la cerca d'una
 // veu ja ha esgotat el seu.
 var rotllanaFallbackTimeout = 90 * time.Second
@@ -822,7 +826,14 @@ func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stre
 		system += perspective
 		var res exploracio
 		var err error
-		ctx, cancel := context.WithTimeout(turnCtx, rotllanaTurnTimeout)
+		// La primera veu és la que pot fer canvis i, per tant, demanar permís:
+		// amb el termini de 3 minuts, un permís que contestaves des del mòbil
+		// al cap de més estona arribava tard i la veu es perdia.
+		limit := rotllanaTurnTimeout
+		if si == 0 && intent != "review" && rotllanaAskTimeout > limit {
+			limit = rotllanaAskTimeout
+		}
+		ctx, cancel := context.WithTimeout(turnCtx, limit)
 		ctx = s.interactiveWindCtx(s.withWindSteerKey(withLinkBase(ctx, r), "rotllana", rot.ID))
 		if si > 0 || intent == "review" {
 			ctx = s.readOnlyWindCtx(ctx)

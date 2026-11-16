@@ -131,6 +131,9 @@ type windDecisionRec struct {
 	// Applied: l'efecte aprovat ja s'ha deixat executar (una sola vegada).
 	Applied bool        `json:"applied,omitempty"`
 	Resume  *windResume `json:"resume,omitempty"`
+	// Notice: l'avís (novetat «torn») que diu que el vent t'espera; s'esborra
+	// quan la decisió deixa d'estar pendent.
+	Notice string `json:"notice,omitempty"`
 }
 
 func (r *windDecisionRec) public() windAskReq { return r.windAskReq }
@@ -215,6 +218,15 @@ func (s *Server) windAskWait(ctx context.Context, emit func(kind, text string), 
 	rec.Expires = now.Add(ttl).UnixMilli()
 	rec.ExpiresAt = now.Add(ttl).UTC().Format(time.RFC3339)
 
+	// Avís: amb l'app tancada o en segon pla, un vent que espera el teu permís
+	// o la teva resposta ha de sonar (com el xat principal). Amb l'app oberta,
+	// pushNovetat no molesta.
+	if r.Type == "question" {
+		rec.Notice = s.recordTornText("Tinc una pregunta per tu: «" + firstNonEmpty(r.Query, r.What) + "». Obre l'app i contesta-la.")
+	} else {
+		rec.Notice = s.recordTornNecessita(firstNonEmpty(r.What, r.Name))
+	}
+
 	ch := make(chan windAnswer, 1)
 	var superseded []*windDecisionRec
 	err := s.withDecisions(func(st *decisionDir) error {
@@ -229,6 +241,7 @@ func (s *Server) windAskWait(ctx context.Context, emit func(kind, text string), 
 	})
 	if err != nil {
 		// Sense disc no hi ha decisió durable; la persona no ho pot aprovar.
+		s.forgetTorn(rec.Notice)
 		return windAnswer{}, askNone
 	}
 	for _, old := range superseded {
@@ -262,6 +275,7 @@ func (s *Server) windAskWait(ctx context.Context, emit func(kind, text string), 
 	case ans := <-ch:
 		resolved(true)
 		s.markApplied(rec.ID)
+		s.forgetTorn(rec.Notice)
 		return ans, askAnswered
 	case <-ctx.Done():
 	case <-timer.C:
@@ -313,6 +327,9 @@ func (s *Server) windAskWait(ctx context.Context, emit func(kind, text string), 
 		s.markApplied(rec.ID)
 	case askNone:
 		resolved(false)
+	}
+	if out != askParked {
+		s.forgetTorn(rec.Notice)
 	}
 	return ans, out
 }

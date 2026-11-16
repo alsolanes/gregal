@@ -757,9 +757,13 @@ func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
 			if d, why, ok := p.ruleDecision(name, argsJSON); ok {
 				return d, why
 			}
+			// Un «allow» o «deny» del config mana. Un «ask» no: era la línia
+			// que la plantilla escrivia a tots els configs (write/edit: ask) i
+			// feia que el mode «edits» preguntés cada canvi dins del projecte.
+			// Qui vol que li preguntin té «Demana abans de canviar» (AskEdits).
 			if d, ok := p.Tools[name]; ok {
 				switch d {
-				case "allow", "ask", "deny":
+				case "allow", "deny":
 					return d, "permissions del config"
 				}
 			}

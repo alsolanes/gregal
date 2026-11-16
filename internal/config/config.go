@@ -898,7 +898,7 @@ system: ""
 # edició atòmica; delegate/read_image són eines locals i gh_issue/gh_pr són
 # consultes GitHub read-only (requereixen la CLI gh).
 permissions:
-  tools: {write: ask, edit: ask}
+  tools: {}
   bash_allow: []
   bash_deny: []
   # mode: manual (default) or auto-review: a fast reviewer model (role

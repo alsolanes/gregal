@@ -24,7 +24,8 @@ func TestMobileTemplateDeniesDesktopTools(t *testing.T) {
 			t.Fatalf("%s = %q on mobile", name, c.Permissions.Tools[name])
 		}
 	}
-	if c.Permissions.Tools["write"] != "ask" {
+	// Les edicions del projecte no pregunten per plantilla (com a l'escriptori).
+	if _, ok := c.Permissions.Tools["write"]; ok {
 		t.Fatalf("write = %q", c.Permissions.Tools["write"])
 	}
 }

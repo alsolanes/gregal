@@ -172,6 +172,10 @@ func (s *Server) emitDecision(rec *windDecisionRec) {
 // resposta (caducada, substituïda) i atura el run aparcat que l'esperava.
 func (s *Server) afterDecisionChange(rec *windDecisionRec) {
 	s.emitDecision(rec)
+	// Una decisió aparcada que ja s'ha contestat o ha caducat: l'avís fora.
+	if rec.State != "pending" && rec.Notice != "" {
+		s.forgetTorn(rec.Notice)
+	}
 	if rec.RunID <= 0 || (rec.State != "expired" && rec.State != "superseded") {
 		return
 	}

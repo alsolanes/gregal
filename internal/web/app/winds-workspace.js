@@ -25,7 +25,7 @@
  const linkRow=(label,action)=>{const b=btn('',action,'vw-recent');b.append(el('span','',label),icon('open'));return b;};
  const squadName=id=>{const s=state.squads.find(s=>s.id===id);return s?(ca()?s.ca:s.en):t('Els teus vents','Your winds');};
  const crew=()=>state.winds.filter(w=>w.squad===state.squad);
- const MOBILE_NAV=[['home','Avui','Today'],['tasks','Feina','Work'],['saved','Desat','Saved'],['crew','Vents','Winds']];
+ const MOBILE_NAV=[['today','Avui','Today'],['tasks','Feina','Work'],['saved','Desat','Saved'],['crew','Vents','Winds']];
  // Group replies are stored as "Name: text" for the model's context; the face and name already say who speaks.
  const withoutSpeaker=(text,name)=>{let out=String(text||'');const prefix=String(name||'').trim().toLowerCase()+':';if(prefix.length<2)return out;while(out.slice(0,prefix.length).toLowerCase()===prefix)out=out.slice(prefix.length).trimStart();return out;};
  const roleName=w=>{const specialist=state.squads.find(s=>s.id===w.squad)?.members?.find(m=>m.key===w.specialty);return specialist?(ca()?specialist.ca:specialist.en):w.role||'';};
@@ -81,8 +81,8 @@
   top.append(iconBtn('plus',t('Nova conversa','New conversation'),newChat,'vw-new'));
   const search=btn('',()=>root.gregalPalette?.open?.(),'vw-nav-item vw-nav-icon vw-nav-search');search.append(navIcon('search'),el('span','',t('Cerca','Search')),el('kbd','',/Mac/.test(navigator.platform)?'⌘K':'Ctrl K'));top.append(search);
   nav.replaceChildren(top);
-  const navRow=([id,a,b],views=[id])=>{const n=btn('',()=>route(id),'vw-nav-item vw-nav-icon');n.append(navIcon(id==='home'?'today':id),el('span','',t(a,b)));n.setAttribute('aria-current',views.includes(state.view)?'page':'false');return n;};
-  nav.append(navRow(['home','Avui','Today']),navRow(['tasks','Feina','Work'],['tasks','task','fes']),navRow(['saved','Desat','Saved'],['saved','notes']));
+  const navRow=([id,a,b],views=[id])=>{const n=btn('',()=>route(id),'vw-nav-item vw-nav-icon');n.append(navIcon(id),el('span','',t(a,b)));n.setAttribute('aria-current',views.includes(state.view)?'page':'false');return n;};
+  nav.append(navRow(['today','Avui','Today']),navRow(['tasks','Feina','Work'],['tasks','task','fes']),navRow(['saved','Desat','Saved'],['saved','notes']));
   // Els vents: Gregal primer i tots els especialistes (abans només cinc).
   section(t('Vents','Winds'));
   // Gregal i els cinc que has fet servir fa menys (converses a soles i grups);
@@ -131,7 +131,7 @@
   if(!mounted)return;
   const savedScroll=state.view==='chat'&&messages&&messages.dataset.thread===state.active?.id&&!nearChatEnd(messages)?messages.scrollTop:null;
   renderNav();page.replaceChildren();messages=null;asksBox=null;input=null;composer=null;
-  const top=el('header','vw-top');const menu=iconOnly('menu',t('Obre la navegació','Open navigation'),()=>{if(matchMedia('(max-width:760px)').matches){setDrawer(!document.body.classList.contains('vw-drawer'));return;}const side=$('side');const reopen=side.classList.contains('closed')||side.classList.contains('compact');if(reopen&&root.setSideCompact)root.setSideCompact(false);if(root.setSide)root.setSide(reopen);},'vw-mobile-menu');menu.setAttribute('aria-expanded',String(document.body.classList.contains('vw-drawer')));top.append(menu,el('span','',t('Vents','Winds')),el('span','vw-separator','/'),state.view==='chat'?owner():el('span','',({tasks:t('Feina','Work'),fes:t('Feina','Work'),saved:t('Desat','Saved'),notes:t('Desat','Saved'),home:t('Avui','Today'),crew:t('Els teus vents','Your winds'),apres:t('Què sap de tu','About you'),rules:t('Regles','Rules'),library:t('Biblioteca','Library'),wiki:t('Wiki','Wiki'),pati:t('El pati','Playground')})[state.view]||state.active?.name||squadName(state.squad)));
+  const top=el('header','vw-top');const menu=iconOnly('menu',t('Obre la navegació','Open navigation'),()=>{if(matchMedia('(max-width:760px)').matches){setDrawer(!document.body.classList.contains('vw-drawer'));return;}const side=$('side');const reopen=side.classList.contains('closed')||side.classList.contains('compact');if(reopen&&root.setSideCompact)root.setSideCompact(false);if(root.setSide)root.setSide(reopen);},'vw-mobile-menu');menu.setAttribute('aria-expanded',String(document.body.classList.contains('vw-drawer')));top.append(menu,el('span','',t('Vents','Winds')),el('span','vw-separator','/'),state.view==='chat'?owner():el('span','',({tasks:t('Feina','Work'),fes:t('Feina','Work'),saved:t('Desat','Saved'),notes:t('Desat','Saved'),home:t('Avui','Today'),today:t('Avui','Today'),crew:t('Els teus vents','Your winds'),apres:t('Què sap de tu','About you'),rules:t('Regles','Rules'),library:t('Biblioteca','Library'),wiki:t('Wiki','Wiki'),pati:t('El pati','Playground')})[state.view]||state.active?.name||squadName(state.squad)));
   // «La colla» ja és a la barra lateral (i a la de sota, al mòbil): aquí només hi van les accions del fil obert.
   // Fil de Gregal (B14): a dalt només la seva cara, flotant, i l'ordinador; la lluïssor floreix en obrir.
   const gregalHome=state.view==='chat'&&state.active?.wind==='gregal';page.classList.toggle('vw-gregal',gregalHome);
@@ -148,7 +148,7 @@
   if(state.view==='chat'&&state.active?.id&&!gregalHome)top.append(btn(t('Desa a la wiki','Save to wiki'),summarizeToWiki,'vw-top-action'));
   page.append(top);
   content=el('div','vw-content');page.append(content);status=el('div','vw-status');status.setAttribute('role','status');status.textContent=state.notice?.thread===state.active?.id?state.notice?.text||'':'';page.append(status);
-  if(state.view==='home')home();else if(state.view==='crew')team();else if(state.view==='library')library();else if(state.view==='project')projectView();else if(state.view==='tasks')tasks();else if(state.view==='chat')chatView();else if(state.view==='task')taskView();else if(state.view==='wiki')wikiView();else if(state.view==='pati')patiView();else if(state.view==='saved')savedView();else if(state.view==='notes')notesView();else if(state.view==='rules')rulesView();else if(state.view==='fes')fesView();else if(state.view==='apres')apresView();else if(state.view==='shared')root.gregalShared?.view(content,{chat:state.active,back:()=>route('home')});
+  if(state.view==='home')home();else if(state.view==='today')todayView();else if(state.view==='crew')team();else if(state.view==='library')library();else if(state.view==='project')projectView();else if(state.view==='tasks')tasks();else if(state.view==='chat')chatView();else if(state.view==='task')taskView();else if(state.view==='wiki')wikiView();else if(state.view==='pati')patiView();else if(state.view==='saved')savedView();else if(state.view==='notes')notesView();else if(state.view==='rules')rulesView();else if(state.view==='fes')fesView();else if(state.view==='apres')apresView();else if(state.view==='shared')root.gregalShared?.view(content,{chat:state.active,back:()=>route('home')});
   // Al mòbil, cinc destinacions amb icona; El pati, la biblioteca i la wiki són al menú, dins de «Més».
   const bottom=el('nav','vw-mobile-nav');bottom.setAttribute('aria-label',t('Seccions dels vents','Winds sections'));for(const [id,a,b]of MOBILE_NAV){const n=btn('',()=>route(id));n.append(navIcon(id),el('span','',t(a,b)));n.dataset.selected=String(state.view===id);if(state.view===id)n.setAttribute('aria-current','page');bottom.append(n);}page.append(bottom);
   root.gregalPromptNav?.attachVents(page.querySelector('.vw-messages'));
@@ -421,6 +421,9 @@
   if(!state.chats.length&&!state.tasks.length)collaborationDemo();
   const feed=el('section','vw-avui');feed.setAttribute('aria-label',t('Avui','Today'));content.append(feed);paintAvui(feed).catch(()=>paintToday(feed).catch(()=>{}));
  }
+ // «Avui» a la barra: la safata, com a l'Android (abans portava a la conversa de
+ // Gregal, igual que la fila «Gregal», i si ja hi eres semblava que no feia res).
+ function todayView(){content.classList.add('vw-today-page');const feed=el('section','vw-avui');feed.setAttribute('aria-label',t('Avui','Today'));content.append(feed);paintAvui(feed).catch(()=>paintToday(feed).catch(()=>{}));}
  // ---- «Avui»: la safata dels vents (winds_avui.go), a l'estil de Duet i del Daily Brief ----
  // Tot el que un vent t'ha dit pel seu compte és una targeta amb una decisió; la safata s'acaba.
  async function paintAvui(feed){

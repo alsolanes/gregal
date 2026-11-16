@@ -218,9 +218,19 @@ func TestDecideProjecte(t *testing.T) {
 	if d, _ := sense.Decide(ModeCode, "write", w); d != "ask" {
 		t.Errorf("sense ProjectDir es conserva l'ask: %q", d)
 	}
+	// L'«ask» que la plantilla posava a tots els configs ja no fa preguntar
+	// dins del projecte; un «deny» explícit sí que mana, i AskEdits pregunta.
 	override := &Policy{ProjectDir: "/tmp/gregal-proj-test", Tools: map[string]string{"write": "ask"}}
-	if d, _ := override.Decide(ModeCode, "write", w); d != "ask" {
-		t.Errorf("l'override explícit del config guanya a l'automatisme: %q", d)
+	if d, _ := override.Decide(ModeCode, "write", w); d != "allow" {
+		t.Errorf("write: ask de plantilla no ha de frenar les edicions del projecte: %q", d)
+	}
+	deny := &Policy{ProjectDir: "/tmp/gregal-proj-test", Tools: map[string]string{"write": "deny"}}
+	if d, _ := deny.Decide(ModeCode, "write", w); d != "deny" {
+		t.Errorf("un deny explícit del config guanya: %q", d)
+	}
+	ask := &Policy{ProjectDir: "/tmp/gregal-proj-test", AskEdits: true}
+	if d, _ := ask.Decide(ModeCode, "write", w); d == "allow" {
+		t.Errorf("«Demana abans de canviar» ha de preguntar: %q", d)
 	}
 	if d, _ := override.Decide(ModeAutonomous, "write", w); d != "allow" {
 		t.Errorf("en autònom un «ask» del config tampoc fa preguntar: %q", d)

@@ -51,9 +51,10 @@ func TestMotorWebAparellaCridesIAprovacions(t *testing.T) {
 	s.cfg.Providers = map[string]config.Provider{"p": {BaseURL: provider.URL + "/v1"}}
 	s.cwd = t.TempDir()
 	s.policy.ProjectDir = s.cwd
-	// Un override del config fa que write demani permís encara que sigui
+	// «Demana abans de canviar» fa que write demani permís encara que sigui
 	// dins del projecte: és l'escriptura que cal aprovar.
-	s.policy.Tools = map[string]string{"write": "ask"}
+	s.policy.AskEdits = true
+	s.cfg.Permissions.Access = config.AccessAsk
 	if err := os.WriteFile(filepath.Join(s.cwd, "a.txt"), []byte("contingut"), 0o600); err != nil {
 		t.Fatal(err)
 	}

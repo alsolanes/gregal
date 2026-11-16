@@ -18,12 +18,12 @@ import (
 
 // mobilePermissionsFrom és la línia del config per defecte que se
 // substitueix; el test comprova que la plantilla encara la té.
-const mobilePermissionsFrom = "permissions:\n  tools: {write: ask, edit: ask}\n"
+const mobilePermissionsFrom = "permissions:\n  tools: {}\n"
 
 const mobilePermissionsTo = `permissions:
   # Mobile defaults: no local shell, browser automation or git on the device.
   # Allow them here if your device can run them.
-  tools: {write: ask, edit: ask, bash: deny, bash_background: deny, browser: deny, git_commit: deny, gh_pr_create: deny}
+  tools: {bash: deny, bash_background: deny, browser: deny, git_commit: deny, gh_pr_create: deny}
 `
 
 // MobileDevice diu si el backend corre en un mòbil: compilat per a Android,

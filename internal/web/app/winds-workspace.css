@@ -1304,3 +1304,5 @@ dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize
 .vw-tidy-row input[type=radio] { accent-color:var(--accent); }
 .vw-tidy-group > .vw-primary { align-self:flex-start; margin-top:4px; }
 .vw-tidy-status { margin:0; color:var(--muted); font-size:13px; }
+/* «Avui» com a pàgina pròpia: sense el marge de quan anava sota el compositor. */
+.vw-today-page .vw-avui { margin-top:8px; }
