@@ -103,6 +103,8 @@ const CSS = `
 #agentBrowser .ab-btn:hover:not(:disabled){background:var(--surface-hi);color:var(--ink)}
 #agentBrowser .ab-btn:focus-visible{outline:none;border-color:var(--accent)}
 #agentBrowser .ab-btn:disabled{opacity:.35;cursor:default}
+#agentBrowserToggle svg{width:18px;height:18px;stroke-width:1.6}
+#agentBrowserToggle[aria-pressed="true"]{color:var(--accent)}
 #agentBrowser .ab-btn.ab-close:hover{background:var(--red-soft);color:var(--red,#ff8a85)}
 #agentBrowser .ab-bar{display:flex;gap:3px;align-items:center;margin:0 10px;padding:4px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
 #agentBrowser .ab-address{flex:1;min-width:0;display:flex;align-items:center;gap:7px;height:32px;padding:0 9px;border:1px solid var(--line);border-radius:8px;background:var(--surface);transition:border-color .12s,box-shadow .12s}
@@ -186,6 +188,7 @@ function init() {
     const owner = views.get(selected);
     const current = owner?.activeTab;
     pane.hidden = !owner?.open;
+    syncToggles();
     for (const [id, session] of views) {
       for (const tab of session.tabs) tab.view.hidden = id !== selected || tab !== current;
       session.view.id = id === selected ? 'agentBrowserView' : 'agentBrowserView-' + id;
@@ -249,6 +252,38 @@ function init() {
     pane.setAttribute('aria-label', T('agentBrowser.title'));
   };
   const setSize = next => { size = next; render(); };
+  // Obrir i tancar des de la barra de dalt (Vents i Codi). La ✕ del panell
+  // l'amaga; abans només l'agent el tornava a obrir. Si l'agent encara no
+  // l'ha fet servir, s'obre en blanc per navegar-hi tu.
+  const shown = () => { const o = views.get(selected); return !!o?.open && size !== 'min'; };
+  const toggle = () => {
+    const fresh = !views.has(selected);
+    const o = ensure(selected, views.get(selected)?.scope ?? '');
+    // Obert a mà sense que l'agent l'hagi fet servir: és teu («Mans teves»).
+    if (fresh) o.state = 'released';
+    if (o.open && size !== 'min') o.open = false; else o.open = true;
+    size = 'normal';
+    render();
+    if (o.open && !o.url && typeof setTimeout === 'function') setTimeout(() => $('agentBrowserUrl')?.focus?.(), 50);
+  };
+  const syncToggles = () => {
+    const on = shown();
+    for (const b of document.querySelectorAll?.('[data-agent-browser-toggle]') || []) {
+      b.setAttribute('aria-pressed', String(on));
+      b.title = T(on ? 'agentBrowser.close' : 'agentBrowser.open');
+      b.setAttribute('aria-label', b.title);
+    }
+  };
+  window.gregalAgentBrowser = { toggle, shown, sync: () => syncToggles() };
+  const codiToggle = document.createElement('button');
+  codiToggle.type = 'button'; codiToggle.className = 'icon-btn'; codiToggle.id = 'agentBrowserToggle';
+  codiToggle.setAttribute?.('data-agent-browser-toggle', '');
+  codiToggle.innerHTML = icon('globe');
+  codiToggle.onclick = toggle;
+  // Davant del ⋯ de Codi (Preview i Fitxers hi entren a dins; aquest no).
+  const more = $('moreWrap');
+  if (more?.before) more.before(codiToggle); else $('previewToggle')?.before?.(codiToggle);
+  syncToggles();
   // Amplada (vora esquerra arrossegable; doble clic torna a la de sempre).
   const KEY_W = 'gregal_agent_browser_width', KEY_Z = 'gregal_agent_browser_zoom';
   const setWidth = px => {

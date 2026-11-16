@@ -276,3 +276,27 @@ test('addresses and states', () => {
   assert.equal(ctx.state('handoff-end', 'released'), 'released');
   assert.equal(ctx.state('show', 'released'), 'released');
 });
+
+// La ✕ amaga el panell i el botó de la barra de dalt el torna a obrir (abans
+// només l'agent el podia tornar a mostrar). Obert a mà, sense agent, és teu.
+test('the top bar button opens the browser, and reopens it after closing', () => {
+  const desktop = { onAgentBrowser() {}, agentBrowserReady() {} };
+  const { elements, window } = fixture(desktop);
+  assert.equal(typeof window.gregalAgentBrowser?.toggle, 'function');
+  window.gregalAgentBrowser.toggle();
+  const pane = elements.get('agentBrowser');
+  assert.ok(pane, 'the pane is built on demand');
+  assert.equal(pane.hidden, false);
+  assert.equal(window.gregalAgentBrowser.shown(), true);
+  elements.get('agentBrowserClose').onclick();
+  assert.equal(pane.hidden, true);
+  assert.equal(window.gregalAgentBrowser.shown(), false);
+  window.gregalAgentBrowser.toggle();
+  assert.equal(pane.hidden, false, 'it comes back after the ✕');
+  elements.get('agentBrowserMin').onclick();
+  assert.equal(window.gregalAgentBrowser.shown(), false, 'minimised counts as not shown');
+  window.gregalAgentBrowser.toggle();
+  assert.equal(pane.classes.has('min'), false, 'the button restores a minimised pane');
+  window.gregalAgentBrowser.toggle();
+  assert.equal(pane.hidden, true, 'and closes it');
+});
