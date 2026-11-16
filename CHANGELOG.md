@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v1.86.4 - 2026-11-16 - El navegador es torna a obrir
+
+- **El navegador es torna a obrir.** Un botó amb un globus a la barra de dalt
+  (a Vents i a Codi) obre i tanca el navegador de l'agent, també després
+  d'haver-lo tancat amb la ✕ o minimitzat. Si l'agent no l'ha fet servir, s'obre
+  en blanc perquè hi naveguis tu. L'ordinador de Gregal té ara una icona de
+  pantalla, per no confondre'ls.
+- **Receptes que es llegeixen bé.** Als passos de les receptes, el número ja
+  no tapa l'inici del text (va passar amb la 1.86.3).
+
 ## v1.86.3 - 2026-11-16 - Respostes que es llegeixen millor
 
 - **Respostes que es llegeixen millor.** Les respostes dels vents tenen línies
