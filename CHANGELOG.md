@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## v1.85.0 - 2026-11-16 - Els grups responen junts
+
+- **Els grups responen junts.** Quan en un grup hi diuen la seva dos vents o
+  més, treballen alhora, cadascun des de la seva especialitat; les seves
+  respostes queden plegades («3 vents hi han dit la seva») i a sota tens una
+  sola resposta completa que ho ajunta. Abans parlaven d'un en un i la resposta
+  conjunta només sortia si deies «debateu».
+- **Sense «colla» ni «rotllana».** Ara només hi ha els teus vents i els grups
+  (una conversa amb diversos vents). A l'escriptori i a l'Android.
+- **Un «\*» a la resposta és un asterisc**, sense la barra al davant.
+
 ## v1.84.0 - 2026-11-16 - Tempesta: diversos vents alhora
 
 - **Tempesta: «A fons».** A la conversa amb un vent, el botó «A fons» fa que
