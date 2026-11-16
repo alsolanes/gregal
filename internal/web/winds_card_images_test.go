@@ -254,3 +254,82 @@ func TestSentImageFilesBecomePhotos(t *testing.T) {
 		t.Fatalf("the size goes with the photo:\n%s", out)
 	}
 }
+
+// Comparació: cada cosa porta la seva foto (de image_query o del nom), i
+// una adreça inventada fora.
+func TestCompareCardGetsAPhotoPerItem(t *testing.T) {
+	asked := fakeCardImages(t, map[string]string{"cheetah": "https://upload.wikimedia.org/c.jpg", "Lleopard": "https://upload.wikimedia.org/l.jpg"})
+	s := &Server{}
+	in := "Les diferències:\n\n```gregal-compare\n{\"title\":\"Guepard i lleopard\",\"items\":[{\"name\":\"Guepard\",\"image_query\":\"cheetah\",\"facts\":{\"Velocitat\":\"110 km/h\"}},{\"name\":\"Lleopard\",\"image\":\"/inventada.jpg\",\"facts\":{\"Velocitat\":\"58 km/h\"}}]}\n```"
+	out := s.windCardImages(in)
+	if !strings.Contains(out, `"image":"https://upload.wikimedia.org/c.jpg"`) || !strings.Contains(out, `"image":"https://upload.wikimedia.org/l.jpg"`) {
+		t.Fatalf("each item needs its photo:\n%s", out)
+	}
+	if strings.Contains(out, "image_query") || strings.Contains(out, "inventada") {
+		t.Fatalf("query or invented URL left:\n%s", out)
+	}
+	if len(*asked) != 2 {
+		t.Fatalf("searches: %v", *asked)
+	}
+}
+
+// Comparació amb noms en català i sense image_query: es tradueixen d'una
+// vegada (Terra → Earth) i cada cosa troba la seva foto.
+func TestCompareWithoutQueryAsksForEnglishNames(t *testing.T) {
+	fakeCardImages(t, map[string]string{"Earth": "https://upload.wikimedia.org/earth.jpg", "Mars": "https://upload.wikimedia.org/mars.jpg"})
+	var asked []string
+	old := compareEnglishNames
+	compareEnglishNames = func(_ *Server, _ context.Context, names []string) map[string]string {
+		asked = names
+		return map[string]string{"Terra": "Earth", "Mart": "Mars"}
+	}
+	t.Cleanup(func() { compareEnglishNames = old })
+	s := &Server{}
+	out := s.windCardImages("```gregal-compare\n{\"title\":\"Terra vs Mart\",\"items\":[{\"name\":\"Terra\",\"facts\":{\"Llunes\":\"1\"}},{\"name\":\"Mart\",\"facts\":{\"Llunes\":\"2\"}}]}\n```")
+	if strings.Join(asked, "|") != "Terra|Mart" {
+		t.Fatalf("one call with both names: %v", asked)
+	}
+	if !strings.Contains(out, "earth.jpg") || !strings.Contains(out, "mars.jpg") || strings.Contains(out, "image_query") {
+		t.Fatalf("photos per item:\n%s", out)
+	}
+}
+
+// Una resposta amb xifres clau (sense foto) encara pot rebre la foto del tema.
+func TestFactsCardDoesNotBlockTheTopicPhoto(t *testing.T) {
+	fakeCardImages(t, map[string]string{"Human heart": "https://upload.wikimedia.org/heart.png"})
+	fakeSubject(t, "Human heart")
+	s := &Server{}
+	in := "El cor és una bomba muscular de la mida del puny que es contrau 60-80 vegades per minut en repòs i mou uns 5 litres de sang cada minut.\n\n```gregal-facts\n{\"facts\":[{\"value\":\"300 g\",\"label\":\"pes\"},{\"value\":\"5 L\",\"label\":\"per minut\"}]}\n```"
+	if out := s.windSubjectPhoto("Com funciona el cor humà?", in); !strings.Contains(out, "heart.png") {
+		t.Fatalf("the heart photo should be there:\n%s", out)
+	}
+	plan := "Un dia complet per Girona amb el barri vell, les muralles i el riu, a peu i sense presses, amb dinar al centre.\n\n```gregal-plan\n{\"title\":\"Girona\",\"items\":[{\"title\":\"Muralles\"}]}\n```"
+	if out := s.windSubjectPhoto("pla per Girona", plan); out != plan {
+		t.Fatalf("a plan card keeps it as it was:\n%s", out)
+	}
+}
+
+// El model tanca la llista d'items abans d'hora («}],"pick":true},{…»): la
+// targeta es repara i cada cosa troba la seva foto; les xifres també es reparen.
+func TestBrokenCardJSONIsRepaired(t *testing.T) {
+	fakeCardImages(t, map[string]string{"Cheetah": "https://upload.wikimedia.org/c.jpg", "Leopard": "https://upload.wikimedia.org/l.jpg"})
+	s := &Server{}
+	in := "```gregal-compare\n{\"title\":\"Guepard vs. lleopard\",\"items\":[{\"name\":\"Guepard\",\"image_query\":\"Cheetah\",\"facts\":{\"Pes\":\"40-60 kg\"}],\"pick\":true},{\"name\":\"Lleopard\",\"image_query\":\"Leopard\",\"facts\":{\"Pes\":\"30-90 kg\",}}],\"verdict\":\"Dos felins.\"}\n```"
+	out := s.windCardImages(in)
+	if !strings.Contains(out, "c.jpg") || !strings.Contains(out, "l.jpg") || !strings.Contains(out, `"verdict":"Dos felins."`) {
+		t.Fatalf("not repaired:\n%s", out)
+	}
+	facts := s.windCardImages("```gregal-facts\n{\"facts\":[{\"value\":\"30 m\",\"label\":\"llarg\"},{\"value\":\"150 t\",\"label\":\"pes\"}\n```")
+	if !strings.Contains(facts, `{"facts":[{"label":"llarg","value":"30 m"},{"label":"pes","value":"150 t"}]}`) {
+		t.Fatalf("facts not closed:\n%s", facts)
+	}
+	for in, want := range map[string]string{
+		`{"a":[1,2}`:          `{"a":[1,2]}`,
+		`{"a":"x}]y","b":1,}`: `{"a":"x}]y","b":1}`,
+		`{"a":{"b":"c\"]"}`:   `{"a":{"b":"c\"]"}}`,
+	} {
+		if got := balanceJSON(in); got != want {
+			t.Errorf("balanceJSON(%s) = %s, want %s", in, got, want)
+		}
+	}
+}

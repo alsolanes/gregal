@@ -331,6 +331,53 @@
     return h + sourcesFoot(o) + "</div>" + cardActions(o);
   }
 
+  // Comparació (```gregal-compare): 2-3 coses una al costat de l'altra, cada
+  // una amb la seva foto, els mateixos trets en files i el veredicte a sota.
+  // {title, items:[{name, image, facts:{Tret: valor} | [{label, value}], pick}], verdict}
+  function compareFacts(f) {
+    if (Array.isArray(f)) return f.filter((x) => x && x.label).map((x) => [String(x.label), String(x.value == null ? "" : x.value)]);
+    if (f && typeof f === "object") return Object.keys(f).map((k) => [k, String(f[k] == null ? "" : f[k])]);
+    return [];
+  }
+  function compareCard(code) {
+    const o = parseCard(code);
+    if (!o) return "";
+    const title = String(o.title || "").trim();
+    const items = (Array.isArray(o.items) ? o.items : []).filter((x) => x && x.name).slice(0, 3);
+    if (!title || items.length < 2) return "";
+    const facts = items.map((x) => compareFacts(x.facts));
+    const keys = [];
+    facts.forEach((f) => f.forEach(([k]) => { if (!keys.includes(k)) keys.push(k); }));
+    let h = '<div class="gregal-card gregal-compare"><div class="gc-body"><strong class="gc-title">' + esc(title) + "</strong>" +
+      (o.subtitle ? '<span class="gc-subtitle">' + str(o.subtitle) + "</span>" : "") +
+      '<div class="gx-grid" style="--gx-n:' + items.length + '"><span class="gx-corner"></span>';
+    items.forEach((x) => {
+      h += '<div class="gx-item' + (x.pick ? " gx-pick" : "") + '">' + cardImage(x.image, String(x.name)).replace('class="gc-hero', 'class="gx-photo') +
+        "<b>" + str(x.name) + "</b>" + (x.pick ? '<em class="gx-badge">' + label("card.pick", "La tria") + "</em>" : "") + "</div>";
+    });
+    keys.slice(0, 8).forEach((k) => {
+      h += '<span class="gx-key">' + esc(k) + "</span>";
+      facts.forEach((f) => { const v = (f.find(([kk]) => kk === k) || [])[1]; h += '<span class="gx-val">' + (v ? inline(esc(v)) : "—") + "</span>"; });
+    });
+    h += "</div>";
+    if (o.verdict) h += '<p class="gx-verdict">' + inline(esc(String(o.verdict).trim())) + "</p>";
+    return h + "</div>" + sourcesFoot(o) + "</div>" + cardActions(o);
+  }
+
+  // Xifres clau (```gregal-facts): 2-6 números grans amb el que volen dir.
+  // {title, facts:[{value, label, note}]}
+  function factsCard(code) {
+    const o = parseCard(code);
+    if (!o) return "";
+    const facts = (Array.isArray(o.facts) ? o.facts : []).filter((x) => x && x.value != null && String(x.value).trim() && x.label).slice(0, 6);
+    if (facts.length < 2) return "";
+    let h = '<div class="gregal-card gregal-facts"><div class="gc-body">' + (o.title ? '<strong class="gc-title">' + str(o.title) + "</strong>" : "") + '<div class="gf-grid">';
+    facts.forEach((f) => {
+      h += '<div class="gf-tile"><b>' + str(f.value) + "</b><span>" + str(f.label) + "</span>" + (f.note ? "<small>" + str(f.note) + "</small>" : "") + "</div>";
+    });
+    return h + "</div></div>" + sourcesFoot(o) + "</div>" + cardActions(o);
+  }
+
   // La web que el vent ha fet (```gregal-web, winds_webcard.go): la targeta
   // amb el nom i l'adreça de la previsualització; md-preview.js hi posa
   // l'iframe aïllat. Només adreces /p/ del mateix servidor.
@@ -351,6 +398,8 @@
       : lang === "gregal-recipe" ? recipeCard(cos)
       : lang === "gregal-plan" ? planCard(cos)
       : lang === "gregal-route" ? routeCard(cos)
+      : lang === "gregal-compare" ? compareCard(cos)
+      : lang === "gregal-facts" ? factsCard(cos)
       : lang === "gregal-web" ? webCard(cos) : "";
     if (card) return card;
     // ```chart (el format dels vents i d'Android) i ```gregal-plot són el mateix gràfic.

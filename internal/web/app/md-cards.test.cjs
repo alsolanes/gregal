@@ -99,3 +99,34 @@ test('la foto pendent (image: consulta) no es veu mentre arriba la resposta', ()
   assert.ok(!h.includes('Sagrada Família') && !h.includes('Park'), h);
   assert.ok(h.includes('Ves-hi.'), h);
 });
+
+test('la comparació posa les coses en columnes, amb foto, els trets en files i el veredicte', () => {
+  const h = md.render(block('gregal-compare', {
+    title: 'Guepard o lleopard',
+    items: [
+      { name: 'Guepard', image: 'https://upload.wikimedia.org/c.jpg', facts: { Velocitat: '110 km/h', Pes: '35-70 kg' } },
+      { name: 'Lleopard', image: 'javascript:alert(1)', facts: [{ label: 'Velocitat', value: '58 km/h' }, { label: 'Caça', value: 'De nit' }], pick: true },
+    ],
+    verdict: 'El guepard corre; el **lleopard** s\'enfila.',
+  }));
+  assert.ok(h.includes('class="gregal-card gregal-compare"'), h);
+  assert.ok(h.includes('--gx-n:2'));
+  assert.ok(h.includes('class="gx-photo" src="https://upload.wikimedia.org/c.jpg"'), h);
+  assert.ok(!h.includes('javascript:'), 'only http(s) photos');
+  assert.strictEqual((h.match(/class="gx-key"/g) || []).length, 3, 'Velocitat, Pes, Caça once each');
+  assert.ok(h.includes('<span class="gx-val">—</span>'), 'a missing value shows a dash');
+  assert.ok(h.includes('gx-pick') && h.includes('class="gx-verdict"') && h.includes('<b>lleopard</b>'), h);
+  // Amb una sola cosa no és una comparació: es queda com a codi.
+  assert.ok(!md.render(block('gregal-compare', { title: 'x', items: [{ name: 'A' }] })).includes('gregal-compare"'));
+});
+
+test('les xifres clau són rajoles amb el número gran i què vol dir', () => {
+  const h = md.render(block('gregal-facts', {
+    title: 'El cor en xifres',
+    facts: [{ value: '300 g', label: 'de pes' }, { value: '60-80', label: 'batecs per minut', note: 'en repòs' }, { value: '<b>5 L</b>', label: 'de sang per minut' }],
+  }));
+  assert.ok(h.includes('class="gregal-card gregal-facts"'), h);
+  assert.strictEqual((h.match(/class="gf-tile"/g) || []).length, 3);
+  assert.ok(h.includes('<b>300 g</b><span>de pes</span>') && h.includes('<small>en repòs</small>'), h);
+  assert.ok(!h.includes('<b><b>5 L'), 'values are escaped');
+});

@@ -70,6 +70,7 @@ object ViewerLogic {
             is Rich.Card -> when (val c = b.card) {
                 is RichCard.Web -> add(ViewItem.Web(c.spec))
                 is RichCard.Gallery -> c.images.forEach { (alt, url) -> add(ViewItem.Image(url, alt)) }
+                is RichCard.Compare -> c.spec.items.filter { it.image.isNotEmpty() }.forEach { add(ViewItem.Image(it.image, it.name)) }
                 else -> {}
             }
             else -> {}

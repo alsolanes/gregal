@@ -87,6 +87,11 @@ fun splitMd(src: String): List<Seg> {
                     else if (lang == "gregal-route") parseRouteSpec(body.trim())?.let { RichCard.Route(it) }
                     else parsePlanSpec(body.trim())?.let { RichCard.Plan(it) }
                 out += listOf(if (card != null) Seg.Card(card) else Seg.Block("json", body))
+            } else if (lang == "gregal-compare" || lang == "gregal-facts") {
+                // Comparació i xifres clau (CompareCards.kt): si el JSON no s'aguanta, codi.
+                val card = if (lang == "gregal-compare") parseCompareSpec(body.trim())?.let { RichCard.Compare(it) }
+                    else parseFactsSpec(body.trim())?.let { RichCard.Facts(it) }
+                out += listOf(if (card != null) Seg.Card(card) else Seg.Block("json", body))
             } else if (lang == "gregal-web") {
                 // La web que el vent ha fet (winds_webcard.go): es veu funcionant.
                 val web = parseWebSpec(body.trim())

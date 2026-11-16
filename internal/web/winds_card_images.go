@@ -28,7 +28,7 @@ import (
 var cardImageSearch = tools.WebImages
 
 var (
-	cardBlockRe  = regexp.MustCompile("(?s)```(gregal-(?:plan|recipe|result))([^\\n]*)\\n?(.*?)```")
+	cardBlockRe  = regexp.MustCompile("(?s)```(gregal-(?:plan|recipe|result|compare|facts))([^\\n]*)\\n?(.*?)```")
 	// textImageRe: ![alt](image: consulta) — la foto que el vent demana al text.
 	textImageRe = regexp.MustCompile(`!\[([^\]\n]*)\]\(\s*image:\s*([^)\n]{2,80})\)`)
 	blankRunRe  = regexp.MustCompile(`\n[ \t]*\n(?:[ \t]*\n)+`)
@@ -46,7 +46,7 @@ func (s *Server) windCardImages(reply string) string {
 	defer cancel()
 	searches := 0
 	find := func(q string) string {
-		if q = strings.TrimSpace(q); q == "" || searches >= 4 || ctx.Err() != nil {
+		if q = strings.TrimSpace(q); q == "" || searches >= 6 || ctx.Err() != nil {
 			return ""
 		}
 		searches++
@@ -63,6 +63,68 @@ func (s *Server) windCardImages(reply string) string {
 			card, ok := cardJSON(raw)
 			if !ok {
 				return block
+			}
+			// Xifres clau: no porten foto; només es deixa el JSON net (reparat).
+			if kind == "gregal-facts" {
+				var buf bytes.Buffer
+				enc := json.NewEncoder(&buf)
+				enc.SetEscapeHTML(false)
+				if enc.Encode(card) != nil {
+					return block
+				}
+				return "```" + kind + "\n" + strings.TrimSpace(buf.String()) + "\n```"
+			}
+			// Comparació: una foto per a cada cosa que es compara (no una a dalt).
+			if kind == "gregal-compare" {
+				items, _ := card["items"].([]any)
+				// Sense image_query, el nom és en català («Terra», «Mart») i a
+				// Commons no troba res: una sola crida curta en dona el títol
+				// en anglès de cada un (Earth, Mars).
+				var missing []string
+				for _, it := range items {
+					if item, ok := it.(map[string]any); ok && cardString(item, "image_query") == "" && cardString(item, "image") == "" {
+						missing = append(missing, cardString(item, "name"))
+					}
+				}
+				english := map[string]string{}
+				if len(missing) > 0 && ctx.Err() == nil {
+					english = compareEnglishNames(s, ctx, missing)
+				}
+				for _, it := range items {
+					if item, ok := it.(map[string]any); ok && cardString(item, "image_query") == "" {
+						if en := english[cardString(item, "name")]; en != "" {
+							item["image_query"] = en
+						}
+					}
+				}
+				for _, it := range items {
+					item, ok := it.(map[string]any)
+					if !ok {
+						continue
+					}
+					q, _ := item["image_query"].(string)
+					delete(item, "image_query")
+					img, _ := item["image"].(string)
+					if img = strings.TrimSpace(img); img != "" && !strings.HasPrefix(img, "https://") && !strings.HasPrefix(img, "http://") {
+						delete(item, "image")
+						img = ""
+					}
+					if img == "" {
+						for _, qq := range []string{q, cardString(item, "name")} {
+							if u := find(qq); u != "" {
+								item["image"] = u
+								break
+							}
+						}
+					}
+				}
+				var buf bytes.Buffer
+				enc := json.NewEncoder(&buf)
+				enc.SetEscapeHTML(false)
+				if enc.Encode(card) != nil {
+					return block
+				}
+				return "```" + kind + "\n" + strings.TrimSpace(buf.String()) + "\n```"
 			}
 			query, _ := card["image_query"].(string)
 			delete(card, "image_query")
@@ -116,6 +178,14 @@ func cardJSON(raw string) (map[string]any, bool) {
 	if json.Unmarshal([]byte(raw), &card) == nil {
 		return card, true
 	}
+	// Claudàtors que no lliguen (el model tanca la llista abans d'hora:
+	// «…}],"pick":true},{…») o que falten al final: es reparen.
+	if fixed := balanceJSON(raw); fixed != raw {
+		card = nil
+		if json.Unmarshal([]byte(fixed), &card) == nil {
+			return card, true
+		}
+	}
 	tries := 0
 	for i := 1; i < len(raw) && tries < 60; i++ {
 		if raw[i] != '{' || i+20 > len(raw) {
@@ -168,7 +238,7 @@ var subjectPicker = func(s *Server, ctx context.Context, question, reply string,
 	return cleanSubject(out)
 }
 
-const subjectPickerPrompt = "You choose the photo for a chat answer. Reply with ONLY 2-4 English words naming the one specific place, building, dish, artwork, animal, plant, product or well-known person the answer is mainly about, as you would search for it on Wikimedia Commons (for example: Sagrada Familia Barcelona, pa amb tomaquet, Merce Rodoreda). If the answer is not mainly about one such thing (advice, code, feelings, small talk, plans, general prices, abstract topics), reply NONE."
+const subjectPickerPrompt = "You choose the photo for a chat answer. Reply with ONLY 2-4 English words naming the one specific place, building, dish, artwork, animal, plant, product, organ or body part, or well-known person the answer is mainly about, as you would search for it on Wikimedia Commons (for example: Sagrada Familia Barcelona, pa amb tomaquet, Merce Rodoreda). If the answer is not mainly about one such thing (advice, code, feelings, small talk, plans, general prices, abstract topics), reply NONE."
 
 // subjectPickerAskedPrompt: la persona ha demanat imatges; val tot el que es
 // pot veure en una foto real de la Viquipèdia o Commons (també anatomia o
@@ -185,6 +255,9 @@ func askedForImages(question string) bool {
 	}
 	return false
 }
+
+// photoCardRe: targetes que ja duen foto o que no la volen al costat.
+var photoCardRe = regexp.MustCompile("```gregal-(?:recipe|plan|result|route|compare|web)")
 
 // replyHasImage: la resposta ja porta una foto (al text o a una targeta).
 func replyHasImage(reply string) bool {
@@ -210,7 +283,8 @@ func (s *Server) windSubjectPhoto(question, reply string) string {
 	// Si t'ha demanat imatges i la resposta no en té cap (el model ha fet un
 	// gràfic, una web o un dibuix), hi va la foto encara que hi hagi targetes.
 	asked := askedForImages(question)
-	if len(reply) < 160 || strings.Contains(reply, "![") || (!asked && (strings.Contains(reply, "```gregal-") || strings.Contains(reply, "```chart"))) {
+	// Les xifres clau (```gregal-facts) no porten foto: no la treuen.
+	if len(reply) < 160 || strings.Contains(reply, "![") || (!asked && (photoCardRe.MatchString(reply) || strings.Contains(reply, "```chart"))) {
 		return reply
 	}
 	if asked && replyHasImage(reply) {
@@ -369,4 +443,97 @@ func embedImageLinks(reply string) string {
 		parts[i] = bareImageLineRe.ReplaceAllString(p, "${1}![](${2})")
 	}
 	return strings.Join(parts, "```")
+}
+
+// compareEnglishNames tradueix els noms d'una comparació al títol de
+// l'article de la Viquipèdia en anglès (per trobar-ne la foto). Una crida
+// curta al model lateral; els tests la substitueixen.
+var compareEnglishNames = func(s *Server, ctx context.Context, names []string) map[string]string {
+	out := map[string]string{}
+	if s == nil || len(names) == 0 {
+		return out
+	}
+	p, role, ok := s.sideRoleRef()
+	if !ok {
+		return out
+	}
+	s.mu.Lock()
+	cfg, client := s.cfg, s.client
+	s.mu.Unlock()
+	cctx, cancel := context.WithTimeout(ctx, 6*time.Second)
+	defer cancel()
+	ans, err := agent.SideCallLateral(cctx, client, cfg, p, role, []llm.Message{
+		{Role: "system", Content: "For each line, reply with ONLY the English Wikipedia article title of that thing (2-4 words), one per line, same order. Example: «Terra» → Earth; «Guepard» → Cheetah; «Sagrada Família» → Sagrada Família."},
+		{Role: "user", Content: strings.Join(names, "\n")},
+	})
+	if err != nil {
+		return out
+	}
+	lines := strings.Split(strings.TrimSpace(ans), "\n")
+	for i, n := range names {
+		if i < len(lines) {
+			if en := cleanSubject(strings.TrimLeft(lines[i], "-•*0123456789.) ")); en != "" {
+				out[n] = en
+			}
+		}
+	}
+	return out
+}
+
+// balanceJSON arregla els errors de parèntesis més habituals dels models en
+// el JSON d'una targeta: un tancament que no correspon al que hi ha obert es
+// treu, una coma just abans d'un tancament també, i el que queda obert es
+// tanca al final. Fora de les cadenes (respecta les cometes escapades).
+func balanceJSON(raw string) string {
+	var b strings.Builder
+	var stack []byte
+	inStr, esc := false, false
+	for i := 0; i < len(raw); i++ {
+		c := raw[i]
+		if inStr {
+			b.WriteByte(c)
+			switch {
+			case esc:
+				esc = false
+			case c == '\\':
+				esc = true
+			case c == '"':
+				inStr = false
+			}
+			continue
+		}
+		switch c {
+		case '"':
+			inStr = true
+		case '{', '[':
+			stack = append(stack, c)
+		case '}', ']':
+			want := byte('{')
+			if c == ']' {
+				want = '['
+			}
+			if len(stack) == 0 || stack[len(stack)-1] != want {
+				continue // no lliga amb el que hi ha obert: fora
+			}
+			stack = stack[:len(stack)-1]
+			// Coma penjada abans del tancament: fora.
+			s := strings.TrimRight(b.String(), " \t\r\n")
+			if strings.HasSuffix(s, ",") {
+				b.Reset()
+				b.WriteString(strings.TrimSuffix(s, ","))
+			}
+		}
+		b.WriteByte(c)
+	}
+	if inStr {
+		b.WriteByte('"')
+	}
+	for i := len(stack) - 1; i >= 0; i-- {
+		if stack[i] == '{' {
+			b.WriteByte('}')
+		} else {
+			b.WriteByte(']')
+		}
+	}
+	return b.String()
 }

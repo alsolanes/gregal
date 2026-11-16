@@ -61,6 +61,10 @@ sealed interface RichCard {
     data class Web(val spec: WebSpec) : RichCard
     /** Llista del markdown («- …», «1. …»), amb sagnat penjant i nivells. */
     data class Bullets(val items: List<Seg.Item>) : RichCard
+    /** 2-3 coses una al costat de l'altra (```gregal-compare, CompareCards.kt). */
+    data class Compare(val spec: CompareSpec) : RichCard
+    /** Xifres clau grans (```gregal-facts). */
+    data class Facts(val spec: FactsSpec) : RichCard
 }
 
 /** Un botó sota la targeta: el primer és el gran; en tocar-lo s'envia [prompt]. */
@@ -94,7 +98,7 @@ val LocalCardSay = compositionLocalOf<((String) -> Unit)?> { null }
 /** Una imatge de targeta que es pot ensenyar: web (http/https) o d'un vent. */
 internal fun cardImageUrl(u: String): String = u.trim().takeIf { it.startsWith("https://") || it.startsWith("http://") || isWindImageUrl(it) }.orEmpty()
 
-private fun JSONObject.sources(): List<Pair<String, String>> {
+internal fun JSONObject.sources(): List<Pair<String, String>> {
     val a = optJSONArray("sources") ?: return emptyList()
     return (0 until a.length()).mapNotNull { i ->
         val s = a.optJSONObject(i) ?: return@mapNotNull null
@@ -115,7 +119,7 @@ internal fun JSONObject.cardActions(): List<CardAction> {
     return if (k > 0) listOf(list[k]) + list.filterIndexed { i, _ -> i != k } else list
 }
 
-private fun JSONArray?.objects(): List<Any> = if (this == null) emptyList() else (0 until length()).mapNotNull { opt(it) }
+internal fun JSONArray?.objects(): List<Any> = if (this == null) emptyList() else (0 until length()).mapNotNull { opt(it) }
 
 /** Pura: el JSON d'una recepta; null si no té títol i alguna cosa a dins. */
 internal fun parseRecipeSpec(raw: String): RecipeSpec? {
@@ -229,13 +233,15 @@ internal fun RichCardBlock(card: RichCard, accent: Color, lang: String) {
         is RichCard.Gallery -> GalleryBlock(card.images, lang)
         is RichCard.Bullets -> ListBlock(card.items, link)
         is RichCard.Web -> WebCardBlock(card.spec, link, lang)
+        is RichCard.Compare -> CompareCard(card.spec, link, lang)
+        is RichCard.Facts -> FactsCard(card.spec, link, lang)
     }
 }
 
 /** Els botons de sota la targeta, com al disseny: el gran (fons de tinta, fletxa
  *  de l'accent) i, si n'hi ha un segon, un enllaç discret. Només on es poden enviar. */
 @Composable
-private fun CardActions(actions: List<CardAction>, link: Color) {
+internal fun CardActions(actions: List<CardAction>, link: Color) {
     val say = LocalCardSay.current ?: return
     if (actions.isEmpty()) return
     Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 4.dp), horizontalAlignment = Alignment.CenterHorizontally,
@@ -259,7 +265,7 @@ private fun CardActions(actions: List<CardAction>, link: Color) {
 private val cardShape = RoundedCornerShape(20.dp)
 
 @Composable
-private fun CardFrame(tag: String, image: String, title: String, lang: String, content: @Composable ColumnScope.() -> Unit) {
+internal fun CardFrame(tag: String, image: String, title: String, lang: String, content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(cardShape).background(Superficie).border(1.dp, Line, cardShape).testTag(tag)) {
         if (image.isNotEmpty()) CardHero(image, title, lang)
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
@@ -284,7 +290,7 @@ private fun CardHero(url: String, alt: String, lang: String) {
 internal fun ResultHero(url: String, alt: String, lang: String) = CardHero(url, alt, lang)
 
 @Composable
-private fun CardTitle(text: String) =
+internal fun CardTitle(text: String) =
     Text(text, color = Ink, fontSize = 21.sp, lineHeight = 25.sp, fontWeight = FontWeight.Bold)
 
 @Composable
