@@ -86,4 +86,17 @@ class ViewerTest {
         assertFalse(fixed, fixed.contains("width=") || fixed.contains("height=\"120"))
         assertTrue("children keep their sizes", WebPreviewLogic.scalableSvg("<svg viewBox=\"0 0 9 9\"><rect width=\"3\" height=\"3\"/></svg>").contains("<rect width=\"3\" height=\"3\"/>"))
     }
+
+    // Un enllaç a un fitxer del servidor amb l'adreça de l'ordinador (127.0.0.1)
+    // o relatiu s'obre contra el servidor de l'app; un enllaç de fora, igual.
+    @Test
+    fun serverLinksOpenAgainstTheConnectedServer() {
+        val base = "http://192.168.1.62:8097/"
+        assertEquals("http://192.168.1.62:8097/f/c46947cafe41a8d206d7f011/index.html",
+            WebPreviewLogic.serverLink("http://127.0.0.1:8097/f/c46947cafe41a8d206d7f011/index.html", base))
+        assertEquals("http://192.168.1.62:8097/p/abc123/x.html", WebPreviewLogic.serverLink("/p/abc123/x.html", base))
+        assertEquals("http://192.168.1.62:8097/api/winds/image?id=1", WebPreviewLogic.serverLink("http://localhost:8097/api/winds/image?id=1", base))
+        assertEquals("https://acb.com/es/noticia", WebPreviewLogic.serverLink("https://acb.com/es/noticia", base))
+        assertEquals("http://127.0.0.1:3000/app", WebPreviewLogic.serverLink("http://127.0.0.1:3000/app", base))
+    }
 }

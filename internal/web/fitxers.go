@@ -110,11 +110,20 @@ func (s *Server) handleFitxer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ruta := filepath.Join(s.fitxersDir(), id, filepath.Base(nom))
-	if info, err := os.Stat(ruta); err != nil || !info.Mode().IsRegular() {
+	f, err := os.Open(ruta)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil || !info.Mode().IsRegular() {
 		http.NotFound(w, r)
 		return
 	}
 	w.Header().Set("Content-Disposition", "attachment; filename=\""+filepath.Base(nom)+"\"")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	http.ServeFile(w, r, ruta)
+	// ServeContent i no ServeFile: ServeFile redirigeix «…/index.html» a «./»,
+	// i un index.html enviat pel xat acabava en un enllaç que no portava enlloc.
+	http.ServeContent(w, r, info.Name(), info.ModTime(), f)
 }

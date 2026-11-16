@@ -104,7 +104,7 @@ func fakeSubject(t *testing.T, subject string) *int {
 	t.Helper()
 	calls := 0
 	old := subjectPicker
-	subjectPicker = func(_ *Server, _ context.Context, _, _ string) string { calls++; return cleanSubject(subject) }
+	subjectPicker = func(_ *Server, _ context.Context, _, _ string, _ bool) string { calls++; return cleanSubject(subject) }
 	t.Cleanup(func() { subjectPicker = old })
 	return &calls
 }
@@ -202,5 +202,36 @@ func TestImageLinksOnTheirOwnLineBecomePhotos(t *testing.T) {
 	}
 	if same := "Una web: https://e.org/pagina.html"; embedImageLinks(same) != same {
 		t.Fatal("una adreça que no és una foto es queda com era")
+	}
+}
+
+// «Mostra'm gràfics i imatges sobre la rotura»: el model fa un gràfic i una
+// web amb un dibuix, però cap foto. Has demanat imatges: hi va la foto real,
+// abans del gràfic, encara que hi hagi targetes.
+func TestAskedForImagesGetsAPhotoEvenWithCharts(t *testing.T) {
+	fakeCardImages(t, map[string]string{"Abdominal external oblique muscle": "https://upload.wikimedia.org/oblic.png"})
+	var askedFlag bool
+	old := subjectPicker
+	subjectPicker = func(_ *Server, _ context.Context, _, _ string, asked bool) string {
+		askedFlag = asked
+		return "Abdominal external oblique muscle"
+	}
+	t.Cleanup(func() { subjectPicker = old })
+	s := &Server{}
+	in := "Aquí tens la fitxa visual de la rotura de l'oblic, amb els graus i els dies de baixa reals dels casos coneguts de l'NBA.\n\n**Quants dies.** Les dades:\n\n```chart\n{\"type\":\"bar\",\"labels\":[\"a\"],\"series\":[{\"name\":\"Dies\",\"values\":[3]}]}\n```\n\n```gregal-web\n{\"title\":\"Oblic\",\"url\":\"/p/0123456789ab/o/index.html\"}\n```"
+	out := s.windSubjectPhoto("mostra'm gràfics i imatges sobre aquesta rotura", in)
+	if !askedFlag {
+		t.Fatal("the picker must know images were asked for")
+	}
+	photo := "![Abdominal external oblique muscle](https://upload.wikimedia.org/oblic.png)"
+	if !strings.Contains(out, photo) || strings.Index(out, photo) > strings.Index(out, "```chart") {
+		t.Fatalf("photo missing or after the chart:\n%s", out)
+	}
+	// Sense demanar imatges, amb un gràfic no s'hi afegeix res (com abans).
+	if got := s.windSubjectPhoto("quants dies de baixa?", in); got != in {
+		t.Fatalf("without asking, charts keep it as it was:\n%s", got)
+	}
+	if !askedForImages("Ensenya'm FOTOS del Montseny") || askedForImages("com em dic?") {
+		t.Fatal("askedForImages")
 	}
 }

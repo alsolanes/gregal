@@ -60,3 +60,23 @@ func TestFitxerAmbClauInventadaNoSurt(t *testing.T) {
 		}
 	}
 }
+
+// Un index.html enviat pel xat es baixa (abans ServeFile el redirigia a «./»
+// i l'enllaç no portava enlloc).
+func TestFitxerIndexHtmlEsBaixa(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	s := goalTestServer(t)
+	origen := filepath.Join(t.TempDir(), "index.html")
+	if err := os.WriteFile(origen, []byte("<h1>Oblic</h1>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	enllac, _, _, err := s.publicaFitxer(context.Background(), origen)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	s.handleFitxer(rec, httptest.NewRequest(http.MethodGet, enllac[strings.Index(enllac, "/f/"):], nil))
+	if rec.Code != http.StatusOK || rec.Body.String() != "<h1>Oblic</h1>" {
+		t.Fatalf("codi %d cos %q loc %q", rec.Code, rec.Body.String(), rec.Header().Get("Location"))
+	}
+}

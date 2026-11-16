@@ -2040,6 +2040,7 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                 ),
             ) {
                 val uri = LocalUriHandler.current
+                val linkCtx = LocalContext.current
                 // Color d'enllaç llegible + blocs parsejats: tot amb remember perquè
                 // no es recalculi a cada recomposició (streaming, scroll, teclat).
                 // El parse viu a més en cau global: en tornar a la pantalla no se'n
@@ -2071,7 +2072,9 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                                     rich,
                                     style = MaterialTheme.typography.bodyMedium.merge(GregalType.chatBody).copy(color = Tinta),
                                     onClick = { off ->
-                                        rich.getStringAnnotations("URL", off, off).firstOrNull()?.let { uri.openUri(it.item) }
+                                        rich.getStringAnnotations("URL", off, off).firstOrNull()?.let {
+                                            runCatching { uri.openUri(WebPreviewLogic.serverLink(it.item, WebPreviewLogic.serverBase(linkCtx))) }
+                                        }
                                     },
                                 )
                             }

@@ -108,6 +108,18 @@ object WebPreviewLogic {
     }
     private fun fmt(d: Double) = if (d % 1.0 == 0.0) d.toLong().toString() else d.toString()
 
+    /** Un enllaç del xat cap al servidor de Gregal (fitxers /f/, webs /p/, fotos
+     *  /api/winds/image): relatiu o amb l'adreça local de l'ordinador
+     *  (127.0.0.1, localhost) no s'obre des del mòbil. Es reescriu amb la base
+     *  del servidor al qual està connectada l'app. La resta, tal com és. */
+    fun serverLink(url: String, base: String): String {
+        val b = base.trimEnd('/')
+        if (b.isEmpty()) return url
+        if (url.startsWith("/") && !url.startsWith("//")) return b + url
+        val m = Regex("""^https?://(127\.0\.0\.1|localhost|\[::1\])(:\d+)?(/(?:f|p|api/winds/image)(?:/|\?|$).*)$""", RegexOption.IGNORE_CASE).find(url)
+        return if (m != null) b + m.groupValues[3] else url
+    }
+
     /** La base del servidor actual (local o remot), per a les adreces /p/. */
     fun serverBase(ctx: Context): String {
         val p = Prefs(ctx)

@@ -143,7 +143,7 @@ func cardString(card map[string]any, key string) string {
 // subjectPicker diu de què va una resposta, per buscar-ne la foto: 2-4
 // paraules en anglès o "" si no va d'una cosa que es pugui fotografiar. Els
 // tests el substitueixen.
-var subjectPicker = func(s *Server, ctx context.Context, question, reply string) string {
+var subjectPicker = func(s *Server, ctx context.Context, question, reply string, asked bool) string {
 	p, role, ok := s.sideRoleRef()
 	if !ok {
 		return ""
@@ -154,8 +154,12 @@ var subjectPicker = func(s *Server, ctx context.Context, question, reply string)
 	if len(reply) > 1500 {
 		reply = reply[:1500]
 	}
+	prompt := subjectPickerPrompt
+	if asked {
+		prompt = subjectPickerAskedPrompt
+	}
 	out, err := agent.SideCallLateral(ctx, client, cfg, p, role, []llm.Message{
-		{Role: "system", Content: subjectPickerPrompt},
+		{Role: "system", Content: prompt},
 		{Role: "user", Content: "Question: " + oneLine(question, 300) + "\n\nAnswer:\n" + reply},
 	})
 	if err != nil {
@@ -165,6 +169,27 @@ var subjectPicker = func(s *Server, ctx context.Context, question, reply string)
 }
 
 const subjectPickerPrompt = "You choose the photo for a chat answer. Reply with ONLY 2-4 English words naming the one specific place, building, dish, artwork, animal, plant, product or well-known person the answer is mainly about, as you would search for it on Wikimedia Commons (for example: Sagrada Familia Barcelona, pa amb tomaquet, Merce Rodoreda). If the answer is not mainly about one such thing (advice, code, feelings, small talk, plans, general prices, abstract topics), reply NONE."
+
+// subjectPickerAskedPrompt: la persona ha demanat imatges; val tot el que es
+// pot veure en una foto real de la Viquipèdia o Commons (també anatomia o
+// objectes), no només llocs i plats.
+const subjectPickerAskedPrompt = "The user asked to SEE images. Reply with ONLY 2-4 English words naming the one thing to show in a real photo or illustration from Wikipedia / Wikimedia Commons: a place, building, dish, artwork, animal, plant, product, person, object, body part or anatomical structure, as the Wikipedia article would title it (for example: Abdominal external oblique muscle, Sagrada Familia, Golden retriever). Reply NONE only if nothing in the answer can be pictured."
+
+// askedForImages: la pregunta demana veure imatges o fotos.
+func askedForImages(question string) bool {
+	q := " " + imageNorm(question) + " "
+	for _, w := range []string{" imatge", " imatges", " foto ", " fotos", " fotografia", " image", " images", " photo", " photos", " picture", " pictures", " imagen", " imagenes"} {
+		if strings.Contains(q, w) {
+			return true
+		}
+	}
+	return false
+}
+
+// replyHasImage: la resposta ja porta una foto (al text o a una targeta).
+func replyHasImage(reply string) bool {
+	return strings.Contains(reply, "![") || strings.Contains(reply, `"image":"http`) || strings.Contains(reply, `"image":"/api/winds/image`)
+}
 
 // cleanSubject: la primera línia, sense cometes ni punt; NONE o massa llarg, res.
 func cleanSubject(out string) string {
@@ -182,12 +207,18 @@ func cleanSubject(out string) string {
 // foto, i una foto és el que més millora aquestes respostes. Va després de
 // la primera frase o paràgraf. Com a molt 10 s; si res, la resposta queda igual.
 func (s *Server) windSubjectPhoto(question, reply string) string {
-	if len(reply) < 160 || strings.Contains(reply, "![") || strings.Contains(reply, "```gregal-") || strings.Contains(reply, "```chart") {
+	// Si t'ha demanat imatges i la resposta no en té cap (el model ha fet un
+	// gràfic, una web o un dibuix), hi va la foto encara que hi hagi targetes.
+	asked := askedForImages(question)
+	if len(reply) < 160 || strings.Contains(reply, "![") || (!asked && (strings.Contains(reply, "```gregal-") || strings.Contains(reply, "```chart"))) {
+		return reply
+	}
+	if asked && replyHasImage(reply) {
 		return reply
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	subject := subjectPicker(s, ctx, question, reply)
+	subject := subjectPicker(s, ctx, question, reply, asked)
 	if subject == "" || ctx.Err() != nil {
 		return reply
 	}
@@ -200,6 +231,14 @@ func (s *Server) windSubjectPhoto(question, reply string) string {
 		return reply
 	}
 	line := "![" + subject + "](" + img + ")"
+	if asked {
+		// Abans de la primera targeta o gràfic: el que has demanat, a dalt.
+		if i := strings.Index(reply, "```"); i > 0 {
+			if j := strings.LastIndex(reply[:i], "\n\n"); j > 0 {
+				return reply[:j] + "\n\n" + line + reply[j:]
+			}
+		}
+	}
 	// Després del primer paràgraf (o al final si només n'hi ha un), mai dins
 	// d'una llista, una taula o un bloc de codi.
 	if i := strings.Index(reply, "\n\n"); i > 0 {

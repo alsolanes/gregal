@@ -1171,13 +1171,16 @@ fun AssistantResponse(text: String, lang: String = "ca", streaming: Boolean = fa
 @Composable
 fun BodyText(t: AnnotatedString) {
     val uri = LocalUriHandler.current
+    val linkCtx = androidx.compose.ui.platform.LocalContext.current
     ClickableText(
         t,
         style = MaterialTheme.typography.bodyLarge.copy(
             fontSize = 16.sp, lineHeight = 25.sp, color = Ink,
         ),
         onClick = { off ->
-            t.getStringAnnotations("URL", off, off).firstOrNull()?.let { uri.openUri(it.item) }
+            t.getStringAnnotations("URL", off, off).firstOrNull()?.let {
+                runCatching { uri.openUri(WebPreviewLogic.serverLink(it.item, WebPreviewLogic.serverBase(linkCtx))) }
+            }
         },
     )
 }
