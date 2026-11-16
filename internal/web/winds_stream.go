@@ -441,6 +441,10 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 	if err == nil && res.parcial && esRespostaMecanica(reply) {
 		reply = fraseTornAturat(res.motiu, s.cfg.Lang())
 	}
+	// La resposta tal com l'ha escrit el vent: la narració es compara amb
+	// aquesta. Després de posar-hi fotos o targetes el text ja no és igual, i
+	// la resposta sencera es desava dues vegades (una sense foto i una amb).
+	written := reply
 	reply = s.windSubjectPhoto(msg, s.windCardImages(reply))
 	reply += s.windDocLinks(turnStart, reply)
 	reply += s.windWebCards(turnStart, reply)
@@ -450,7 +454,7 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 	}
 	// El que el vent ha escrit abans de les eines també és conversa: si només
 	// es desa la resposta final, en recarregar el fil desapareix.
-	for _, n := range tornTexte.narracions(reply) {
+	for _, n := range tornTexte.narracions(written) {
 		history = append(history, llm.Message{Role: "assistant", Content: n, Ts: time.Now().Unix()})
 	}
 	// El que has escrit mentre treballava, abans de la resposta que ja ho té en compte.

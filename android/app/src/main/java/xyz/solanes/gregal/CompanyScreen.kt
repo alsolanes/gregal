@@ -1831,7 +1831,11 @@ internal fun rememberChatImage(url: String): Pair<ImageBitmap?, Boolean> {
                 } else if (isWindImageUrl(url)) {
                     // Una imatge que ha fet un vent: també es baixa amb la clau.
                     decodeChatBytes(windImageBytes(ctx, url))
-                } else loadChatBitmap(url)
+                } else {
+                    // Una foto que el vent t'ha enviat (/f/… del servidor) pot dir
+                    // 127.0.0.1: des del mòbil, es baixa del servidor de l'app.
+                    loadChatBitmap(WebPreviewLogic.serverLink(url, WebPreviewLogic.serverBase(ctx)))
+                }
             }
             if (got != null) {
                 synchronized(chatImageCache) { chatImageCache[url] = got }

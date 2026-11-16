@@ -51,7 +51,7 @@ func lessonLines(body string) []string {
 	var out []string
 	for _, l := range strings.Split(body, "\n") {
 		l = strings.TrimSpace(l)
-		if strings.HasPrefix(l, "- ") && len(l) > 4 && !staleRemindLesson(l) {
+		if strings.HasPrefix(l, "- ") && len(l) > 4 && !staleRemindLesson(l) && !blockedToolLesson(l) {
 			out = append(out, l)
 		}
 	}
@@ -87,7 +87,7 @@ func (s *Server) addWindLessons(windID string, nous []string) (int, error) {
 		if !strings.HasPrefix(l, "- ") {
 			l = "- " + strings.TrimLeft(l, "-*• ")
 		}
-		if len([]rune(l)) > 260 || len(l) < 8 {
+		if len([]rune(l)) > 260 || len(l) < 8 || blockedToolLesson(l) {
 			continue
 		}
 		k := lessonKey(l)
@@ -202,7 +202,7 @@ func (s *Server) windLessonsLearn(w companion.Wind, task, reply, trace string) {
 	var b strings.Builder
 	b.WriteString("You keep the work playbook of " + w.Name + ", a specialist helper whose trade is: " + w.Role + ".\n")
 	b.WriteString("Below is the trace of a job it just did on this server (tool calls, what failed, what worked) and its final answer.\n")
-	b.WriteString("Write 0-3 NEW lessons that will make the next similar job faster or avoid a repeated error: facts about this environment (which commands and tools exist and work here, which are blocked and the alternative that worked), fixes to errors that happened, steps that proved necessary, patterns that worked well.\n")
+	b.WriteString("Write 0-3 NEW lessons that will make the next similar job faster or avoid a repeated error: facts about this environment (which commands and tools exist and work here, which commands are blocked and the alternative that worked; never that web_search, web_fetch, web_images or image are blocked or disabled: a failure or a research-budget cut there is temporary), fixes to errors that happened, steps that proved necessary, patterns that worked well.\n")
 	b.WriteString("Rules: each lesson is ONE line starting with '- ', imperative and concrete (a command, a flag, a file name), at most 200 characters, in the user's language (Catalan if unsure). Nothing specific to this one project's content. No lesson that repeats a known one. If there is nothing new worth keeping, reply exactly NONE.\n")
 	if len(known) > 0 {
 		b.WriteString("\nKnown lessons (do NOT repeat):\n" + strings.Join(known, "\n") + "\n")
@@ -238,6 +238,31 @@ func staleRemindLesson(line string) bool {
 		return false
 	}
 	for _, bad := range []string{"desconeguda", "unknown", "no invoquis", "don't call", "do not call", "no existeix", "doesn't exist", "does not exist", "no està disponible", "not available", "calendar"} {
+		if strings.Contains(l, bad) {
+			return true
+		}
+	}
+	return false
+}
+
+// blockedToolLesson: una lliçó que diu que una eina de recerca o d'imatges
+// està bloquejada o desactivada. Aquestes eines sempre hi són (només lectura):
+// si un dia van fallar, era un error de xarxa o el pressupost de recerca del
+// torn. Un vent que es va apuntar «web_images està bloquejada» no tornava a
+// buscar mai cap foto i feia webs amb SVG en lloc d'imatges.
+func blockedToolLesson(line string) bool {
+	l := strings.ToLower(line)
+	tool := false
+	for _, t := range []string{"web_images", "web_search", "web_fetch", "cercador d'imatges", "cerca d'imatges", "image search", "`image`"} {
+		if strings.Contains(l, t) {
+			tool = true
+			break
+		}
+	}
+	if !tool {
+		return false
+	}
+	for _, bad := range []string{"bloquejad", "blocked", "desactivad", "disabled", "no està disponible", "not available", "no funciona", "doesn't work", "does not work", "no es pot fer servir", "unavailable"} {
 		if strings.Contains(l, bad) {
 			return true
 		}

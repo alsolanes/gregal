@@ -235,3 +235,22 @@ func TestAskedForImagesGetsAPhotoEvenWithCharts(t *testing.T) {
 		t.Fatal("askedForImages")
 	}
 }
+
+// El que torna send_file quan el vent t'envia una foto que ha baixat:
+// «[foto.jpg](http://…/f/…/foto.jpg) (327 kB)» és una foto, no un enllaç.
+func TestSentImageFilesBecomePhotos(t *testing.T) {
+	in := "Aquí tens dues més:\n\n[evbuomwan-signatura.jpg](http://127.0.0.1:8097/f/f35cd51641ce8e20eddafdae/evbuomwan-signatura.jpg) (327 kB)\n[evbuomwan-princeton.jpg](http://127.0.0.1:8097/f/abaf7fca3496ede20cc308d6/evbuomwan-princeton.jpg) (1.3 MB)\n[informe.pdf](http://127.0.0.1:8097/f/abaf7fca3496ede20cc308d7/informe.pdf) (40 kB)"
+	out := embedImageLinks(in)
+	for _, want := range []string{
+		"![evbuomwan signatura](http://127.0.0.1:8097/f/f35cd51641ce8e20eddafdae/evbuomwan-signatura.jpg)",
+		"![evbuomwan princeton](http://127.0.0.1:8097/f/abaf7fca3496ede20cc308d6/evbuomwan-princeton.jpg)",
+		"[informe.pdf](http://127.0.0.1:8097/f/abaf7fca3496ede20cc308d7/informe.pdf) (40 kB)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("falta %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "(327 kB)") {
+		t.Fatalf("the size goes with the photo:\n%s", out)
+	}
+}
