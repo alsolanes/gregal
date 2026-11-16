@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v1.86.0 - 2026-11-16 - Posa ordre als vents
+
+- **«Posa ordre» als vents.** Troba els vents duplicats (mateix nom o mateix
+  ofici), els de prova i els que no has fet servir mai. Ajuntar-ne dos porta
+  tot el de l'un a l'altre (memòria, coneixement, totes les converses,
+  rutines, grups i preferits) i arxiva el que sobra, que es pot recuperar.
+  A «Tots els vents» a l'escriptori i a «Els meus vents» a l'Android.
+- **Menys vents a la barra.** Gregal i els cinc que has fet servir fa menys;
+  la resta, a «Tots els vents». També al calaix de l'Android.
+
 ## v1.85.1 - 2026-11-16 - Colors polits a l'escriptori
 
 - **Colors polits a l'escriptori.** El logo i la salutació de la portada de
