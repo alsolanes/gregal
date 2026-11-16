@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## v1.84.0 - 2026-11-16 - Tempesta: diversos vents alhora
+
+- **Tempesta: «A fons».** A la conversa amb un vent, el botó «A fons» fa que
+  tres vents treballin la mateixa pregunta alhora, cadascun des d'un angle
+  (directe, fonts i advocat del diable) i amb models diferents si n'hi ha;
+  després una síntesi compara el que han trobat i et dona una sola resposta.
+  Mentre treballen, veus què fa cadascun. Més lent i gasta més: per a
+  preguntes amb truc, comparacions i decisions. A l'escriptori i a l'Android.
+
 ## v1.83.0 - 2026-11-16 - Barra d'un sol nivell i webs dins del xat
 
 - **Una barra d'un sol nivell.** Nova conversa i Cerca a dalt; Avui, Feina,
