@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v1.86.8 - 2026-11-16 - «Configuració i més» es veu en obrir-lo
+
+- **«Configuració i més» es veu en obrir-lo.** És a baix de tot de la barra
+  lateral i, en obrir-lo, les opcions quedaven amagades sota la barra de baix:
+  semblava que no s'obria. Ara la barra (escriptori) i el calaix (Android)
+  baixen sols fins a les opcions.
+
 ## v1.86.7 - 2026-11-16 - Imatges quan les demanes
 
 - **Imatges quan les demanes.** Si demanes imatges i la resposta d'un vent no
