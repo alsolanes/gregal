@@ -851,7 +851,8 @@ const arenaUI = {
     return api(this.matchURL(id, after)).then(m => { this.updateMatch(m, dk, lk); return m; });
   },
 
-  async openMatch(id) {
+  // at: el número d'una jugada (un moment del prompt) per començar-hi just abans.
+  async openMatch(id, at) {
     this.closeMatch();
     const card = $('arMatchCard');
     card.hidden = false; $('arPlayCard').hidden = true; $('arAgainRow').hidden = true; $('arFeedback').innerHTML = ''; $('arStats').hidden = true;
@@ -877,6 +878,10 @@ const arenaUI = {
         onSpeed: x => { this.speed = x; }, onSeek: () => this.seeked(), onSync: pr => this.onProgress(pr),
       });
       this.paintDownload(); this.paint3D();
+      if (at != null) {
+        const i = (first.events || []).findIndex(e => e.n >= +at);
+        if (i >= 0) setTimeout(() => { if (this.scrub && this.match && this.match.id === id) this.scrub.seek(Math.max(0, i - 2)); }, 400);
+      }
     } catch (e) { $('arStatus').textContent = e.message; }
     // Si el model triga, que es vegi que hi està pensant i no que s'ha penjat.
     clearInterval(this.thinkTimer);

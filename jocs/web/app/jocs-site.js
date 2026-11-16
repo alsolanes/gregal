@@ -6,6 +6,7 @@
 // l'editor, els partits de prova, el reproductor i la tele.
 // Tot en anglès, com els jocs.
 import { renderCompetition, nameOf, currentGame } from './arena-bracket.js';
+import { standingsHTML, playersHTML, profileHTML, highlightsHTML, awardsHTML, momentCard, principlesHTML } from './jocs-season.js';
 
 const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const n0 = v => Math.round(+v || 0).toLocaleString('en');
@@ -28,10 +29,10 @@ const GAMES = {
 // La lliga dels vents (futbol americà, football.js) és el quart joc: no es
 // juga amb un .md sinó amb els vents de Gregal Vents com a entrenadors.
 const ROUTES = [
-  ['home', 'Home'], ['play', 'Play'], ['ranking', 'Leaderboard'], ['cup', 'Tournament'], ['matches', 'Matches'], ['league', 'League'], ['how', 'How it works'],
+  ['home', 'Home'], ['play', 'Play'], ['ranking', 'Standings'], ['players', 'Players'], ['highlights', 'Highlights'], ['cup', 'Tournament'], ['matches', 'Matches'], ['league', 'League'], ['how', 'How it works'],
 ];
 
-const S = { d: null, route: 'home', arg: '', rankGame: 'nfl', rankBots: true, matchGame: 'all', comp: null, compGame: '', timer: 0, liveComp: null, loadedAt: 0 };
+const S = { d: null, season: null, profile: null, hlFilter: 'all', route: 'home', arg: '', rankGame: 'overall', rankBots: true, matchGame: 'all', comp: null, compGame: '', timer: 0, liveComp: null, loadedAt: 0 };
 
 // Les icones de la closca (shell-icons.js), si hi són; si no, el glif de text.
 const icon = (name, fallback = '') => window.gregalIcon?.(name) || fallback;
@@ -56,6 +57,8 @@ function boot() {
       <section class="jx-route" data-route="home" id="jxHome"><div class="jx-wrap"><p class="jx-loading" role="status">Loading…</p></div></section>
       <section class="jx-route" data-route="play"><div class="jx-wrap"><div class="jx-play-head" id="jxPlayHead"></div><div id="jxPlayMount"></div></div></section>
       <section class="jx-route" data-route="ranking" id="jxRanking"></section>
+      <section class="jx-route" data-route="players" id="jxPlayers"></section>
+      <section class="jx-route" data-route="highlights" id="jxHighlights"></section>
       <section class="jx-route" data-route="cup"><div class="jx-wrap"><div id="jxCup"></div><div id="jxOrganizer" class="jx-organizer" hidden></div></div></section>
       <section class="jx-route" data-route="matches" id="jxMatches"></section>
       <section class="jx-route" data-route="league"><div class="jx-wrap"><div id="jxLeagueHead"></div><div id="jxLeagueEmpty" hidden></div><div id="jxLeagueMount"></div></div></section>
@@ -112,7 +115,11 @@ async function load() {
   clearTimeout(S.timer);
   // Pestanya amagada: res de consultes fins que torni (visibilitychange).
   if (document.hidden && S.d) return;
-  try { S.d = await api('/api/arena'); }
+  try {
+    // La temporada (perfils, premis, moments) va a part: si falla, la resta funciona igual.
+    const [d, season] = await Promise.all([api('/api/arena'), api('/api/arena/season').catch(() => null)]);
+    S.d = d; if (season) S.season = season;
+  }
   catch (e) {
     // Sense dades no hi ha portada: el perquè i un botó per tornar-ho a provar.
     if (!S.d) $('jxHome').innerHTML = `<div class="jx-wrap"><div class="jx-empty jx-err-box" role="alert"><b>Gregal Jocs could not load the competition.</b><span>${esc(e.message)}</span><button type="button" class="jx-btn" data-retry>Try again</button></div></div>`;
@@ -124,8 +131,6 @@ async function load() {
   $('jxName').textContent = d.event?.name || 'Gregal Prompt Cup';
   setTitle();
   const me = $('jxMe'); me.hidden = false; me.textContent = (d.display || d.me || '').slice(0, 2).toUpperCase(); me.title = 'Playing as ' + (d.display || d.me);
-  // El rànquing obre pel primer joc que ja té classificació.
-  if (!(d.leaderboard[S.rankGame] || []).length) S.rankGame = (d.games.find(g => (d.leaderboard[g.id] || []).length) || d.games[0] || {}).id || 'nfl';
   const running = (d.competitions || []).find(c => c.status === 'running');
   S.liveComp = null;
   if (running) { try { S.liveComp = await api('/api/arena/competition?id=' + encodeURIComponent(running.id)); } catch (e) {} }
@@ -171,6 +176,8 @@ function paint() {
   if (S.route === 'home') paintHome();
   if (S.route === 'play') paintPlayHead();
   if (S.route === 'ranking') paintRanking();
+  if (S.route === 'players') paintPlayers();
+  if (S.route === 'highlights') paintHighlights();
   if (S.route === 'cup') paintCup();
   if (S.route === 'matches') paintMatches();
   if (S.route === 'league') paintLeagueHead();
@@ -347,6 +354,7 @@ function paintHome() {
       <div class="jx-sec-head"><div><div class="jx-kicker">Three games · one model</div><h2 class="jx-h2">Pick your arena</h2></div></div>
       <div class="jx-games">${cards}</div>
       ${leagueAllowed() ? `<a class="jx-league-strip" href="#/league"><span class="jx-league-ic" aria-hidden="true">🏈</span><span><b>League</b><small>American football with your own staff of agents</small></span><span class="jx-more" aria-hidden="true">Open →</span></a>` : ''}
+      ${seasonHomeHTML()}
       ${podiums ? `<div class="jx-sec-head"><div><div class="jx-kicker">Elo ranking</div><h2 class="jx-h2">Top of the table</h2></div><a class="jx-more" href="#/ranking">Full leaderboard →</a></div><div class="jx-podiums">${podiums}</div>` : ''}
       ${recent.length ? `<div class="jx-sec-head"><div><div class="jx-kicker">Results</div><h2 class="jx-h2">Latest matches</h2></div><a class="jx-more" href="#/matches">All matches →</a></div><div class="jx-results">${recent.map(matchCard).join('')}</div>` : ''}
       <div class="jx-sec-head"><div><div class="jx-kicker">The format</div><h2 class="jx-h2">Three steps to the trophy</h2></div></div>
@@ -395,21 +403,96 @@ function windSVG() {
 // ---- Rànquing ----
 
 function paintRanking() {
-  const d = S.d, g = S.rankGame;
-  let rows = (d.leaderboard || {})[g] || [];
-  if (!S.rankBots) rows = rows.filter(r => !r.bot);
-  const max = Math.max(1, ...rows.map(r => r.elo)), min = Math.min(max - 1, ...rows.map(r => r.elo));
-  $('jxRanking').innerHTML = `<div class="jx-wrap">
-    <div class="jx-page-head"><div><div class="jx-kicker">Elo ranking</div><h1 class="jx-h1">Leaderboard</h1><p class="jx-muted">Official matches move the Elo. Practice matches against bots count too, so the ladder is live all week.</p></div></div>
-    <div class="jx-toolbar"><div class="jx-tabs">${d.games.map(x => `<button type="button" data-rank="${esc(x.id)}" class="${x.id === g ? 'on' : ''}">${GAMES[x.id]?.icon || ''} ${esc(GAMES[x.id]?.short || x.id)}</button>`).join('')}</div>
-      <label class="jx-toggle"><input type="checkbox" id="jxRankBots" ${S.rankBots ? 'checked' : ''}> Show bots</label></div>
+  const d = S.d, g = S.rankGame, season = S.season || { players: [], awards: [] };
+  const tabs = [['overall', '🏆 Overall'], ...d.games.map(x => [x.id, (GAMES[x.id]?.icon || '') + ' ' + (GAMES[x.id]?.short || x.id)])];
+  let body;
+  if (g === 'overall') {
+    body = `${awardsHTML(season.awards, d.me)}${standingsHTML(season, d.me)}`;
+  } else {
+    let rows = (d.leaderboard || {})[g] || [];
+    if (!S.rankBots) rows = rows.filter(r => !r.bot);
+    const max = Math.max(1, ...rows.map(r => r.elo)), min = Math.min(max - 1, ...rows.map(r => r.elo));
+    body = `<p class="jx-muted jx-note-s">Only official tournament matches move the Elo. Practice matches climb the bot ladder in the overall standings instead.</p>
     ${rows.length ? `<table class="jx-table"><thead><tr><th>#</th><th>Player</th><th class="r">Elo</th><th class="r">Played</th><th class="r">W</th><th class="r">L</th><th class="r">D</th><th>Win rate</th></tr></thead><tbody>
-      ${rows.map((r, i) => { const wr = r.played ? Math.round(100 * r.won / r.played) : 0; return `<tr class="${r.owner === d.me ? 'me' : ''} ${i < 3 ? 'top' + (i + 1) : ''}">
+      ${rows.map((r, i) => { const wr = r.played ? Math.round(100 * r.won / r.played) : 0; return `<tr class="${r.owner === d.me ? 'me' : ''} ${i < 3 ? 'top' + (i + 1) : ''}" ${r.bot ? '' : `data-player="${esc(r.owner)}" tabindex="0"`}>
         <td class="pos">${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</td><td><span class="jx-av sm">${esc(initials(r.display))}</span>${esc(r.display)}${r.bot ? ' <small class="jx-bot">BOT</small>' : ''}${r.owner === d.me ? ' <small class="jx-you">YOU</small>' : ''}</td>
         <td class="r elo"><b>${r.elo}</b><i style="width:${Math.round(12 + 88 * (r.elo - min) / Math.max(1, max - min))}%"></i></td><td class="r">${r.played}</td><td class="r">${r.won}</td><td class="r">${r.lost}</td><td class="r">${r.drawn}</td>
         <td><div class="jx-wr"><i style="width:${wr}%"></i></div><small>${wr}%</small></td></tr>`; }).join('')}</tbody></table>`
-      : `<div class="jx-empty">No one is ranked in ${esc(GAMES[g]?.short || g)} yet. <a href="#/play/${esc(g)}">Be the first →</a></div>`}
+      : `<div class="jx-empty">No official matches in ${esc(GAMES[g]?.short || g)} yet. The Elo starts with the tournament. <a href="#/play/${esc(g)}">Sharpen your strategy →</a></div>`}`;
+  }
+  $('jxRanking').innerHTML = `<div class="jx-wrap">
+    <div class="jx-page-head"><div><div class="jx-kicker">${esc(S.d.event?.name || 'Season')}</div><h1 class="jx-h1">Standings</h1><p class="jx-muted">The overall table, the season awards and the Elo of each game.</p></div></div>
+    <div class="jx-toolbar"><div class="jx-tabs">${tabs.map(([id, l]) => `<button type="button" data-rank="${esc(id)}" class="${id === g ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>
+      ${g === 'overall' ? '' : `<label class="jx-toggle"><input type="checkbox" id="jxRankBots" ${S.rankBots ? 'checked' : ''}> Show bots</label>`}</div>
+    ${body}
   </div>`;
+}
+
+// ---- Jugadors ----
+
+function paintPlayers() {
+  const season = S.season || { players: [] };
+  if (S.arg) { paintProfile(S.arg); return; }
+  $('jxPlayers').innerHTML = `<div class="jx-wrap">
+    <div class="jx-page-head"><div><div class="jx-kicker">The roster</div><h1 class="jx-h1">Players</h1><p class="jx-muted">Everyone in the competition, with the nickname the AI analyst gave them. Open a player for their scouting report, principles and best moments.</p></div></div>
+    ${playersHTML(season, S.d.me)}</div>`;
+}
+
+// El perfil: les dades arriben a part i l'informe d'IA es demana sol quan
+// falta (el servidor no el torna a escriure si res no ha canviat).
+async function paintProfile(owner) {
+  const box = $('jxPlayers');
+  const P = S.profile && S.profile.owner === owner ? S.profile : (S.profile = { owner, data: null, busy: false, error: '', tried: false });
+  const draw = () => {
+    if (S.route !== 'players' || S.arg !== owner) return;
+    box.innerHTML = `<div class="jx-wrap">${P.data ? profileHTML(P.data, S.d.me, { busy: P.busy, error: P.error, canRefresh: !P.busy }) : `<p class="jx-loading">${P.error ? esc(P.error) : 'Loading…'}</p>`}</div>`;
+  };
+  if (P.busy) { draw(); return; }
+  draw();
+  try { P.data = await api('/api/arena/player?owner=' + encodeURIComponent(owner)); P.error = ''; }
+  catch (e) { P.error = /404|no such/.test(e.message) ? 'This player has not played yet.' : e.message; draw(); return; }
+  draw();
+  if (P.data.insight_stale && !P.data.insight && !P.tried) writeInsight(owner);
+}
+
+async function writeInsight(owner) {
+  const P = S.profile;
+  if (!P || P.owner !== owner || P.busy) return;
+  P.busy = true; P.tried = true; P.error = '';
+  if (P.data) P.data = { ...P.data, insight: null };
+  if (S.route === 'players') paintPlayers();
+  try {
+    const r = await api('/api/arena/player', { method: 'POST', body: JSON.stringify({ action: 'insight', owner }) });
+    if (P.data) { P.data.insight = r.insight; P.data.insight_stale = false; }
+    const sp = (S.season?.players || []).find(x => x.owner === owner);
+    if (sp && r.insight) { sp.archetype = r.insight.archetype; sp.emoji = r.insight.emoji; }
+  } catch (e) { P.error = 'The analyst could not write the report: ' + e.message; }
+  P.busy = false;
+  if (S.route === 'players') paintPlayers();
+}
+
+// ---- Millors moments ----
+
+function paintHighlights() {
+  const season = S.season || { highlights: [] }, f = S.hlFilter;
+  const tabs = [['all', 'All'], ['official', 'Official'], ...S.d.games.map(g => [g.id, (GAMES[g.id]?.icon || '') + ' ' + (GAMES[g.id]?.short || g.id)])];
+  $('jxHighlights').innerHTML = `<div class="jx-wrap">
+    <div class="jx-page-head"><div><div class="jx-kicker">The prompt behind the play</div><h1 class="jx-h1">Highlights</h1>
+      <p class="jx-muted">The plays where one line of someone’s .md swung the match, ranked by impact. Official matches are public; practice moments only show to their author.</p></div></div>
+    <div class="jx-toolbar"><div class="jx-tabs">${tabs.map(([k, l]) => `<button type="button" data-hf="${esc(k)}" class="${k === f ? 'on' : ''}">${esc(l)}</button>`).join('')}</div></div>
+    ${highlightsHTML(season, f)}</div>`;
+}
+
+// La portada: premis i el moment de la temporada, quan n'hi ha.
+function seasonHomeHTML() {
+  const se = S.season;
+  if (!se) return '';
+  const aw = (se.awards || []).length ? `<div class="jx-sec-head"><div><div class="jx-kicker">Season awards</div><h2 class="jx-h2">Hall of fame</h2></div><a class="jx-more" href="#/ranking">Standings →</a></div>${awardsHTML(se.awards, S.d.me, true)}` : '';
+  // El moment de la temporada és d'un oficial (públic); sense oficials, el teu millor.
+  const hl = se.highlights || [], off = hl.find(h => h.kind === 'official'), own = hl.find(h => h.owner === S.d.me);
+  const top = off || own;
+  const mo = top ? `<div class="jx-sec-head"><div><div class="jx-kicker">${off ? '🏅 Moment of the season' : '⭐ Your best moment so far'}</div><h2 class="jx-h2">${off ? 'The line that won it' : 'Your .md made this happen'}</h2></div><a class="jx-more" href="#/highlights">All highlights →</a></div>${momentCard(top, true)}` : '';
+  return aw + mo;
 }
 
 // ---- Torneig ----
@@ -459,6 +542,8 @@ function paintHow() {
   $('jxHow').innerHTML = `<div class="jx-wrap">
     <div class="jx-page-head"><div><div class="jx-kicker">The rules</div><h1 class="jx-h1">How it works</h1><p class="jx-muted">Two identical teams. One model plays both. The only difference is the strategy file each player wrote.</p></div></div>
     ${stepsHTML()}
+    ${principlesHTML()}
+    <div class="jx-sec-head"><div><div class="jx-kicker">The games</div><h2 class="jx-h2">What you decide in each</h2></div></div>
     <div class="jx-rules">${d.games.map(g => `<article class="jx-rule jx-g-${esc(g.id)}"><div class="jx-rule-ic">${GAMES[g.id]?.icon || '🎮'}</div><h3>${esc(g.title)}</h3>
       <p><b>You decide:</b> ${esc(GAMES[g.id]?.decide || '')}</p><p><b>To win:</b> ${esc(GAMES[g.id]?.read || '')}</p>
       <details><summary>Full rules the model reads</summary><pre>${esc(g.rules || '')}</pre></details>
@@ -477,10 +562,14 @@ function paintHow() {
 function onClick(e) {
   // A l'Arena encastada, canviar de joc canvia també la capçalera (rànquing d'aquell joc).
   if (e.target.closest('#arGames [data-g]')) { setTimeout(() => { if (S.d && S.route === 'play') paintPlayHead(); }, 0); return; }
-  const t = e.target.closest('[data-match],[data-rank],[data-mf],[data-cupgame],[data-entry],[data-demo],[data-prefs],[data-retry],#jxRankBots');
+  const t = e.target.closest('[data-moment],[data-insight],[data-player],[data-hf],[data-match],[data-rank],[data-mf],[data-cupgame],[data-entry],[data-demo],[data-prefs],[data-retry],#jxRankBots');
   if (!t) return;
   if (t.id === 'jxRankBots') { S.rankBots = t.checked; paintRanking(); return; }
   if (t.hasAttribute('data-prefs')) { openPrefs(t.dataset.prefs); return; }
+  if (t.dataset.moment) { openMatch(t.dataset.moment, t.dataset.at); return; }
+  if (t.dataset.insight) { writeInsight(t.dataset.insight); return; }
+  if (t.dataset.player) { location.hash = '#/players/' + encodeURIComponent(t.dataset.player); return; }
+  if (t.dataset.hf) { S.hlFilter = t.dataset.hf; paintHighlights(); return; }
   if (t.hasAttribute('data-retry')) { $('jxHome').innerHTML = '<div class="jx-wrap"><p class="jx-loading" role="status">Loading…</p></div>'; load(); return; }
   if (t.dataset.match) { openMatch(t.dataset.match); return; }
   if (t.dataset.rank) { S.rankGame = t.dataset.rank; paintRanking(); return; }
@@ -494,12 +583,12 @@ function onClick(e) {
 }
 
 // Un partit s'obre al reproductor de l'Arena (comentaris, decisions, tele).
-async function openMatch(id) {
+async function openMatch(id, at) {
   if (S.route !== 'play') location.hash = '#/play';
   await new Promise(r => setTimeout(r, 0));
   const ar = window.gregalArena;
   if (!ar) return;
-  await ar.openMatch(id);
+  await ar.openMatch(id, at);
   $('arMatchCard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
