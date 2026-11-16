@@ -442,7 +442,7 @@ fun renderSegs(segs: List<Seg>, codeBg: Color, activity: Boolean = false, link: 
                 is Seg.Text -> if (activity) {
                     withStyle(SpanStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)) { append(seg.t) }
                 } else append(seg.t)
-                is Seg.Bold -> withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(seg.t) }
+                is Seg.Bold -> withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(seg.t) }
                 is Seg.Italic -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(seg.t) }
                 is Seg.Code -> withStyle(SpanStyle(fontFamily = FontFamily.Monospace, background = codeBg)) {
                     append(seg.t)

@@ -1306,3 +1306,17 @@ dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize
 .vw-tidy-status { margin:0; color:var(--muted); font-size:13px; }
 /* «Avui» com a pàgina pròpia: sense el marge de quan anava sota el compositor. */
 .vw-today-page .vw-avui { margin-top:8px; }
+/* Llegir respostes llargues (vents): línia de lectura més curta, interlineat
+   ample, aire entre paràgrafs i elements de llista, i negretes que no
+   criden. Abans: 16/23 px, 8 px entre paràgrafs i llistes enganxades. */
+.vw-messages .vw-message:not(.vw-user) .vw-message-text { line-height:1.62; }
+.vw-messages .vw-reading > div { max-width:min(calc(100% - 48px), 680px); }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text p { margin:0 0 14px; }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text :is(ul,ol) { margin:4px 0 16px; padding-left:1.35em; }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text li { margin:0 0 8px; padding-left:.2em; }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text li:last-child { margin-bottom:0; }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text li > p { margin:0 0 6px; }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text li::marker { color:var(--faint); }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text :is(strong,b) { font-weight:620; color:var(--ink); }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text > :last-child { margin-bottom:0; }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text blockquote { margin:6px 0 16px; }
