@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## v1.86.2 - 2026-11-16 - Avui, permisos i avisos
+
+- **«Avui» obre la safata.** A l'escriptori, «Avui» té la seva pàgina (el
+  temps, «Ara toca» i el que els vents t'han deixat), com a l'Android. Abans
+  portava a la conversa de Gregal i, si ja hi eres, semblava que no feia res.
+- **El mode codi no pregunta cada edició.** El config per defecte demanava
+  permís per a cada canvi dins del projecte en mode «edits». Ara hi passen
+  sols; «Demana abans de canviar» continua preguntant si el tries.
+- **Els vents avisen quan t'esperen.** Si un vent necessita el teu permís o
+  una resposta, t'arriba una notificació al mòbil i a l'escriptori, i
+  desapareix quan contestes.
+- **Els grups esperen el teu permís.** La veu que fa la feina en un grup té
+  temps de rebre la teva resposta des del mòbil (abans es perdia als 3
+  minuts).
+
 ## v1.86.1 - 2026-11-16 - Fotos que encaixen i un blau suau
 
 - **Fotos que són del plat.** Les receptes i les targetes només porten foto
