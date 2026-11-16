@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## v1.86.9 - 2026-11-16 - Els vents tornen a buscar fotos
+
+- **Els vents tornen a buscar fotos.** Un vent es podia apuntar com a lliçó
+  que la cerca d'imatges estava bloquejada (un dia va fallar) i no la tornava
+  a fer servir mai: feia webs amb dibuixos o enviava fitxers. Aquestes
+  lliçons ara s'ignoren i no es desen.
+- **Fotos enviades com a fitxer, com a fotos.** Una foto que el vent ha baixat
+  i t'envia es veu al xat en lloc d'un enllaç «foto.jpg (327 kB)», també a
+  l'Android.
+- **Una resposta, un missatge.** Quan el servidor hi afegia una foto, la
+  resposta es desava dues vegades.
+
 ## v1.86.8 - 2026-11-16 - «Configuració i més» es veu en obrir-lo
 
 - **«Configuració i més» es veu en obrir-lo.** És a baix de tot de la barra
