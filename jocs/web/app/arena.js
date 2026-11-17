@@ -96,7 +96,7 @@ const arenaUI = {
         <div class="ar-go">
           <button type="button" id="arPlay" class="primary ar-big"></button>
           <span class="ar-muted" id="arPlayHint"></span>
-          <button type="button" id="arDemo" class="ar-demo">🎬 ${esc(T('ar.demo'))}</button>
+          <button type="button" id="arDemo" class="ar-demo">${esc(T('ar.demo'))}</button>
           <button type="button" id="arLive" class="ar-demo" title="${esc(T('ar.playLiveHint'))}" hidden>🎮 ${esc(T('ar.playLive'))}</button>
           <span id="arLiveTouch" class="ar-muted" hidden>${esc(T('ar.liveTouch'))}</span>
           <button type="button" id="arReview" class="ar-link">${esc(T('ar.askTips'))}</button>

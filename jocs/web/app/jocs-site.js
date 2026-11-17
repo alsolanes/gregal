@@ -41,7 +41,7 @@ const NAV = [
   ['home', 'Home'], ['play', 'Play'],
   ['ranking', 'Standings', ['ranking', 'players', 'teams']],
   ['cup', 'Cup', ['cup', 'matches', 'highlights']],
-  ['league', 'League'], ['how', 'How it works'], ['organize', 'Organize'],
+  ['how', 'How it works'], ['organize', 'Organize'],
 ];
 const routeLabel = id => (ROUTES.find(x => x[0] === id) || [])[1] || id;
 
@@ -336,6 +336,36 @@ function mountArena() {
   if (!ar) return;
   if (S.arg && GAMES[S.arg] && ar.game !== S.arg) { ar.game = S.arg; if (ar.data) ar.paint(); }
   ar.load();
+  simplifyArena();
+}
+
+// Play, for someone who has never written a prompt for a game: one thing to do
+// at a time. The strategy shows its first lines (the whole template is a wall
+// of text); the cheat sheet, the team of agents, the version history and the
+// live mode wait behind two buttons; the name lives in Settings and the voices
+// in Organize. Nothing is removed: everything is one click away.
+function simplifyArena() {
+  const page = $('arenaPage');
+  if (!page || page.dataset.jxSimple || !$('arPlayCard')) return;
+  page.dataset.jxSimple = '1';
+  page.classList.add('jx-simple');
+  const grid = page.querySelector('.ar-play-grid'), last = $('arLast');
+  if (grid && last) grid.before(last); // the last match's report: in sight, not in the side column
+  const md = $('arMD');
+  md.insertAdjacentHTML('afterend', '<button type="button" class="jx-expand" id="jxExpand" aria-expanded="false" aria-controls="arMD">Show the whole strategy</button>');
+  $('jxExpand').onclick = () => {
+    const open = !page.classList.contains('jx-md-open');
+    page.classList.toggle('jx-md-open', open);
+    $('jxExpand').setAttribute('aria-expanded', String(open));
+    $('jxExpand').textContent = open ? 'Show less' : 'Show the whole strategy';
+  };
+  md.addEventListener('focus', () => { if (!page.classList.contains('jx-md-open')) $('jxExpand').click(); });
+  const go = page.querySelector('.ar-go');
+  go.insertAdjacentHTML('beforeend', `<span class="jx-go-more">
+    <button type="button" class="ar-link" id="jxSheet" aria-expanded="false">Cheat sheet: what beats what</button>
+    <button type="button" class="ar-link" id="jxMore" aria-expanded="false">More options</button></span>`);
+  const toggle = (id, cls) => { const b = $(id); b.onclick = () => { const on = page.classList.toggle(cls); b.setAttribute('aria-expanded', String(on)); }; };
+  toggle('jxSheet', 'jx-sheet'); toggle('jxMore', 'jx-adv');
 }
 
 // A match of mine still being played: at the top of Play, so leaving the page
@@ -355,7 +385,7 @@ function paintPlayHead() {
   $('jxPlayHead').innerHTML = `<div class="jx-kicker">Your lab</div><h1 class="jx-h1">Write the playbook. <span class="jx-grad">Let the model play it.</span></h1>
     <div class="jx-chips">${rank ? `<span class="jx-chip">#${rank.pos} in ${esc(GAMES[g]?.short || g)} · ${rank.elo} Elo</span>` : `<span class="jx-chip">Unranked in ${esc(GAMES[g]?.short || g)} yet</span>`}
     ${typeof d.practice_left === 'number' && !d.admin ? `<span class="jx-chip">${Math.max(0, d.practice_left)} practice matches left today</span>` : ''}
-    ${d.model ? `<button type="button" class="jx-chip jx-chip-btn" ${d.admin ? 'data-model' : 'disabled'} title="The model that plays every match${d.admin ? ': click to change it' : ''}.">Model · ${esc(d.model.split('/').pop())}</button>` : ''}
+    ${d.model && d.admin ? `<button type="button" class="jx-chip jx-chip-btn" ${d.admin ? 'data-model' : 'disabled'} title="The model that plays every match${d.admin ? ': click to change it' : ''}.">Model · ${esc(d.model.split('/').pop())}</button>` : ''}
     ${teamPickerHTML(d.teams, d.my_team)}</div><p class="jx-team-err" id="jxTeamErr" role="alert" hidden></p>
     ${modelNote()}${liveNote(d)}<div id="jxChal"></div>`;
   document.querySelectorAll('#jxPlayHead [data-open-live]').forEach(el => el.onclick = () => window.gregalArena?.openMatch(el.dataset.openLive));

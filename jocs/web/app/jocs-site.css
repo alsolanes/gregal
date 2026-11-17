@@ -897,3 +897,25 @@ body.jx-on > dialog.jx-settings { width: min(520px, 94vw); padding: 0; border: 1
 #jxPlayMount #arMatchCard .ar-match { grid-template-columns: minmax(0, 1fr) clamp(300px, 22vw, 400px); gap: 16px; }
 #jxPlayMount #arMatchCard .ar-stage { width: min(100%, calc((100vh - 270px) * 16 / 9)); margin-inline: auto; }
 @media (max-width: 1100px) { #jxPlayMount #arMatchCard .ar-match { grid-template-columns: minmax(0, 1fr); } }
+
+/* ==== Play, simplified (simplifyArena in jocs-site.js) ====
+   One thing at a time: the advanced pieces wait behind "More options" and
+   "Cheat sheet"; the strategy shows its first lines until you open it. */
+#jxPlayMount .jx-simple .ar-me, #jxPlayMount .jx-simple #arVoiceNote { display: none; }
+#jxPlayMount .jx-simple:not(.jx-adv) :is(#arTeam, #arHist, #arLive, #arLiveTouch, #arReview) { display: none; }
+#jxPlayMount .jx-simple:not(.jx-sheet) .ar-tips { display: none; }
+#jxPlayMount .jx-simple:not(.jx-sheet) .ar-play-grid { grid-template-columns: minmax(0, 1fr); }
+#jxPlayMount .jx-simple:not(.jx-md-open) textarea#arMD { height: 230px !important; min-height: 0; overflow: hidden; resize: none;
+  -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
+#jxPlayMount .jx-simple.jx-md-open textarea#arMD { min-height: 520px; }
+#jxPlayMount .jx-expand { align-self: flex-start; margin: -6px 0 4px; border: 1px solid var(--jx-teal); background: var(--jx-panel); color: var(--jx-teal); font: inherit; font-weight: 700; font-size: 14px; padding: 7px 14px; border-radius: var(--r-md); cursor: pointer; }
+#jxPlayMount .jx-expand:hover { background: var(--jx-teal); color: #fff; }
+#jxPlayMount .jx-go-more { margin-left: auto; display: inline-flex; gap: 16px; }
+#jxPlayMount .jx-go-more .ar-link[aria-expanded="true"] { font-weight: 800; }
+/* The games: a compact switch, not three big cards. */
+#jxPlayMount .jx-simple .ar-games { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--jx-line-hi); border-radius: var(--r-md); background: var(--jx-panel); }
+#jxPlayMount .jx-simple .ar-games button { padding: 8px 16px; border-radius: var(--r-sm); border: 0; min-height: 0; box-shadow: none; }
+#jxPlayMount .jx-simple .ar-games button small { display: none; }
+#jxPlayMount .jx-simple .ar-games button[aria-pressed="true"] { background: var(--jx-teal); color: #fff; }
+#jxPlayMount .jx-simple .ar-games button[aria-pressed="true"] .ic { color: var(--jx-brand); }
+#jxPlayMount .jx-simple .ar-games .ic { font-size: 18px !important; }
