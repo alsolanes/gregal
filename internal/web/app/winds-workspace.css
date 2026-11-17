@@ -1352,3 +1352,24 @@ dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize
 .gregal-facts .gf-tile b { font-size:24px; line-height:1.1; font-weight:750; letter-spacing:-.01em; color:var(--accent-hi); font-variant-numeric:tabular-nums; }
 .gregal-facts .gf-tile span { font-size:13px; color:var(--text); line-height:1.35; }
 .gregal-facts .gf-tile small { font-size:12px; color:var(--muted); line-height:1.35; }
+
+/* Peu del compositor: tots els botons d'icona fan 36 px, amb la icona centrada exactament
+   (svg en bloc, sense línia base) i a la mateixa mida; el quadrat d'aturar no porta el
+   desplaçament òptic de la fletxa d'enviar. */
+.vw-composer-foot .vw-tempesta-toggle, .vw-composer-foot .vw-voice-mic, .vw-composer-foot .vw-voice-talk { display:grid; place-items:center; flex:none; width:36px; height:36px; min-width:36px; padding:0; line-height:0; }
+.vw-composer-foot .vw-tempesta-toggle svg, .vw-composer-foot .vw-voice-mic svg, .vw-composer-foot .vw-voice-talk svg { display:block; width:17px; height:17px; margin:0; }
+.vw-send[data-busy="true"] svg { transform:none; }
+.vw-send[data-busy="true"]:not(:disabled):not([data-empty="true"]):hover svg { transform:none; }
+button.vw-model { align-self:center; }
+button.vw-model .ui-icon { display:block; }
+
+/* Fil de Gregal a l'escriptori: la barra de dalt no s'ha de menjar alçada. Es treu el coixí
+   doble (contingut + vista del fil) i el missatge que puja es difumina cap amunt en lloc de
+   quedar tallat en sec per sota de la barra. */
+.wind-workspace.vw-gregal .vw-content:has(.vw-thread-view) { padding-top:0; padding-bottom:0; }
+.wind-workspace.vw-gregal .vw-thread-view { padding-top:0; padding-bottom:12px; }
+.wind-workspace.vw-gregal .vw-thread-view .vw-messages {
+  padding-top:18px;
+  -webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 22px); mask-image:linear-gradient(to bottom, transparent 0, #000 22px);
+}
+.wind-workspace.vw-gregal .vw-top.vw-top-gregal { min-height:52px; }
