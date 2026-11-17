@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## v1.87.7 - 2026-11-17 - Vents per a Android al dia
+
+- **Gregal Vents per a Android es torna a actualitzar.** Les últimes
+  versions no portaven app nova i el mòbil es quedava a la 1.91.1. Aquesta
+  porta tot el que ha canviat des d'aleshores: la resposta en directe
+  apareix de manera contínua, la pàgina d'actualització és més clara, i el
+  motor que va dins de l'app té les millores de les últimes versions
+  (eines sota demanda i models locals més ràpids).
+- **Models locals darrere d'un gateway: la sessió no perd la memòria cau.**
+  Si el servidor no diu quants slots té, ara es fa cas del `slot` del
+  config. Abans, de tant en tant, una petició queia en un altre slot i es
+  tornava a processar tot el prompt.
+
 ## v1.87.6 - 2026-11-17 - Vents amb eines sota demanda
 
 - **Els vents carreguen les eines quan les necessiten.** Abans cada pas
