@@ -460,20 +460,23 @@ test('playback time: the estimate matches playing at 1×, and elapsed only moves
   v.destroy();
 });
 
-test('the first-person gun rests level, low on the right, at every aspect ratio', async () => {
+test('the first-person blaster points forward, into the scene, at every aspect ratio', async () => {
   const V = await load();
-  const sizes = [[1280, 720], [960, 720], [1680, 720], [720, 720], [400, 711], [2560, 1080], [1891, 947, 1493], [970, 839]];
+  const sizes = [[1280, 720], [960, 720], [1680, 720], [720, 720], [400, 711], [2560, 1080], [970, 839]];
   for (const wid of ['ak47', 'm4a1s', 'galil', 'famas', 'awp', 'mac10', 'mp9', 'glock', 'usp', 'p250', 'deagle']) {
-    for (const [w, h, right] of sizes) {
-      const P = V.gunPose(w, h, wid, right), c = Math.cos(P.rot), s = Math.sin(P.rot);
-      const at = l => [P.ax + (l * P.fx * c - P.tip[1] * s) * P.S, P.ay + (l * P.fx * s + P.tip[1] * c) * P.S];
-      const [mx, my] = at(P.tip[0]), [bx, by] = at(0);
-      // Held level: the barrel tips up towards the middle by less than 12 degrees.
-      const tilt = Math.atan2(by - my, bx - mx) * 180 / Math.PI;
-      assert.ok(tilt > 0 && tilt < 12, `${wid} ${w}x${h}: barrel tilted ${tilt.toFixed(1)} degrees`);
-      // The nozzle stays low and right of the crosshair, inside the view.
-      assert.ok(mx > w / 2 && my > h / 2, `${wid} ${w}x${h}: nozzle at ${mx.toFixed(0)},${my.toFixed(0)}`);
-      assert.ok(bx < (right || w) && by < h, `${wid} ${w}x${h}: receiver off the view at ${bx.toFixed(0)},${by.toFixed(0)}`);
+    const m = V.fpGunModel(wid);
+    // Every part is in front of the eye, to the right of it and below it.
+    for (const q of m.parts) { const [x0, , y0, , z0, z1] = q.b; assert.ok(x0 > 0 && y0 > 0 && z0 > 0 && z1 > z0, `${wid} ${q.kind}`); }
+    // The nozzle is the farthest point of the gun.
+    assert.ok(m.parts.every(q => q.b[5] <= m.tip[2] + 1e-9), `${wid}: something sticks out past the nozzle`);
+    for (const [w, h] of sizes) {
+      const [nx, ny] = V.fpNozzle(w, h, wid), cx = w / 2, cy = h / 2;
+      // Low and right of the crosshair, inside the view, not on top of it.
+      assert.ok(nx > cx && ny > cy && nx < w && ny < h, `${wid} ${w}x${h}: nozzle at ${nx.toFixed(0)},${ny.toFixed(0)}`);
+      assert.ok(Math.hypot(nx - cx, ny - cy) > h * 0.06, `${wid} ${w}x${h}: nozzle on the crosshair`);
+      // Forward: the body's near end is farther from the centre than the nozzle (it recedes towards it).
+      const body = m.parts.find(q => q.kind === 'body').b, [bx, by] = V.fpProject(cx, cy, h * 0.95, body[0], body[2], body[4]);
+      assert.ok(Math.hypot(bx - cx, by - cy) > Math.hypot(nx - cx, ny - cy) * 1.4, `${wid} ${w}x${h}: the gun does not recede`);
     }
   }
 });

@@ -508,31 +508,45 @@ export function shotsAt(R, p) {
 }
 
 const MAG = { glock: [20, 120], usp: [12, 24], p250: [13, 26], deagle: [7, 35], mac10: [30, 100], mp9: [30, 120], galil: [35, 90], famas: [25, 90], ak47: [30, 90], m4a1s: [20, 80], awp: [5, 30] };
-// The muzzle in the gun's own drawing frame (barrel along -x, receiver at 0,0).
-export function gunTip(wid) {
-  const cls = weaponClass(wid);
-  if (cls === 'pistol') return wid === 'usp' ? [-106, -8] : [-61, -8];
-  if (cls === 'awp') return [-162, -6];
-  if (cls === 'smg') return [-68, -6];
-  return wid === 'm4a1s' ? [-164, -6] : [-120, -6];
+// ---- the first-person blaster, in perspective ----
+// The gun is a few boxes in camera space (x right, y down, z forward, the eye
+// at 0) projected with a pinhole camera: the parts near the eye are big and
+// low on the right, the barrel recedes towards the middle of the screen, so
+// the blaster points forward, into the scene, like the view model of any
+// shooter. fpGunModel is pure (tested); the drawing is drawBlasterFP.
+export function fpGunModel(wid) {
+  const cls = weaponClass(wid), pistol = cls === 'pistol', awp = cls === 'awp', smg = cls === 'smg';
+  const [body, acc, tank] = BLASTER[wid] || (pistol ? BLASTER.glock : BLASTER.ak47);
+  const P = [];
+  const box = (x0, x1, y0, y1, z0, z1, col, kind = 'box') => P.push({ b: [x0, x1, y0, y1, z0, z1], col, kind });
+  let tip;
+  if (pistol) {
+    const big = wid === 'deagle', end = wid === 'usp' ? 1.12 : 0.98;
+    box(0.17, 0.25, 0.26, 0.47, 0.40, 0.50, acc, 'grip');
+    box(0.15, 0.27, big ? 0.16 : 0.17, 0.27, 0.36, 0.80, body, 'body');
+    box(0.178, 0.242, big ? 0.10 : 0.115, big ? 0.17 : 0.17, 0.5, 0.66, tank, 'tank');
+    box(0.185, 0.235, 0.19, 0.235, 0.80, end, tone(body, '#ffffff', 0.3), 'barrel');
+    box(0.18, 0.24, 0.185, 0.24, end, end + 0.04, acc === '#ffd23a' ? '#ff8a1f' : '#ffd23a', 'cap');
+    tip = [0.21, 0.2125, end + 0.04];
+  } else {
+    const end = awp ? 1.78 : smg ? 1.25 : 1.5, bodyEnd = smg ? 0.82 : 0.95;
+    box(0.16, 0.30, 0.22, 0.34, 0.2, 0.38, acc, 'stock');
+    box(0.14, 0.30, 0.17, 0.30, 0.38, bodyEnd, body, 'body');
+    box(0.18, 0.26, 0.30, 0.48, 0.42, 0.52, tone(body, '#000000', 0.3), 'grip');
+    box(0.17, 0.27, awp ? 0.065 : 0.09, 0.17, 0.52, awp ? 0.98 : 0.82, tank, 'tank');
+    box(0.155, 0.285, 0.27, 0.33, bodyEnd, bodyEnd + (smg ? 0.22 : 0.3), acc, 'pump');
+    box(0.19, 0.25, 0.20, 0.25, bodyEnd, end, tone(body, '#ffffff', 0.3), 'barrel');
+    box(0.183, 0.257, 0.193, 0.257, end, end + 0.05, tank === '#ffd23a' ? '#ff8a1f' : '#ffd23a', 'cap');
+    tip = [0.22, 0.225, end + 0.05];
+  }
+  // Raised a little, so the hand on the grip shows at the bottom of the frame.
+  for (const q of P) { q.b[2] -= 0.05; q.b[3] -= 0.05; }
+  tip[1] -= 0.05;
+  return { parts: P, tip, pistol, awp };
 }
-
-// Where the first-person gun sits in a w×h view: low on the right and held
-// level, the nozzle tipped up a touch towards the middle, like the view model
-// of any shooter. (It used to be rotated so the barrel ran through the
-// crosshair, which at wide screens tilted it 35-40 degrees and read as a gun
-// held askew.) The water jet arcs from the nozzle to the target anyway. The
-// barrel is shortened (fx, a cheap perspective) so the nozzle stops right of
-// the centre. `right`: where the HUD box ends (the side rosters float over the
-// rest of the view).
-export function gunPose(w, h, wid, right = w) {
-  const pistol = weaponClass(wid) === 'pistol';
-  const S = Math.min(h, w * 0.75) / (pistol ? 205 : 220), tip = gunTip(wid);
-  const ax = Math.min(w * (pistol ? 0.8 : 0.87), right - (pistol ? 60 : 30) * S), ay = h - (pistol ? 46 : 40) * S;
-  const rot = pistol ? 0.15 : 0.11;
-  const fx = clamp((ax - w * 0.56) / (S * -tip[0] * Math.cos(rot)), 0.45, 0.92);
-  return { ax, ay, rot, S, fx, tip };
-}
+export function fpProject(cx, cy, f, x, y, z) { const zz = Math.max(0.05, z); return [cx + f * x / zz, cy + f * y / zz]; }
+// The nozzle on screen for a w×h view (the shots leave from there).
+export function fpNozzle(w, h, wid) { const m = fpGunModel(wid); return fpProject(w / 2, h / 2, h * 0.95, ...m.tip); }
 
 export function weaponClass(w) { return w === 'awp' ? 'awp' : ['glock', 'usp', 'p250', 'deagle'].includes(w) ? 'pistol' : ['mac10', 'mp9'].includes(w) ? 'smg' : w ? 'rifle' : 'pistol'; }
 
@@ -1651,21 +1665,10 @@ export class Cs2View extends ArenaViewBase {
       return null;
     }
     const cls = weaponClass(pl.weapon), wid = pl.weapon;
-    const pistol = cls === 'pistol';
-    // At rest the barrel points at the crosshair; bob and recoil only nudge it.
-    const pose = gunPose(w, h, wid, this.box.x + this.box.w - x0), fx = pose.fx;
-    const ax = x0 + pose.ax + bobX + kick * 10 * S, ay = y0 + pose.ay + bobY + kick * 12 * S;
-    const rot = pose.rot + kick * (cls === 'awp' ? 0.16 : 0.07);
-    g.save(); g.translate(ax, ay); g.rotate(rot); g.scale(S * fx, S);
-    const tip = pose.tip;
-    // The model is drawn in gun space (nozzle towards -x, the nozzle at `tip`):
-    // a chunky toy water blaster in bright plastic with its water tank, gloved
-    // hands gripping it and the sleeves running out of the frame.
-    if (pistol) drawPistolFP(g, wid, sleeve, glove);
-    else drawLongGunFP(g, cls, wid, sleeve, glove);
-    g.restore();
-    const c = Math.cos(rot), s = Math.sin(rot);
-    const mx = ax + (tip[0] * fx * c - tip[1] * s) * S, my = ay + (tip[0] * fx * s + tip[1] * c) * S;
+    // The blaster in perspective, pointing into the scene; bob sways it,
+    // recoil pushes it back and down.
+    const f = h * 0.95, rk = kick * (cls === 'awp' ? 0.09 : 0.05);
+    const [mx, my] = drawBlasterFP(g, x0 + w / 2 + bobX, y0 + h / 2 + bobY, f, wid, sleeve, glove, rk, rk * 0.25);
     if (own && own.age < 0.07) this.flashStar(mx, my, (cls === 'awp' ? 30 : 22) * S, own.k.n);
     return { x: mx, y: my };
   }
@@ -2501,15 +2504,6 @@ function tone(a, b, k) { const key = a + b + k; let c = TONES.get(key); if (!c) 
 function fpPoly(g, pts, fill) { g.fillStyle = fill; g.beginPath(); pts.forEach(([a, b], i) => i ? g.lineTo(a, b) : g.moveTo(a, b)); g.closePath(); g.fill(); }
 function fpRect(g, x, y, w, h, fill, r = 0) { g.fillStyle = fill; if (r) { g.beginPath(); g.roundRect(x, y, w, h, r); g.fill(); } else g.fillRect(x, y, w, h); }
 
-// A sleeve from the bottom of the frame up to the wrist at (wx, wy), with a cuff.
-function fpSleeve(g, pts, cuff, col) {
-  fpPoly(g, pts, col);
-  // Fabric folds and the shadowed underside.
-  g.strokeStyle = tone(col, '#000000', 0.28); g.lineWidth = 3; g.lineCap = 'round';
-  g.beginPath(); const [a, b, c] = pts; g.moveTo(lerp(a[0], b[0], 0.35), lerp(a[1], b[1], 0.35)); g.lineTo(lerp(c[0], b[0], 0.3) + 6, lerp(c[1], b[1], 0.3) + 2); g.stroke();
-  fpPoly(g, cuff, tone(col, '#000000', 0.35));
-}
-
 // A gloved hand wrapped round a grip: palm, four knuckles over the top, the
 // thumb along the side, the knuckle pads lighter.
 function fpHand(g, x, y, ang, sc, glove, fingersUp) {
@@ -2526,89 +2520,57 @@ function fpHand(g, x, y, ang, sc, glove, fingersUp) {
   g.restore();
 }
 
-// Toy water blasters in bright plastic: [body, accent, tank]. The nozzle ends
-// exactly where gunTip() says (the shots leave from there).
+// Toy water blasters in bright plastic: [body, accent, tank] (fpGunModel).
 const BLASTER = {
   glock: ['#ff8a1f', '#ffd23a', '#7ad13a'], usp: ['#2f8fff', '#ffd23a', '#7ad13a'], p250: ['#7ad13a', '#ff8a1f', '#2f8fff'], deagle: ['#ffb020', '#2f8fff', '#5fd0ff'],
   mac10: ['#ff9a2e', '#2f8fff', '#5fd0ff'], mp9: ['#8bd43a', '#2f8fff', '#ffd23a'], galil: ['#7ad13a', '#ff8a1f', '#5fd0ff'], famas: ['#1fc0c8', '#ff8a1f', '#ffd23a'],
   ak47: ['#ff7a1a', '#7ad13a', '#5fd0ff'], m4a1s: ['#2f7dff', '#ffd23a', '#7ad13a'], awp: ['#3a5cf0', '#ff8a1f', '#5fd0ff'],
 };
-// A see-through water tank: plastic shell, the water inside (lower part), a shine and the cap.
-function fpTank(g, x, y, w, h, col) {
-  fpRect(g, x, y, w, h, tone(col, '#ffffff', 0.35), h / 2);
-  fpRect(g, x + 3, y + h * 0.42, w - 6, h * 0.5, 'rgba(60,160,245,.75)', h * 0.25);
-  fpRect(g, x + 5, y + 3, w * 0.45, h * 0.18, 'rgba(255,255,255,.7)', h * 0.09);
-  fpRect(g, x + w * 0.42, y - 5, w * 0.16, 6, col, 2);
-  g.strokeStyle = tone(col, '#000000', 0.3); g.lineWidth = 1.6; g.beginPath(); g.roundRect(x, y, w, h, h / 2); g.stroke();
-}
-// The nozzle cap at the tip: a bright ring with the dark hole the water comes out of.
-function fpNozzle(g, tx, ty, col) {
-  fpRect(g, tx - 2, ty - 7, 14, 14, col, 5);
-  fpRect(g, tx - 2, ty - 7, 14, 3, tone(col, '#ffffff', 0.4), 2);
-  g.fillStyle = '#123a66'; g.beginPath(); g.ellipse(tx, ty, 2.2, 4, 0, 0, Math.PI * 2); g.fill();
-}
 
-function drawLongGunFP(g, cls, wid, sleeve, glove) {
-  const awp = cls === 'awp', smg = cls === 'smg';
-  const [body, acc, tank] = BLASTER[wid] || BLASTER.ak47;
-  const hi = tone(body, '#ffffff', 0.3), lo = tone(body, '#000000', 0.3), accLo = tone(acc, '#000000', 0.3);
-  const hgL = smg ? -46 : -66;
-  const tip = gunTip(wid);
-  // Rear arm (trigger hand) under everything.
-  fpSleeve(g, [[150, 70], [40, -4], [16, 22], [100, 110]], [[46, 0], [34, -6], [14, 20], [24, 26]], sleeve);
-  // Chunky rounded stock in the accent colour.
-  fpRect(g, 28, -12, 60, 30, acc, 12);
-  fpRect(g, 32, -10, 50, 5, tone(acc, '#ffffff', 0.35), 3);
-  fpRect(g, 80, -10, 10, 28, accLo, 5);
-  // Body: a fat plastic shell, a shine on top, a shadow underneath, a pressure gauge.
-  fpRect(g, -28, -18, 66, 28, body, 11);
-  fpRect(g, -22, -16, 54, 5, hi, 3);
-  fpRect(g, -26, 4, 62, 5, lo, 3);
-  g.fillStyle = '#ffffff'; g.beginPath(); g.arc(8, -3, 5.5, 0, Math.PI * 2); g.fill();
-  g.strokeStyle = '#e23b3b'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(8, -3); g.lineTo(11, -6); g.stroke();
-  // The water tank on top (big on the AWP Aqua Jet, small on the sprayers).
-  if (awp) fpTank(g, -56, -46, 84, 28, tank);
-  else if (smg) fpTank(g, -22, -38, 40, 20, tank);
-  else fpTank(g, -30, -42, 58, 24, tank);
-  // Pistol grip and a round trigger guard.
-  fpPoly(g, [[20, 4], [34, 4], [38, 28], [24, 30]], lo);
-  g.strokeStyle = body; g.lineWidth = 3.5; g.beginPath(); g.moveTo(8, 8); g.quadraticCurveTo(12, 20, 24, 12); g.stroke();
-  // Pump handle under the nozzle tube, with grip ridges.
-  fpRect(g, hgL, -12, -hgL - 24, 18, acc, 8);
-  g.fillStyle = accLo; for (let x = hgL + 6; x < -30; x += 8) g.fillRect(x, -9, 3, 12);
-  // Nozzle tube to the tip, then the nozzle cap.
-  fpRect(g, tip[0] + 8, -11, hgL - tip[0], 10, hi, 5);
-  fpRect(g, tip[0] + 8, -11, hgL - tip[0], 2.5, 'rgba(255,255,255,.55)', 1.2);
-  fpNozzle(g, tip[0], tip[1], tank === '#ffd23a' ? '#ff8a1f' : '#ffd23a');
-  if (!awp) fpRect(g, 14, -24, 10, 7, acc, 3); // a little toy sight
-  else { fpRect(g, -10, -52, 10, 8, acc, 3); fpRect(g, 14, -52, 10, 8, acc, 3); }
-  // Trigger hand round the grip, then the support arm and hand on the pump.
-  fpHand(g, 28, 14, 0.25, 0.95, glove, false);
-  fpSleeve(g, [[hgL + 10, 6], [hgL + 34, 6], [hgL + 70, 120], [hgL - 30, 120]], [[hgL + 6, 8], [hgL + 36, 8], [hgL + 40, 20], [hgL + 2, 20]], sleeve);
-  fpHand(g, hgL + 20, 2, -0.08, 0.95, glove, true);
-}
-
-function drawPistolFP(g, wid, sleeve, glove) {
-  const [body, acc, tank] = BLASTER[wid] || BLASTER.glock;
-  const hi = tone(body, '#ffffff', 0.3), lo = tone(body, '#000000', 0.3);
-  const tip = gunTip(wid), big = wid === 'deagle';
-  fpSleeve(g, [[-14, 30], [18, 30], [70, 150], [-40, 150]], [[-16, 28], [20, 28], [24, 40], [-20, 40]], sleeve);
-  // Rounded grip in the accent colour, with finger bumps.
-  fpPoly(g, [[-6, -2], [14, -2], [20, 36], [0, 36]], acc);
-  g.fillStyle = tone(acc, '#000000', 0.25); for (let k = 0; k < 3; k++) { g.beginPath(); g.arc(1 + k * 1.5, 12 + k * 8, 3, 0, Math.PI * 2); g.fill(); }
-  g.strokeStyle = body; g.lineWidth = 3.5; g.beginPath(); g.moveTo(-14, 0); g.quadraticCurveTo(-12, 12, -2, 9); g.stroke(); // trigger guard
-  // Body: a fat rounded squirt-gun shell with a shine and a shadow.
-  fpRect(g, -56, big ? -20 : -17, 76, big ? 22 : 18, body, 9);
-  fpRect(g, -52, big ? -18 : -15, 66, 4, hi, 2);
-  fpRect(g, -54, -3, 72, 4, lo, 2);
-  // The little water bulb on top.
-  fpTank(g, -30, big ? -40 : -34, big ? 40 : 32, big ? 20 : 17, tank);
-  // Nozzle (the Squirt-S has a long one).
-  if (wid === 'usp') fpRect(g, tip[0] + 6, -13, 52, 10, hi, 5);
-  fpNozzle(g, tip[0], tip[1], acc === '#ffd23a' ? '#ff8a1f' : '#ffd23a');
-  // Two hands: the shooting hand round the grip, the support thumb along the frame.
-  fpHand(g, 6, 20, 0.15, 1, glove, false);
-  fpHand(g, -6, 26, -0.2, 0.85, glove, true);
+// Draws the blaster (fpGunModel) and the arms holding it. (cx, cy): the view
+// centre; f: focal length in pixels; dz/dy: recoil (backwards and down).
+// Returns the nozzle on screen.
+function drawBlasterFP(g, cx, cy, f, wid, sleeve, glove, dz = 0, dy = 0) {
+  const m = fpGunModel(wid);
+  const pr = (x, y, z) => fpProject(cx, cy, f, x, y + dy, z - dz);
+  const face = (pts, col) => { g.fillStyle = col; g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath(); g.fill(); g.stroke(); };
+  g.lineJoin = 'round'; g.lineWidth = Math.max(1, f * 0.002);
+  // Arms first: sleeves from off-screen (bottom right) to the hands.
+  const hand = (x, y, z, ang, fingersUp) => { const [hx, hy] = pr(x, y, z); fpHand(g, hx, hy, ang, f * 0.0042 / Math.max(0.2, z - dz), glove, fingersUp); };
+  const sleeveTo = (x, y, z, wide) => {
+    const [hx, hy] = pr(x, y, z), k = f * 0.06 / Math.max(0.2, z - dz) * wide;
+    fpPoly(g, [[hx - k * 0.7, hy + k * 0.2], [hx + k * 0.7, hy - k * 0.1], [cx + f * 1.6, cy + f * 1.4], [cx + f * 0.55, cy + f * 1.6]], sleeve);
+  };
+  const order = m.parts.map(q => ({ ...q, zm: (q.b[4] + q.b[5]) / 2 })).sort((a, b) => b.zm - a.zm);
+  // The support arm (rifles: on the pump; pistols: under the grip) goes in before the gun.
+  if (!m.pistol) { sleeveTo(0.2, 0.31, 1.0, 1.0); }
+  for (const q of order) {
+    const [x0, x1, y0, y1, z0, z1] = q.b;
+    g.strokeStyle = tone(q.col, '#000000', 0.45);
+    const c = (x, y, z) => pr(x, y, z);
+    // Seen from up and to the left of the gun: its left side, its top, the end nearest the eye.
+    face([c(x0, y0, z0), c(x0, y0, z1), c(x0, y1, z1), c(x0, y1, z0)], tone(q.col, '#000000', 0.12));
+    face([c(x0, y0, z0), c(x1, y0, z0), c(x1, y0, z1), c(x0, y0, z1)], tone(q.col, '#ffffff', q.kind === 'tank' ? 0.45 : 0.22));
+    face([c(x0, y0, z0), c(x1, y0, z0), c(x1, y1, z0), c(x0, y1, z0)], tone(q.col, '#000000', 0.25));
+    if (q.kind === 'tank') {
+      // the water inside the see-through tank, and a shine
+      const yw = y0 + (y1 - y0) * 0.45;
+      g.strokeStyle = 'transparent';
+      face([c(x0 + 0.004, yw, z0 + 0.01), c(x0 + 0.004, yw, z1 - 0.01), c(x0 + 0.004, y1 - 0.004, z1 - 0.01), c(x0 + 0.004, y1 - 0.004, z0 + 0.01)], 'rgba(60,160,245,.75)');
+      face([c(x0 + 0.01, y0, z0 + 0.03), c(x0 + 0.04, y0, z0 + 0.03), c(x0 + 0.04, y0, z1 - 0.06), c(x0 + 0.01, y0, z1 - 0.06)], 'rgba(255,255,255,.55)');
+    }
+    if (q.kind === 'cap') {
+      // the hole the water comes out of
+      const [hx, hy] = pr(...m.tip), r = f * 0.012 / Math.max(0.2, m.tip[2] - dz);
+      g.fillStyle = '#123a66'; g.beginPath(); g.ellipse(hx, hy, r, r * 0.9, 0, 0, Math.PI * 2); g.fill();
+    }
+    if (q.kind === 'pump') hand(0.215, y1 + 0.01, (z0 + z1) / 2, -0.35, true);
+  }
+  // The shooting hand round the grip, its sleeve running out of the frame.
+  sleeveTo(0.24, 0.3, m.pistol ? 0.5 : 0.55, 1.25);
+  hand(0.205, m.pistol ? 0.23 : 0.26, m.pistol ? 0.5 : 0.55, -0.35, false);
+  if (m.pistol) hand(0.175, 0.26, 0.46, 0.25, true);
+  return pr(...m.tip);
 }
 
 // ---- the arena studio: drawing ----
