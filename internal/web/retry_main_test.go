@@ -39,6 +39,9 @@ func TestMain(m *testing.M) {
 	if err := os.MkdirAll(home, 0o700); err != nil {
 		panic(err)
 	}
+	// Les proves existents suposen totes les eines a la llista; la càrrega sota demanda
+	// té les seves (winds_defer_test.go).
+	os.Setenv("GREGAL_WIND_ALL_TOOLS", "1")
 	os.Setenv("GREGAL_DATA_DIR", dir)
 	// HOME sol no n'hi ha prou a Windows: os.UserHomeDir() hi llegeix USERPROFILE.
 	os.Setenv("HOME", home)

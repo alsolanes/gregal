@@ -114,6 +114,19 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 		specs, notRun = planSpecs(), planNotRun
 	}
 	specs = agent.GateSpecs(ctx, s.id, specs)
+	// Eines diferides (winds_defer.go): les poc usades només amb nom i una línia.
+	var toolLoader *windToolLoader
+	if !planTurn && windDeferTools() {
+		if active, def := deferWindSpecs(specs); def != nil {
+			specs, toolLoader = active, newWindToolLoader(def)
+		}
+	}
+	specsNow := func() []llm.ToolSpec {
+		if toolLoader == nil {
+			return specs
+		}
+		return toolLoader.With(specs)
+	}
 	if !interactive {
 		scope = s.windLoopScope()
 		scope.mode = agent.ModeInspect
@@ -210,10 +223,10 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 				h = injectaSteer(k, h)
 			}
 			if !stream {
-				content, calls, _, err := s.client.ChatWithToolsFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, specs, nil)
+				content, calls, _, err := s.client.ChatWithToolsFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, specsNow(), nil)
 				return content, calls, err
 			}
-			content, calls, _, err := s.client.ChatStreamWithToolsFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, specs, func(tok string) { emit("token", tok) }, nil, nil)
+			content, calls, _, err := s.client.ChatStreamWithToolsFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, specsNow(), func(tok string) { emit("token", tok) }, nil, nil)
 			if err == nil && len(calls) > 0 {
 				names := make([]string, 0, len(calls))
 				for _, c := range calls {
@@ -241,6 +254,9 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 		RunTool: func(ctx context.Context, name, argsJSON string) (string, []string, error) {
 			// Only known native tool NAMES are public. Never expose arguments,
 			// results or arbitrary model-supplied/MCP names as a summary.
+			if name == loadToolName && toolLoader != nil {
+				return toolLoader.Load(argsJSON), nil, nil
+			}
 			tool := "tool"
 			if tools.EsNativa(name) && len(name) <= 64 {
 				tool = name
@@ -319,6 +335,16 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			return out, imgs, err
 		},
 		Decide: func(name, argsJSON string) (string, string) {
+			// load_tool només mostra una definició: no demana res a ningú.
+			if name == loadToolName && toolLoader != nil {
+				return "allow", "load_tool"
+			}
+			// Eina diferida cridada sense carregar: es torna la definició.
+			if toolLoader != nil {
+				if msg, ok := toolLoader.Needs(name); ok {
+					return "deny", msg
+				}
+			}
 			// Ja aparcat: la resta del lot no es pregunta ni s'executa.
 			if spot.parkedRec() != nil {
 				return "deny", "NOT RUN YET: waiting for the user's decision."

@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v1.87.6 - 2026-11-17 - Vents amb eines sota demanda
+
+- **Els vents carreguen les eines quan les necessiten.** Abans cada pas
+  enviava l'esquema de les 54 eines (uns 13.000 tokens), també per a una
+  pregunta de cuina, i amb un model local això eren segons de preparació a
+  cada pas. Ara porten completes les de cada dia (cercar, llegir, executar,
+  recordatoris…) i les altres (documents, navegador, notes, calendari, apps…)
+  només amb una línia; quan en cal una, el vent la carrega i la fa servir.
+  El prompt d'una pregunta senzilla baixa de ~21.000 a ~10.500 tokens.
+
 ## v1.87.5 - 2026-11-17 - Models locals més ràpids
 
 - **Els models locals ja no tornen a processar tot el prompt a cada missatge.**
