@@ -282,12 +282,14 @@ func prenSlot(ctx context.Context, baseURL, apiKey string) (slot int, ok bool, a
 	s := slotsFor(ctx, baseURL, apiKey)
 	o := localOptionsFor(baseURL)
 	want := 0
-	if o.Slot != nil {
+	explicit := o.Slot != nil
+	if explicit {
 		want = *o.Slot
 	}
 	if isSideCall(ctx) {
+		explicit = o.SideSlot != nil
 		switch {
-		case o.SideSlot != nil:
+		case explicit:
 			want = *o.SideSlot
 		case s.total > 1:
 			want = s.total - 1
@@ -295,7 +297,15 @@ func prenSlot(ctx context.Context, baseURL, apiKey string) (slot int, ok bool, a
 			want = -1
 		}
 	}
-	if want < 0 || s.total < 2 || want >= s.total {
+	switch {
+	case want < 0:
+		return 0, false, func() {}
+	case s.total == 0 && explicit:
+		// El servidor no diu quants slots té (un gateway davant del motor
+		// sense /props): es fa cas del config. Sense id_slot, el gateway
+		// reparteix les peticions i de tant en tant una cau en un altre slot
+		// i torna a processar tot el prompt.
+	case s.total < 2 || want >= s.total:
 		// Amb un sol slot (o sense saber-ne res) fixar-lo no aporta res i
 		// un id fora de rang és un error del servidor.
 		return 0, false, func() {}

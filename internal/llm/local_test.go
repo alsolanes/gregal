@@ -237,6 +237,11 @@ func (f *fakeLlama) server(t *testing.T) *httptest.Server {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/props":
+			if f.props == "" {
+				// Un gateway davant del motor: no exposa /props.
+				http.NotFound(w, r)
+				return
+			}
 			fmt.Fprint(w, f.props)
 		case "/v1/chat/completions":
 			var body map[string]any
@@ -374,6 +379,50 @@ func TestLlamaCppUnSlotNoEnviaIdSlot(t *testing.T) {
 	}
 	if _, ok := f.bodies[0]["id_slot"]; ok || f.bodies[0]["cache_prompt"] != true {
 		t.Fatalf("cos=%v", f.bodies[0])
+	}
+}
+
+// Un gateway sense /props (no se sap quants slots hi ha): el slot del config
+// es fixa igualment; sense config, ni la sessió ni les crides laterals en
+// porten.
+func TestLlamaCppSensePropsFixaElSlotDelConfig(t *testing.T) {
+	resetSlots()
+	f := &fakeLlama{}
+	srv := f.server(t)
+	base := srv.URL + "/v1"
+	RegisterProviderType(base, ProviderLlamaCpp)
+	t.Cleanup(func() { RegisterProviderType(base, ""); RegisterLocalOptions(base, LocalOptions{}) })
+	msgs := []Message{{Role: "user", Content: "x"}}
+	c := New()
+
+	if _, err := c.Chat(context.Background(), base, "", "m", msgs, 0, 10); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := f.bodies[0]["id_slot"]; ok {
+		t.Fatalf("sense config no s'ha de fixar: %v", f.bodies[0])
+	}
+
+	zero, tres := 0, 3
+	RegisterLocalOptions(base, LocalOptions{Slot: &zero})
+	if _, err := c.Chat(context.Background(), base, "", "m", msgs, 0, 10); err != nil {
+		t.Fatal(err)
+	}
+	if f.bodies[1]["id_slot"] != float64(0) {
+		t.Fatalf("sessió amb slot: 0: %v", f.bodies[1])
+	}
+	if _, err := c.Chat(WithSideCall(context.Background()), base, "", "m", msgs, 0, 10); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := f.bodies[2]["id_slot"]; ok {
+		t.Fatalf("crida lateral sense side_slot: %v", f.bodies[2])
+	}
+
+	RegisterLocalOptions(base, LocalOptions{Slot: &zero, SideSlot: &tres})
+	if _, err := c.Chat(WithSideCall(context.Background()), base, "", "m", msgs, 0, 10); err != nil {
+		t.Fatal(err)
+	}
+	if f.bodies[3]["id_slot"] != float64(3) {
+		t.Fatalf("crida lateral amb side_slot: 3: %v", f.bodies[3])
 	}
 }
 
