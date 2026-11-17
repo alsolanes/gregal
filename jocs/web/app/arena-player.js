@@ -118,7 +118,7 @@ export function playerCSS() {
   const st = document.createElement('style'); st.id = 'arPlayerCSS';
   st.textContent = `
 .ar-player .ar-stage { position:relative; }
-.ar-cc { position:absolute; left:50%; bottom:12px; transform:translate(-50%, 8px); max-width:86%; background:rgba(0,0,0,.78); color:#fff; padding:6px 14px; border-radius:8px; font:600 15px/1.35 "Segoe UI", system-ui, sans-serif; text-align:center; opacity:0; transition:opacity .3s, transform .3s; pointer-events:none; z-index:6; }
+.ar-cc { position:absolute; left:50%; bottom:12px; transform:translate(-50%, 8px); max-width:86%; background:rgba(0,0,0,.78); color:#fff; padding:6px 14px; border-radius:8px; font:600 15px/1.35 "Segoe UI", system-ui, sans-serif; font-size:clamp(14px, 1.7cqi, 24px); text-align:center; opacity:0; transition:opacity .3s, transform .3s; pointer-events:none; z-index:6; }
 .ar-cc.on { opacity:1; transform:translate(-50%, 0); }
 .ar-end { position:absolute; inset:0; z-index:7; background:rgba(5,7,15,.94); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); color:#f3f5fb; overflow:auto; display:flex; align-items:flex-start; justify-content:center; padding:14px; font:14px/1.4 "Segoe UI", system-ui, sans-serif; }
 .ar-end[hidden] { display:none; }

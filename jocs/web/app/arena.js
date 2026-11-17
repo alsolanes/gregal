@@ -20,6 +20,16 @@ const POS = globalThis.gregalArenaPositions;
 const $ = id => document.getElementById(id);
 // Els jocs van sempre en anglès.
 const T = key => (window.gregalTEn ? window.gregalTEn(key) : '') || key;
+
+// The caption of a plain play: «3rd & 7 · Siroco to Chinook for 10 yards.»
+// (down and distance only where the game has them: American football).
+// names: the two teams; the team with the ball goes first, so you know who is playing.
+export function playCaption(ev, names = []) {
+  if (!ev || !ev.text) return '';
+  const d = ev.data || {}, ord = ['', '1st', '2nd', '3rd', '4th'][d.down] || '';
+  const who = (d.off === 0 || d.off === 1) && names[d.off] && !ev.text.includes(names[d.off]) ? names[d.off] + ': ' : '';
+  return ord && d.dist ? `${who}${ord} & ${d.spot != null && d.dist >= 100 - d.spot ? 'goal' : d.dist} · ${ev.text}` : who + ev.text;
+}
 // Per a la barra de progrés: buit si la clau no hi és (llavors fa servir els seus rètols).
 const Tq = key => { const v = T(key); return v === key ? '' : v; };
 const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -811,12 +821,21 @@ const arenaUI = {
       const li = act && $('arTrack').querySelector(`.ar-tk[data-i="${act.i}"]`);
       if (li) { li.classList.add('now'); if (!$('arTrack').matches(':hover')) li.scrollIntoView({ block: 'nearest' }); }
       $('arTrack').querySelectorAll('.ar-tk').forEach(x => x.classList.toggle('future', +x.dataset.i > pr.index - 1));
-      // Subtítol: només quan la línia comença ara (no en saltar enrere a mig partit).
+    }
+    // Captions: every play, as it happens (not only the key moments of the
+    // list), so you can follow the match without reading the side panel. The
+    // caster's line wins when there is one; plain plays say down and distance.
+    if (pr.index !== this.ccIdx) {
+      const fwd = this.ccIdx != null && pr.index === this.ccIdx + 1;
+      this.ccIdx = pr.index;
+      const e0 = (pr.events || [])[pr.index - 1], ev = (e0 && (this.match.events || []).find(e => e.n === e0.n)) || e0;
+      const rich = act && act.i === pr.index - 1 ? captionOf(act) : '';
+      const text = rich || playCaption(ev, this.match.names || []);
       clearTimeout(this.ccT);
-      if (this.cc && act && act.i === pr.index - 1 && captionOf(act)) {
-        $('arCC').textContent = captionOf(act); $('arCC').classList.add('on');
-        this.ccT = setTimeout(() => $('arCC').classList.remove('on'), 6500);
-      } else $('arCC').classList.remove('on');
+      if (this.cc && fwd && text) {
+        $('arCC').textContent = text; $('arCC').classList.add('on');
+        this.ccT = setTimeout(() => $('arCC').classList.remove('on'), rich ? 6500 : 4500);
+      } else if (!fwd) $('arCC').classList.remove('on');
     }
     // El resum, quan s'arriba al final d'un partit acabat; tornar enrere el treu.
     const atEnd = this.match.status === 'final' && pr.total > 0 && this.view && this.view.isFinished && this.view.isFinished();
@@ -879,6 +898,7 @@ const arenaUI = {
   // at: el número d'una jugada (un moment del prompt) per començar-hi just abans.
   async openMatch(id, at) {
     this.closeMatch();
+    this.ccIdx = null;
     const card = $('arMatchCard');
     card.hidden = false; $('arPlayCard').hidden = true; $('arAgainRow').hidden = true; $('arFeedback').innerHTML = ''; $('arStats').hidden = true;
     $('arDecisions').innerHTML = `<h4>${esc(T('ar.why'))}</h4><p class="ar-how">${esc(T('ar.howDecides'))}</p><div id="arDecFollow"></div><p class="ar-muted" id="arDecWait">${esc(T('ar.thinking'))}</p><div id="arDecList" class="ar-dec-list"></div>`;
