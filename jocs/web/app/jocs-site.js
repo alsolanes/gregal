@@ -25,9 +25,9 @@ const ago = at => {
 };
 
 const GAMES = {
-  nfl: { short: 'NFL', icon: '🏈', tag: 'Every snap is a call', decide: 'Each offensive play and each defensive front, down by down.', read: 'Read the defence, punish what repeats, manage the clock.' },
-  cs2: { short: 'Splash', icon: '💦', tag: 'Buy, plan, splash', decide: 'A friendly water fight inspired by Counter-Strike 2: the buy, the plan and the site for every round.', read: 'Manage the economy and break the rival\'s habits.' },
-  lol: { short: 'Lantern', icon: '🏮', tag: 'Draft to Heart Lantern', decide: 'A friendly fantasy game inspired by League of Legends: the draft, then objective and stance phase by phase.', read: 'Trade objectives, time your clashes, scale or snowball.' },
+  nfl: { short: 'NFL', icon: '×', tag: 'Every snap is a call', decide: 'Each offensive play and each defensive front, down by down.', read: 'Read the defence, punish what repeats, manage the clock.' },
+  cs2: { short: 'Splash', icon: '○', tag: 'Buy, plan, splash', decide: 'A friendly water fight inspired by Counter-Strike 2: the buy, the plan and the site for every round.', read: 'Manage the economy and break the rival\'s habits.' },
+  lol: { short: 'Lantern', icon: '△', tag: 'Draft to Heart Lantern', decide: 'A friendly fantasy game inspired by League of Legends: the draft, then objective and stance phase by phase.', read: 'Trade objectives, time your clashes, scale or snowball.' },
 };
 
 // La lliga dels vents (futbol americà, football.js) és el quart joc: no es
@@ -124,9 +124,38 @@ function modelNote() {
 }
 
 function markSVG() {
-  return `<svg class="jx-mark" viewBox="0 0 40 40" aria-hidden="true"><defs><linearGradient id="jxg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5cf2c8"/><stop offset="1" stop-color="#ff7a66"/></linearGradient></defs>
-    <rect x="1" y="1" width="38" height="38" rx="11" fill="#0d2a31" stroke="url(#jxg)" stroke-width="2"/>
-    <path d="M9 15c6-4 12 4 22-1M9 21c8-4 13 4 22 0M12 27c6-3 10 3 17 0" fill="none" stroke="url(#jxg)" stroke-width="2.6" stroke-linecap="round"/></svg>`;
+  return `<svg class="jx-mark" viewBox="0 0 40 40" aria-hidden="true"><rect x="1" y="1" width="38" height="38" rx="4" fill="#00ebb6"/>
+    <path d="M8 9l8 8M16 9l-8 8" stroke="#002e33" stroke-width="2.8" stroke-linecap="square"/>
+    <circle cx="28" cy="29" r="4.6" fill="none" stroke="#002e33" stroke-width="2.6"/>
+    <path d="M13 22c0 7 4 9 9 9" fill="none" stroke="#002e33" stroke-width="2.4" stroke-dasharray="3 2.6"/>
+    <path d="M20.5 27.5l3 3.4-3.4 3" fill="none" stroke="#002e33" stroke-width="2.4" stroke-linejoin="round"/></svg>`;
+}
+
+// The company logo in the header (set by the organiser, stored on the server):
+// fetched once per version (event.logo_hash), never part of the code.
+async function paintLogo() {
+  const hash = S.d?.event?.logo_hash || '';
+  if (hash === S.logoHash) return;
+  S.logoHash = hash;
+  document.querySelectorAll('#jxSite .jx-logo, #jxSite .jx-brand-sep').forEach(e => e.remove());
+  if (!hash) return;
+  try {
+    const { logo } = await api('/api/arena/logo');
+    if (!logo || S.logoHash !== hash) return;
+    const brand = document.querySelector('#jxSite .jx-brand');
+    brand.insertAdjacentHTML('afterbegin', '<img class="jx-logo" alt=""><span class="jx-brand-sep" aria-hidden="true"></span>');
+    brand.querySelector('.jx-logo').src = logo;
+  } catch (e) { S.logoHash = ''; }
+}
+
+async function sendLogo(logo) {
+  $('jxLogoMsg').textContent = logo ? 'Uploading…' : '';
+  try {
+    S.d.event = await api('/api/arena', { method: 'POST', body: JSON.stringify({ action: 'logo', logo }) });
+    $('jxLogoMsg').textContent = logo ? 'Saved' : 'Removed';
+    paintLogo();
+  } catch (err) { $('jxLogoMsg').textContent = err.message; }
+  $('jxLogoFile').value = '';
 }
 
 async function load() {
@@ -137,6 +166,7 @@ async function load() {
     // La temporada (perfils, premis, moments) va a part: si falla, la resta funciona igual.
     const [d, season] = await Promise.all([api('/api/arena'), api('/api/arena/season').catch(() => null)]);
     S.d = d; if (season) S.season = season;
+    paintLogo();
   }
   catch (e) {
     // Sense dades no hi ha portada: el perquè i un botó per tornar-ho a provar.
@@ -239,7 +269,7 @@ async function mountLeague() {
   const empty = $('jxLeagueEmpty');
   empty.hidden = !none;
   if (none) {
-    empty.innerHTML = `<div class="jx-empty jx-league-empty"><div class="jx-league-ic" aria-hidden="true">🏈</div><b>The league is not ready yet</b>
+    empty.innerHTML = `<div class="jx-empty jx-league-empty"><div class="jx-league-ic" aria-hidden="true">×</div><b>The league is not ready yet</b>
       <span>${esc(d.error || 'Try again in a moment.')}</span></div>`;
   }
 }
@@ -335,7 +365,17 @@ function mountOrganizer() {
     box.innerHTML = `<div class="jx-org-head"><div><div class="jx-kicker">Organizer</div><h2 class="jx-h2">Run the tournament</h2>
       <p class="jx-muted">Create a competition from everyone's current strategy, start it and share the broadcast. Only admins see this.</p></div></div>
       <form class="jx-event" id="jxEventForm"><label>Event name<input name="name" maxlength="60"></label><label>Tagline<input name="tagline" maxlength="140"></label>
-      <label>Date<input name="date" type="datetime-local"></label><label>Place<input name="place" maxlength="80" placeholder="Main hall · Teams"></label><button class="jx-btn" type="submit">Save event</button><span class="jx-muted" id="jxEventSaved"></span></form>`;
+      <label>Date<input name="date" type="datetime-local"></label><label>Place<input name="place" maxlength="80" placeholder="Main hall · Teams"></label><button class="jx-btn" type="submit">Save event</button><span class="jx-muted" id="jxEventSaved"></span></form>
+      <div class="jx-logo-set"><label>Company logo <small class="jx-faint">PNG, SVG, JPEG or WebP, up to 150 KB. Shown in the header; best on a dark background.</small><input type="file" id="jxLogoFile" accept="image/png,image/svg+xml,image/jpeg,image/webp"></label>
+        <button type="button" class="jx-btn sm" id="jxLogoDel">Remove logo</button><span class="jx-muted" id="jxLogoMsg" role="status"></span></div>`;
+    $('jxLogoFile').onchange = () => {
+      const file = $('jxLogoFile').files[0];
+      if (!file) return;
+      const rd = new FileReader();
+      rd.onload = () => sendLogo(String(rd.result));
+      rd.readAsDataURL(file);
+    };
+    $('jxLogoDel').onclick = () => sendLogo('');
     const f = $('jxEventForm'), ev = S.d.event || {};
     f.name.value = ev.name || ''; f.tagline.value = ev.tagline || ''; f.place.value = ev.place || '';
     if (ev.date) f.date.value = new Date(ev.date * 1000 - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -428,14 +468,14 @@ function heroStatus() {
   }
   const last = (d.competitions || []).find(x => x.status === 'done' && x.champion && Object.keys(x.champion).length);
   if (last) {
-    const champs = Object.entries(last.champion).map(([g, o]) => `<li><span>${GAMES[g]?.icon || '🎮'}</span><b>${esc(displayOf(g, o))}</b><small>${esc(GAMES[g]?.short || g)}</small></li>`).join('');
-    return `<div class="jx-status"><div class="jx-status-k">🏆 Reigning champions · ${esc(last.title)}</div><ul class="jx-champs">${champs}</ul>
+    const champs = Object.entries(last.champion).map(([g, o]) => `<li><span>${GAMES[g]?.icon || '·'}</span><b>${esc(displayOf(g, o))}</b><small>${esc(GAMES[g]?.short || g)}</small></li>`).join('');
+    return `<div class="jx-status"><div class="jx-status-k">Reigning champions · ${esc(last.title)}</div><ul class="jx-champs">${champs}</ul>
       <a class="jx-btn ghost" href="#/cup/${esc(last.id)}">See the bracket →</a></div>`;
   }
   // Temporada sense torneig: el primer que cal és veure com és un partit (la
   // demo, gravada, no gasta cap crida) i escriure l'estratègia.
   return `<div class="jx-status"><div class="jx-status-k">Season open</div><p class="jx-muted">No tournament yet. Write your strategy and climb the practice ladder against the bots. New here? Watch a recorded match first.</p>
-    <div class="jx-demo-row">${d.games.map(g => `<button type="button" class="jx-btn ghost" data-demo="${esc(g.id)}"><span aria-hidden="true">${GAMES[g.id]?.icon || '🎮'}</span> ${esc(GAMES[g.id]?.short || g.id)} demo</button>`).join('')}</div></div>`;
+    <div class="jx-demo-row">${d.games.map(g => `<button type="button" class="jx-btn ghost" data-demo="${esc(g.id)}"><span aria-hidden="true">${GAMES[g.id]?.icon || '·'}</span> ${esc(GAMES[g.id]?.short || g.id)} demo</button>`).join('')}</div></div>`;
 }
 
 function countdown(at) {
@@ -456,7 +496,7 @@ function paintHome() {
   const d = S.d, ev = d.event || {}, t = d.totals || {};
   const humans = new Set(Object.values(d.leaderboard || {}).flat().filter(r => !r.bot).map(r => r.owner));
   const cards = d.games.map(g => {
-    const info = GAMES[g.id] || { short: g.id, icon: '🎮', tag: '', decide: '' };
+    const info = GAMES[g.id] || { short: g.id, icon: '·', tag: '', decide: '' };
     const rank = rankOf(g.id, d.me), mine = d.mine[g.id];
     return `<article class="jx-game jx-g-${esc(g.id)}">
       <div class="jx-game-art" aria-hidden="true"><span>${info.icon}</span></div>
@@ -491,7 +531,7 @@ function paintHome() {
       ${qualityHTML(S.season?.quality, S.season?.players, S.d.me, { compact: true })}
       <div class="jx-sec-head"><div><div class="jx-kicker">Three games · one model</div><h2 class="jx-h2">Pick your arena</h2></div></div>
       <div class="jx-games">${cards}</div>
-      ${leagueAllowed() ? `<a class="jx-league-strip" href="#/league"><span class="jx-league-ic" aria-hidden="true">🏈</span><span><b>League</b><small>American football with your own staff of agents</small></span><span class="jx-more" aria-hidden="true">Open →</span></a>` : ''}
+      ${leagueAllowed() ? `<a class="jx-league-strip" href="#/league"><span class="jx-league-ic" aria-hidden="true">×</span><span><b>League</b><small>American football with your own staff of agents</small></span><span class="jx-more" aria-hidden="true">Open →</span></a>` : ''}
       ${seasonHomeHTML()}
       ${podiums ? `<div class="jx-sec-head"><div><div class="jx-kicker">Elo ranking</div><h2 class="jx-h2">Top of the table</h2></div><a class="jx-more" href="#/ranking">Full leaderboard →</a></div><div class="jx-podiums">${podiums}</div>` : ''}
       ${recent.length ? `<div class="jx-sec-head"><div><div class="jx-kicker">Results</div><h2 class="jx-h2">Latest matches</h2></div><a class="jx-more" href="#/matches">All matches →</a></div><div class="jx-results">${recent.map(matchCard).join('')}</div>` : ''}
@@ -521,7 +561,7 @@ function stepsHTML() {
 const initials = s => String(s || '?').replace(/^Bot /, '').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?';
 
 function matchCard(m) {
-  const info = GAMES[m.game] || { icon: '🎮', short: m.game };
+  const info = GAMES[m.game] || { icon: '·', short: m.game };
   const w = m.winner;
   return `<button type="button" class="jx-match ${m.kind === 'official' ? 'official' : ''}" data-match="${esc(m.id)}">
     <div class="jx-match-k"><span>${info.icon} ${esc(info.short)}</span><span>${m.kind === 'official' ? esc(m.stage || 'Official') : 'Practice'}</span></div>
@@ -542,7 +582,7 @@ function windSVG() {
 
 function paintRanking() {
   const d = S.d, g = S.rankGame, season = S.season || { players: [], awards: [] };
-  const tabs = [['overall', '🏆 Overall'], ...d.games.map(x => [x.id, (GAMES[x.id]?.icon || '') + ' ' + (GAMES[x.id]?.short || x.id)])];
+  const tabs = [['overall', 'Overall'], ...d.games.map(x => [x.id, (GAMES[x.id]?.icon || '') + ' ' + (GAMES[x.id]?.short || x.id)])];
   let body;
   if (g === 'overall') {
     body = `${awardsHTML(season.awards, d.me)}${standingsHTML(season, d.me)}${qualityHTML(season.quality, season.players, d.me)}`;
@@ -553,7 +593,7 @@ function paintRanking() {
     body = `<p class="jx-muted jx-note-s">Only official tournament matches move the Elo. Practice matches climb the bot ladder in the overall standings instead.</p>
     ${rows.length ? `<table class="jx-table"><thead><tr><th>#</th><th>Player</th><th class="r">Elo</th><th class="r">Played</th><th class="r">W</th><th class="r">L</th><th class="r">D</th><th>Win rate</th></tr></thead><tbody>
       ${rows.map((r, i) => { const wr = r.played ? Math.round(100 * r.won / r.played) : 0; return `<tr class="${r.owner === d.me ? 'me' : ''} ${i < 3 ? 'top' + (i + 1) : ''}" ${r.bot ? '' : `data-player="${esc(r.owner)}" tabindex="0"`}>
-        <td class="pos">${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</td><td><span class="jx-av sm">${esc(initials(r.display))}</span>${esc(r.display)}${r.bot ? ' <small class="jx-bot">BOT</small>' : ''}${r.owner === d.me ? ' <small class="jx-you">YOU</small>' : ''}</td>
+        <td class="pos">${i < 3 ? ['1', '2', '3'][i] : i + 1}</td><td><span class="jx-av sm">${esc(initials(r.display))}</span>${esc(r.display)}${r.bot ? ' <small class="jx-bot">BOT</small>' : ''}${r.owner === d.me ? ' <small class="jx-you">YOU</small>' : ''}</td>
         <td class="r elo"><b>${r.elo}</b><i style="width:${Math.round(12 + 88 * (r.elo - min) / Math.max(1, max - min))}%"></i></td><td class="r">${r.played}</td><td class="r">${r.won}</td><td class="r">${r.lost}</td><td class="r">${r.drawn}</td>
         <td><div class="jx-wr"><i style="width:${wr}%"></i></div><small>${wr}%</small></td></tr>`; }).join('')}</tbody></table>`
       : `<div class="jx-empty">No official matches in ${esc(GAMES[g]?.short || g)} yet. The Elo starts with the tournament. <a href="#/play/${esc(g)}">Sharpen your strategy →</a></div>`}`;
@@ -629,7 +669,7 @@ function seasonHomeHTML() {
   // El moment de la temporada és d'un oficial (públic); sense oficials, el teu millor.
   const hl = se.highlights || [], off = hl.find(h => h.kind === 'official'), own = hl.find(h => h.owner === S.d.me);
   const top = off || own;
-  const mo = top ? `<div class="jx-sec-head"><div><div class="jx-kicker">${off ? '🏅 Moment of the season' : '⭐ Your best moment so far'}</div><h2 class="jx-h2">${off ? 'The line that won it' : 'Your .md made this happen'}</h2></div><a class="jx-more" href="#/highlights">All highlights →</a></div>${momentCard(top, true)}` : '';
+  const mo = top ? `<div class="jx-sec-head"><div><div class="jx-kicker">${off ? 'Moment of the season' : 'Your best moment so far'}</div><h2 class="jx-h2">${off ? 'The line that won it' : 'Your .md made this happen'}</h2></div><a class="jx-more" href="#/highlights">All highlights →</a></div>${momentCard(top, true)}` : '';
   return aw + mo;
 }
 
@@ -641,7 +681,7 @@ async function paintCup() {
   const status = s => ({ running: '<span class="jx-pill live">Live</span>', done: '<span class="jx-pill">Finished</span>', ready: '<span class="jx-pill soon">Ready</span>', stopped: '<span class="jx-pill">Stopped</span>' })[s] || '';
   const list = comps.map(c => `<a class="jx-comp ${c.id === id ? 'on' : ''}" href="#/cup/${esc(c.id)}"><b>${esc(c.title)}</b>${status(c.status)}
     <small>${(c.games || []).map(g => GAMES[g]?.icon || g).join(' ')} · ${esc(new Date((c.started || c.created) * 1000).toLocaleDateString('en', { month: 'short', day: 'numeric' }))}</small>
-    ${c.champion && Object.keys(c.champion).length ? `<small class="jx-champ">🏆 ${Object.entries(c.champion).map(([g, o]) => esc(displayOf(g, o))).join(', ')}</small>` : ''}</a>`).join('');
+    ${c.champion && Object.keys(c.champion).length ? `<small class="jx-champ">Champion: ${Object.entries(c.champion).map(([g, o]) => esc(displayOf(g, o))).join(', ')}</small>` : ''}</a>`).join('');
   $('jxCup').innerHTML = `<div class="jx-page-head"><div><div class="jx-kicker">Tournament</div><h1 class="jx-h1">Groups &amp; bracket</h1>
       <p class="jx-muted">Groups seeded by Elo, then best-of-three playoffs. Strategies are frozen when the tournament is created and revealed when it ends.</p></div>
       <a class="jx-btn hot" href="${esc(streamURL())}" target="_blank" rel="noopener">${icon('preview', '📺')} Open the broadcast</a></div>
@@ -655,7 +695,7 @@ async function paintCup() {
   const main = $('jxCupMain'); if (!main) return;
   main.innerHTML = `<div class="jx-cup-head"><h2 class="jx-h2">${esc(c.title)}</h2>${status(c.status)}
       ${c.games.length > 1 ? `<div class="jx-tabs">${c.games.map(g => `<button type="button" data-cupgame="${esc(g)}" class="${g === S.compGame ? 'on' : ''}">${GAMES[g]?.icon || ''} ${esc(GAMES[g]?.short || g)}</button>`).join('')}</div>` : ''}</div>
-    ${c.champion && c.champion[S.compGame] ? `<div class="jx-trophy"><span>🏆</span><div><small>Champion · ${esc(GAMES[S.compGame]?.short || S.compGame)}</small><b>${esc(nameOf(c, c.champion[S.compGame]))}</b></div></div>` : ''}
+    ${c.champion && c.champion[S.compGame] ? `<div class="jx-trophy"><span>1</span><div><small>Champion · ${esc(GAMES[S.compGame]?.short || S.compGame)}</small><b>${esc(nameOf(c, c.champion[S.compGame]))}</b></div></div>` : ''}
     <div class="jx-bracket" id="jxBracket"></div>
     ${c.status === 'done' && c.entries && c.entries[S.compGame] ? `<h3 class="jx-h3">The strategies, revealed</h3><div class="jx-entries">${c.entries[S.compGame].map(e => `<button type="button" class="jx-entry" data-entry="${esc(e.owner)}"><span class="jx-av sm">${esc(initials(e.display))}</span>${esc(e.display)}<small>Read .md</small></button>`).join('')}</div>` : ''}`;
   renderCompetition($('jxBracket'), c, { game: S.compGame, lang: 'en' });
@@ -684,7 +724,7 @@ function paintHow() {
     <div class="jx-sec-head"><div><div class="jx-kicker">Level up</div><h2 class="jx-h2">Prompt levels and challenges</h2></div></div>
     <p class="jx-muted">Every player has a Prompt level, from ${levelBadgeHTML({})} to Grandmaster. You earn XP for what you actually do: ${XP_RULES.map(([n, t]) => `<b>+${n}</b> ${esc(t)}`).join(', ')}. Ten short challenges, one per prompting principle, show you what to try next; the Play page checks them live while you write.</p>
     <div class="jx-sec-head"><div><div class="jx-kicker">The games</div><h2 class="jx-h2">What you decide in each</h2></div></div>
-    <div class="jx-rules">${d.games.map(g => `<article class="jx-rule jx-g-${esc(g.id)}"><div class="jx-rule-ic">${GAMES[g.id]?.icon || '🎮'}</div><h3>${esc(g.title)}</h3>
+    <div class="jx-rules">${d.games.map(g => `<article class="jx-rule jx-g-${esc(g.id)}"><div class="jx-rule-ic">${GAMES[g.id]?.icon || '·'}</div><h3>${esc(g.title)}</h3>
       <p><b>You decide:</b> ${esc(GAMES[g.id]?.decide || '')}</p><p><b>To win:</b> ${esc(GAMES[g.id]?.read || '')}</p>
       <details><summary>Full rules the model reads</summary><pre>${esc(g.rules || '')}</pre></details>
       <div class="jx-rule-f"><a class="jx-btn" href="#/play/${esc(g.id)}">Play ${esc(GAMES[g.id]?.short || g.id)}</a><button type="button" class="jx-btn ghost" data-demo="${esc(g.id)}">🎬 Watch a demo</button></div></article>`).join('')}</div>

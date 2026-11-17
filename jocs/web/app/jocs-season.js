@@ -9,21 +9,21 @@ const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g,
 
 // Els cinc criteris del coach (arenaFeedback), amb el que ensenyen.
 export const PRINCIPLES = [
-  { id: 'clarity', label: 'Clarity', icon: '🔍', teach: 'One meaning per line. Headings, short rules, no hedging the model has to guess.',
+  { id: 'clarity', label: 'Clarity', icon: '01', teach: 'One meaning per line. Headings, short rules, no hedging the model has to guess.',
     bad: 'Be smart with the clock.', good: 'Q4, under 3:00, ahead → run_inside, tempo milk.' },
-  { id: 'specificity', label: 'Specificity', icon: '🎯', teach: 'If/then rules with the exact option names and thresholds the game uses.',
+  { id: 'specificity', label: 'Specificity', icon: '02', teach: 'If/then rules with the exact option names and thresholds the game uses.',
     bad: 'Pass more on long downs.', good: '3rd & 7+ → pass_medium to wr1; if they blitz, screen to rb.' },
-  { id: 'coverage', label: 'Coverage', icon: '🗺️', teach: 'An answer for every situation that comes up, plus a default when nothing matches.',
+  { id: 'coverage', label: 'Coverage', icon: '03', teach: 'An answer for every situation that comes up, plus a default when nothing matches.',
     bad: '(nothing about 4th down)', good: '4th down: field_goal in range, go for it on 4th & 1 past midfield, otherwise punt.' },
-  { id: 'adaptivity', label: 'Adaptivity', icon: '🔄', teach: 'Read what the rival repeats and what is failing you, and say how to react.',
+  { id: 'adaptivity', label: 'Adaptivity', icon: '04', teach: 'Read what the rival repeats and what is failing you, and say how to react.',
     bad: 'Always blitz.', good: 'If a call gained under 4 yds/play over 3+ plays, switch to option B.' },
-  { id: 'consistency', label: 'Consistency', icon: '🧩', teach: 'No rules that fight each other. Give an order of priority for when two apply.',
+  { id: 'consistency', label: 'Consistency', icon: '05', teach: 'No rules that fight each other. Give an order of priority for when two apply.',
     bad: 'Always run on 1st down. … Open with a deep pass.', good: 'Priorities: 1) 4th down 2) the clock 3) counter their top call.' },
 ];
 
-const GAME_ICON = { nfl: '🏈', cs2: '💦', lol: '🏮' };
+const GAME_ICON = { nfl: '×', cs2: '○', lol: '△' };
 const GAME_SHORT = { nfl: 'NFL', cs2: 'Splash', lol: 'Lantern' };
-const gameIcon = g => GAME_ICON[g] || '🎮';
+const gameIcon = g => GAME_ICON[g] || '·';
 const gameShort = g => GAME_SHORT[g] || g;
 
 const initials = s => String(s || '?').replace(/\s*\(.*\)\s*$/, '').split(/\s+/).filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?';
@@ -88,8 +88,8 @@ export function sparkSVG(hist, w = 260, h = 70) {
 
 export function awardsHTML(awards, me, compact = false) {
   if (!awards || !awards.length) return '';
-  return `<div class="jx-awards ${compact ? 'compact' : ''}">${awards.map(a => `<button type="button" class="jx-award a-${esc(a.id)} ${a.owner === me ? 'me' : ''}" data-player="${esc(a.owner)}">
-    <span class="jx-award-ic" aria-hidden="true">${esc(a.icon)}</span><span class="jx-award-t">${esc(a.title)}</span>
+  return `<div class="jx-awards ${compact ? 'compact' : ''}">${awards.map((a, i) => `<button type="button" class="jx-award a-${esc(a.id)} ${a.owner === me ? 'me' : ''}" data-player="${esc(a.owner)}">
+    <span class="jx-award-ic" aria-hidden="true">${String(i + 1).padStart(2, '0')}</span><span class="jx-award-t">${esc(a.title)}</span>
     <b>${esc(a.display)}</b><small>${esc(a.value)}</small>${compact ? '' : `<em>${esc(a.why)}</em>`}</button>`).join('')}</div>`;
 }
 
@@ -102,7 +102,7 @@ export function standingsHTML(season, me) {
   const row = (p, i) => {
     const bots = Object.values(p.games || {}).reduce((n, g) => n + (g.bots || []).length, 0);
     return `<tr class="${p.owner === me ? 'me' : ''} ${i < 3 ? 'top' + (i + 1) : ''}" data-player="${esc(p.owner)}">
-      <td class="pos">${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</td>
+      <td class="pos">${i < 3 ? ['1', '2', '3'][i] : i + 1}</td>
       <td><span class="jx-who">${avatar(p, 'sm')}<span><b><a class="jx-rowlink" href="#/players/${esc(encodeURIComponent(p.owner))}">${esc(p.display)}</a>${p.owner === me ? ' <small class="jx-you">YOU</small>' : ''}</b>${p.archetype ? `<small>${esc(p.archetype)}</small>` : ''}${levelBadgeHTML(p)}${teamChipHTML(p.team)}</span></span></td>
       <td class="r elo">${p.elo > 0 ? `<b>${p.elo}</b>` : '<span class="jx-faint">—</span>'}</td>
       <td class="r">${p.official[0]}–${p.official[1]}${p.official[2] ? '–' + p.official[2] : ''}</td>
@@ -144,7 +144,7 @@ export function profileHTML(d, me, opts = {}) {
         <div class="rival"><small>How to beat them</small>${esc(ins.rival)}</div>
       </div>
       <p class="jx-faint jx-insight-f">Written by the model from public data (results, coach scores, official matches) · ${esc(ago(ins.at))}</p></div>`
-    : p.played ? `<div class="jx-insight empty"><div class="jx-insight-k"><span>AI scouting report</span></div>${opts.busy ? '<p class="jx-muted"><span class="jx-spin"></span> The analyst is watching the tapes…</p>' : `<p class="jx-muted">No report yet.</p><button type="button" class="jx-btn" data-insight="${esc(p.owner)}">✨ Write the scouting report</button>`}${opts.error ? `<p class="jx-err-s">${esc(opts.error)}</p>` : ''}</div>`
+    : p.played ? `<div class="jx-insight empty"><div class="jx-insight-k"><span>AI scouting report</span></div>${opts.busy ? '<p class="jx-muted"><span class="jx-spin"></span> The analyst is watching the tapes…</p>' : `<p class="jx-muted">No report yet.</p><button type="button" class="jx-btn" data-insight="${esc(p.owner)}">Write the scouting report</button>`}${opts.error ? `<p class="jx-err-s">${esc(opts.error)}</p>` : ''}</div>`
       : `<div class="jx-insight empty"><div class="jx-insight-k"><span>AI scouting report</span></div><p class="jx-muted">The report comes after the first match.</p></div>`;
   const hl = d.highlights || [];
   const ms = d.matches || [];
@@ -155,7 +155,7 @@ export function profileHTML(d, me, opts = {}) {
       <div class="jx-prof-id"><div class="jx-kicker">#${p.rank} overall${p.owner === me ? ' · you' : ''}${p.team ? ' · ' + esc(p.team) : ''}</div>${levelBadgeHTML(p)}
         <h1 class="jx-h1">${esc(p.display)}</h1>
         ${ins ? `<div class="jx-arch"><span>${esc(ins.emoji || '')}</span><b>${esc(ins.archetype)}</b><em>${esc(ins.tagline || '')}</em></div>` : ''}
-        <div class="jx-prof-form">${formHTML(p.form)}${p.streak >= 2 ? `<span class="jx-chip hot">🔥 ${p.streak} in a row</span>` : ''}</div></div>
+        <div class="jx-prof-form">${formHTML(p.form)}${p.streak >= 2 ? `<span class="jx-chip hot">${p.streak} in a row</span>` : ''}</div></div>
     </header>
     <div class="jx-stats jx-prof-stats" style="--n:6">${stat(p.elo > 0 ? p.elo : '—', 'official Elo')}${stat(`${p.won}-${p.lost}${p.drawn ? '-' + p.drawn : ''}`, 'W-L overall')}${stat(`${p.official[0]}-${p.official[1]}`, 'official W-L')}${stat(p.bots_beaten, 'bots beaten')}${stat(p.reviewed ? p.prompt_score : '—', 'prompt score')}${stat(p.followed ? pct(p.followed) : '—', 'by the book')}</div>
     <div class="jx-prof-grid">
@@ -180,7 +180,7 @@ export function profileHTML(d, me, opts = {}) {
 const ruleText = r => (String(r || '').match(/\|/g) || []).length >= 2 ? String(r).replace(/^\s*\|\s*|\s*\|\s*$/g, '').split(/\s*\|\s*/).filter(Boolean).join('  ·  ') : String(r || '');
 
 export function momentCard(h, big = false) {
-  const tags = [h.kind === 'official' ? `<span class="t off">${esc(h.stage || 'Official')}</span>` : '<span class="t">Practice</span>', h.lead ? '<span class="t lead">↗ Go-ahead</span>' : '', h.clutch ? '<span class="t clutch">⏱ Clutch</span>' : '', h.won ? '<span class="t won">Won the match</span>' : ''].join('');
+  const tags = [h.kind === 'official' ? `<span class="t off">${esc(h.stage || 'Official')}</span>` : '<span class="t">Practice</span>', h.lead ? '<span class="t lead">Go-ahead</span>' : '', h.clutch ? '<span class="t clutch">Clutch</span>' : '', h.won ? '<span class="t won">Won the match</span>' : ''].join('');
   return `<article class="jx-moment ${big ? 'big' : ''}" style="--h:${hue(h.owner)}">
     <div class="jx-moment-k"><span>${gameIcon(h.game)} ${esc(gameShort(h.game))}</span>${tags}</div>
     <div class="jx-moment-who"><button type="button" class="jx-linkbtn" data-player="${esc(h.owner)}">${esc(h.display)}</button><span class="jx-faint">vs ${esc(h.rival)} · ${h.score[0]}–${h.score[1]}</span></div>
@@ -195,7 +195,7 @@ export function highlightsHTML(season, filter) {
   if (filter && filter !== 'all') hl = hl.filter(h => filter === 'official' ? h.kind === 'official' : h.game === filter);
   if (!hl.length) return '<div class="jx-empty">No prompt moments here yet. They appear when a line of someone’s .md swings a match.</div>';
   const [first, ...rest] = hl;
-  return `<div class="jx-moment-hero"><div class="jx-kicker">${first.kind === 'official' ? '🏅 Moment of the season' : '⭐ Top moment (only you see your practice)'}</div>${momentCard(first, true)}</div>
+  return `<div class="jx-moment-hero"><div class="jx-kicker">${first.kind === 'official' ? 'Moment of the season' : 'Top moment (only you see your practice)'}</div>${momentCard(first, true)}</div>
     ${rest.length ? `<div class="jx-moments">${rest.map(h => momentCard(h)).join('')}</div>` : ''}`;
 }
 

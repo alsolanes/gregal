@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Gregal Arena · Live</title>
 <style>
-  :root { --vw:1vw; --vh:1vh; --bg:#070a14; --panel:rgba(13,18,34,.9); --line:rgba(255,255,255,.12); --ink:#f3f5fb; --muted:#9aa4bd; --accent:#ffd400; --a:#3e7bfa; --b:#e5484d; }
+  :root { --vw:1vw; --vh:1vh; --bg:#00262a; --panel:rgba(0,46,51,.94); --line:rgba(255,255,255,.14); --ink:#f3fbf9; --muted:#a7c0bd; --accent:#00ebb6; --a:#3e7bfa; --b:#e5484d; }
   * { box-sizing:border-box; }
-  html, body { margin:0; height:100%; background:radial-gradient(1400px 700px at 50% -20%, #1d2a5c 0%, var(--bg) 62%); color:var(--ink); font:16px/1.45 "Segoe UI", system-ui, sans-serif; overflow:hidden; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); font:16px/1.45 "The Future", "Century Gothic", "Segoe UI", system-ui, sans-serif; overflow:hidden; }
   /* Barra de dalt */
   .top { position:fixed; top:0; left:0; right:0; height:62px; display:flex; align-items:center; gap:16px; padding:0 24px; z-index:6; background:linear-gradient(180deg, rgba(0,0,0,.65), transparent); }
   .logo { font-weight:900; letter-spacing:.16em; font-size:19px; white-space:nowrap; } .logo span { color:var(--accent); }
@@ -65,7 +65,7 @@
   .big.a { border-top:6px solid var(--a); } .big.b { border-top:6px solid var(--b); text-align:right; }
   .big .who { font-size:clamp(26px, calc(var(--vw) * 3), 44px); font-weight:900; } .big .motto { color:var(--muted); font-style:italic; font-size:19px; }
   .vsmark { font-size:56px; font-weight:900; color:var(--accent); }
-  .quote { background:rgba(255,212,0,.08); border-left:5px solid var(--accent); border-radius:12px; padding:16px 20px; font-size:clamp(17px, calc(var(--vw) * 1.6), 23px); }
+  .quote { background:rgba(0,235,182,.08); border-left:5px solid var(--accent); border-radius:12px; padding:16px 20px; font-size:clamp(17px, calc(var(--vw) * 1.6), 23px); }
   .quote small { display:block; color:var(--accent); font-weight:800; letter-spacing:.1em; text-transform:uppercase; font-size:13px; margin-bottom:6px; }
   .rule { font-family:ui-monospace, Consolas, monospace; background:rgba(255,255,255,.06); border-radius:10px; padding:12px 16px; font-size:clamp(15px, calc(var(--vw) * 1.4), 20px); }
   .result { font-size:clamp(40px, calc(var(--vw) * 5), 72px); font-weight:900; }
@@ -101,7 +101,7 @@
   .cx-node circle { fill:#141b33; stroke:var(--accent); stroke-width:2.5; }
   .cx-node text { fill:var(--ink); font-weight:800; font-size:15px; text-anchor:middle; }
   .cx-node { transform-box:fill-box; transform-origin:center; animation:cxPop .45s cubic-bezier(.2,.9,.3,1.3) both; animation-delay:calc(1s + var(--i) * .12s); }
-  .cx-ar { stroke:#ffd400; stroke-width:2.5; stroke-dasharray:240; stroke-dashoffset:240; animation:cxDraw .7s ease-out forwards; animation-delay:calc(1.8s + var(--i) * .16s); }
+  .cx-ar { stroke:#00ebb6; stroke-width:2.5; stroke-dasharray:240; stroke-dashoffset:240; animation:cxDraw .7s ease-out forwards; animation-delay:calc(1.8s + var(--i) * .16s); }
   .cx-ar.far { stroke-opacity:.55; }
   @keyframes cxIn { from { opacity:0; transform:translateY(14px) scale(.97); } }
   @keyframes cxPop { from { opacity:0; transform:scale(.4); } }
@@ -146,10 +146,10 @@
   .ovbox .abk-bracket { flex:1 1 auto; min-height:0; }
   .ovbox .abk-group { background:rgba(8,10,22,.9); }
   .ovbox .abk-group table { font-size:clamp(15px, 1.25vw, 28px); }
-.ev { display:flex; align-items:center; gap:28px; margin:8px 0 22px; }
-  .ev-big { font-size:clamp(64px, calc(var(--vw) * 9), 140px); line-height:1; font-weight:900; color:var(--accent); }
+.ev { display:flex; align-items:center; gap:28px; margin:0 0 14px; }
+  .ev-big { font-size:clamp(56px, calc(var(--vw) * 7.5), 116px); line-height:1; font-weight:900; color:var(--accent); }
   .ev .lead { margin:0; max-width:680px; }
-  .ev-steps { display:grid !important; grid-template-columns:1fr !important; gap:12px; }
+  .ev-steps { display:grid !important; grid-template-columns:1fr !important; gap:8px; } .ev-steps .step { padding:12px 20px; }
   .ev-steps .step { display:grid; grid-template-columns:minmax(180px, 1fr) 2fr auto; gap:18px; align-items:center; }
   .ev-l { font-weight:800; font-size:clamp(17px, calc(var(--vw) * 1.6), 24px); }
   .ev-l small { display:block; font-weight:600; opacity:.65; font-size:.65em; }
@@ -484,7 +484,7 @@ function countersHTML(game) {
     arrows.push(`<line class="cx-ar${k === 2 ? ' far' : ''}" style="--i:${i * 2 + k}" x1="${(x1 + ux * 40).toFixed(1)}" y1="${(y1 + uy * 40).toFixed(1)}" x2="${(x2 - ux * 44).toFixed(1)}" y2="${(y2 - uy * 44).toFixed(1)}" marker-end="url(#cxHead)"/>`);
   }));
   const nodes = c.cycle.map(([, label], i) => { const [x, y] = pt(i); return `<g class="cx-node" style="--i:${i}"><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="36"/><text x="${x.toFixed(1)}" y="${(y + 6).toFixed(1)}">${esc(label)}</text></g>`; }).join('');
-  return `<div class="cx-cycle"><svg viewBox="0 0 340 300" role="img" aria-label="Each stance beats the next two"><defs><marker id="cxHead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ffd400"/></marker></defs>${arrows.join('')}${nodes}</svg>
+  return `<div class="cx-cycle"><svg viewBox="0 0 340 300" role="img" aria-label="Each stance beats the next two"><defs><marker id="cxHead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#00ebb6"/></marker></defs>${arrows.join('')}${nodes}</svg>
     <div><div class="kicker cx-k">What beats what</div><p class="lead">Every stance beats the next two around the circle and loses to the other two. Read the stance they repeat, then pick one that beats it.</p></div></div>`;
 }
 

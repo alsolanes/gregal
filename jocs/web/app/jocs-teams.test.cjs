@@ -15,7 +15,7 @@ test('The team table shows the averages and marks my team', async () => {
   assert.match(html, /YOUR TEAM/);
   assert.match(html, /75%/);
   assert.match(html, /\+24/);
-  assert.match(html, /🥇/);
+  assert.match(html, /class="pos">1</);
   assert.equal(html.includes('<b>Cloud <b></b>'), false, 'team names are escaped');
   assert.match(T.teamsTableHTML([], ''), /No teams yet/);
 });

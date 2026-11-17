@@ -11,7 +11,7 @@ export function teamChipHTML(team) {
 
 export function teamsTableHTML(rows, myTeam) {
   if (!rows || !rows.length) return '<div class="jx-empty">No teams yet. The organizer sets them up in Cup → Bracket.</div>';
-  const medal = i => (i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1);
+  const medal = i => (i < 3 ? ['1', '2', '3'][i] : i + 1);
   return `<p class="jx-muted jx-note-s">Teams rank by the <b>average XP</b> of their members (practice reviewed by the coach, bots beaten, official wins and coach score), so a big team does not win by size alone.</p>
   <div class="jx-scroll-x" role="region" aria-label="Teams" tabindex="0"><table class="jx-table jx-teams"><thead><tr><th>#</th><th>Team</th><th class="r">Avg XP</th><th class="r">Members</th><th class="r">Prompt score</th><th class="r">Coach gain</th><th class="r">Beat the vague prompt</th><th class="r">Official wins</th><th>Top player</th></tr></thead><tbody>
   ${rows.map((t, i) => `<tr class="${t.name === myTeam ? 'me' : ''} ${i < 3 && t.xp > 0 ? 'top' + (i + 1) : ''}">

@@ -27,7 +27,8 @@ const api = (path, opts) => window.api(path, opts).then(async r => { const j = a
 const lang = () => 'en';
 const post = (path, body) => api(path, { method: 'POST', body: JSON.stringify(body) });
 const RUBRIC = ['clarity', 'coverage', 'adaptivity', 'specificity', 'consistency'];
-const ICON = { nfl: '🏈', cs2: '💦', lol: '🏮' };
+// The playbook marks of each game (X, O, triangle), as on the site.
+const ICON = { nfl: '×', cs2: '○', lol: '△' };
 // Només pantalla tàctil (cap punter fi): el CS2 en directe necessita teclat i ratolí.
 const touchOnly = () => { try { return !matchMedia('(any-pointer: fine)').matches && matchMedia('(any-pointer: coarse)').matches; } catch (e) { return false; } };
 const n0 = v => Math.round(+v || 0).toLocaleString('en');
@@ -73,7 +74,7 @@ const arenaUI = {
         <ol class="ar-steps" id="arSteps"><li>${esc(T('ar.step1'))}</li><li>${esc(T('ar.step2'))}</li><li>${esc(T('ar.step3'))}</li></ol>
         <div class="ar-play-grid">
           <div class="ar-editor">
-            <div class="ar-build" id="arBuildBar"><span class="ar-build-ic">✨</span><div><b>${esc(T('ar.build.title'))}</b><span class="ar-muted" id="arBuildHint">${esc(T('ar.build.hint'))}</span></div>
+            <div class="ar-build" id="arBuildBar"><span class="ar-build-ic" aria-hidden="true">+</span><div><b>${esc(T('ar.build.title'))}</b><span class="ar-muted" id="arBuildHint">${esc(T('ar.build.hint'))}</span></div>
               <button type="button" id="arBuild" class="primary">${esc(T('ar.build.go'))}</button></div>
             <div id="arTeam" class="ar-team"></div>
             <textarea id="arPos" class="ar-pos" spellcheck="false" hidden></textarea>
@@ -264,7 +265,7 @@ const arenaUI = {
     const d = this.data, g = d.games.find(x => x.id === this.game);
     const seeding = (d.seeding || []).includes(this.game);
     $('arGames').innerHTML = d.games.map(x => `<button type="button" data-g="${esc(x.id)}" aria-pressed="${x.id === this.game}" class="${x.id === this.game ? 'on' : ''}">
-      <span class="ic">${ICON[x.id] || '🎮'}</span><b>${esc(x.title)}</b><small>${esc(T('ar.game.' + x.id))}</small></button>`).join('');
+      <span class="ic">${ICON[x.id] || '·'}</span><b>${esc(x.title)}</b><small>${esc(T('ar.game.' + x.id))}</small></button>`).join('');
     $('arGames').querySelectorAll('[data-g]').forEach(b => b.onclick = () => { this.save(); this.game = b.dataset.g; $('arReviewOut').innerHTML = ''; this.paint(); });
     const mine = d.mine[this.game];
     if (document.activeElement !== $('arMD')) {

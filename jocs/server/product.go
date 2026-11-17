@@ -70,6 +70,7 @@ func arenaPlugin() *web.Plugin {
 			handle("/api/arena/starter", global(h, (*Server).handleArenaStarter))
 			handle("/api/arena/season", global(h, (*Server).handleArenaSeason))
 			handle("/api/arena/report", global(h, (*Server).handleArenaReport))
+			handle("/api/arena/logo", global(h, (*Server).handleArenaLogo))
 			handle("/api/arena/player", global(h, (*Server).handleArenaPlayer))
 			handle("/api/arena/voice", global(h, (*Server).handleArenaVoice))
 			handle("/api/arena/live", global(h, (*Server).handleArenaLive))

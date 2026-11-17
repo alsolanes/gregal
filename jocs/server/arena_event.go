@@ -1,7 +1,13 @@
 package server
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -14,6 +20,8 @@ type arenaEventCfg struct {
 	Tagline string `json:"tagline"`
 	Date    int64  `json:"date"` // unix; 0 = sense data
 	Place   string `json:"place"`
+	// LogoHash: set when the organiser uploaded a logo (GET /api/arena/logo).
+	LogoHash string `json:"logo_hash,omitempty"`
 }
 
 const (
@@ -33,6 +41,7 @@ func (s *Server) arenaEvent() arenaEventCfg {
 	if strings.TrimSpace(c.Tagline) == "" {
 		c.Tagline = arenaEventDefaultTagline
 	}
+	c.LogoHash = s.arenaLogoHash()
 	return c
 }
 
@@ -45,6 +54,7 @@ func (s *Server) saveArenaEvent(c arenaEventCfg) arenaEventCfg {
 		return v
 	}
 	c.Name, c.Tagline, c.Place = clip(c.Name, 60), clip(c.Tagline, 140), clip(c.Place, 80)
+	c.LogoHash = ""
 	if c.Date < 0 {
 		c.Date = 0
 	}
@@ -84,4 +94,70 @@ func arenaTotals(sums []arenaSum) map[string]int {
 	}
 	t["players"] = len(players)
 	return t
+}
+
+// ---- the company logo ----
+//
+// The organiser can put the company's logo in the site header. It lives on
+// the server (<arena>/logo.txt, a data: URL), never in the code, so the same
+// build can carry any company's branding. GET /api/arena returns only its
+// hash (event.logo_hash); the site fetches the image once per hash from
+// GET /api/arena/logo.
+
+const arenaLogoMax = 200 << 10 // characters of the data: URL
+
+var arenaLogoPrefixes = []string{"data:image/png;base64,", "data:image/jpeg;base64,", "data:image/webp;base64,", "data:image/svg+xml;base64,"}
+
+func (s *Server) arenaLogoPath() string { return filepath.Join(s.arenaDir(), "logo.txt") }
+
+func (s *Server) arenaLogo() string {
+	raw, err := os.ReadFile(s.arenaLogoPath())
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(raw))
+}
+
+func (s *Server) arenaLogoHash() string {
+	l := s.arenaLogo()
+	if l == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(l))
+	return hex.EncodeToString(sum[:6])
+}
+
+// saveArenaLogo stores the logo ("" removes it).
+func (s *Server) saveArenaLogo(logo string) error {
+	logo = strings.TrimSpace(logo)
+	if logo == "" {
+		if err := os.Remove(s.arenaLogoPath()); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	}
+	if len(logo) > arenaLogoMax {
+		return fmt.Errorf("the logo is too big (max %d KB as an image file)", arenaLogoMax*3/4>>10)
+	}
+	ok := false
+	for _, p := range arenaLogoPrefixes {
+		if strings.HasPrefix(logo, p) {
+			if _, err := base64.StdEncoding.DecodeString(logo[len(p):]); err != nil {
+				return fmt.Errorf("the logo is not a valid image")
+			}
+			ok = true
+		}
+	}
+	if !ok {
+		return fmt.Errorf("the logo must be a PNG, JPEG, WebP or SVG image")
+	}
+	if err := os.MkdirAll(s.arenaDir(), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(s.arenaLogoPath(), []byte(logo), 0o644)
+}
+
+// handleArenaLogo: GET → {logo} ("" when there is none).
+func (s *Server) handleArenaLogo(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, map[string]string{"logo": s.arenaLogo()})
 }

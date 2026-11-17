@@ -8,12 +8,12 @@
 // Pure functions: tested without a DOM in jocs-levels.test.cjs.
 
 export const LEVELS = [
-  { at: 0, name: 'Rookie Prompter', icon: '🌱' },
-  { at: 60, name: 'Rule Writer', icon: '✏️' },
-  { at: 150, name: 'Tactician', icon: '🧭' },
-  { at: 300, name: 'Strategist', icon: '♟️' },
-  { at: 500, name: 'Prompt Architect', icon: '🏛️' },
-  { at: 800, name: 'Grandmaster', icon: '👑' },
+  { at: 0, name: 'Rookie Prompter', icon: '1' },
+  { at: 60, name: 'Rule Writer', icon: '2' },
+  { at: 150, name: 'Tactician', icon: '3' },
+  { at: 300, name: 'Strategist', icon: '4' },
+  { at: 500, name: 'Prompt Architect', icon: '5' },
+  { at: 800, name: 'Grandmaster', icon: '6' },
 ];
 
 // What earns XP, in plain words (also shown to players).
@@ -85,7 +85,7 @@ export function levelCardHTML(p, doneIds) {
       <div class="jx-lvl-id"><small>Prompt level ${l.n}</small><b>${esc(l.name)}</b></div>
       <div class="jx-lvl-bar" role="progressbar" aria-label="${l.max ? 'Prompt level' : 'XP to ' + esc(l.next)}" aria-valuetext="${l.max ? l.xp + ' XP, top level' : l.xp + ' of ' + l.to + ' XP'}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${l.pct}"><span style="width:${l.pct}%"></span></div>
       <span class="jx-lvl-xp">${l.max ? `${l.xp} XP · max level` : `${l.xp} / ${l.to} XP to ${esc(l.next)}`}</span></div>
-    <details class="jx-chal"><summary><b>Challenges ${done.size}/${CHALLENGES.length}</b>${nextCh ? `<span>Next: ${esc(nextCh.title)}</span>` : '<span>All done 🎉</span>'}</summary>
+    <details class="jx-chal"><summary><b>Challenges ${done.size}/${CHALLENGES.length}</b>${nextCh ? `<span>Next: ${esc(nextCh.title)}</span>` : '<span>All done</span>'}</summary>
       <ol class="jx-chal-list">${list}</ol>
       <p class="jx-faint">XP: ${XP_RULES.map(([n, t]) => `+${n} ${esc(t)}`).join(' · ')}.</p></details></div>`;
 }

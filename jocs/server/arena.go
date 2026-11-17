@@ -1943,6 +1943,7 @@ func (s *Server) handleArena(w http.ResponseWriter, r *http.Request) {
 			Teams    []string       `json:"teams"` // teams (the list, organiser)
 			Team     string         `json:"team"`  // team (mine, or Owner's for the organiser)
 			Owner    string         `json:"owner"`
+			Logo     *string        `json:"logo"` // logo (organiser): a data: URL, "" removes it
 		}
 		if !decodeSmall(w, r, &req) {
 			return
@@ -1958,6 +1959,22 @@ func (s *Server) handleArena(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			writeJSON(w, s.saveArenaEvent(*req.Event))
+			return
+		}
+		if req.Action == "logo" {
+			if !admin {
+				http.Error(w, "admin only", http.StatusForbidden)
+				return
+			}
+			if req.Logo == nil {
+				http.Error(w, "logo required", http.StatusBadRequest)
+				return
+			}
+			if err := s.saveArenaLogo(*req.Logo); err != nil {
+				writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, s.arenaEvent())
 			return
 		}
 		if req.Action == "teams" {
