@@ -968,6 +968,68 @@ func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stre
 		}
 		cancel()
 	}
+	// Revisió entre companys: un membre que no ha parlat llegeix la resposta i,
+	// si hi veu un error o una millora, ho diu; l'autor contesta. Mai no tomba
+	// el torn: si falla o calla, no es veu res.
+	if len(veus) > 0 && lastErr == nil && !parcial && turnCtx.Err() == nil {
+		author, authorText := veus[len(veus)-1].wind, veus[len(veus)-1].text
+		if summaryReply != "" {
+			author, authorText = speakingWind, summaryReply
+		}
+		directed := strings.TrimSpace(req.Wind) != "" || len(windsNamedIn(members, msg)) > 0
+		if rotllanaWantsReview(directed, isContinue, intent, authorText) {
+			spoke := make([]companion.Wind, 0, len(veus))
+			for _, v := range veus {
+				spoke = append(spoke, v.wind)
+			}
+			reviewer, ok := s.rotllanaReviewer(members, spoke, msg, conversation)
+			if ok {
+				peerSay := func(sp companion.Wind, extra string) string {
+					tornTexte = &tornText{}
+					emit("phase", map[string]string{"phase": "speaker:" + sp.ID})
+					_, brief := rotllanaChatBrief(s, rot, sp, conversation, msg)
+					brief += extra
+					ctx, cancel := context.WithTimeout(turnCtx, rotllanaTurnTimeout)
+					defer cancel()
+					ctx = s.readOnlyWindCtx(s.interactiveWindCtx(s.withWindSteerKey(withLinkBase(ctx, r), "rotllana", rot.ID)))
+					ctx = agent.WithSkillsDirs(ctx, s.windSkillsDir(sp.ID))
+					s.mu.Lock()
+					_, logRole := s.windRoleRef()
+					s.mu.Unlock()
+					veuLog = startTurnLog("rotllana-revisio", rot.ID+":"+sp.ID, logRole)
+					tV := time.Now()
+					var res exploracio
+					var err error
+					if stream {
+						res, err = rotllanaVoiceLoopStream(s, veuLog.withUsage(ctx), brief, emitTokens)
+					} else {
+						res, err = rotllanaVoiceLoop(s, veuLog.withUsage(ctx), brief, nil)
+					}
+					veuLog.finish(err, tornAturat(err), res.parcial, &res.temps)
+					if err != nil || res.parcial {
+						return ""
+					}
+					text := rotllanaOwnReply(stripQuoteTrim(res.text), members, sp)
+					if text == "" {
+						return ""
+					}
+					text += s.windDocLinks(tV, text)
+					conversation = append(conversation, llm.Message{Role: "assistant", Content: text, SpeakerID: sp.ID, SpeakerName: sp.Name, Ts: time.Now().Unix(), ID: newMessageID()})
+					if err := saveRotllanaHistory(s, rot.ID, conversation); err != nil {
+						return ""
+					}
+					conversation = commitRotllana(conversation)
+					if stream {
+						emit("reply", map[string]any{"wind": sp.ID, "history": s.rotllanaHistoryJSON(conversation)})
+					}
+					return text
+				}
+				if note := peerSay(reviewer, rotllanaReviewBrief(reviewer, author)); note != "" && turnCtx.Err() == nil {
+					peerSay(author, rotllanaAuthorBrief(author, reviewer))
+				}
+			}
+		}
+	}
 	if turnCtx.Err() != nil {
 		emit("error", map[string]any{"error": "aturat", "cancelat": true})
 		return

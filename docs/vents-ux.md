@@ -6,6 +6,7 @@
 - Una única acció **+** permet crear vent, xat individual amb nom o rotllana.
 - El creador comença amb una galeria de vuit personalitats. Triar-ne una obre nom, interès i caràcter editables; l'aparença detallada és opcional. Editar un vent existent obre directament les seves dades, no la galeria.
 - Tocar la capçalera del vent obre **Caràcter / Memòria / Activitat**. Els coneixements es poden corregir o buidar amb confirmació; la memòria personal es mostra separadament i és de només lectura en aquesta fitxa.
+- **Revisió entre companys:** quan un vent respon (llargada raonable, sense haver adreçat ningú pel nom), un altre membre que no ha parlat llegeix la resposta amb el seu ofici i la seva memòria. Si hi veu un error, un risc o una millor opció, ho diu adreçant-se a l'autor; l'autor contesta amb la versió corregida. Si no té res a afegir, calla i no es veu res. Un missatge adreçat a un vent concret (nom o `@`) no es revisa.
 - Cada resposta d'una rotllana porta nom i cara del parlant. La capçalera permet consultar perfils i modificar membres.
 - El botó enrere tanca primer la subpantalla, després torna per les pantalles visitades. No s'apila la connexió inicial com a destí al qual tornar.
 
