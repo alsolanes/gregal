@@ -774,6 +774,21 @@ func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
 			}
 		}
 	}
+	// Act («edits»): les ordres de desenvolupament dins del projecte (npm
+	// install, pytest, make, cargo, python, git add…) passen soles, com a
+	// Codex o opencode. Es mira amb la mateixa llista de perills que
+	// l'autònom: git push, instal·lacions globals, docker, aturar processos,
+	// esborrats grans i escriure fora del projecte continuen preguntant. Qui
+	// vol que li ho preguntin tot té «Demana abans de canviar» (AskEdits).
+	if (mode == ModeCode || mode == ModeDebug) && (name == "bash" || name == "bash_background") && p != nil && p.ProjectDir != "" && !p.AskEdits {
+		d, reason := p.For(name, argsJSON)
+		if d == "ask" {
+			if ad, _, ok := p.decideAutonomous(name, argsJSON); ok && ad == "allow" {
+				return "allow", "ordre de desenvolupament dins del projecte"
+			}
+		}
+		return d, reason
+	}
 	d, reason := p.For(name, argsJSON)
 	return d, reason
 }

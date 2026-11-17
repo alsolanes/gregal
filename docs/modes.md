@@ -30,7 +30,7 @@ it with the Act permission you had.
 | Permission | Catalan | What happens |
 |---|---|---|
 | **Ask before changes** | Demana abans de canviar | Every edit, including files inside the project, and every command that changes something asks first. |
-| **Auto-approve edits** (default) | Aprova les edicions | Edits inside the project folder go ahead; commands that change things, writes outside the folder, commits, PRs and external services (MCP) still ask. |
+| **Auto-approve edits** (default) | Aprova les edicions | Edits inside the project folder go ahead, and so do the usual development commands inside it (`npm install`, `pytest`, `make`, `cargo`, `git add`…). Dangerous commands (`git push`, global installs, `docker`, killing processes, bulk deletes), writes outside the folder, commits, PRs and external services (MCP) still ask. "Always allow" on a command such as `npm install` covers that program and subcommand (not chained, global or dangerous variants). |
 | **Full autonomy** | Autonomia total | Works on its own until it is done and never asks (this is the autonomous mode: milestones, checks, no `question` tool). Only what is forbidden stays blocked: the shell classifier (`sudo`, piping downloads into a shell, formatting disks…) and `deny` rules. |
 
 Where to pick it: the lock button beside the composer (web, desktop),

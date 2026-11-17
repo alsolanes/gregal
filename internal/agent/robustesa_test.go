@@ -474,7 +474,7 @@ func TestHeadlessTraceAparellaPerID(t *testing.T) {
 	f := &fakeLLM{answer: func(n int, body string) string {
 		if n == 1 {
 			return toolReply(
-				cridaProva("b1", "bash", `{"command":"python -c \"print(1)\""}`),
+				cridaProva("b1", "bash", `{"command":"git push origin main"}`),
 				cridaProva("b2", "bash", `{"command":"echo traced-ok"}`),
 			)
 		}

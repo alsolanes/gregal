@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v1.87.2 - 2026-11-17 - Mode codi sense aturades
+
+- **El mode codi ja no s'atura a cada ordre.** En «Aprova les edicions» les
+  ordres normals de desenvolupament dins del projecte (`npm install`, `pytest`,
+  `make`, `cargo`, `git add`, `mkdir`…) passen soles; `git push`, instal·lacions
+  globals, `docker`, matar processos i esborrats grans continuen preguntant.
+- **«Permet sempre» recorda el programa i el subcomandament** (`npm install`
+  val per a qualsevol paquet), però no per a ordres encadenades, globals o
+  perilloses.
+
 ## v1.87.1 - 2026-11-17 - Webs per etapes
 
 - **Webs per etapes.** Quan demanes una web, el vent en fa una primera versió

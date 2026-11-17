@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/json"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 )
@@ -26,7 +27,7 @@ func Sig(name, argsJSON string) string {
 			// cobreix tot el paquet sense obrir la resta del disc.
 			target = dirOf(str("path"))
 		case "bash":
-			target = str("command")
+			target = bashRememberTarget(str("command"))
 		case "grep":
 			target = str("pattern") + "\x00" + str("dir")
 		case "glob":
@@ -129,6 +130,10 @@ func DoomSig(name, argsJSON string) string {
 		return name + "\x00" + str("path") + "\x00" + capRunes(string(raw), 400)
 	case "read":
 		return name + "\x00" + str("path") + "\x00" + strings.TrimSpace(argsJSON)
+	case "bash", "bash_background":
+		// L'ordre exacta: «go test ./a» i «go test ./b» no són la mateixa
+		// crida (els permisos sí que les agrupen per prefix, Sig).
+		return name + "\x00" + str("command")
 	}
 	if isMCP(name) {
 		// Sig agrupa les eines MCP pel nom (per als permisos); aquí, tres
@@ -136,4 +141,49 @@ func DoomSig(name, argsJSON string) string {
 		return name + "\x00" + capRunes(strings.TrimSpace(argsJSON), 2000)
 	}
 	return Sig(name, argsJSON)
+}
+
+// bashPrefixTools: programes de desenvolupament on «sempre» val per al
+// subcomandament, no per l'ordre exacta (npm install, cargo test, pytest…).
+var bashPrefixTools = map[string]bool{
+	"npm": true, "pnpm": true, "yarn": true, "pip": true, "pip3": true, "cargo": true, "go": true,
+	"dotnet": true, "mvn": true, "gradle": true, "make": true, "pytest": true, "git": true,
+}
+
+// git: només subcomandaments que no esborren ni envien res.
+var gitPrefixSubs = map[string]bool{"add": true, "status": true, "diff": true, "log": true, "switch": true, "checkout": true, "show": true}
+
+var shellControl = regexp.MustCompile(`[;&|<>` + "`" + `\n\r]|\$\(`)
+
+// bashRememberTarget és el que «Permet sempre» recorda d'una ordre: per a una
+// ordre simple d'un programa de desenvolupament, el programa i el subcomandament
+// («npm install»), de manera que npm install express i npm install lodash no
+// tornen a preguntar; per a la resta, l'ordre exacta. Mai un prefix per a
+// ordres encadenades, redirigides o perilloses (npm install -g, git push…):
+// aquestes continuen sent exactes i, per tant, tornen a preguntar.
+func bashRememberTarget(cmd string) string {
+	cmd = strings.TrimSpace(cmd)
+	if cmd == "" || shellControl.MatchString(cmd) || perillosa.MatchString(cmd) {
+		return cmd
+	}
+	f := strings.Fields(cmd)
+	tool := strings.ToLower(f[0])
+	if !bashPrefixTools[tool] {
+		return cmd
+	}
+	if len(f) == 1 {
+		return tool
+	}
+	sub := strings.ToLower(f[1])
+	if strings.HasPrefix(sub, "-") || strings.ContainsAny(sub, `/\.=:`) {
+		// «go ./x», «pytest tests/», «make -j4»: sense subcomandament clar.
+		if tool == "pytest" || tool == "make" {
+			return tool
+		}
+		return cmd
+	}
+	if tool == "git" && !gitPrefixSubs[sub] {
+		return cmd
+	}
+	return "prefix:" + tool + " " + sub
 }
