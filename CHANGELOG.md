@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## v1.87.1 - 2026-11-17 - Webs per etapes
+
+- **Webs per etapes.** Quan demanes una web, el vent en fa una primera versió
+  que funciona, te la mostra al xat i et proposa 2-3 passos amb botons per
+  continuar o canviar; cada etapa segueix el mateix projecte i no es publica
+  fins que tu ho dius. Si vols que ho faci tot d'una, digues-li.
+- **Prova la seva web sense preguntar.** Clicar i escriure a la pàgina que el
+  vent està fent (al teu ordinador) ja no demana permís; una web de fora, sí.
+- **La resposta, al final.** A l'Android, quan arriba una resposta el xat
+  acaba a baix de tot (abans es quedava a mitges o tornava al principi).
+- **Els botons de la resposta sempre hi són,** també quan hi ha una nota
+  «Ho recordaré» al darrere.
+
 ## v1.87.0 - 2026-11-16 - Comparacions amb foto i xifres clau
 
 - **Comparacions amb foto.** Quan preguntes «X o Y?» o la diferència entre
