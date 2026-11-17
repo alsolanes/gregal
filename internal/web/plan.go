@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -458,6 +459,12 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			if decision == "ask" && interactive {
 				pol = windProjectesPolicy(pol, name, argsJSON)
 			}
+			// Provar la seva pròpia web: clicar o escriure en una pàgina local
+			// (127.0.0.1, la previsualització o l'app que ha fet) no demana
+			// permís. Abans cada clic de prova esperava i acabava caducant.
+			if decision == "ask" && interactive && name == "browser" && localBrowserAction(tools.BrowserPageURL(s.id), argsJSON) {
+				decision, reason = "allow", "pàgina local del vent"
+			}
 			if decision == "ask" && interactive && pol.WindAutoAllow(name, argsJSON) {
 				decision, reason = "allow", "ordre del xat del vent ("+reason+")"
 			}
@@ -765,4 +772,49 @@ func windProjectesPolicy(pol *agent.Policy, name, argsJSON string) *agent.Policy
 	cp := *pol
 	cp.ProjectDir = pd
 	return &cp
+}
+
+// localBrowserAction: l'acció del navegador només toca pàgines locals (la que
+// hi ha oberta i, si n'hi ha, la que obrirà), i no és un traspàs a la persona.
+func localBrowserAction(page, argsJSON string) bool {
+	var a map[string]any
+	if json.Unmarshal([]byte(argsJSON), &a) != nil {
+		return false
+	}
+	if chrome, _ := a["chrome"].(bool); chrome {
+		return false
+	}
+	switch act, _ := a["action"].(string); act {
+	case "handoff", "ask_user", "":
+		return false
+	}
+	if !loopbackURL(page) {
+		return false
+	}
+	for _, k := range []string{"url", "href"} {
+		if u, _ := a[k].(string); strings.TrimSpace(u) != "" && !loopbackURL(u) && !strings.HasPrefix(strings.TrimSpace(u), "/") {
+			return false
+		}
+	}
+	if steps, ok := a["steps"].([]any); ok {
+		for _, st := range steps {
+			m, _ := st.(map[string]any)
+			if u, _ := m["url"].(string); strings.TrimSpace(u) != "" && !loopbackURL(u) && !strings.HasPrefix(strings.TrimSpace(u), "/") {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func loopbackURL(raw string) bool {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+		return false
+	}
+	switch strings.ToLower(u.Hostname()) {
+	case "127.0.0.1", "localhost", "::1":
+		return true
+	}
+	return false
 }

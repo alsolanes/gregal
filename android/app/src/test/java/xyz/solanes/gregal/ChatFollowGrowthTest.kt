@@ -60,4 +60,21 @@ class LiveReplyAnchorTest {
         assertFalse(shouldPinLiveReply(following = true, dragging = true, replyVisible = true))
         assertFalse(shouldPinLiveReply(following = true, dragging = false, replyVisible = false))
     }
+
+    // En acabar la resposta es torna al final si només s'havia aturat perquè
+    // la resposta no saltés; si has pujat amb el dit a llegir, no.
+    @Test fun `a live-reply pause comes back to the end, a hand scroll does not`() {
+        val st = ChatFollowState()
+        st.requestFollow()
+        st.pauseForLiveReply()
+        assertFalse(st.following)
+        assertTrue(st.autoPaused)
+        st.requestFollow()
+        assertTrue(st.following)
+        assertFalse(st.autoPaused)
+        st.pauseForLiveReply()
+        st.startReading()
+        assertFalse("reading by hand wins", st.autoPaused)
+        assertFalse(st.following)
+    }
 }

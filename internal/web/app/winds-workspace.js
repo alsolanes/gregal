@@ -1125,7 +1125,9 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   if(state.turnActs?.thread===state.active?.id&&state.turnActs.list.length)messages.append(turnActsRow(state.turnActs));
   // Respostes ràpides que el vent proposa al final del seu missatge.
   if(state.suggest?.thread===state.active?.id&&!state.busy)messages.append(suggestRow(state.suggest));
-  const last=state.history[state.history.length-1];if(last&&last.from!=='user'&&!state.busy){const opts=root.gregalChoices?root.gregalChoices.extract(last.text):[];if(opts.length){const row=el('div','vw-choices');for(const o of opts)row.append(btn(o,()=>{if(!input)return;state.replyOnce=last.speaker_id||null;input.value=o;composer.requestSubmit();},'vw-choice'));messages.append(row);}}
+  // L'última resposta, saltant les notes de memòria («Ho recordaré») que hi
+  // van darrere: si no, les opcions d'una resposta desapareixien.
+  const last=[...state.history].reverse().find(m=>m.kind!=='memory');if(last&&last.from!=='user'&&!state.busy){const opts=root.gregalChoices?root.gregalChoices.extract(last.text):[];if(opts.length){const row=el('div','vw-choices');for(const o of opts)row.append(btn(o,()=>{if(!input)return;state.replyOnce=last.speaker_id||null;input.value=o;composer.requestSubmit();},'vw-choice'));messages.append(row);}}
   if(!last&&state.active?.legacyWind)emptyWindThread();
   paintPending();
   // La targeta de permís va dins del fil, sota l'últim missatge (com a la maqueta).

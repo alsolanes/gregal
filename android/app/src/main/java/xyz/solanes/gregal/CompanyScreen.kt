@@ -1320,7 +1320,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             }
             // Respostes ràpides que el vent proposa al final del seu missatge.
             if (!isBusy) {
-                val quick = msgs.lastOrNull()?.takeIf { it.from != "user" && !it.streaming }?.let { extractChoices(it.text) }.orEmpty()
+                val quick = msgs.lastOrNull { it.kind != "memory" }?.takeIf { it.from != "user" && !it.streaming }?.let { extractChoices(it.text) }.orEmpty()
                 if (quick.isNotEmpty()) item(key = "quick") {
                     ChoiceChips(quick, accent) { pick -> follow.requestFollow(); vm.sendWindMessage(wind.id, pick) }
                 }
@@ -1619,7 +1619,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             }
             // Respostes ràpides que l'últim vent proposa al final del seu missatge.
             if (!busy.contains(rot.id)) {
-                val proposer = msgs.lastOrNull()?.takeIf { it.from != "user" && !it.streaming }
+                val proposer = msgs.lastOrNull { it.kind != "memory" }?.takeIf { it.from != "user" && !it.streaming }
                 val quick = proposer?.let { extractChoices(it.text) }.orEmpty()
                 // La proposta la continua qui l'ha feta: abans responia el vent que menys havia parlat.
                 if (quick.isNotEmpty()) item(key = "quick") {
@@ -2457,10 +2457,16 @@ internal class ChatFollowState {
      */
     var wantsEnd by mutableStateOf(false)
         private set
-    fun requestFollow() { following = true; wantsEnd = true }
+    /** S'ha deixat de seguir només perquè la resposta en directe no salti
+     *  (no perquè la persona hagi pujat a llegir): en acabar, es torna al final. */
+    var autoPaused by mutableStateOf(false)
+        private set
+    fun requestFollow() { following = true; wantsEnd = true; autoPaused = false }
     /** Deixa de seguir el final sense que hi hagi cap dit: per llegir una resposta des del principi. */
     fun pause() { following = false; wantsEnd = false }
-    fun startReading() { dragging = true; following = false; wantsEnd = false }
+    /** Pausa mentre la resposta s'escriu: el final es recupera en acabar. */
+    fun pauseForLiveReply() { following = false; autoPaused = true }
+    fun startReading() { dragging = true; following = false; wantsEnd = false; autoPaused = false }
     fun stopDragging() { dragging = false }
 }
 
@@ -2556,23 +2562,32 @@ internal fun ReadReplyFromStart(list: LazyListState, follow: ChatFollowState, bu
             val visible = key != null && info.visibleItemsInfo.any { it.key == key }
             Triple(follow.following, follow.dragging, visible)
         }.collect { (following, dragging, visible) ->
-            if (shouldPinLiveReply(following, dragging, visible)) follow.pause()
+            if (!shouldPinLiveReply(following, dragging, visible)) return@collect
+            // Si la resposta comença a la part de baix (se'n veia un bocí), puja
+            // fins a dalt de la pantalla i creix cap avall; abans es quedava
+            // gairebé tota fora de la vista.
+            val key = reply
+            val info = list.layoutInfo
+            val item = info.visibleItemsInfo.firstOrNull { it.key == key }
+            follow.pauseForLiveReply()
+            if (item != null && item.offset > (info.viewportEndOffset - info.viewportStartOffset) / 2) {
+                list.animateScrollToItem(item.index)
+            }
         }
     }
     LaunchedEffect(busy) {
         val finished = wasBusy && !busy
         wasBusy = busy
-        // Si ja no se segueix el final (fixada a l'inici o la persona llegeix), no es mou res.
-        if (!finished || !follow.following) return@LaunchedEffect
-        // Que la resposta definitiva ja sigui al layout abans de mesurar-la.
-        kotlinx.coroutines.delay(120)
-        val key = reply ?: return@LaunchedEffect
-        val info = list.layoutInfo
-        val viewport = info.viewportEndOffset - info.viewportStartOffset
-        val item = info.visibleItemsInfo.firstOrNull { it.key == key } ?: return@LaunchedEffect
-        if (item.size <= viewport * 3 / 4 || !follow.following) return@LaunchedEffect
-        follow.pause()
-        list.animateScrollToItem(item.index)
+        if (!finished) return@LaunchedEffect
+        // En acabar, el final del xat (com demana qui hi parla): si seguia la
+        // cua o només s'havia aturat perquè la resposta no saltés. Si has pujat
+        // a llegir amb el dit, no es mou res.
+        if (!follow.following && !follow.autoPaused) return@LaunchedEffect
+        // Que la resposta definitiva (amb fotos i targetes) ja sigui al layout.
+        kotlinx.coroutines.delay(150)
+        if (follow.dragging || (!follow.following && !follow.autoPaused)) return@LaunchedEffect
+        follow.requestFollow()
+        list.scrollToLatest(animate = true)
     }
 }
 

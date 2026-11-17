@@ -185,3 +185,28 @@ func TestWindRiskyKeepsTheWindsProjectsFolderTheirOwn(t *testing.T) {
 		}
 	}
 }
+
+// Provar la seva pròpia web: a una pàgina local, clicar i escriure passen
+// sols; a una web de fora, o anant-hi, continuen demanant permís.
+func TestLocalBrowserActionsPassAlone(t *testing.T) {
+	local := "http://127.0.0.1:8197/p/abc123/projectes/dolc/index.html"
+	cases := []struct {
+		page, args string
+		want       bool
+	}{
+		{local, `{"action":"click","selector":"#envia"}`, true},
+		{local, `{"action":"type","selector":"#nom","text":"Joana"}`, true},
+		{"http://localhost:5173/", `{"action":"batch","steps":[{"action":"click"},{"action":"goto","url":"/carta"}]}`, true},
+		{"https://www.caixabank.es/", `{"action":"click","selector":"#ok"}`, false},
+		{local, `{"action":"goto","url":"https://www.google.com"}`, false},
+		{local, `{"action":"batch","steps":[{"action":"goto","url":"https://evil.example"}]}`, false},
+		{local, `{"action":"handoff","message":"inicia sessió"}`, false},
+		{local, `{"action":"click","chrome":true}`, false},
+		{"", `{"action":"click"}`, false},
+	}
+	for _, c := range cases {
+		if got := localBrowserAction(c.page, c.args); got != c.want {
+			t.Errorf("localBrowserAction(%q, %s) = %v, want %v", c.page, c.args, got, c.want)
+		}
+	}
+}
