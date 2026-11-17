@@ -71,6 +71,7 @@ const arenaUI = {
         <div class="ar-row" id="arAgainRow" hidden><button type="button" id="arAgain" class="primary ar-big">${esc(T('ar.playAgain'))}</button><span class="ar-muted">${esc(T('ar.againHint'))}</span></div>
       </section>
       <section class="ar-card ar-play" id="arPlayCard">
+        <div class="ar-now" id="arNow" role="status" hidden></div>
         <ol class="ar-steps" id="arSteps"><li>${esc(T('ar.step1'))}</li><li>${esc(T('ar.step2'))}</li><li>${esc(T('ar.step3'))}</li></ol>
         <div class="ar-play-grid">
           <div class="ar-editor">
@@ -296,6 +297,17 @@ const arenaUI = {
     const last = lastPractice(((d.progress || {})[this.game]) || []);
     const played = !!last || (d.matches || []).some(m => m.game === this.game && m.kind === 'practice' && m.status === 'final');
     const step = !mine ? 0 : played ? 2 : 1;
+    // A match of mine still being played (I left the page, reloaded, or it is
+    // queued): say so and give the way back to it, or it looks lost.
+    const now = (d.matches || []).find(m => m.game === this.game && ['live', 'pregame'].includes(m.status) && (m.owners || []).includes(d.me));
+    const watching = now && this.match && this.match.id === now.id && !$('arMatchCard').hidden;
+    $('arNow').hidden = !now || watching;
+    if (now && !watching) {
+      const side = now.owners[0] === d.me ? 0 : 1, rival = (now.names || [])[1 - side] || '';
+      $('arNow').innerHTML = `<span class="ar-now-dot" aria-hidden="true"></span><div><b>${esc(now.status === 'pregame' ? T('ar.now.queued') : T('ar.now.live'))}</b>
+        <span class="ar-muted">vs ${esc(rival)} · ${now.score[side]}–${now.score[1 - side]}</span></div><button type="button" class="primary" data-open-now="${esc(now.id)}">${esc(T('ar.now.watch'))}</button>`;
+      $('arNow').querySelector('[data-open-now]').onclick = () => this.openMatch(now.id);
+    }
     $('arSteps').querySelectorAll('li').forEach((li, i) => {
       li.classList.toggle('on', i === step); li.classList.toggle('done', i < step);
       // El pas 3 assenyala la targeta de l'últim partit (al costat de l'editor).

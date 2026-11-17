@@ -37,11 +37,15 @@ export function organizerTeamsHTML(teams, members, players) {
   const opts = sel => `<option value="">—</option>${(teams || []).map(t => `<option ${t === sel ? 'selected' : ''}>${esc(t)}</option>`).join('')}`;
   const people = (players || []).filter(p => p.owner && p.owner !== 'local');
   return `<div class="jx-org-teams">
-    <div><h3 class="jx-h3">Teams</h3><p class="jx-muted sm">One per line (departments, offices, practices). Empty = no team mode. People pick theirs on the Play page; you can change anyone's here.</p>
+    <div><h3 class="jx-h3">The teams</h3><p class="jx-muted sm">One per line. Leave it empty for no teams. People pick theirs on the Play page; you can change anyone’s here.</p>
       <textarea id="jxTeamList" rows="5" placeholder="Data Engineering&#10;Analytics&#10;Cloud">${esc(list)}</textarea>
       <button type="button" class="jx-btn sm" id="jxTeamSave">Save teams</button><span class="jx-faint" id="jxTeamSaved"></span></div>
     ${(teams || []).length && people.length ? `<div><h3 class="jx-h3">Who is in which team</h3><div class="jx-org-members">${people.map(p => `<label><span>${esc(p.display)}</span><select data-team-owner="${esc(p.owner)}">${opts((members || {})[p.owner] || '')}</select></label>`).join('')}</div></div>` : ''}
-    <div><h3 class="jx-h3">Learning report</h3><p class="jx-muted sm">One row per person: matches, coach scores (first, latest, gain), the five principles, results against the vague prompt and the before/after of their .md. Opens in Excel.</p>
-      <button type="button" class="jx-btn sm" id="jxReport">⬇ Download the report (CSV)</button><span class="jx-faint" id="jxReportMsg"></span></div>
   </div>`;
+}
+
+// The learning report button (organizer page, step 6).
+export function reportToolHTML() {
+  return `<p class="jx-muted sm">One row per person: matches, coach scores (first, latest, gain), the five principles, results against the vague prompt and the before/after of their .md. Opens in Excel.</p>
+    <button type="button" class="jx-btn sm" id="jxReport">Download the learning report (CSV)</button><span class="jx-faint" id="jxReportMsg" role="status"></span>`;
 }

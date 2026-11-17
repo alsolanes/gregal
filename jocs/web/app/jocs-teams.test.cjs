@@ -32,6 +32,6 @@ test('The organiser tools list people with their team and the report button', as
   assert.match(html, /Data\nCloud<\/textarea>/);
   assert.match(html, /data-team-owner="ana"/);
   assert.equal(html.includes('data-team-owner="local"'), false);
-  assert.match(html, /Download the report/);
+  assert.match(T.reportToolHTML(), /Download the learning report/);
   assert.equal(T.organizerTeamsHTML([], {}, [{ owner: 'ana', display: 'Ana' }]).includes('Who is in which team'), false);
 });

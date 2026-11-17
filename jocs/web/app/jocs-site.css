@@ -851,3 +851,41 @@ body.jx-on > dialog::backdrop { background: rgba(0, 46, 51, .45); }
 .jx-sig, .jx-rule-q { border-left-color: var(--jx-brand); }
 .jx-radar .shape { fill: rgba(0, 235, 182, .22); stroke: #00a884; filter: none; }
 .jx-insight-k span::before { content: none; }
+
+/* ==== Organizer page: six numbered steps ==== */
+.jx-ostep-list { list-style: none; margin: 24px 0 60px; padding: 0; display: flex; flex-direction: column; gap: 16px; counter-reset: none; }
+.jx-ostep { border: 1px solid var(--jx-line-hi); border-radius: var(--r-lg); background: var(--jx-card); padding: 20px 22px; }
+.jx-ostep-h { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 14px; }
+.jx-ostep-h > b { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r-md); background: var(--jx-teal); color: #fff; font-family: var(--jx-display); font-size: 18px; }
+.jx-ostep-h .jx-h3 { margin: 4px 0 2px; }
+.jx-ostep-h p { margin: 0; }
+.jx-ostep-b { padding-left: 52px; }
+.jx-ostep-b .jx-org-fold > summary { display: none; }
+.jx-ostep-b .jx-org-fold, .jx-ostep-b .ar-broadcast { border: 0; background: none; padding: 0; margin: 0; box-shadow: none; }
+.jx-ostep-b .jx-org-teams { margin: 0; padding: 0; border: 0; background: none; }
+.jx-model-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+@media (max-width: 720px) { .jx-ostep-b { padding-left: 0; } }
+
+/* ==== Settings dialog (gear) ==== */
+body.jx-on > dialog.jx-settings { width: min(520px, 94vw); padding: 0; border: 1px solid var(--jx-line-hi); border-radius: var(--r-lg); background: var(--jx-panel); color: var(--jx-ink); font-family: var(--jx-body); }
+.jx-settings form { display: flex; flex-direction: column; }
+.jx-set-h { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: var(--jx-teal); color: #fff; }
+.jx-set-h h2 { margin: 0; font-family: var(--jx-display); font-size: 18px; letter-spacing: .06em; text-transform: uppercase; }
+.jx-set-h .jx-icon-btn { color: #fff; font-size: 22px; }
+.jx-settings section { padding: 16px 20px; border-bottom: 1px solid var(--jx-line); display: flex; flex-direction: column; gap: 10px; }
+.jx-settings h3 { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--jx-mint); }
+.jx-settings label { display: flex; flex-direction: column; gap: 6px; font-weight: 700; font-size: 14px; }
+.jx-settings input, .jx-settings select { font: inherit; font-weight: 400; padding: 9px 11px; border-radius: var(--r-md); border: 1px solid var(--jx-line-hi); background: #fff; color: var(--jx-ink); }
+.jx-settings p { margin: 0; }
+.jx-settings .jx-btn { align-self: flex-start; }
+.jx-set-f { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; }
+.jx-set-more { border: 0; background: none; padding: 0; font: inherit; font-size: 13px; color: var(--jx-muted); text-decoration: underline; cursor: pointer; }
+
+/* ==== Play: my match still being played ==== */
+#jxPlayMount .ar-now { display: flex; align-items: center; gap: 14px; margin: 0 0 14px; padding: 12px 16px; border-radius: var(--r-md); border: 2px solid var(--jx-teal); background: var(--jx-brand-soft); }
+#jxPlayMount .ar-now[hidden] { display: none; }
+#jxPlayMount .ar-now > div { flex: 1; display: flex; flex-direction: column; }
+#jxPlayMount .ar-now-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--jx-live); animation: jx-pulse 1.4s infinite; flex: none; }
+.jx-linkbtn { color: var(--jx-mint); }
+#jxOrganizer.jx-organizer { border: 0; background: none; padding: 0; margin: 0; box-shadow: none; }
+.jx-live-note { border-color: var(--jx-teal); background: var(--jx-brand-soft); }

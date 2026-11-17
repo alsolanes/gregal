@@ -9,7 +9,7 @@ import { renderCompetition, nameOf, currentGame } from './arena-bracket.js';
 import { levelCardHTML, levelBadgeHTML, evaluate, CHALLENGES, XP_RULES } from './jocs-levels.js';
 import { lintMD } from './arena-lint.js';
 import { qualityHTML } from './jocs-quality.js';
-import { teamsTableHTML, teamPickerHTML, organizerTeamsHTML } from './jocs-teams.js';
+import { teamsTableHTML, teamPickerHTML, organizerTeamsHTML, reportToolHTML } from './jocs-teams.js';
 import { standingsHTML, playersHTML, profileHTML, highlightsHTML, awardsHTML, momentCard, principlesHTML, plannerHTML } from './jocs-season.js';
 
 const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -33,7 +33,7 @@ const GAMES = {
 // La lliga dels vents (futbol americà, football.js) és el quart joc: no es
 // juga amb un .md sinó amb els vents de Gregal Vents com a entrenadors.
 const ROUTES = [
-  ['home', 'Home'], ['play', 'Play'], ['ranking', 'Standings'], ['players', 'Players'], ['highlights', 'Highlights'], ['cup', 'Bracket'], ['matches', 'Matches'], ['teams', 'Teams'], ['league', 'League'], ['how', 'How it works'],
+  ['home', 'Home'], ['play', 'Play'], ['ranking', 'Standings'], ['players', 'Players'], ['highlights', 'Highlights'], ['cup', 'Bracket'], ['matches', 'Matches'], ['teams', 'Teams'], ['organize', 'Organize'], ['league', 'League'], ['how', 'How it works'],
 ];
 // The top bar has six entries; the pages that belong together share one and
 // get a sub-tab strip (every route keeps its own #/link).
@@ -41,7 +41,7 @@ const NAV = [
   ['home', 'Home'], ['play', 'Play'],
   ['ranking', 'Standings', ['ranking', 'players', 'teams']],
   ['cup', 'Cup', ['cup', 'matches', 'highlights']],
-  ['league', 'League'], ['how', 'How it works'],
+  ['league', 'League'], ['how', 'How it works'], ['organize', 'Organize'],
 ];
 const routeLabel = id => (ROUTES.find(x => x[0] === id) || [])[1] || id;
 
@@ -58,10 +58,10 @@ function boot() {
   root.innerHTML = `
     <header class="jx-top">
       <a class="jx-brand" href="#/">${markSVG()}<span><b id="jxName">Gregal Prompt Cup</b><small>Gregal Jocs</small></span></a>
-      <nav class="jx-nav" id="jxNav" aria-label="Gregal Jocs">${NAV.map(([id, label]) => `<a href="#/${id === 'home' ? '' : id}" data-r="${id}">${label}</a>`).join('')}</nav>
+      <nav class="jx-nav" id="jxNav" aria-label="Gregal Jocs">${NAV.map(([id, label]) => `<a href="#/${id === 'home' ? '' : id}" data-r="${id}"${id === 'organize' ? ' hidden' : ''}>${label}</a>`).join('')}</nav>
       <div class="jx-top-r">
         <a class="jx-watch" id="jxWatch" target="_blank" rel="noopener" title="Open the broadcast in a new window" aria-label="Broadcast"><span class="jx-dot"></span><span class="jx-watch-ic" aria-hidden="true">${icon('preview')}</span><span id="jxWatchTx">Broadcast</span></a>
-        <button type="button" class="jx-icon-btn" data-prefs title="Settings (Ctrl+,)" aria-label="Settings">${icon('gear', '⚙')}</button>
+        <button type="button" class="jx-icon-btn" data-settings title="Settings" aria-label="Settings">${icon('gear', '⚙')}</button>
         <span class="jx-me" id="jxMe" hidden></span>
         ${jocsApp() ? '' : `<details class="jx-apps"><summary class="jx-icon-btn" aria-label="Other Gregal apps" title="Other Gregal apps">${icon('moreBtn', '⋯')}</summary><div><a href="/">Gregal Codi</a><a href="/vents/">Gregal Vents</a></div></details>`}
       </div>
@@ -74,7 +74,8 @@ function boot() {
       <section class="jx-route" data-route="players" id="jxPlayers"></section>
       <section class="jx-route" data-route="teams" id="jxTeams"></section>
       <section class="jx-route" data-route="highlights" id="jxHighlights"></section>
-      <section class="jx-route" data-route="cup"><div class="jx-wrap"><div id="jxCup"></div><div id="jxOrganizer" class="jx-organizer" hidden></div></div></section>
+      <section class="jx-route" data-route="cup"><div class="jx-wrap"><div id="jxCup"></div></div></section>
+      <section class="jx-route" data-route="organize"><div class="jx-wrap"><div id="jxOrganizer" class="jx-organizer" hidden></div></div></section>
       <section class="jx-route" data-route="matches" id="jxMatches"></section>
       <section class="jx-route" data-route="league"><div class="jx-wrap"><div id="jxLeagueHead"></div><div id="jxLeagueEmpty" hidden></div><div id="jxLeagueMount"></div></div></section>
       <section class="jx-route" data-route="how" id="jxHow"></section>
@@ -115,12 +116,54 @@ function openPrefs(group) {
   else document.getElementById('prefsBtn')?.click();
 }
 
+// Settings: only what a player or an organizer of Gregal Jocs needs (name,
+// team, the model), not the coding-agent preferences of Gregal.
+function openSettings() {
+  document.getElementById('jxSettings')?.remove();
+  const d = S.d || {}, ar = window.gregalArena;
+  const name = $('arDisplay')?.value || d.display || d.me || '';
+  const dlg = document.createElement('dialog');
+  dlg.id = 'jxSettings'; dlg.className = 'jx-settings';
+  dlg.setAttribute('aria-labelledby', 'jxSetT');
+  dlg.innerHTML = `<form method="dialog">
+    <div class="jx-set-h"><h2 id="jxSetT">Settings</h2><button class="jx-icon-btn" value="close" aria-label="Close">×</button></div>
+    <section><h3>You</h3>
+      <label>Your name in the competition<input id="jxSetName" maxlength="40" value="${esc(name)}"></label>
+      ${(d.teams || []).length ? `<label>Your team<select id="jxSetTeam"><option value="">— no team —</option>${d.teams.map(t => `<option ${t === d.my_team ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>` : ''}
+      <p class="jx-faint" id="jxSetMsg" role="status"></p></section>
+    <section><h3>The model</h3>
+      <p class="jx-muted">${d.model ? `Every match is played by <b>${esc(d.model.split('/').pop())}</b>, the same for everyone.` : 'No model yet: matches cannot be played.'}</p>
+      ${d.admin ? '<button type="button" class="jx-btn" id="jxSetModel">Change the model</button>' : '<p class="jx-faint">The organizer chooses it.</p>'}</section>
+    ${d.admin ? `<section><h3>Organizer</h3><p class="jx-muted">Event, teams, competition, broadcast and the learning report.</p>
+      <a class="jx-btn" href="#/organize" id="jxSetOrg">Organize the cup →</a></section>` : ''}
+    <div class="jx-set-f"><button type="button" class="jx-set-more" id="jxSetMore">More settings (Gregal preferences)</button><button class="jx-btn hot" value="close">Done</button></div>
+  </form>`;
+  document.body.append(dlg);
+  dlg.addEventListener('close', () => dlg.remove());
+  const say = t => { $('jxSetMsg').textContent = t; };
+  $('jxSetName').onchange = () => {
+    const v = $('jxSetName').value.trim();
+    if (!v) return;
+    if ($('arDisplay')) { $('arDisplay').value = v; $('arDisplay').dispatchEvent(new Event('change')); say('Saved'); }
+    else say('Open Play once to save your name.');
+  };
+  if ($('jxSetTeam')) $('jxSetTeam').onchange = async () => {
+    try { const r = await api('/api/arena', { method: 'POST', body: JSON.stringify({ action: 'team', team: $('jxSetTeam').value }) }); S.d.my_team = r.team || ''; say('Saved'); load(); }
+    catch (err) { say('Could not change the team: reload the page and try again.'); }
+  };
+  if ($('jxSetModel')) $('jxSetModel').onclick = () => { dlg.close(); changeModel(); };
+  if ($('jxSetOrg')) $('jxSetOrg').onclick = () => dlg.close();
+  $('jxSetMore').onclick = () => { dlg.close(); openPrefs(); };
+  dlg.showModal();
+  if (ar && !$('arDisplay')) ar.load?.();
+}
+
 // Sense model no es pot jugar cap partit: es diu abans de clicar, i les demos
 // continuen funcionant.
 function modelNote() {
   if (!S.d || S.d.model !== '') return '';
-  return `<div class="jx-note" role="status"><div><b>No model set up yet</b><span>Every match needs one: the same model plays both teams. Set it up in Settings; the demo matches work without it.</span></div>
-    <button type="button" class="jx-btn" data-prefs="agent">Set up a model</button></div>`;
+  return `<div class="jx-note" role="status"><div><b>No model set up yet</b><span>Every match needs one: the same model plays both teams. ${S.d.admin ? 'Choose it here' : 'Ask the organizer to set one up'}; the demo matches work without it.</span></div>
+    ${S.d.admin ? '<button type="button" class="jx-btn" data-model>Set up a model</button>' : ''}</div>`;
 }
 
 function markSVG() {
@@ -209,7 +252,7 @@ function route() {
   else if (page) page.hidden = true;
   if (S.route === 'league') mountLeague();
   else if (league) league.hidden = true;
-  if (S.route === 'cup') mountOrganizer();
+  if (S.route === 'organize') mountOrganizer();
   $('jxSite').scrollTop = 0;
   setTitle();
   if (S.d) paint();
@@ -237,6 +280,9 @@ function paintTeams() {
 
 function paint() {
   if (!S.d) return;
+  const org = document.querySelector('#jxNav [data-r="organize"]');
+  if (org) org.hidden = !S.d.admin;
+  if (S.route === 'organize') { if (S.d.admin) mountOrganizer(); else { location.hash = '#/'; return; } }
   paintSub();
   if (S.route === 'teams') paintTeams();
   if (S.route === 'home') paintHome();
@@ -292,15 +338,27 @@ function mountArena() {
   ar.load();
 }
 
+// A match of mine still being played: at the top of Play, so leaving the page
+// (or reloading) never loses it.
+function liveNote(d) {
+  const m = (d.matches || []).find(x => ['live', 'pregame'].includes(x.status) && (x.owners || []).includes(d.me));
+  if (!m) return '';
+  const side = m.owners[0] === d.me ? 0 : 1;
+  return `<div class="jx-note jx-live-note" role="status"><div><b>${m.status === 'pregame' ? 'Your match is in the queue' : 'Your match is being played'}</b>
+    <span>${esc(GAMES[m.game]?.short || m.game)} vs ${esc((m.names || [])[1 - side] || '')} · ${m.score[side]}–${m.score[1 - side]}</span></div>
+    <button type="button" class="jx-btn hot" data-open-live="${esc(m.id)}">Watch it</button></div>`;
+}
+
 function paintPlayHead() {
   const d = S.d, g = window.gregalArena?.game || 'nfl';
   const rank = rankOf(g, d.me);
   $('jxPlayHead').innerHTML = `<div class="jx-kicker">Your lab</div><h1 class="jx-h1">Write the playbook. <span class="jx-grad">Let the model play it.</span></h1>
     <div class="jx-chips">${rank ? `<span class="jx-chip">#${rank.pos} in ${esc(GAMES[g]?.short || g)} · ${rank.elo} Elo</span>` : `<span class="jx-chip">Unranked in ${esc(GAMES[g]?.short || g)} yet</span>`}
     ${typeof d.practice_left === 'number' && !d.admin ? `<span class="jx-chip">${Math.max(0, d.practice_left)} practice matches left today</span>` : ''}
-    ${d.model ? `<button type="button" class="jx-chip jx-chip-btn" data-prefs="agent" title="The model that plays every match. Change it in Settings.">Model · ${esc(d.model.split('/').pop())}</button>` : ''}
+    ${d.model ? `<button type="button" class="jx-chip jx-chip-btn" ${d.admin ? 'data-model' : 'disabled'} title="The model that plays every match${d.admin ? ': click to change it' : ''}.">Model · ${esc(d.model.split('/').pop())}</button>` : ''}
     ${teamPickerHTML(d.teams, d.my_team)}</div><p class="jx-team-err" id="jxTeamErr" role="alert" hidden></p>
-    ${modelNote()}<div id="jxChal"></div>`;
+    ${modelNote()}${liveNote(d)}<div id="jxChal"></div>`;
+  document.querySelectorAll('#jxPlayHead [data-open-live]').forEach(el => el.onclick = () => window.gregalArena?.openMatch(el.dataset.openLive));
   const pick = $('jxTeamPick');
   if (pick) pick.onchange = async () => {
     const team = pick.value;
@@ -362,12 +420,24 @@ function mountOrganizer() {
   }
   box.hidden = false;
   if (!box.querySelector('.jx-org-head')) {
-    box.innerHTML = `<div class="jx-org-head"><div><div class="jx-kicker">Organizer</div><h2 class="jx-h2">Run the tournament</h2>
-      <p class="jx-muted">Create a competition from everyone's current strategy, start it and share the broadcast. Only admins see this.</p></div></div>
-      <form class="jx-event" id="jxEventForm"><label>Event name<input name="name" maxlength="60"></label><label>Tagline<input name="tagline" maxlength="140"></label>
+    const step = (n, title, help, slot, extra = '') => `<li class="jx-ostep"><div class="jx-ostep-h"><b aria-hidden="true">${n}</b><div><h2 class="jx-h3">${title}${extra}</h2><p class="jx-muted sm">${help}</p></div></div><div id="${slot}" class="jx-ostep-b"></div></li>`;
+    box.innerHTML = `<div class="jx-page-head"><div><div class="jx-kicker">Only administrators see this page</div><h1 class="jx-h1">Organize the cup</h1>
+      <p class="jx-muted">Six steps, top to bottom. Players only need a link and a name: everything else is here.</p></div></div>
+      <ol class="jx-ostep-list">
+        ${step(1, 'The event', 'The name, date and place everyone sees, and your company logo for the header.', 'jxSlotEvent')}
+        ${step(2, 'Teams', 'Departments or offices that compete together. Skip it for an individual cup.', 'jxSlotTeams', ' <small class="jx-faint">optional</small>')}
+        ${step(3, 'The model', 'One AI model plays every match for everybody, so only the prompts make the difference.', 'jxSlotModel')}
+        ${step(4, 'Create and start the competition', 'It takes everyone’s strategy as it is now, makes groups by Elo and plays them, then the playoffs.', 'jxSlotComp')}
+        ${step(5, 'Show it live', 'Open the broadcast on the big screen, or share the spectator link.', 'jxSlotCast')}
+        ${step(6, 'After the event', 'What each person learned, for the training team.', 'jxSlotReport')}
+      </ol>`;
+    $('jxSlotEvent').innerHTML = `<form class="jx-event" id="jxEventForm"><label>Event name<input name="name" maxlength="60"></label><label>Tagline<input name="tagline" maxlength="140"></label>
       <label>Date<input name="date" type="datetime-local"></label><label>Place<input name="place" maxlength="80" placeholder="Main hall · Teams"></label><button class="jx-btn" type="submit">Save event</button><span class="jx-muted" id="jxEventSaved"></span></form>
       <div class="jx-logo-set"><label>Company logo <small class="jx-faint">PNG, SVG, JPEG or WebP, up to 150 KB. Shown in the header; best on a dark background.</small><input type="file" id="jxLogoFile" accept="image/png,image/svg+xml,image/jpeg,image/webp"></label>
         <button type="button" class="jx-btn sm" id="jxLogoDel">Remove logo</button><span class="jx-muted" id="jxLogoMsg" role="status"></span></div>`;
+    $('jxSlotModel').innerHTML = `<div class="jx-model-row"><span class="jx-chip" id="jxOrgModel"></span><button type="button" class="jx-btn sm" id="jxOrgModelBtn">Change the model</button></div>
+      <p class="jx-muted sm">Each person can play ${S.d.practice_limit || 6} practice matches a day against the bots; the competition matches do not count.</p>`;
+    $('jxOrgModelBtn').onclick = changeModel;
     $('jxLogoFile').onchange = () => {
       const file = $('jxLogoFile').files[0];
       if (!file) return;
@@ -386,9 +456,19 @@ function mountOrganizer() {
       catch (err) { $('jxEventSaved').textContent = err.message; }
     };
   }
-  if (fold.parentElement !== box) { box.append(fold); fold.open = true; fold.classList.add('jx-org-fold'); }
+  if (fold.parentElement !== $('jxSlotComp')) { $('jxSlotComp').append(fold); fold.open = true; fold.classList.add('jx-org-fold'); }
+  const cast = $('arBroadcast');
+  if (cast && cast.parentElement !== $('jxSlotCast')) $('jxSlotCast').append(cast);
+  $('jxOrgModel').textContent = S.d.model ? 'Now: ' + S.d.model.split('/').pop() : 'No model yet: players cannot play until you choose one';
   paintPlanner();
   paintOrgTeams();
+}
+
+// The model that plays: the same provider dialog as the first start (pick a
+// provider, paste the key, it is tested), not the full Gregal preferences.
+function changeModel() {
+  if (window.gregalOnboarding?.open) window.gregalOnboarding.open();
+  else document.querySelector('#jxSite [data-prefs]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 }
 
 // The organiser's team tools and the learning report (jocs-teams.js).
@@ -396,9 +476,10 @@ function paintOrgTeams() {
   const box = $('jxOrganizer');
   if (!box || box.hidden || !S.d?.admin) return;
   let el = $('jxOrgTeams');
-  if (!el) { el = document.createElement('div'); el.id = 'jxOrgTeams'; ($('jxPlanner') || box.querySelector('.jx-org-head')).after(el); }
+  if (!el) { el = document.createElement('div'); el.id = 'jxOrgTeams'; $('jxSlotTeams').append(el); }
   if (el.contains(document.activeElement)) return; // do not repaint under the cursor
   el.innerHTML = organizerTeamsHTML(S.d.teams, S.d.team_members, S.season?.players);
+  if (!$('jxReport')) $('jxSlotReport').innerHTML = reportToolHTML();
   $('jxTeamSave').onclick = async () => {
     const teams = $('jxTeamList').value.split('\n');
     try { const r = await api('/api/arena', { method: 'POST', body: JSON.stringify({ action: 'teams', teams }) }); S.d.teams = r.teams; $('jxTeamSaved').textContent = 'Saved'; load(); }
@@ -428,7 +509,7 @@ function paintPlanner() {
   let el = $('jxPlanner');
   if (!el) {
     el = document.createElement('div'); el.id = 'jxPlanner'; el.className = 'jx-planner';
-    box.querySelector('.jx-org-head').after(el);
+    $('jxSlotComp').prepend(el);
     document.addEventListener('change', e => { if (e.target.id === 'arCompBots') paintPlanner(); });
   }
   const sl = S.d.slots || { official: 1, practice: 2 }, bots = $('arCompBots')?.checked ?? true;
@@ -686,7 +767,7 @@ async function paintCup() {
       <p class="jx-muted">Groups seeded by Elo, then best-of-three playoffs. Strategies are frozen when the tournament is created and revealed when it ends.</p></div>
       <a class="jx-btn hot" href="${esc(streamURL())}" target="_blank" rel="noopener">${icon('preview', '📺')} Open the broadcast</a></div>
     ${comps.length ? `<div class="jx-cup"><nav class="jx-comps">${list}</nav><div class="jx-cup-main" id="jxCupMain"><div class="jx-muted">Loading…</div></div></div>`
-      : `<div class="jx-empty">No tournament yet. ${d.admin ? 'Create one below.' : 'The organizer will announce it soon.'}</div>`}`;
+      : `<div class="jx-empty">No tournament yet. ${d.admin ? '<a href="#/organize">Set it up in Organize →</a>' : 'The organizer will announce it soon.'}</div>`}`;
   mountOrganizer();
   if (!id) return;
   try { S.comp = await api('/api/arena/competition?id=' + encodeURIComponent(id)); } catch (e) { $('jxCupMain').textContent = e.message; return; }
@@ -743,10 +824,12 @@ function paintHow() {
 function onClick(e) {
   // A l'Arena encastada, canviar de joc canvia també la capçalera (rànquing d'aquell joc).
   if (e.target.closest('#arGames [data-g]')) { setTimeout(() => { if (S.d && S.route === 'play') paintPlayHead(); }, 0); return; }
-  const t = e.target.closest('[data-moment],[data-insight],[data-player],[data-hf],[data-match],[data-rank],[data-mf],[data-cupgame],[data-entry],[data-demo],[data-prefs],[data-retry],#jxRankBots');
+  const t = e.target.closest('[data-moment],[data-insight],[data-player],[data-hf],[data-match],[data-rank],[data-mf],[data-cupgame],[data-entry],[data-demo],[data-prefs],[data-settings],[data-model],[data-retry],#jxRankBots');
   if (!t) return;
   if (t.id === 'jxRankBots') { S.rankBots = t.checked; paintRanking(); return; }
   if (t.hasAttribute('data-prefs')) { openPrefs(t.dataset.prefs); return; }
+  if (t.hasAttribute('data-settings')) { openSettings(); return; }
+  if (t.hasAttribute('data-model')) { changeModel(); return; }
   if (t.dataset.moment) { openMatch(t.dataset.moment, t.dataset.at); return; }
   if (t.dataset.insight) { writeInsight(t.dataset.insight); return; }
   if (t.dataset.player) { location.hash = '#/players/' + encodeURIComponent(t.dataset.player); return; }
