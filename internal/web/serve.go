@@ -371,9 +371,17 @@ func ambCapcaleresSegures(next http.Handler) http.Handler {
 		if h.Get("X-Frame-Options") == "" {
 			h.Set("X-Frame-Options", "SAMEORIGIN")
 		}
+		// Topall global: cap petició d'escriptura passa de 256 MB (els límits més
+		// estrictes de cada ruta continuen manant); un servidor 24 h exposat no es
+		// pot quedar sense memòria per un cos gegant.
+		if r.Body != nil && (r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch) {
+			r.Body = http.MaxBytesReader(w, r.Body, maxRequestBody)
+		}
 		next.ServeHTTP(w, r)
 	})
 }
+
+const maxRequestBody = 256 << 20
 
 // Handler is the same authenticated API and UI used by every HTTP client.
 func (s *Server) Handler() http.Handler { return s.Hub().Handler() }

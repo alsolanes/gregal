@@ -117,6 +117,7 @@ func (s *Server) pushNovetat(n windNovetat) {
 	}
 	data := map[string]string{"k": eventNovetat, "id": n.ID}
 	go func() {
+		defer recoverGo("push")
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		for _, d := range devices {

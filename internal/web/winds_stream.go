@@ -680,6 +680,7 @@ func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stre
 			wg.Add(1)
 			go func(si int, sp companion.Wind) {
 				defer wg.Done()
+				defer recoverGo("rotllana:veu")
 				tVeu := time.Now()
 				system, brief := rotllanaChatBrief(s, rot, sp, conversation, msg)
 				brief += windDocsBrief + "\n\nNow only YOU, " + sp.Name + ", speak, from your own specialty. The other members answer the same message in parallel and the lead will merge the answers, so give your own concrete view: the facts, the proposal or the risk you see, with sources. Do not ask the user questions and do not speak for the others."

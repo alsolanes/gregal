@@ -40,7 +40,10 @@ func (s *Server) jobLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			s.runDueJobs()
+			func() {
+				defer recoverGo("jobLoop")
+				s.runDueJobs()
+			}()
 		}
 	}
 }

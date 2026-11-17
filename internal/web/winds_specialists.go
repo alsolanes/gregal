@@ -211,6 +211,12 @@ func (s *Server) runWindTool(ctx context.Context, argsJSON string) (string, erro
 			wg.Add(1)
 			go func(i int, w companion.Wind) {
 				defer wg.Done()
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("pànic a especialista %s: %v", w.ID, r)
+						results[i] = answer{wind: w, err: fmt.Errorf("ha fallat")}
+					}
+				}()
 				select {
 				case slots <- struct{}{}:
 					defer func() { <-slots }()

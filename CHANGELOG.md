@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## v1.87.3 - 2026-11-17 - Servidor més robust
+
+- **El servidor no cau per un error en una tasca de fons.** Les veus de les
+  rotllanes, els especialistes, els estudis, els avisos al mòbil i el
+  programador de feines ara recuperen un error inesperat i segueixen en lloc
+  de tombar tots els vents.
+- **Límit de mida a les peticions** (256 MB) perquè un cos gegant no deixi el
+  servidor sense memòria.
+
 ## v1.87.2 - 2026-11-17 - Mode codi sense aturades
 
 - **El mode codi ja no s'atura a cada ordre.** En «Aprova les edicions» les

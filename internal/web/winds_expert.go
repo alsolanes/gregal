@@ -366,7 +366,10 @@ func (s *Server) handleWindsExpert(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "estudi en marxa", http.StatusConflict)
 			return
 		}
-		go s.executaExpert(vent, e)
+		go func() {
+			defer recoverGo("expert")
+			s.executaExpert(vent, e)
+		}()
 		writeJSON(w, map[string]any{"ok": true, "wind": vent.ID, "tema": tema})
 	case http.MethodGet:
 		id := strings.TrimSpace(r.URL.Query().Get("wind"))
