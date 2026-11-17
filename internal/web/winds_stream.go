@@ -143,15 +143,39 @@ const windEstilBrief = "\n\nAFTER DOING WORK (files, commands, publishing): 2-5 
 // l'altre (la persona, les regles) i al final el que sí (hora, lliçons,
 // carpeta, idioma), perquè els proveïdors en puguin reaprofitar el prefix.
 func windChatSystemPrompt(s *Server, wind companion.Wind, msg string) string {
+	return joinPromptBlocks(windChatSystemBlocks(s, wind, msg))
+}
+
+// windChatSystemBlocks és el mateix system, però separat en blocs amb nom, en
+// l'ordre exacte d'enviament: serveix per mesurar què pesa cada part i on es
+// trenca el prefix reaprofitable (winds_promptstats.go).
+func windChatSystemBlocks(s *Server, wind companion.Wind, msg string) []promptBlock {
 	ws, _ := s.ventWorkspace()
-	system := companion.WindChatSystem(wind, s.personalMemory(), s.projectName(), s.windGoalTitles(), s.lastSessionDigest(), s.windUserName())
 	// Primer el que gairebé no canvia (instruccions, poders, connexions) i després el que
 	// canvia amb l'ús (calaix, equip, cervell, memòria, lliçons): un servidor local només
 	// reaprofita el prefix fins al primer canvi.
-	return system + windTradeBrief(wind) + s.windCardsBrief(wind.ID) + s.windServerBrief() + s.windConnectionsBrief() +
-		windDocsBrief + windCodeBrief + windEstilBrief + windRemindBrief(wind.ID) + windFollowupBrief(wind) + windNowBrief() +
-		s.gregalTeamBrief(wind) + s.windCalaixBrief(wind) + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windMemorySystem(wind.ID) + s.windSkillsSystem(wind.ID) +
-		s.windLessonsBrief(wind.ID) + windProjectesBrief(ws) + s.windRulesBrief() + companion.ReplyLanguageBrief(msg)
+	return []promptBlock{
+		{"base", companion.WindChatSystem(wind, s.personalMemory(), s.projectName(), s.windGoalTitles(), s.lastSessionDigest(), s.windUserName())},
+		{"trade", windTradeBrief(wind)},
+		{"cards", s.windCardsBrief(wind.ID)},
+		{"server", s.windServerBrief()},
+		{"connections", s.windConnectionsBrief()},
+		{"docs", windDocsBrief},
+		{"code", windCodeBrief},
+		{"style", windEstilBrief},
+		{"remind", windRemindBrief(wind.ID)},
+		{"followup", windFollowupBrief(wind)},
+		{"now", windNowBrief()},
+		{"team", s.gregalTeamBrief(wind)},
+		{"drawer", s.windCalaixBrief(wind)},
+		{"brain", companion.WindBrainSystem(s.windBrain(wind.ID))},
+		{"memory", s.windMemorySystem(wind.ID)},
+		{"skills", s.windSkillsSystem(wind.ID)},
+		{"lessons", s.windLessonsBrief(wind.ID)},
+		{"projects", windProjectesBrief(ws)},
+		{"rules", s.windRulesBrief()},
+		{"language", companion.ReplyLanguageBrief(msg)},
+	}
 }
 
 // gregalTeamBrief diu a Gregal, a cada torn, qui té a l'equip i de què en sap:
@@ -377,7 +401,9 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 			res, err = s.runReadOnlyLoopForRole(ctx, "", windTurnSteps, p, role, messages)
 		}
 	} else {
-		system := windChatSystemPrompt(s, wind, msg)
+		blocks := windChatSystemBlocks(s, wind, msg)
+		system := joinPromptBlocks(blocks)
+		recordPromptStats(wind.ID, blocks)
 		brief := windBriefFromSystem(system, previous, msg)
 		ctx = withWindPrompt(agent.WithSkillsDirs(ctx, s.windSkillsDir(wind.ID)), windTurnMessages(system, previous, msg))
 		var routed *routedRole
