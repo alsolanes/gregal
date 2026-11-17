@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"fmt"
 	"sync"
 
 	"gregal/internal/llm"
@@ -68,6 +69,13 @@ func execParallel(calls []llm.ToolCall, exec execFn) ([]string, [][]string, []er
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
+			defer func() {
+				if r := recover(); r != nil {
+					// Un pànic en una eina no pot tombar el procés: es torna
+					// com un error d'eina i el model continua.
+					errs[i] = fmt.Errorf("l'eina %s ha fallat de manera inesperada: %v", c.Function.Name, r)
+				}
+			}()
 			o, imgs, err := exec(c.Function.Name, c.Function.Arguments)
 			outs[i], allImgs[i], errs[i] = o, imgs, err
 		}(i, c)

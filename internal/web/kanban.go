@@ -347,8 +347,8 @@ func (b *kanbanBoard) startLocked(c *kanbanCard) error {
 	t.p = p
 	c.term = t
 	c.Updated = time.Now().UTC()
-	go t.pump()
-	go b.watch(c, t)
+	go func() { defer recoverGo("kanban"); t.pump() }()
+	go func() { defer recoverGo("kanban"); b.watch(c, t) }()
 	return nil
 }
 

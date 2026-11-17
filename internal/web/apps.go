@@ -201,7 +201,10 @@ func (m *appManager) launchLocked(run *appRun) error {
 	run.proc = p
 	run.gaveUp = false
 	gen := run.gen
-	go m.supervise(run.rec.ID, p, gen)
+	go func() {
+		defer recoverGo("apps")
+		m.supervise(run.rec.ID, p, gen)
+	}()
 	return nil
 }
 

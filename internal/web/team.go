@@ -394,6 +394,7 @@ func vigilaEstanc(ctx context.Context, limit time.Duration) (context.Context, fu
 		cada = time.Second
 	}
 	go func() {
+		defer recoverGo("team")
 		t := time.NewTicker(cada)
 		defer t.Stop()
 		for {

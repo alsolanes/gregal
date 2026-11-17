@@ -103,7 +103,7 @@ func (s *Server) refreshModelAvailability(role string) (string, bool) {
 		if time.Since(checked) >= modelAvailabilityCacheTTL {
 			// Marked now so concurrent turns don't start several refreshes.
 			s.modelCheckedAt[role] = time.Now()
-			go s.checkModelAvailability(role)
+			go func() { defer recoverGo("models"); s.checkModelAvailability(role) }()
 		}
 		s.mu.Unlock()
 		return selection, unavailable

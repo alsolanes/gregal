@@ -184,6 +184,7 @@ func (s *Server) retroRunReviews(ctx context.Context, c *retroChannel, before <-
 	for _, a := range retroReviewers(c) {
 		wg.Add(1)
 		go func(a retroAgent) {
+			defer recoverGo("retro_review")
 			defer wg.Done()
 			defer s.retroTyping(c.Key, []string{a.ID}, false)
 			sys, user := retroReviewPrompt(c, a)

@@ -385,6 +385,7 @@ func (s *Server) respParkForComputer(r *responsabilitat, queued runs.Run) {
 	computerWaits.Unlock()
 	if start {
 		go func() {
+			defer recoverGo("winds_responsabilitats_fonts")
 			t := time.NewTicker(respComputerPoll)
 			defer t.Stop()
 			for range t.C {

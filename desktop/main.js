@@ -57,6 +57,7 @@ function prefsNow() {
 // Aturada volguda del backend (sortir de l'app o instal·lar una versió nova):
 // llavors que s'aturi no és cap error que calgui ensenyar.
 let backendStopping = false;
+let backendRestarts = [];
 // Producte que ha demanat una segona instància («Gregal Vents») mentre l'app
 // encara arrencava: es carrega aquest en lloc del de la línia d'ordres.
 let requestedPath = null;
@@ -292,7 +293,21 @@ async function ensureServer() {
             // pantalla d'error, que diu què ha passat i el torna a engegar.
             const win = mainWin;
             if (!backendStopping && win && !win.isDestroyed() && sameOrigin(win.webContents.getURL(), BASE)) {
-                void showStartupError(win, 'stopped');
+                // Primer s'intenta tornar a engegar sol (com a màxim 3 cops en
+                // 10 minuts): una caiguda puntual no hauria d'aturar la feina.
+                const now = Date.now();
+                backendRestarts = backendRestarts.filter(t => now - t < 600000);
+                if (backendRestarts.length < 3) {
+                    backendRestarts.push(now);
+                    void (async () => {
+                        let ok = false;
+                        try { ok = await ensureServer(); } catch (e) { ok = false; }
+                        if (ok && !win.isDestroyed()) win.webContents.reload();
+                        else if (!win.isDestroyed()) void showStartupError(win, 'stopped');
+                    })();
+                } else {
+                    void showStartupError(win, 'stopped');
+                }
             }
         });
         const ok = await waitForServer(20000);

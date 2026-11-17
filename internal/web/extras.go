@@ -431,6 +431,7 @@ func (s *Server) queueMemorySuggestion(mode, workspace string, execs int, cutSho
 	started := time.Now().UTC()
 	memSuggestions.Store(s, memSuggestion{State: "pending", Notes: []string{}, Workspace: workspace, At: started})
 	go func() {
+		defer recoverGo("extras")
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 		notes, err := memorySuggester(ctx, client, cfg, p, role, hist, config.Notes(workspace, ""))

@@ -1043,6 +1043,7 @@ func (s *Server) retroPostWebhook(c *retroChannel) {
 	}
 	body, _ := json.Marshal(map[string]string{"text": retroSummary(c)})
 	go func() {
+		defer recoverGo("retro")
 		if retroWebhookDone != nil {
 			defer retroWebhookDone()
 		}
@@ -1304,6 +1305,7 @@ func (s *Server) handleRetroStart(w http.ResponseWriter, r *http.Request) {
 		close(reviewsDone)
 	} else {
 		go func() {
+			defer recoverGo("retro")
 			defer close(reviewsDone)
 			s.retroRunReviews(rctx, ch, standupDone, publish)
 		}()

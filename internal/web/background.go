@@ -14,6 +14,7 @@ var bgWork sync.WaitGroup
 func goBackground(fn func()) {
 	bgWork.Add(1)
 	go func() {
+		defer recoverGo("background")
 		defer bgWork.Done()
 		fn()
 	}()

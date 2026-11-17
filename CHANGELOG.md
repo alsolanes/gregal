@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v1.87.4 - 2026-11-17 - Menys caigudes
+
+- **Una eina que peta ja no tomba el torn.** Si una eina falla de manera
+  inesperada (també quan se n'executen diverses alhora), el vent la veu com un
+  error i continua. Més tasques de fons (retro, kanban, apps, túnels) estan
+  protegides igual.
+- **L'escriptori reengega sol el motor** si cau amb l'app oberta (fins a 3
+  cops en 10 minuts) i recarrega la finestra; si no pot, surt la pantalla
+  d'error de sempre.
+
 ## v1.87.3 - 2026-11-17 - Servidor més robust
 
 - **El servidor no cau per un error en una tasca de fons.** Les veus de les

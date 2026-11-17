@@ -275,6 +275,7 @@ func (s *Server) startBestOf(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 	go func() {
+		defer recoverGo("caps")
 		defer cancel()
 		res, err := agent.RunBestOf(ctx, s.client, cfg, opts)
 		b.mu.Lock()

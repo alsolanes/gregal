@@ -321,7 +321,10 @@ func (m *tunnelManager) launchLocked(run *tunnelRun, cmd string) error {
 	}
 	run.gen++
 	run.proc, run.gaveUp, run.lastExit = p, false, ""
-	go m.supervise(run.rec.ID, p, run.gen, cmd)
+	go func() {
+		defer recoverGo("tunnels")
+		m.supervise(run.rec.ID, p, run.gen, cmd)
+	}()
 	return nil
 }
 

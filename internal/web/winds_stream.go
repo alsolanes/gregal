@@ -56,6 +56,7 @@ func windSSE(w http.ResponseWriter, ctx context.Context, interval time.Duration)
 	ctx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 	go func() {
+		defer recoverGo("winds_stream")
 		defer close(done)
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()

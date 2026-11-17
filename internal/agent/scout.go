@@ -277,6 +277,11 @@ func RunScouts(ctx context.Context, o ScoutOptions) (res ScoutResult) {
 		wg.Add(1)
 		go func(i int, oi ScoutOptions) {
 			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					results[i].Err = fmt.Errorf("l'explorador ha fallat de manera inesperada: %v", r)
+				}
+			}()
 			results[i] = RunScout(ctx, oi)
 		}(i, oi)
 	}

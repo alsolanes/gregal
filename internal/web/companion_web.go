@@ -54,6 +54,7 @@ func (s *Server) queueCompanionSuggestion(mode string, hist []llm.Message) {
 	started := time.Now().UTC()
 	companionSuggests.Store(s, companionSuggestion{State: "pending", Facts: []string{}, At: started})
 	go func() {
+		defer recoverGo("companion_web")
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 		digest := agent.TranscriptDigest(hist, 16000)

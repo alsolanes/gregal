@@ -1607,7 +1607,14 @@ func (l *Loop) lot(ctx context.Context, hist []llm.Message, calls []llm.ToolCall
 			return hist, err
 		}
 	}
-	res := RunCalls(calls, func(i int) bool { return fixos[i] != "" }, func(_ int, c llm.ToolCall) resultat {
+	res := RunCalls(calls, func(i int) bool { return fixos[i] != "" }, func(_ int, c llm.ToolCall) (res resultat) {
+		// Un pànic dins una eina (també en paral·lel) es torna com a error d'eina:
+		// no tomba el procés ni el torn.
+		defer func() {
+			if p := recover(); p != nil {
+				res = resultat{out: fmt.Sprintf("ERROR: l'eina %s ha fallat de manera inesperada: %v", c.Function.Name, p)}
+			}
+		}()
 		r, ri, rerr := l.RunTool(ctx, c.Function.Name, c.Function.Arguments)
 		if rerr != nil {
 			return resultat{out: "ERROR: " + rerr.Error()}
