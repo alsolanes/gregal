@@ -29,7 +29,7 @@ func TestWindTurnMessagesStructure(t *testing.T) {
 	if strings.Join(roles, ",") != "system,user,assistant,user,assistant,user" {
 		t.Fatalf("rols: %v", roles)
 	}
-	if got[0].Content != "SYS" || got[len(got)-1].Content != "Què faig per sopar?" {
+	if got[0].Content != "SYS" || !strings.HasPrefix(got[len(got)-1].Content, "Què faig per sopar?") {
 		t.Fatalf("extrems: %+v", got)
 	}
 	if !strings.Contains(got[2].Content, "entrevista") || !strings.Contains(got[2].Content, "dentista") {
@@ -41,7 +41,7 @@ func TestWindTurnMessagesStructure(t *testing.T) {
 // torns d'usuari seguits: el nou s'hi enganxa.
 func TestWindTurnMessagesPendingUser(t *testing.T) {
 	got := windTurnMessages("SYS", []llm.Message{{Role: "user", Content: "hola"}}, "hi ets?")
-	if len(got) != 2 || got[1].Role != "user" || !strings.Contains(got[1].Content, "hola") || !strings.HasSuffix(got[1].Content, "hi ets?") {
+	if len(got) != 2 || got[1].Role != "user" || !strings.Contains(got[1].Content, "hola") || !strings.Contains(got[1].Content, "hi ets?") {
 		t.Fatalf("%+v", got)
 	}
 }
@@ -88,7 +88,7 @@ func TestWindStreamSendsStructuredTurns(t *testing.T) {
 	req := httptest.NewRequest("POST", "/api/winds/chat/stream", strings.NewReader(`{"wind":"xaloc","message":"I per dinar demà?"}`))
 	rec := httptest.NewRecorder()
 	s.handleWindChatStream(rec, req)
-	if len(msgs) != 4 || msgs[0].Role != "system" || msgs[1].Content != "Què faig per sopar?" || msgs[2].Role != "assistant" || msgs[3].Content != "I per dinar demà?" {
+	if len(msgs) != 4 || msgs[0].Role != "system" || msgs[1].Content != "Què faig per sopar?" || msgs[2].Role != "assistant" || !strings.HasPrefix(msgs[3].Content, "I per dinar demà?") {
 		t.Fatalf("missatges: %+v %s", msgs, rec.Body.String())
 	}
 	if !strings.Contains(msgs[0].Content, "HOW YOU ANSWER") || strings.Contains(msgs[0].Content, "1-4 sentences") || strings.Contains(msgs[0].Content, "PREVIOUS CONVERSATION") {

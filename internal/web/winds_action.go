@@ -43,7 +43,7 @@ func (s *Server) executeWindAction(ctx context.Context, job jobs.Job, w companio
 	tries := job.Tries + 1
 	last := job.RetryMin <= 0 || tries >= job.MaxTries
 	brief := windActionSystem(w, s.personalMemory(), s.windUserName(), job.Task, last)
-	brief += windRemindBrief(w.ID) + companion.WindBrainSystem(s.windBrain(w.ID))
+	brief += windRemindBriefExact(w.ID) + companion.WindBrainSystem(s.windBrain(w.ID))
 	// Les preferències que l'usuari ha corregit a la memòria del vent valen
 	// també per als encàrrecs amb hora, no només per al xat (B8).
 	brief += s.windMemorySystem(w.ID)

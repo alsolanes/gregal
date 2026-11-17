@@ -157,7 +157,7 @@ func (s *Server) executeWindHeartbeat(ctx context.Context, job jobs.Job, queued 
 		}
 		return jobs.Run{JobID: job.ID, JobName: job.Name, StartedAt: start, FinishedAt: start, Status: "ok"}, nil
 	}
-	brief := windHeartbeatSystem(w, s.personalMemory(), s.windUserName()) + windRemindBrief(w.ID)
+	brief := windHeartbeatSystem(w, s.personalMemory(), s.windUserName()) + windRemindBriefExact(w.ID)
 	brief += companion.WindBrainSystem(s.windBrain(w.ID)) + s.windMemorySystem(w.ID)
 	brief += windTradeBrief(w) + s.windCalaixBrief(w)
 	brief += "\n\nTopic to watch: " + w.Role

@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"strings"
+	"time"
 
 	"gregal/internal/companion"
 	"gregal/internal/llm"
@@ -109,6 +110,7 @@ func windChatTurns(previous []llm.Message) []llm.Message {
 // ja és de l'usuari (un missatge sense resposta), s'hi enganxa el nou.
 func windTurnMessages(system string, previous []llm.Message, msg string) []llm.Message {
 	msgs := []llm.Message{{Role: "system", Content: system}}
+	msg += windClockTag(time.Now())
 	turns := windChatTurns(previous)
 	if n := len(turns); n > 0 && turns[n-1].Role == "user" {
 		turns[n-1].Content += "\n\n" + msg

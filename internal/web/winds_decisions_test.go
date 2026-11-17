@@ -51,6 +51,9 @@ func decisionModel(t *testing.T) *httptest.Server {
 			if m := req.Messages[i]; m.Role == "user" {
 				if c := fmt.Sprint(m.Content); strings.Contains(c, "ESBORRA ") {
 					target = strings.TrimSpace(c[strings.Index(c, "ESBORRA ")+len("ESBORRA "):])
+					if k := strings.Index(target, "[time now"); k >= 0 {
+						target = strings.TrimSpace(target[:k])
+					}
 					break
 				}
 			}

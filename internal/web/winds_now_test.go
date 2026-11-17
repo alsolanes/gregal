@@ -28,3 +28,17 @@ func TestWindNowBriefForbidsGuessing(t *testing.T) {
 		t.Fatalf("no cobreix els dies relatius: %s", got)
 	}
 }
+
+// El prompt del sistema no pot canviar de minut en minut: invalidava la
+// memòria cau del servidor local (eines i instruccions després de l'hora) i
+// cada missatge tornava a processar milers de tokens.
+func TestWindNowBriefIsStableWithinTheDayPart(t *testing.T) {
+	a := windNowAt(time.Date(2026, 11, 17, 11, 45, 0, 0, time.UTC))
+	b := windNowAt(time.Date(2026, 11, 17, 11, 46, 0, 0, time.UTC))
+	if a != b {
+		t.Fatalf("el sistema canvia en un minut:\n%s\n%s", a, b)
+	}
+	if !strings.Contains(windClockTag(time.Date(2026, 11, 17, 11, 45, 0, 0, time.UTC)), "12:45") {
+		t.Fatal("l'hora exacta ha d'anar a l'etiqueta del missatge")
+	}
+}

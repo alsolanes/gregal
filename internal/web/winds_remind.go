@@ -529,10 +529,23 @@ func windRemindIsSimple(s *Server, jobID string) bool {
 }
 
 // windRemindBrief diu al vent com programar avisos (eina remind).
+//
+// Als torns de xat l'hora exacta no va al prompt (trenca la memòria cau del
+// servidor local): només la zona; l'hora, a l'etiqueta [time now] del missatge.
 func windRemindBrief(windID string) string {
-	now := time.Now().Format(time.RFC3339)
+	_, off := time.Now().Zone()
+	zona := fmt.Sprintf("%+03d:%02d", off/3600, (off%3600)/60)
+	return windRemindBriefAt(windID, "L'hora actual és a [time now], al final del missatge de l'usuari; la zona local és UTC"+zona+".")
+}
+
+// windRemindBriefExact porta l'hora exacta: per a torns sense etiqueta d'hora.
+func windRemindBriefExact(windID string) string {
+	return windRemindBriefAt(windID, "Ara són "+time.Now().Format(time.RFC3339)+" (zona local).")
+}
+
+func windRemindBriefAt(windID, ara string) string {
 	return "\n\nEl teu id de vent és \"" + windID + "\" (fes-lo servir tal qual a wind)." +
-		" Ara són " + now + " (zona local)." +
+		" " + ara +
 		" Pots programar avisos amb l'eina remind: si l'usuari et demana que l'avisis" +
 		" d'alguna cosa, o tu creus que cal avisar-lo més tard d'algun fet d'aquest torn," +
 		" crida-la amb wind, at (RFC3339 amb zona, o 21/10 09:00, o 09:00, o +2h;" +

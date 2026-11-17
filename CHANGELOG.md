@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v1.87.5 - 2026-11-17 - Models locals més ràpids
+
+- **Els models locals ja no tornen a processar tot el prompt a cada missatge.**
+  L'hora exacta (que canviava cada minut) era enmig de les instruccions i
+  trencava la memòria cau del servidor local: cada missatge reprocessava
+  desenes de milers de tokens. Ara l'hora va al final del teu missatge i el
+  que canvia amb l'ús (memòria, calaix, lliçons) va al final del sistema.
+
 ## v1.87.4 - 2026-11-17 - Menys caigudes
 
 - **Una eina que peta ja no tomba el torn.** Si una eina falla de manera

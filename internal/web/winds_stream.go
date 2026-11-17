@@ -145,8 +145,13 @@ const windEstilBrief = "\n\nAFTER DOING WORK (files, commands, publishing): 2-5 
 func windChatSystemPrompt(s *Server, wind companion.Wind, msg string) string {
 	ws, _ := s.ventWorkspace()
 	system := companion.WindChatSystem(wind, s.personalMemory(), s.projectName(), s.windGoalTitles(), s.lastSessionDigest(), s.windUserName())
-	return system + windNowBrief() + windTradeBrief(wind) + s.gregalTeamBrief(wind) + s.windCalaixBrief(wind) + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windMemorySystem(wind.ID) + s.windSkillsSystem(wind.ID) + s.windCardsBrief(wind.ID) + s.windServerBrief() + s.windConnectionsBrief() +
-		windDocsBrief + windCodeBrief + windEstilBrief + windRemindBrief(wind.ID) + windFollowupBrief(wind) + s.windLessonsBrief(wind.ID) + windProjectesBrief(ws) + s.windRulesBrief() + companion.ReplyLanguageBrief(msg)
+	// Primer el que gairebé no canvia (instruccions, poders, connexions) i després el que
+	// canvia amb l'ús (calaix, equip, cervell, memòria, lliçons): un servidor local només
+	// reaprofita el prefix fins al primer canvi.
+	return system + windTradeBrief(wind) + s.windCardsBrief(wind.ID) + s.windServerBrief() + s.windConnectionsBrief() +
+		windDocsBrief + windCodeBrief + windEstilBrief + windRemindBrief(wind.ID) + windFollowupBrief(wind) + windNowBrief() +
+		s.gregalTeamBrief(wind) + s.windCalaixBrief(wind) + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windMemorySystem(wind.ID) + s.windSkillsSystem(wind.ID) +
+		s.windLessonsBrief(wind.ID) + windProjectesBrief(ws) + s.windRulesBrief() + companion.ReplyLanguageBrief(msg)
 }
 
 // gregalTeamBrief diu a Gregal, a cada torn, qui té a l'equip i de què en sap:
@@ -192,7 +197,7 @@ func windChatBrief(s *Server, wind companion.Wind, previous []llm.Message, msg s
 }
 
 func windBriefFromSystem(system string, previous []llm.Message, msg string) string {
-	return system + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + agent.TranscriptDigest(previous, 9600) + "\n\nTask: the user asks:\n" + msg
+	return system + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + agent.TranscriptDigest(previous, 9600) + "\n\nTask: the user asks:\n" + msg + windClockTag(time.Now())
 }
 
 // rotllanaChatBrief munta la consigna del torn en grup (clàssic i stream).
@@ -205,7 +210,7 @@ func rotllanaChatBrief(s *Server, rot Rotllana, speakingWind companion.Wind, con
 	// diferent. El pressupost baixa a 9.400 perquè els noms i la consigna de
 	// conversa han de continuar cabent al sostre de 20k del brief.
 	transcript := agent.TranscriptDigestSpeakers(conversation, 9400)
-	brief = system + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + transcript + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first (to read any URL use web_fetch, never curl: shell downloads are blocked); if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed. Never invent facts. If it is about a specific place, dish, product, artwork or person, put a photo line after your first sentence: ![name](image: 2-4 English words); the app turns it into a real photo." +
+	brief = system + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + transcript + "\n\nTask: the user asks:\n" + msg + windClockTag(time.Now()) + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first (to read any URL use web_fetch, never curl: shell downloads are blocked); if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed. Never invent facts. If it is about a specific place, dish, product, artwork or person, put a photo line after your first sentence: ![name](image: 2-4 English words); the app turns it into a real photo." +
 		"\n\nSpeak only as yourself. For a requested deliverable, start working if you have what you need. If one missing choice would materially change it, ask that one question with concrete options." + windRemindBrief(speakingWind.ID) + windFollowupBrief(speakingWind) + windCodeBrief + s.windLessonsBrief(speakingWind.ID) + onTreballa + companion.ReplyLanguageBrief(msg)
 	return system, brief
 }
