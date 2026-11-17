@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -2022,8 +2023,13 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
     // respostes curtes van en bombolla suau com a qualsevol missatgeria; les
     // taules, el codi i les respostes llargues, a tot l'ample i sense caixa,
     // que dins d'una bombolla quedaven estretes i feixugues.
-    val blocks = remember(m.text, m.streaming) { if (m.streaming) richBlocksLive(m.text) else richBlocks(m.text) }
-    val reading = remember(m.text, blocks) { chatSurfaceFor(m.text, blocks) == ChatSurface.READING }
+    // El text arriba a salts; es revela de forma contínua perquè la bombolla creixi suau.
+    val shownText = rememberPacedText(m.text, m.streaming)
+    val blocks = remember(shownText, m.streaming) { if (m.streaming) richBlocksLive(shownText) else richBlocks(shownText) }
+    // Sempre superfície de lectura (sense bombolla): decidir-ho pel text feia que
+    // la resposta nasqués en bombolla i, en passar de 900 caràcters o en arribar
+    // una taula/codi, perdés la bombolla i canviés d'ample i de color a mig stream.
+    val reading = true
     Row(
         Modifier.fillMaxWidth().padding(start = indent),
         horizontalArrangement = Arrangement.Start,
@@ -2036,10 +2042,15 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
             val dark = LocalPal.current.dark
             Surface(
                 shape = if (tail) GregalShape.bubbleTail(mine = false) else GregalShape.bubble,
-                color = if (reading) Color.Transparent else SuperficieAlta,
+                // En directe, passar de bombolla a lectura (a 900 caràcters) es fa suau:
+                // el color s'esvaeix i la mida s'anima, en comptes d'un salt.
+                color = if (m.streaming) androidx.compose.animation.animateColorAsState(
+                    if (reading) SuperficieAlta.copy(alpha = 0f) else SuperficieAlta, tween(350), label = "surf").value
+                else if (reading) Color.Transparent else SuperficieAlta,
                 shadowElevation = 0.dp,
                 // Prémer llarg copia la resposta en text pla (sense marques).
-                modifier = (if (reading) Modifier.fillMaxWidth().widthIn(max = 640.dp) else Modifier).combinedClickable(
+                modifier = (if (reading) Modifier.fillMaxWidth().widthIn(max = 640.dp) else Modifier)
+                    .then(if (m.streaming) Modifier.animateContentSize(tween(350)) else Modifier).combinedClickable(
                     onClick = {}, onLongClick = { onCopy?.invoke() },
                 ),
             ) {
@@ -2067,7 +2078,7 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                     // En directe es pinta igual que acabat (sense cau: cada prefix és
                     // nou). Abans era text pla fins al done i, en canviar a
                     // markdown, títols, llistes i taules saltaven de mida de cop.
-                    if (m.streaming && m.text.isBlank()) TypingCursor(accent)
+                    if (m.streaming && shownText.isBlank()) TypingCursor(accent)
                     run { for (b in blocks) {
                         when (b) {
                             is Rich.Inline -> {
@@ -2105,7 +2116,7 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                         }
                     }
                     }
-                    if (m.streaming && m.text.isNotBlank()) TypingCursor(accent)
+                    if (m.streaming && shownText.isNotBlank()) TypingCursor(accent)
                     // Enllaços del missatge com a pastilles per copiar d'un toc:
                     // al mòbil, obrir-los al navegador és fàcil; copiar-los, no.
                     if (!m.streaming) MessageLinks(lang, m.text, link, onCopied = onCopied)

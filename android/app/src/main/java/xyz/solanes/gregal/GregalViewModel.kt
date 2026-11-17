@@ -1027,7 +1027,21 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun avuiRun(card: AvuiCard, action: AvuiAction) {
         if (card.wind.isBlank()) return
         openVentsChat("wind:" + card.wind)
-        if (action.prompt.isNotBlank()) sendWindMessage(card.wind, action.prompt)
+        if (action.prompt.isNotBlank()) sendWindMessage(card.wind, avuiPrompt(card, action))
+    }
+
+    /**
+     * La conversa no sap res de la targeta: només el títol no bastava i el vent
+     * responia «no hi ha més detalls». S'hi afegeix el que la targeta ja diu.
+     */
+    internal fun avuiPrompt(card: AvuiCard, action: AvuiAction): String {
+        val extra = listOf(card.why, card.body).map { it.trim() }
+            .filter { it.isNotEmpty() && it != card.title && !action.prompt.contains(it) }
+            .joinToString("\n")
+            .take(700)
+        if (extra.isEmpty()) return action.prompt
+        val en = _idioma.value == "en"
+        return action.prompt + "\n\n" + (if (en) "What the card says:" else "El que diu la targeta:") + "\n" + extra
     }
 
     /** Desa hores tranquil·les, mode tranquil i (si no és null) el que ha de tenir en compte el resum de demà. */
