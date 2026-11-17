@@ -32,6 +32,7 @@ function hue(s) { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCode
 // Un avatar amb el color de la persona (sempre el mateix per al mateix nom).
 import { levelBadgeHTML } from './jocs-levels.js';
 import { beforeAfterHTML } from './jocs-quality.js';
+import { teamChipHTML } from './jocs-teams.js';
 
 export function avatar(p, cls = '') {
   const h = hue(p.owner || p.display);
@@ -100,19 +101,19 @@ export function standingsHTML(season, me) {
   const anyElo = ps.some(p => p.elo > 0);
   const row = (p, i) => {
     const bots = Object.values(p.games || {}).reduce((n, g) => n + (g.bots || []).length, 0);
-    return `<tr class="${p.owner === me ? 'me' : ''} ${i < 3 ? 'top' + (i + 1) : ''}" data-player="${esc(p.owner)}" tabindex="0">
+    return `<tr class="${p.owner === me ? 'me' : ''} ${i < 3 ? 'top' + (i + 1) : ''}" data-player="${esc(p.owner)}">
       <td class="pos">${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</td>
-      <td><span class="jx-who">${avatar(p, 'sm')}<span><b>${esc(p.display)}${p.owner === me ? ' <small class="jx-you">YOU</small>' : ''}</b>${p.archetype ? `<small>${esc(p.archetype)}</small>` : ''}${levelBadgeHTML(p)}</span></span></td>
+      <td><span class="jx-who">${avatar(p, 'sm')}<span><b><a class="jx-rowlink" href="#/players/${esc(encodeURIComponent(p.owner))}">${esc(p.display)}</a>${p.owner === me ? ' <small class="jx-you">YOU</small>' : ''}</b>${p.archetype ? `<small>${esc(p.archetype)}</small>` : ''}${levelBadgeHTML(p)}${teamChipHTML(p.team)}</span></span></td>
       <td class="r elo">${p.elo > 0 ? `<b>${p.elo}</b>` : '<span class="jx-faint">—</span>'}</td>
       <td class="r">${p.official[0]}–${p.official[1]}${p.official[2] ? '–' + p.official[2] : ''}</td>
-      <td><span class="jx-ladder" title="${bots} bot wins">${'<i class="on"></i>'.repeat(Math.min(bots, 4))}${'<i></i>'.repeat(Math.max(0, 4 - bots))}</span>${bots > 4 ? `<small> +${bots - 4}</small>` : ''}</td>
+      <td><span class="jx-ladder" role="img" aria-label="${bots} bot wins" title="${bots} bot wins">${'<i class="on"></i>'.repeat(Math.min(bots, 4))}${'<i></i>'.repeat(Math.max(0, 4 - bots))}</span>${bots > 4 ? `<small> +${bots - 4}</small>` : ''}</td>
       <td class="r">${p.reviewed ? `<b class="jx-ps">${p.prompt_score}</b>` : '<span class="jx-faint">—</span>'}</td>
       <td class="r">${p.followed ? pct(p.followed) : '<span class="jx-faint">—</span>'}</td>
       <td>${formHTML(p.form)}</td></tr>`;
   };
   return `<p class="jx-muted jx-note-s">${anyElo ? 'Ordered by official Elo (average over the games played), then the practice ladder and the prompt score.' : 'No official matches yet: the table follows the practice ladder (bots beaten, from Rookie to Analyst) and the coach’s prompt score. The tournament’s Elo takes over once it starts.'}</p>
-    <table class="jx-table jx-standings"><thead><tr><th>#</th><th>Player</th><th class="r">Elo</th><th class="r">Official</th><th>Bot ladder</th><th class="r" title="Average coach score on the five principles, out of 100">Prompt</th><th class="r" title="Decisions where the model found a real line of the .md">By the book</th><th>Form</th></tr></thead>
-    <tbody>${ps.map(row).join('')}</tbody></table>`;
+    <div class="jx-scroll-x" role="region" aria-label="Standings" tabindex="0"><table class="jx-table jx-standings"><thead><tr><th>#</th><th>Player</th><th class="r">Elo</th><th class="r">Official</th><th>Bot ladder</th><th class="r" title="Average coach score on the five principles, out of 100">Prompt</th><th class="r" title="Decisions where the model found a real line of the .md">By the book</th><th>Form</th></tr></thead>
+    <tbody>${ps.map(row).join('')}</tbody></table></div>`;
 }
 
 // ---- jugadors ----
@@ -151,7 +152,7 @@ export function profileHTML(d, me, opts = {}) {
     <a class="jx-back" href="#/players">← All players</a>
     <header class="jx-prof-head">
       ${avatar(p, 'xl')}
-      <div class="jx-prof-id"><div class="jx-kicker">#${p.rank} overall${p.owner === me ? ' · you' : ''}</div>${levelBadgeHTML(p)}
+      <div class="jx-prof-id"><div class="jx-kicker">#${p.rank} overall${p.owner === me ? ' · you' : ''}${p.team ? ' · ' + esc(p.team) : ''}</div>${levelBadgeHTML(p)}
         <h1 class="jx-h1">${esc(p.display)}</h1>
         ${ins ? `<div class="jx-arch"><span>${esc(ins.emoji || '')}</span><b>${esc(ins.archetype)}</b><em>${esc(ins.tagline || '')}</em></div>` : ''}
         <div class="jx-prof-form">${formHTML(p.form)}${p.streak >= 2 ? `<span class="jx-chip hot">🔥 ${p.streak} in a row</span>` : ''}</div></div>

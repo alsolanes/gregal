@@ -57,7 +57,7 @@ const arenaUI = {
       <header class="ar-head"><div><div class="page-kicker">${esc(T('ar.kicker'))}</div><h1 class="page-title">${esc(T('ar.title'))}</h1>
         <p class="page-copy">${esc(T('ar.lead2'))}</p></div>
         <label class="ar-field ar-me">${esc(T('ar.playAs'))} <input id="arDisplay" maxlength="40"></label></header>
-      <nav class="ar-games" id="arGames" role="tablist"></nav>
+      <nav class="ar-games" id="arGames" aria-label="Game"></nav>
       <span id="arStatus" class="ar-status" role="status"></span>
       <section class="ar-card" id="arMatchCard" hidden>
         <div class="ar-row"><h2 id="arMatchTitle"></h2><span class="ar-muted" id="arMatchStatus"></span>
@@ -77,10 +77,11 @@ const arenaUI = {
               <button type="button" id="arBuild" class="primary">${esc(T('ar.build.go'))}</button></div>
             <div id="arTeam" class="ar-team"></div>
             <textarea id="arPos" class="ar-pos" spellcheck="false" hidden></textarea>
+            <label for="arMD" class="ar-md-label">Your strategy (.md)</label>
             <textarea id="arMD" spellcheck="false" placeholder="${esc(T('ar.mdPlaceholder'))}"></textarea>
             <div class="ar-row"><span id="arSaved" class="ar-muted"></span><span id="arCount" class="ar-muted"></span>
               <button type="button" id="arStarter" class="ar-link">${esc(T('ar.resetStarter'))}</button></div>
-            <div class="ar-lint" id="arLint" aria-live="polite"></div>
+            <div class="ar-lint" id="arLint"></div>
             <details id="arHist" class="ar-hist"><summary id="arHistSum"></summary><div id="arHistBody"></div></details>
           </div>
           <aside class="ar-tips">
@@ -262,7 +263,7 @@ const arenaUI = {
   paint() {
     const d = this.data, g = d.games.find(x => x.id === this.game);
     const seeding = (d.seeding || []).includes(this.game);
-    $('arGames').innerHTML = d.games.map(x => `<button type="button" role="tab" data-g="${esc(x.id)}" class="${x.id === this.game ? 'on' : ''}">
+    $('arGames').innerHTML = d.games.map(x => `<button type="button" data-g="${esc(x.id)}" aria-pressed="${x.id === this.game}" class="${x.id === this.game ? 'on' : ''}">
       <span class="ic">${ICON[x.id] || '🎮'}</span><b>${esc(x.title)}</b><small>${esc(T('ar.game.' + x.id))}</small></button>`).join('');
     $('arGames').querySelectorAll('[data-g]').forEach(b => b.onclick = () => { this.save(); this.game = b.dataset.g; $('arReviewOut').innerHTML = ''; this.paint(); });
     const mine = d.mine[this.game];

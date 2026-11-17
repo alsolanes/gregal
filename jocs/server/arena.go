@@ -1940,6 +1940,9 @@ func (s *Server) handleArena(w http.ResponseWriter, r *http.Request) {
 			Official int            `json:"official"` // slots
 			Practice int            `json:"practice"` // slots
 			Event    *arenaEventCfg `json:"event"`
+			Teams    []string       `json:"teams"` // teams (the list, organiser)
+			Team     string         `json:"team"`  // team (mine, or Owner's for the organiser)
+			Owner    string         `json:"owner"`
 		}
 		if !decodeSmall(w, r, &req) {
 			return
@@ -1955,6 +1958,35 @@ func (s *Server) handleArena(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			writeJSON(w, s.saveArenaEvent(*req.Event))
+			return
+		}
+		if req.Action == "teams" {
+			// The organiser's list of teams (empty = no team mode).
+			if !admin {
+				http.Error(w, "admin only", http.StatusForbidden)
+				return
+			}
+			writeJSON(w, map[string]any{"teams": s.setArenaTeamList(req.Teams).List})
+			return
+		}
+		if req.Action == "team" {
+			who := me
+			if req.Owner != "" && req.Owner != me {
+				if !admin {
+					http.Error(w, "admin only", http.StatusForbidden)
+					return
+				}
+				who = req.Owner
+			}
+			if who == "" {
+				http.Error(w, "sign in first", http.StatusForbidden)
+				return
+			}
+			if err := s.setArenaTeam(who, req.Team); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			writeJSON(w, map[string]any{"team": s.arenaTeams().Members[who]})
 			return
 		}
 		if req.Action == "slots" {
@@ -2118,8 +2150,11 @@ func (s *Server) handleArena(w http.ResponseWriter, r *http.Request) {
 	out := map[string]any{"me": me, "display": s.arenaDisplay(me, "", nil), "progress": arenaProgressOf(sums, me), "admin": admin, "games": s.arenaGamesJSON(), "mine": mine, "bots": bots, "next": next, "seeding": arenaSeedingNow(),
 		"leaderboard": board, "competitions": s.arenaComps(), "matches": arenaRecentOf(sums, me), "practice_left": arenaPracticePerDay - arenaPracticeTodayOf(sums, me),
 		"slots": s.arenaSlots(), "event": s.arenaEvent(), "totals": arenaTotals(sums), "model": s.arenaModelRef()}
+	tc := s.arenaTeams()
+	out["teams"], out["my_team"] = tc.List, tc.Members[me]
 	if admin {
 		out["planner"] = s.arenaPlanner(sums)
+		out["team_members"] = tc.Members
 	}
 	writeJSON(w, out)
 }

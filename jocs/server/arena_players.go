@@ -247,6 +247,8 @@ type arenaPlayer struct {
 	Last       int64                       `json:"last"`
 	// Contra cada nivell de bot (rookie, solid, expert): l'escala de qualitat.
 	VsBots map[string]*arenaWL `json:"vs_bots,omitempty"`
+	// L'equip (departament, oficina) al mode equips (arena_teams.go).
+	Team string `json:"team,omitempty"`
 	// De l'informe d'IA desat (si n'hi ha): el sobrenom per a les targetes.
 	Archetype string `json:"archetype,omitempty"`
 	Emoji     string `json:"emoji,omitempty"`
@@ -268,6 +270,7 @@ type arenaSeasonView struct {
 	Awards     []arenaAward     `json:"awards"`
 	Highlights []arenaHighlight `json:"highlights"`
 	Quality    *arenaQuality    `json:"quality,omitempty"`
+	Teams      []arenaTeamRow   `json:"teams,omitempty"`
 }
 
 // arenaPrinciples: els cinc criteris del coach, en l'ordre que es mostren.
@@ -672,6 +675,7 @@ func (s *Server) arenaSeasonFor(me string) arenaSeasonView {
 	sums := s.arenaSummaries()
 	v := arenaSeason(sums, s.arenaDeeps(sums), s.arenaRatings(), s.arenaDisplays(), me)
 	s.arenaTagPlayers(v.Players)
+	v.Teams = arenaTeamTable(v.Players, s.arenaTeams())
 	return v
 }
 

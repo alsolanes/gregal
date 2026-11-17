@@ -9,6 +9,7 @@ import { renderCompetition, nameOf, currentGame } from './arena-bracket.js';
 import { levelCardHTML, levelBadgeHTML, evaluate, CHALLENGES, XP_RULES } from './jocs-levels.js';
 import { lintMD } from './arena-lint.js';
 import { qualityHTML } from './jocs-quality.js';
+import { teamsTableHTML, teamPickerHTML, organizerTeamsHTML } from './jocs-teams.js';
 import { standingsHTML, playersHTML, profileHTML, highlightsHTML, awardsHTML, momentCard, principlesHTML, plannerHTML } from './jocs-season.js';
 
 const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -32,13 +33,13 @@ const GAMES = {
 // La lliga dels vents (futbol americà, football.js) és el quart joc: no es
 // juga amb un .md sinó amb els vents de Gregal Vents com a entrenadors.
 const ROUTES = [
-  ['home', 'Home'], ['play', 'Play'], ['ranking', 'Standings'], ['players', 'Players'], ['highlights', 'Highlights'], ['cup', 'Bracket'], ['matches', 'Matches'], ['league', 'League'], ['how', 'How it works'],
+  ['home', 'Home'], ['play', 'Play'], ['ranking', 'Standings'], ['players', 'Players'], ['highlights', 'Highlights'], ['cup', 'Bracket'], ['matches', 'Matches'], ['teams', 'Teams'], ['league', 'League'], ['how', 'How it works'],
 ];
 // The top bar has six entries; the pages that belong together share one and
 // get a sub-tab strip (every route keeps its own #/link).
 const NAV = [
   ['home', 'Home'], ['play', 'Play'],
-  ['ranking', 'Standings', ['ranking', 'players']],
+  ['ranking', 'Standings', ['ranking', 'players', 'teams']],
   ['cup', 'Cup', ['cup', 'matches', 'highlights']],
   ['league', 'League'], ['how', 'How it works'],
 ];
@@ -56,7 +57,7 @@ function boot() {
   root.id = 'jxSite'; root.className = 'jx';
   root.innerHTML = `
     <header class="jx-top">
-      <a class="jx-brand" href="#/" aria-label="Home">${markSVG()}<span><b id="jxName">Gregal Prompt Cup</b><small>Gregal Jocs</small></span></a>
+      <a class="jx-brand" href="#/">${markSVG()}<span><b id="jxName">Gregal Prompt Cup</b><small>Gregal Jocs</small></span></a>
       <nav class="jx-nav" id="jxNav" aria-label="Gregal Jocs">${NAV.map(([id, label]) => `<a href="#/${id === 'home' ? '' : id}" data-r="${id}">${label}</a>`).join('')}</nav>
       <div class="jx-top-r">
         <a class="jx-watch" id="jxWatch" target="_blank" rel="noopener" title="Open the broadcast in a new window" aria-label="Broadcast"><span class="jx-dot"></span><span class="jx-watch-ic" aria-hidden="true">${icon('preview')}</span><span id="jxWatchTx">Broadcast</span></a>
@@ -71,6 +72,7 @@ function boot() {
       <section class="jx-route" data-route="play"><div class="jx-wrap"><div class="jx-play-head" id="jxPlayHead"></div><div id="jxPlayMount"></div></div></section>
       <section class="jx-route" data-route="ranking" id="jxRanking"></section>
       <section class="jx-route" data-route="players" id="jxPlayers"></section>
+      <section class="jx-route" data-route="teams" id="jxTeams"></section>
       <section class="jx-route" data-route="highlights" id="jxHighlights"></section>
       <section class="jx-route" data-route="cup"><div class="jx-wrap"><div id="jxCup"></div><div id="jxOrganizer" class="jx-organizer" hidden></div></div></section>
       <section class="jx-route" data-route="matches" id="jxMatches"></section>
@@ -79,6 +81,9 @@ function boot() {
     </main>
     <footer class="jx-foot"><div class="jx-wrap"><span>Same model for everyone. Only the prompt changes.</span><span>Gregal Jocs</span></div></footer>`;
   document.body.append(root);
+  // The site covers the Gregal shell: its sidebar and main column must not
+  // take keyboard focus underneath (Preferences and dialogs live outside them).
+  for (const id of ['side', 'wrap']) { const el = document.getElementById(id); if (el) el.inert = true; }
   root.addEventListener('click', onClick);
   addEventListener('hashchange', route);
   // En una pestanya amagada no es consulta res; en tornar, si fa estona, es refresca.
@@ -166,10 +171,7 @@ function route() {
     if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   });
   document.querySelectorAll('#jxSite .jx-route').forEach(s => { s.hidden = s.dataset.route !== S.route; });
-  const grp = (NAV.find(x => x[2]?.includes(S.route)) || [])[2];
-  const sub = $('jxSub');
-  sub.hidden = !grp;
-  sub.innerHTML = grp ? `<div class="jx-wrap"><div class="jx-tabs jx-subtabs" role="tablist">${grp.map(id => `<a role="tab" href="#/${id}" class="${id === S.route ? 'on' : ''}" ${id === S.route ? 'aria-selected="true"' : ''}>${routeLabel(id)}</a>`).join('')}</div></div>` : '';
+  paintSub();
   // L'Arena i la lliga només treballen (i consulten) quan es veuen: amagades,
   // els visors s'aturen sols (IntersectionObserver a arena-view-base.js).
   const page = $('arenaPage'), league = $('partitsPage');
@@ -189,8 +191,24 @@ function setTitle() {
   document.title = label + (S.d?.event?.name || 'Gregal Prompt Cup') + ' · Gregal Jocs';
 }
 
+// The sub-tabs of the grouped entries. «Teams» only with team mode on.
+function paintSub() {
+  const grp = ((NAV.find(x => x[2]?.includes(S.route)) || [])[2] || []).filter(id => id !== 'teams' || S.d?.teams?.length);
+  const sub = $('jxSub');
+  sub.hidden = !grp.length;
+  sub.innerHTML = grp.length ? `<div class="jx-wrap"><nav class="jx-tabs jx-subtabs" aria-label="Sections">${grp.map(id => `<a href="#/${id}" class="${id === S.route ? 'on' : ''}" ${id === S.route ? 'aria-current="page"' : ''}>${routeLabel(id)}</a>`).join('')}</nav></div>` : '';
+}
+
+function paintTeams() {
+  $('jxTeams').innerHTML = `<div class="jx-wrap">
+    <div class="jx-page-head"><div><div class="jx-kicker">${esc(S.d.event?.name || 'Season')}</div><h1 class="jx-h1">Teams</h1><p class="jx-muted">Which team is learning to prompt best.</p></div></div>
+    ${teamsTableHTML(S.season?.teams, S.d.my_team)}</div>`;
+}
+
 function paint() {
   if (!S.d) return;
+  paintSub();
+  if (S.route === 'teams') paintTeams();
   if (S.route === 'home') paintHome();
   if (S.route === 'play') paintPlayHead();
   if (S.route === 'ranking') paintRanking();
@@ -250,8 +268,20 @@ function paintPlayHead() {
   $('jxPlayHead').innerHTML = `<div class="jx-kicker">Your lab</div><h1 class="jx-h1">Write the playbook. <span class="jx-grad">Let the model play it.</span></h1>
     <div class="jx-chips">${rank ? `<span class="jx-chip">#${rank.pos} in ${esc(GAMES[g]?.short || g)} · ${rank.elo} Elo</span>` : `<span class="jx-chip">Unranked in ${esc(GAMES[g]?.short || g)} yet</span>`}
     ${typeof d.practice_left === 'number' && !d.admin ? `<span class="jx-chip">${Math.max(0, d.practice_left)} practice matches left today</span>` : ''}
-    ${d.model ? `<button type="button" class="jx-chip jx-chip-btn" data-prefs="agent" title="The model that plays every match. Change it in Settings.">Model · ${esc(d.model.split('/').pop())}</button>` : ''}</div>
+    ${d.model ? `<button type="button" class="jx-chip jx-chip-btn" data-prefs="agent" title="The model that plays every match. Change it in Settings.">Model · ${esc(d.model.split('/').pop())}</button>` : ''}
+    ${teamPickerHTML(d.teams, d.my_team)}</div><p class="jx-team-err" id="jxTeamErr" role="alert" hidden></p>
     ${modelNote()}<div id="jxChal"></div>`;
+  const pick = $('jxTeamPick');
+  if (pick) pick.onchange = async () => {
+    const team = pick.value;
+    $('jxTeamErr').hidden = true;
+    try { const r = await api('/api/arena', { method: 'POST', body: JSON.stringify({ action: 'team', team }) }); S.d.my_team = r.team || ''; load(); }
+    catch (err) {
+      pick.value = S.d.my_team || '';
+      $('jxTeamErr').textContent = `Couldn't join “${team}”. The team list may have changed: reload the page and pick again.`;
+      $('jxTeamErr').hidden = false;
+    }
+  };
   paintChallenges();
 }
 
@@ -263,7 +293,8 @@ const earnedIds = () => { try { return JSON.parse(localStorage.getItem(earnedKey
 function toast(text) {
   const t = document.createElement('div');
   t.className = 'jx-toast'; t.setAttribute('role', 'status'); t.textContent = text;
-  document.body.append(t);
+  // Inside the site: above its fixed overlay, and under its reduced-motion rule.
+  ($('jxSite') || document.body).append(t);
   setTimeout(() => t.classList.add('out'), 3500);
   setTimeout(() => t.remove(), 4200);
 }
@@ -317,6 +348,36 @@ function mountOrganizer() {
   }
   if (fold.parentElement !== box) { box.append(fold); fold.open = true; fold.classList.add('jx-org-fold'); }
   paintPlanner();
+  paintOrgTeams();
+}
+
+// The organiser's team tools and the learning report (jocs-teams.js).
+function paintOrgTeams() {
+  const box = $('jxOrganizer');
+  if (!box || box.hidden || !S.d?.admin) return;
+  let el = $('jxOrgTeams');
+  if (!el) { el = document.createElement('div'); el.id = 'jxOrgTeams'; ($('jxPlanner') || box.querySelector('.jx-org-head')).after(el); }
+  if (el.contains(document.activeElement)) return; // do not repaint under the cursor
+  el.innerHTML = organizerTeamsHTML(S.d.teams, S.d.team_members, S.season?.players);
+  $('jxTeamSave').onclick = async () => {
+    const teams = $('jxTeamList').value.split('\n');
+    try { const r = await api('/api/arena', { method: 'POST', body: JSON.stringify({ action: 'teams', teams }) }); S.d.teams = r.teams; $('jxTeamSaved').textContent = 'Saved'; load(); }
+    catch (err) { $('jxTeamSaved').textContent = err.message; }
+  };
+  el.querySelectorAll('[data-team-owner]').forEach(sel => sel.onchange = async () => {
+    try { await api('/api/arena', { method: 'POST', body: JSON.stringify({ action: 'team', owner: sel.dataset.teamOwner, team: sel.value }) }); (S.d.team_members ||= {})[sel.dataset.teamOwner] = sel.value; load(); }
+    catch (err) { alert(err.message); }
+  });
+  $('jxReport').onclick = async () => {
+    $('jxReportMsg').textContent = '';
+    try {
+      const r = await window.api('/api/arena/report');
+      if (!r.ok) throw new Error(await r.text() || r.status);
+      const url = URL.createObjectURL(await r.blob());
+      const a = Object.assign(document.createElement('a'), { href: url, download: `prompt-cup-report-${new Date().toISOString().slice(0, 10)}.csv` });
+      document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (err) { $('jxReportMsg').textContent = String(err.message || err); }
+  };
 }
 
 // Quant trigarà: les estratègies d'ara, amb els bots o sense (la casella del
@@ -401,7 +462,7 @@ function paintHome() {
       <div class="jx-game-art" aria-hidden="true"><span>${info.icon}</span></div>
       <div class="jx-game-body"><div class="jx-kicker">${esc(info.tag)}</div><h3>${esc(g.title)}</h3><p>${esc(info.decide)}</p>
         <div class="jx-game-me">${rank ? `<b>#${rank.pos}</b><span>${rank.elo} Elo · ${rank.won}W ${rank.lost}L</span>` : mine ? '<span>Strategy saved · not ranked yet</span>' : '<span>Not started</span>'}</div>
-        <a class="jx-btn" href="#/play/${esc(g.id)}">${mine ? 'Improve my strategy' : 'Write my strategy'} →</a></div></article>`;
+        <a class="jx-btn" href="#/play/${esc(g.id)}">${mine ? 'Improve your strategy' : 'Write your strategy'} →</a></div></article>`;
   }).join('');
   const podiums = d.games.map(g => {
     const top = ((d.leaderboard || {})[g.id] || []).slice(0, 3);

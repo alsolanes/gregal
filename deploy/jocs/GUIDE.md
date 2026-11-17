@@ -110,6 +110,22 @@ done in the web UI as administrator: **Settings → Advanced → Server accounts
 > Use accounts only with trusted people: this is not strong isolation between
 > users who run code on the same server.
 
+### Teams and the learning report
+
+For a company competition, the organiser (an administrator) opens **Cup →
+Bracket** and, in the organiser panel:
+
+- **Teams:** one per line (departments, offices, practices). With no teams the
+  team mode is off. Each person picks their team on the **Play** page; the
+  organiser can change anyone's in **Who is in which team**. Team standings are
+  under **Standings → Teams**, ranked by the average XP of their members, so a
+  big team does not win by size alone.
+- **Learning report:** **Download the report (CSV)** gives one row per person:
+  team, matches, coach scores (first, latest and gain), the five prompting
+  principles, results against the vague prompt (Bot Rookie) and the win rate
+  of their first and latest `.md` version. It opens in Excel and is meant for
+  L&D follow-up. Only administrators can download it.
+
 ## 5. Model API keys
 
 The games need a model. There are **two ways** to provide keys.

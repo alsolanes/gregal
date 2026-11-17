@@ -83,7 +83,7 @@ export function levelCardHTML(p, doneIds) {
   return `<div class="jx-lvlcard">
     <div class="jx-lvl-top"><span class="jx-lvl-ic" aria-hidden="true">${l.icon}</span>
       <div class="jx-lvl-id"><small>Prompt level ${l.n}</small><b>${esc(l.name)}</b></div>
-      <div class="jx-lvl-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${l.pct}"><span style="width:${l.pct}%"></span></div>
+      <div class="jx-lvl-bar" role="progressbar" aria-label="${l.max ? 'Prompt level' : 'XP to ' + esc(l.next)}" aria-valuetext="${l.max ? l.xp + ' XP, top level' : l.xp + ' of ' + l.to + ' XP'}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${l.pct}"><span style="width:${l.pct}%"></span></div>
       <span class="jx-lvl-xp">${l.max ? `${l.xp} XP · max level` : `${l.xp} / ${l.to} XP to ${esc(l.next)}`}</span></div>
     <details class="jx-chal"><summary><b>Challenges ${done.size}/${CHALLENGES.length}</b>${nextCh ? `<span>Next: ${esc(nextCh.title)}</span>` : '<span>All done 🎉</span>'}</summary>
       <ol class="jx-chal-list">${list}</ol>

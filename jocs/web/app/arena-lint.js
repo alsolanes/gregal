@@ -66,12 +66,15 @@ const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g,
 export function lintHTML(r) {
   if (!r) return '';
   const chips = PRINCIPLES.map(([id, label]) => {
-    const cs = r.checks.filter(c => c.principle === id);
-    const bad = cs.filter(c => !c.ok);
-    const title = bad.length ? bad.map(c => c.label + ': ' + c.tip).join('\n') : cs.map(c => c.label).join('\n');
-    return `<span class="lt-chip ${bad.length ? 'bad' : 'ok'}" title="${esc(title)}"><i aria-hidden="true">${bad.length ? '!' : '✓'}</i>${esc(label)}</span>`;
+    const bad = r.checks.some(c => c.principle === id && !c.ok);
+    return `<span class="lt-chip ${bad ? 'bad' : 'ok'}"><i aria-hidden="true">${bad ? '!' : '✓'}</i>${esc(label)}<span class="lt-sr">${bad ? ': to fix' : ': OK'}</span></span>`;
   }).join('');
-  return `<div class="lt-head"><b>Prompt check</b><span class="lt-score">${r.ok}/${r.total}</span>${chips}</div><p class="lt-tip">${esc(r.tip)}</p>`;
+  // Every failing check with its fix, in the page (a hover tooltip is out of
+  // reach by keyboard and touch).
+  const fails = r.checks.filter(c => !c.ok);
+  return `<div class="lt-head"><b>Prompt check</b><span class="lt-score">${r.ok}/${r.total}</span>${chips}</div>${fails.length
+    ? `<ul class="lt-fails">${fails.map(c => `<li><b>${esc(c.label)}.</b> ${esc(c.tip)}</li>`).join('')}</ul>`
+    : `<p class="lt-tip">${esc(r.tip)}</p>`}`;
 }
 
 export function lintCSS() {
@@ -83,7 +86,10 @@ export function lintCSS() {
 .lt-head{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .lt-head b{margin-right:2px}
 .lt-score{font-weight:800;margin-right:6px;opacity:.8}
-.lt-chip{display:inline-flex;gap:5px;align-items:center;padding:2px 9px;border-radius:999px;font-weight:700;font-size:12px;cursor:help}
+.lt-chip{position:relative;display:inline-flex;gap:5px;align-items:center;padding:2px 9px;border-radius:999px;font-weight:700;font-size:12px}
+.lt-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.lt-fails{margin:7px 0 0;padding-left:18px;line-height:1.45}
+.lt-fails li+li{margin-top:3px}
 .lt-chip i{font-style:normal;font-weight:900}
 .lt-chip.ok{background:rgba(52,199,150,.16);color:#1f9d73}
 .lt-chip.bad{background:rgba(255,170,60,.18);color:#c77a08}
