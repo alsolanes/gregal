@@ -889,3 +889,11 @@ body.jx-on > dialog.jx-settings { width: min(520px, 94vw); padding: 0; border: 1
 .jx-linkbtn { color: var(--jx-mint); }
 #jxOrganizer.jx-organizer { border: 0; background: none; padding: 0; margin: 0; box-shadow: none; }
 .jx-live-note { border-color: var(--jx-teal); background: var(--jx-brand-soft); }
+
+/* ==== The match viewer: as wide as the window allows ====
+   The page column (1240px) is for reading; a match is for watching. The card
+   breaks out of it, centred, and the stage keeps 16:9 inside the screen height. */
+#jxPlayMount #arMatchCard { width: min(1800px, calc(100vw - 64px)); margin-left: calc(50% - min(900px, 50vw - 32px)); box-sizing: border-box; }
+#jxPlayMount #arMatchCard .ar-match { grid-template-columns: minmax(0, 1fr) clamp(300px, 22vw, 400px); gap: 16px; }
+#jxPlayMount #arMatchCard .ar-stage { width: min(100%, calc((100vh - 270px) * 16 / 9)); margin-inline: auto; }
+@media (max-width: 1100px) { #jxPlayMount #arMatchCard .ar-match { grid-template-columns: minmax(0, 1fr); } }
