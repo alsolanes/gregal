@@ -467,6 +467,8 @@ body.view-summary .work-group { display:none; }
 .wg-now { margin-left:auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted);
   font-size:var(--t1); font-variant-numeric:tabular-nums; }
 .work-group:not(.running) .wg-now { display:none; }
+/* Final del raonament del model, en viu, mentre només pensa. */
+.wg-think { margin:6px 2px; padding-left:10px; border-left:2px solid var(--line, rgba(255,255,255,.12)); color:var(--muted); font-size:12.5px; line-height:1.5; font-style:italic; white-space:pre-wrap; overflow-wrap:anywhere; max-height:7.5em; overflow:hidden; }
 .work-group.stalled { border-color:var(--amber-soft); }
 .work-group.stalled .wg-now { color:var(--amber); }
 #turnTimer .turn-note { font-variant-numeric:tabular-nums; }

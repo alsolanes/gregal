@@ -65,6 +65,33 @@ func compte(t *testing.T, ev map[string]string, camp string) int {
 	return n
 }
 
+// El final del raonament viatja a `tail` només mentre la crida no ha escrit
+// text ni eines, i es limita a cuaRaonament caràcters.
+func TestProgresTornCuaDelRaonament(t *testing.T) {
+	em := &emissor{}
+	p := nouProgresTorn(em.emit)
+	ara := time.Date(2026, 10, 13, 10, 0, 0, 0, time.UTC)
+	p.ara = func() time.Time { return ara }
+
+	p.iniciModel()
+	p.delta(llm.ProgressFirst, 0)
+	long := strings.Repeat("é", cuaRaonament+50) + "FI"
+	p.raonament(long)
+	ara = ara.Add(4 * time.Second)
+	p.delta(llm.ProgressReasoning, len([]rune(long)))
+	got := em.progres()
+	tail := got[len(got)-1]["tail"]
+	if n := len([]rune(tail)); n != cuaRaonament || !strings.HasSuffix(tail, "FI") {
+		t.Fatalf("tail=%d caràcters %q", n, tail)
+	}
+	ara = ara.Add(4 * time.Second)
+	p.delta(llm.ProgressText, 3)
+	got = em.progres()
+	if _, ok := got[len(got)-1]["tail"]; ok {
+		t.Fatalf("amb text ja no hi ha tail: %+v", got[len(got)-1])
+	}
+}
+
 // Amb un rellotge fals: canvis d'estat de seguida, comptadors com a molt
 // cada intervalProgres, i un últim total en tancar la crida només si ha
 // canviat res.

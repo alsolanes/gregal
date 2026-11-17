@@ -354,6 +354,7 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 			// el text no surt fins al final) alimenta l'event progress.
 			progres.iniciModel()
 			ctx = llm.WithStreamProgress(ctx, progres.delta)
+			ctx = llm.WithReasoningText(ctx, progres.raonament)
 			// Velocitat de la crida (pp/tg) per a l'indicador de la UI.
 			velocitat := newSpeedProbe(uso)
 			ctx = llm.WithStreamProgress(ctx, velocitat.delta)

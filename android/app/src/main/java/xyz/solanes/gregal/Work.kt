@@ -282,6 +282,12 @@ fun shortDuration(ms: Long): String {
     }
 }
 
+/** Final del raonament en una sola línia (camp `tail` de progress), per sota la línia «Pensant…». */
+private fun thinkTail(tail: String?): String {
+    val one = tail.orEmpty().replace(Regex("\\s+"), " ").trim()
+    return if (one.isEmpty()) "" else " …" + one.takeLast(90)
+}
+
 /**
  * Línia d'activitat en viu a partir d'un event `progress` del servidor
  * (internal/web/progres.go): fase model/tools/review/compact i estat.
@@ -302,7 +308,7 @@ fun progressLine(p: Map<String, String>, lang: String = "ca"): Pair<String, Stri
             "receiving" -> when {
                 (p["tool"]?.toIntOrNull() ?: 0) > 0 -> "plan" to (if (en) "Preparing the next step…" else "Preparant el pas següent…")
                 (p["text"]?.toIntOrNull() ?: 0) == 0 && (p["reasoning"]?.toIntOrNull() ?: 0) > 0 ->
-                    "think" to (if (en) "Thinking…" else "Pensant…")
+                    "think" to (if (en) "Thinking…" else "Pensant…") + thinkTail(p["tail"])
                 else -> "write" to (if (en) "Writing…" else "Escrivint…")
             }
             else -> "model" to (if (en) "Waiting for the model…" else "Esperant el model…")

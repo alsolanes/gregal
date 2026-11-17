@@ -59,6 +59,7 @@ class WorkTest {
     @Test
     fun progressAndDurations() {
         assertEquals("think", progressLine(mapOf("phase" to "model", "state" to "receiving", "reasoning" to "40", "text" to "0", "tool" to "0"), "en").first)
+        assertEquals("Thinking… …plan the layout", progressLine(mapOf("phase" to "model", "state" to "receiving", "reasoning" to "40", "text" to "0", "tool" to "0", "tail" to "  plan\nthe  layout "), "en").second)
         assertEquals("write", progressLine(mapOf("phase" to "model", "state" to "receiving", "reasoning" to "40", "text" to "12", "tool" to "0"), "en").first)
         assertEquals("model", progressLine(mapOf("phase" to "model", "state" to "waiting"), "en").first)
         assertEquals("Running · Run", progressLine(mapOf("phase" to "tools", "tools" to "bash"), "en").second)

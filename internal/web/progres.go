@@ -48,6 +48,7 @@ type progresTorn struct {
 	comptes [3]int // reasoning, text, tool de la crida en curs
 	emesos  [3]int // comptes de l'última emissió
 	emesAt  time.Time
+	cua     string // final del raonament de la crida en curs
 }
 
 func nouProgresTorn(emit func(string, any)) *progresTorn {
@@ -57,7 +58,7 @@ func nouProgresTorn(emit func(string, any)) *progresTorn {
 // iniciModel marca l'inici d'una crida al model: petició enviada, cap byte.
 func (p *progresTorn) iniciModel() {
 	p.mu.Lock()
-	p.fase, p.estat, p.eines = faseModel, estatEsperant, ""
+	p.fase, p.estat, p.eines, p.cua = faseModel, estatEsperant, "", ""
 	p.des = p.ara()
 	p.comptes, p.emesos = [3]int{}, [3]int{}
 	ev := p.emetLocked()
@@ -77,6 +78,25 @@ func (p *progresTorn) esperaModel() {
 	ev := p.emetLocked()
 	p.mu.Unlock()
 	p.emit("progress", ev)
+}
+
+// cuaRaonament és el màxim de caràcters del final del raonament que viatgen
+// dins l'event (prou per llegir què pensa el model, poc per al registre).
+const cuaRaonament = 280
+
+// raonament és el llm.WithReasoningText de la crida: guarda el final del que
+// el model pensa. No emet res: surt amb el següent delta de comptadors.
+func (p *progresTorn) raonament(s string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.fase != faseModel {
+		return
+	}
+	r := []rune(p.cua + s)
+	if len(r) > cuaRaonament {
+		r = r[len(r)-cuaRaonament:]
+	}
+	p.cua = string(r)
 }
 
 // delta és el llm.StreamProgress de la crida al model.
@@ -130,6 +150,7 @@ func (p *progresTorn) faseNova(fase string, eines []string) {
 	p.mu.Lock()
 	p.fase, p.estat = fase, estatCorrent
 	p.eines = strings.Join(eines, ",")
+	p.cua = ""
 	p.des = p.ara()
 	p.comptes, p.emesos = [3]int{}, [3]int{}
 	ev := p.emetLocked()
@@ -151,6 +172,11 @@ func (p *progresTorn) emetLocked() map[string]string {
 		ev["reasoning"] = strconv.Itoa(p.comptes[0])
 		ev["text"] = strconv.Itoa(p.comptes[1])
 		ev["tool"] = strconv.Itoa(p.comptes[2])
+		// Només mentre la crida encara només raona: en escriure text o una
+		// eina, el raonament ja no és el que passa.
+		if p.cua != "" && p.comptes[1] == 0 && p.comptes[2] == 0 {
+			ev["tail"] = p.cua
+		}
 	case faseEines:
 		ev["tools"] = p.eines
 	}

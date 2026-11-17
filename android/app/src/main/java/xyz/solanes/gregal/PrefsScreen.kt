@@ -144,44 +144,56 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     }
                     PrefsPage.About -> {
                         PrefsSection(t("app.settings.version"))
-                        PrefsGroup(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
-                            SettingsRow(
-                                Icons.Rounded.SystemUpdate, "Gregal Android ${vm.versionNameInstalada()}",
-                                updateMsg.ifBlank { "vc${vm.versionCodeInstalada()}" }, tint = Lila,
-                                trailing = { TextButton(onClick = { vm.checkUpdate() }) { Text(t("app.settings.checkUpdates"), color = Sea) } },
-                            )
+                        // Targeta de versió: capçalera (icona + versió), estat a ample
+                        // complet i el botó a sota, perquè el text mai quedi encaixonat.
+                        PrefsGroup(Modifier.fillMaxWidth()) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                                Box(Modifier.size(44.dp).background(Lila.copy(alpha = 0.14f), RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Rounded.SystemUpdate, null, tint = Lila, modifier = Modifier.size(24.dp))
+                                }
+                                Column(Modifier.weight(1f)) {
+                                    Text("Gregal Android", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                                    Text("${vm.versionNameInstalada()} · vc${vm.versionCodeInstalada()}", color = Muted, fontSize = 13.sp)
+                                }
+                            }
+                            if (updateMsg.isNotBlank()) {
+                                Spacer(Modifier.height(12.dp))
+                                Text(updateMsg, color = Tinta, fontSize = 13.5.sp, lineHeight = 19.sp, modifier = Modifier.fillMaxWidth())
+                            }
+                            Spacer(Modifier.height(14.dp))
+                            OutlinedButton(onClick = { vm.checkUpdate() }, modifier = Modifier.fillMaxWidth()) {
+                                Text(t("app.settings.checkUpdates"), color = Sea, maxLines = 1)
+                            }
                         }
                         teNova?.let { r ->
-                            Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.height(12.dp))
                             GlassCard(Modifier.fillMaxWidth(), hi = true) {
-                                Column(Modifier.padding(12.dp)) {
-                                    Text(t("app.update.install", r.latestVersion), color = Sea, fontSize = 15.sp)
+                                Column(Modifier.padding(16.dp)) {
+                                    Text(t("app.update.install", r.latestVersion), color = Sea, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                                     if (r.changelog.isNotEmpty()) {
-                                        Spacer(Modifier.height(4.dp))
-                                        Text(r.changelog, color = Tinta, style = GregalType.bodySmall)
+                                        Spacer(Modifier.height(6.dp))
+                                        Text(r.changelog, color = Tinta, fontSize = 13.5.sp, lineHeight = 19.sp)
                                     }
-                                    Spacer(Modifier.height(8.dp))
+                                    Spacer(Modifier.height(14.dp))
                                     if (prog >= 0) {
                                         // Baixant: barra + percentatge, sense botons.
                                         LinearProgressIndicator(
                                             progress = { prog / 100f },
-                                            modifier = Modifier.fillMaxWidth(),
+                                            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
                                             color = Sea, trackColor = Line,
                                         )
-                                        Spacer(Modifier.height(4.dp))
+                                        Spacer(Modifier.height(6.dp))
                                         Text(t("app.update.downloadProgress", prog), color = Muted, fontSize = 12.sp)
                                     } else {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Button(onClick = { vm.baixaIInstalla() }) { Text(t("app.update.downloadInstall")) }
-                                            Spacer(Modifier.width(8.dp))
-                                            OutlinedButton(onClick = { vm.ignoraAquestaVersio() }) {
-                                                Text(t("app.update.silence"))
-                                            }
+                                        Button(onClick = { vm.baixaIInstalla() }, modifier = Modifier.fillMaxWidth()) {
+                                            Text(t("app.update.downloadInstall"), maxLines = 1)
                                         }
-                                        Spacer(Modifier.height(4.dp))
+                                        TextButton(onClick = { vm.ignoraAquestaVersio() }, modifier = Modifier.fillMaxWidth()) {
+                                            Text(t("app.update.silence"), maxLines = 1)
+                                        }
                                         Text(
                                             t("app.update.shaHelp"),
-                                            color = Faint, fontSize = 11.sp,
+                                            color = Faint, fontSize = 11.5.sp, lineHeight = 16.sp,
                                         )
                                     }
                                 }

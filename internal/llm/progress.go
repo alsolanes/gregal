@@ -58,11 +58,25 @@ func StreamProgressFrom(ctx context.Context) StreamProgress {
 	return fn
 }
 
+type reasoningTextKey struct{}
+
+// WithReasoningText adjunta al context un observador del text del raonament,
+// delta a delta i en tots els modes (també en el de recuperació, on onReason
+// no surt fins al final). StreamProgress només porta el recompte; això deixa
+// que la UI ensenyi què pensa el model mentre pensa. Amb fn nil no canvia res.
+func WithReasoningText(ctx context.Context, fn func(string)) context.Context {
+	if fn == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, reasoningTextKey{}, fn)
+}
+
 // progresResposta és l'estat d'una sola resposta HTTP: recorda si ja s'ha
 // avisat del primer tros. Un punter nil (sense observador) no fa res, de
 // manera que els parsers el poden cridar sense comprovar-ho.
 type progresResposta struct {
 	fn   StreamProgress
+	text func(string)
 	vist bool
 }
 
@@ -71,7 +85,8 @@ func nouProgres(ctx context.Context) *progresResposta {
 	if fn == nil {
 		return nil
 	}
-	return &progresResposta{fn: fn}
+	text, _ := ctx.Value(reasoningTextKey{}).(func(string))
+	return &progresResposta{fn: fn, text: text}
 }
 
 // tros marca que ha arribat un tros de dades (avisa la primera vegada).
@@ -87,6 +102,9 @@ func (p *progresResposta) tros() {
 func (p *progresResposta) delta(kind, s string) {
 	if p == nil || s == "" {
 		return
+	}
+	if kind == ProgressReasoning && p.text != nil {
+		p.text(s)
 	}
 	p.fn(kind, utf8.RuneCountInString(s))
 }
