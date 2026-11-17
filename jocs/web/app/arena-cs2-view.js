@@ -486,8 +486,12 @@ export function pickReplay(R) {
   return bs >= 3 ? best : null;
 }
 
+// How long a jet of water stays in the air (play-time units): long enough to
+// see it leave the nozzle, cross the room and splash.
+export const SHOT_LIFE = 0.3, ANSWER_LIFE = 0.24;
+
 // Shots in the air at play-time p: the killer fires a short burst, the victim
-// answers once. Returns [{from, to, kill, age, hs}].
+// answers once. Returns [{from, to, kill, age, hs, life}].
 export function shotsAt(R, p) {
   const out = [];
   for (const k of R.kills) {
@@ -495,10 +499,10 @@ export function shotsAt(R, p) {
     const burst = awp ? [0] : [-0.26, -0.13, 0];
     for (const off of burst) {
       const age = p - (k._p + off);
-      if (age >= 0 && age < 0.16) out.push({ from: k.killer, to: k.victim, kill: off === 0, age, hs: k.hs && off === 0, k, ax: k.kx, ay: k.ky, bx: k.vx, by: k.vy, miss: off !== 0 ? (off * 7) : 0 });
+      if (age >= 0 && age < SHOT_LIFE) out.push({ from: k.killer, to: k.victim, kill: off === 0, age, life: SHOT_LIFE, hs: k.hs && off === 0, k, ax: k.kx, ay: k.ky, bx: k.vx, by: k.vy, miss: off !== 0 ? (off * 7) : 0 });
     }
     const age2 = p - (k._p - 0.2);
-    if (age2 >= 0 && age2 < 0.14) out.push({ from: k.victim, to: k.killer, kill: false, age: age2, hs: false, k, ax: k.vx, ay: k.vy, bx: k.kx, by: k.ky, miss: 0.9 });
+    if (age2 >= 0 && age2 < ANSWER_LIFE) out.push({ from: k.victim, to: k.killer, kill: false, age: age2, life: ANSWER_LIFE, hs: false, k, ax: k.vx, ay: k.vy, bx: k.kx, by: k.ky, miss: 0.9 });
   }
   return out;
 }
@@ -513,20 +517,20 @@ export function gunTip(wid) {
   return wid === 'm4a1s' ? [-164, -6] : [-120, -6];
 }
 
-// Where the first-person gun sits in a w×h view: the receiver anchored low on
-// the right, rotated so the barrel's axis runs through the crosshair (the
-// view centre) at any aspect ratio, and shortened along the barrel (fx, a
-// cheap perspective) so the muzzle stops short of the crosshair. `right`: where
-// the HUD box ends (the side rosters float over the rest of the view).
+// Where the first-person gun sits in a w×h view: low on the right and held
+// level, the nozzle tipped up a touch towards the middle, like the view model
+// of any shooter. (It used to be rotated so the barrel ran through the
+// crosshair, which at wide screens tilted it 35-40 degrees and read as a gun
+// held askew.) The water jet arcs from the nozzle to the target anyway. The
+// barrel is shortened (fx, a cheap perspective) so the nozzle stops right of
+// the centre. `right`: where the HUD box ends (the side rosters float over the
+// rest of the view).
 export function gunPose(w, h, wid, right = w) {
   const pistol = weaponClass(wid) === 'pistol';
-  const S = Math.min(h, w * 0.75) / 235, tip = gunTip(wid);
-  const ax = Math.min(w * (pistol ? 0.74 : 0.86), right - (pistol ? 70 : 40) * S), ay = h - (pistol ? 40 : 24) * S;
-  const dx = w / 2 - ax, dy = h / 2 - ay, D = Math.hypot(dx, dy) || 1, off = S * tip[1];
-  let rot = Math.atan2(dy, dx) - Math.PI + Math.asin(clamp(off / D, -1, 1));
-  rot = Math.atan2(Math.sin(rot), Math.cos(rot));
-  const L = Math.sqrt(Math.max(0, D * D - off * off));
-  const fx = clamp(L * (pistol ? 0.5 : 0.62) / (S * -tip[0]), 0.4, 1.15);
+  const S = Math.min(h, w * 0.75) / (pistol ? 205 : 220), tip = gunTip(wid);
+  const ax = Math.min(w * (pistol ? 0.8 : 0.87), right - (pistol ? 60 : 30) * S), ay = h - (pistol ? 46 : 40) * S;
+  const rot = pistol ? 0.15 : 0.11;
+  const fx = clamp((ax - w * 0.56) / (S * -tip[0] * Math.cos(rot)), 0.45, 0.92);
   return { ax, ay, rot, S, fx, tip };
 }
 
@@ -1158,7 +1162,7 @@ export class Cs2View extends ArenaViewBase {
     cam.pitch = lerp(cam.pitch, planting || defusing ? 0.36 : 0, Math.min(1, dt * 5));
     const shots = shotsAt(R, p);
     let kick = 0, own = null;
-    for (const s of shots) if (s.from === id) { const kk = 1 - s.age / 0.16; if (kk > kick) { kick = kk; own = s; } }
+    for (const s of shots) if (s.from === id && s.age < 0.16) { const kk = 1 - s.age / 0.16; if (kk > kick) { kick = kk; own = s; } }
     const scoped = !dead && pl.weapon === 'awp' && !planting && !defusing && R.kills.some(k => k.killer === id && p >= k._p - 0.9 && p <= k._p + 0.1);
     const { x: x0, y: y0, w, h } = vp;
     const deathK = dead ? clamp((gt - pl.deathT) / 0.6, 0, 1) : 0;
@@ -1569,7 +1573,6 @@ export class Cs2View extends ArenaViewBase {
   povTracers(C, shots, id, muzzle, x0, y0, w, h) {
     const g = this.ctx, d = this.dpr;
     for (const s of shots) {
-      const a = 1 - s.age / 0.16;
       // aim a little off for the missed shots of a burst
       const dx = s.bx - s.ax, dy = s.by - s.ay, L = Math.hypot(dx, dy) || 1;
       const bx = s.bx + (-dy / L) * s.miss, by = s.by + (dx / L) * s.miss;
@@ -1586,16 +1589,33 @@ export class Cs2View extends ArenaViewBase {
         if (B.behind) continue;
       }
       if (!A) continue;
-      // Raig d'aigua: blau clar, amb una mica d'arc (cau) i gotes al final.
-      const gr = g.createLinearGradient(A.x, A.y, B.x, B.y);
-      gr.addColorStop(0, `rgba(200,235,255,${0.35 * a})`); gr.addColorStop(0.5, `rgba(120,200,255,${0.85 * a})`); gr.addColorStop(1, `rgba(225,245,255,${a})`);
+      // The jet of water: it leaves the nozzle and reaches the target in the
+      // first third of its life (a slight arc: water falls), thick and bright,
+      // then breaks into drops and splashes where it lands.
+      const life = s.life || SHOT_LIFE, front = Math.min(1, s.age / (life * 0.33)), tail = Math.max(0, (s.age - life * 0.45) / (life * 0.55));
       const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2 - Math.min(40 * d, Math.hypot(B.x - A.x, B.y - A.y) * 0.08);
-      g.lineCap = 'round';
-      g.strokeStyle = `rgba(80,170,245,${0.3 * a})`; g.lineWidth = 7 * d; g.beginPath(); g.moveTo(A.x, A.y); g.quadraticCurveTo(mx, my, B.x, B.y); g.stroke();
-      g.strokeStyle = gr; g.lineWidth = 2.6 * d; g.beginPath(); g.moveTo(A.x, A.y); g.quadraticCurveTo(mx, my, B.x, B.y); g.stroke();
-      g.fillStyle = `rgba(190,230,255,${0.9 * a})`;
-      for (let i = 1; i <= 3; i++) { const t = 1 - i * 0.07 - (1 - a) * 0.1, t1 = 1 - t; g.beginPath(); g.arc(t1 * t1 * A.x + 2 * t1 * t * mx + t * t * B.x + i * 2 * d, t1 * t1 * A.y + 2 * t1 * t * my + t * t * B.y + i * 3 * d, 1.6 * d, 0, Math.PI * 2); g.fill(); }
-      if (s.kill) { g.fillStyle = `rgba(235,250,255,${a})`; g.beginPath(); g.arc(B.x, B.y, 4 * d, 0, Math.PI * 2); g.fill(); }
+      const at = t => { const t1 = 1 - t; return [t1 * t1 * A.x + 2 * t1 * t * mx + t * t * B.x, t1 * t1 * A.y + 2 * t1 * t * my + t * t * B.y]; };
+      const from = tail, to = front;
+      if (to > from) {
+        const N = 18, pts = [];
+        for (let i = 0; i <= N; i++) pts.push(at(from + (to - from) * i / N));
+        const path = () => { g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i <= N; i++) g.lineTo(pts[i][0], pts[i][1]); };
+        const fade = 1 - tail;
+        g.lineCap = 'round'; g.lineJoin = 'round';
+        g.strokeStyle = `rgba(40,140,235,${0.35 * fade})`; path(); g.lineWidth = 13 * d; g.stroke();
+        g.strokeStyle = `rgba(110,195,255,${0.85 * fade})`; path(); g.lineWidth = 6 * d; g.stroke();
+        g.strokeStyle = `rgba(235,250,255,${0.95 * fade})`; path(); g.lineWidth = 2.2 * d; g.stroke();
+        // drops shed along the jet
+        g.fillStyle = `rgba(190,230,255,${0.85 * fade})`;
+        for (let i = 1; i <= 5; i++) { const t = from + (to - from) * (i / 6), [x, y] = at(t), j = hash3(s.k.n || 1, i, 3); g.beginPath(); g.arc(x + (j - 0.5) * 10 * d, y + (4 + 10 * j) * d * (s.age / life), (1.4 + 1.6 * j) * d, 0, Math.PI * 2); g.fill(); }
+      }
+      if (front >= 1) {
+        // the splash where it lands
+        const sa = Math.min(1, (s.age - life * 0.33) / (life * 0.67)), r = (6 + 22 * sa) * d * (s.kill ? 1.4 : 1);
+        g.strokeStyle = `rgba(200,240,255,${0.9 * (1 - sa)})`; g.lineWidth = 2 * d; g.beginPath(); g.arc(B.x, B.y, r, 0, Math.PI * 2); g.stroke();
+        g.fillStyle = `rgba(170,225,255,${0.95 * (1 - sa)})`;
+        for (let i = 0; i < 7; i++) { const an = (i / 7) * Math.PI * 2 + hash3(s.k.n || 1, i, 7); g.beginPath(); g.arc(B.x + Math.cos(an) * r * 1.1, B.y + Math.sin(an) * r * 0.8 + sa * 12 * d, (2.6 - sa * 1.4) * d, 0, Math.PI * 2); g.fill(); }
+      }
     }
   }
 

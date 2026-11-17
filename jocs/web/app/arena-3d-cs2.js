@@ -1206,13 +1206,13 @@ export const adapter = {
       const k = clamp(sht.age / .06, 0, 1), head = len * Math.min(1, k + .15), tail = Math.max(0, head - Math.min(4, len * .6));
       const mid = tmp.v.set(A[0] + d.x * (head + tail) / 2, A[1] + d.y * (head + tail) / 2, A[2] + d.z * (head + tail) / 2);
       tmp.q.setFromUnitVectors(tmp.x, d);
-      tmp.m4.compose(mid, tmp.q, tmp.s.set(head - tail, .026, .026));
-      const a = (1 - sht.age / .16) * .6;
+      tmp.m4.compose(mid, tmp.q, tmp.s.set(head - tail, .06, .06)); // a real jet of water, not a hairline
+      const a = Math.max(0, 1 - sht.age / (sht.life || .16)) * .85;
       s.tracer.add(tmp.m4, new THREE.Color(.45, .78, 1).multiplyScalar(a));
       // Droplets along the stream, sagging a little (a slight arc).
-      for (let j = 0; j < 3; j++) {
-        const t = tail + (head - tail) * (j + .5) / 3, sag = Math.sin((t / len) * Math.PI) * Math.min(.25, len * .02);
-        s.soft.add(A[0] + d.x * t, A[1] + d.y * t - sag, A[2] + d.z * t, .1, .1, 0, a * 1.2, '#cfeeff');
+      for (let j = 0; j < 5; j++) {
+        const t = tail + (head - tail) * (j + .5) / 5, sag = Math.sin((t / len) * Math.PI) * Math.min(.25, len * .02);
+        s.soft.add(A[0] + d.x * t, A[1] + d.y * t - sag, A[2] + d.z * t, .16, .16, 0, a * 1.2, '#cfeeff');
       }
       if (sht.age < .07 && !mineShot) {
         s.glow.add(A[0], A[1], A[2], .45, .45, sht.k.n, (1 - sht.age / .07) * .8, '#dff4ff');
@@ -1254,7 +1254,7 @@ export const adapter = {
     const m = this.viewModel(ctx, key, () => viewParts(ctx.kit, ctx.THREE, q.weapon, q.side, c4));
     m.visible = true;
     let kick = 0, own = null;
-    for (const sh of shots) if (sh.from === q.id) { const kk = 1 - sh.age / .16; if (kk > kick) { kick = kk; own = sh; } }
+    for (const sh of shots) if (sh.from === q.id && sh.age < .16) { const kk = 1 - sh.age / .16; if (kk > kick) { kick = kk; own = sh; } }
     const run = clamp(speedAt(q, gt) / 4.5, 0, 1), ph = trackDist(q.track, gt) * 2.6;
     const bx = Math.sin(ph) * .012 * run, by = -Math.abs(Math.cos(ph)) * .01 * run;
     const pistol = weaponClass(q.weapon) === 'pistol', cls = weaponClass(q.weapon);
