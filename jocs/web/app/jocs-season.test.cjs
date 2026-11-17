@@ -37,3 +37,14 @@ test('standings and highlights: empty states and the season hero', async () => {
   assert.strictEqual(sparkSVG([]), '');
   assert.ok(sparkSVG([[10, 1516], [20, 1531]]).includes('class="jx-spark up"'));
 });
+
+test('estimate: same groups as the server, faster with more slots', async () => {
+  const { estimateComp, plannerHTML } = await load();
+  assert.deepStrictEqual(estimateComp(1, 1, 480), { matches: 0, seconds: 0, groups: 0 });
+  assert.strictEqual(estimateComp(5, 1, 480).groups, 1);   // un grup de 5
+  assert.strictEqual(estimateComp(7, 1, 480).groups, 2);   // 4 + 3
+  assert.strictEqual(estimateComp(40, 1, 480).groups, 10);
+  assert.ok(estimateComp(40, 4, 480).seconds < estimateComp(40, 1, 480).seconds / 2.5);
+  const html = plannerHTML({ entries: { nfl: 3 }, bots: { nfl: 4, cs2: 4 }, match_secs: 480 }, 2, true, [{ id: 'nfl' }, { id: 'cs2' }]);
+  assert.ok(html.includes('3</b> players + 4 bots') && html.includes('left out'));
+});

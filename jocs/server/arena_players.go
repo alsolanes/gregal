@@ -218,6 +218,8 @@ type arenaPlayerGame struct {
 	Drawn   int          `json:"drawn"`
 	History [][2]float64 `json:"history,omitempty"` // [unix, Elo] després de cada oficial
 	Bots    []string     `json:"bots"`              // bots guanyats (nivells)
+	// Les versions del .md en aquest joc, amb el resultat de cadascuna (arena_quality.go).
+	Versions []arenaMDVersion `json:"versions,omitempty"`
 }
 
 type arenaPlayer struct {
@@ -243,6 +245,8 @@ type arenaPlayer struct {
 	CoachLast  float64                     `json:"coach_last,omitempty"`
 	Moments    int                         `json:"moments"`
 	Last       int64                       `json:"last"`
+	// Contra cada nivell de bot (rookie, solid, expert): l'escala de qualitat.
+	VsBots map[string]*arenaWL `json:"vs_bots,omitempty"`
 	// De l'informe d'IA desat (si n'hi ha): el sobrenom per a les targetes.
 	Archetype string `json:"archetype,omitempty"`
 	Emoji     string `json:"emoji,omitempty"`
@@ -263,6 +267,7 @@ type arenaSeasonView struct {
 	Players    []*arenaPlayer   `json:"players"`
 	Awards     []arenaAward     `json:"awards"`
 	Highlights []arenaHighlight `json:"highlights"`
+	Quality    *arenaQuality    `json:"quality,omitempty"`
 }
 
 // arenaPrinciples: els cinc criteris del coach, en l'ordre que es mostren.
@@ -328,11 +333,13 @@ func arenaEloReplay(finals []*arenaMatch) (hist map[string]map[string][][2]float
 func arenaSeason(sums []arenaSum, deeps map[string]*arenaDeep, ratings map[string]map[string]*arenaRating, displays map[string]string, me string) arenaSeasonView {
 	var finals []*arenaMatch
 	coach := map[string][2]int{}
+	sigs := map[string]arenaMDSigs{}
 	for i := range sums {
 		m := &sums[i].M
 		if m.Status == "final" {
 			finals = append(finals, m)
 			coach[m.ID] = sums[i].Coach
+			sigs[m.ID] = sums[i].MD
 		}
 	}
 	at := func(m *arenaMatch) int64 { return max(m.Finished, m.Started) }
@@ -595,7 +602,8 @@ func arenaSeason(sums []arenaSum, deeps map[string]*arenaDeep, ratings map[strin
 	for i, p := range list {
 		p.Rank = i + 1
 	}
-	return arenaSeasonView{Players: list, Awards: arenaAwards(list, giant.owner, giant.match, giant.gap), Highlights: hl}
+	quality := arenaQualityOf(finals, coach, sigs, players)
+	return arenaSeasonView{Players: list, Awards: arenaAwards(list, giant.owner, giant.match, giant.gap), Highlights: hl, Quality: quality}
 }
 
 // arenaAwards: els premis de la temporada, calculats (cap model no hi vota).

@@ -6,7 +6,10 @@
 // l'editor, els partits de prova, el reproductor i la tele.
 // Tot en anglès, com els jocs.
 import { renderCompetition, nameOf, currentGame } from './arena-bracket.js';
-import { standingsHTML, playersHTML, profileHTML, highlightsHTML, awardsHTML, momentCard, principlesHTML } from './jocs-season.js';
+import { levelCardHTML, levelBadgeHTML, evaluate, CHALLENGES, XP_RULES } from './jocs-levels.js';
+import { lintMD } from './arena-lint.js';
+import { qualityHTML } from './jocs-quality.js';
+import { standingsHTML, playersHTML, profileHTML, highlightsHTML, awardsHTML, momentCard, principlesHTML, plannerHTML } from './jocs-season.js';
 
 const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const n0 = v => Math.round(+v || 0).toLocaleString('en');
@@ -29,8 +32,17 @@ const GAMES = {
 // La lliga dels vents (futbol americà, football.js) és el quart joc: no es
 // juga amb un .md sinó amb els vents de Gregal Vents com a entrenadors.
 const ROUTES = [
-  ['home', 'Home'], ['play', 'Play'], ['ranking', 'Standings'], ['players', 'Players'], ['highlights', 'Highlights'], ['cup', 'Tournament'], ['matches', 'Matches'], ['league', 'League'], ['how', 'How it works'],
+  ['home', 'Home'], ['play', 'Play'], ['ranking', 'Standings'], ['players', 'Players'], ['highlights', 'Highlights'], ['cup', 'Bracket'], ['matches', 'Matches'], ['league', 'League'], ['how', 'How it works'],
 ];
+// The top bar has six entries; the pages that belong together share one and
+// get a sub-tab strip (every route keeps its own #/link).
+const NAV = [
+  ['home', 'Home'], ['play', 'Play'],
+  ['ranking', 'Standings', ['ranking', 'players']],
+  ['cup', 'Cup', ['cup', 'matches', 'highlights']],
+  ['league', 'League'], ['how', 'How it works'],
+];
+const routeLabel = id => (ROUTES.find(x => x[0] === id) || [])[1] || id;
 
 const S = { d: null, season: null, profile: null, hlFilter: 'all', route: 'home', arg: '', rankGame: 'overall', rankBots: true, matchGame: 'all', comp: null, compGame: '', timer: 0, liveComp: null, loadedAt: 0 };
 
@@ -45,7 +57,7 @@ function boot() {
   root.innerHTML = `
     <header class="jx-top">
       <a class="jx-brand" href="#/" aria-label="Home">${markSVG()}<span><b id="jxName">Gregal Prompt Cup</b><small>Gregal Jocs</small></span></a>
-      <nav class="jx-nav" id="jxNav" aria-label="Gregal Jocs">${ROUTES.map(([id, label]) => `<a href="#/${id === 'home' ? '' : id}" data-r="${id}">${label}</a>`).join('')}</nav>
+      <nav class="jx-nav" id="jxNav" aria-label="Gregal Jocs">${NAV.map(([id, label]) => `<a href="#/${id === 'home' ? '' : id}" data-r="${id}">${label}</a>`).join('')}</nav>
       <div class="jx-top-r">
         <a class="jx-watch" id="jxWatch" target="_blank" rel="noopener" title="Open the broadcast in a new window" aria-label="Broadcast"><span class="jx-dot"></span><span class="jx-watch-ic" aria-hidden="true">${icon('preview')}</span><span id="jxWatchTx">Broadcast</span></a>
         <button type="button" class="jx-icon-btn" data-prefs title="Settings (Ctrl+,)" aria-label="Settings">${icon('gear', '⚙')}</button>
@@ -54,6 +66,7 @@ function boot() {
       </div>
     </header>
     <main class="jx-main" id="jxMain">
+      <div class="jx-sub-wrap" id="jxSub" hidden></div>
       <section class="jx-route" data-route="home" id="jxHome"><div class="jx-wrap"><p class="jx-loading" role="status">Loading…</p></div></section>
       <section class="jx-route" data-route="play"><div class="jx-wrap"><div class="jx-play-head" id="jxPlayHead"></div><div id="jxPlayMount"></div></div></section>
       <section class="jx-route" data-route="ranking" id="jxRanking"></section>
@@ -147,11 +160,16 @@ function route() {
   S.route = ROUTES.some(x => x[0] === r) ? r : 'home';
   S.arg = decodeURIComponent(arg || '');
   document.querySelectorAll('#jxNav [data-r]').forEach(a => {
-    const on = a.dataset.r === S.route;
+    const grp = (NAV.find(x => x[0] === a.dataset.r) || [])[2];
+    const on = a.dataset.r === S.route || !!grp?.includes(S.route);
     a.classList.toggle('on', on);
     if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   });
   document.querySelectorAll('#jxSite .jx-route').forEach(s => { s.hidden = s.dataset.route !== S.route; });
+  const grp = (NAV.find(x => x[2]?.includes(S.route)) || [])[2];
+  const sub = $('jxSub');
+  sub.hidden = !grp;
+  sub.innerHTML = grp ? `<div class="jx-wrap"><div class="jx-tabs jx-subtabs" role="tablist">${grp.map(id => `<a role="tab" href="#/${id}" class="${id === S.route ? 'on' : ''}" ${id === S.route ? 'aria-selected="true"' : ''}>${routeLabel(id)}</a>`).join('')}</div></div>` : '';
   // L'Arena i la lliga només treballen (i consulten) quan es veuen: amagades,
   // els visors s'aturen sols (IntersectionObserver a arena-view-base.js).
   const page = $('arenaPage'), league = $('partitsPage');
@@ -233,8 +251,41 @@ function paintPlayHead() {
     <div class="jx-chips">${rank ? `<span class="jx-chip">#${rank.pos} in ${esc(GAMES[g]?.short || g)} · ${rank.elo} Elo</span>` : `<span class="jx-chip">Unranked in ${esc(GAMES[g]?.short || g)} yet</span>`}
     ${typeof d.practice_left === 'number' && !d.admin ? `<span class="jx-chip">${Math.max(0, d.practice_left)} practice matches left today</span>` : ''}
     ${d.model ? `<button type="button" class="jx-chip jx-chip-btn" data-prefs="agent" title="The model that plays every match. Change it in Settings.">Model · ${esc(d.model.split('/').pop())}</button>` : ''}</div>
-    ${modelNote()}`;
+    ${modelNote()}<div id="jxChal"></div>`;
+  paintChallenges();
 }
+
+// Prompt level and challenges: checked live against the .md in the editor
+// (the arena page announces every change with 'gregal:lint') and the player's
+// stats; the ones earned are kept per player in this browser.
+const earnedKey = () => 'jx_ch_' + (S.d?.me || '');
+const earnedIds = () => { try { return JSON.parse(localStorage.getItem(earnedKey()) || '[]'); } catch (e) { return []; } };
+function toast(text) {
+  const t = document.createElement('div');
+  t.className = 'jx-toast'; t.setAttribute('role', 'status'); t.textContent = text;
+  document.body.append(t);
+  setTimeout(() => t.classList.add('out'), 3500);
+  setTimeout(() => t.remove(), 4200);
+}
+function paintChallenges(lint) {
+  const box = $('jxChal');
+  if (!box || !S.d) return;
+  const p = (S.season?.players || []).find(x => x.owner === S.d.me) || null;
+  const md = $('arMD');
+  // The starter template is not your work: it earns nothing until you change it.
+  const ar = window.gregalArena, starter = (ar?.data?.games || []).find(g => g.id === ar.game)?.starter || '';
+  const mine = md && md.value.trim() && md.value.trim() !== starter.trim();
+  lint = mine ? (lint || lintMD(md.value)) : null;
+  const had = earnedIds(), { done, fresh } = evaluate({ lint, p }, had);
+  if (fresh.length) {
+    try { localStorage.setItem(earnedKey(), JSON.stringify(done)); } catch (e) { /* private mode */ }
+    fresh.forEach(id => toast('Challenge complete: ' + (CHALLENGES.find(c => c.id === id) || {}).title));
+  }
+  const open = box.querySelector('details')?.open;
+  box.innerHTML = levelCardHTML(p, done);
+  if (open) box.querySelector('details').open = true;
+}
+document.addEventListener('gregal:lint', e => { if (S.route === 'play') paintChallenges(e.detail); });
 
 // L'organitzador (admin): crear, començar i aturar competicions, i la
 // retransmissió. És el plec de competicions de l'Arena, mogut aquí.
@@ -265,6 +316,31 @@ function mountOrganizer() {
     };
   }
   if (fold.parentElement !== box) { box.append(fold); fold.open = true; fold.classList.add('jx-org-fold'); }
+  paintPlanner();
+}
+
+// Quant trigarà: les estratègies d'ara, amb els bots o sense (la casella del
+// formulari de crear), i quants partits alhora (es desa en canviar-ho).
+function paintPlanner() {
+  const box = $('jxOrganizer');
+  if (!box || box.hidden || !S.d?.planner) return;
+  let el = $('jxPlanner');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'jxPlanner'; el.className = 'jx-planner';
+    box.querySelector('.jx-org-head').after(el);
+    document.addEventListener('change', e => { if (e.target.id === 'arCompBots') paintPlanner(); });
+  }
+  const sl = S.d.slots || { official: 1, practice: 2 }, bots = $('arCompBots')?.checked ?? true;
+  el.innerHTML = `<div class="jx-planner-h"><div><h3 class="jx-h3">How long will it take?</h3><p class="jx-muted sm">From the strategies saved right now${bots ? ', with the bots' : ''}.</p></div>
+    <label>Official matches at once <input type="number" min="1" max="8" id="jxSlotsOff" value="${sl.official}"></label>
+    <label>Practice at once <input type="number" min="1" max="8" id="jxSlotsPr" value="${sl.practice}"></label><span class="jx-faint" id="jxSlotsSaved"></span></div>
+    ${plannerHTML(S.d.planner, sl.official, bots, S.d.games)}`;
+  const save = async () => {
+    const official = Math.min(8, Math.max(1, +$('jxSlotsOff').value || 1)), practice = Math.min(8, Math.max(1, +$('jxSlotsPr').value || 1));
+    try { S.d.slots = await api('/api/arena', { method: 'POST', body: JSON.stringify({ action: 'slots', official, practice }) }); paintPlanner(); $('jxSlotsSaved').textContent = 'Saved'; }
+    catch (err) { $('jxSlotsSaved').textContent = err.message; }
+  };
+  $('jxSlotsOff').onchange = save; $('jxSlotsPr').onchange = save;
 }
 
 // ---- Portada ----
@@ -351,6 +427,7 @@ function paintHome() {
     </div>
     <div class="jx-wrap">
       ${statsHTML(Math.max(t.players || 0, humans.size), t)}
+      ${qualityHTML(S.season?.quality, S.season?.players, S.d.me, { compact: true })}
       <div class="jx-sec-head"><div><div class="jx-kicker">Three games · one model</div><h2 class="jx-h2">Pick your arena</h2></div></div>
       <div class="jx-games">${cards}</div>
       ${leagueAllowed() ? `<a class="jx-league-strip" href="#/league"><span class="jx-league-ic" aria-hidden="true">🏈</span><span><b>League</b><small>American football with your own staff of agents</small></span><span class="jx-more" aria-hidden="true">Open →</span></a>` : ''}
@@ -407,7 +484,7 @@ function paintRanking() {
   const tabs = [['overall', '🏆 Overall'], ...d.games.map(x => [x.id, (GAMES[x.id]?.icon || '') + ' ' + (GAMES[x.id]?.short || x.id)])];
   let body;
   if (g === 'overall') {
-    body = `${awardsHTML(season.awards, d.me)}${standingsHTML(season, d.me)}`;
+    body = `${awardsHTML(season.awards, d.me)}${standingsHTML(season, d.me)}${qualityHTML(season.quality, season.players, d.me)}`;
   } else {
     let rows = (d.leaderboard || {})[g] || [];
     if (!S.rankBots) rows = rows.filter(r => !r.bot);
@@ -543,6 +620,8 @@ function paintHow() {
     <div class="jx-page-head"><div><div class="jx-kicker">The rules</div><h1 class="jx-h1">How it works</h1><p class="jx-muted">Two identical teams. One model plays both. The only difference is the strategy file each player wrote.</p></div></div>
     ${stepsHTML()}
     ${principlesHTML()}
+    <div class="jx-sec-head"><div><div class="jx-kicker">Level up</div><h2 class="jx-h2">Prompt levels and challenges</h2></div></div>
+    <p class="jx-muted">Every player has a Prompt level, from ${levelBadgeHTML({})} to Grandmaster. You earn XP for what you actually do: ${XP_RULES.map(([n, t]) => `<b>+${n}</b> ${esc(t)}`).join(', ')}. Ten short challenges, one per prompting principle, show you what to try next; the Play page checks them live while you write.</p>
     <div class="jx-sec-head"><div><div class="jx-kicker">The games</div><h2 class="jx-h2">What you decide in each</h2></div></div>
     <div class="jx-rules">${d.games.map(g => `<article class="jx-rule jx-g-${esc(g.id)}"><div class="jx-rule-ic">${GAMES[g.id]?.icon || '🎮'}</div><h3>${esc(g.title)}</h3>
       <p><b>You decide:</b> ${esc(GAMES[g.id]?.decide || '')}</p><p><b>To win:</b> ${esc(GAMES[g.id]?.read || '')}</p>
@@ -551,6 +630,7 @@ function paintHow() {
     <div class="jx-fair"><h3 class="jx-h3">Fair play</h3><ul>
       <li>Same model, same settings, no reasoning tokens, for every team.</li>
       <li>Every decision is checked: ✓ when the rule the model quoted really is in your .md, ⚠ when it improvised.</li>
+      <li>Bots play the groups as sparring partners and benchmarks, but only people go through to the playoffs: the champion is always one of you.</li>
       <li>Playoffs are best of three, swapping sides. A match where the model failed to decide for a team more than 10% of the time is replayed.</li>
       <li>Official matches hide the counter hints: your .md has to read the matchup on its own.</li>
     </ul></div>

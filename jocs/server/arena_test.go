@@ -169,13 +169,29 @@ func TestArenaPracticeAndCompetition(t *testing.T) {
 		t.Fatal("una pràctica no ha de comptar per al rànquing")
 	}
 
-	// Competició: 4 bots + jo = un grup de 5 i final.
+	// Competició: 4 bots + dues persones = dos grups de 3, semifinals i final.
+	// Els bots fan de sparring als grups, però a les eliminatòries només hi
+	// passen persones: la final és entre totes dues.
+	s.saveEntry(arenaEntry{Owner: "bernat", Display: "Bernat", Game: "nfl", MD: "# Deep" + "\n" + "ALWAYS DEEP"})
 	rec = postJSON(t, s.handleArenaComp, `{"action":"create","title":"Prova","games":["nfl"],"bots":true}`)
 	var comp struct{ ID string }
 	json.Unmarshal(rec.Body.Bytes(), &comp)
 	c := s.arenaComp(comp.ID)
-	if c == nil || len(c.Groups["nfl"]) != 1 || len(c.Schedule) != 11 {
+	if c == nil || len(c.Groups["nfl"]) != 2 {
 		t.Fatalf("competició: %+v", c)
+	}
+	// Tots contra tots als grups, menys bot contra bot (no decideix res), i
+	// semifinals i final.
+	playoffs := 0
+	for _, sl := range c.Schedule {
+		if sl.Phase == "playoff" {
+			playoffs++
+		} else if isBotOwner(sl.A) && isBotOwner(sl.B) {
+			t.Fatalf("un partit entre bots: %+v", sl)
+		}
+	}
+	if playoffs != 3 || len(c.Schedule) < 5 {
+		t.Fatalf("calendari: %+v", c.Schedule)
 	}
 	postJSON(t, s.handleArenaComp, `{"action":"start","id":"`+comp.ID+`"}`)
 	for i := 0; i < 3000; i++ {
@@ -192,7 +208,7 @@ func TestArenaPracticeAndCompetition(t *testing.T) {
 		t.Fatalf("la competició havia d'acabar amb campió: %s %+v", c.Status, c.Champion)
 	}
 	final := c.Schedule[len(c.Schedule)-1]
-	if final.Stage != "Final" || !final.Done || final.A == "" || final.B == "" {
+	if final.Stage != "Final" || !final.Done || final.A == "" || final.B == "" || isBotOwner(final.A) || isBotOwner(final.B) || isBotOwner(c.Champion["nfl"]) {
 		t.Fatalf("final: %+v", final)
 	}
 	// Els oficials, per defecte sense les ajudes del format.
@@ -200,7 +216,7 @@ func TestArenaPracticeAndCompetition(t *testing.T) {
 		t.Fatalf("un partit oficial: sense ajudes i amb informe per a tots dos: %+v", fm)
 	}
 	board := s.arenaRatings()["nfl"]
-	if len(board) != 5 {
+	if len(board) != 6 {
 		t.Fatalf("rànquing: %d jugadors", len(board))
 	}
 	played, games := 0, 0
@@ -210,11 +226,16 @@ func TestArenaPracticeAndCompetition(t *testing.T) {
 	for _, sl := range c.Schedule {
 		games += len(sl.Matches)
 		// Les eliminatòries, al millor de 3: el guanyador en té 2.
-		if sl.Phase == "playoff" && sl.Series[sl.Winner] < 2 && len(sl.Matches) < 5 {
+		// Una semifinal sense segona persona és un pas lliure, sense partits.
+		walkover := sl.A == "" || sl.B == ""
+		if sl.Phase == "playoff" && !walkover && sl.Series[sl.Winner] < 2 && len(sl.Matches) < 5 {
 			t.Fatalf("eliminatòria sense sèrie: %+v", sl)
 		}
+		if walkover && (len(sl.Matches) > 0 || !sl.Done) {
+			t.Fatalf("un pas lliure no es juga: %+v", sl)
+		}
 	}
-	if played != games*2 || games < 11 {
+	if played != games*2 || games < 4 {
 		t.Fatalf("partits al rànquing: %d (%d partits × 2)", played, games)
 	}
 }
@@ -282,6 +303,11 @@ func TestArenaResumeAfterRestart(t *testing.T) {
 	arenaStub(t)
 	postJSON(t, s.handleArena, `{"action":"seed_bots","games":["nfl"]}`)
 	waitBackground()
+	// Una competició només amb bots no es crea: cal almenys una persona.
+	if rec := postJSON(t, s.handleArenaComp, `{"action":"create","title":"Bots","games":["nfl"],"bots":true}`); rec.Code != http.StatusBadRequest {
+		t.Fatalf("una competició sense cap persona s'havia de refusar: %d", rec.Code)
+	}
+	postJSON(t, s.handleArena, `{"action":"save","game":"nfl","display":"Aleix","md":"# Balanced\nRun on first down."}`)
 	rec := postJSON(t, s.handleArenaComp, `{"action":"create","title":"Reinici","games":["nfl"],"bots":true}`)
 	var comp struct{ ID string }
 	json.Unmarshal(rec.Body.Bytes(), &comp)

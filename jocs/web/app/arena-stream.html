@@ -146,6 +146,16 @@
   .ovbox .abk-bracket { flex:1 1 auto; min-height:0; }
   .ovbox .abk-group { background:rgba(8,10,22,.9); }
   .ovbox .abk-group table { font-size:clamp(15px, 1.25vw, 28px); }
+.ev { display:flex; align-items:center; gap:28px; margin:8px 0 22px; }
+  .ev-big { font-size:clamp(64px, calc(var(--vw) * 9), 140px); line-height:1; font-weight:900; color:var(--accent); }
+  .ev .lead { margin:0; max-width:680px; }
+  .ev-steps { display:grid !important; grid-template-columns:1fr !important; gap:12px; }
+  .ev-steps .step { display:grid; grid-template-columns:minmax(180px, 1fr) 2fr auto; gap:18px; align-items:center; }
+  .ev-l { font-weight:800; font-size:clamp(17px, calc(var(--vw) * 1.6), 24px); }
+  .ev-l small { display:block; font-weight:600; opacity:.65; font-size:.65em; }
+  .ev-bar { height:14px; border-radius:7px; background:rgba(255,255,255,.1); overflow:hidden; }
+  .ev-bar i { display:block; height:100%; background:var(--accent); border-radius:7px; }
+  .ev-steps .step b.ev-p { display:inline; margin:0; letter-spacing:0; text-transform:none; color:var(--accent); font-size:clamp(20px, calc(var(--vw) * 2), 30px); }
 </style>
 </head>
 <body>
@@ -168,6 +178,7 @@
 // #token=<clau> o #spectator=<clau de l'enllaç d'espectador>, &lang=ca|en.
 import { makeView, LESSONS, EXPLAIN, COUNTERS } from './arena-views.js';
 import { exportVideo, momentsByEvent, showMomentCard } from './arena-export.js';
+import { headline as qualityHeadline, ladder as qualityLadder } from './jocs-quality.js';
 import { mountScrubber } from './arena-scrubber.js';
 import { has3D, mount3D } from './arena-3d.js';
 import { bracketHTML, groupsHTML, scheduleHTML, playoffsStarted, currentGame, ensureBracketCSS, shortStage, seedLabel, maskUnseen } from './arena-bracket.js';
@@ -198,6 +209,7 @@ const L = lang === 'ca' ? {
   practice: 'Partit de prova', demo: 'Partit de mostra', replay: '▶ Torna-ho a veure', close: 'Tanca', end: 'Final del partit', callTip: 'A sota de cada equip: què ha decidit i la regla del seu .md que l’hi ha portat.',
   stakes: 'Els dos primers de cada grup passen a les eliminatòries.', preparing: 'S’està jugant el partit següent: tornem de seguida.', tips: 'CONSELL', upnext: 'ARA VE',
   summary: 'Resum del partit', moments: 'Moments del prompt', noMoments: 'Cap moment del prompt en aquest partit.', coach: 'coach', followed: 'ha seguit el .md', exportVideo: '⬇ Descarrega el vídeo',
+  evidence: 'Els números', evTitle: 'Els bons prompts guanyen', evLine: (p, n) => `Un prompt estructurat ha guanyat el vague el ${p}% de les vegades (${n} partits, mateix model).`, evRungs: { expert: 'Prompt expert', solid: 'Prompt clar', rookie: 'Prompt vague' }, evWins: 'guanya',
   bracket: 'Quadre', bo3: 'Al millor de 3', gameN: 'Partit', series: 'Sèrie',
   fp3d: '👁 Primera persona 3D', fp3dOn: '👁 Torna al 2D', fp3dSoon: '👁 3D · aviat', fp3dHelp: 'Mira el partit des del casc d’un jugador (arrossega per mirar, Tab/Q-E canvia de jugador, F càmera lliure, Esc torna al 2D)', fp3dSoonHelp: 'La primera persona en 3D arribarà aviat per a aquest joc',
 } : {
@@ -210,6 +222,7 @@ const L = lang === 'ca' ? {
   practice: 'Practice game', demo: 'Demo match', replay: '▶ Watch it again', close: 'Close', end: 'Full time', callTip: 'Under each team: what it decided and the rule of its .md that led there.',
   stakes: 'The top two of each group go through to the playoffs.', preparing: 'The next match is being played: back in a moment.', tips: 'TIP', upnext: 'UP NEXT',
   summary: 'Match summary', moments: 'Prompt moments', noMoments: 'No prompt moments in this match.', coach: 'coach', followed: 'followed its .md', exportVideo: '⬇ Download video',
+  evidence: 'The evidence', evTitle: 'Better prompts win', evLine: (p, n) => `A structured prompt beat the vague one ${p}% of the time (${n} matches, same model).`, evRungs: { expert: 'Expert prompt', solid: 'Clear prompt', rookie: 'Vague prompt' }, evWins: 'wins',
   bracket: 'Bracket', bo3: 'Best of 3', gameN: 'Game', series: 'Series',
   fp3d: '👁 First person 3D', fp3dOn: '👁 Back to 2D', fp3dSoon: '👁 3D · coming soon', fp3dHelp: 'Watch the match through a player’s helmet (drag to look, Tab/Q-E switch player, F free camera, Esc back to 2D)', fp3dSoonHelp: 'First person 3D is coming soon for this game',
 };
@@ -340,12 +353,12 @@ function ticker(items) {
 }
 
 // ---- estat ----
-let comp = null;
+let comp = null, quality = null, sinceEvidence = 0;
 const shown = new Set(), explained = new Set();
 let opened = false, busy = false, view = null;
 
 async function pollComp() {
-  try { const r = await get('/api/arena/stream'); comp = single ? null : r.competition; script = r.script || null; } catch (e) {}
+  try { const r = await get('/api/arena/stream'); comp = single ? null : r.competition; script = r.script || null; quality = r.quality || null; } catch (e) {}
   paintVoice();
   if (comp) {
     $('comp').textContent = comp.title;
@@ -694,7 +707,23 @@ async function segStandings(sl) {
   if (po) await segBracket(sl.game);
 }
 
+// Between matches: the evidence that the prompt is what makes the difference
+// (the bots are the measuring stick, arena_quality.go). Skipped without data.
+async function segEvidence() {
+  const h = qualityHeadline(quality);
+  if (!h) return false;
+  segLabel(L.evidence);
+  const rows = qualityLadder(quality, []).map(r => `<div class="step"><div class="ev-l">${esc(L.evRungs[r.level] || r.label)}<small>${esc(r.bots.join(' · '))}</small></div>
+    <div class="ev-bar"><i style="width:${r.winRate || 0}%"></i></div><b class="ev-p">${r.winRate == null ? '—' : r.winRate + '% <small style="font-size:.55em;opacity:.7">' + esc(L.evWins) + '</small>'}</b></div>`).join('');
+  await wipe(() => panel(`<div class="kicker">${esc(L.evidence)}</div><h1 class="h1">${esc(L.evTitle)}</h1>
+    <div class="ev"><b class="ev-big">${h.pct}%</b><p class="lead">${esc(L.evLine(h.pct, h.played))}</p></div><div class="steps ev-steps">${rows}</div>`));
+  caption(L.analyst, L.evLine(h.pct, h.played), 12);
+  await sleep(12000);
+  return true;
+}
+
 async function segChampions() {
+  await segEvidence();
   segLabel(L.champions);
   await wipe(() => panel(`<div class="kicker">${esc(comp.title)}</div><h1 class="h1">${esc(L.champions)}</h1>
     <div class="steps">${comp.games.map(g => `<div class="step"><div class="champ">🏆 ${esc(name((comp.champion || {})[g]))}<small>${esc(GAME[g] || g)}</small></div></div>`).join('')}</div>`));
@@ -748,6 +777,7 @@ async function director() {
     await segResult(sl);
     await pollOnce();
     await segStandings(sl);
+    if (++sinceEvidence >= 6 && await segEvidence()) sinceEvidence = 0;
   } finally { busy = false; }
 }
 async function singleShow() {
@@ -814,7 +844,7 @@ function upNext() {
     || comp.schedule.find(s => !s.done && !(s.match && shown.has(s.match))) || null;
 }
 
-async function pollOnce() { try { const r = await get('/api/arena/stream'); comp = r.competition; script = r.script || null; } catch (e) {} }
+async function pollOnce() { try { const r = await get('/api/arena/stream'); comp = r.competition; script = r.script || null; quality = r.quality || null; } catch (e) {} }
 
 // ---- capes per a l'OBS ----
 // #overlay=scorebug|standings|bracket: només aquella peça, amb el fons

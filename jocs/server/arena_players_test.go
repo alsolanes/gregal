@@ -3,10 +3,12 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"gregal/jocs/arena"
 )
@@ -155,4 +157,111 @@ func TestArenaPlayerInsight(t *testing.T) {
 		t.Fatalf("temporada: %s", rec.Body.String())
 	}
 	_ = arena.Games
+}
+
+// Amb més torns oficials, els partits dels grups es juguen alhora i la
+// competició acaba igual (campió, cada eliminatòria al millor de 3).
+func TestArenaCompetitionInParallel(t *testing.T) {
+	s := cornerTestServer(t)
+	arenaStub(t)
+	postJSON(t, s.handleArena, `{"action":"seed_bots","games":["nfl"]}`)
+	waitBackground()
+	postJSON(t, s.handleArena, `{"action":"save","game":"nfl","display":"Aleix","md":"# Balanced\nRun on first down."}`)
+	s.saveArenaSlots(arenaSlotCfg{Official: 3, Practice: 2})
+	rec := postJSON(t, s.handleArenaComp, `{"action":"create","title":"Paral·lel","games":["nfl"],"bots":true}`)
+	var comp struct{ ID string }
+	json.Unmarshal(rec.Body.Bytes(), &comp)
+	postJSON(t, s.handleArenaComp, `{"action":"start","id":"`+comp.ID+`"}`)
+	most := 0
+	var c *arenaComp
+	for i := 0; i < 6000; i++ {
+		arenaMu.Lock()
+		c = s.arenaComp(comp.ID)
+		arenaMu.Unlock()
+		if c != nil {
+			n := 0
+			for _, sl := range c.Schedule {
+				if sl.Match != "" && !sl.Done {
+					n++
+				}
+			}
+			most = max(most, n)
+			if c.Status == "done" {
+				break
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	waitBackground()
+	if c == nil || c.Status != "done" || c.Champion["nfl"] == "" {
+		t.Fatalf("la competició havia d'acabar amb campió: %+v", c)
+	}
+	if most < 2 || most > 3 {
+		t.Fatalf("amb 3 torns s'havien de jugar entre 2 i 3 partits alhora, n'hi ha hagut %d", most)
+	}
+	for _, sl := range c.Schedule {
+		if !sl.Done {
+			t.Fatalf("casella sense jugar: %+v", sl)
+		}
+		if sl.Phase == "playoff" && sl.A != "" && sl.B != "" && sl.Series[0] < 2 && sl.Series[1] < 2 && len(sl.Matches) < 5 {
+			t.Fatalf("eliminatòria sense guanyador de la sèrie: %+v", sl)
+		}
+	}
+}
+
+// Una empresa sencera: 40 persones i 2 bots fan 11 grups (més enllà de la H), cap
+// partit entre dos bots, i un quadre de setzens amb passos lliures on no es
+// troben dos del mateix grup a la primera ronda.
+func TestArenaBigCompanyBracket(t *testing.T) {
+	var owners []string
+	elo := map[string]float64{}
+	for i := 0; i < 40; i++ {
+		o := fmt.Sprintf("p%02d", i)
+		owners = append(owners, o)
+		elo[o] = 1500 + float64(i)
+	}
+	owners = append(owners, "bot:rookie", "bot:analyst")
+	groups := arenaGroups(owners, elo)
+	if len(groups) != 11 { // 42 amb els bots, de 3 a 5 per grup
+		t.Fatalf("grups: %d", len(groups))
+	}
+	sched := arenaBuildSchedule("nfl", groups)
+	stages := map[string]int{}
+	for _, sl := range sched {
+		if isBotOwner(sl.A) && isBotOwner(sl.B) {
+			t.Fatalf("un partit entre bots: %+v", sl)
+		}
+		if sl.Phase == "playoff" {
+			stages[arenaRoundOf(sl.Stage)]++
+			if sl.Stage == "Round of 32 1" || strings.HasPrefix(sl.Stage, "Round of 32") {
+				a, b := sl.From[0], sl.From[1]
+				if a != "" && b != "" && a[0] == b[0] {
+					t.Fatalf("dos del mateix grup a la primera ronda: %+v", sl)
+				}
+			}
+		}
+	}
+	if stages["Round of 32"] != 16 || stages["Round of 16"] != 8 || stages["Quarterfinal"] != 4 || stages["Semifinal"] != 2 || stages["Final"] != 1 {
+		t.Fatalf("rondes: %+v", stages)
+	}
+	// Els grups de més enllà de la H es poden resoldre.
+	last := sched[len(sched)-1]
+	if last.Stage != "Final" || last.From != [2]string{"W:Semifinal 1", "W:Semifinal 2"} {
+		t.Fatalf("final: %+v", last)
+	}
+	for _, sl := range sched {
+		if sl.Stage == "Group J" {
+			return
+		}
+	}
+	t.Fatal("hi ha d'haver un grup J")
+}
+
+func arenaRoundOf(stage string) string {
+	for _, r := range []string{"Round of 32", "Round of 16", "Quarterfinal", "Semifinal", "Final"} {
+		if stage == r || strings.HasPrefix(stage, r+" ") {
+			return r
+		}
+	}
+	return ""
 }

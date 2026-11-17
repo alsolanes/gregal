@@ -17,19 +17,19 @@ const TX = {
   en: {
     group: 'Group', winner: 'Winner', bye: 'Bye', live: 'LIVE', past: 'Played', next: 'Up next', now: 'Live now', champion: 'Champion',
     p: 'P', w: 'W', d: 'D', l: 'L', pts: 'Pts', player: 'Player', tbd: 'TBD', bo3: 'Best of 3', game: 'Game',
-    rounds: { Quarterfinal: 'Quarterfinals', Semifinal: 'Semifinals', Final: 'Final' }, short: { Quarterfinal: 'QF', Semifinal: 'SF', Final: 'Final' },
+    rounds: { 'Round of 32': 'Round of 32', 'Round of 16': 'Round of 16', Quarterfinal: 'Quarterfinals', Semifinal: 'Semifinals', Final: 'Final' }, short: { 'Round of 32': 'R32-', 'Round of 16': 'R16-', Quarterfinal: 'QF', Semifinal: 'SF', Final: 'Final' },
     nth: n => n + (n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'), empty: 'Nothing yet',
   },
   ca: {
     group: 'Grup', winner: 'Guanyador', bye: 'Exempt', live: 'EN DIRECTE', past: 'Jugats', next: 'A continuació', now: 'Ara en directe', champion: 'Campió',
     p: 'PJ', w: 'G', d: 'E', l: 'P', pts: 'Pts', player: 'Jugador', tbd: 'Per decidir', bo3: 'Al millor de 3', game: 'Partit',
-    rounds: { Quarterfinal: 'Quarts de final', Semifinal: 'Semifinals', Final: 'Final' }, short: { Quarterfinal: 'QF', Semifinal: 'SF', Final: 'Final' },
+    rounds: { 'Round of 32': 'Setzens de final', 'Round of 16': 'Vuitens de final', Quarterfinal: 'Quarts de final', Semifinal: 'Semifinals', Final: 'Final' }, short: { 'Round of 32': 'S', 'Round of 16': 'V', Quarterfinal: 'QF', Semifinal: 'SF', Final: 'Final' },
     nth: n => n + (n === 1 ? 'r' : n === 2 ? 'n' : n === 3 ? 'r' : n === 4 ? 't' : 'è'), empty: 'Encara res',
   },
 };
 const tx = lang => TX[lang] || TX.en;
 export const GAME_TITLES = { nfl: 'NFL', cs2: 'Splash Strike', lol: 'Lantern Legends' };
-const ROUND_ORDER = ['Quarterfinal', 'Semifinal', 'Final'];
+const ROUND_ORDER = ['Round of 32', 'Round of 16', 'Quarterfinal', 'Semifinal', 'Final'];
 
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const clip = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
@@ -54,7 +54,7 @@ export function seedLabel(from, lang = 'en') {
   const t = tx(lang), f = String(from || '');
   if (!f) return t.tbd;
   if (f.startsWith('W:')) return t.winner + ' ' + shortStage(f.slice(2), lang);
-  const m = /^([A-H])(\d)$/.exec(f);
+  const m = /^([A-Z])(\d)$/.exec(f);
   if (m) return lang === 'ca' ? `${t.nth(+m[2])} ${t.group.toLowerCase()} ${m[1]}` : `${t.nth(+m[2])} ${t.group} ${m[1]}`;
   return f;
 }
@@ -69,7 +69,9 @@ export function currentGame(comp) {
 }
 
 // Es juga ara aquesta posició del calendari?
-export const isLive = (comp, i) => !!comp && comp.status === 'running' && (comp.current || 0) === i && !comp.schedule[i].done;
+// En directe: tots els partits en marxa (amb més torns oficials, n'hi pot haver
+// diversos alhora); el «current» del servidor és el que surt a la tele.
+export const isLive = (comp, i) => !!comp && comp.status === 'running' && !!comp.schedule[i] && !comp.schedule[i].done && (!!comp.schedule[i].match || (comp.current || 0) === i);
 
 // El marcador d'una posició: a les eliminatòries, les victòries de la sèrie.
 export function slotScore(sl) {
@@ -319,7 +321,8 @@ export function groupsHTML(comp, opt = {}) {
   const qual = opt.qualify == null ? 2 : opt.qualify;
   const label = st => lang === 'ca' ? String(st).replace(/^Group /, t.group + ' ') : st;
   return `<div class="abk abk-groups">${tables.map(tb => `<div class="abk-group"><h4>${esc(label(tb.stage))}</h4><table><tr><th></th><th style="text-align:left">${esc(t.player)}</th><th>${t.p}</th><th>${t.w}</th><th>${t.d}</th><th>${t.l}</th><th>${t.pts}</th></tr>` +
-    (tb.rows || []).map((r, i) => `<tr class="${i < qual ? 'q' : ''}"><td>${i + 1}</td><td class="n">${esc(nameOf(comp, r.owner))}</td><td>${r.played}</td><td>${r.won}</td><td>${r.drawn}</td><td>${r.lost}</td><td class="pts">${r.pts}</td></tr>`).join('') +
+    // Només les persones passen a les eliminatòries (els bots fan de sparring).
+    (tb.rows || []).map((r, i, rows) => `<tr class="${rows.slice(0, i + 1).filter(x => !String(x.owner).startsWith('bot:')).length <= qual && !String(r.owner).startsWith('bot:') ? 'q' : ''}"><td>${i + 1}</td><td class="n">${esc(nameOf(comp, r.owner))}</td><td>${r.played}</td><td>${r.won}</td><td>${r.drawn}</td><td>${r.lost}</td><td class="pts">${r.pts}</td></tr>`).join('') +
     '</table></div>').join('')}</div>`;
 }
 

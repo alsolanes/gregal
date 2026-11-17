@@ -11,6 +11,7 @@ import { buildTrack, filterTrack, activeEntry, captionOf, trackItemHTML, summary
 import { has3D, mount3D } from './arena-3d.js';
 import { playbookHTML, tableHTML, playbookCSS, ruleFor, addRule } from './arena-playbook.js';
 import { QUESTIONS, DEFAULTS, buildMD, builderHTML, builderCSS } from './arena-builder.js';
+import { lintMD, lintHTML, lintCSS } from './arena-lint.js';
 import { applyFix, undoFix, diffLines, diffHunks, diffCount, matchesByVersion, versionStats, lastPractice, topMistakes, coachScore } from './arena-learn.js';
 // Equips d'agents per posició: s'hi posa a globalThis.gregalArenaPositions.
 import './arena-positions.js';
@@ -51,7 +52,7 @@ const arenaUI = {
 
   build(page) {
     page.dataset.ready = '1';
-    momentCSS(); playerCSS(); playbookCSS(); builderCSS();
+    momentCSS(); playerCSS(); playbookCSS(); builderCSS(); lintCSS();
     page.innerHTML = `<div class="ar">
       <header class="ar-head"><div><div class="page-kicker">${esc(T('ar.kicker'))}</div><h1 class="page-title">${esc(T('ar.title'))}</h1>
         <p class="page-copy">${esc(T('ar.lead2'))}</p></div>
@@ -79,6 +80,7 @@ const arenaUI = {
             <textarea id="arMD" spellcheck="false" placeholder="${esc(T('ar.mdPlaceholder'))}"></textarea>
             <div class="ar-row"><span id="arSaved" class="ar-muted"></span><span id="arCount" class="ar-muted"></span>
               <button type="button" id="arStarter" class="ar-link">${esc(T('ar.resetStarter'))}</button></div>
+            <div class="ar-lint" id="arLint" aria-live="polite"></div>
             <details id="arHist" class="ar-hist"><summary id="arHistSum"></summary><div id="arHistBody"></div></details>
           </div>
           <aside class="ar-tips">
@@ -119,6 +121,15 @@ const arenaUI = {
         </section></details>
     </div>`;
     const md = $('arMD');
+    // The prompt check follows the text: typing, and every place that sets the
+    // text and the counter (templates, fixes, history, switching games).
+    const lint = () => {
+      const r = lintMD(md.value);
+      $('arLint').innerHTML = md.value.trim() ? lintHTML(r) : '';
+      document.dispatchEvent(new CustomEvent('gregal:lint', { detail: r }));
+    };
+    new MutationObserver(lint).observe($('arCount'), { childList: true, characterData: true, subtree: true });
+    md.addEventListener('input', lint);
     md.addEventListener('input', () => {
       // Una plantilla, l'assistent o una correcció han canviat el .md: les pestanyes ho mostren.
       if (!this.composing) this.paintTeam();

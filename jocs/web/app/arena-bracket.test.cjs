@@ -178,3 +178,33 @@ test('a broadcast running behind the server does not spoil results', async () =>
   assert.ok(m2.schedule[7].done);
   assert.equal(m2.champion.lol, undefined);
 });
+
+test('several matches live at once, and bots never get the qualify mark', async () => {
+  const B = await load();
+  const g = (stage, a, b, match) => ({ game: 'nfl', stage, phase: 'group', a, b, match, winner: -1, done: false });
+  const comp = {
+    title: 'Cup', games: ['nfl'], status: 'running', current: 0, names: { p1: 'Anna', 'bot:analyst': 'Bot Analyst', p2: 'Bernat' },
+    tables: { nfl: [{ stage: 'Group A', rows: [{ owner: 'bot:analyst', played: 1, won: 1, drawn: 0, lost: 0, pts: 3 }, { owner: 'p1', played: 1, won: 0, drawn: 0, lost: 1, pts: 0 }, { owner: 'p2', played: 0, won: 0, drawn: 0, lost: 0, pts: 0 }] }] },
+    schedule: [g('Group A', 'p1', 'bot:analyst', 'm1'), g('Group A', 'p2', 'bot:analyst', 'm2'), g('Group A', 'p1', 'p2', '')],
+  };
+  assert.ok(B.isLive(comp, 0) && B.isLive(comp, 1) && !B.isLive(comp, 2));
+  const list = B.scheduleList(comp);
+  assert.equal(list.live.length, 2);
+  assert.equal(list.next.length, 1);
+  const html = B.groupsHTML(comp, { game: 'nfl' });
+  const rows = html.match(/<tr class="[^"]*">/g).slice(-3);
+  assert.deepEqual(rows.map(r => r.includes('"q"')), [false, true, true]);
+});
+
+test('big brackets: round of 16 and groups past H', async () => {
+  const B = await load();
+  assert.equal(B.roundOf('Round of 16 3'), 'Round of 16');
+  assert.equal(B.shortStage('Round of 16 3'), 'R16-3');
+  assert.equal(B.seedLabel('K2'), '2nd Group K');
+  const slots = [];
+  for (let k = 1; k <= 8; k++) slots.push({ game: 'nfl', stage: 'Round of 16 ' + k, phase: 'playoff', from: ['A1', 'B2'], pending: true, winner: -1 });
+  for (let k = 1; k <= 4; k++) slots.push({ game: 'nfl', stage: 'Quarterfinal ' + k, phase: 'playoff', from: ['W:Round of 16 ' + (2 * k - 1), 'W:Round of 16 ' + 2 * k], pending: true, winner: -1 });
+  const lay = B.bracketLayout({ status: 'running', schedule: slots, champion: {} }, 'nfl');
+  assert.deepEqual(lay.rounds.map(r => r.cards.length), [8, 4]);
+  assert.equal(lay.links.length, 8);
+});

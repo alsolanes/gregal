@@ -57,3 +57,4 @@ quaderna/
 # Artefactes locals d'aquesta màquina (config de l'agent i builds d'escriptori)
 .claude/
 desktop/output/
+deploy/jocs/backups/

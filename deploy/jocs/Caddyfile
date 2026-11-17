@@ -1,0 +1,8 @@
+{$JOCS_DOMAIN} {
+	encode zstd gzip
+	header Strict-Transport-Security "max-age=31536000"
+	# flush_interval -1: live streams (SSE) are not buffered.
+	reverse_proxy jocs:8197 {
+		flush_interval -1
+	}
+}

@@ -30,6 +30,9 @@ const initials = s => String(s || '?').replace(/\s*\(.*\)\s*$/, '').split(/\s+/)
 function hue(s) { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h % 360; }
 
 // Un avatar amb el color de la persona (sempre el mateix per al mateix nom).
+import { levelBadgeHTML } from './jocs-levels.js';
+import { beforeAfterHTML } from './jocs-quality.js';
+
 export function avatar(p, cls = '') {
   const h = hue(p.owner || p.display);
   return `<span class="jx-pav ${cls}" style="--h:${h}" aria-hidden="true">${p.emoji ? `<i>${esc(p.emoji)}</i>` : ''}<b>${esc(initials(p.display))}</b></span>`;
@@ -99,7 +102,7 @@ export function standingsHTML(season, me) {
     const bots = Object.values(p.games || {}).reduce((n, g) => n + (g.bots || []).length, 0);
     return `<tr class="${p.owner === me ? 'me' : ''} ${i < 3 ? 'top' + (i + 1) : ''}" data-player="${esc(p.owner)}" tabindex="0">
       <td class="pos">${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</td>
-      <td><span class="jx-who">${avatar(p, 'sm')}<span><b>${esc(p.display)}${p.owner === me ? ' <small class="jx-you">YOU</small>' : ''}</b>${p.archetype ? `<small>${esc(p.archetype)}</small>` : ''}</span></span></td>
+      <td><span class="jx-who">${avatar(p, 'sm')}<span><b>${esc(p.display)}${p.owner === me ? ' <small class="jx-you">YOU</small>' : ''}</b>${p.archetype ? `<small>${esc(p.archetype)}</small>` : ''}${levelBadgeHTML(p)}</span></span></td>
       <td class="r elo">${p.elo > 0 ? `<b>${p.elo}</b>` : '<span class="jx-faint">—</span>'}</td>
       <td class="r">${p.official[0]}–${p.official[1]}${p.official[2] ? '–' + p.official[2] : ''}</td>
       <td><span class="jx-ladder" title="${bots} bot wins">${'<i class="on"></i>'.repeat(Math.min(bots, 4))}${'<i></i>'.repeat(Math.max(0, 4 - bots))}</span>${bots > 4 ? `<small> +${bots - 4}</small>` : ''}</td>
@@ -119,7 +122,7 @@ export function playersHTML(season, me) {
   if (!ps.length) return '<div class="jx-empty">No players yet. <a href="#/play">Be the first →</a></div>';
   return `<div class="jx-pcards">${ps.map(p => `<button type="button" class="jx-pcard ${p.owner === me ? 'me' : ''}" data-player="${esc(p.owner)}" style="--h:${hue(p.owner)}">
     <span class="jx-pcard-rank">#${p.rank}</span>${avatar(p, 'lg')}
-    <b class="jx-pcard-n">${esc(p.display)}</b>
+    <b class="jx-pcard-n">${esc(p.display)}</b>${levelBadgeHTML(p)}
     <span class="jx-pcard-a">${p.archetype ? esc(p.archetype) : p.played ? 'Scouting report pending' : 'Warming up'}</span>
     <span class="jx-pcard-s"><span><b>${p.elo > 0 ? p.elo : '—'}</b><small>Elo</small></span><span><b>${p.won}-${p.lost}</b><small>W-L</small></span><span><b>${p.reviewed ? p.prompt_score : '—'}</b><small>Prompt</small></span></span>
     ${formHTML(p.form)}</button>`).join('')}</div>`;
@@ -148,7 +151,7 @@ export function profileHTML(d, me, opts = {}) {
     <a class="jx-back" href="#/players">← All players</a>
     <header class="jx-prof-head">
       ${avatar(p, 'xl')}
-      <div class="jx-prof-id"><div class="jx-kicker">#${p.rank} overall${p.owner === me ? ' · you' : ''}</div>
+      <div class="jx-prof-id"><div class="jx-kicker">#${p.rank} overall${p.owner === me ? ' · you' : ''}</div>${levelBadgeHTML(p)}
         <h1 class="jx-h1">${esc(p.display)}</h1>
         ${ins ? `<div class="jx-arch"><span>${esc(ins.emoji || '')}</span><b>${esc(ins.archetype)}</b><em>${esc(ins.tagline || '')}</em></div>` : ''}
         <div class="jx-prof-form">${formHTML(p.form)}${p.streak >= 2 ? `<span class="jx-chip hot">🔥 ${p.streak} in a row</span>` : ''}</div></div>
@@ -161,6 +164,7 @@ export function profileHTML(d, me, opts = {}) {
           ${p.reviewed ? `<p class="jx-muted sm">Coach average over ${p.reviewed} match${p.reviewed === 1 ? '' : 'es'}. Best at <b>${esc(top[0].label.toLowerCase())}</b>; most room in <b>${esc(top[top.length - 1].label.toLowerCase())}</b>.</p>` : '<p class="jx-muted sm">Appears after the first coach report.</p>'}</div>
         ${games.length ? `<div class="jx-panel"><div class="jx-panel-k">By game</div>${games.map(([g, x]) => `<div class="jx-pgame"><div class="jx-pgame-h"><span>${gameIcon(g)} ${esc(gameShort(g))}</span><b>${x.elo > 0 ? x.elo + ' Elo' : 'unranked'}${x.rank ? ` · #${x.rank}` : ''}</b></div>
           ${sparkSVG(x.history)}<div class="jx-pgame-f"><span>${x.played ? `${x.won}W ${x.lost}L official` : 'no official matches'}</span><span>${(x.bots || []).length ? 'beat ' + x.bots.map(esc).join(', ') : ''}</span></div></div>`).join('')}</div>` : ''}
+        ${beforeAfterHTML(p, gameShort)}
       </div>
     </div>
     ${hl.length ? `<div class="jx-sec-head"><div><div class="jx-kicker">The prompt behind the play</div><h2 class="jx-h2">Best moments</h2></div></div><div class="jx-moments">${hl.map(h => momentCard(h)).join('')}</div>` : ''}
@@ -201,4 +205,38 @@ export function principlesHTML() {
     <p class="jx-muted">After every match the coach scores your .md from 1 to 5 on each principle. They are the same ones that make any prompt or agent instruction work at your desk.</p>
     <div class="jx-princ">${PRINCIPLES.map(p => `<article><div class="jx-princ-h"><span aria-hidden="true">${p.icon}</span><h3>${esc(p.label)}</h3></div><p>${esc(p.teach)}</p>
       <div class="jx-princ-ex"><div class="bad"><small>Vague</small><code>${esc(p.bad)}</code></div><div class="good"><small>Better</small><code>${esc(p.good)}</code></div></div></article>`).join('')}</div>`;
+}
+
+// ---- l'organitzador: quant trigarà la competició ----
+
+// Com arenaGroups/arenaBuildSchedule: grups de 3-5, tots contra tots, i
+// eliminatòria al millor de 3 amb els dos primers de cada grup. Torna els
+// partits i els segons aproximats amb `slots` partits alhora.
+export function estimateComp(n, slots, secs, people = n) {
+  if (n < 2) return { matches: 0, seconds: 0, groups: 0 };
+  slots = Math.max(1, slots | 0);
+  const g = n >= 6 ? Math.min(26, Math.floor((n + 3) / 4)) : 1;
+  let groupMatches = 0;
+  for (let k = 0; k < g; k++) { const size = Math.floor(n / g) + (k < n % g ? 1 : 0); groupMatches += size * (size - 1) / 2; }
+  // Només hi passen persones: amb menys persones que places, hi ha passos lliures.
+  const qualifiers = Math.max(1, Math.min(2 * g, people, 32)), series = qualifiers - 1, perSeries = 2.5;
+  let seconds = Math.ceil(groupMatches / slots) * secs;
+  // Les rondes de l'eliminatòria van una darrere l'altra; dins d'una ronda, les sèries alhora.
+  for (let left = qualifiers; left > 1; left = Math.ceil(left / 2)) seconds += Math.ceil(Math.floor(left / 2) / slots) * perSeries * secs;
+  return { matches: Math.round(groupMatches + series * perSeries), seconds, groups: g };
+}
+
+const dur = s => { const m = Math.round(s / 60); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ' ' + String(m % 60).padStart(2, '0') : ''}`; };
+
+export function plannerHTML(planner, slots, withBots, games) {
+  if (!planner) return '';
+  const rows = games.map(g => {
+    const people = planner.entries[g.id] || 0, n = people + (withBots ? planner.bots[g.id] || 0 : 0);
+    if (!people) return `<li><span>${gameIcon(g.id)} ${esc(gameShort(g.id))}</span><span class="jx-faint">nobody has a strategy yet · left out</span><span></span></li>`;
+    if (n < 2) return `<li><span>${gameIcon(g.id)} ${esc(gameShort(g.id))}</span><span class="jx-faint">${n} strateg${n === 1 ? 'y' : 'ies'} · not enough to play</span></li>`;
+    const one = estimateComp(n, 1, planner.match_secs, people), now = estimateComp(n, slots, planner.match_secs, people);
+    return `<li><span>${gameIcon(g.id)} ${esc(gameShort(g.id))}</span><span><b>${people}</b> player${people === 1 ? '' : 's'}${n > people ? ` + ${n - people} bots` : ''} · ${now.groups} group${now.groups === 1 ? '' : 's'} · ~${now.matches} matches</span>
+      <span><b class="jx-dur">${dur(now.seconds)}</b>${slots > 1 ? ` <small class="jx-faint">(${dur(one.seconds)} one at a time)</small>` : ''}</span></li>`;
+  }).join('');
+  return `<ul class="jx-plan">${rows}</ul><p class="jx-faint jx-note-s">A match takes about ${dur(planner.match_secs)} with this model. Games are played one after another; more matches at once means more parallel calls to the model provider.</p>`;
 }

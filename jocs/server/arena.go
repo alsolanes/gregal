@@ -1429,7 +1429,7 @@ func arenaGroups(owners []string, elo map[string]float64) [][]string {
 	n := len(owners)
 	g := 1
 	if n >= 6 {
-		g = (n + 3) / 4
+		g = min((n+3)/4, len(arenaGroupLetters))
 	}
 	groups := make([][]string, g)
 	for i, o := range owners {
@@ -1447,44 +1447,104 @@ func arenaGroups(owners []string, elo map[string]float64) [][]string {
 // eliminatòria amb els dos primers de cada grup.
 func arenaBuildSchedule(game string, groups [][]string) []arenaSlot {
 	var out []arenaSlot
-	letters := "ABCDEFGH"
 	for gi, grp := range groups {
 		for i := 0; i < len(grp); i++ {
 			for j := i + 1; j < len(grp); j++ {
-				out = append(out, arenaSlot{Game: game, Stage: "Group " + string(letters[gi]), Phase: "group", A: grp[i], B: grp[j], Winner: -1})
+				// Dos bots entre ells no decideixen res: a les eliminatòries
+				// només hi passen persones i els punts són de cadascú.
+				if isBotOwner(grp[i]) && isBotOwner(grp[j]) {
+					continue
+				}
+				out = append(out, arenaSlot{Game: game, Stage: "Group " + string(arenaGroupLetters[gi]), Phase: "group", A: grp[i], B: grp[j], Winner: -1})
 			}
 		}
 	}
-	switch {
-	case len(groups) == 1 && len(groups[0]) >= 3:
-		out = append(out, arenaSlot{Game: game, Stage: "Final", Phase: "playoff", Pending: true, Winner: -1, From: [2]string{"A1", "A2"}})
-	case len(groups) == 2:
-		out = append(out,
-			arenaSlot{Game: game, Stage: "Semifinal 1", Phase: "playoff", Pending: true, Winner: -1, From: [2]string{"A1", "B2"}},
-			arenaSlot{Game: game, Stage: "Semifinal 2", Phase: "playoff", Pending: true, Winner: -1, From: [2]string{"B1", "A2"}},
-			arenaSlot{Game: game, Stage: "Final", Phase: "playoff", Pending: true, Winner: -1, From: [2]string{"W:Semifinal 1", "W:Semifinal 2"}})
-	case len(groups) >= 3:
-		// Quarts amb els dos primers de cada grup (fins a 8), i després semis i final.
-		var seeds []string
+	if len(groups) == 1 && len(groups[0]) < 3 {
+		return out
+	}
+	// L'eliminatòria: els primers de cada grup i després els segons, en un
+	// quadre de la mida justa (final, semis, quarts, vuitens o setzens) amb
+	// l'emparellament clàssic (1r contra l'últim). Un lloc buit és un pas lliure.
+	var seeds []string
+	for _, pos := range []string{"1", "2"} {
 		for gi := range groups {
-			seeds = append(seeds, string(letters[gi])+"1")
+			seeds = append(seeds, string(arenaGroupLetters[gi])+pos)
 		}
-		for gi := range groups {
-			seeds = append(seeds, string(letters[gi])+"2")
+	}
+	if len(seeds) > arenaMaxBracket {
+		seeds = seeds[:arenaMaxBracket]
+	}
+	size := 2
+	for size < len(seeds) {
+		size *= 2
+	}
+	for len(seeds) < size {
+		seeds = append(seeds, "")
+	}
+	order := []int{1, 2}
+	for len(order) < size {
+		var next []int
+		for _, x := range order {
+			next = append(next, x, 2*len(order)+1-x)
 		}
-		for len(seeds) < 8 {
-			seeds = append(seeds, "")
+		order = next
+	}
+	from := make([]string, 0, size)
+	for _, o := range order {
+		from = append(from, seeds[o-1])
+	}
+	// A la primera ronda, dos del mateix grup no es troben (ja han jugat).
+	group := func(f string) byte {
+		if f == "" {
+			return 0
 		}
-		pairs := [][2]int{{0, 7}, {3, 4}, {1, 6}, {2, 5}}
-		for i, p := range pairs {
-			out = append(out, arenaSlot{Game: game, Stage: fmt.Sprintf("Quarterfinal %d", i+1), Phase: "playoff", Pending: true, Winner: -1, From: [2]string{seeds[p[0]], seeds[p[1]]}})
+		return f[0]
+	}
+	clash := func(a, b string) bool { return a != "" && b != "" && group(a) == group(b) }
+	for k := 0; k < size/2; k++ {
+		if !clash(from[2*k], from[2*k+1]) {
+			continue
 		}
-		out = append(out,
-			arenaSlot{Game: game, Stage: "Semifinal 1", Phase: "playoff", Pending: true, Winner: -1, From: [2]string{"W:Quarterfinal 1", "W:Quarterfinal 2"}},
-			arenaSlot{Game: game, Stage: "Semifinal 2", Phase: "playoff", Pending: true, Winner: -1, From: [2]string{"W:Quarterfinal 3", "W:Quarterfinal 4"}},
-			arenaSlot{Game: game, Stage: "Final", Phase: "playoff", Pending: true, Winner: -1, From: [2]string{"W:Semifinal 1", "W:Semifinal 2"}})
+		for j := 0; j < size/2; j++ {
+			if j != k && !clash(from[2*k], from[2*j+1]) && !clash(from[2*j], from[2*k+1]) {
+				from[2*k+1], from[2*j+1] = from[2*j+1], from[2*k+1]
+				break
+			}
+		}
+	}
+	for n := size; n >= 2; n /= 2 {
+		name := arenaRoundName(n)
+		var next []string
+		for k := 0; k < n/2; k++ {
+			stage := name
+			if n > 2 {
+				stage = fmt.Sprintf("%s %d", name, k+1)
+			}
+			out = append(out, arenaSlot{Game: game, Stage: stage, Phase: "playoff", Pending: true, Winner: -1, From: [2]string{from[2*k], from[2*k+1]}})
+			next = append(next, "W:"+stage)
+		}
+		from = next
 	}
 	return out
+}
+
+// arenaGroupLetters: els noms dels grups (fins a 26).
+const arenaGroupLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+// arenaMaxBracket: places de l'eliminatòria com a molt (setzens de final).
+const arenaMaxBracket = 32
+
+// arenaRoundName: el nom de la ronda amb n places.
+func arenaRoundName(n int) string {
+	switch n {
+	case 2:
+		return "Final"
+	case 4:
+		return "Semifinal"
+	case 8:
+		return "Quarterfinal"
+	}
+	return fmt.Sprintf("Round of %d", n)
 }
 
 type standing struct {
@@ -1592,9 +1652,17 @@ func (c *arenaComp) resolveSlot(i int) bool {
 					return false
 				}
 			}
-			st := arenaStandings(c.Schedule, sl.Game, stage, groups[gi])
-			if pos-1 < len(st) {
-				who[k] = st[pos-1].Owner
+			// Els bots fan de sparring als grups, però a les eliminatòries
+			// només hi passen persones: el campió d'una competició interna
+			// ha de ser algú. Un lloc sense ningú és un pas lliure.
+			var people []string
+			for _, x := range arenaStandings(c.Schedule, sl.Game, stage, groups[gi]) {
+				if !isBotOwner(x.Owner) {
+					people = append(people, x.Owner)
+				}
+			}
+			if pos-1 < len(people) {
+				who[k] = people[pos-1]
 			}
 		}
 	}
@@ -1614,158 +1682,210 @@ func (c *arenaComp) resolveSlot(i int) bool {
 var arenaCompMu sync.Mutex
 var arenaCompCancel = map[string]context.CancelFunc{}
 
-// arenaRunComp juga tota la competició, partit rere partit.
+// arenaRunComp juga tota la competició. Fa córrer alhora tants partits com
+// torns oficials hi ha (arenaSlots: 1 per defecte, partit rere partit com
+// sempre); amb més torns, els partits dels grups es juguen en paral·lel i
+// una competició de tota una empresa cap en una tarda. Una eliminatòria és
+// una sèrie: els seus partits sempre van un darrere l'altre.
 func (s *Server) arenaRunComp(ctx context.Context, id string) {
+	type live struct {
+		mid  string
+		flip bool
+	}
+	running := map[int]live{}
+	stopAll := func() {
+		arenaRunsMu.Lock()
+		for _, l := range running {
+			if r := arenaRuns[l.mid]; r != nil {
+				r.cancel()
+			}
+		}
+		arenaRunsMu.Unlock()
+	}
 	for {
 		if ctx.Err() != nil {
+			stopAll()
 			return
+		}
+		// Els partits acabats es miren abans de prendre arenaMu: un partit en
+		// marxa desa amb el seu candau agafat i després arenaMu.
+		ended := map[int]*arenaMatch{}
+		for i, l := range running {
+			if m := s.arenaLoadMatch(l.mid); m != nil && (m.Status == "final" || m.Status == "stopped" || m.Status == "failed") {
+				ended[i] = m
+			}
 		}
 		arenaMu.Lock()
 		c := s.arenaComp(id)
-		arenaMu.Unlock()
 		if c == nil || c.Status != "running" {
+			arenaMu.Unlock()
+			// Aturada des de fora: els partits en marxa també s'aturen.
+			stopAll()
 			return
 		}
-		next := -1
+		// 1. Els resultats dels partits acabats.
+		changed := false
+		for i, m := range ended {
+			arenaApplyResult(&c.Schedule[i], m, running[i].flip)
+			delete(running, i)
+			changed = true
+		}
+		// 2. Els que poden començar ara, fins a omplir els torns.
+		limit := s.arenaSlotLimit("official")
+		var launch []int
+		pending := false
 		for i := range c.Schedule {
 			if c.Schedule[i].Done {
 				continue
 			}
+			pending = true
+			if _, busy := running[i]; busy {
+				continue
+			}
+			wasPending := c.Schedule[i].Pending
 			if !c.resolveSlot(i) {
 				continue
 			}
-			if c.Schedule[i].Done {
+			if wasPending {
+				changed = true // s'han sabut els rivals d'una eliminatòria
+			}
+			if c.Schedule[i].Done || len(running)+len(launch) >= limit {
 				continue
 			}
-			next = i
-			break
+			launch = append(launch, i)
 		}
-		if next < 0 {
-			// Potser falta resoldre eliminatòries buides; si no queda res, s'ha acabat.
-			pending := false
-			for i := range c.Schedule {
-				if !c.Schedule[i].Done {
-					pending = true
-					c.resolveSlot(i)
-				}
-			}
-			if !pending {
-				c.Status = "done"
-				c.Champion = map[string]string{}
-				for _, sl := range c.Schedule {
-					if sl.Stage == "Final" && sl.Done {
-						c.Champion[sl.Game] = map[bool]string{true: sl.B, false: sl.A}[sl.Winner == 1]
-					}
-				}
-				for _, g := range c.Games {
-					if c.Champion[g] == "" && len(c.Groups[g]) == 1 {
-						st := arenaStandings(c.Schedule, g, "Group A", c.Groups[g][0])
-						if len(st) > 0 {
-							c.Champion[g] = st[0].Owner
-						}
-					}
-				}
-			}
-			arenaMu.Lock()
+		if !pending && len(running) == 0 {
+			arenaFinishComp(c)
 			arenaWrite(s.compPath(id), c)
 			arenaMu.Unlock()
-			if !pending {
-				return
-			}
-			time.Sleep(time.Second)
-			continue
+			return
 		}
-		sl := &c.Schedule[next]
-		game, ok := arena.Get(sl.Game)
-		if !ok {
-			sl.Done = true
-			continue
+		if changed && len(launch) == 0 {
+			arenaWrite(s.compPath(id), c)
 		}
-		find := func(owner string) arenaEntry {
-			for _, e := range c.Entries[sl.Game] {
-				if e.Owner == owner {
-					return e
-				}
-			}
-			return arenaEntry{Owner: owner, Display: owner}
-		}
-		// Els grups juguen un partit per parella; les eliminatòries, al millor
-		// de 3, canviant de costat a cada partit. Cada repetició (un empat a
-		// les eliminatòries, un partit que no compta) porta una llavor nova.
-		e := [2]arenaEntry{find(sl.A), find(sl.B)}
-		gameNo := len(sl.Matches) + 1
-		stage := sl.Stage
-		if sl.Phase == "playoff" {
-			stage = fmt.Sprintf("%s · Game %d", sl.Stage, gameNo)
-		}
-		if sl.Replays > 0 {
-			stage += fmt.Sprintf(" · replay %d", sl.Replays)
-		}
-		flip := sl.Phase == "playoff" && gameNo%2 == 0
-		if flip {
-			e[0], e[1] = e[1], e[0]
-		}
-		mid := s.arenaStartWith(game, "official", c.ID, stage, e, c.Model, c.Hints)
-		sl.Match = mid
-		c.Current = next
-		arenaMu.Lock()
-		arenaWrite(s.compPath(id), c)
 		arenaMu.Unlock()
-		// Espera el resultat.
-		for {
-			if ctx.Err() != nil {
-				arenaRunsMu.Lock()
-				if r := arenaRuns[mid]; r != nil {
-					r.cancel()
-				}
-				arenaRunsMu.Unlock()
-				return
-			}
-			m := s.arenaLoadMatch(mid)
-			if m == nil || (m.Status != "final" && m.Status != "stopped" && m.Status != "failed") {
-				time.Sleep(2 * time.Second)
+		// 3. Engega els nous (fora del candau: arenaStartWith desa el partit).
+		for _, i := range launch {
+			sl := c.Schedule[i]
+			game, ok := arena.Get(sl.Game)
+			if !ok {
+				c.Schedule[i].Done = true
 				continue
 			}
-			// El resultat, vist des de A i B del calendari.
-			w, sc := m.Winner, m.Score
-			if flip {
-				sc = [2]int{sc[1], sc[0]}
-				if w >= 0 {
-					w = 1 - w
+			find := func(owner string) arenaEntry {
+				for _, e := range c.Entries[sl.Game] {
+					if e.Owner == owner {
+						return e
+					}
 				}
+				return arenaEntry{Owner: owner, Display: owner}
 			}
+			// Els grups juguen un partit per parella; les eliminatòries, al
+			// millor de 3, canviant de costat a cada partit. Cada repetició
+			// (un empat a les eliminatòries, un partit que no compta) porta
+			// una llavor nova.
+			e := [2]arenaEntry{find(sl.A), find(sl.B)}
+			gameNo := len(sl.Matches) + 1
+			stage := sl.Stage
+			if sl.Phase == "playoff" {
+				stage = fmt.Sprintf("%s · Game %d", sl.Stage, gameNo)
+			}
+			if sl.Replays > 0 {
+				stage += fmt.Sprintf(" · replay %d", sl.Replays)
+			}
+			flip := sl.Phase == "playoff" && gameNo%2 == 0
+			if flip {
+				e[0], e[1] = e[1], e[0]
+			}
+			mid := s.arenaStartWith(game, "official", c.ID, stage, e, c.Model, c.Hints)
+			running[i] = live{mid, flip}
+		}
+		if len(launch) > 0 {
 			arenaMu.Lock()
 			if c2 := s.arenaComp(id); c2 != nil {
-				slot := &c2.Schedule[next]
-				switch {
-				case m.Status == "stopped" || (m.Status == "failed" && (slot.Replays < arenaMaxReplays || m.Winner < 0 && slot.Replays < 5)):
-					// No compta: es torna a jugar (amb un límit, si és per les
-					// decisions per defecte; un error de veritat, sempre).
-					slot.Replays++
-					slot.Match = ""
-				case slot.Phase != "playoff":
-					slot.Matches = append(slot.Matches, mid)
-					slot.Done, slot.Winner, slot.Score, slot.Replays = true, w, sc, 0
-				default:
-					slot.Matches = append(slot.Matches, mid)
-					if w >= 0 {
-						slot.Series[w]++
+				// El calendari només l'escriu aquest bucle: va sencer (amb els
+				// resultats d'aquesta volta), i l'estat (aturada) el de disc.
+				for i, l := range running {
+					c.Schedule[i].Match = l.mid
+				}
+				c2.Schedule = c.Schedule
+				// A la tele surt el partit en marxa més endarrerit del calendari.
+				c2.Current = -1
+				for i := range running {
+					if c2.Current < 0 || i < c2.Current {
+						c2.Current = i
 					}
-					slot.Score, slot.Replays = slot.Series, 0
-					if slot.Series[0] >= 2 || slot.Series[1] >= 2 || len(slot.Matches) >= 5 {
-						slot.Done = true
-						slot.Winner = 0
-						if slot.Series[1] > slot.Series[0] {
-							slot.Winner = 1
-						}
-					} else {
-						slot.Match = ""
-					}
+				}
+				if c2.Current < 0 {
+					c2.Current = 0
 				}
 				arenaWrite(s.compPath(id), c2)
 			}
 			arenaMu.Unlock()
-			break
+			continue
+		}
+		select {
+		case <-ctx.Done():
+		case <-time.After(arenaCompTick):
+		}
+	}
+}
+
+// arenaCompTick: cada quant es mira si un partit de la competició ha acabat.
+var arenaCompTick = 2 * time.Second
+
+// arenaApplyResult apunta el resultat d'un partit acabat a la seva casella
+// (vist des de A i B del calendari).
+func arenaApplyResult(slot *arenaSlot, m *arenaMatch, flip bool) {
+	w, sc := m.Winner, m.Score
+	if flip {
+		sc = [2]int{sc[1], sc[0]}
+		if w >= 0 {
+			w = 1 - w
+		}
+	}
+	switch {
+	case m.Status == "stopped" || (m.Status == "failed" && (slot.Replays < arenaMaxReplays || m.Winner < 0 && slot.Replays < 5)):
+		// No compta: es torna a jugar (amb un límit, si és per les decisions
+		// per defecte; un error de veritat, sempre).
+		slot.Replays++
+		slot.Match = ""
+	case slot.Phase != "playoff":
+		slot.Matches = append(slot.Matches, m.ID)
+		slot.Done, slot.Winner, slot.Score, slot.Replays = true, w, sc, 0
+	default:
+		slot.Matches = append(slot.Matches, m.ID)
+		if w >= 0 {
+			slot.Series[w]++
+		}
+		slot.Score, slot.Replays = slot.Series, 0
+		if slot.Series[0] >= 2 || slot.Series[1] >= 2 || len(slot.Matches) >= 5 {
+			slot.Done = true
+			slot.Winner = 0
+			if slot.Series[1] > slot.Series[0] {
+				slot.Winner = 1
+			}
+		} else {
+			slot.Match = ""
+		}
+	}
+}
+
+// arenaFinishComp: tot jugat; els campions de cada joc.
+func arenaFinishComp(c *arenaComp) {
+	c.Status = "done"
+	c.Champion = map[string]string{}
+	for _, sl := range c.Schedule {
+		if sl.Stage == "Final" && sl.Done {
+			c.Champion[sl.Game] = map[bool]string{true: sl.B, false: sl.A}[sl.Winner == 1]
+		}
+	}
+	for _, g := range c.Games {
+		if c.Champion[g] == "" && len(c.Groups[g]) == 1 {
+			st := arenaStandings(c.Schedule, g, "Group A", c.Groups[g][0])
+			if len(st) > 0 {
+				c.Champion[g] = st[0].Owner
+			}
 		}
 	}
 }
@@ -1995,9 +2115,42 @@ func (s *Server) handleArena(w http.ResponseWriter, r *http.Request) {
 	}
 	// model: el que jugarà els partits («provider/model»); buit, no n'hi ha cap
 	// de configurat i la web ho diu abans de deixar jugar.
-	writeJSON(w, map[string]any{"me": me, "display": s.arenaDisplay(me, "", nil), "progress": arenaProgressOf(sums, me), "admin": admin, "games": s.arenaGamesJSON(), "mine": mine, "bots": bots, "next": next, "seeding": arenaSeedingNow(),
+	out := map[string]any{"me": me, "display": s.arenaDisplay(me, "", nil), "progress": arenaProgressOf(sums, me), "admin": admin, "games": s.arenaGamesJSON(), "mine": mine, "bots": bots, "next": next, "seeding": arenaSeedingNow(),
 		"leaderboard": board, "competitions": s.arenaComps(), "matches": arenaRecentOf(sums, me), "practice_left": arenaPracticePerDay - arenaPracticeTodayOf(sums, me),
-		"slots": s.arenaSlots(), "event": s.arenaEvent(), "totals": arenaTotals(sums), "model": s.arenaModelRef()})
+		"slots": s.arenaSlots(), "event": s.arenaEvent(), "totals": arenaTotals(sums), "model": s.arenaModelRef()}
+	if admin {
+		out["planner"] = s.arenaPlanner(sums)
+	}
+	writeJSON(w, out)
+}
+
+// arenaPlanner: per a l'organitzador, quantes estratègies hi ha per joc i
+// quant dura un partit (la mitjana dels darrers acabats; 8 minuts si encara
+// no n'hi ha cap), per calcular quant trigarà la competició.
+func (s *Server) arenaPlanner(sums []arenaSum) map[string]any {
+	entries, bots := map[string]int{}, map[string]int{}
+	for _, g := range arena.Games() {
+		for _, e := range s.arenaEntries(g.ID()) {
+			if e.Bot {
+				bots[g.ID()]++
+			} else {
+				entries[g.ID()]++
+			}
+		}
+	}
+	var total int64
+	n := 0
+	for i := range sums {
+		if m := &sums[i].M; m.Status == "final" && m.Stats != nil && m.Stats.WallMS > 0 && n < 20 {
+			total += m.Stats.WallMS
+			n++
+		}
+	}
+	secs := int64(480)
+	if n > 0 {
+		secs = total / int64(n) / 1000
+	}
+	return map[string]any{"entries": entries, "bots": bots, "match_secs": secs}
 }
 
 // arenaHistory: les versions del .md (la més antiga primer i l'actual al
@@ -2140,6 +2293,7 @@ func (s *Server) arenaAutoSeed() {
 type arenaSum struct {
 	M     arenaMatch
 	Coach [2]int
+	MD    arenaMDSigs // which .md each side played (arena_quality.go)
 }
 
 type arenaSumEntry struct {
@@ -2175,7 +2329,7 @@ type arenaFileHead struct {
 	Meta         arenaSkip `json:"meta"`
 	Lines        arenaSkip `json:"lines"`
 	Analysis     arenaSkip `json:"analysis"`
-	MD           arenaSkip `json:"md"`
+	MD           arenaMDSigs `json:"md"`
 	Preview      arenaSkip `json:"preview"`
 	PreviewAudio arenaSkip `json:"preview_audio"`
 	Feedback     [2]*struct {
@@ -2201,6 +2355,7 @@ func arenaHeadOf(m *arenaMatch) arenaSum {
 		}
 	}
 	h.Events, h.Decisions, h.Meta, h.Lines, h.Analysis = nil, nil, nil, nil, nil
+	sum.MD = arenaMDSigs{mdSig(m.MD[0]), mdSig(m.MD[1])}
 	h.MD, h.Feedback, h.Preview, h.PreviewAudio = [2]string{}, [2]*arenaFeedback{}, "", ""
 	if m.Stats != nil {
 		st := *m.Stats
@@ -2220,7 +2375,7 @@ func arenaReadHead(path string) (arenaSum, bool) {
 	if json.Unmarshal(raw, &h) != nil {
 		return arenaSum{}, false
 	}
-	sum := arenaSum{M: m}
+	sum := arenaSum{M: m, MD: h.MD}
 	for i, f := range h.Feedback {
 		if f != nil {
 			sum.Coach[i] = coachOf(f.Scores)
@@ -2542,10 +2697,14 @@ func (s *Server) handleArenaComp(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 				var owners []string
+				people := 0
 				elo := map[string]float64{}
 				for _, e := range s.arenaEntries(gid) {
 					if e.Bot && !req.Bots {
 						continue
+					}
+					if !e.Bot {
+						people++
 					}
 					e.Versions = nil
 					c.Entries[gid] = append(c.Entries[gid], e)
@@ -2555,7 +2714,8 @@ func (s *Server) handleArenaComp(w http.ResponseWriter, r *http.Request) {
 						elo[e.Owner] = r.Elo
 					}
 				}
-				if len(owners) < 2 {
+				// Un joc on només hi ha bots no és de ningú: fora.
+				if len(owners) < 2 || people == 0 {
 					continue
 				}
 				c.Games = append(c.Games, gid)
@@ -2689,7 +2849,7 @@ func (s *Server) handleArenaStream(w http.ResponseWriter, r *http.Request) {
 		noComp()
 		return
 	}
-	writeJSON(w, map[string]any{"competition": s.compView(c), "script": s.streamScript(c)})
+	writeJSON(w, map[string]any{"competition": s.compView(c), "script": s.streamScript(c), "quality": s.arenaQualityNow()})
 }
 
 var arenaGameRe = regexp.MustCompile(`^[a-z0-9]+$`)
