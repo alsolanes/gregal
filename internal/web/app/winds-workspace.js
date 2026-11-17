@@ -46,7 +46,9 @@
   page=el('div','wind-workspace');page.id='windWorkspace';$('ventsPage').append(page);
   nav=el('nav','vw-nav');nav.setAttribute('aria-label',t('Espai dels vents','Winds workspace'));$('windContextNav').append(nav);
   $('windsListCard').hidden=true;
-  nav.addEventListener('click',e=>{if(e.target.closest('button'))closeDrawer();});
+  nav.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;closeDrawer();
+  // Racó, Memòria i Comparticions són pàgines de l'app, no vistes dels vents: el menú dels vents ha de tornar-hi.
+  if(!b.dataset.keepView&&root.gregal?.viewActual?.()!=='vents')root.gregal.setView('vents');});
   $('navRail')?.addEventListener('click',e=>{if(e.target.closest('a,button'))closeDrawer();});
   $('sideShade')?.addEventListener('click',closeDrawer);
  }
@@ -117,9 +119,9 @@
   const settingsViews=['apres','rules','pati','library','wiki','memoria','publicacions','raco'];
   const more=el('details','vw-more'),moreSum=el('summary','vw-nav-item vw-nav-icon');moreSum.append(navIcon('settings'),el('span','',t('Configuració i més','Settings & more')));more.append(moreSum);
   const subRow=([id,a,b])=>{const n=btn('',()=>route(id),'vw-nav-item vw-nav-icon');n.append(navIcon(id),el('span','',t(a,b)));n.setAttribute('aria-current',state.view===id?'page':'false');return n;};
-  const shellRow=(view,a,b,ic)=>{const n=btn('',()=>root.gregal.setView(view),'vw-nav-item vw-nav-icon');n.append(navIcon(ic),el('span','',t(a,b)));return n;};
-  const pc=btn('',()=>openComputer(),'vw-nav-item vw-nav-icon');pc.append(navIcon('computer'),el('span','',t('Ordinador','Computer')));
-  const prefs=btn('',()=>root.document.getElementById('prefsBtn')?.click(),'vw-nav-item vw-nav-icon');prefs.append(navIcon('settings'),el('span','',t('Preferències','Preferences')));
+  const shellRow=(view,a,b,ic)=>{const n=btn('',()=>root.gregal.setView(view),'vw-nav-item vw-nav-icon');n.dataset.keepView='1';n.append(navIcon(ic),el('span','',t(a,b)));return n;};
+  const pc=btn('',()=>openComputer(),'vw-nav-item vw-nav-icon');pc.dataset.keepView='1';pc.append(navIcon('computer'),el('span','',t('Ordinador','Computer')));
+  const prefs=btn('',()=>root.document.getElementById('prefsBtn')?.click(),'vw-nav-item vw-nav-icon');prefs.dataset.keepView='1';prefs.append(navIcon('settings'),el('span','',t('Preferències','Preferences')));
   more.append(prefs,subRow(['apres','Què sap de tu','About you']),subRow(['rules','Regles','Rules']),shellRow('memoria','Memòria del projecte','Project memory','wiki'),pc,subRow(['library','Biblioteca','Library']),subRow(['wiki','Wiki','Wiki']),subRow(['pati','El pati','Playground']),shellRow('raco','El Racó dels vents','The winds’ corner','pati'));
   more.open=settingsViews.includes(state.view)||(()=>{try{return localStorage.getItem('gregal_vw_more')==='1';}catch{return false;}})();
   // En obrir-lo, la barra baixa fins al final del menú: si no, les opcions
