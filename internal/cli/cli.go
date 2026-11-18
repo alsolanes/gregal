@@ -139,7 +139,7 @@ func Main(b Build) {
 	modeFlag := flag.String("mode", "", "with -p: code|inspect|chat|goal|autonomous (empty = configuration)")
 	verifyFlag := flag.String("verify", "", "with -p: verification command; retry the agent on failure up to --verify-rounds (exit code 3 if it still fails)")
 	verifyRoundsFlag := flag.Int("verify-rounds", 2, "with -p and --verify: maximum repair rounds (1-3)")
-	goalFlag := flag.String("goal", "", "run a goal until an independent verifier confirms it with evidence: the id of a saved goal, \"last\", or the goal text (mode autonomous unless --mode; stops on --goal-rounds/--goal-minutes/--goal-cost/--max-steps; exit 3 if not met)")
+	goalFlag := flag.String("goal", "", "run a goal until an independent verifier confirms it with evidence: a backlog item number (\"#3\"), \"last\" (the most recent open item), or the goal text (mode autonomous unless --mode; stops on --goal-rounds/--goal-minutes/--goal-cost/--max-steps; exit 3 if not met)")
 	goalRounds := flag.Int("goal-rounds", 0, "with --goal: maximum rounds (default 4, at most 10)")
 	goalMinutes := flag.Int("goal-minutes", 0, "with --goal: time limit in minutes (default 60)")
 	goalCost := flag.Float64("goal-cost", 0, "with --goal: stop when the estimated cost reaches this many USD (0 = no limit)")

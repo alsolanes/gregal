@@ -894,7 +894,7 @@ const COMMANDS = [
   { cmd: '/debug', en: '/debug', desc: 'cmd.debug', run: () => { const i = $('in'); i.value = '/debug ' + i.value.trimStart(); } },
   { cmd: '/objectiu', en: '/goal', desc: 'cmd.goalMode', run: () => G().setMode('goal') },
   { cmd: '/autonom', en: '/auto', desc: 'cmd.autoMode', run: () => window.gregalSetPerm && window.gregalSetPerm('full') },
-  { cmd: '/objectius', en: '/goals', desc: 'cmd.goals', run: () => G().setView('objectius') },
+  { cmd: '/objectius', en: '/goals', desc: 'cmd.goals', run: () => G().setView('backlog') },
   { cmd: '/activitat', en: '/activity', desc: 'cmd.activity', run: () => G().setView('activitat') },
   { cmd: '/permissiu', en: '/permissive', desc: 'cmd.permissive', run: () => $('permBtn').click() },
 ];

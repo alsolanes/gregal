@@ -124,7 +124,6 @@ fun GregalDrawerContent(
                 DrawerRow(tr(lang, "app.nav.chat"), screen == Screen.Chat, { nav(Screen.Chat) }, Icons.Rounded.ChatBubbleOutline)
                 DrawerRow(tr(lang, "app.work.title"), screen == Screen.Work, { nav(Screen.Work) }, Icons.Rounded.Construction)
                 DrawerRow(tr(lang, "nav.convs"), screen == Screen.Sessions, { nav(Screen.Sessions); vm.loadSessions() }, Icons.Rounded.Forum)
-                DrawerRow(tr(lang, "nav.goals"), screen == Screen.Goals, { nav(Screen.Goals); vm.loadGoals() }, Icons.Rounded.Flag)
                 DrawerRow(tr(lang, "nav.backlog"), screen == Screen.Backlog, { nav(Screen.Backlog); vm.loadBacklog() }, Icons.Rounded.Checklist)
 
                 DrawerSection(tr(lang, "app.nav.sectionAutomate"))

@@ -10,6 +10,7 @@ import (
 
 	"gregal/internal/agent"
 	"gregal/internal/config"
+	"gregal/internal/goal"
 	"gregal/internal/llm"
 	"gregal/internal/runs"
 	"gregal/internal/session"
@@ -167,6 +168,12 @@ func New(o Options) *Bot {
 	b.loadModelsOv()
 	agent.SetupDelegate(o.Cfg, b.client)
 	agent.SetupBacklogReview(o.Cfg, b.client)
+	// Els objectius desats abans ara són tasques del backlog.
+	if b.goalsDir != "" {
+		if n, err := goal.MigrateToBacklog(b.goalsDir); n > 0 || err != nil {
+			b.logf("backlog: %d objectius migrats (err=%v)", n, err)
+		}
+	}
 	return b
 }
 

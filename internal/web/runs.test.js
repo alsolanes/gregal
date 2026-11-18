@@ -36,6 +36,15 @@ test("adapter conserva approve/question i tradueix text/terminal", async () => {
   assert.throws(() => durableToAgent({ kind: "approve_request", text: "només el nom" }, () => {}), /no structured data/);
 });
 
+test("adapter passa la tasca desada pel mode objectiu a la targeta del xat", async () => {
+  const { durableToAgent } = await module();
+  const seen = [];
+  durableToAgent({ kind: "backlog_item", text: '{"created":true,"item":{"id":7,"title":"T","status":"proposed"}}' }, (k, d) => seen.push([k, d]));
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0][0], "backlog_item");
+  assert.equal(seen[0][1].item.id, 7);
+});
+
 test("run deduplica errors embolcallats per run, preserva run_failed sol i finalitza polling", async () => {
   let runID = 0, pollPage = 0;
   const delivered = [];

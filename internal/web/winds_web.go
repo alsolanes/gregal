@@ -119,18 +119,17 @@ func (s *Server) clearWindHistory(wind companion.Wind, hist *windHistoryEntry) e
 	return nil
 }
 
-// windGoalTitles llegeix els títols dels objectius pendents del projecte.
+// windGoalTitles llegeix els títols de les tasques obertes del backlog del
+// projecte (el mode objectiu hi desa el que concreta).
 func (s *Server) windGoalTitles() []string {
-	list, err := goal.List(s.goalDir, s.projectName())
+	s.migraObjectius()
+	open, err := goal.Open(s.sessionCwd())
 	if err != nil {
 		return nil
 	}
 	var titles []string
-	for _, g := range list {
-		if strings.EqualFold(g.Status, "fet") {
-			continue
-		}
-		titles = append(titles, g.Title)
+	for _, it := range open {
+		titles = append(titles, it.Title)
 		if len(titles) == 5 {
 			break
 		}

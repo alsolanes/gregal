@@ -306,11 +306,6 @@ data class ActiveAgent(
     val events: List<LiveEvent>,
 )
 
-data class GoalItem(val id: String, val title: String, val body: String, val status: String)
-
-fun goalStatusLabel(status: String, lang: String = "ca"): String =
-    tr(lang, if (status == "fet") "app.goals.completed" else "app.goals.pending")
-
 /** Resposta d'un torn de xat amb un vent: text + avisos reals programats.
  *  parcial = el backend s'ha quedat sense pressupost: el client ofereix
  *  «continua» per reprendre la resposta pel mateix fil. */

@@ -146,8 +146,6 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val _active = MutableStateFlow<ActiveAgent?>(null)
     val active: StateFlow<ActiveAgent?> = _active
 
-    private val _goals = MutableStateFlow<List<GoalItem>>(emptyList())
-    val goals: StateFlow<List<GoalItem>> = _goals
     private val _jobs = MutableStateFlow<List<JobItem>>(emptyList())
     val jobs: StateFlow<List<JobItem>> = _jobs
     private val _programats = MutableStateFlow<WindsProgramats?>(null)
@@ -726,7 +724,6 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _windsResum.value = emptyMap()
         _summaries.value = emptyMap()
         _question.value = null
-        _goals.value = emptyList()
         _backlog.value = null
         _jobs.value = emptyList()
         _runs.value = emptyList()
@@ -2429,6 +2426,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 f("p").takeIf { it.isNotEmpty() }?.let { "p=$it" }.orEmpty(),
                 state = if (o.has("passed") && !o.optBoolean("passed")) StepState.Failed else StepState.Ok)
             "goal" -> push(ChatMsg("assistant", "◆ ${f("title")} (${f("id")})", "goal"))
+            // El mode objectiu desa la tasca al backlog: el número queda al fil.
+            "backlog_item" -> o.optJSONObject("item")?.let { it ->
+                push(ChatMsg("assistant", "◆ Backlog #${it.optInt("id")} · ${it.optString("title")} (${it.optString("status")})", "goal"))
+            }
             "approve_request" -> {
                 _approve.value = ApproveReq(f("key"), f("call_id"), f("name"), o.opt("args")?.toString().orEmpty())
                 setActivity("approve", appText("app.work.waitApprove"))
@@ -3181,14 +3182,6 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         val task = planTask.also { planTask = "" }
         val prompt = if (task.isBlank()) p else task + "\n\n" + appText("app.runPlanTask") + "\n" + p
         send(prompt, forceAgent = true)
-    }
-
-    fun loadGoals() {
-        viewModelScope.launch {
-            try {
-                _goals.value = loadingOf("goals") { withContext(Dispatchers.IO) { _conn.value.api().getGoals() } }
-            } catch (e: Exception) { notify(appText("app.status.goals", e.message.orEmpty())) }
-        }
     }
 
     // ---- Mode company (estil Dot): memòria personal + check-ins ----
@@ -6195,31 +6188,6 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 val c = withContext(Dispatchers.IO) { _conn.value.api().petCheckin(petId) }
                 _petCheckins.value = _petCheckins.value + (petId to c)
             } catch (e: Exception) { companyError(e) }
-        }
-    }
-
-    fun runGoal(id: String) {
-        viewModelScope.launch {
-            try {
-                withContext(Dispatchers.IO) {
-                    _conn.value.api().post("/api/goal",
-                        JSONObject().put("action", "task").put("id", id))
-                }
-                notify(appText("app.status.goalStarted"))
-                loadGoals()
-            } catch (e: Exception) { notify(appText("app.status.goal", e.message.orEmpty())) }
-        }
-    }
-
-    fun deleteGoal(id: String) {
-        viewModelScope.launch {
-            try {
-                withContext(Dispatchers.IO) {
-                    _conn.value.api().post("/api/goal",
-                        JSONObject().put("action", "delete").put("id", id))
-                }
-                loadGoals()
-            } catch (e: Exception) { notify(appText("app.status.goal", e.message.orEmpty())) }
         }
     }
 

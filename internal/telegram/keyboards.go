@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"gregal/internal/agent"
-	"gregal/internal/goal"
+	"gregal/internal/backlog"
 	"gregal/internal/session"
 )
 
@@ -83,7 +83,7 @@ func (b *Bot) helpKB() Keyboard {
 		{{Text: "🗂 " + b.tr("Sessions", "Sessions"), Data: "sess:list"}, {Text: "🆕 " + b.tr("Nova", "New"), Data: "new"}},
 		{{Text: "◆ " + b.tr("Mode", "Mode"), Data: "mode:list"}, {Text: "🧠 " + b.tr("Rol", "Role"), Data: "role:list"}},
 		{{Text: "🧠 " + b.tr("Model", "Model"), Data: "m:list"}},
-		{{Text: "◆ " + b.tr("Objectius", "Goals"), Data: "goal:list"}, {Text: "📊 " + b.tr("Estat", "Status"), Data: "status"}},
+		{{Text: "◆ Backlog", Data: "goal:list"}, {Text: "📊 " + b.tr("Estat", "Status"), Data: "status"}},
 	}
 }
 
@@ -192,21 +192,17 @@ func (b *Bot) sessionsKB(infos []session.Info, current string, page int) Keyboar
 	return kb
 }
 
-// goalsKB llista els objectius: ▶ executa, 🔍 mostra.
-func (b *Bot) goalsKB(goals []goal.Goal) Keyboard {
+// goalsKB llista les tasques del backlog: ▶ treballa-hi, 🔍 mostra.
+func (b *Bot) goalsKB(items []backlog.Item) Keyboard {
 	var kb Keyboard
-	for _, g := range goals {
+	for _, it := range items {
 		if len(kb) >= 10 {
 			break
 		}
-		marca := "· "
-		if g.Status == goal.StatusFet {
-			marca = "✓ "
-		}
-		titol := truncate(marca+g.Title, 28)
+		n := strconv.Itoa(it.ID)
 		kb = append(kb, []InlineButton{
-			{Text: "▶ " + titol, Data: "goal:run:" + g.ID},
-			{Text: "🔍", Data: "goal:show:" + g.ID},
+			{Text: "▶ " + truncate("#"+n+" "+it.Title, 28), Data: "goal:run:" + n},
+			{Text: "🔍", Data: "goal:show:" + n},
 		})
 	}
 	kb = append(kb, []InlineButton{{Text: "↻ " + b.tr("Actualitza", "Refresh"), Data: "goal:list"}})
@@ -306,9 +302,9 @@ func (b *Bot) handleCallback(ctx context.Context, c *CallbackQuery) {
 	case strings.HasPrefix(data, "sess:"):
 		b.useSession(ctx, chatID, st, strings.TrimPrefix(data, "sess:"))
 	case data == "goal:list":
-		b.goalList(ctx, chatID)
+		b.goalList(ctx, chatID, st)
 	case strings.HasPrefix(data, "goal:show:"):
-		b.goalShow(ctx, chatID, strings.TrimPrefix(data, "goal:show:"))
+		b.goalShow(ctx, chatID, st, strings.TrimPrefix(data, "goal:show:"))
 	case strings.HasPrefix(data, "goal:run:"):
 		b.goalRun(ctx, chatID, st, strings.TrimPrefix(data, "goal:run:"))
 	case data == "plan:run":

@@ -57,8 +57,10 @@ func TestParseClauAnglesa(t *testing.T) {
 	if !ok || g.Title != "Add scrolling to the TUI" {
 		t.Fatalf("title=%q ok=%v", g.Title, ok)
 	}
-	if !strings.Contains(Prompt(), "task: <one sentence>") {
-		t.Fatalf("el prompt ha de demanar la clau task:\n%s", Prompt())
+	// El prompt d'ara demana una tasca del backlog (title:, criteria:);
+	// Parse continua llegint els blocs vells amb task:.
+	if !strings.Contains(Prompt(), "title: <imperative") || !strings.Contains(Prompt(), "id: <number>") {
+		t.Fatalf("el prompt ha de demanar el format de tasca:\n%s", Prompt())
 	}
 }
 

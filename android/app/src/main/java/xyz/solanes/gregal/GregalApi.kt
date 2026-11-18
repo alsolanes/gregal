@@ -542,8 +542,6 @@ class GregalApi(val base: String, val token: String) {
         )
     }
 
-    fun getGoals(): List<GoalItem> =
-        getAs<GoalsDto>("/api/goal").goals.map { g -> GoalItem(g.id, g.title, g.body, g.status) }
 
     // ---- Mode company (estil Dot): memòria personal + check-ins ----
 
@@ -1683,8 +1681,6 @@ internal class ActiveAgentDto(
 
 @Serializable internal class ActiveDto(val active: ActiveAgentDto? = null)
 
-@Serializable internal class GoalDto(val id: String = "", val title: String = "", val body: String = "", val status: String = "")
-@Serializable internal class GoalsDto(val goals: List<GoalDto> = emptyList())
 
 /** Un missatge d'un fil (vent, rotllana, mascota): `ts` en segons o mil·lisegons. */
 @Serializable

@@ -10,6 +10,7 @@ import (
 
 	"gregal/internal/config"
 	"gregal/internal/goal"
+	"gregal/internal/llm"
 )
 
 func goalTestServer(t *testing.T) *Server {
@@ -83,65 +84,71 @@ func TestPromptInclouContextActualISenseInvencions(t *testing.T) {
 	}
 }
 
+// /api/goal és ara una vista del backlog: els objectius desats abans hi
+// passen sols la primera vegada, i «task» i «delete» els comencen o els
+// descarten com a tasques.
 func TestGoalAPIllistaPreparaEsborra(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	s := goalTestServer(t)
-
-	// GET inicial: buit.
-	rec := httptest.NewRecorder()
-	s.handleGoal(rec, httptest.NewRequest(http.MethodGet, "/api/goal", nil))
-	var llista struct {
-		Goals []goal.Goal `json:"goals"`
-		Last  string      `json:"last"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &llista); err != nil {
-		t.Fatal(err)
-	}
-	if len(llista.Goals) != 0 {
-		t.Fatalf("esperava cap objectiu: %+v", llista.Goals)
-	}
-
-	// Un objectiu desat: ha d'aparèixer a la llista i poder-se preparar.
+	s.cwd = t.TempDir()
 	if err := goal.Save(s.goalDir, goal.Goal{
-		ID: "z1", Project: s.projectName(), Title: "Afegir scroll", Body: "tasca: Afegir scroll\ncriteris:\n- la roda va",
+		ID: "z1", CWD: s.cwd, Project: s.projectName(), Title: "Afegir scroll", Body: "tasca: Afegir scroll\ncontext: la roda no mou l'historial\ncriteris:\n- la roda va",
 	}); err != nil {
 		t.Fatal(err)
 	}
-	rec = httptest.NewRecorder()
+	rec := httptest.NewRecorder()
 	s.handleGoal(rec, httptest.NewRequest(http.MethodGet, "/api/goal", nil))
+	var llista struct {
+		Goals []struct{ ID, Title, Status string } `json:"goals"`
+	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &llista); err != nil {
 		t.Fatal(err)
 	}
-	if len(llista.Goals) != 1 || llista.Goals[0].ID != "z1" {
-		t.Fatalf("llista=%+v", llista.Goals)
+	if len(llista.Goals) != 1 || llista.Goals[0].ID != "1" || llista.Goals[0].Title != "Afegir scroll" || llista.Goals[0].Status != "proposed" {
+		t.Fatalf("l'objectiu vell ha de ser la tasca #1: %+v", llista.Goals)
 	}
 
-	rec = postJSON(t, s.handleGoal, `{"action":"task","id":"z1"}`)
+	rec = postJSON(t, s.handleGoal, `{"action":"task","id":"1"}`)
 	if rec.Code != 200 {
 		t.Fatalf("task: %d %s", rec.Code, rec.Body.String())
 	}
-	var task struct {
-		ID    string `json:"id"`
-		Title string `json:"title"`
-		Task  string `json:"task"`
-	}
+	var task struct{ ID, Title, Task string }
 	if err := json.Unmarshal(rec.Body.Bytes(), &task); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(task.Task, "Afegir scroll") || task.ID != "z1" {
+	if !strings.Contains(task.Task, "backlog item #1") || !strings.Contains(task.Task, "la roda va") {
 		t.Fatalf("tasca inesperada: %+v", task)
 	}
-	// En preparar-lo queda marcat com a fet.
-	if g, err := goal.Get(s.goalDir, "z1"); err != nil || g.Status != goal.StatusFet {
-		t.Fatalf("estat=%v err=%v", g.Status, err)
+	it, _ := goal.Resolve(s.cwd, "1")
+	if it.Status != "in_progress" {
+		t.Fatalf("en preparar-la queda en curs: %s", it.Status)
 	}
 
-	rec = postJSON(t, s.handleGoal, `{"action":"delete","id":"z1"}`)
+	rec = postJSON(t, s.handleGoal, `{"action":"delete","id":"1"}`)
 	if rec.Code != 200 {
 		t.Fatalf("delete: %d %s", rec.Code, rec.Body.String())
 	}
-	if _, err := goal.Get(s.goalDir, "z1"); err == nil {
-		t.Fatal("l'objectiu hauria d'estar esborrat")
+	if it, _ := goal.Resolve(s.cwd, "1"); it.Status != "dropped" {
+		t.Fatalf("esborrar-la la descarta: %s", it.Status)
 	}
+}
+
+func TestModeObjectiuDesaAlBacklog(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := goalTestServer(t)
+	s.cwd = t.TempDir()
+	reply := "```goal\ntype: task\ntitle: Rename the config key\nwhy: confusing\ncriteria:\n- old key still read\n```"
+	s.convo = []llm.Message{{Role: "user", Content: "x"}, {Role: "assistant", Content: reply}}
+	var ev string
+	var data any
+	s.emitGoal(func(e string, d any) { ev, data = e, d }, reply)
+	if ev != "backlog_item" {
+		t.Fatalf("event %q", ev)
+	}
+	if !strings.Contains(s.convo[1].Content, "Saved to the backlog as #1 (proposed)") {
+		t.Fatalf("el model ha de veure el número: %q", s.convo[1].Content)
+	}
+	_ = data
 }
 
 func TestGoalAPISenseObjectius(t *testing.T) {

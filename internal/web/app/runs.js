@@ -262,6 +262,8 @@ export function durableToAgent(e, onEvent) {
   else if (e.kind === 'blocked') onEvent('blocked', { reason: fields(e).reason || e.text || '' });
   else if (e.kind === 'review') onEvent('review', fields(e));
   else if (e.kind === 'bet') onEvent('bet', fields(e));
+  // El mode objectiu ha desat una tasca al backlog: la targeta del xat.
+  else if (e.kind === 'backlog_item') onEvent('backlog_item', checkpointFields(e));
   else if (e.kind === 'run_failed') onEvent('error', { message: e.text || T('run.failed', 'The turn failed') });
   // El resum reconeix «cancel·lat» i «cancelled»: totes dues traduccions hi casen.
   else if (e.kind === 'run_cancelled') onEvent('status', { message: T('run.summary.cancelled', 'Turn cancelled') });

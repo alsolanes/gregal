@@ -7,9 +7,11 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"gregal/internal/agent"
+	"gregal/internal/backlog"
 	"gregal/internal/config"
 	"gregal/internal/goal"
 	"gregal/internal/llm"
@@ -19,7 +21,7 @@ import (
 
 // goalFlags són els flags de `gregal --goal`.
 type goalFlags struct {
-	Spec        string // id d'un objectiu desat, "last" o el text de l'objectiu
+	Spec        string // número d'una tasca del backlog (#3), "last" o el text de l'objectiu
 	Output      string // text | json
 	Mode        string
 	MaxRounds   int
@@ -31,22 +33,76 @@ type goalFlags struct {
 	AutoApprove bool
 }
 
-// resolGoal torna l'objectiu desat que diu spec, o en fa un d'inline amb el
-// text. saved diu si ve del fitxer d'objectius (i es pot marcar com a fet).
-func resolGoal(dir, project, cwd, spec string) (g goal.Goal, saved bool) {
+// resolGoal torna la tasca del backlog que diu spec («#3», «3» o «last»,
+// la oberta més recent) com a objectiu per al bucle, o en fa un d'inline
+// amb el text. item és la tasca (0 si és inline).
+func resolGoal(cwd, spec string) (g goal.Goal, item int) {
 	spec = strings.TrimSpace(spec)
+	ref := strings.TrimPrefix(spec, "#")
 	if spec == "last" {
-		if l, err := goal.List(dir, project); err == nil && len(l) > 0 {
-			return l[0], true
+		ref = ""
+	}
+	if _, err := strconv.Atoi(ref); err == nil || spec == "last" {
+		if it, err := goal.Resolve(cwd, ref); err == nil {
+			return goal.ForLoop(it, cwd), it.ID
 		}
-	} else if got, err := goal.Get(dir, spec); err == nil {
-		return got, true
 	}
 	title := strings.Join(strings.Fields(spec), " ")
 	if r := []rune(title); len(r) > 80 {
 		title = string(r[:80]) + "…"
 	}
-	return goal.Goal{Title: title, Body: "task: " + spec, Project: project, CWD: cwd, Status: goal.StatusEsborrany}, false
+	return goal.Goal{Title: title, Body: "task: " + spec, Project: filepath.Base(cwd), CWD: cwd, Status: goal.StatusEsborrany}, 0
+}
+
+// startItem posa la tasca en curs abans del bucle (o diu per què no pot).
+func startItem(cwd string, id int) error {
+	if id == 0 {
+		return nil
+	}
+	_, _, err := goal.Start(cwd, id, "gregal --goal")
+	return err
+}
+
+// finishItem apunta el resultat del bucle a la tasca. El bucle ja ha passat
+// el verificador independent ronda a ronda: si el dona per complert, la
+// tasca va a revisió amb aquell veredicte (superada); si no, queda en curs
+// amb el que falta al log.
+func finishItem(cwd string, id int, res agent.GoalResult) {
+	if id == 0 {
+		return
+	}
+	st, err := backlog.Open(cwd)
+	if err != nil {
+		return
+	}
+	var last agent.GoalRound
+	if n := len(res.Rounds); n > 0 {
+		last = res.Rounds[n-1]
+	}
+	if !res.Met {
+		que := strings.TrimSpace(last.Verdict.Missing)
+		if que == "" {
+			que = last.Verdict.Reason
+		}
+		_, _ = st.AddLog(id, fmt.Sprintf("gregal --goal stopped (%s) after %d round(s): %s", res.Stop, len(res.Rounds), que), "gregal --goal")
+		return
+	}
+	// Sense avís de revisió: el veredicte ja el porta el bucle.
+	avis := backlog.OnInReview
+	backlog.OnInReview = nil
+	_, err = st.Move(id, backlog.StatusInReview, "", "gregal --goal")
+	backlog.OnInReview = avis
+	if err != nil {
+		return
+	}
+	r := backlog.Review{Status: backlog.ReviewMet}
+	for _, c := range last.Verdict.Criteria {
+		r.Criteria = append(r.Criteria, backlog.ReviewCriterion{Text: c.Text, Status: c.Status, Evidence: c.Evidence})
+	}
+	for _, c := range last.Checks {
+		r.Checks = append(r.Checks, backlog.ReviewCheck{Command: c.Command, Passed: c.Code == 0})
+	}
+	_, _ = st.SetReview(id, r, "reviewer")
 }
 
 // runGoalHeadless executa un objectiu en bucle fins que un verificador el
@@ -68,11 +124,14 @@ func runGoalHeadless(cfg *config.Config, cfgPath string, f goalFlags) int {
 		fmt.Fprintln(os.Stderr, "gregal: --goal supports --output text or json")
 		return exitUsage
 	}
-	goalDir := ""
 	if cfgPath != "" {
-		goalDir = filepath.Dir(cfgPath)
+		_, _ = goal.MigrateToBacklog(filepath.Dir(cfgPath))
 	}
-	g, saved := resolGoal(goalDir, filepath.Base(cwd), cwd, f.Spec)
+	g, item := resolGoal(cwd, f.Spec)
+	if err := startItem(cwd, item); err != nil {
+		fmt.Fprintf(os.Stderr, "gregal: backlog item #%d: %v\n", item, err)
+		return exitUsage
+	}
 
 	mcp.Setup(toMCPServers(cfg))
 	agent.SetPostEditHook(cfg.Hooks.PostEdit)
@@ -105,10 +164,7 @@ func runGoalHeadless(cfg *config.Config, cfgPath string, f goalFlags) int {
 			fmt.Fprintf(os.Stderr, "round %d: %s\n", r.N, goalRoundLine(r))
 		},
 	})
-	if res.Met && saved && g.ID != "" {
-		g.Status = goal.StatusFet
-		_ = goal.Save(goalDir, g)
-	}
+	finishItem(cwd, item, res)
 	if f.Output == "json" {
 		raw, _ := json.MarshalIndent(res, "", "  ")
 		fmt.Println(string(raw))

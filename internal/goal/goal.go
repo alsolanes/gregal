@@ -222,23 +222,25 @@ func escriure(dir string, llista []Goal) error {
 	return os.WriteFile(Path(dir), b, 0o600)
 }
 
-// Prompt és el system prompt afegit en mode objectiu. Les claus del bloc
-// són en anglès (task, context, criteria, steps, risks); Parse accepta
-// també les antigues en català.
+// Prompt és el system prompt afegit en mode objectiu. El bloc ```goal es
+// desa com a tasca del backlog del projecte (vegeu backlog.go); ParseItem
+// accepta també les claus d'abans (task, context, criteria, steps, risks).
 func Prompt() string {
-	return "\nGOAL MODE: DO NOT EXECUTE ANYTHING. Help the user pin down what they want before any work starts.\n" +
-		"1. If the request is ambiguous or information is missing (scope, success criteria, what must NOT be touched), ask with the question tool (2-4 short options + free text): it is shown as a selectable choice and you can continue in the same turn. No plain-text interrogations (numbered lists of questions): one question per turn, with the tool. Do not invent anything.\n" +
+	return "\nGOAL MODE: DO NOT EXECUTE ANYTHING. Help the user turn what they want into a well-written item of the project's backlog (the work-items skill explains how).\n" +
+		"1. If the request is ambiguous or information is missing (the outcome, how we will know it is done, what is out of scope), ask with the question tool (2-4 short options + free text): it is shown as a selectable choice and you can continue in the same turn. No plain-text interrogations (numbered lists of questions): one question per turn, with the tool. Do not invent anything.\n" +
 		"2. You may read and explore the project (read, grep, glob) to ask informed questions; do not write or modify any file.\n" +
-		"3. When you have enough context, reply with a block exactly like this:\n" +
+		"3. When you have enough context, reply with a block exactly like this (one item per block; something too big for one change becomes several blocks):\n" +
 		"```goal\n" +
-		"task: <one sentence>\n" +
-		"context: <why, and with what>\n" +
-		"criteria:\n- <how we will know it is done right>\n" +
-		"steps:\n- <planned steps>\n" +
-		"risks:\n- <what could go wrong>\n" +
+		"type: feature | bug | task | spike\n" +
+		"title: <imperative and specific: the outcome>\n" +
+		"why: <who benefits and what it costs today; for a bug: steps to reproduce, expected, actual>\n" +
+		"criteria:\n- <checkable statement: a test, a command or something visible>\n" +
+		"out_of_scope: <what someone might expect and is not included>\n" +
+		"size: S | M | L\n" +
 		"```\n" +
-		"4. After the block, ask whether to execute it and mention that it can be edited.\n" +
-		"End every reply either with a question (question tool) or with the ```goal block, never with plain text that neither asks nor closes anything."
+		"4. Gregal saves each block to the backlog as a proposed item when your turn ends and adds its number under your reply: do not also create it with the backlog tool. To revise an item, send the whole block again with an `id: <number>` line first.\n" +
+		"5. After the block, ask once whether it is right or what to change. When the person confirms, close with one sentence (it will be saved as proposed; from the Backlog it can be marked ready and worked on) and do not ask anything else.\n" +
+		"End every reply with a question (question tool), with the ```goal block, or, once the person has confirmed, with that one closing sentence; never with plain text that neither asks nor closes anything."
 }
 
 // Task converteix un objectiu en la tasca que s'envia a l'agent en executar-lo.

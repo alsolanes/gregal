@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"gregal/internal/agent"
+	"gregal/internal/backlog"
 	"gregal/internal/config"
 	"gregal/internal/goal"
 	"gregal/internal/llm"
@@ -689,7 +690,7 @@ func (b *Bot) status(ctx context.Context, chatID int64, st *chatState) {
 	name, mode, role, msgs, busy := st.name, st.mode, st.role, len(st.convo), st.busy
 	st.mu.Unlock()
 	p, r := b.roleRefFor(chatID, role)
-	goals, _ := goal.List(b.goalDirSafe(), b.projectName())
+	goals, _ := goal.Open(b.dirOf(st))
 	estat := "🟢 " + b.tr("parat", "idle")
 	if busy {
 		estat = "🟡 " + b.tr("treballant…", "working…")
@@ -701,11 +702,13 @@ func (b *Bot) status(ctx context.Context, chatID int64, st *chatState) {
 		b.tr("model", "model") + " <code>" + esc(r.Provider) + "/" + esc(r.Model) + "</code>",
 		b.tr("lloc", "endpoint") + " <code>" + esc(p.BaseURL) + "</code>",
 		b.tr("sessió", "session") + " <code>" + esc(name) + "</code> (" + strconv.Itoa(msgs) + " " + b.tr("missatges", "messages") + ")",
-		b.tr("objectius del projecte: ", "project goals: ") + strconv.Itoa(len(goals)),
+		b.tr("tasques obertes al backlog: ", "open backlog items: ") + strconv.Itoa(len(goals)),
 	}, "\n"), b.statusKB())
 }
 
-// goalCommand gestiona els objectius des de Telegram.
+// goalCommand gestiona el backlog des de Telegram: el mode objectiu hi
+// desa el que concreta, i aquí es llista, es mira, s'hi treballa o es
+// descarta.
 func (b *Bot) goalCommand(ctx context.Context, chatID int64, st *chatState, arg string) {
 	sub := ""
 	id := ""
@@ -718,76 +721,83 @@ func (b *Bot) goalCommand(ctx context.Context, chatID int64, st *chatState, arg 
 	}
 	switch sub {
 	case "", "llista":
-		b.goalList(ctx, chatID)
+		b.goalList(ctx, chatID, st)
 
 	case "mostra":
-		b.goalShow(ctx, chatID, id)
+		b.goalShow(ctx, chatID, st, id)
 
 	case "executa", "executar", "run":
 		b.goalRun(ctx, chatID, st, id)
 
-	case "esborra", "borra", "delete":
-		g, err := b.resolveGoal(id)
+	case "esborra", "borra", "delete", "descarta":
+		ref, motiu, _ := strings.Cut(id, " ")
+		it, err := goal.Resolve(b.dirOf(st), ref)
 		if err != nil {
-			b.send(ctx, chatID, "⚠️ "+b.tr("No s'ha pogut trobar l'objectiu: ", "Could not find the goal: ")+esc(err.Error()))
+			b.send(ctx, chatID, "⚠️ "+b.tr("No trobo la tasca: ", "Could not find the item: ")+esc(err.Error()))
 			return
 		}
-		if err := goal.Delete(b.goalDirSafe(), g.ID); err != nil {
-			b.send(ctx, chatID, "⚠️ "+b.tr("No s'ha pogut esborrar l'objectiu: ", "Could not delete the goal: ")+esc(err.Error()))
+		if strings.TrimSpace(motiu) == "" {
+			motiu = "dropped from Telegram"
+		}
+		bl, err := backlog.Open(b.dirOf(st))
+		if err == nil {
+			_, err = bl.Move(it.ID, backlog.StatusDropped, motiu, "telegram")
+		}
+		if err != nil {
+			b.send(ctx, chatID, "⚠️ "+b.tr("No s'ha pogut descartar: ", "Could not drop it: ")+esc(err.Error()))
 			return
 		}
-		b.send(ctx, chatID, "🗑 "+b.tr("Esborrat", "Deleted")+" <code>"+esc(g.ID)+"</code>")
+		b.send(ctx, chatID, "🗑 "+b.tr("Descartada", "Dropped")+" <code>#"+strconv.Itoa(it.ID)+"</code>")
 
 	default:
-		b.send(ctx, chatID, b.tr("ús: /goal [llista|executa [id]|mostra [id]|esborra &lt;id&gt;]", "usage: /goal [llista|executa [id]|mostra [id]|esborra &lt;id&gt;] (list, run, show, or delete goals)"))
+		b.send(ctx, chatID, b.tr("ús: /goal [llista|executa [#n]|mostra [#n]|descarta &lt;#n&gt; [motiu]]", "usage: /goal [llista|executa [#n]|mostra [#n]|descarta &lt;#n&gt; [reason]] (list, work on, show or drop backlog items)"))
 	}
 }
 
-// goalList mostra els objectius amb botons ▶/🔍.
-func (b *Bot) goalList(ctx context.Context, chatID int64) {
-	goals, _ := goal.List(b.goalDirSafe(), b.projectName())
-	if len(goals) == 0 {
-		b.send(ctx, chatID, b.tr("Cap objectiu encara.\nPosa'm en mode objectiu (/mode goal), explica què vols fer i et faré les preguntes que calguin.", "No goals yet.\nSwitch to goal mode (/mode goal), describe what you want to do, and I’ll ask any necessary questions."))
+// goalList mostra les tasques obertes del backlog amb botons ▶/🔍.
+func (b *Bot) goalList(ctx context.Context, chatID int64, st *chatState) {
+	items, _ := goal.Open(b.dirOf(st))
+	if len(items) == 0 {
+		b.send(ctx, chatID, b.tr("Cap tasca oberta al backlog.\nPosa'm en mode objectiu (/mode goal), explica què vols fer i la concretarem.", "No open backlog items.\nSwitch to goal mode (/mode goal), describe what you want, and we will pin it down."))
 		return
 	}
 	var lines []string
-	lines = append(lines, "◆ <b>"+b.tr("Objectius", "Goals")+"</b> · "+esc(b.projectName())+" · "+b.tr("toca ▶ per executar", "tap ▶ to run"))
-	for _, g := range goals[:minInt(len(goals), 10)] {
-		marca := "·"
-		if g.Status == goal.StatusFet {
-			marca = "✓"
-		}
-		lines = append(lines, fmt.Sprintf("%s <code>%s</code> %s", marca, esc(g.ID), esc(truncate(g.Title, 60))))
+	lines = append(lines, "◆ <b>Backlog</b> · "+esc(b.projectName())+" · "+b.tr("toca ▶ per treballar-hi", "tap ▶ to work on it"))
+	for _, it := range items[:minInt(len(items), 10)] {
+		lines = append(lines, fmt.Sprintf("<code>#%d</code> %s · %s", it.ID, esc(truncate(it.Title, 60)), esc(it.Status)))
 	}
-	lines = append(lines, "", "/goal mostra &lt;id&gt; · /goal esborra &lt;id&gt; · "+b.tr("mostra o esborra un objectiu", "show or delete a goal"))
-	b.sendKB(ctx, chatID, strings.Join(lines, "\n"), b.goalsKB(goals))
+	lines = append(lines, "", "/goal mostra #n · /goal descarta #n "+b.tr("motiu", "reason"))
+	b.sendKB(ctx, chatID, strings.Join(lines, "\n"), b.goalsKB(items))
 }
 
-// goalShow mostra un objectiu sencer.
-func (b *Bot) goalShow(ctx context.Context, chatID int64, id string) {
-	g, err := b.resolveGoal(id)
+// goalShow mostra una tasca sencera.
+func (b *Bot) goalShow(ctx context.Context, chatID int64, st *chatState, id string) {
+	it, err := goal.Resolve(b.dirOf(st), id)
 	if err != nil {
-		b.send(ctx, chatID, "⚠️ "+b.tr("No s'ha pogut trobar l'objectiu: ", "Could not find the goal: ")+esc(err.Error()))
+		b.send(ctx, chatID, "⚠️ "+b.tr("No trobo la tasca: ", "Could not find the item: ")+esc(err.Error()))
 		return
 	}
-	kb := Keyboard{{{Text: "▶ " + b.tr("Executa", "Run"), Data: "goal:run:" + g.ID}, {Text: "🗂 " + b.tr("Objectius", "Goals"), Data: "goal:list"}}}
-	b.sendKB(ctx, chatID, fmt.Sprintf("◆ <b>%s</b> · <code>%s</code>\n\n%s", esc(g.Title), esc(g.ID), esc(g.Body)), kb)
+	n := strconv.Itoa(it.ID)
+	kb := Keyboard{{{Text: "▶ " + b.tr("Treballa-hi", "Work on it"), Data: "goal:run:" + n}, {Text: "🗂 Backlog", Data: "goal:list"}}}
+	b.sendKB(ctx, chatID, "◆ <b>"+esc(it.Title)+"</b>\n\n<pre>"+esc(goal.Card(it))+"</pre>", kb)
 }
 
-// goalRun executa un objectiu en mode codi.
+// goalRun posa la tasca en curs i hi treballa en mode codi.
 func (b *Bot) goalRun(ctx context.Context, chatID int64, st *chatState, id string) {
-	g, err := b.resolveGoal(id)
-	if err != nil {
-		b.send(ctx, chatID, "⚠️ "+b.tr("No s'ha pogut trobar l'objectiu: ", "Could not find the goal: ")+esc(err.Error()))
-		return
+	dir := b.dirOf(st)
+	it, err := goal.Resolve(dir, id)
+	if err == nil {
+		var task string
+		if it, task, err = goal.Start(dir, it.ID, "telegram"); err == nil {
+			st.mu.Lock()
+			st.mode = agent.ModeCode
+			st.mu.Unlock()
+			b.send(ctx, chatID, fmt.Sprintf("◆ "+b.tr("Treballant en la tasca <code>#%d</code> en mode codi\n%s", "Working on item <code>#%d</code> in code mode\n%s"), it.ID, esc(it.Title)))
+			b.turn(ctx, chatID, st, task)
+			return
+		}
 	}
-	g.Status = goal.StatusFet
-	_ = goal.Save(b.goalDirSafe(), g)
-	st.mu.Lock()
-	st.mode = agent.ModeCode
-	st.mu.Unlock()
-	b.send(ctx, chatID, fmt.Sprintf("◆ "+b.tr("Executant l'objectiu <code>%s</code> en mode codi\n%s", "Running goal <code>%s</code> in code mode\n%s"), esc(g.ID), esc(g.Title)))
-	b.turn(ctx, chatID, st, goal.Task(g))
+	b.send(ctx, chatID, "⚠️ "+b.tr("No s'hi pot treballar: ", "Cannot work on it: ")+esc(err.Error()))
 }
 
 func minInt(a, b int) int {
@@ -795,20 +805,4 @@ func minInt(a, b int) int {
 		return a
 	}
 	return b
-}
-
-// resolveGoal troba l'objectiu per id o el més recent.
-func (b *Bot) resolveGoal(id string) (goal.Goal, error) {
-	dir := b.goalDirSafe()
-	if id != "" {
-		return goal.Get(dir, id)
-	}
-	goals, err := goal.List(dir, b.projectName())
-	if err != nil {
-		return goal.Goal{}, err
-	}
-	if len(goals) == 0 {
-		return goal.Goal{}, fmt.Errorf("cap objectiu desat")
-	}
-	return goals[0], nil
 }

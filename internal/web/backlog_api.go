@@ -82,6 +82,7 @@ func (q backlogReq) aplica(it *backlog.Item) {
 }
 
 func (s *Server) handleBacklog(w http.ResponseWriter, r *http.Request) {
+	s.migraObjectius()
 	st, err := backlog.Open(s.sessionCwd())
 	if err != nil {
 		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": err.Error()})

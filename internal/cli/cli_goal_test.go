@@ -10,25 +10,51 @@ import (
 	"strings"
 	"testing"
 
+	"gregal/internal/agent"
 	"gregal/internal/config"
 	"gregal/internal/goal"
+	"gregal/internal/verify"
 )
 
 func TestResolGoal(t *testing.T) {
-	dir := t.TempDir()
-	saved := goal.Goal{ID: "abc123", Title: "t", Body: "task: t\ncriteria:\n- x", Project: "p"}
-	if err := goal.Save(dir, saved); err != nil {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	cwd := t.TempDir()
+	if _, _, err := goal.Record("```goal\ntitle: t\nwhy: w\ncriteria:\n- x\n```", cwd); err != nil {
 		t.Fatal(err)
 	}
-	if g, ok := resolGoal(dir, "p", "/w", "abc123"); !ok || g.Title != "t" {
-		t.Fatalf("%+v %v", g, ok)
+	if g, item := resolGoal(cwd, "#1"); item != 1 || g.Title != "t" || !strings.Contains(g.Body, "1. [ ] x") {
+		t.Fatalf("%+v %v", g, item)
 	}
-	if g, ok := resolGoal(dir, "p", "/w", "last"); !ok || g.ID != "abc123" {
-		t.Fatalf("last: %+v %v", g, ok)
+	if g, item := resolGoal(cwd, "last"); item != 1 || g.ID != "#1" {
+		t.Fatalf("last: %+v %v", g, item)
 	}
-	g, ok := resolGoal(dir, "p", "/w", "add a --version flag")
-	if ok || g.ID != "" || !strings.HasPrefix(g.Body, "task: add a --version flag") {
-		t.Fatalf("inline: %+v %v", g, ok)
+	g, item := resolGoal(cwd, "add a --version flag")
+	if item != 0 || g.ID != "" || !strings.HasPrefix(g.Body, "task: add a --version flag") {
+		t.Fatalf("inline: %+v %v", g, item)
+	}
+}
+
+// Un objectiu complert deixa la tasca a revisió amb el veredicte del bucle;
+// un que no, la deixa en curs amb el que falta al log.
+func TestFinishItem(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	cwd := t.TempDir()
+	if _, _, err := goal.Record("```goal\ntitle: t\nwhy: w\ncriteria:\n- x\n```", cwd); err != nil {
+		t.Fatal(err)
+	}
+	if err := startItem(cwd, 1); err != nil {
+		t.Fatal(err)
+	}
+	finishItem(cwd, 1, agent.GoalResult{Stop: agent.GoalStopRounds, Rounds: []agent.GoalRound{{Verdict: verify.GoalVerdict{Missing: "x is not done"}}}})
+	it, _ := goal.Resolve(cwd, "1")
+	if it.Status != "in_progress" || !strings.Contains(it.Log[len(it.Log)-1].Text, "x is not done") {
+		t.Fatalf("%+v", it)
+	}
+	finishItem(cwd, 1, agent.GoalResult{Met: true, Stop: agent.GoalMet, Rounds: []agent.GoalRound{{Verdict: verify.GoalVerdict{Met: true,
+		Criteria: []verify.GoalCriterion{{Text: "x", Status: "MET", Evidence: "x.go:1"}}}}}})
+	it, _ = goal.Resolve(cwd, "1")
+	if it.Status != "in_review" || it.Review == nil || it.Review.Status != "met" || it.Review.Criteria[0].Evidence != "x.go:1" {
+		t.Fatalf("%+v %+v", it.Status, it.Review)
 	}
 }
 

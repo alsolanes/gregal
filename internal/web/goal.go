@@ -2,10 +2,14 @@ package web
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
+	"sync"
 
+	"gregal/internal/backlog"
 	"gregal/internal/goal"
 	"gregal/internal/identity"
 	"gregal/internal/profile"
@@ -39,109 +43,103 @@ func (s *Server) projectName() string {
 	return projectName(s.cwd)
 }
 
-// recordGoal desa l'objectiu d'una resposta de l'agent (mode objectiu).
-func (s *Server) recordGoal(reply string) (goal.Goal, bool) {
-	g, ok := goal.Parse(reply, s.cwd)
-	if !ok {
-		return goal.Goal{}, false
-	}
-	if err := goal.Save(s.goalDir, g); err != nil {
-		return goal.Goal{}, false
-	}
-	s.mu.Lock()
-	s.lastGoalID = g.ID
-	s.mu.Unlock()
-	return g, true
-}
+// El mode objectiu desa tasques al backlog (goal/backlog.go). Aquí: la
+// targeta del xat, la migració dels objectius vells i /api/goal com a vista
+// de compatibilitat per a les apps que encara el llegeixen.
 
-// emitGoal desa (si cal) l'objectiu de la resposta i l'envia a la UI.
-func (s *Server) emitGoal(emit func(string, any), reply string) {
-	g, ok := s.recordGoal(reply)
-	if !ok {
+// migrats recorda quins directoris d'objectius ja s'han passat al backlog
+// en aquest procés: la migració només mira el disc una vegada.
+var (
+	migratsMu sync.Mutex
+	migrats   = map[string]bool{}
+)
+
+func (s *Server) migraObjectius() {
+	dir := s.goalDir
+	migratsMu.Lock()
+	fet := migrats[dir]
+	migrats[dir] = true
+	migratsMu.Unlock()
+	if fet || dir == "" {
 		return
 	}
-	emit("goal", map[string]any{
-		"id": g.ID, "title": g.Title, "body": g.Body,
-		"status": g.Status, "project": g.Project,
-	})
+	if n, err := goal.MigrateToBacklog(dir); n > 0 || err != nil {
+		log.Printf("backlog: %d objectius migrats de %s (err=%v)", n, dir, err)
+	}
 }
 
-// handleGoal llista, prepara i esborra objectius.
+// emitGoal desa al backlog la tasca del bloc ```goal de la resposta, n'hi
+// deixa el número a sota (perquè el model la pugui revisar amb id:) i
+// n'envia la targeta a la UI.
+func (s *Server) emitGoal(emit func(string, any), reply string) {
+	it, created, err := goal.Record(reply, s.sessionCwd())
+	if err != nil {
+		return
+	}
+	note := goal.Note(it, created)
+	s.mu.Lock()
+	goal.AnnotateLast(s.convo, note)
+	s.lastGoalID = strconv.Itoa(it.ID)
+	s.mu.Unlock()
+	emit("backlog_item", map[string]any{"item": it, "created": created, "note": note})
+}
+
+// handleGoal és la vista vella d'objectius damunt del backlog: GET llista
+// les tasques obertes amb la forma d'un objectiu, «task» les comença i
+// «delete» les descarta.
 func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
+	s.migraObjectius()
+	cwd := s.sessionCwd()
 	if r.Method == http.MethodGet {
-		s.mu.Lock()
-		últim := s.lastGoalID
-		s.mu.Unlock()
-		llista, err := goal.List(s.goalDir, s.projectName())
+		open, err := goal.Open(cwd)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		if llista == nil {
-			llista = []goal.Goal{}
+		out := make([]map[string]any, 0, len(open))
+		for _, it := range open {
+			out = append(out, map[string]any{
+				"id": strconv.Itoa(it.ID), "title": it.Title, "body": goal.Card(it), "status": it.Status, "project": projectName(backlog.Root(cwd)),
+			})
 		}
-		writeJSON(w, map[string]any{"goals": llista, "last": últim, "project": s.projectName()})
+		s.mu.Lock()
+		últim := s.lastGoalID
+		s.mu.Unlock()
+		writeJSON(w, map[string]any{"goals": out, "last": últim, "project": s.projectName()})
 		return
 	}
 	var req struct {
-		Action string `json:"action"` // task|delete|last
+		Action string `json:"action"` // task|delete
 		ID     string `json:"id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "json invàlid", 400)
 		return
 	}
-	g, err := s.resolveGoal(req.ID)
+	it, err := goal.Resolve(cwd, req.ID)
 	if err != nil {
 		http.Error(w, err.Error(), 404)
 		return
 	}
 	switch req.Action {
 	case "task":
-		// La UI engega l'agent amb aquesta tasca en mode code.
-		g.Status = goal.StatusFet
-		if err := goal.Save(s.goalDir, g); err != nil {
-			http.Error(w, err.Error(), 500)
+		it, task, err := goal.Start(cwd, it.ID, backlogWho(r))
+		if err != nil {
+			http.Error(w, err.Error(), 400)
 			return
 		}
-		s.mu.Lock()
-		s.lastGoalID = g.ID
-		s.mu.Unlock()
-		writeJSON(w, map[string]string{"id": g.ID, "title": g.Title, "task": goal.Task(g)})
+		writeJSON(w, map[string]string{"id": strconv.Itoa(it.ID), "title": it.Title, "task": task})
 	case "delete":
-		if err := goal.Delete(s.goalDir, g.ID); err != nil {
-			http.Error(w, err.Error(), 500)
+		st, err := backlog.Open(cwd)
+		if err == nil {
+			_, err = st.Move(it.ID, backlog.StatusDropped, "removed from the goals list", backlogWho(r))
+		}
+		if err != nil {
+			http.Error(w, err.Error(), 400)
 			return
 		}
-		s.mu.Lock()
-		if s.lastGoalID == g.ID {
-			s.lastGoalID = ""
-		}
-		s.mu.Unlock()
-		writeJSON(w, map[string]string{"deleted": g.ID})
+		writeJSON(w, map[string]string{"deleted": strconv.Itoa(it.ID)})
 	default:
 		http.Error(w, "acció desconeguda (task|delete)", 400)
 	}
-}
-
-// resolveGoal troba l'objectiu per id o el més recent del projecte.
-func (s *Server) resolveGoal(id string) (goal.Goal, error) {
-	if id == "" {
-		s.mu.Lock()
-		id = s.lastGoalID
-		s.mu.Unlock()
-	}
-	if id != "" {
-		if g, err := goal.Get(s.goalDir, id); err == nil {
-			return g, nil
-		}
-	}
-	llista, err := goal.List(s.goalDir, s.projectName())
-	if err != nil {
-		return goal.Goal{}, err
-	}
-	if len(llista) == 0 {
-		return goal.Goal{}, os.ErrNotExist
-	}
-	return llista[0], nil
 }

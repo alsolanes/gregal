@@ -15,9 +15,10 @@ mode comes from `mode:` in the config.
 - **chat** — conversation with read access. You may read the disk but
   not modify anything. If an edit is needed, tell the user to switch to
   code mode.
-- **goal** — pin down a task with questions until it is written down,
-  then execute it when told to. The goal is saved and recalled with
-  `/goal`.
+- **goal** — pin down a task with questions until it is written down
+  as a backlog item (see the `work-items` skill); each ```goal block is
+  saved to the project's backlog as a proposed item, and a block with
+  `id: <n>` revises item n. `/goal` lists the open items and starts one.
 - **autonomous** — work through milestones without asking at every step:
   checks run every `checkpoint_every` steps and a reviewer passes every
   `review_every`, with a time cap (`max_minutes`). The mode for long jobs.

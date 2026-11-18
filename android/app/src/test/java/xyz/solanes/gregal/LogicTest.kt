@@ -235,8 +235,6 @@ class ToolTextTest {
         assertEquals("(no arguments)", prettyArgs("{}", "en"))
         assertEquals("for coding", roleLabel("code", "en"))
         assertEquals("Today", tr("en", "app.sess.today"))
-        assertEquals("COMPLETED", goalStatusLabel("fet", "en"))
-        assertEquals("PENDING", goalStatusLabel("pending", "en"))
         assertEquals("⚠️ Maximum 25 MB (this file is 30 MB)",
             tr("en", "app.off.fileTooLarge", 25, 30))
     }

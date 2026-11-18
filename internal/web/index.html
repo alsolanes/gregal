@@ -1620,7 +1620,6 @@ body.sense-inspector #inspector { display:none; }
       <button class="nav-item side-view" data-view="memoria"><span class="nav-icon"></span><span data-i18n="nav.memory">Project memory</span></button>
       <button class="nav-item side-view" data-view="publicacions"><span class="nav-icon"></span><span data-i18n="nav.publications">Sharing</span></button>
 <button class="nav-item side-view" data-view="workshop" data-also="team"><span class="nav-icon">▦</span><span data-i18n="nav.agents">Agents</span><span class="nav-badge busy" id="navAgentsBadge" hidden></span></button>
-<button class="nav-item side-view" data-view="objectius"><span class="nav-icon">○</span><span data-i18n="nav.goals">Goals</span></button>
 <button class="nav-item side-view" data-view="backlog"><span class="nav-icon">☰</span><span data-i18n="nav.backlog">Backlog</span></button>
 <button class="nav-item side-view" data-view="github"><span class="nav-icon">⎇</span><span>GitHub</span></button>
 <button class="nav-item side-view" data-view="office"><span class="nav-icon">❏</span><span>Office</span></button>
@@ -1735,32 +1734,6 @@ body.sense-inspector #inspector { display:none; }
         </div>
       </section>
       <main id="main" aria-live="polite"></main>
-      <section class="workspace-page" id="objectiusPage" hidden>
-        <div class="page-inner">
-          <div class="page-kicker" data-i18n="pg.goals.kicker">Work that persists</div>
-          <h1 class="page-title" data-i18n="nav.goals">Goals</h1>
-          <div class="page-grid">
-            <article class="page-card"><h2 data-i18n="pg.goals.active">Active goals</h2><div id="goalsPage"></div></article>
-            <article class="page-card" id="goalDetailCard">
-              <div id="goalDetailDefault">
-                <h2 data-i18n="pg.goals.how">How it works</h2>
-                <p class="page-copy" data-i18n="pg.goals.how.body">Switch to Goal mode, describe the outcome you want and answer its clarifying questions. Select a goal to review its plan and run it.</p>
-              </div>
-              <div id="goalDetailActive" hidden>
-                <div class="goal-detail-head">
-                  <h2 id="goalDetailTitle" class="goal-detail-title"></h2>
-                  <span id="goalDetailBadge" class="goal-badge"></span>
-                </div>
-                <div id="goalDetailBody" class="goal-detail-body"></div>
-                <div class="goal-detail-foot">
-                  <button id="goalDetailRun" class="primary">▶ <span data-i18n="goal.run">Run goal</span></button>
-                  <button id="goalDetailDel" class="danger" data-i18n="goal.delete">Delete</button>
-                </div>
-              </div>
-            </article>
-          </div>
-        </div>
-      </section>
       <section class="workspace-page" id="ventsPage" hidden>
         <script defer src="/app/wind-i18n.js"></script>
         <script defer src="/app/wind-desk.js"></script>
@@ -2265,7 +2238,7 @@ let currentView = 'agent';
 // (/jocs/: l'Arena i la lliga), cadascun amb les seves vistes.
 const PRODUCT = ['vents', 'jocs'].includes(document.documentElement.dataset.product) ? document.documentElement.dataset.product : 'codi';
 const PRODUCT_VIEWS = {
-  codi: ['agent', 'objectius', 'backlog', 'kanban', 'programat', 'mcp', 'activitat', 'github', 'office', 'team', 'canvis', 'fitxers', 'knowledge', 'memoria', 'publicacions', 'terminal', 'navegador', 'grafs', 'workshop'],
+  codi: ['agent', 'backlog', 'kanban', 'programat', 'mcp', 'activitat', 'github', 'office', 'team', 'canvis', 'fitxers', 'knowledge', 'memoria', 'publicacions', 'terminal', 'navegador', 'grafs', 'workshop'],
   vents: ['vents', 'raco', 'automatitzacions', 'memoria', 'publicacions'],
   jocs: ['arena', 'partits'],
 };
@@ -2307,9 +2280,11 @@ function setView(view) {
   // crida accidental a «agent» des d'un botó intern no les envia al xat.
   if (view === 'agent' && currentView === 'vents' && window.gregalWindClickActive) return;
   const previousView = currentView;
+  // Els Objectius ara són tasques del backlog: qui demana la vista vella hi va a parar.
+  if (view === 'objectius') view = 'backlog';
   // Les vistes dels plugins apagats (app/plugins.js) no s'obren.
   if (window.gregalPlugins && !window.gregalPlugins.viewAllowed(view)) view = 'agent';
-  currentView = ['agent','objectius','backlog','vents','raco','partits','arena','kanban','programat','automatitzacions','mcp','activitat','github','office','team','canvis','fitxers','knowledge','memoria','publicacions','terminal','navegador','grafs','workshop'].includes(view) ? view : productHome();
+  currentView = ['agent','backlog','vents','raco','partits','arena','kanban','programat','automatitzacions','mcp','activitat','github','office','team','canvis','fitxers','knowledge','memoria','publicacions','terminal','navegador','grafs','workshop'].includes(view) ? view : productHome();
   if (!productAllows(currentView)) currentView = productHome();
   // Fora del Codi, les vistes que no són la dels vents no porten res del codi
   // (sessió nova, projectes, converses de l'agent, carpeta del projecte).
@@ -2318,7 +2293,6 @@ function setView(view) {
   const agent = currentView === 'agent' || dockTool;
   window.gregalShell?.sync(currentView);
   hero.hidden = !agent || main.classList.contains('on'); main.hidden = !agent; $('composer').hidden = !agent;
-  $('objectiusPage').hidden = currentView !== 'objectius';
   $('ventsPage').hidden = currentView !== 'vents';
   $('programatPage').hidden = currentView !== 'programat';
   $('automatitzacionsPage').hidden = currentView !== 'automatitzacions';
@@ -4055,7 +4029,7 @@ async function doAgent(task, resumed) {
       else if(ev==='steer_unread'){ (d.texts||[]).forEach(t => { steerUndelivered(t); encua(t); }); }
       else if(ev==='token'){turnPhase='working';acc+=d.text; if(turnNote){turnNote=''; pintaTurnBar();} if(!turnActivity||turnActivity.key!=='writing') setActivity('writing', gregalT('act.now.writing')); paintLive();}
       else if(ev==='assistant' && d.text.trim()){turnPhase='working';turnNote=''; lastAssistantText=d.text.trim(); const bombolla=settleLiveEl(md(d.text)) || add('a','',md(d.text)); mdBo(d.text,bombolla);}
-      else if(ev==='goal')goalCard(d);
+      else if(ev==='backlog_item')backlogChatCard(d);
       else if(ev==='tool_call'){
         paintThinkTail('');
         turnPhase='working'; turnNote=d.name || ''; pintaTurnBar(); paintLiveNow(); if(live){ live.classList.add('working'); intoWorkGroup(live); } live=null; acc=''; steps++; tools++; // el text de treball d'aquest pas ja és a la seva bombolla
@@ -4346,144 +4320,42 @@ function planCard(plan, critic, partial, task) {
   };
   return box;
 }
-// --- objectius ---
-function goalCard(g) {
-  activityItem('objectiu', g.title || gregalT('mode.objectiu'), g.id + ' · ' + (g.status||''), 'ok');
-  const box = add('a','', '<div class="goal"><div class="goal-head"><b>◆ ' + escapeHTML(gregalT('ui.goalLabel')) + '</b>'
-    + '<span>'+escapeHTML(g.id||'')+' · '+escapeHTML(g.project||'')+' · '+escapeHTML(g.status||'')+'</span></div>'
-    + '<div class="body">'+md(g.body||'')+'</div>'
-    + '<div class="goal-row"><button class="primary" data-run>▶ ' + escapeHTML(gregalT('ui.runGoal')) + '</button>'
-    + '<button data-del>' + escapeHTML(gregalT('ui.deleteGoal')) + '</button></div></div>');
-  box.querySelector('[data-run]').onclick = () => runGoal(g.id);
-  box.querySelector('[data-del]').onclick = async () => {
-    await api('/api/goal',{method:'POST',body:JSON.stringify({action:'delete',id:g.id})});
-    box.querySelector('.goal-row').textContent = gregalT('ui.goalDeleted');
-    loadGoals();
-  };
+// --- backlog al xat i a l'inspector ---
+// El mode objectiu desa cada bloc ```goal com a tasca del backlog: el
+// servidor envia «backlog_item» i aquí se'n pinta la targeta, amb el camí per
+// obrir-la o posar-s'hi. L'inspector mostra les tasques obertes del projecte.
+function backlogChatCard(d) {
+  const it = d.item || {};
+  activityItem('objectiu', it.title || gregalT('mode.objectiu'), '#' + it.id + ' · ' + (it.status || ''), 'ok');
+  const crit = (it.criteria || []).map(c => '<li>' + escapeHTML(c.text) + '</li>').join('');
+  const box = add('a', '', '<div class="goal"><div class="goal-head"><b>◆ Backlog #' + escapeHTML(String(it.id || '')) + '</b>'
+    + '<span>' + escapeHTML(it.type || '') + ' · ' + escapeHTML(it.status || '') + (d.created ? '' : ' · ' + escapeHTML(gregalT('backlog.updated'))) + '</span></div>'
+    + '<div class="body"><p><b>' + escapeHTML(it.title || '') + '</b></p>' + (crit ? '<ul>' + crit + '</ul>' : '') + '</div>'
+    + '<div class="goal-row"><button class="primary" data-run>▶ ' + escapeHTML(gregalT('backlog.work')) + '</button>'
+    + '<button data-open>' + escapeHTML(gregalT('backlog.open')) + '</button></div></div>');
+  box.querySelector('[data-open]').onclick = () => window.gregalBacklog?.open(it.id);
+  box.querySelector('[data-run]').onclick = () => window.gregalBacklog?.work(it.id);
   loadGoals();
   return box;
 }
-function selectGoalDetail(g) {
-  const def = $('goalDetailDefault');
-  const act = $('goalDetailActive');
-  if (!def || !act) return;
-  if (!g) {
-    def.hidden = false;
-    act.hidden = true;
-    return;
-  }
-  def.hidden = true;
-  act.hidden = false;
-  $('goalDetailTitle').textContent = g.title || g.id;
-  const badge = $('goalDetailBadge');
-  if (badge) {
-    badge.textContent = gregalT(g.status === 'fet' ? 'goal.completed' : 'goal.pending');
-    badge.className = 'goal-badge' + (g.status === 'fet' ? ' fet' : '');
-  }
-  $('goalDetailBody').textContent = g.body || g.title || gregalT('goal.noDetails');
-  const runBtn = $('goalDetailRun');
-  if (runBtn) runBtn.onclick = () => runGoal(g.id);
-  const delBtn = $('goalDetailDel');
-  if (delBtn) delBtn.onclick = async () => {
-    await api('/api/goal', { method: 'POST', body: JSON.stringify({ action: 'delete', id: g.id }) });
-    selectGoalDetail(null);
-    loadGoals();
-  };
-}
-async function runGoal(id) {
-  const r = await api('/api/goal',{method:'POST',body:JSON.stringify({action:'task',id:id||''})});
-  if (!r.ok) { sys(gregalT('ui.objectiu.ko')); return; }
-  const d = await r.json();
-  setView('agent');
-  await setMode('act');
-  activityItem('objectiu',gregalT('goal.running'), d.title || d.id, 'warn');
-  await doAgent(d.task);
-}
 async function loadGoals() {
   const box = $('goals'); if (!box) return;
-  let r = {goals:[]};
-  try { r = await api('/api/goal').then(x => x.json()); } catch(e) { return; }
-  const list = r.goals || [];
-  const boxes = [box, $('goalsPage')].filter(Boolean);
-  boxes.forEach(target => target.innerHTML = '');
-  if (!list.length) {
-    boxes.forEach(target => target.innerHTML = '<div class="goal-empty">' + escapeHTML(gregalT('objectius.buitMenu')) + '</div>');
-    selectGoalDetail(null);
-    return;
-  }
-  const renderGoal = (target, g) => {
-    const isPage = target === $('goalsPage');
-    const row = document.createElement('div');
-    row.className = 'goal-item' + (g.status === 'fet' ? ' fet' : '');
-    row.dataset.id = g.id;
-
-    const head = document.createElement('div');
-    head.className = 'goal-item-header';
-    head.innerHTML =
-      '<span class="goal-status" title="' + escapeHTML(gregalT(g.status === 'fet' ? 'goal.completed' : 'goal.pending')) + '">' +
-        (g.status === 'fet' ? '✓' : '○') +
-      '</span>' +
-      '<span class="goal-title">' + escapeHTML(g.title) + '</span>' +
-      '<span class="goal-expand-icon">›</span>' +
-      '<button class="icon-btn goal-quick-run" title="' + escapeHTML(gregalT('goal.runTitle')) + '" aria-label="' + escapeHTML(gregalT('goal.runTitle')) + '">▶</button>' +
-      '<button class="icon-btn goal-quick-del" title="' + escapeHTML(gregalT('goal.deleteTitle')) + '" aria-label="' + escapeHTML(gregalT('goal.deleteTitle')) + '">×</button>';
-
-    const detail = document.createElement('div');
-    detail.className = 'goal-detail';
-    detail.hidden = true;
-    detail.innerHTML =
-      '<div class="goal-meta-row">' +
-        '<span class="goal-badge ' + (g.status === 'fet' ? 'fet' : '') + '">' + escapeHTML(gregalT(g.status === 'fet' ? 'goal.completed' : 'goal.pending')) + '</span>' +
-        (g.project ? '<span class="goal-project">📁 ' + escapeHTML(g.project) + '</span>' : '') +
-      '</div>' +
-      '<div class="goal-body-text">' + escapeHTML(g.body || g.title) + '</div>' +
-      '<div class="goal-actions">' +
-        '<button class="primary goal-run-btn"><span>▶</span> ' + escapeHTML(gregalT('goal.run')) + '</button>' +
-        '<button class="ghost goal-del-btn"><span>×</span> ' + escapeHTML(gregalT('goal.delete')) + '</button>' +
-      '</div>';
-
-    head.onclick = (e) => {
-      if (e.target.closest('.goal-quick-run') || e.target.closest('.goal-quick-del')) return;
-      const isOpen = !detail.hidden;
-      target.querySelectorAll('.goal-item.open').forEach(el => {
-        if (el !== row) {
-          el.classList.remove('open');
-          const d = el.querySelector('.goal-detail');
-          if (d) d.hidden = true;
-        }
-      });
-      detail.hidden = isOpen;
-      row.classList.toggle('open', !isOpen);
-      if (isPage) {
-        selectGoalDetail(!isOpen ? g : null);
-      }
-    };
-
-    const runBtn = head.querySelector('.goal-quick-run');
-    runBtn.onclick = (e) => { e.stopPropagation(); runGoal(g.id); };
-
-    const delBtn = head.querySelector('.goal-quick-del');
-    delBtn.onclick = async (e) => {
-      e.stopPropagation();
-      await api('/api/goal', { method: 'POST', body: JSON.stringify({ action: 'delete', id: g.id }) });
-      if (isPage) selectGoalDetail(null);
-      loadGoals();
-    };
-
-    const detailRun = detail.querySelector('.goal-run-btn');
-    if (detailRun) detailRun.onclick = () => runGoal(g.id);
-
-    const detailDel = detail.querySelector('.goal-del-btn');
-    if (detailDel) detailDel.onclick = async () => {
-      await api('/api/goal', { method: 'POST', body: JSON.stringify({ action: 'delete', id: g.id }) });
-      if (isPage) selectGoalDetail(null);
-      loadGoals();
-    };
-
-    row.append(head, detail);
-    target.appendChild(row);
-  };
-  boxes.forEach(target => list.slice(0, target === box ? 6 : 30).forEach(g => renderGoal(target, g)));
+  let r = { items: [] };
+  try { const res = await api('/api/backlog'); if (!res.ok) return; r = await res.json(); } catch (e) { return; }
+  const order = ['in_progress', 'in_review', 'ready', 'blocked', 'proposed'];
+  const open = (r.items || []).filter(it => order.includes(it.status))
+    .sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status) || b.id - a.id);
+  box.innerHTML = '';
+  if (!open.length) { box.innerHTML = '<div class="goal-empty">' + escapeHTML(gregalT('backlog.inspectorEmpty')) + '</div>'; return; }
+  open.slice(0, 6).forEach(it => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'goal-item';
+    row.innerHTML = '<span class="goal-status">#' + escapeHTML(String(it.id)) + '</span><span class="goal-title">' + escapeHTML(it.title) + '</span>';
+    row.title = it.status;
+    row.onclick = () => window.gregalBacklog?.open(it.id);
+    box.appendChild(row);
+  });
 }
 // approveArgsHTML fa llegibles els arguments d'una eina per aprovar: el JSON
 // en cru duia els \n i \t escapats i un edit no s'entenia. Per a edit/patch,

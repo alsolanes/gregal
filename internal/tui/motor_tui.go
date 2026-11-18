@@ -10,6 +10,7 @@ import (
 
 	"gregal/internal/agent"
 	"gregal/internal/config"
+	"gregal/internal/goal"
 	"gregal/internal/llm"
 	"gregal/internal/tools"
 )
@@ -291,8 +292,9 @@ func (m Model) tancaTorn() (tea.Model, tea.Cmd) {
 	if strings.TrimSpace(resposta) != "" {
 		m.convo = append(m.convo, llm.Message{Role: "assistant", Content: resposta})
 		if m.mode == agent.ModeGoal {
-			// En objectiu, la resposta final pot portar el bloc ```goal.
-			m.recordGoal(resposta)
+			// En objectiu, el bloc ```goal pot ser a la resposta final o en
+			// un missatge anterior del torn (abans d'una pregunta).
+			m.recordGoal(goal.TurnReply(m.histAgent(), resposta))
 		}
 	}
 	tools.Active.MarkConvo(len(m.convo))

@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"gregal/internal/agent"
+	"gregal/internal/backlog"
 	"gregal/internal/config"
 	"gregal/internal/goal"
 	"gregal/internal/llm"
@@ -31,10 +32,23 @@ func goalTestModel(t *testing.T) Model {
 		Verify:      config.VerifyCfg{Mode: "off"},
 		Agent:       config.AgentCfg{MaxSteps: 3},
 	}
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	m := New(cfg, filepath.Join(t.TempDir(), "config.yaml"), llm.New(), "test")
 	mod, _ := m.Update(tea.WindowSizeMsg{Width: 110, Height: 32})
 	m = asModel(t, mod)
+	m.cwd = t.TempDir()
 	return m
+}
+
+// tascaDeProva desa al backlog una tasca que es pot començar (amb perquè i
+// criteris, com demana la regla d'«a punt»).
+func tascaDeProva(t *testing.T, m Model, titol string) backlog.Item {
+	t.Helper()
+	it, _, err := goal.Record("```goal\ntitle: "+titol+"\nwhy: per provar-ho\ncriteria:\n- funciona\n```\n", m.cwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return it
 }
 
 // El goal passa per l'agent (amb eines de només lectura), no pel xat
@@ -62,12 +76,12 @@ func TestGoalDesaBlocFinalAgent(t *testing.T) {
 	if mm.agentActive {
 		t.Fatal("la resposta final ha de tancar el torn")
 	}
-	llista, err := goal.List(mm.goalDir(), mm.projectName())
+	llista, err := goal.Open(mm.cwd)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(llista) != 1 {
-		t.Fatalf("esperava 1 objectiu desat, tinc %d", len(llista))
+	if len(llista) != 1 || llista[0].Title != "Fer un videojoc" {
+		t.Fatalf("esperava 1 tasca al backlog: %+v", llista)
 	}
 }
 
@@ -131,14 +145,8 @@ func TestRecordGoalNoRobaTeclat(t *testing.T) {
 // deferred): abans es perdia i el torn quedava penjat en busy.
 func TestMenuObjectiuExecutaArrenca(t *testing.T) {
 	m := goalTestModel(t)
-	g, ok := goal.Parse("```goal\ntasca: Fer un joc\n```\n", m.cwd)
-	if !ok {
-		t.Fatal("no s'ha pogut construir l'objectiu de prova")
-	}
-	if err := goal.Save(m.goalDir(), g); err != nil {
-		t.Fatal(err)
-	}
-	m.lastGoalID = g.ID
+	g := tascaDeProva(t, m, "Fer un joc")
+	m.lastGoalID = strconv.Itoa(g.ID)
 	m.menu = goalActionMenu(g)
 	mod, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	mm := asModel(t, mod)
@@ -164,10 +172,7 @@ func TestMenuObjectiuExecutaArrenca(t *testing.T) {
 // Edita carrega el cos al composer per retocar-lo.
 func TestMenuObjectiuEditaCarregaCos(t *testing.T) {
 	m := goalTestModel(t)
-	g, ok := goal.Parse("```goal\ntasca: Fer un joc\n```\n", m.cwd)
-	if !ok {
-		t.Fatal("no s'ha pogut construir l'objectiu de prova")
-	}
+	g := tascaDeProva(t, m, "Fer un joc")
 	m.menu = goalActionMenu(g)
 	msg, next := m.menu.run(&m, "edita")
 	if next != nil {
@@ -182,14 +187,8 @@ func TestMenuObjectiuEditaCarregaCos(t *testing.T) {
 // descartava i triar Executa deixava el torn penjat en busy per sempre.
 func TestGoalMenuExecutaNoPenja(t *testing.T) {
 	m := goalTestModel(t)
-	g, ok := goal.Parse("```goal\ntasca: Fer un joc\n```\n", m.cwd)
-	if !ok {
-		t.Fatal("no s'ha pogut construir l'objectiu de prova")
-	}
-	if err := goal.Save(m.goalDir(), g); err != nil {
-		t.Fatal(err)
-	}
-	m.lastGoalID = g.ID
+	g := tascaDeProva(t, m, "Fer un joc")
+	m.lastGoalID = strconv.Itoa(g.ID)
 	mn := goalMenu(&m)
 	if _, next := mn.run(&m, "executa"); next != nil {
 		t.Fatal("executa no obre submenú")
@@ -334,18 +333,22 @@ func TestObjectiuEsDesaEnRebreElBloc(t *testing.T) {
 	mod, _ = m.Update(streamDoneMsg{reply: reply})
 	m = asModel(t, mod)
 
-	llista, err := goal.List(m.goalDir(), m.projectName())
+	llista, err := goal.Open(m.cwd)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(llista) != 1 {
-		t.Fatalf("esperava 1 objectiu desat, tinc %d", len(llista))
+		t.Fatalf("esperava 1 tasca al backlog, tinc %d", len(llista))
 	}
-	if llista[0].Title != "Afegir scroll al TUI" {
-		t.Fatalf("títol=%q", llista[0].Title)
+	if llista[0].Title != "Afegir scroll al TUI" || len(llista[0].Criteria) != 1 {
+		t.Fatalf("tasca=%+v", llista[0])
 	}
-	if m.lastGoalID != llista[0].ID {
-		t.Fatalf("lastGoalID=%q, volia %q", m.lastGoalID, llista[0].ID)
+	if m.lastGoalID != "1" {
+		t.Fatalf("lastGoalID=%q, volia 1", m.lastGoalID)
+	}
+	// El model veu el número sota la seva resposta, per revisar-la amb id:.
+	if last := m.convo[len(m.convo)-1].Content; !strings.Contains(last, "#1 (proposed)") {
+		t.Fatalf("falta la nota a la resposta: %q", last)
 	}
 }
 
@@ -354,7 +357,7 @@ func TestObjectiuNoEsDesaEnModeCode(t *testing.T) {
 	reply := "```goal\ntasca: No s'havia de desar\n```\n"
 	mod, _ := m.Update(streamDoneMsg{reply: reply})
 	m = asModel(t, mod)
-	llista, _ := goal.List(m.goalDir(), "")
+	llista, _ := goal.Open(m.cwd)
 	if len(llista) != 0 {
 		t.Fatalf("en mode code no s'hauria de desar cap objectiu: %+v", llista)
 	}
@@ -362,14 +365,8 @@ func TestObjectiuNoEsDesaEnModeCode(t *testing.T) {
 
 func TestExecutaUltimObjectiu(t *testing.T) {
 	m := goalTestModel(t)
-	g, ok := goal.Parse("```goal\ntasca: Afegir scroll al TUI\ncriteris:\n- la roda funciona\n```\n", m.cwd)
-	if !ok {
-		t.Fatal("no s'ha pogut construir l'objectiu de prova")
-	}
-	if err := goal.Save(m.goalDir(), g); err != nil {
-		t.Fatal(err)
-	}
-	m.lastGoalID = g.ID
+	g := tascaDeProva(t, m, "Afegir scroll al TUI")
+	m.lastGoalID = strconv.Itoa(g.ID)
 
 	mod, _ := m.runCommand("/goal executa")
 	m = asModel(t, mod)
@@ -391,7 +388,7 @@ func TestExecutaSenseObjectiusAvisa(t *testing.T) {
 	if m.agentActive {
 		t.Fatal("no s'hauria d'engegar cap agent sense objectius")
 	}
-	if !strings.Contains(strings.Join(m.lines, "\n"), "cap objectiu") {
+	if !strings.Contains(strings.Join(m.lines, "\n"), "cap tasca oberta") {
 		t.Fatalf("esperava un avís de objectiu inexistent:\n%s", strings.Join(m.lines, "\n"))
 	}
 }
@@ -412,31 +409,26 @@ func TestGoalMenuObreAmbOrdre(t *testing.T) {
 // seleccionar, veure detalls, executar o esborrar (igual que a la UI web).
 func TestGoalListMenuInteractiu(t *testing.T) {
 	m := goalTestModel(t)
-	g, ok := goal.Parse("```goal\ntasca: Crear pantalla de login\n```\n", m.cwd)
-	if !ok {
-		t.Fatal("no s'ha pogut analitzar l'objectiu")
-	}
-	if err := goal.Save(m.goalDir(), g); err != nil {
-		t.Fatal(err)
-	}
+	g := tascaDeProva(t, m, "Crear pantalla de login")
+	id := strconv.Itoa(g.ID)
 	mod, _ := m.runCommand("/goal llista")
 	m = asModel(t, mod)
 	if m.menu == nil {
 		t.Fatal("/goal llista ha d'obrir el menú interactiu")
 	}
-	if !strings.Contains(m.menu.title, "objectius") {
+	if !strings.Contains(m.menu.title, "backlog") {
 		t.Fatalf("títol menú inesperat: %q", m.menu.title)
 	}
 	// Seleccionar l'objectiu de la llista l'obre (goalActionMenu)
-	_, actionMenu := m.menu.run(&m, g.ID)
-	if actionMenu == nil || !strings.Contains(actionMenu.title, g.ID) {
+	_, actionMenu := m.menu.run(&m, id)
+	if actionMenu == nil || !strings.Contains(actionMenu.title, "#"+id) {
 		t.Fatalf("seleccionar l'objectiu ha d'obrir les seves accions: %v", actionMenu)
 	}
 	// L'acció "mostra" bolca la fitxa completa de l'objectiu
 	actionMenu.run(&m, "mostra")
 	found := false
 	for _, l := range m.lines {
-		if strings.Contains(l, "OBJECTIU") && strings.Contains(l, g.ID) {
+		if strings.Contains(l, "BACKLOG #"+id) {
 			found = true
 			break
 		}

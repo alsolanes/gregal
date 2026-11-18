@@ -995,10 +995,11 @@ goal was not confirmed).
 
 ### Goal runs (`--goal`)
 
-`gregal --goal <id|last|"text">` runs a goal until an independent verifier
+`gregal --goal <#n|last|"text">` runs a goal until an independent verifier
 confirms it with evidence, instead of trusting the agent's "done". The
-argument is the id of a goal saved with goal mode, `last` (the latest goal of
-this folder) or the goal text. It runs in autonomous mode unless you pass
+argument is a backlog item number (`#3`; goal mode saves what it pins down as
+backlog items), `last` (the open item touched most recently in this folder) or
+the goal text. It runs in autonomous mode unless you pass
 `--mode`. Each round:
 
 1. the agent works on the goal (from round 2, on what is still missing);
@@ -1017,9 +1018,11 @@ is not and why it stopped, on a limit: `--goal-rounds N` (default 4, at most
 10), `--max-steps N` (per round; the total is capped at 300), `--goal-minutes N`
 (default 60), `--goal-cost USD` (needs prices), or when two rounds in a row
 leave the project exactly the same. Progress goes to stderr; `--output json`
-prints the rounds with their verdicts. A met saved goal is marked as done.
-The loop is in the CLI; the terminal and web goal cards still start a normal
-turn.
+prints the rounds with their verdicts. For a backlog item, the run starts it
+(`in_progress`); if the goal is met the item moves to `in_review` with the
+loop's verdict as its review, and if not, what is missing goes to its log.
+The loop is in the CLI; "Work on it" in the terminal, web and phone starts a
+normal turn, and the independent review runs when the item reaches review.
 
 Delegated agents use the active workspace and session, inherit configured
 restrictions, and stop when the parent run is canceled. Background commands

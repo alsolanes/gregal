@@ -30,6 +30,7 @@ import (
 	"gregal/internal/companion"
 	"gregal/internal/config"
 	"gregal/internal/events"
+	"gregal/internal/goal"
 	"gregal/internal/jobs"
 	"gregal/internal/llm"
 	"gregal/internal/mcp"
@@ -1781,6 +1782,12 @@ func (s *Server) recordActive(event string, value any) {
 		if text == "" {
 			text = "torn completat"
 		}
+	case "backlog_item":
+		// La tasca sencera va al payload; al text, la nota d'una línia.
+		kind = event
+		if m, ok := value.(map[string]any); ok {
+			text, _ = m["note"].(string)
+		}
 	default:
 		kind = event
 		text = data["text"]
@@ -1910,6 +1917,8 @@ func interactiveEventPayload(event string, value any) json.RawMessage {
 		allowed = []string{"seq", "step", "role", "kind", "target", "n", "tools", "files", "command", "result", "done", "agent", "started_at", "duration_ms"}
 	case "handoff":
 		allowed = []string{"seq", "step", "from", "to", "kind", "n", "target", "files", "at"}
+	case "backlog_item": // el mode objectiu ha desat una tasca (goal.go)
+		allowed = []string{"item", "created", "note"}
 	case "retro_message": // #retro (retro.go)
 		allowed = []string{"key", "message"}
 	case "retro_reaction":
@@ -3163,7 +3172,7 @@ func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, req
 	}
 	s.mu.Unlock()
 	if mode == agent.ModeGoal {
-		s.emitGoal(emit, lastReply)
+		s.emitGoal(emit, goal.TurnReply(hist, lastReply))
 	}
 	emit("done", map[string]string{"reply": lastReply})
 	// El torn s'ha acabat: si el mòbil és fora de l'app, ha de saber-ho. Va

@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -549,12 +550,16 @@ bucle:
 	st.mu.Unlock()
 	b.saveSession(st)
 
-	// Mode objectiu: es desa l'objectiu proposat.
+	// Mode objectiu: la tasca del bloc es desa al backlog i el número queda
+	// sota la resposta (el model la pot revisar amb id:).
 	if mode == agent.ModeGoal {
-		if g, ok := goal.Parse(lastReply, b.dirOf(st)); ok {
-			if err := goal.Save(b.goalDirSafe(), g); err == nil {
-				b.send(ctx, chatID, fmt.Sprintf("◆ "+b.tr("Objectiu desat · <code>%s</code>\n/goal executa per posar-lo en marxa (mode code)", "Goal saved · <code>%s</code>\nUse /goal executa to run it (code mode)"), esc(g.ID)))
-			}
+		if it, created, err := goal.Record(goal.TurnReply(torn.Hist, lastReply), b.dirOf(st)); err == nil {
+			st.mu.Lock()
+			goal.AnnotateLast(st.convo, goal.Note(it, created))
+			st.mu.Unlock()
+			b.saveSession(st)
+			b.sendKB(ctx, chatID, fmt.Sprintf("◆ "+b.tr("Desada al backlog com a <code>#%d</code> (%s)", "Saved to the backlog as <code>#%d</code> (%s)"), it.ID, esc(it.Status)),
+				Keyboard{{{Text: "▶ " + b.tr("Treballa-hi", "Work on it"), Data: "goal:run:" + strconv.Itoa(it.ID)}, {Text: "🗂 Backlog", Data: "goal:list"}}})
 		}
 	}
 	if toolCount > 0 || answer.Len() > 0 {

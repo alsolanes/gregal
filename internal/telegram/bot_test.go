@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"gregal/internal/agent"
+	"gregal/internal/backlog"
 	"gregal/internal/config"
 	"gregal/internal/goal"
 	"gregal/internal/session"
@@ -306,7 +307,7 @@ func TestTelegramEnglishDefault(t *testing.T) {
 	if got := bot.planKB(); got[0][0].Text != "▶ Run" || got[0][1].Text != "Discard" {
 		t.Errorf("English plan keyboard = %+v", got)
 	}
-	if got := bot.goalsKB([]goal.Goal{{ID: "g1", Title: "goal"}}); got[len(got)-1][0].Text != "↻ Refresh" {
+	if got := bot.goalsKB([]backlog.Item{{ID: 1, Title: "goal"}}); got[len(got)-1][0].Text != "↻ Refresh" {
 		t.Errorf("English goal keyboard = %+v", got)
 	}
 	if got := bot.routeReason("router: feina pesada → rol code"); got != "router: complex task → role code" {
@@ -663,38 +664,39 @@ func TestNomesLAmoPotAprovar(t *testing.T) {
 }
 
 func TestModeObjectiuDesaElBloc(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	tg := newFakeTG(t)
 	bloc := "Ja en tinc prou.\n\n```goal\ntasca: Afegir un comptador\ncontext: al TUI\ncriteris:\n- es veu\npassos:\n- tocar la barra\nriscos:\n- cap\n```\n"
 	llm := newFakeLLM(t, replyText(bloc))
-	bot, _, goalsDir := testBot(t, tg, llm, nil)
+	bot, _, _ := testBot(t, tg, llm, nil)
 	bot.cfg.Mode = "goal"
 
 	bot.handleMessage(context.Background(), msg(1234567, "vull un comptador"))
 
-	goals, err := goal.List(goalsDir, filepath.Base(bot.cwd))
-	if err != nil || len(goals) != 1 {
-		t.Fatalf("objectiu no desat: %v %+v", err, goals)
+	items, err := goal.Open(bot.cwd)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("tasca no desada al backlog: %v %+v", err, items)
 	}
-	if goals[0].Title != "Afegir un comptador" {
-		t.Fatalf("títol inesperat: %q", goals[0].Title)
+	if items[0].Title != "Afegir un comptador" || len(items[0].Criteria) != 1 {
+		t.Fatalf("tasca inesperada: %+v", items[0])
 	}
-	if _, ok := tg.find("Objectiu desat"); !ok {
-		t.Fatalf("no s'ha avisat de l'objectiu: %+v", tg.all())
+	if _, ok := tg.find("Desada al backlog"); !ok {
+		t.Fatalf("no s'ha avisat de la tasca: %+v", tg.all())
 	}
 }
 
 func TestGoalExecutaCanviaAModeCodi(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	tg := newFakeTG(t)
 	llm := newFakeLLM(t, replyText("objectiu en marxa"))
-	bot, _, goalsDir := testBot(t, tg, llm, nil)
-	g := goal.Goal{ID: "abc123", Project: filepath.Base(bot.cwd), Title: "Fer la cosa", Body: "tasca: Fer la cosa\npassos:\n- primer"}
-	if err := goal.Save(goalsDir, g); err != nil {
+	bot, _, _ := testBot(t, tg, llm, nil)
+	if _, _, err := goal.Record("```goal\ntitle: Fer la cosa\nwhy: cal\ncriteria:\n- feta\n```", bot.cwd); err != nil {
 		t.Fatal(err)
 	}
 	st := bot.state(1234567)
 	st.mode = "goal"
 
-	bot.handleMessage(context.Background(), msg(1234567, "/goal executa abc123"))
+	bot.handleMessage(context.Background(), msg(1234567, "/goal executa #1"))
 
 	st.mu.Lock()
 	mode := st.mode
@@ -702,11 +704,11 @@ func TestGoalExecutaCanviaAModeCodi(t *testing.T) {
 	if mode != "code" {
 		t.Fatalf("hauria de passar a code, tinc %q", mode)
 	}
-	if _, ok := tg.find("Executant l'objectiu"); !ok {
-		t.Fatal("no s'ha anunciat l'execució")
+	if _, ok := tg.find("Treballant en la tasca"); !ok {
+		t.Fatal("no s'ha anunciat la feina")
 	}
-	if g2, err := goal.Get(goalsDir, "abc123"); err != nil || g2.Status != goal.StatusFet {
-		t.Fatalf("l'objectiu hauria de quedar com a fet: %v %v", g2.Status, err)
+	if it, err := goal.Resolve(bot.cwd, "1"); err != nil || it.Status != "in_progress" {
+		t.Fatalf("la tasca hauria de quedar en curs: %v %v", it.Status, err)
 	}
 }
 

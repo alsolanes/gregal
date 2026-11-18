@@ -8,14 +8,19 @@ import (
 	"strings"
 	"testing"
 
+	"gregal/internal/backlog"
 	"gregal/internal/companion"
-	"gregal/internal/goal"
 )
 
-// windGoalFile desa un objectiu de prova al goalDir del servidor.
-func windGoalFile(t *testing.T, s *Server, id, title, status string) {
+// windGoalFile deixa una tasca oberta al backlog del projecte (el que abans
+// era un objectiu pendent): els vents la veuen com a context.
+func windGoalFile(t *testing.T, s *Server, _, title, _ string) {
 	t.Helper()
-	if err := goal.Save(s.goalDir, goal.Goal{ID: id, Title: title, Status: status, Project: s.projectName()}); err != nil {
+	st, err := backlog.Open(s.sessionCwd())
+	if err == nil {
+		_, err = st.Create(backlog.Item{Type: backlog.TypeFeature, Title: title}, "")
+	}
+	if err != nil {
 		t.Fatal(err)
 	}
 }

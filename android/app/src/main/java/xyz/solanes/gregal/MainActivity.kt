@@ -305,7 +305,8 @@ class MainActivity : ComponentActivity() {
                                     Screen.Ventet -> VentetScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Work -> WorkScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Sessions -> SessionsScreen(vm) { scope.launch { drawer.open() } }
-                                    Screen.Goals -> GoalsScreen(vm) { scope.launch { drawer.open() } }
+                                    // Els objectius ara són tasques del backlog.
+                                    Screen.Goals -> BacklogScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Backlog -> BacklogScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Jobs -> JobsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Office -> OfficeScreen(vm, { scope.launch { drawer.open() } }) { nav(Screen.Chat) }

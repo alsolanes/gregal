@@ -155,24 +155,24 @@ func TestSessioPerBoto(t *testing.T) {
 }
 
 func TestGoalPerBoto(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	tg := newFakeTG(t)
 	llm := newFakeLLM(t, replyText("objectiu en marxa"))
-	bot, _, goalsDir := testBot(t, tg, llm, nil)
+	bot, _, _ := testBot(t, tg, llm, nil)
 	ctx := context.Background()
-	g := goal.Goal{ID: "abc123", Project: bot.projectName(), Title: "Fer la cosa", Body: "tasca: Fer la cosa"}
-	if err := goal.Save(goalsDir, g); err != nil {
+	if _, _, err := goal.Record("```goal\ntitle: Fer la cosa\nwhy: cal\ncriteria:\n- feta\n```", bot.cwd); err != nil {
 		t.Fatal(err)
 	}
 
 	bot.handleMessage(ctx, msg(1234567, "/goal"))
-	m, ok := tg.findKB("Objectius")
+	m, ok := tg.findKB("Backlog")
 	if !ok {
 		t.Fatalf("sense teclat d'objectius: %+v", tg.all())
 	}
 	trobat := false
 	for _, row := range m.KB {
 		for _, b := range row {
-			if b.Data == "goal:run:abc123" {
+			if b.Data == "goal:run:1" {
 				trobat = true
 			}
 		}
@@ -181,8 +181,8 @@ func TestGoalPerBoto(t *testing.T) {
 		t.Fatalf("sense botó ▶: %+v", m.KB)
 	}
 
-	bot.handleCallback(ctx, cb(1234567, 1234567, "goal:run:abc123"))
-	waitText(t, tg, "Executant l'objectiu")
+	bot.handleCallback(ctx, cb(1234567, 1234567, "goal:run:1"))
+	waitText(t, tg, "Treballant en la tasca")
 	st := bot.state(1234567)
 	st.mu.Lock()
 	mode := st.mode
@@ -190,8 +190,8 @@ func TestGoalPerBoto(t *testing.T) {
 	if mode != "code" {
 		t.Fatalf("mode=%q", mode)
 	}
-	if g2, err := goal.Get(goalsDir, "abc123"); err != nil || g2.Status != goal.StatusFet {
-		t.Fatalf("hauria de quedar fet: %+v %v", g2.Status, err)
+	if it, err := goal.Resolve(bot.cwd, "1"); err != nil || it.Status != "in_progress" {
+		t.Fatalf("hauria de quedar en curs: %+v %v", it.Status, err)
 	}
 }
 

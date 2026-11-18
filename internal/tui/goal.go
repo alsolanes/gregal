@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"gregal/internal/agent"
+	"gregal/internal/backlog"
 	"gregal/internal/goal"
 	"gregal/internal/profile"
 )
@@ -35,41 +37,69 @@ func (m Model) projectName() string {
 	return filepath.Base(strings.TrimRight(m.cwd, string(filepath.Separator)))
 }
 
-// recordGoal desa l'objectiu d'una resposta de l'agent i pinta la targeta.
-func (m *Model) recordGoal(reply string) (goal.Goal, bool) {
-	g, ok := goal.Parse(reply, m.cwd)
-	if !ok {
-		return goal.Goal{}, false
+// El mode objectiu desa tasques al backlog del projecte (goal/backlog.go):
+// /goal és la manera de veure-les i posar-s'hi des del terminal.
+
+// migratsTUI recorda si els objectius vells ja s'han passat al backlog.
+var migratsTUI = map[string]bool{}
+
+func (m *Model) migraObjectius() {
+	dir := m.goalDir()
+	if migratsTUI[dir] {
+		return
 	}
-	if err := goal.Save(m.goalDir(), g); err != nil {
-		m.push(systemLine(T("goal.noDesat") + err.Error()))
-		return goal.Goal{}, false
+	migratsTUI[dir] = true
+	if n, err := goal.MigrateToBacklog(dir); n > 0 {
+		m.push(systemLine(fmt.Sprintf("backlog: %d objectius passats a tasques", n)))
+	} else if err != nil {
+		m.push(systemLine("backlog: " + err.Error()))
 	}
-	m.lastGoalID = g.ID
-	m.push(goalCard(g, m.vp.Width))
-	// Accions immediates sobre l'objectiu (fletxes + Enter): executar,
-	// editar, llistar, esborrar. Només si no estaves escrivint res, per
-	// no robar-te el teclat a mitja frase.
-	if m.menu == nil && strings.TrimSpace(m.input.Value()) == "" {
-		m.menu = goalActionMenu(g)
-	}
-	return g, true
 }
 
-// goalCard pinta l'objectiu desat amb les accions disponibles.
-func goalCard(g goal.Goal, width int) string {
+// recordGoal desa al backlog la tasca del bloc ```goal, n'apunta el número
+// a la resposta (perquè el model la pugui revisar amb id:) i pinta la
+// targeta.
+func (m *Model) recordGoal(reply string) (backlog.Item, bool) {
+	if _, ok := goal.ParseItem(reply); !ok {
+		return backlog.Item{}, false
+	}
+	m.migraObjectius()
+	it, created, err := goal.Record(reply, m.cwd)
+	if err != nil {
+		m.push(systemLine(T("goal.noDesat") + err.Error()))
+		return backlog.Item{}, false
+	}
+	goal.AnnotateLast(m.convo, goal.Note(it, created))
+	m.lastGoalID = strconv.Itoa(it.ID)
+	m.push(goalCard(it, m.vp.Width))
+	// Accions immediates (fletxes + Enter): treballar-hi, revisar-la,
+	// llistar, descartar. Només si no estaves escrivint res, per no
+	// robar-te el teclat a mitja frase.
+	if m.menu == nil && strings.TrimSpace(m.input.Value()) == "" {
+		m.menu = goalActionMenu(it)
+	}
+	return it, true
+}
+
+// goalCard pinta la tasca amb les accions disponibles.
+func goalCard(it backlog.Item, width int) string {
 	cos := ""
-	for _, linia := range strings.Split(g.Body, "\n") {
+	for _, linia := range strings.Split(goal.Card(it), "\n")[1:] {
 		cos += "  " + linia + "\n"
 	}
-	titol := goalTitleStyle.Render("◆ "+T("mode.goal.badge")) +
-		dimStyle.Render("  "+g.ID+" · "+g.Project+" · "+g.Status)
+	titol := goalTitleStyle.Render("◆ "+T("mode.goal.badge")+" · BACKLOG #"+strconv.Itoa(it.ID)) +
+		dimStyle.Render("  "+it.Type+" · "+it.Status)
 	return goalBoxStyle.Width(max(width-2, 20)).Render(titol + "\n" + cos +
 		dimStyle.Render(T("goal.pista")))
 }
 
-// executaGoal passa a mode code i engega l'agent amb l'objectiu.
-func (m *Model) executaGoal(g goal.Goal) (tea.Model, tea.Cmd) {
+// executaGoal passa a mode code, posa la tasca en curs i engega l'agent.
+func (m *Model) executaGoal(it backlog.Item) (tea.Model, tea.Cmd) {
+	it, task, err := goal.Start(m.cwd, it.ID, "")
+	if err != nil {
+		m.push(systemLine("#" + strconv.Itoa(it.ID) + ": " + err.Error()))
+		return m, nil
+	}
 	if m.mode != agent.ModeCode {
 		m.mode = agent.ModeCode
 		m.cfg.Mode = m.mode
@@ -77,16 +107,13 @@ func (m *Model) executaGoal(g goal.Goal) (tea.Model, tea.Cmd) {
 			m.push(systemLine(T("goal.modeCodeNoDesat") + err.Error() + ")"))
 		}
 	}
-	g.Status = goal.StatusFet
-	if err := goal.Save(m.goalDir(), g); err != nil {
-		m.push(systemLine(T("goal.noMarcat") + err.Error()))
-	}
-	m.push(okStyle.Render("◆ "+T("goal.executant")+g.ID) + dimStyle.Render(" — "+g.Title))
-	return m.startAgent(goal.Task(g))
+	m.push(okStyle.Render("◆ "+T("goal.executant")+strconv.Itoa(it.ID)) + dimStyle.Render(" — "+it.Title))
+	return m.startAgent(task)
 }
 
 // goalCommand implementa /goal i les seves variants.
 func (m *Model) goalCommand(arg string) (tea.Model, tea.Cmd) {
+	m.migraObjectius()
 	arg = strings.TrimSpace(arg)
 	camps := strings.Fields(arg)
 	accio := ""
@@ -113,15 +140,19 @@ func (m *Model) goalCommand(arg string) (tea.Model, tea.Cmd) {
 		return m.goalShow(m.goalArg(camps))
 	case "executa":
 		return m.goalRun(m.goalArg(camps))
-	case "esborra":
-		return m.goalDelete(m.goalArg(camps))
+	case "esborra", "descarta":
+		motiu := ""
+		if len(camps) > 2 {
+			motiu = strings.Join(camps[2:], " ")
+		}
+		return m.goalDelete(m.goalArg(camps), motiu)
 	default:
 		m.push(systemLine(T("goal.us")))
 		return m, nil
 	}
 }
 
-// goalArg retorna l'id indicat o l'últim objectiu usat.
+// goalArg retorna el número indicat o l'última tasca usada.
 func (m Model) goalArg(camps []string) string {
 	if len(camps) > 1 {
 		return camps[1]
@@ -129,22 +160,17 @@ func (m Model) goalArg(camps []string) string {
 	return m.lastGoalID
 }
 
-// goalResol troba l'objectiu demanat (per id o l'últim) del projecte actual.
-func (m Model) goalResol(id string) (goal.Goal, bool) {
-	if id != "" {
-		if g, err := goal.Get(m.goalDir(), id); err == nil {
-			return g, true
-		}
+// goalResol troba la tasca demanada (per número, l'última o la més recent).
+func (m Model) goalResol(id string) (backlog.Item, bool) {
+	it, err := goal.Resolve(m.cwd, id)
+	if err != nil && id != "" {
+		it, err = goal.Resolve(m.cwd, "")
 	}
-	llista, err := goal.List(m.goalDir(), m.projectName())
-	if err != nil || len(llista) == 0 {
-		return goal.Goal{}, false
-	}
-	return llista[0], true
+	return it, err == nil
 }
 
 func (m *Model) goalList() (tea.Model, tea.Cmd) {
-	llista, err := goal.List(m.goalDir(), m.projectName())
+	llista, err := goal.Open(m.cwd)
 	if err != nil {
 		m.push(systemLine(T("goal.noLlegits") + err.Error()))
 		return m, nil
@@ -153,52 +179,61 @@ func (m *Model) goalList() (tea.Model, tea.Cmd) {
 		m.push(systemLine(T("goal.capEncara")))
 		return m, nil
 	}
-	m.push(systemStyle.Render("◆ "+T("goal.objectiusDe")+m.projectName()) + dimStyle.Render("  (/goal executa <id>)"))
-	for _, g := range llista {
-		m.push("  " + goal.Resum(g) + dimStyle.Render("  "+g.Created.Local().Format("02/01 15:04")))
+	m.push(systemStyle.Render("◆ "+T("goal.objectiusDe")+m.projectName()) + dimStyle.Render("  (/goal executa <#>)"))
+	for _, it := range llista {
+		m.push("  " + backlog.Resum(it))
 	}
 	return m, nil
 }
 
 func (m *Model) goalShow(id string) (tea.Model, tea.Cmd) {
-	g, ok := m.goalResol(id)
+	it, ok := m.goalResol(id)
 	if !ok {
 		m.push(systemLine(T("goal.capDesat")))
 		return m, nil
 	}
-	m.lastGoalID = g.ID
-	m.push(goalCard(g, m.vp.Width))
+	m.lastGoalID = strconv.Itoa(it.ID)
+	m.push(goalCard(it, m.vp.Width))
 	return m, nil
 }
 
 func (m *Model) goalRun(id string) (tea.Model, tea.Cmd) {
-	g, ok := m.goalResol(id)
+	it, ok := m.goalResol(id)
 	if !ok {
 		m.push(systemLine(T("goal.capExecutar")))
 		return m, nil
 	}
-	m.lastGoalID = g.ID
-	return m.executaGoal(g)
+	m.lastGoalID = strconv.Itoa(it.ID)
+	return m.executaGoal(it)
 }
 
-func (m *Model) goalDelete(id string) (tea.Model, tea.Cmd) {
-	g, ok := m.goalResol(id)
+// goalDelete descarta la tasca: al backlog no s'esborra res, i el motiu
+// queda al log (si no en dius cap, consta que va ser des d'aquí).
+func (m *Model) goalDelete(id, motiu string) (tea.Model, tea.Cmd) {
+	it, ok := m.goalResol(id)
 	if !ok {
 		m.push(systemLine(T("goal.capEsborrar")))
 		return m, nil
 	}
-	if err := goal.Delete(m.goalDir(), g.ID); err != nil {
+	if strings.TrimSpace(motiu) == "" {
+		motiu = "dropped from the terminal (/goal)"
+	}
+	st, err := backlog.Open(m.cwd)
+	if err == nil {
+		_, err = st.Move(it.ID, backlog.StatusDropped, motiu, "")
+	}
+	if err != nil {
 		m.push(systemLine(T("goal.noEsborrat") + err.Error()))
 		return m, nil
 	}
-	if m.lastGoalID == g.ID {
+	if m.lastGoalID == strconv.Itoa(it.ID) {
 		m.lastGoalID = ""
 	}
-	m.push(okStyle.Render("✓ "+T("goal.esborrat")) + dimStyle.Render(" · "+g.ID+" "+g.Title))
+	m.push(okStyle.Render("✓ "+T("goal.esborrat")) + dimStyle.Render(" · #"+strconv.Itoa(it.ID)+" "+it.Title))
 	return m, nil
 }
 
-// goalMenu és la finestra navegable d'objectius.
+// goalMenu és la finestra navegable del backlog.
 func goalMenu(m *Model) *menuState {
 	teUltim := m.lastGoalID != ""
 	items := []menuItem{
@@ -216,7 +251,7 @@ func goalMenu(m *Model) *menuState {
 		menuItem{text: T("goal.llista"), val: "llista"},
 		menuItem{text: T("goal.esborraUltim"), val: "esborra"},
 	)
-	return &menuState{title: T("goal.objectiu"), items: items, run: func(m *Model, val string) (string, *menuState) {
+	return &menuState{title: T("goal.objectius"), items: items, run: func(m *Model, val string) (string, *menuState) {
 		if val == "llista" {
 			return "", goalListMenu(m)
 		}
@@ -225,8 +260,7 @@ func goalMenu(m *Model) *menuState {
 		// d'Update la recull. Llançar-la aquí moria: torn penjat en busy.
 		mm, cmd := m.goalCommand(val)
 		// startAgent torna Model per valor: cal copiar l'estat (busy,
-		// stream, passos...) al model viu, no només el Cmd. Sense això,
-		// a més de penjar-se, el type-assert feia panic. Primer la
+		// stream, passos...) al model viu, no només el Cmd. Primer la
 		// còpia i després el deferred, que si no la còpia l'esborra.
 		if v, ok := mm.(Model); ok {
 			*m = v
@@ -241,10 +275,10 @@ func goalMenu(m *Model) *menuState {
 	}}
 }
 
-// goalListMenu mostra la llista interactiva d'objectius per poder-los
-// seleccionar, obrir, veure detalls, executar o esborrar.
+// goalListMenu és la llista interactiva de tasques obertes: triar-ne una
+// n'obre les accions.
 func goalListMenu(m *Model) *menuState {
-	llista, err := goal.List(m.goalDir(), m.projectName())
+	llista, err := goal.Open(m.cwd)
 	if err != nil || len(llista) == 0 {
 		return &menuState{
 			title: T("goal.objectius") + " (" + m.projectName() + ")",
@@ -253,13 +287,9 @@ func goalListMenu(m *Model) *menuState {
 		}
 	}
 	items := make([]menuItem, 0, len(llista))
-	for _, g := range llista {
-		st := "·"
-		if g.Status == goal.StatusFet {
-			st = "✓"
-		}
-		text := fmt.Sprintf("%s %-8s %s", st, g.ID, g.Title)
-		items = append(items, menuItem{text: text, val: g.ID})
+	for _, it := range llista {
+		text := fmt.Sprintf("#%-3d %-11s %s", it.ID, it.Status, it.Title)
+		items = append(items, menuItem{text: text, val: strconv.Itoa(it.ID)})
 	}
 	return &menuState{
 		title: T("goal.objectius") + " · " + m.projectName(),
@@ -268,21 +298,21 @@ func goalListMenu(m *Model) *menuState {
 			if id == "noop" {
 				return "", nil
 			}
-			g, ok := m.goalResol(id)
+			it, ok := m.goalResol(id)
 			if !ok {
 				return systemLine(T("goal.capDesat")), nil
 			}
-			m.lastGoalID = g.ID
-			return "", goalActionMenu(g)
+			m.lastGoalID = strconv.Itoa(it.ID)
+			return "", goalActionMenu(it)
 		},
 	}
 }
 
-// goalActionMenu són les accions sobre l'objectiu acabat de definir o triat
-// (fletxes + Enter): executar-lo, veure'l, editar-lo al composer, llistar o
-// esborrar. Esc tanca sense fer res.
-func goalActionMenu(g goal.Goal) *menuState {
-	return &menuState{title: T("goal.objectiu") + " · " + g.ID, items: []menuItem{
+// goalActionMenu són les accions sobre la tasca acabada de definir o
+// triada (fletxes + Enter). Esc tanca sense fer res.
+func goalActionMenu(it backlog.Item) *menuState {
+	id := strconv.Itoa(it.ID)
+	return &menuState{title: T("goal.objectiu") + " · #" + id, items: []menuItem{
 		{text: "▶ " + T("goal.accExecuta"), val: "executa"},
 		{text: "👁 " + T("goal.accMostra"), val: "mostra"},
 		{text: "✎ " + T("goal.accEdita"), val: "edita"},
@@ -293,7 +323,7 @@ func goalActionMenu(g goal.Goal) *menuState {
 		case "executa":
 			// Com al menú /goal: el Cmd va a deferred i l'estat del
 			// Model per valor es copia (si no, torn penjat o panic).
-			if mm, cmd := m.goalCommand("executa " + g.ID); cmd != nil {
+			if mm, cmd := m.goalCommand("executa " + id); cmd != nil {
 				if v, ok := mm.(Model); ok {
 					*m = v
 				}
@@ -301,18 +331,20 @@ func goalActionMenu(g goal.Goal) *menuState {
 			}
 			return "", nil
 		case "mostra":
-			m.push(goalCard(g, m.vp.Width))
+			m.push(goalCard(it, m.vp.Width))
 			return "", nil
 		case "edita":
-			// El cos torna al composer per retocar-lo: en enviar-lo es
-			// desarà com a objectiu nou (l'antic es pot esborrar).
-			m.input.SetValue(g.Body)
+			// Es revisa amb l'agent en mode objectiu: la tasca va al
+			// composer i la persona hi afegeix què vol canviar; el model
+			// torna el bloc amb id: i es reescriu la mateixa tasca.
+			m.mode = agent.ModeGoal
+			m.input.SetValue("Revise backlog item #" + id + " (keep `id: " + id + "` in the block):\n" + goal.Card(it) + "\n\nChange: ")
 			m.fitInput()
 			return systemLine(T("goal.editaText")), nil
 		case "llista":
 			return "", goalListMenu(m)
 		case "esborra":
-			_, _ = m.goalCommand("esborra " + g.ID)
+			_, _ = m.goalCommand("esborra " + id)
 			return "", nil
 		}
 		return "", nil

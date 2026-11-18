@@ -77,7 +77,7 @@
     const busy = busySessions();
     if (busy) pills.push('<button type="button" class="home-pill" data-go="workshop"><span class="home-pill-dot busy"></span>' +
       esc(count(busy, 'home.agentsOne', 'home.agents')) + '</button>');
-    if (goals.length) pills.push('<button type="button" class="home-pill" data-go="objectius"><span class="home-pill-dot goals"></span>' +
+    if (goals.length) pills.push('<button type="button" class="home-pill" data-go="backlog"><span class="home-pill-dot goals"></span>' +
       esc(count(goals.length, 'home.goalsOne', 'home.goals')) + '</button>');
 
     // Res de «Continua a…» ni converses recents a l'inici: la pàgina queda
