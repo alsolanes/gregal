@@ -1,6 +1,5 @@
 package xyz.solanes.gregal
 
-import androidx.compose.ui.graphics.compositeOver
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -14,6 +13,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.fillMaxSize
@@ -131,11 +131,11 @@ class Prefs(val ctx: Context) {
     var capHome: Boolean
         get() = p.getBoolean("capHome", false)
         set(v) { p.edit().putBoolean("capHome", v).apply() }
-    /** Decorative face/composer motion is opt-in; event motion follows real work. */
     /** Estil Vidre (superfícies translúcides i fons amb llum); apagat per defecte. */
     var glass: Boolean
         get() = p.getBoolean("glass", false)
         set(v) { p.edit().putBoolean("glass", v).apply() }
+    /** Decorative face/composer motion is opt-in; event motion follows real work. */
     var expressiveMotion: Boolean
         // Activat per defecte: amb la cara quieta els vents semblaven dibuixos.
         // Android «Elimina les animacions» continua aturant-ho (windMotionEnabled).

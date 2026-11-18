@@ -2,6 +2,7 @@ package xyz.solanes.gregal
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.lerp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -25,6 +26,13 @@ class GlassTest {
         return (l1 + 0.05) / (l2 + 0.05)
     }
 
+    /** El fons de SeaBackdrop a l'alçada `y` (0..1): el degradat cap a
+     *  l'abisme des del 55 % i, a dalt, el vel d'escuma (pitjor cas: 7 %). */
+    private fun fonsA(p: GregalPalette, y: Float): Color {
+        val base = if (y <= 0.55f) p.deepTop else lerp(p.deepTop, p.deepBottom, (y - 0.55f) / 0.45f)
+        return if (y < 0.25f) p.sea.copy(alpha = 0.07f).compositeOver(base) else base
+    }
+
     private val totes = GregalTemes.flatMap { listOf(it.clar, it.fosc) }
 
     @Test
@@ -46,7 +54,7 @@ class GlassTest {
         for (t in GregalTemes) for (p in listOf(t.clar, t.fosc)) {
             val g = p.glassy()
             val nom = "${t.id} (${if (p.dark) "fosc" else "clar"})"
-            val fons = listOf(g.deepTop) + auroraBlobs(g).map { it.color.compositeOver(g.deepTop) }
+            val fons = listOf(g.deepTop, g.deepBottom) + auroraBlobs(g).map { it.color.compositeOver(fonsA(g, it.y)) }
             for (f in fons) {
                 val sup = g.surface.compositeOver(f)
                 assertTrue("$nom: text ${contrast(g.ink, sup)}", contrast(g.ink, sup) >= 7.0)
@@ -66,10 +74,12 @@ class GlassTest {
     }
 
     @Test
-    fun `els components de Material deixen veure el fons`() {
+    fun `els diàlegs de Material queden opacs amb vidre`() {
         for (p in totes) {
-            assertEquals(Color.Transparent, p.glassy().scheme().background)
-            assertEquals(p.deepTop, p.scheme().background)
+            val s = p.glassy().scheme()
+            assertEquals(p.deepTop, s.background)
+            assertEquals(1f, s.surface.alpha)
+            assertEquals(1f, s.surfaceContainerHigh.alpha)
         }
     }
 }

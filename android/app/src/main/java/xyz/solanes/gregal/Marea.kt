@@ -1,11 +1,5 @@
 package xyz.solanes.gregal
 
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.ui.geometry.Offset
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.sin
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -26,13 +20,18 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -40,6 +39,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.max
@@ -295,8 +297,10 @@ fun SeaBackdrop(modifier: Modifier = Modifier, content: @Composable () -> Unit) 
                 0.55f to pal.deepTop,
                 1f to pal.deepBottom,
             )
-        ).aurora(pal)
+        )
     ) {
+        // Capa pròpia: cada pas de les taques només redibuixa les taques.
+        Box(Modifier.matchParentSize().graphicsLayer().aurora(pal))
         Box(
             Modifier
                 .height(180.dp)
@@ -313,7 +317,8 @@ fun SeaBackdrop(modifier: Modifier = Modifier, content: @Composable () -> Unit) 
 /**
  * Les taques de llum del fons Vidre ([auroraBlobs]). Es mouen a ~15 fps i
  * només es redibuixen (no es recomponen): el desplaçament és tan lent que més
- * fotogrames només gastarien bateria. Sense moviment, quietes.
+ * fotogrames només gastarien bateria. Cada pas espera un fotograma, així que
+ * en segon pla (sense fotogrames) s'atura. Sense moviment, quietes.
  */
 @Composable
 private fun Modifier.aurora(pal: GregalPalette): Modifier {
@@ -322,7 +327,11 @@ private fun Modifier.aurora(pal: GregalPalette): Modifier {
     val motion = windMotionEnabled()
     val time = remember { mutableFloatStateOf(0f) }
     if (motion) LaunchedEffect(Unit) {
-        while (true) { delay(66); time.floatValue += 0.066f }
+        while (true) {
+            withFrameNanos { }
+            delay(66)
+            time.floatValue += 0.066f
+        }
     }
     return drawBehind {
         val t = time.floatValue

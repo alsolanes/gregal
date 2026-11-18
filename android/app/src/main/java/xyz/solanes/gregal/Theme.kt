@@ -155,9 +155,10 @@ fun auroraBlobs(p: GregalPalette): List<AuroraBlob> {
 fun GregalPalette.scheme(): ColorScheme {
     // Amb vidre, els contenidors de Material (menús, diàlegs, fulls) surten de
     // la superfície ja composta: translúcids no es llegirien damunt del text.
+    // El fons de Material també queda opac: hi ha diàlegs a pantalla completa
+    // que el fan servir de color.
     val surface = if (glass) surface.compositeOver(deepTop) else surface
     val surfaceHi = if (glass) surfaceHi.compositeOver(deepTop) else surfaceHi
-    val background = if (glass) Color.Transparent else deepTop
     val low = lerp(deepTop, surface, 0.5f)
     val high = lerp(surface, surfaceHi, 0.5f)
     // En fosc, els contenidors són neutres (la llima barrejada amb el grafit
@@ -168,7 +169,7 @@ fun GregalPalette.scheme(): ColorScheme {
     return if (dark) darkColorScheme(
         primary = sea, onPrimary = onSea, secondary = onada, onSecondary = deepTop,
         tertiary = lila, outline = Color(0xFF66726C), outlineVariant = algua, // outline = boxIdle (3:1)
-        background = background, surface = surface, surfaceVariant = surfaceHi,
+        background = deepTop, surface = surface, surfaceVariant = surfaceHi,
         onBackground = ink, onSurface = ink, onSurfaceVariant = muted, error = red,
         primaryContainer = primaryBox, onPrimaryContainer = ink,
         secondaryContainer = secondaryBox, onSecondaryContainer = ink,
@@ -181,7 +182,7 @@ fun GregalPalette.scheme(): ColorScheme {
     ) else lightColorScheme(
         primary = sea, onPrimary = onSea, secondary = onada, onSecondary = Color.White,
         tertiary = lila, outline = Color(0xFF7A8A86), outlineVariant = algua, // outline = boxIdle (3:1)
-        background = background, surface = surface, surfaceVariant = surfaceHi,
+        background = deepTop, surface = surface, surfaceVariant = surfaceHi,
         onBackground = ink, onSurface = ink, onSurfaceVariant = muted, error = red,
         primaryContainer = primaryBox, onPrimaryContainer = ink,
         secondaryContainer = secondaryBox, onSecondaryContainer = ink,

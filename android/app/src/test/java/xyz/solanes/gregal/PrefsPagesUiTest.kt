@@ -70,4 +70,12 @@ class PrefsPagesUiTest {
             assertEquals(true, Prefs(ApplicationProvider.getApplicationContext<Application>()).glass)
         }
     }
+
+    @Test fun glassSavedEarlierIsOnWhenTheAppStartsAgain() {
+        val prefs = Prefs(ApplicationProvider.getApplicationContext<Application>())
+        prefs.glass = true
+        val vm = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
+        vm.attachPrefs(prefs)
+        assertEquals(true, vm.glass.value)
+    }
 }
