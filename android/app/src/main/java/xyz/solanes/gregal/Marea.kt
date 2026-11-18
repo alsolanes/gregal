@@ -390,13 +390,18 @@ fun Modifier.frostSource(frost: Frost?): Modifier = if (frost == null) this else
 @Composable
 fun Modifier.frostGlass(frost: Frost?): Modifier {
     if (frost == null) return this
+    val pal = LocalPal.current
     var at by remember { mutableStateOf(Offset.Zero) }
     val radius = with(LocalDensity.current) { 24.dp.toPx() }
     return onGloballyPositioned { at = it.positionInRoot() }.drawBehind {
         frost.blurred.renderEffect = BlurEffect(radius, radius, TileMode.Clamp)
         frost.blurred.record(frost.layer.size) { drawLayer(frost.layer) }
         val shift = frost.origin - at
+        // El fons opac tapa el contingut nítid que passa per sota; damunt, la
+        // còpia desenfocada i el tint de la superfície perquè el títol es llegeixi.
+        drawRect(pal.deepTop)
         clipRect { translate(shift.x, shift.y) { drawLayer(frost.blurred) } }
+        drawRect(pal.surface)
     }
 }
 

@@ -669,7 +669,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                modifier = Modifier.frostGlass(frost),
+                modifier = Modifier.frostGlass(frost).testTag("chat-top-bar"),
                 navigationIcon = {
                     IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu"), tint = Ink) }
                 },
@@ -715,7 +715,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
             // Mentre falta el proveïdor no hi ha res a enviar, i amb el
             // teclat obert el composer tapava «Desa i comença».
             // A la tauleta, el composer té la mateixa amplada de lectura que el xat.
-            if (!(msgs.isEmpty() && needsProvider) && !opening) Box(Modifier.frostGlass(frost)) {
+            if (!(msgs.isEmpty() && needsProvider) && !opening) Box(Modifier.frostGlass(frost).testTag("chat-composer-area")) {
                 composerArea(
                     Modifier.imePadding().fillMaxWidth()
                         .wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = ChatMaxWidth)
@@ -775,7 +775,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 // l'escriptori, una columna centrada d'amplada de lectura.
                 LazyColumn(
                     Modifier.fillMaxHeight().align(Alignment.TopCenter).widthIn(max = ChatMaxWidth)
-                        .fillMaxWidth().padding(horizontal = 12.dp),
+                        .fillMaxWidth().padding(horizontal = 12.dp).testTag("chat-list"),
                     state = listState,
                     contentPadding = inner,
                 ) {
