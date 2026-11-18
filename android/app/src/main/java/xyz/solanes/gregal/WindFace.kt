@@ -119,14 +119,15 @@ fun windStyleOf(code: String?): WindStyle {
 fun WindStyle.encode(): String = eyes.key + mouth.key + shape.key
 
 /** Aura del color del vent mentre treballa; a les llistes petites seria soroll. */
-internal fun windShowsAura(mood: WindMood, size: Int): Boolean = size >= 64 && mood in setOf(
+internal fun windShowsAura(mood: WindMood, size: Int): Boolean = size >= 64 && mood in windWorkMoods
+
+private val windWorkMoods = setOf(
     WindMood.THINKING, WindMood.SEARCHING, WindMood.READING,
     WindMood.WRITING, WindMood.WORKING, WindMood.DISCUSSING,
 )
 
-/** Gir (graus) i batec (escala) de l'aura al temps `t` del rellotge de 12 s; sense moviment, quieta. */
-internal fun windAuraSway(t: Float, motion: Boolean): Pair<Float, Float> =
-    if (motion) t % 6f / 6f * 360f to 1f + sin(PI.toFloat() * t) * .06f else 0f to 1f
+/** Gir (graus) i batec (escala) de l'aura al temps `t` del rellotge de 12 s; sense moviment `t` és 0 i queda quieta. */
+internal fun windAuraSway(t: Float): Pair<Float, Float> = t % 6f / 6f * 360f to 1f + sin(PI.toFloat() * t) * .06f
 
 @Composable
 fun WindFace(
@@ -247,7 +248,7 @@ fun WindFace(
         val paint = if (tx == 0f && ty == 0f) bodyPaint else WindBodyPaint(style.shape, accent, tx, ty)
         if (aura > 0f) {
             // Darrere el cos: un halo suau i un anell que gira, tots dos del color del vent.
-            val (spin, pulse) = windAuraSway(t, motion)
+            val (spin, pulse) = windAuraSway(t)
             val reach = min(w, h) / 2f * pulse.coerceAtMost(1f)
             drawCircle(Brush.radialGradient(
                 0f to accent.copy(alpha = .38f * aura), .7f to accent.copy(alpha = .16f * aura), 1f to Color.Transparent,

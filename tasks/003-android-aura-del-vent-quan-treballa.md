@@ -21,5 +21,6 @@ Els vents ja tenen cara, respiració i insígnies d'estat, però mentre treballe
 ## Notes
 
 - Fitxer: `WindFace.kt`.
-- `windShowsAura(mood, size)` decideix l'aura (estats de feina i 64 dp o més); `windAuraSway(t, motion)` dona el gir i el batec a partir del rellotge de 12 s, quiet sense moviment. Proves a `WindAuraTest.kt`.
-- El fos d'entrada i sortida (`animateFloatAsState`, 450 ms) no té prova automàtica: el dibuix del Canvas no es pot observar des dels tests de JVM. No s'ha comprovat a l'emulador.
+- `windShowsAura(mood, size)` decideix l'aura (estats de feina de `windWorkMoods` i 64 dp o més); `windAuraSway(t)` dona el gir i el batec a partir del rellotge de 12 s, i sense moviment `t` és 0 i l'aura queda quieta.
+- Proves a `WindAuraTest.kt`: a més de les funcions, dibuixa la cara amb Robolectric (`GraphicsMode.NATIVE`, rellotge aturat, com `MascotMinimalTest`) i compta la llum del vent fora del cos: pensant n'hi ha i en repòs no; a 200 ms del canvi d'estat es veu a mitges i a 450 ms sencera (i a la inversa en tornar a repòs); amb `LocalWindMotion` apagat, dos fotogrames a 1,5 s són idèntics.
+- No s'ha mirat a l'emulador: la intensitat del halo i de l'anell és a ull.
