@@ -52,6 +52,16 @@ quaderna/
 # Dumps de peticions fallides (mai al repositori)
 **/.local/
 
-# Artefactes locals d'aquesta màquina (config de l'agent i builds d'escriptori)
-.claude/
+# Artefactes locals d'aquesta màquina (config de l'agent i builds d'escriptori).
+# De .claude/ només es versionen les barreres de qualitat i el flux de tasques;
+# la resta (worktrees, skills locals, settings.local.json) es queda a la màquina.
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+!.claude/agents/
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/task-new/
+!.claude/skills/task-run/
+!.claude/skills/writing-tests/
 desktop/output/

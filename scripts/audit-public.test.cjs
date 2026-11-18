@@ -35,6 +35,22 @@ test('runtime data is rejected and neutral examples pass', () => {
   assert.equal(scan({ '.env.example': 'TOKEN=replace-me', 'README.md': 'Neutral source' }).status, 0);
 });
 
+test('only the shared parts of .claude are allowed', () => {
+  const shared = {
+    '.claude/settings.json': '{}',
+    '.claude/hooks/guard.py': 'pass',
+    '.claude/agents/reviewer.md': 'Review',
+    '.claude/skills/task-run/SKILL.md': 'Run tasks',
+  };
+  assert.equal(scan(shared).status, 0);
+  for (const local of ['.claude/settings.local.json', '.claude/worktrees/x/a.go', '.claude/skills/other/SKILL.md', 'internal/.claude/settings.json']) {
+    const result = scan({ ...shared, [local]: 'local' });
+    assert.equal(result.status, 1, local);
+    assert.match(result.stderr, /local (?:Claude Code data|runtime directory)/);
+  }
+  assert.equal(scan({ '.claude/hooks/x.py': 'sk-' + 'synthetic'.repeat(4) }).status, 1);
+});
+
 test('audit utilities retain credential checks', () => {
   const result = scan({ 'scripts/prepare-public.cjs': 'sk-' + 'synthetic'.repeat(4) });
   assert.equal(result.status, 1);

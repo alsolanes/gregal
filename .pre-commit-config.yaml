@@ -1,0 +1,24 @@
+# Install once per clone (the hooks are shared by every worktree): uvx pre-commit install
+default_install_hook_types: [pre-commit, pre-push]
+
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
+
+  - repo: local
+    hooks:
+      - id: project-checks
+        name: project checks (fast, staged changes)
+        entry: uv run scripts/check.py --fast --staged
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: project-checks-full
+        name: project checks (everything not pushed yet)
+        entry: uv run scripts/check.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

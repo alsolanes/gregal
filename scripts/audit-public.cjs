@@ -15,16 +15,26 @@ if (!Array.isArray(markers) || markers.some(value => typeof value !== 'string' |
 for (const marker of markers) {
   rules.push(['configured private marker', new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')]);
 }
+// Of .claude/ only the quality gates and the task workflow are part of the project
+// (see .gitignore); anything else in it belongs to this machine: worktrees,
+// launch configs, local skills, settings.local.json.
+const sharedClaude = /^\.claude\/(?:settings\.json|hooks|agents|skills(?:\/(?:task-new|task-run|writing-tests))?)$/;
 function walk(dir) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     const relative = path.relative(root, full).replaceAll('\\', '/');
+    const parent = path.posix.dirname(relative);
+    if ((parent === '.claude' || parent === '.claude/skills') && !sharedClaude.test(relative)) {
+      findings.push(`${relative}: local Claude Code data`);
+      continue;
+    }
     if (entry.isSymbolicLink()) {
       findings.push(`${relative}: symlink requires review`);
       continue;
     }
     if (entry.isDirectory()) {
-      if (['.gregal', '.hermes', '.claude', '.playwright-cli', '.venv', '__pycache__'].includes(entry.name)) {
+      if (['.gregal', '.hermes', '.playwright-cli', '.venv', '__pycache__'].includes(entry.name)
+        || (entry.name === '.claude' && relative !== '.claude')) {
         findings.push(`${relative}: local runtime directory`);
         continue;
       }

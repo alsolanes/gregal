@@ -1,0 +1,12 @@
+# Lint configuration. This file is a quality gate: Claude has to ask before changing it.
+# scripts/check.py runs it with --new-from-rev, so only issues in changed code count;
+# the existing findings are debt to clear in tasks of their own.
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - gocyclo
+  settings:
+    gocyclo:
+      min-complexity: 15

@@ -1,0 +1,32 @@
+name: Gates
+
+# Checks on what a pull request changes; quality.yml still runs the full suites.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gates-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: astral-sh/setup-uv@v7
+      - name: Diff guard self-test
+        run: uv run --no-project python -m unittest discover -s scripts/tests
+      - name: Checks on the changed code
+        run: uv run scripts/check.py --fast --base "origin/${{ github.base_ref }}"
