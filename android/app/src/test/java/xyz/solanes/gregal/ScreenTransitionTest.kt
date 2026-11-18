@@ -28,20 +28,11 @@ class ScreenTransitionTest {
     }
 
     @Test
-    fun ambMovimentHiHaTransicio() {
+    fun cadaDireccioTeTransicio() {
         for (d in NavDirection.entries) {
-            val t = screenTransition(d, motion = true)
+            val t = screenTransition(d)
             assertNotEquals(EnterTransition.None, t.targetContentEnter)
             assertNotEquals(ExitTransition.None, t.initialContentExit)
-        }
-    }
-
-    @Test
-    fun senseMovimentElCanviEsImmediat() {
-        for (d in NavDirection.entries) {
-            val t = screenTransition(d, motion = false)
-            assertEquals(EnterTransition.None, t.targetContentEnter)
-            assertEquals(ExitTransition.None, t.initialContentExit)
         }
     }
 }
