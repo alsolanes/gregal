@@ -1597,6 +1597,7 @@ body.sense-inspector #inspector { display:none; }
 <link rel="stylesheet" href="/app/export.css">
 <link rel="stylesheet" href="/app/fun.css">
 <link rel="stylesheet" href="/app/kanban.css">
+<link rel="stylesheet" href="/app/backlog.css">
 <link rel="stylesheet" href="/app/caps.css">
 <link rel="stylesheet" href="/app/knowledge.css">
 <link rel="stylesheet" href="/app/folder.css">
@@ -1620,6 +1621,7 @@ body.sense-inspector #inspector { display:none; }
       <button class="nav-item side-view" data-view="publicacions"><span class="nav-icon"></span><span data-i18n="nav.publications">Sharing</span></button>
 <button class="nav-item side-view" data-view="workshop" data-also="team"><span class="nav-icon">▦</span><span data-i18n="nav.agents">Agents</span><span class="nav-badge busy" id="navAgentsBadge" hidden></span></button>
 <button class="nav-item side-view" data-view="objectius"><span class="nav-icon">○</span><span data-i18n="nav.goals">Goals</span></button>
+<button class="nav-item side-view" data-view="backlog"><span class="nav-icon">☰</span><span data-i18n="nav.backlog">Backlog</span></button>
 <button class="nav-item side-view" data-view="github"><span class="nav-icon">⎇</span><span>GitHub</span></button>
 <button class="nav-item side-view" data-view="office"><span class="nav-icon">❏</span><span>Office</span></button>
 <button class="nav-item side-view" data-view="grafs"><span class="nav-icon">⌘</span><span data-i18n="nav.graphs">Graphs</span></button>
@@ -1851,6 +1853,9 @@ body.sense-inspector #inspector { display:none; }
       <section class="workspace-page" id="partitsPage" hidden></section>
       <section class="workspace-page" id="arenaPage" hidden></section>
       <section class="workspace-page" id="kanbanPage" hidden></section>
+      <section class="workspace-page" id="backlogPage" hidden>
+        <div class="page-inner bl" id="backlogInner"></div>
+      </section>
       <section class="workspace-page" id="automatitzacionsPage" hidden>
         <div class="page-inner auto-page" id="automatitzacionsInner"></div>
       </section>
@@ -2217,6 +2222,7 @@ body.sense-inspector #inspector { display:none; }
 <script type="module" src="/app/corner.js"></script>
 <!--product:modules-->
 <script type="module" src="/app/kanban.js"></script>
+<script type="module" src="/app/backlog.js"></script>
 <script src="/app/mode-cycle.js"></script>
 <script src="/app/desktop-prefs.js"></script>
 <script src="/app/md.js"></script>
@@ -2259,7 +2265,7 @@ let currentView = 'agent';
 // (/jocs/: l'Arena i la lliga), cadascun amb les seves vistes.
 const PRODUCT = ['vents', 'jocs'].includes(document.documentElement.dataset.product) ? document.documentElement.dataset.product : 'codi';
 const PRODUCT_VIEWS = {
-  codi: ['agent', 'objectius', 'kanban', 'programat', 'mcp', 'activitat', 'github', 'office', 'team', 'canvis', 'fitxers', 'knowledge', 'memoria', 'publicacions', 'terminal', 'navegador', 'grafs', 'workshop'],
+  codi: ['agent', 'objectius', 'backlog', 'kanban', 'programat', 'mcp', 'activitat', 'github', 'office', 'team', 'canvis', 'fitxers', 'knowledge', 'memoria', 'publicacions', 'terminal', 'navegador', 'grafs', 'workshop'],
   vents: ['vents', 'raco', 'automatitzacions', 'memoria', 'publicacions'],
   jocs: ['arena', 'partits'],
 };
@@ -2303,7 +2309,7 @@ function setView(view) {
   const previousView = currentView;
   // Les vistes dels plugins apagats (app/plugins.js) no s'obren.
   if (window.gregalPlugins && !window.gregalPlugins.viewAllowed(view)) view = 'agent';
-  currentView = ['agent','objectius','vents','raco','partits','arena','kanban','programat','automatitzacions','mcp','activitat','github','office','team','canvis','fitxers','knowledge','memoria','publicacions','terminal','navegador','grafs','workshop'].includes(view) ? view : productHome();
+  currentView = ['agent','objectius','backlog','vents','raco','partits','arena','kanban','programat','automatitzacions','mcp','activitat','github','office','team','canvis','fitxers','knowledge','memoria','publicacions','terminal','navegador','grafs','workshop'].includes(view) ? view : productHome();
   if (!productAllows(currentView)) currentView = productHome();
   // Fora del Codi, les vistes que no són la dels vents no porten res del codi
   // (sessió nova, projectes, converses de l'agent, carpeta del projecte).
@@ -2320,6 +2326,7 @@ function setView(view) {
   $('partitsPage').hidden = currentView !== 'partits';
   $('arenaPage').hidden = currentView !== 'arena';
   $('kanbanPage').hidden = currentView !== 'kanban';
+  $('backlogPage').hidden = currentView !== 'backlog';
   $('mcpPage').hidden = currentView !== 'mcp';
   $('activitatPage').hidden = currentView !== 'activitat';
   $('githubPage').hidden = currentView !== 'github';
@@ -2357,6 +2364,7 @@ function setView(view) {
   if (currentView === 'partits') window.gregalGames?.load();
   if (currentView === 'arena') window.gregalArena?.load();
   if (currentView === 'kanban') window.gregalKanban?.load();
+  if (currentView === 'backlog') window.gregalBacklog?.load();
   if (currentView === 'vents') window.loadWindsPage?.();
   if (currentView === 'mcp') loadMcpPage();
   if (currentView === 'knowledge' && window.gregalKnowledge) window.gregalKnowledge.load();
@@ -4956,6 +4964,8 @@ window.gregal = {
   isBusy: () => sending || !!state.agent_busy,
   isSending: () => sending,
   newChat: novaConversa,
+  // Engega l'agent en Actua amb una tasca preparada (el backlog, per exemple).
+  async runTask(task) { setView('agent'); await setMode('act'); return doAgent(task); },
   // Quina vista es mira ara: perquè els panells cars (diff, arbre) només
   // es carreguin si els estàs veient.
   viewActual: () => currentView,

@@ -34,6 +34,9 @@ TUI can be continued from the web or the phone.
 - Project memory: `AGENTS.md` (or `CLAUDE.md`) at the project root, and
   `.gregal/memory.md` for notes added with `/nota`. Both are loaded into
   your prompt automatically.
+- Backlog (the project's work items): `<data dir>/backlog/`, or
+  `.gregal/backlog/*.md` if the project has that folder. See the
+  `work-items` skill and the `backlog` tool.
 
 ## How you work
 

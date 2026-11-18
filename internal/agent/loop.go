@@ -269,6 +269,7 @@ func Specs() []llm.ToolSpec {
 	// lsp només hi és si hi ha algun servidor de llenguatge instal·lat
 	// (es mira un cop per procés: el conjunt d'eines no canvia a mitja
 	// sessió).
+	specs = append(specs, backlogToolSpec())
 	if t, ok := lspToolSpec(); ok {
 		specs = append(specs, t)
 	}
@@ -508,7 +509,7 @@ func (p *Policy) For(name, argsJSON string) (string, string) {
 		return "ask", "eina MCP: confirma"
 	}
 	switch name {
-	case "read", "grep", "glob", "symbols", "web_search", "web_images", "web_fetch", "delegate", "read_image", "gh_issue", "gh_pr", "office_read", "office_render", "send_file", "pdf_read", "todoread", "todowrite", "question", "skill", "preview", "knowledge_search", "dashboard_save":
+	case "read", "grep", "glob", "symbols", "web_search", "web_images", "web_fetch", "delegate", "read_image", "gh_issue", "gh_pr", "office_read", "office_render", "send_file", "pdf_read", "todoread", "todowrite", "question", "skill", "preview", "knowledge_search", "dashboard_save", "backlog":
 		return "allow", ""
 	case "lsp":
 		if lspEsRename(argsJSON) {
@@ -651,6 +652,10 @@ func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
 			return "deny", "read-only mode: cannot commit or open pull requests"
 		case "knowledge_note":
 			return "deny", "read-only mode: cannot save knowledge notes (search is allowed)"
+		case "backlog":
+			if BacklogWrites(argsJSON) {
+				return "deny", "read-only mode: the backlog can be read, and items created or logged, but not edited, moved or checked"
+			}
 		case "connector":
 			if ConnectorAction(argsJSON) == "act" {
 				return "deny", "read-only mode: cannot act on connected accounts (list and read are allowed)"
@@ -1338,6 +1343,9 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		return LlegeixSkillDirs(dir, firstOf(a.Name, a.Nom), SkillsDirsOf(ctx)...)
 	case "knowledge_search":
 		out, err := knowledge.SearchTool(ctx, knowledge.Where{Project: procDirOr(dir), Session: session}, argsJSON)
+		return out, nil, err
+	case "backlog":
+		out, err := backlogExec(dir, session, argsJSON)
 		return out, nil, err
 	case "knowledge_note":
 		out, err := knowledge.NoteTool(knowledge.Where{Project: procDirOr(dir), Session: session}, argsJSON)

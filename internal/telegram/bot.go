@@ -166,6 +166,7 @@ func New(o Options) *Bot {
 	}
 	b.loadModelsOv()
 	agent.SetupDelegate(o.Cfg, b.client)
+	agent.SetupBacklogReview(o.Cfg, b.client)
 	return b
 }
 

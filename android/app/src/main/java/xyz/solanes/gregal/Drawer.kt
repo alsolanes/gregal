@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Computer
 import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.Icons
@@ -124,6 +125,7 @@ fun GregalDrawerContent(
                 DrawerRow(tr(lang, "app.work.title"), screen == Screen.Work, { nav(Screen.Work) }, Icons.Rounded.Construction)
                 DrawerRow(tr(lang, "nav.convs"), screen == Screen.Sessions, { nav(Screen.Sessions); vm.loadSessions() }, Icons.Rounded.Forum)
                 DrawerRow(tr(lang, "nav.goals"), screen == Screen.Goals, { nav(Screen.Goals); vm.loadGoals() }, Icons.Rounded.Flag)
+                DrawerRow(tr(lang, "nav.backlog"), screen == Screen.Backlog, { nav(Screen.Backlog); vm.loadBacklog() }, Icons.Rounded.Checklist)
 
                 DrawerSection(tr(lang, "app.nav.sectionAutomate"))
                 // Jobs i GitHub són de l'administrador del servidor: un altre compte rebria 403.

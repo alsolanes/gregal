@@ -306,6 +306,7 @@ class MainActivity : ComponentActivity() {
                                     Screen.Work -> WorkScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Sessions -> SessionsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Goals -> GoalsScreen(vm) { scope.launch { drawer.open() } }
+                                    Screen.Backlog -> BacklogScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Jobs -> JobsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Office -> OfficeScreen(vm, { scope.launch { drawer.open() } }) { nav(Screen.Chat) }
                                     Screen.Flows -> FlowsScreen(vm) { scope.launch { drawer.open() } }

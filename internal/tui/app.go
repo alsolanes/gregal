@@ -528,6 +528,7 @@ func New(cfg *config.Config, cfgPath string, c *llm.Client, v string) Model {
 	agent.SetLifecycleHooks(cfg.Hooks)
 	agent.SetupPrices(cfg)
 	agent.SetupDelegate(cfg, c)
+	agent.SetupBacklogReview(cfg, c)
 	m.prefix = &agent.PrefixEstable{}
 	m.refreshGitBranch()
 	return m

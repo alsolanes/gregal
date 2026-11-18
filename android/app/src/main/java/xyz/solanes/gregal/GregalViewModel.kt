@@ -29,7 +29,7 @@ const val CompanyJobId = "company-checkin-daily"
 const val COMPANY_CHECKIN_PROMPT = "Fes una revisió proactiva i de només lectura del projecte actiu. Consulta els objectius oberts, l’estat documentat dels serveis i les darreres proves o canvis que puguis verificar. No inventis observacions: inclou el fitxer, prova, estat o font que sosté cada afirmació, i acaba amb un únic pas següent recomanat. No modifiquis fitxers, no reiniciïs ni despleguis serveis. Si cal actuar, proposa-ho i espera aprovació explícita. Respon en català, breu i útil."
 
 /** Pantalles de l'app. */
-enum class Screen { Pairing, Chat, Sessions, Goals, Jobs, Office, Flows, Automatitzacions, Desat, Notes, Prefs, Retro, Company, Work, Ventet, Carpeta, Preview, Webs }
+enum class Screen { Pairing, Chat, Sessions, Goals, Backlog, Jobs, Office, Flows, Automatitzacions, Desat, Notes, Prefs, Retro, Company, Work, Ventet, Carpeta, Preview, Webs }
 
 /**
  * On parla l'app. `local` és el servidor d'aquest mateix dispositiu (el
@@ -727,6 +727,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _summaries.value = emptyMap()
         _question.value = null
         _goals.value = emptyList()
+        _backlog.value = null
         _jobs.value = emptyList()
         _runs.value = emptyList()
         _models.value = emptyMap()
@@ -6219,6 +6220,46 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 loadGoals()
             } catch (e: Exception) { notify(appText("app.status.goal", e.message.orEmpty())) }
+        }
+    }
+
+    // --- backlog del projecte (Backlog.kt, BacklogScreen.kt) ---
+
+    private val _backlog = MutableStateFlow<BacklogState?>(null)
+    val backlog: StateFlow<BacklogState?> = _backlog
+
+    fun loadBacklog() {
+        viewModelScope.launch {
+            try {
+                _backlog.value = loadingOf("backlog") {
+                    withContext(Dispatchers.IO) { BacklogJson.parse(_conn.value.api().get("/api/backlog").toString()) }
+                }
+            } catch (e: Exception) { notify(BacklogJson.errorText(e.message)) }
+        }
+    }
+
+    /** Una acció del backlog; les regles són del servidor i el seu error es mostra tal qual. */
+    fun backlogAct(body: JSONObject, ok: String = "") {
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { _conn.value.api().post("/api/backlog", body) }
+                if (ok.isNotBlank()) notify(ok)
+                loadBacklog()
+            } catch (e: Exception) { notify(BacklogJson.errorText(e.message)) }
+        }
+    }
+
+    /** Comença la tasca i la dona a l'agent en la conversa d'aquest dispositiu. */
+    fun workOnBacklog(id: Int) {
+        viewModelScope.launch {
+            try {
+                val r = withContext(Dispatchers.IO) {
+                    _conn.value.api().post("/api/backlog", JSONObject().put("action", "work").put("id", id).put("session", "android"))
+                }
+                go(Screen.Chat)
+                send(r.optString("task"), forceAgent = true)
+                loadBacklog()
+            } catch (e: Exception) { notify(BacklogJson.errorText(e.message)) }
         }
     }
 

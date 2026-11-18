@@ -30,6 +30,8 @@ func Noms() []string {
 		"send_file",
 		"delegate", "wind", "question", "todowrite", "todoread", "skill",
 		"knowledge_search", "knowledge_note",
+		// La llista de feina del projecte (internal/backlog).
+		"backlog",
 	}
 }
 

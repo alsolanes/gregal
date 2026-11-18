@@ -215,6 +215,7 @@ func New(cfg *config.Config, cfgPath string) *Server {
 	agent.SetLifecycleHooks(cfg.Hooks)
 	agent.SetupPrices(cfg)
 	agent.SetupDelegate(cfg, cl)
+	agent.SetupBacklogReview(cfg, cl)
 	s := &Server{
 		cfg:               cfg,
 		cfgPath:           cfgPath,
@@ -629,6 +630,8 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/access", h.route((*Server).handleAccess))
 	handle("/api/mode", h.route((*Server).handleMode))
 	handle("/api/goal", h.route((*Server).handleGoal))
+	// Llista de feina del projecte (backlog_api.go, internal/backlog).
+	handle("/api/backlog", h.route((*Server).handleBacklog))
 	handle("/api/verify", h.route((*Server).handleVerify))
 	handle("/api/lang", h.global((*Server).handleLang))
 	// Brandings: paquets de colors, tipus de lletra i logo (internal/brand).
