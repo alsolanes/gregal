@@ -58,8 +58,8 @@ test("els tokens del :root valen el que diu docs/identitat.md", () => {
 // pinta totes les vores, deixa d'assenyalar res.
 test("les línies fines són gris fred translúcid, no l'accent", () => {
   const r = root();
-  assert.equal(r["--line"], "rgba(201,209,230,.10)");
-  assert.equal(r["--line-hi"], "rgba(201,209,230,.20)");
+  assert.equal(r["--line"], "rgba(207,214,224,.10)");
+  assert.equal(r["--line-hi"], "rgba(207,214,224,.20)");
   assert.ok(!r["--line"].startsWith("rgba(129,147,255"), "les línies no han de ser l'accent");
 });
 
@@ -260,10 +260,12 @@ test("el contrast de la paleta no empitjora", () => {
     for (const [, k, v] of m[1].matchAll(/(--[a-z-]+)\s*:\s*([^;]+);/g)) o[k] = v.trim();
     return o;
   };
-  // [tema, tokens, mínims mesurats avui]
+  // [tema, tokens, mínims mesurats avui]. Remesurats amb les paletes de
+  // docs/identitat.md: el clar «Vent a favor» (ce83b040) i el fosc de grafit
+  // i blau suau (3ba217a1).
   const casos = [
-    ["fosc", bloc(/:root\s*\{([^}]*)\}/), { "--faint": 5.2, "--muted": 7.2, "--text": 13.5 }],
-    ["clar", bloc(/:root\[data-theme="light"\]\s*\{([^}]*)\}/), { "--faint": 4.9, "--muted": 6.1, "--text": 14 }],
+    ["fosc", bloc(/:root\s*\{([^}]*)\}/), { "--faint": 5.2, "--muted": 7.2, "--text": 12.9 }],
+    ["clar", bloc(/:root\[data-theme="light"\]\s*\{([^}]*)\}/), { "--faint": 4.9, "--muted": 5.9, "--text": 12.4 }],
   ];
   for (const [tema, t, minims] of casos) {
     for (const [fg, min] of Object.entries(minims)) {

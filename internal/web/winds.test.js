@@ -119,7 +119,7 @@ test('renders each voice of a multi-voice reply as its own message with the name
 test('legacy wind histories remain accessible and sending reads persisted history back',async()=>{
   let sent=false;
   const f=await boot(req=>{
-    if(req.method==='POST') {sent=true; return {ok:true,json:async()=>({history:[]})};}
+    if(req.url==='/api/winds/chat') {sent=true; return {ok:true,json:async()=>({history:[]})};}
     if(req.url==='/api/winds/chat?wind=xaloc') return {ok:true,json:async()=>({history:sent ? [{from:'assistant',text:'Resposta desada'}] : [{from:'assistant',text:'Historial anterior'}]})};
   });
   await byText(f.$('windsList'),'button','Xaloc').click();
@@ -127,7 +127,7 @@ test('legacy wind histories remain accessible and sending reads persisted histor
   f.$('windChatInput').value='Hola'; await f.$('windsChatForm').emit('submit');
   assert.match(f.$('windChatHistory').textContent,/Resposta desada/);
   assert.equal(f.$('windChatInput').value,'');
-  assert.deepEqual(f.requests.find(r=>r.method==='POST').body,{wind:'xaloc',message:'Hola'});
+  assert.deepEqual(f.requests.find(r=>r.url==='/api/winds/chat').body,{wind:'xaloc',message:'Hola'});
 });
 
 test('new wind opens a labelled dialog, previews a safe face and saves every character field',async()=>{
@@ -299,7 +299,7 @@ test('profile displays only real character and both memory sources, edits with s
   assert.equal(f.$('windPersona').value,'Curiós i tranquil.');
   f.$('windName').value='Xaloc nou'; f.$('windPersona').value='Una veu nova';
   await f.$('windsWindForm').emit('submit');
-  assert.equal(f.requests.find(r=>r.method==='POST').body.id,'xaloc');
+  assert.equal(f.requests.find(r=>r.url==='/api/winds'&&r.method==='POST').body.id,'xaloc');
   assert.match(f.$('windsProfile').textContent,/Una veu nova/);
   f.$('windKnowledge').value='Només aquest coneixement';
   await f.$('windsMemoryForm').emit('submit');

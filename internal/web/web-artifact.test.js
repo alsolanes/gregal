@@ -1,10 +1,11 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const path = require('node:path');
 const vm = require('node:vm');
 
 async function artifactModule() {
-  const module = new vm.SourceTextModule(fs.readFileSync('internal/web/app/web-artifact.js', 'utf8'));
+  const module = new vm.SourceTextModule(fs.readFileSync(path.join(__dirname, 'app', 'web-artifact.js'), 'utf8'));
   await module.link(() => {});
   await module.evaluate();
   return module.namespace;

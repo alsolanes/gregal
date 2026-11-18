@@ -51,8 +51,9 @@ test("cursiva, ratllat, cita, regla i taula", () => {
 
 test("caselles de tasca", () => {
   const h = render("- [ ] pendent\n- [x] fet");
-  assert.match(h, /<li><input type="checkbox" disabled> pendent<\/li>/);
-  assert.match(h, /<li><input type="checkbox" disabled checked> fet<\/li>/);
+  // Les caselles es poden marcar (8288d89e): ja no són «disabled».
+  assert.match(h, /<li class="md-task"><label><input type="checkbox" class="md-check"><span>pendent<\/span><\/label><\/li>/);
+  assert.match(h, /<li class="md-task"><label><input type="checkbox" class="md-check" checked><span>fet<\/span><\/label><\/li>/);
 });
 
 test("guions dins d'un paràgraf no són llistes; asteriscs de multiplicació no són cursiva", () => {
