@@ -53,12 +53,12 @@ class ChatFollowGrowthTest {
 
 class LiveReplyAnchorTest {
     @Test fun `reply appearing in view ends bottom-follow so its first line stays put`() {
-        assertTrue(shouldPinLiveReply(following = true, dragging = false, replyVisible = true))
+        assertTrue(shouldPinLiveReply(following = true, dragging = false, replyHigh = true))
     }
     @Test fun `do not steal scroll while user reads or before reply appears`() {
-        assertFalse(shouldPinLiveReply(following = false, dragging = false, replyVisible = true))
-        assertFalse(shouldPinLiveReply(following = true, dragging = true, replyVisible = true))
-        assertFalse(shouldPinLiveReply(following = true, dragging = false, replyVisible = false))
+        assertFalse(shouldPinLiveReply(following = false, dragging = false, replyHigh = true))
+        assertFalse(shouldPinLiveReply(following = true, dragging = true, replyHigh = true))
+        assertFalse(shouldPinLiveReply(following = true, dragging = false, replyHigh = false))
     }
 
     // En acabar la resposta es torna al final si només s'havia aturat perquè

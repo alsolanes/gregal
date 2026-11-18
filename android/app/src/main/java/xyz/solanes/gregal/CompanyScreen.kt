@@ -4,7 +4,6 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -2046,15 +2045,15 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
             val dark = LocalPal.current.dark
             Surface(
                 shape = if (tail) GregalShape.bubbleTail(mine = false) else GregalShape.bubble,
-                // En directe, passar de bombolla a lectura (a 900 caràcters) es fa suau:
-                // el color s'esvaeix i la mida s'anima, en comptes d'un salt.
-                color = if (m.streaming) androidx.compose.animation.animateColorAsState(
-                    if (reading) SuperficieAlta.copy(alpha = 0f) else SuperficieAlta, tween(350), label = "surf").value
-                else if (reading) Color.Transparent else SuperficieAlta,
+                color = if (reading) Color.Transparent else SuperficieAlta,
                 shadowElevation = 0.dp,
                 // Prémer llarg copia la resposta en text pla (sense marques).
+                // Sense animateContentSize en directe: cada línia nova rellançava
+                // l'animació i retallava el text per baix, i amb el seguiment del
+                // final tota la resposta pujava a esgraons a 30 Hz (el tremolor).
+                // La suavitat la posa el seguiment (rememberChatFollow), que llisca.
                 modifier = (if (reading) Modifier.fillMaxWidth().widthIn(max = 640.dp) else Modifier)
-                    .then(if (m.streaming) Modifier.animateContentSize(tween(350)) else Modifier).combinedClickable(
+                    .combinedClickable(
                     onClick = {}, onLongClick = { onCopy?.invoke() },
                 ),
             ) {
@@ -2512,6 +2511,10 @@ internal fun rememberChatFollow(list: LazyListState, key: Any): ChatFollowState 
         }
     }
     LaunchedEffect(list, follow) {
+        // Quants elements i quina vista hi havia l'últim cop: si no ha canviat
+        // res més que l'alçada de l'últim (la resposta que s'escriu), es llisca.
+        var seenCount = -1
+        var seenViewport = -1
         snapshotFlow {
             when {
                 follow.dragging || list.isScrollInProgress -> null
@@ -2531,11 +2534,20 @@ internal fun rememberChatFollow(list: LazyListState, key: Any): ChatFollowState 
             else if (follow.following) {
                 if (!shouldFollowOnGrowth(wasScrollable, scrollable, follow.wantsEnd)) follow.pause()
                 else {
+                    val info = list.layoutInfo
+                    // La mateixa resposta ha crescut una mica: llisca. Un missatge nou,
+                    // el teclat o un salt gran van de cop, com sempre.
+                    val glide = info.totalItemsCount == seenCount && info.viewportEndOffset == seenViewport &&
+                        bottomGap(info) in 1..(info.viewportEndOffset - info.viewportStartOffset) / 2
                     // A drag can cancel the scroll mutation without ending the observer.
-                    kotlinx.coroutines.coroutineScope { launch { list.scrollToLatest() }.join() }
+                    kotlinx.coroutines.coroutineScope {
+                        launch { if (glide) list.glideToLatest { follow.following } else list.scrollToLatest() }.join()
+                    }
                 }
             }
             wasScrollable = scrollable
+            seenCount = list.layoutInfo.totalItemsCount
+            seenViewport = list.layoutInfo.viewportEndOffset
         }
     }
     return follow
@@ -2557,8 +2569,15 @@ private data class LatestChatLayout(
  * es llegeix des del principi («Últims ↓» permet anar-ne al final).
  * [replyKey]: la clau de l'element de la darrera resposta del vent.
  */
-internal fun shouldPinLiveReply(following: Boolean, dragging: Boolean, replyVisible: Boolean): Boolean =
-    following && !dragging && replyVisible
+internal fun shouldPinLiveReply(following: Boolean, dragging: Boolean, replyHigh: Boolean): Boolean =
+    following && !dragging && replyHigh
+
+/** El començament de la resposta ja és a la meitat de dalt de la vista: a partir d'aquí creix cap avall. */
+internal fun replyIsHigh(info: androidx.compose.foundation.lazy.LazyListLayoutInfo, key: Any?): Boolean {
+    if (key == null) return false
+    val item = info.visibleItemsInfo.firstOrNull { it.key == key } ?: return false
+    return item.offset <= (info.viewportEndOffset - info.viewportStartOffset) / 2
+}
 
 @Composable
 internal fun ReadReplyFromStart(list: LazyListState, follow: ChatFollowState, busy: Boolean, replyKey: Any?) {
@@ -2571,23 +2590,15 @@ internal fun ReadReplyFromStart(list: LazyListState, follow: ChatFollowState, bu
     // contínuament mentre el model escriu (el salt que es notava al xat).
     LaunchedEffect(busy, list) {
         if (!busy) return@LaunchedEffect
+        // Si la resposta comença a la part de baix (se'n veia un bocí), el
+        // seguiment normal (rememberChatFollow) la fa pujar lliscant; quan el seu
+        // començament arriba a la meitat de dalt, s'atura i creix cap avall.
+        // Abans aquí hi havia un animateScrollToItem que, topant amb el final de
+        // la llista, saltava una línia sencera de cop a cada fragment.
         snapshotFlow {
-            val key = reply
-            val info = list.layoutInfo
-            val visible = key != null && info.visibleItemsInfo.any { it.key == key }
-            Triple(follow.following, follow.dragging, visible)
-        }.collect { (following, dragging, visible) ->
-            if (!shouldPinLiveReply(following, dragging, visible)) return@collect
-            // Si la resposta comença a la part de baix (se'n veia un bocí), puja
-            // fins a dalt de la pantalla i creix cap avall; abans es quedava
-            // gairebé tota fora de la vista.
-            val key = reply
-            val info = list.layoutInfo
-            val item = info.visibleItemsInfo.firstOrNull { it.key == key }
-            follow.pauseForLiveReply()
-            if (item != null && item.offset > (info.viewportEndOffset - info.viewportStartOffset) / 2) {
-                list.animateScrollToItem(item.index)
-            }
+            Triple(follow.following, follow.dragging, replyIsHigh(list.layoutInfo, reply))
+        }.collect { (following, dragging, high) ->
+            if (shouldPinLiveReply(following, dragging, high)) follow.pauseForLiveReply()
         }
     }
     LaunchedEffect(busy) {
@@ -2618,6 +2629,49 @@ internal suspend fun LazyListState.scrollToLatest(animate: Boolean = false) {
     val last = layoutInfo.totalItemsCount - 1
     if (last < 0) return
     if (animate) animateScrollToItem(last, Int.MAX_VALUE) else scrollToItem(last, Int.MAX_VALUE)
+}
+
+/**
+ * Quants píxels del final queden per sota de la vista (0 o menys: es veu tot).
+ * Si l'últim element ni tan sols s'ha mesurat, [Int.MAX_VALUE].
+ */
+internal fun bottomGap(info: androidx.compose.foundation.lazy.LazyListLayoutInfo): Int {
+    val last = info.visibleItemsInfo.lastOrNull() ?: return 0
+    if (last.index != info.totalItemsCount - 1) return Int.MAX_VALUE
+    return last.offset + last.size - (info.viewportEndOffset - info.afterContentPadding)
+}
+
+/**
+ * Pas d'un fotograma cap al final: s'hi acosta de forma exponencial (τ ≈ 70 ms),
+ * així que una línia nova (20-30 px) entra en uns 200 ms i una ràfega gran
+ * s'empaita més de pressa, sense frenar ni arrencar a cada línia. Pura: testejable.
+ */
+internal fun glideStep(gap: Float, dtNanos: Long): Float {
+    if (gap <= 0f) return 0f
+    val k = 1f - kotlin.math.exp(-dtNanos / 70_000_000f)
+    return minOf(gap, maxOf(1.5f, gap * k))
+}
+
+/**
+ * Segueix el final lliscant fotograma a fotograma mentre la resposta creix.
+ * Abans era un scrollToItem a cada canvi de mida: arribava un fotograma tard i
+ * a esgraons, i el text en directe tremolava. Un dit l'atura (prioritat d'usuari),
+ * i també [keepGoing] quan deixa de ser cert (la resposta ja és a dalt i s'hi queda).
+ */
+internal suspend fun LazyListState.glideToLatest(keepGoing: () -> Boolean = { true }) {
+    scroll {
+        var last = 0L
+        while (keepGoing()) {
+            val gap = bottomGap(layoutInfo)
+            if (gap <= 0 || gap == Int.MAX_VALUE) break
+            val dt = androidx.compose.runtime.withFrameNanos { now ->
+                (if (last == 0L) 16_666_667L else now - last).also { last = now }
+            }
+            val now = bottomGap(layoutInfo)
+            if (now <= 0 || now == Int.MAX_VALUE) break
+            if (scrollBy(glideStep(now.toFloat(), dt)) == 0f) break
+        }
+    }
 }
 
 /** Píndola que apareix quan has pujat a llegir: un toc i tornes a l'últim missatge. */
