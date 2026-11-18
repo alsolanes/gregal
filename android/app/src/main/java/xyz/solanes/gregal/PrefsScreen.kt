@@ -87,6 +87,7 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val idiomaChoice by vm.idiomaChoice.collectAsState()
     val capHome by vm.capHome.collectAsState()
     val expressiveMotion by vm.expressiveMotion.collectAsState()
+    val glass by vm.glass.collectAsState()
     val st by vm.state.collectAsState()
     val updateMsg by vm.updateMsg.collectAsState()
     val info by vm.update.collectAsState()
@@ -207,6 +208,7 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             listOf(VentNom.singular, VentNom.plural).filter { it.isNotBlank() }.joinToString(" · ")
                                 .ifBlank { t("prefs.ventsNameHelp") }, ::open)
                         PreferenceSwitchRow(t("prefs.capHome"), t("prefs.capHomeHelp"), capHome) { vm.setCapHome(it) }
+                        PreferenceSwitchRow(t("prefs.glass"), t("prefs.glassHelp"), glass) { vm.setGlass(it) }
                         PreferenceSwitchRow(t("prefs.motion"), t("prefs.motionHelp"), expressiveMotion) { vm.setExpressiveMotion(it) }
                     }
                     PrefsPage.Theme -> {

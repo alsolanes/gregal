@@ -346,6 +346,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     val idioma: StateFlow<String> = _idioma
     private val _idiomaChoice = MutableStateFlow("system")
     val idiomaChoice: StateFlow<String> = _idiomaChoice
+    private val _glass = MutableStateFlow(false)
+    val glass: StateFlow<Boolean> = _glass
     private val _expressiveMotion = MutableStateFlow(true)
     val expressiveMotion: StateFlow<Boolean> = _expressiveMotion
 
@@ -372,6 +374,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _idioma.value = p.idioma
         _idiomaChoice.value = p.idiomaChoice
         _expressiveMotion.value = p.expressiveMotion
+        _glass.value = p.glass
         _simpleVents.value = p.simpleVents
         _usuari.value = p.usuari
         if (p.esborrany.isNotEmpty()) _draft.value = p.esborrany
@@ -476,6 +479,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun openVentsPanel(panel: String?) {
         _ventsPanel.value = panel
         if (panel != null) go(Screen.Company)
+    }
+
+    fun setGlass(v: Boolean) {
+        _glass.value = v
+        if (::prefsStore.isInitialized) prefsStore.glass = v
     }
 
     fun setExpressiveMotion(v: Boolean) {

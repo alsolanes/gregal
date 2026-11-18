@@ -1,5 +1,6 @@
 package xyz.solanes.gregal
 
+import androidx.compose.ui.graphics.compositeOver
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -131,6 +132,10 @@ class Prefs(val ctx: Context) {
         get() = p.getBoolean("capHome", false)
         set(v) { p.edit().putBoolean("capHome", v).apply() }
     /** Decorative face/composer motion is opt-in; event motion follows real work. */
+    /** Estil Vidre (superfícies translúcides i fons amb llum); apagat per defecte. */
+    var glass: Boolean
+        get() = p.getBoolean("glass", false)
+        set(v) { p.edit().putBoolean("glass", v).apply() }
     var expressiveMotion: Boolean
         // Activat per defecte: amb la cara quieta els vents semblaven dibuixos.
         // Android «Elimina les animacions» continua aturant-ho (windMotionEnabled).
@@ -221,7 +226,8 @@ class MainActivity : ComponentActivity() {
             val tema by vm.tema.collectAsState()
             val temaApp by vm.temaApp.collectAsState()
             val foscSistema = isSystemInDarkTheme()
-            val pal = paletteFor(temaApp, tema, foscSistema)
+            val glass by vm.glass.collectAsState()
+            val pal = paletteFor(temaApp, tema, foscSistema).let { if (glass) it.glassy() else it }
             val scheme = pal.scheme()
             val dark = esFosc(tema, foscSistema)
             val view = LocalView.current
@@ -229,7 +235,7 @@ class MainActivity : ComponentActivity() {
             // sobre el tema clar (abans quedaven blanques sobre blanc).
             SideEffect {
                 // El color del fil (direcció visual §2): cap franja entre la barra d'estat i la capçalera flotant.
-                window.statusBarColor = pal.surface.toArgb()
+                window.statusBarColor = pal.surface.compositeOver(pal.deepTop).toArgb()
                 window.navigationBarColor = pal.deepTop.toArgb()
                 WindowCompat.getInsetsController(window, view).apply {
                     isAppearanceLightStatusBars = !dark

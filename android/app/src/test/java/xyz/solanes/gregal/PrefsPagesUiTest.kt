@@ -22,8 +22,9 @@ import org.robolectric.annotation.LooperMode
 class PrefsPagesUiTest {
     @get:Rule val ui = createComposeRule()
 
-    private fun host(simple: Boolean = false): GregalViewModel {
+    private fun host(simple: Boolean = false, prefs: Prefs? = null): GregalViewModel {
         val vm = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
+        prefs?.let { vm.attachPrefs(it) }
         vm.setSimpleVents(simple)
         vm.openPreferences()
         ui.setContent {
@@ -57,5 +58,16 @@ class PrefsPagesUiTest {
         ui.runOnIdle { assertEquals("clar", vm.tema.value); vm.back() }
         ui.onNodeWithText(PrefsPage.Names.title(vm.idioma.value)).assertIsDisplayed()
         ui.onNodeWithText(PrefsPage.Palette.title(vm.idioma.value)).assertIsDisplayed()
+    }
+
+    @Test fun glassSwitchIsOffByDefaultAndPersistsWhenTurnedOn() {
+        val prefs = Prefs(ApplicationProvider.getApplicationContext<Application>())
+        val vm = host(prefs = prefs)
+        ui.onNodeWithText(PrefsPage.Appearance.title(vm.idioma.value)).performClick()
+        ui.onNode(hasText(tr(vm.idioma.value, "prefs.glass")) and hasClickAction()).assertIsOff().performClick()
+        ui.runOnIdle {
+            assertEquals(true, vm.glass.value)
+            assertEquals(true, Prefs(ApplicationProvider.getApplicationContext<Application>()).glass)
+        }
     }
 }

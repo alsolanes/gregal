@@ -1,5 +1,11 @@
 package xyz.solanes.gregal
 
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.geometry.Offset
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -289,7 +295,7 @@ fun SeaBackdrop(modifier: Modifier = Modifier, content: @Composable () -> Unit) 
                 0.55f to pal.deepTop,
                 1f to pal.deepBottom,
             )
-        )
+        ).aurora(pal)
     ) {
         Box(
             Modifier
@@ -301,6 +307,35 @@ fun SeaBackdrop(modifier: Modifier = Modifier, content: @Composable () -> Unit) 
                 )
         )
         content()
+    }
+}
+
+/**
+ * Les taques de llum del fons Vidre ([auroraBlobs]). Es mouen a ~15 fps i
+ * només es redibuixen (no es recomponen): el desplaçament és tan lent que més
+ * fotogrames només gastarien bateria. Sense moviment, quietes.
+ */
+@Composable
+private fun Modifier.aurora(pal: GregalPalette): Modifier {
+    val blobs = remember(pal) { auroraBlobs(pal) }
+    if (blobs.isEmpty()) return this
+    val motion = windMotionEnabled()
+    val time = remember { mutableFloatStateOf(0f) }
+    if (motion) LaunchedEffect(Unit) {
+        while (true) { delay(66); time.floatValue += 0.066f }
+    }
+    return drawBehind {
+        val t = time.floatValue
+        blobs.forEachIndexed { i, b ->
+            // Cada taca fa el seu cercle lent (40–56 s per volta), desfasades.
+            val angle = 2f * PI.toFloat() * t / (40f + i * 8f) + i * 2.1f
+            val center = Offset(
+                size.width * (b.x + 0.08f * cos(angle)),
+                size.height * (b.y + 0.05f * sin(angle)),
+            )
+            val r = size.width * b.radius
+            drawCircle(Brush.radialGradient(listOf(b.color, Color.Transparent), center, r), r, center)
+        }
     }
 }
 

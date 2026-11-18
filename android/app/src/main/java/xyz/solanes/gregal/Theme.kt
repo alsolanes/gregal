@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -48,6 +49,8 @@ data class GregalPalette(
     /** Si la paleta és fosca. Abans es preguntava `== DarkPal`, que deixava de
      *  ser cert en afegir més temes: ara ho diu la pròpia paleta. */
     val dark: Boolean = false,
+    /** Estil Vidre: superfícies translúcides damunt del fons amb taques de llum ([glassy]). */
+    val glass: Boolean = false,
 ) {
     // Àlies històrics: noms que ja feia servir tota la UI.
     val pillDark: Color get() = surface
@@ -118,12 +121,43 @@ val LightPal = GregalPalette(
 
 val LocalPal = compositionLocalOf { DarkPal }
 
+/** La mateixa paleta en estil Vidre: les superfícies deixen veure el fons i
+ *  les vores s'aclareixen una mica perquè el vidre tingui cantell. El text,
+ *  l'accent i el fons no canvien (GlassTest en comprova el contrast). */
+fun GregalPalette.glassy(): GregalPalette = copy(
+    surface = surface.copy(alpha = if (dark) 0.62f else 0.66f),
+    surfaceHi = surfaceHi.copy(alpha = if (dark) 0.70f else 0.74f),
+    line = text.copy(alpha = if (dark) 0.14f else 0.16f),
+    lineHi = text.copy(alpha = if (dark) 0.26f else 0.30f),
+    glass = true,
+)
+
+/** Una taca de llum del fons Vidre: color (amb l'alfa del centre), centre en
+ *  fracció de la pantalla i radi en fracció de l'amplada. */
+data class AuroraBlob(val color: Color, val x: Float, val y: Float, val radius: Float)
+
+/** Les taques del fons: cap sense vidre; amb vidre, l'accent, l'aqua i el lila. */
+fun auroraBlobs(p: GregalPalette): List<AuroraBlob> {
+    if (!p.glass) return emptyList()
+    val a = if (p.dark) 0.20f else 0.16f
+    return listOf(
+        AuroraBlob(p.sea.copy(alpha = a), 0.15f, 0.12f, 0.95f),
+        AuroraBlob(p.onada.copy(alpha = a), 0.90f, 0.45f, 0.85f),
+        AuroraBlob(p.lila.copy(alpha = a), 0.30f, 0.88f, 0.90f),
+    )
+}
+
 /** Schemes Material derivats de la paleta (per als components M3).
  *
  *  Els contenidors (menús, diàlegs, xips seleccionats, fulls) també surten de
  *  la paleta: sense això Material posava els seus grisos liles de referència
  *  i un menú o un xip «Tots» destacaven com d'una altra app. */
 fun GregalPalette.scheme(): ColorScheme {
+    // Amb vidre, els contenidors de Material (menús, diàlegs, fulls) surten de
+    // la superfície ja composta: translúcids no es llegirien damunt del text.
+    val surface = if (glass) surface.compositeOver(deepTop) else surface
+    val surfaceHi = if (glass) surfaceHi.compositeOver(deepTop) else surfaceHi
+    val background = if (glass) Color.Transparent else deepTop
     val low = lerp(deepTop, surface, 0.5f)
     val high = lerp(surface, surfaceHi, 0.5f)
     // En fosc, els contenidors són neutres (la llima barrejada amb el grafit
@@ -134,7 +168,7 @@ fun GregalPalette.scheme(): ColorScheme {
     return if (dark) darkColorScheme(
         primary = sea, onPrimary = onSea, secondary = onada, onSecondary = deepTop,
         tertiary = lila, outline = Color(0xFF66726C), outlineVariant = algua, // outline = boxIdle (3:1)
-        background = deepTop, surface = surface, surfaceVariant = surfaceHi,
+        background = background, surface = surface, surfaceVariant = surfaceHi,
         onBackground = ink, onSurface = ink, onSurfaceVariant = muted, error = red,
         primaryContainer = primaryBox, onPrimaryContainer = ink,
         secondaryContainer = secondaryBox, onSecondaryContainer = ink,
@@ -147,7 +181,7 @@ fun GregalPalette.scheme(): ColorScheme {
     ) else lightColorScheme(
         primary = sea, onPrimary = onSea, secondary = onada, onSecondary = Color.White,
         tertiary = lila, outline = Color(0xFF7A8A86), outlineVariant = algua, // outline = boxIdle (3:1)
-        background = deepTop, surface = surface, surfaceVariant = surfaceHi,
+        background = background, surface = surface, surfaceVariant = surfaceHi,
         onBackground = ink, onSurface = ink, onSurfaceVariant = muted, error = red,
         primaryContainer = primaryBox, onPrimaryContainer = ink,
         secondaryContainer = secondaryBox, onSecondaryContainer = ink,
