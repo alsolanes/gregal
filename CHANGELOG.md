@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## v1.87.10 - 2026-11-18 - Vents ràpids amb models locals
+
+- **Els Vents van molt més ràpid amb un model local.** Després de cada
+  resposta, el vent fa unes quantes feines de fons (triar la foto, apuntar
+  el que ha après de tu i del tema, i les lliçons de feina). Amb un model
+  local raonaven molta estona i el missatge següent havia d'esperar-les.
+  Ara no raonen, no ocupen el lloc de la conversa al servidor i, si la
+  conversa no té cap font, ni es fa la del coneixement. Mesurat amb un
+  servidor propi: una conversa curta passa de 149 s a 62 s, i en una de
+  llarga amb cerques cada pas passa de 35 s a 19 s.
+
 ## v1.87.9 - 2026-11-18 - Fotos al xat i «A fons» que s'explica
 
 - **Les fotos que demanes surten al xat, no els enllaços.** Quan un vent
