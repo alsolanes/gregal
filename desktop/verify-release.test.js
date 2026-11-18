@@ -27,7 +27,7 @@ test('release metadata rejects mismatched versions, portable targets and tampere
   await assert.rejects(verifyRelease(dir, '1.7.3'), /checksum/);
 });
 
-test('Gregal Jocs release carries its own backend, gregal-jocs.exe, and never the Gregal one', async t => {
+test('Gregal Jocs release packages no backend: the app downloads gregal-jocs on first start', async t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gregal-jocs-release-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const installer = 'Gregal-Jocs-Setup-1.7.3-x64.exe';
@@ -36,14 +36,17 @@ test('Gregal Jocs release carries its own backend, gregal-jocs.exe, and never th
   fs.writeFileSync(path.join(dir, installer), contents);
   fs.writeFileSync(path.join(dir, installer + '.blockmap'), 'map');
   fs.writeFileSync(path.join(dir, 'Gregal-Jocs-Portable-1.7.3-x64.exe'), 'portable');
-  fs.writeFileSync(path.join(dir, 'jocs.yml'), `version: 1.7.3\nfiles:\n  - url: ${installer}\n    sha512: ${checksum}\n    size: ${contents.length}\n`);
+  fs.writeFileSync(path.join(dir, 'jocs.yml'), `version: 1.7.3
+files:
+  - url: ${installer}
+    sha512: ${checksum}
+    size: ${contents.length}
+`);
   assert.equal((await verifyRelease(dir, '1.7.3', 'jocs')).installer, installer, 'without win-unpacked only the metadata is checked');
+  fs.mkdirSync(path.join(dir, 'win-unpacked', 'resources'), { recursive: true });
+  assert.equal((await verifyRelease(dir, '1.7.3', 'jocs')).installer, installer, 'no backend folder is what Jocs ships');
   const backend = path.join(dir, 'win-unpacked', 'resources', 'backend');
-  fs.mkdirSync(backend, { recursive: true });
-  fs.writeFileSync(path.join(backend, 'gregal.exe'), 'gregal');
-  await assert.rejects(verifyRelease(dir, '1.7.3', 'jocs'), /must be gregal-jocs\.exe/);
+  fs.mkdirSync(backend);
   fs.writeFileSync(path.join(backend, 'gregal-jocs.exe'), 'jocs');
-  await assert.rejects(verifyRelease(dir, '1.7.3', 'jocs'), /must not include gregal\.exe/);
-  fs.rmSync(path.join(backend, 'gregal.exe'));
-  assert.equal((await verifyRelease(dir, '1.7.3', 'jocs')).installer, installer);
+  await assert.rejects(verifyRelease(dir, '1.7.3', 'jocs'), /must not package a backend/);
 });

@@ -59,6 +59,12 @@
   @keyframes slide { 0% { transform:translateX(-100%); } 100% { transform:translateX(250%); } }
   @keyframes show { to { opacity:1; } }
   @keyframes hide { to { opacity:0; } }
+  /* Gregal Jocs baixant el motor (main.js → gregalProgress): el text es veu
+     de seguida i la barra diu quant falta. */
+  .downloading .msg .first { animation:none; opacity:1; }
+  .downloading .msg .slow { display:none; }
+  .downloading .track { width:160px; }
+  .downloading .track i { animation:none; transition:width .2s linear; }
 </style>
 </head>
 <body>
@@ -82,6 +88,12 @@
     document.getElementById('first').textContent = (ca ? 'Obrint ' : 'Starting ') + name + '…';
     document.getElementById('slow').textContent = ca ? 'El servidor local triga una mica més del normal…' : 'The local server is taking a little longer than usual…';
   })();
+  // main.js ho crida mentre Gregal Jocs baixa el motor (pct -1 = mida desconeguda).
+  window.gregalProgress = (text, pct) => {
+    document.body.classList.add('downloading');
+    document.getElementById('first').textContent = String(text).slice(0, 120);
+    if (pct >= 0) document.querySelector('.track i').style.width = Math.min(100, pct) + '%';
+  };
 </script>
 </body>
 </html>

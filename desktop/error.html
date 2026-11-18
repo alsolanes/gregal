@@ -6,7 +6,7 @@
 <title>Gregal</title>
 <!-- Pantalla de «no arrenca» (main.js → showStartupError): els colors del
      tema (paràmetres bg, bar, ink, accent i scheme, com loading.html), per
-     què (reason: start, stopped o remote), un botó per tornar-ho a provar i
+     què (reason: start, stopped, remote o download), un botó per tornar-ho a provar i
      els detalls del backend (codi de sortida i les últimes línies del log),
      que arriben per IPC i no per la URL. -->
 <script>
@@ -88,11 +88,12 @@
     const q = new URLSearchParams(location.search);
     const ca = q.get('lang') === 'ca';
     const name = (q.get('name') || 'Gregal').slice(0, 40);
-    const reason = ['start', 'stopped', 'remote'].includes(q.get('reason')) ? q.get('reason') : 'start';
+    const reason = ['start', 'stopped', 'remote', 'download'].includes(q.get('reason')) ? q.get('reason') : 'start';
     const $ = id => document.getElementById(id);
     const T = ca ? {
       start: ["No s'ha pogut obrir " + name, "El servidor local de " + name + " no ha respost. Torna-ho a provar; si continua passant, als detalls hi ha què ha fallat."],
       stopped: ["El servidor local de " + name + " s'ha aturat", "S'ha tancat de cop. Torna'l a engegar per continuar on eres."],
+      download: ["No s'ha pogut baixar el motor de " + name, name + " baixa el seu motor la primera vegada que s'obre i després de cada actualització, i no ho ha pogut fer. Comprova la connexió i torna-ho a provar; als detalls hi ha què ha fallat."],
       remote: ["No es pot connectar amb el servidor", "El servidor de GREGAL_URL no respon. Comprova que estigui en marxa i torna-ho a provar."],
       exited: "El servidor local s'ha tancat mentre arrencava. Als detalls hi ha per què; quan ho hagis arreglat, torna-ho a provar.",
       retry: 'Torna-ho a provar', busy: 'Engegant…', log: 'Mostra el fitxer de log', again: 'Encara no respon.',
@@ -101,6 +102,7 @@
     } : {
       start: [name + " couldn't start", "The local server that runs " + name + " didn't respond. Try again; if it keeps happening, the details below show what went wrong."],
       stopped: [name + "'s local server stopped", 'It closed unexpectedly. Start it again to carry on where you were.'],
+      download: [name + " couldn't download its engine", name + " downloads its engine the first time it opens and after each update, and it couldn't this time. Check your connection and try again; the details below show what went wrong."],
       remote: ["Can't reach the Gregal server", "The server set in GREGAL_URL isn't answering. Check that it's running and try again."],
       exited: "The local server closed while it was starting. The details below show why; once that's fixed, try again.",
       retry: 'Try again', busy: 'Starting…', log: 'Show log file', again: 'Still not responding.',
@@ -114,7 +116,7 @@
     $('logBtn').textContent = T.log;
     $('detailsSummary').textContent = T.details;
     $('hint').innerHTML = T.hint;
-    $('hint').hidden = reason === 'remote';
+    $('hint').hidden = reason === 'remote' || reason === 'download';
 
     const bridge = window.gregalDesktop || {};
     async function loadDetails() {

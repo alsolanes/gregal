@@ -34,6 +34,7 @@
     "files": [
       "main.js",
       "server-manager.js",
+      "backend-download.js",
       "browser-bridge.js",
       "preload.js",
       "mascot-window.js",

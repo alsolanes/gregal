@@ -33,13 +33,14 @@ async function verifyRelease(directory, version = require('./package.json').vers
   fs.accessSync(path.join(output, installer + '.blockmap'));
   fs.accessSync(path.join(output, `${prefix}-Portable-${version}-x64.exe`));
   // El backend empaquetat (si hi ha la carpeta desempaquetada): Gregal porta
-  // gregal.exe, sense jocs; Gregal Jocs, gregal-jocs.exe. Mai l'altre.
+  // gregal.exe, sense jocs. Gregal Jocs no en porta cap: el baixa en obrir-se
+  // de la seva release (backend-download.js).
   const backend = path.join(output, 'win-unpacked', 'resources', 'backend');
-  if (fs.existsSync(backend)) {
-    const want = jocs ? 'gregal-jocs.exe' : 'gregal.exe';
-    const other = jocs ? 'gregal.exe' : 'gregal-jocs.exe';
-    if (!fs.existsSync(path.join(backend, want))) throw new Error(`The packaged backend must be ${want}`);
-    if (fs.existsSync(path.join(backend, other))) throw new Error(`The packaged backend must not include ${other}`);
+  if (jocs) {
+    if (fs.existsSync(backend)) throw new Error('Gregal Jocs must not package a backend (it downloads gregal-jocs on first start)');
+  } else if (fs.existsSync(path.join(output, 'win-unpacked'))) {
+    if (!fs.existsSync(path.join(backend, 'gregal.exe'))) throw new Error('The packaged backend must be gregal.exe');
+    if (fs.existsSync(path.join(backend, 'gregal-jocs.exe'))) throw new Error('The packaged backend must not include gregal-jocs.exe');
   }
   return { version, installer };
 }

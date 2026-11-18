@@ -15,6 +15,11 @@
 //       and attaches them to the v1.9.1 release with the in-app updater's
 //       manifest, gregal-android-version.json (the APKs are not built in
 //       CI: they need this machine's signing key).
+//   node scripts/release.cjs jocs 1.9.1
+//       Gregal Jocs, a les seves releases (alsolanes/gregal-jocs): compila el
+//       backend gregal-jocs i l'instal·lador (que ja no el porta dins), i
+//       publica els instal·ladors, jocs.yml, el backend i el seu manifest
+//       (gregal-jocs-backend.json), que l'app llegeix per baixar-lo en obrir-se.
 //   node scripts/release.cjs apk 1.9.1 --vents
 //       The same for Gregal Vents (-Pgregal.plotsPreview): Gregal-Vents-*.apk
 //       and gregal-vents-version.json, which the Vents app's updater reads.
@@ -159,6 +164,32 @@ if (cmd === 'check') {
   fs.writeFileSync(manifestFile, JSON.stringify(manifest, null, 2) + '\n');
   execFileSync('gh', ['release', 'upload', 'v' + value, ...apks.map(x => x.file), manifestFile, '--clobber'], { cwd: root, stdio: 'inherit' });
   console.log(`attached ${apks.length} APKs and ${manifestName} to v${value}`);
+} else if (cmd === 'jocs') {
+  if (!lib.SEMVER.test(value || '')) fail('usage: release.cjs jocs X.Y.Z');
+  const desktop = path.join(root, 'desktop');
+  const pkgVersion = JSON.parse(read('desktop/package.json')).version;
+  if (pkgVersion !== value) fail(`desktop/package.json és a la ${pkgVersion}: Gregal Jocs surt amb la versió del build (fes primer el bump o passa ${pkgVersion}).`);
+  const jocsRepo = 'alsolanes/gregal-jocs';
+  const dir = path.join(root, 'output', `release-${value}-jocs`);
+  const run = (file, args, cwd) => execFileSync(file, args, { cwd, stdio: 'inherit', shell: process.platform === 'win32' });
+  console.log(`building Gregal Jocs ${value} (backend + installer)…`);
+  run('npm', ['run', 'dist-win-jocs', '--', `--config.directories.output=${dir}`], desktop);
+  run('node', ['verify-release.js', dir, '--jocs'], desktop);
+  // El backend va a la release al costat de l'instal·lador, amb el seu manifest.
+  const backendName = `gregal-jocs-${value}-win32-x64.exe`;
+  const backendFile = path.join(dir, backendName);
+  fs.copyFileSync(path.join(desktop, 'backend-jocs', 'gregal-jocs.exe'), backendFile);
+  const buf = fs.readFileSync(backendFile);
+  const backendManifest = { version: value, files: { 'win32-x64': { name: backendName, sha256: crypto.createHash('sha256').update(buf).digest('hex'), size: buf.length } } };
+  const manifestFile = path.join(dir, 'gregal-jocs-backend.json');
+  fs.writeFileSync(manifestFile, JSON.stringify(backendManifest, null, 2) + '\n');
+  console.log(`  ${backendName}  ${(buf.length / 1048576).toFixed(1)} MiB`);
+  const assets = [`Gregal-Jocs-Setup-${value}-x64.exe`, `Gregal-Jocs-Setup-${value}-x64.exe.blockmap`, `Gregal-Jocs-Portable-${value}-x64.exe`, 'jocs.yml', backendName, 'gregal-jocs-backend.json'].map(f => path.join(dir, f));
+  for (const f of assets) if (!fs.existsSync(f)) fail('falta ' + f);
+  const notes = `Gregal Jocs v${value}, construït des de alsolanes/gregal v${value}.\n\nL'instal·lador és lleuger: la primera vegada que s'obre, l'app baixa el seu motor (${backendName}) d'aquesta mateixa release.`;
+  execFileSync('gh', ['release', 'create', 'v' + value, '--repo', jocsRepo, '--draft', '--title', `Gregal Jocs v${value}`, '--notes', notes, ...assets], { cwd: root, stdio: 'inherit' });
+  execFileSync('gh', ['release', 'edit', 'v' + value, '--repo', jocsRepo, '--draft=false', '--latest'], { cwd: root, stdio: 'inherit' });
+  console.log(`published Gregal Jocs v${value} at https://github.com/${jocsRepo}/releases/tag/v${value}`);
 } else if (cmd === 'cert') {
   const apk = process.argv[3];
   if (!apk) fail('usage: release.cjs cert <apk>');
@@ -166,5 +197,5 @@ if (cmd === 'check') {
   if (!c) fail('no s\'ha pogut llegir la signatura de ' + apk);
   console.log(c + (c === EXPECTED_CERT_SHA256 ? '  (la clau de sempre)' : '  (NO és la clau de sempre: aquest APK no es pot publicar)'));
 } else {
-  fail('usage: release.cjs check | bump X.Y.Z --title "..." [--android A.B.C] | notes X.Y.Z | title X.Y.Z | apk X.Y.Z [--vents] | cert <apk>');
+  fail('usage: release.cjs check | bump X.Y.Z --title "..." [--android A.B.C] | notes X.Y.Z | title X.Y.Z | apk X.Y.Z [--vents] | jocs X.Y.Z | cert <apk>');
 }

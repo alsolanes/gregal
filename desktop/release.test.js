@@ -14,13 +14,15 @@ test('Windows release includes an update-capable installer and distinct portable
   assert.ok(pkg.build.files.includes('updater.js'), 'the update controller must ship with the app');
 });
 
-test('Gregal Jocs packages its own backend (gregal-jocs) and keeps the jocs update channel', () => {
+test('Gregal Jocs ships without a backend, from its own releases repo, on the jocs channel', () => {
   const jocs = require('./electron-builder-jocs.js');
   assert.equal(jocs.extraMetadata.gregalEdition, 'jocs');
   assert.equal(jocs.publish.channel, 'jocs');
-  const backend = jocs.extraResources.find(r => r.to === 'backend');
-  assert.equal(backend.from, 'backend-jocs', 'the Jocs edition bundles backend-jocs/ (gregal-jocs), not the Gregal backend');
+  assert.equal(jocs.publish.repo, 'gregal-jocs', 'Jocs has its own latest release, apart from Gregal');
+  assert.equal(jocs.extraResources.find(r => r.to === 'backend'), undefined, 'the installer downloads gregal-jocs instead of bundling it');
   assert.equal(pkg.build.extraResources.find(r => r.to === 'backend').from, 'backend', 'Gregal keeps its own backend');
+  assert.ok(pkg.build.files.includes('backend-download.js'), 'main.js requires it in both editions');
+  assert.equal(require('./backend-download').JOCS_RELEASES_REPO, 'alsolanes/' + jocs.publish.repo, 'the app downloads from where the installer is published');
   assert.match(pkg.scripts['dist-win-jocs'], /build-backend\.js windows --jocs/);
 });
 

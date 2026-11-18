@@ -41,10 +41,13 @@ function defaultPort(edition) {
   return edition === "jocs" ? 8197 : 8097;
 }
 
-function binaryCandidates({ resourcesPath, appDir, platform = process.platform, edition = "gregal" }) {
+// downloadedBinary: el backend que Gregal Jocs baixa en obrir-se
+// (backend-download.js); l'instal·lador de Jocs ja no en porta.
+function binaryCandidates({ resourcesPath, appDir, platform = process.platform, edition = "gregal", downloadedBinary }) {
   const exe = backendName(edition, platform);
   const devDir = edition === "jocs" ? "backend-jocs" : "backend";
   return [
+    downloadedBinary,
     resourcesPath && path.join(resourcesPath, "backend", exe),
     path.join(appDir, devDir, exe),
     path.resolve(appDir, "..", exe),

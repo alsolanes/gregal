@@ -109,28 +109,48 @@ of the Gregal binary. There are two Go binaries, same CLI and same server:
   (`/api/jocs/model-import`; Gregal's files are only read). Uninstalling
   either desktop app deletes no profile data.
 
-The desktop app is packaged twice from `desktop/`, each edition with its own
-backend:
+The Gregal desktop app is packaged from `desktop/` with its backend inside:
 
 ```
 cd desktop
-# Gregal (backend/gregal.exe, latest.yml)
 CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist-win -- --config.directories.output=../output/release-X.Y.Z-win
 node verify-release.js ../output/release-X.Y.Z-win
-# Gregal Jocs (backend-jocs/gregal-jocs.exe, jocs.yml update channel)
-CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist-win-jocs -- --config.directories.output=../output/release-X.Y.Z-jocs
-node verify-release.js ../output/release-X.Y.Z-jocs --jocs
 ```
 
-`npm run dist-win-jocs` is `node build-backend.js windows --jocs` followed by
-`electron-builder --config electron-builder-jocs.js --win nsis portable
---publish never`; calling `npx electron-builder --config
-electron-builder-jocs.js …` directly needs `node build-backend.js windows
---jocs` first (the build stops if `backend-jocs/gregal-jocs.exe` is
-missing). `verify-release.js` also checks that each edition packaged its own
-backend (`gregal.exe` or `gregal-jocs.exe`, never the other one). Upload
-`Gregal-Jocs-Setup-*.exe`, its blockmap, `Gregal-Jocs-Portable-*.exe` and
-`jocs.yml` to the same release as Gregal's.
+### Gregal Jocs (its own releases)
+
+Gregal Jocs is released apart, at
+[alsolanes/gregal-jocs](https://github.com/alsolanes/gregal-jocs/releases)
+(only releases live there; the code stays in this repo because it imports
+`internal/`). Each repo has its own `latest`, so a Gregal release no longer
+carries the Jocs files, and Jocs can be released whenever it changes.
+
+The Jocs installer does **not** bundle the backend. The release carries
+`gregal-jocs-X.Y.Z-win32-x64.exe` and its manifest
+`gregal-jocs-backend.json` (name, sha256, size per platform); the app
+downloads it the first time it opens, and after each update, into
+`<userData>/backend/<version>/` (`desktop/backend-download.js`), showing the
+progress on the loading screen. Old versions are deleted.
+`GREGAL_JOCS_BACKEND_BASE` points the download at another
+`…/releases/download` root (a mirror or a test server).
+
+One command builds and publishes everything, with the version of
+`desktop/package.json`:
+
+```
+node scripts/release.cjs jocs X.Y.Z
+```
+
+It runs `npm run dist-win-jocs` (backend + light installer) into
+`output/release-X.Y.Z-jocs`, `verify-release.js --jocs` (which now fails if
+the installer packaged a backend), writes the backend manifest and publishes
+the installers, `jocs.yml`, the backend and its manifest as the latest
+release of `alsolanes/gregal-jocs`.
+
+Installs of Gregal Jocs 1.75.1 or older still look for `jocs.yml` in the
+latest Gregal release. To move them over, attach the first light Jocs
+installer, its blockmap and `jocs.yml` to one more Gregal release; once
+updated, they read from `alsolanes/gregal-jocs`.
 
 ## Assets
 
@@ -139,8 +159,6 @@ backend (`gregal.exe` or `gregal-jocs.exe`, never the other one). Upload
 | `Gregal-Setup-X.Y.Z-x64.exe` | Windows installer with automatic updates (`latest.yml` + `.blockmap`) |
 | `Gregal-Portable-X.Y.Z-x64.exe` | Portable Windows app |
 | `Gregal-VSCode-Setup-x64.exe` | Standalone Windows installer for the VS Code extension and backend |
-| `Gregal-Jocs-Setup-X.Y.Z-x64.exe` | Gregal Jocs (the games) Windows installer with automatic updates (`jocs.yml` + `.blockmap`) |
-| `Gregal-Jocs-Portable-X.Y.Z-x64.exe` | Portable Gregal Jocs |
 | `gregal-<os>-<arch>[.exe]` | Standalone backend/CLI (linux, darwin, windows × amd64, arm64), without the games |
 | `gregal-jocs-<os>-<arch>[.exe]` | The same backend/CLI with the games (Gregal Jocs) |
 | `gregal-X.Y.Z.vsix` | VS Code extension; install from Extensions → **…** → **Install from VSIX…** |
