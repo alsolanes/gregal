@@ -142,7 +142,6 @@ func TestSubjectPhotoOnlyWhenItFits(t *testing.T) {
 	}
 }
 
-
 // La foto ha de ser del que diu la targeta: si la cerca de «Sípia amb pèsols»
 // només troba farcellets de col, la recepta queda sense foto.
 func TestCardPhotoMustMatchTheDish(t *testing.T) {

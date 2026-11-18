@@ -28,7 +28,7 @@ import (
 var cardImageSearch = tools.WebImages
 
 var (
-	cardBlockRe  = regexp.MustCompile("(?s)```(gregal-(?:plan|recipe|result|compare|facts))([^\\n]*)\\n?(.*?)```")
+	cardBlockRe = regexp.MustCompile("(?s)```(gregal-(?:plan|recipe|result|compare|facts))([^\\n]*)\\n?(.*?)```")
 	// textImageRe: ![alt](image: consulta) — la foto que el vent demana al text.
 	textImageRe = regexp.MustCompile(`!\[([^\]\n]*)\]\(\s*image:\s*([^)\n]{2,80})\)`)
 	blankRunRe  = regexp.MustCompile(`\n[ \t]*\n(?:[ \t]*\n)+`)
