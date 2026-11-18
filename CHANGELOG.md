@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## v1.87.11 - 2026-11-18 - Vents que reaprofiten la memòria cau
+
+- **Els Vents reaprofiten més la memòria del model entre missatges.** El
+  que el vent aprèn mentre parleu (de tu i del tema) ja no canvia les seves
+  instruccions a mitja conversa: ho fa servir a la conversa següent, i el
+  que heu dit ja és al fil. Els missatges antics tornen exactament com es
+  van enviar (amb la seva hora) i l'historial es retalla per blocs en lloc
+  de moure's a cada missatge. Així el proveïdor pot reaprofitar la feina
+  feta: amb deepseek, la primera crida de cada missatge passa del 18% al
+  52% de memòria cau (més ràpid i més barat).
+
 ## v1.87.10 - 2026-11-18 - Vents ràpids amb models locals
 
 - **Els Vents van molt més ràpid amb un model local.** Després de cada
