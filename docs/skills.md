@@ -1,7 +1,8 @@
 # Specialist skills
 
-Gregal ships five optional specialists: `anti-ai-slop`, `data-science`,
-`statistics`, `ai-engineering`, and `product-design`. They start enabled for a
+Gregal ships six optional specialists: `anti-ai-slop`, `data-science`,
+`statistics`, `ai-engineering`, `product-design`, and `software-engineering`.
+They start enabled for a
 new installation and can be switched independently in **Settings → Agent →
 Specialist skills**. The selection is stored in `skills.enabled` in the Gregal
 configuration. Existing user and project skills keep working as before.
@@ -41,3 +42,7 @@ template.
 - **Product design:** preserve existing design systems, design for real user
   tasks, and verify accessibility and interaction states with [W3C WCAG 2.2](https://www.w3.org/TR/WCAG22/)
   as a reference.
+- **Software engineering:** put every gate behind one check command kept in
+  the repository, so agent hooks, [git hooks](https://git-scm.com/docs/githooks)
+  and CI on any forge (or none) each call the same thing, and review the diff
+  against acceptance criteria with a reviewer that did not write it.

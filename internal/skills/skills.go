@@ -33,9 +33,9 @@ var curades embed.FS
 var habilitadesMu sync.RWMutex
 var habilitades = map[string]bool{
 	"anti-ai-slop": true, "data-science": true, "statistics": true,
-	"ai-engineering": true, "product-design": true,
+	"ai-engineering": true, "product-design": true, "software-engineering": true,
 }
-var nomsCurades = []string{"anti-ai-slop", "data-science", "statistics", "ai-engineering", "product-design"}
+var nomsCurades = []string{"anti-ai-slop", "data-science", "statistics", "ai-engineering", "product-design", "software-engineering"}
 
 // PerDefecte són les habilitats especialistes activades en una instal·lació nova.
 func PerDefecte() []string { return append([]string(nil), nomsCurades...) }

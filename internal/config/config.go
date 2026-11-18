@@ -756,7 +756,7 @@ func (c *Config) SalutacioLocal() bool {
 const defaultYAML = `# Gregal configuration. Choose any OpenAI-compatible provider and model.
 lang: en
 skills:
-  enabled: [anti-ai-slop, data-science, statistics, ai-engineering, product-design]
+  enabled: [anti-ai-slop, data-science, statistics, ai-engineering, product-design, software-engineering]
 # Public provider presets. Supply only your own API key, then select a provider.
 # Keys are read from environment variables; no credentials are bundled.
 
