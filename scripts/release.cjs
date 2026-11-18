@@ -186,7 +186,8 @@ if (cmd === 'check') {
   console.log(`  ${backendName}  ${(buf.length / 1048576).toFixed(1)} MiB`);
   const assets = [`Gregal-Jocs-Setup-${value}-x64.exe`, `Gregal-Jocs-Setup-${value}-x64.exe.blockmap`, `Gregal-Jocs-Portable-${value}-x64.exe`, 'jocs.yml', backendName, 'gregal-jocs-backend.json'].map(f => path.join(dir, f));
   for (const f of assets) if (!fs.existsSync(f)) fail('falta ' + f);
-  const notes = `Gregal Jocs v${value}, construït des de alsolanes/gregal v${value}.\n\nL'instal·lador és lleuger: la primera vegada que s'obre, l'app baixa el seu motor (${backendName}) d'aquesta mateixa release.`;
+  const commit = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+  const notes = `Gregal Jocs v${value}, construït des de alsolanes/gregal@${commit}.\n\nL'instal·lador és lleuger: la primera vegada que s'obre, l'app baixa el seu motor (${backendName}) d'aquesta mateixa release.`;
   execFileSync('gh', ['release', 'create', 'v' + value, '--repo', jocsRepo, '--draft', '--title', `Gregal Jocs v${value}`, '--notes', notes, ...assets], { cwd: root, stdio: 'inherit' });
   execFileSync('gh', ['release', 'edit', 'v' + value, '--repo', jocsRepo, '--draft=false', '--latest'], { cwd: root, stdio: 'inherit' });
   console.log(`published Gregal Jocs v${value} at https://github.com/${jocsRepo}/releases/tag/v${value}`);
