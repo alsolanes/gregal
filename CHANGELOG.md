@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## v1.87.8 - 2026-11-18 - Més pantalla al xat de Vents
+
+- **Més pantalla al xat de Vents per a Android.** La barra de dalt del xat
+  d'un vent i de la colla ara és transparent: el fil hi passa per sota i
+  només hi ha pastilles per tornar, per la cara amb el nom i per «…». A la
+  portada de Gregal, el menú, la cara i l'ordinador porten el mateix fons.
+- **«Pensa-ho a fons» ja no ocupa una fila.** Ara és una icona dins del camp
+  d'escriure (al mòbil i a l'escriptori), que s'il·lumina quan està activat.
+
 ## v1.87.7 - 2026-11-17 - Vents per a Android al dia
 
 - **Gregal Vents per a Android es torna a actualitzar.** Les últimes

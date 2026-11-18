@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
@@ -78,22 +79,29 @@ internal fun VentsChatHeader(
     menu: Boolean = false,
     /** Portada de Gregal: només la cara, petita i flotant, sense nom ni fons (B14). */
     compact: Boolean = false,
+    modifier: Modifier = Modifier,
 ) {
     if (centered) {
         CenteredChatHeader(lang, title, subtitle, accent, style, mood, faces, onBack, onProfile, onComputer,
             onWiki, onSessions, onTransfer, menu, compact)
         return
     }
-    Column(Modifier.fillMaxWidth().background(Superficie)) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 62.dp).padding(horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, tr(lang, "app.vents.back"), tint = Ink) }
-        Row(Modifier.weight(1f).clip(RoundedCornerShape(18.dp)).clickable(onClick = onProfile).padding(vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            WindHalo(accent, style, size = 34, mood = mood, stacked = faces.drop(1), online = false, showKit = faces.size <= 1)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(title, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (subtitle.isNotBlank()) Text(subtitle, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    // Barra transparent: el fil passa per sota i només les pastilles (tornar,
+    // cara + nom, «…») tenen fons. Així el mòbil guanya l'alçada d'una franja.
+    Row(modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp).testTag("chat-header"),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        IconButton(onClick = onBack, modifier = Modifier.softBacking(SuperficieAlta)) {
+            Icon(Icons.AutoMirrored.Rounded.ArrowBack, tr(lang, "app.vents.back"), tint = Ink)
+        }
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            Row(Modifier.pillBacking(SuperficieAlta).clip(RoundedCornerShape(999.dp)).clickable(onClick = onProfile, role = Role.Button)
+                .padding(start = 6.dp, end = 14.dp, top = 5.dp, bottom = 5.dp).testTag("chat-header-pill"),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                WindHalo(accent, style, size = 30, mood = mood, stacked = faces.drop(1), online = false, showKit = faces.size <= 1)
+                Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                    Text(title, color = Ink, fontSize = 15.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (subtitle.isNotBlank()) Text(subtitle, color = Muted, fontSize = 11.5.sp, lineHeight = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
         // Una sola acció a la dreta, amb noms: dues icones soles (llibre,
@@ -101,7 +109,7 @@ internal fun VentsChatHeader(
         if (onWiki != null || onSessions != null || onTransfer != null || onWatch != null || onComputer != null) {
             var more by remember { mutableStateOf(false) }
             Box {
-                IconButton(onClick = { more = true }, modifier = Modifier.testTag("chat-more")) {
+                IconButton(onClick = { more = true }, modifier = Modifier.softBacking(SuperficieAlta).testTag("chat-more")) {
                     Icon(Icons.Rounded.MoreHoriz, tr(lang, "app.vents.more"), tint = Ink)
                 }
                 DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
@@ -119,9 +127,10 @@ internal fun VentsChatHeader(
             }
         }
     }
-    // Sense línia de separació: la capçalera i el fil respiren junts, com l'inici.
-    }
 }
+
+/** Alçada de la capçalera flotant del xat: el fil hi deixa aquest marge a dalt. */
+internal val ChatHeaderInset = 62.dp
 
 /** Un botó rodó de 44 dp amb vora fina (el target tàctil arriba als 48). */
 @Composable
@@ -300,19 +309,6 @@ internal fun VentsComposer(
                 }
             }
         }
-        if (onTempesta != null) Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 6.dp)) {
-            Surface(onClick = onTempesta, shape = RoundedCornerShape(999.dp),
-                color = if (tempesta) SuperficieAlta else Color.Transparent,
-                border = androidx.compose.foundation.BorderStroke(1.dp, if (tempesta) LineHi else Line),
-                modifier = Modifier.testTag("tempesta-toggle").semantics { stateDescription = if (tempesta) "on" else "off" }) {
-                Row(Modifier.padding(horizontal = 12.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Icons.Rounded.AutoAwesome, null, tint = if (tempesta) Sea else Muted, modifier = Modifier.size(14.dp))
-                    Text(if (lang == "en") "Deep" else "A fons", color = if (tempesta) Ink else Muted, fontSize = 12.5.sp,
-                        fontWeight = if (tempesta) FontWeight.SemiBold else FontWeight.Normal)
-                }
-            }
-        }
         // Una sola pastilla, com l'inici: «+», el camp i un botó rodó que és
         // el micròfon (camp buit), enviar (amb text) o aturar (vent treballant).
         val dictate = rememberDictation(lang) { said ->
@@ -435,6 +431,18 @@ internal fun VentsComposer(
                     },
                 )
             }
+            // «A fons»: només una icona dins la pastilla (no una fila sencera);
+            // activada, s'il·lumina amb el color del vent.
+            if (onTempesta != null) {
+                val deepLabel = if (lang == "en") "Deep" else "A fons"
+                IconButton(onClick = onTempesta,
+                    modifier = Modifier.size(48.dp).clip(CircleShape)
+                        .background(if (tempesta) ringColor.copy(alpha = .18f) else Color.Transparent)
+                        .testTag("tempesta-toggle")
+                        .semantics { contentDescription = deepLabel; stateDescription = if (tempesta) "on" else "off" }) {
+                    Icon(Icons.Rounded.AutoAwesome, null, tint = if (tempesta) Sea else Muted, modifier = Modifier.size(20.dp))
+                }
+            }
             // Mentre el vent treballa: amb text, enviar (el missatge entra
             // com a steer, sense aturar el torn); sense text, «atura».
             when {
@@ -459,30 +467,41 @@ internal fun VentsComposer(
 
 /**
  * La capçalera de la portada de Gregal (direcció visual §2): cap barra ni vora.
- * Un degradat del color de fons perquè el fil hi passi per sota, el menú i
- * l'ordinador com a icones soles (objectiu tàctil de 48 dp) i la cara de 34 dp
+ * Transparent: el fil hi passa per sota i només el menú, la cara i
+ * l'ordinador porten un fons rodó semitransparent; la cara és de 34 dp
  * al centre; sota la cara, una paraula d'estat només mentre treballa.
  */
 @Composable
 internal fun GregalFloatingHeader(lang: String, accent: Color, style: WindStyle, mood: WindMood, working: Boolean,
     onMenu: () -> Unit, onProfile: () -> Unit, onComputer: () -> Unit, modifier: Modifier = Modifier) {
     Box(modifier.fillMaxWidth().height(if (working) 84.dp else 72.dp)
-        .background(Brush.verticalGradient(0f to Superficie, .72f to Superficie.copy(alpha = .96f), 1f to Superficie.copy(alpha = 0f)))
+
         .testTag("gregal-floating-header")) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp), verticalAlignment = Alignment.Top) {
-            IconButton(onClick = onMenu, modifier = Modifier.testTag("home-menu")) {
+            IconButton(onClick = onMenu, modifier = Modifier.softBacking(SuperficieAlta).testTag("home-menu")) {
                 Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu"), tint = Ink)
             }
             Column(Modifier.weight(1f).padding(top = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.clip(CircleShape).clickable(onClick = onProfile, role = Role.Button)) {
+                // Sense clip rodó: el halo (feina, anells) sobrepassa els 34 dp i es tallava.
+                Box(Modifier.softBacking(SuperficieAlta).clickable(onClick = onProfile, role = Role.Button).padding(4.dp)) {
                     WindHalo(accent, style, size = 34, mood = mood, online = false, showKit = false)
                 }
                 if (working) Text(threadCopy(lang, "working"), color = Muted, fontSize = 11.sp, lineHeight = 14.sp,
                     modifier = Modifier.padding(top = 2.dp).testTag("gregal-working"))
             }
-            IconButton(onClick = onComputer, modifier = Modifier.testTag("home-computer")) {
+            IconButton(onClick = onComputer, modifier = Modifier.softBacking(SuperficieAlta).testTag("home-computer")) {
                 Icon(Icons.Rounded.Computer, threadCopy(lang, "computer"), tint = Ink)
             }
         }
     }
+}
+
+/** Com un botó flotant: un cercle del color de fons, semitransparent, darrere de
+ *  l'avatar i de cada botó. La barra no és una franja; només ells es llegeixen
+ *  sobre el fil que passa per sota. */
+private fun Modifier.softBacking(bg: Color): Modifier = drawBehind { drawCircle(bg.copy(alpha = .9f), radius = size.minDimension / 2f) }
+
+/** El mateix fons semitransparent en forma de pastilla (cara + nom). */
+private fun Modifier.pillBacking(bg: Color): Modifier = drawBehind {
+    drawRoundRect(bg.copy(alpha = .9f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f))
 }

@@ -185,7 +185,7 @@
   // Tempesta: «Pensa-ho a fons» fa treballar diversos vents alhora i en surt una
   // sola resposta (winds_tempesta.go). Només a la conversa amb un vent.
   const storm=state.view==='chat'&&state.active?.legacyWind?btn('',()=>{state.tempesta=!state.tempesta;storm.classList.toggle('on',!!state.tempesta);storm.setAttribute('aria-pressed',String(!!state.tempesta));},'vw-tempesta-toggle'+(state.tempesta?' on':'')):null;
-  if(storm){storm.append(icon('sparkles'),el('span','',t('A fons','Deep')));storm.title=t('Pensa-ho a fons: diversos vents hi treballen alhora i t’arriba una sola resposta (més lent i gasta més)','Think it through: several winds work on it at once and you get one answer (slower and uses more)');storm.setAttribute('aria-pressed',String(!!state.tempesta));}
+  if(storm){storm.append(icon('sparkles'));storm.setAttribute('aria-label',t('A fons','Deep'));storm.title=t('Pensa-ho a fons: diversos vents hi treballen alhora i t’arriba una sola resposta (més lent i gasta més)','Think it through: several winds work on it at once and you get one answer (slower and uses more)');storm.setAttribute('aria-pressed',String(!!state.tempesta));}
   pick.append(select);foot.append(pick);if(address)foot.append(address);foot.append(model);if(storm)foot.append(storm);foot.append(...voiceButtons(),send);composer.append(input,foot);
   if(Rec()&&!workspace)content.append(voiceStrip());
   composer.onsubmit=e=>{e.preventDefault();submit().catch(fail);};content.append(composer);paintVoice();

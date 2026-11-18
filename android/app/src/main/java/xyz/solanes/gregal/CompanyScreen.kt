@@ -1237,16 +1237,6 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         Column(Modifier.fillMaxSize()) {
         // La capçalera diu qui és; «què està fent» es diu al final del fil.
         // A la portada de Gregal la capçalera és una capa flotant (a sota): el fil hi passa per sota.
-        if (!home) VentsChatHeader(lang, wind.name,
-            wind.role,
-            accent, wind.faceStyle,
-            if (isBusy) live[wind.id]?.mood ?: WindMood.THINKING else WindMood.IDLE,
-            onBack = onBack, onProfile = { profile = true },
-            onWiki = onWiki,
-            onSessions = { sessionsOpen = true; vm.loadWindSessions(wind.id) },
-            onTransfer = if (vm.canTransferToServer()) ({ askTransfer = true }) else null,
-            onComputer = { computerOpen = true },
-            onWatch = { watchOpen = true })
         // Missatges
         // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
         // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
@@ -1259,7 +1249,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         LazyColumn(
             Modifier.fillMaxSize(),
             state = listState,
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = if (home) 72.dp else 10.dp, bottom = 10.dp),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = if (home) 72.dp else ChatHeaderInset, bottom = 10.dp),
             verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             if (msgs.isEmpty()) {
@@ -1403,6 +1393,18 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             }
         }
         }
+        // Fora de la portada, la capçalera també flota: el fil passa per sota de les pastilles.
+        if (!home) VentsChatHeader(lang, wind.name,
+            wind.role,
+            accent, wind.faceStyle,
+            if (isBusy) live[wind.id]?.mood ?: WindMood.THINKING else WindMood.IDLE,
+            onBack = onBack, onProfile = { profile = true },
+            onWiki = onWiki,
+            onSessions = { sessionsOpen = true; vm.loadWindSessions(wind.id) },
+            onTransfer = if (vm.canTransferToServer()) ({ askTransfer = true }) else null,
+            onComputer = { computerOpen = true },
+            onWatch = { watchOpen = true },
+            modifier = Modifier.align(Alignment.TopCenter))
         if (home) GregalFloatingHeader(lang, accent, wind.faceStyle,
             if (isBusy) live[wind.id]?.mood ?: WindMood.THINKING else WindMood.IDLE,
             working = isBusy || resuming.contains(wind.id),
@@ -1537,14 +1539,6 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
         Column(Modifier.fillMaxSize()) {
         val crewSteps by vm.crewStep.collectAsState()
         val crewStep = crewSteps[rot.id]
-        VentsChatHeader(lang, rot.name,
-            // El pas de la colla i «què està fent» es diuen al final del fil.
-            faces.joinToString(", ") { it.name },
-            rotAccent, faces.firstOrNull()?.faceStyle ?: WindStyle(),
-            if (rotBusy) live[rot.id]?.mood ?: WindMood.THINKING else WindMood.IDLE, faces,
-            onBack = onBack, onProfile = { groupProfile = true },
-            onWiki = onWiki,
-            onTransfer = if (vm.canTransferToServer()) ({ askTransfer = true }) else null)
         // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
         // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
         val scope = rememberCoroutineScope()
@@ -1553,7 +1547,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
         LazyColumn(
             Modifier.fillMaxSize(),
             state = listState,
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = ChatHeaderInset, bottom = 10.dp),
             verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             if (msgs.isEmpty()) item {
@@ -1679,6 +1673,16 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             follow.requestFollow(); vm.sendRotllanaMessage(rot.id, body, target?.id.orEmpty()); field = TextFieldValue("")
         }
         }
+        // Capçalera flotant: el fil passa per sota de les pastilles.
+        VentsChatHeader(lang, rot.name,
+            // El pas de la colla i «què està fent» es diuen al final del fil.
+            faces.joinToString(", ") { it.name },
+            rotAccent, faces.firstOrNull()?.faceStyle ?: WindStyle(),
+            if (rotBusy) live[rot.id]?.mood ?: WindMood.THINKING else WindMood.IDLE, faces,
+            onBack = onBack, onProfile = { groupProfile = true },
+            onWiki = onWiki,
+            onTransfer = if (vm.canTransferToServer()) ({ askTransfer = true }) else null,
+            modifier = Modifier.align(Alignment.TopCenter))
     }
     if (groupProfile) GroupProfileDialog(vm, lang, rot, winds) { groupProfile = false }
     speakerProfile?.let { WindProfileDialog(vm, lang, it) { speakerProfile = null } }
