@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v1.87.9 - 2026-11-18 - Fotos al xat i «A fons» que s'explica
+
+- **Les fotos que demanes surten al xat, no els enllaços.** Quan un vent
+  t'envia fotos i n'escriu l'enllaç mentre encara treballa, en una llista
+  numerada o dins d'una frase, ara veus la foto (la frase es queda i la foto
+  va a sota). Els enllaços a la pàgina d'un fitxer de Wikimedia Commons
+  també es mostren com a foto.
+- **«A fons» diu què fa.** En tocar-lo, una línia curta explica que diversos
+  vents hi treballaran i et donaran una sola resposta, i desapareix sola al
+  cap d'uns segons. A l'escriptori i a l'Android.
 - **Gregal Jocs és un projecte a part.** El codi dels jocs, la seva app
   d'escriptori i el desplegament ara viuen a
   [alsolanes/gregal-jocs](https://github.com/alsolanes/gregal-jocs). Aquí no
