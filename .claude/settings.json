@@ -23,7 +23,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run --no-project \"${CLAUDE_PROJECT_DIR}/.claude/hooks/guard.py\"",
+            "command": "s=\"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.py\"; [ -f \"$s\" ] || s=\"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/guard.py\"; if [ -f \"$s\" ] && command -v uv >/dev/null; then uv run --no-project \"$s\" || exit 1; else echo '{\"systemMessage\":\"guard hook did not run: .claude/hooks/guard.py or uv not found. The quality gate is off until this is fixed.\"}'; fi",
             "timeout": 30
           }
         ]
@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run --no-project \"${CLAUDE_PROJECT_DIR}/.claude/hooks/format.py\"",
+            "command": "s=\"$CLAUDE_PROJECT_DIR/.claude/hooks/format.py\"; [ -f \"$s\" ] || s=\"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/format.py\"; if [ -f \"$s\" ] && command -v uv >/dev/null; then uv run --no-project \"$s\" || exit 1; else echo '{\"systemMessage\":\"format hook did not run: .claude/hooks/format.py or uv not found. The quality gate is off until this is fixed.\"}'; fi",
             "timeout": 60
           }
         ]
@@ -46,7 +46,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run --no-project \"${CLAUDE_PROJECT_DIR}/.claude/hooks/stop_check.py\"",
+            "command": "s=\"$CLAUDE_PROJECT_DIR/.claude/hooks/stop_check.py\"; [ -f \"$s\" ] || s=\"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/stop_check.py\"; if [ -f \"$s\" ] && command -v uv >/dev/null; then uv run --no-project \"$s\"; else echo '{\"systemMessage\":\"stop_check hook did not run: .claude/hooks/stop_check.py or uv not found. The quality gate is off until this is fixed.\"}'; fi",
             "timeout": 900
           }
         ]
@@ -57,7 +57,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run --no-project \"${CLAUDE_PROJECT_DIR}/.claude/hooks/stop_check.py\"",
+            "command": "s=\"$CLAUDE_PROJECT_DIR/.claude/hooks/stop_check.py\"; [ -f \"$s\" ] || s=\"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/stop_check.py\"; if [ -f \"$s\" ] && command -v uv >/dev/null; then uv run --no-project \"$s\"; else echo '{\"systemMessage\":\"stop_check hook did not run: .claude/hooks/stop_check.py or uv not found. The quality gate is off until this is fixed.\"}'; fi",
             "timeout": 900
           }
         ]
