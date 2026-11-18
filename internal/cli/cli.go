@@ -37,7 +37,7 @@ import (
 )
 
 // Build descriu el binari que crida Main: el main.go de l'arrel (Gregal) o
-// el de jocs/cmd/gregal-jocs (Gregal Jocs). Tots dos són la mateixa CLI i el
+// el de gregal-jocs/cmd/gregal-jocs (Gregal Jocs). Tots dos són la mateixa CLI i el
 // mateix servidor; Gregal Jocs, a més, hi registra els jocs abans de cridar
 // Main. Han de ser la CLI sencera, no només --serve: el servidor es torna a
 // cridar a si mateix (connectors MCP «gregal …», el sandbox de Linux) i un

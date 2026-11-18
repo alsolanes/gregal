@@ -9,7 +9,7 @@ import (
 )
 
 // El que un producte de fora (product.go) pot fer servir del servidor d'un
-// usuari. És poc a propòsit: el que necessiten els jocs (jocs/server) i res
+// usuari. És poc a propòsit: el que necessiten els jocs (gregal-jocs/server) i res
 // més. Tot llegeix sota el candau del servidor, com fa el codi d'aquí.
 
 // Global lliga un handler d'aplicació a la sessió default de qui pregunta

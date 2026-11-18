@@ -37,7 +37,7 @@ type Opcions struct {
 	NomesComprova bool
 	Forca         bool // recompila encara que estigui al dia
 	// Paquet és el que es compila, relatiu al repositori: "." (Gregal, per
-	// defecte) o "./jocs/cmd/gregal-jocs" (Gregal Jocs).
+	// defecte) o "./cmd/gregal-jocs" (Gregal Jocs, al seu repositori).
 	Paquet  string
 	Sortida func(string)
 	Error   func(string)

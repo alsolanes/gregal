@@ -41,9 +41,7 @@ func TestContracteSenseRutesInventades(t *testing.T) {
 		viva[r] = true
 	}
 	raw, _ := os.ReadFile("../../docs/api-contract.md")
-	// La secció de Gregal Jocs és d'un altre binari: la comprova
-	// jocs/server (TestContracteJocs).
-	doc, _ := splitContract(string(raw), "## Gregal Jocs")
+	doc := string(raw)
 	for _, tok := range strings.Fields(strings.ReplaceAll(doc, "`", " ")) {
 		tok = strings.Trim(tok, ",.;:()|")
 		if !strings.HasPrefix(tok, "/api/") || strings.ContainsAny(tok, "{?*") {
@@ -55,33 +53,14 @@ func TestContracteSenseRutesInventades(t *testing.T) {
 	}
 }
 
-// splitContract separa del document la secció que comença amb heading (fins
-// al títol ## següent): torna la resta i la secció.
-func splitContract(doc, heading string) (rest, section string) {
-	doc = strings.ReplaceAll(doc, "\r\n", "\n")
-	i := strings.Index(doc, "\n"+heading)
-	if i < 0 {
-		return doc, ""
-	}
-	j := strings.Index(doc[i+1:], "\n## ")
-	if j < 0 {
-		return doc[:i], doc[i:]
-	}
-	return doc[:i] + doc[i+1+j:], doc[i : i+1+j]
-}
-
-// La secció de Gregal Jocs hi ha de ser (la comprova jocs/server) i, a la
-// resta del document, cap ruta dels jocs.
-func TestContracteJocsApart(t *testing.T) {
+// Les rutes dels jocs es documenten a alsolanes/gregal-jocs
+// (docs/api-contract.md): aquí no n'hi ha cap.
+func TestContracteSenseJocs(t *testing.T) {
 	raw, err := os.ReadFile("../../docs/api-contract.md")
 	if err != nil {
 		t.Fatal(err)
 	}
-	rest, jocs := splitContract(string(raw), "## Gregal Jocs")
-	if !strings.Contains(jocs, "`/api/arena`") || !strings.Contains(jocs, "`/api/football`") {
-		t.Fatal("falta la secció «## Gregal Jocs» amb les rutes dels jocs")
-	}
-	if strings.Contains(rest, "/api/arena") || strings.Contains(rest, "/api/football") {
-		t.Fatal("les rutes dels jocs només van a la secció de Gregal Jocs")
+	if strings.Contains(string(raw), "/api/arena") || strings.Contains(string(raw), "/api/football") {
+		t.Fatal("les rutes dels jocs van al contracte de gregal-jocs, no al de Gregal")
 	}
 }

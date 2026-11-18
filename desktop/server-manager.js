@@ -3,7 +3,7 @@ const path = require("path");
 const { spawn } = require("child_process");
 
 // backendName és el binari de cada edició: Gregal porta gregal(.exe), sense
-// els jocs; Gregal Jocs porta gregal-jocs(.exe) (jocs/cmd/gregal-jocs), el
+// els jocs; Gregal Jocs porta gregal-jocs(.exe) (gregal-jocs/cmd/gregal-jocs), el
 // mateix servidor amb els jocs. build-backend.js els deixa a backend/ i a
 // backend-jocs/; l'empaquetat de cada edició el posa a resources/backend/.
 function backendName(edition, platform = process.platform) {

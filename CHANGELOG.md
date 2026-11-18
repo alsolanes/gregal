@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Gregal Jocs és un projecte a part.** El codi dels jocs, la seva app
+  d'escriptori i el desplegament ara viuen a
+  [alsolanes/gregal-jocs](https://github.com/alsolanes/gregal-jocs). Aquí no
+  queda res dels jocs. Gregal Jocs fa servir el servidor de Gregal a través
+  de `host/`, l'única porta pública de Gregal.
+
 ## v1.87.8 - 2026-11-18 - Més pantalla al xat de Vents
 
 - **Més pantalla al xat de Vents per a Android.** La barra de dalt del xat

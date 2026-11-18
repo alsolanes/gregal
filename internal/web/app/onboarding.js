@@ -89,7 +89,7 @@ export const onboarding = {
       const ok = !!p && (p.has_api_key || local(p.url));
       this.info = { needs: !ok, admin, provider: name, model: st.model_name || st.model || '', label: (c && c.label) || name, catalog: cat, providers: provs };
       // Gregal Jocs té el seu perfil i arrenca sense model: si el de Gregal
-      // en té un, s'ofereix una vegada copiar-lo (jocs/server/model_import.go).
+      // en té un, s'ofereix una vegada copiar-lo (gregal-jocs/server/model_import.go).
       this.info.gregal = null;
       if (!ok && admin && window.gregalProduct === 'jocs') {
         try {

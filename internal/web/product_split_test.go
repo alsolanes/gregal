@@ -71,7 +71,7 @@ func TestEventsWithoutSessionWorkForAccounts(t *testing.T) {
 	}
 }
 
-// Gregal Jocs és una altra app (jocs/cmd/gregal-jocs): sense els jocs
+// Gregal Jocs és una altra app (gregal-jocs/cmd/gregal-jocs): sense els jocs
 // registrats, /jocs/ ho diu i enllaça on es baixa, i les pàgines de Gregal
 // no demanen cap fitxer dels jocs.
 func TestJocsIsASeparateApp(t *testing.T) {

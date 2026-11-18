@@ -12,9 +12,9 @@ import (
 	"sync/atomic"
 )
 
-// Productes de fora del paquet: Gregal Jocs (jocs/server) no viu a
+// Productes de fora del paquet: Gregal Jocs (gregal-jocs/server) no viu a
 // internal/web ni el binari de Gregal l'inclou. Un binari que el vol (el de
-// jocs/cmd/gregal-jocs) l'importa i, des d'un init(), crida RegisterProduct
+// gregal-jocs/cmd/gregal-jocs) l'importa i, des d'un init(), crida RegisterProduct
 // abans d'arrencar el servidor. Aquest paquet no importa mai cap producte:
 // només en recorre el registre.
 //

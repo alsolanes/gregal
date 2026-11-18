@@ -61,7 +61,7 @@ func pluginReq(h http.Handler, method, path, body string) *httptest.ResponseReco
 }
 
 // Gregal només registra el Racó; l'Arena i els Partits són de Gregal Jocs
-// (jocs/server, que en comprova els seus).
+// (gregal-jocs/server, que en comprova els seus).
 func TestPluginsRegistreElRaco(t *testing.T) {
 	ids := map[string]bool{}
 	for _, p := range registeredPlugins() {
@@ -171,7 +171,7 @@ func TestAPIPluginsLlistaIAdmin(t *testing.T) {
 }
 
 // Els plugins de debò: apagar el Racó treu les seves rutes. (L'Arena i els
-// Partits són de Gregal Jocs: el seu test és a jocs/server.)
+// Partits són de Gregal Jocs: el seu test és a gregal-jocs/server.)
 func TestPluginRacoApagatRutes404(t *testing.T) {
 	h := pluginServer(t).Hub()
 	mux := h.mux()

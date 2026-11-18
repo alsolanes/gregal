@@ -9,7 +9,7 @@ import (
 
 // El model d'un producte amb perfil propi (Gregal Jocs): saber si ja en té
 // un que respongui i, la primera vegada, adoptar el de Gregal (una còpia;
-// jocs/server/model_import.go en llegeix l'origen).
+// gregal-jocs/server/model_import.go en llegeix l'origen).
 
 // ModelReady diu si el model actiu pot respondre: el proveïdor existeix i
 // té clau, o és un servidor local. És el mateix que mira el diàleg del

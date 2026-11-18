@@ -12,21 +12,18 @@ const { spawnSync } = require("child_process");
 // per argument perquè els scripts d'npm passen per cmd.exe a Windows i la
 // sintaxi VAR=x ordre no hi funciona.
 //
-// Edició: amb --jocs (node build-backend.js windows --jocs) compila Gregal
-// Jocs, el mateix servidor amb els jocs (./jocs/cmd/gregal-jocs), a
-// backend-jocs/gregal-jocs(.exe); electron-builder-jocs.js l'empaqueta a
-// resources/backend/. Sense, Gregal (.) a backend/gregal(.exe), sense jocs.
+// Compila Gregal (.) a backend/gregal(.exe). Gregal Jocs té el seu
+// build-backend.js al seu repositori (alsolanes/gregal-jocs).
 const desktopDir = __dirname;
 const projectDir = path.resolve(desktopDir, "..");
 const args = process.argv.slice(2);
-const jocs = args.includes("--jocs");
 const { backendName } = require("./server-manager");
-const outDir = path.join(desktopDir, jocs ? "backend-jocs" : "backend");
-const goPackage = jocs ? "./jocs/cmd/gregal-jocs" : ".";
+const outDir = path.join(desktopDir, "backend");
+const goPackage = ".";
 
 const hostOS = { win32: "windows", linux: "linux", darwin: "darwin" }[process.platform] || process.platform;
 const targetOS = args.find(a => !a.startsWith("--")) || process.env.GREGAL_TARGET || hostOS;
-const exe = backendName(jocs ? "jocs" : "gregal", targetOS === "windows" ? "win32" : targetOS);
+const exe = backendName("gregal", targetOS === "windows" ? "win32" : targetOS);
 
 // A Windows no es pot esborrar un executable que està corrent, i el que
 // sortia era un EPERM cru amb la ruta escapada quatre vegades, sense dir

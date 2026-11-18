@@ -76,7 +76,7 @@ macOS, Linux, Android and VS Code release/update publishing remain separate.
 ```sh
 go test ./...
 go vet ./...
-node --experimental-vm-modules --test internal/web/*.test.js internal/web/app/*.test.cjs jocs/web/app/*.test.cjs desktop/*.test.js
+node --experimental-vm-modules --test internal/web/*.test.js internal/web/app/*.test.cjs desktop/*.test.js
 node --test scripts/audit-public.test.cjs
 node scripts/verify-vendor.cjs
 python -m pip install -e ./python

@@ -15,7 +15,6 @@ const net = require("net");
 const fs = require("fs");
 const path = require("path");
 const { startServer, stopServer, appBackendEnv, profileDirs, serviceFileName, defaultPort, backendName } = require("./server-manager");
-const { ensureJocsBackend, installedBackend } = require("./backend-download");
 const { loadState, saveState, fitBounds } = require("./window-state");
 const { allowed, loadPreferences, savePreferences, keys: preferenceKeys } = require("./preferences");
 const { sameOrigin, externalURL, backendURLError, localServiceURL, trustedPage } = require('./navigation');
@@ -218,41 +217,8 @@ function waitForServer(timeoutMs = 20000) {
 
 let lastBackendLogs = [];
 let backendEarlyExit = null;
-// L'última baixada del backend de Gregal Jocs ha fallat (error.html ho diu així).
-let backendDownloadError = null;
-
-// Gregal Jocs no porta el backend a l'instal·lador: el baixa la primera
-// vegada (i després de cada actualització) amb el progrés a loading.html.
-// Torna undefined si no cal (Gregal, desenvolupament o un build que encara
-// el porta dins).
-async function jocsBackendBinary() {
-    if (EDITION !== "jocs" || !app.isPackaged) return undefined;
-    if (fs.existsSync(path.join(process.resourcesPath, "backend", backendName("jocs")))) return undefined;
-    const userData = app.getPath("userData");
-    const version = app.getVersion();
-    const ready = installedBackend({ userData, version });
-    if (ready) return ready;
-    const win = mainWin;
-    const alive = () => win && !win.isDestroyed();
-    if (alive() && !win.webContents.getURL().includes("loading.html")) await showLoading(win);
-    const ca = idiomaApp() === "ca";
-    let last = 0;
-    return ensureJocsBackend({
-        userData, version,
-        onProgress: ({ received, total }) => {
-            const now = Date.now();
-            if (!alive() || (now - last < 200 && received !== total)) return;
-            last = now;
-            const pct = total ? Math.min(100, Math.floor(received * 100 / total)) : -1;
-            const amount = pct >= 0 ? pct + " %" : Math.round(received / 1048576) + " MB";
-            const text = (ca ? "Baixant el motor de " : "Downloading the ") + PRODUCT + (ca ? "… " : " engine… ") + amount;
-            win.webContents.executeJavaScript("window.gregalProgress && window.gregalProgress(" + JSON.stringify(text) + ", " + pct + ")").catch(() => {});
-        },
-    });
-}
-
 // startFailure és el motiu d'error.html quan el backend gestionat no arrenca.
-const startFailure = () => (MANAGED ? (backendDownloadError ? "download" : "start") : "remote");
+const startFailure = () => (MANAGED ? "start" : "remote");
 
 async function ensureServer() {
     let descriptorCandidate = false;
@@ -299,19 +265,8 @@ async function ensureServer() {
         // amb el fil principal aturat: 3-4 s sense poder ni pintar
         // loading.html. Primer la finestra (com a molt 1 s d'espera).
         await Promise.race([windowShown, new Promise(resolve => setTimeout(resolve, 1000))]);
-        let downloadedBinary;
-        try {
-            downloadedBinary = await jocsBackendBinary();
-            backendDownloadError = null;
-        } catch (error) {
-            backendDownloadError = error;
-            console.error("[gregal] no s'ha pogut baixar el motor: " + error.message);
-            lastBackendLogs = [String(error.message)];
-            return false;
-        }
         backendStopping = false;
         const started = startServer({
-            downloadedBinary,
             resourcesPath: process.resourcesPath,
             appDir: __dirname,
             platform: process.platform,
@@ -579,8 +534,6 @@ function wireIPC(getWin = () => mainWin) {
             win.loadURL(BASE + appPath()).catch(() => {});
             return { ok: true };
         }
-        // La baixada ha substituït error.html per loading.html: hi torna.
-        if (backendDownloadError && win && !win.isDestroyed()) void showStartupError(win, "download");
         return { ok: false };
     });
     // Per què no arrenca, per a error.html: el codi de sortida, el port i les
@@ -648,9 +601,9 @@ function wireIPC(getWin = () => mainWin) {
 // Dos productes al mateix servidor: Gregal Codi (/) i Gregal Vents (/vents/).
 // La drecera «Gregal Vents» obre l'app amb --vents; la finestra és la mateixa
 // i el desplegable del peu passa d'un producte a l'altre.
-// Dues edicions, dos instal·ladors: «Gregal» (Codi i Vents) i «Gregal Jocs»
-// (només els jocs). L'edició la posa el build a package.json (gregalEdition);
-// sense, és Gregal. Gregal ja no obre els jocs, i Gregal Jocs només obre /jocs/.
+// Aquest repositori només empaqueta Gregal (Codi i Vents). Gregal Jocs viu a
+// alsolanes/gregal-jocs, amb una còpia d'aquesta app que posa
+// gregalEdition = "jocs" al package.json; sense, és Gregal.
 const EDITION = (() => { try { return require("./package.json").gregalEdition === "jocs" ? "jocs" : "gregal"; } catch (e) { return "gregal"; } })();
 const PRODUCT = EDITION === "jocs" ? "Gregal Jocs" : "Gregal";
 const wantsVents = argv => EDITION === "gregal" && (argv || []).includes("--vents");
