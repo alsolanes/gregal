@@ -323,11 +323,28 @@ func TestWindBrainGrowsWithWhatItLearns(t *testing.T) {
 		return exploracio{text: "ja t'ho havia dit!"}, nil
 	}
 	postJSON(t, s.handleWindChat, `{"wind":"llebeig","message":"i quant dura?"}`)
+	// A la mateixa conversa el fet arriba per l'historial (és on es va dir):
+	// les notes apreses es congelen durant la conversa perquè el system no
+	// canviï a cada torn (winds_notes_snap.go).
 	if !strings.Contains(gotBrief2, "53,8 Wh") {
-		t.Errorf("el brief no porta el coneixement del vent:\n%s", gotBrief2)
+		t.Errorf("el brief no porta el que s'ha dit a la conversa:\n%s", gotBrief2)
 	}
-	if !strings.Contains(gotBrief2, "ALREADY KNOW") {
-		t.Errorf("el brief no marca el bloc de coneixement")
+
+	// En una conversa nova, el vent ja ho sap pel bloc de coneixement.
+	del := httptest.NewRequest(http.MethodDelete, "/api/winds/chat", strings.NewReader(`{"wind":"llebeig"}`))
+	db := httptest.NewRecorder()
+	s.handleWindChat(db, del)
+	if db.Code != 200 {
+		t.Fatalf("clear: %d %s", db.Code, db.Body.String())
+	}
+	var gotBrief3 string
+	windLoop = func(s *Server, ctx context.Context, brief string, _ ...*routedRole) (exploracio, error) {
+		gotBrief3 = brief
+		return exploracio{text: "53,8 Wh, com sempre"}, nil
+	}
+	postJSON(t, s.handleWindChat, `{"wind":"llebeig","message":"recorda'm la bateria del MacBook Air M4"}`)
+	if !strings.Contains(gotBrief3, "53,8 Wh") || !strings.Contains(gotBrief3, "ALREADY KNOW") {
+		t.Errorf("una conversa nova no porta el bloc de coneixement:\n%s", gotBrief3)
 	}
 }
 

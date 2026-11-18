@@ -142,15 +142,25 @@ const windEstilBrief = "\n\nAFTER DOING WORK (files, commands, publishing): 2-5 
 // com respon, què sap i què pot fer. Primer el que no canvia d'un torn a
 // l'altre (la persona, les regles) i al final el que sí (hora, lliçons,
 // carpeta, idioma), perquè els proveïdors en puguin reaprofitar el prefix.
-func windChatSystemPrompt(s *Server, wind companion.Wind, msg string) string {
-	return joinPromptBlocks(windChatSystemBlocks(s, wind, msg))
+func windChatSystemPrompt(s *Server, wind companion.Wind, msg string, previous []llm.Message) string {
+	return joinPromptBlocks(windChatSystemBlocks(s, wind, msg, previous))
 }
 
 // windChatSystemBlocks és el mateix system, però separat en blocs amb nom, en
 // l'ordre exacte d'enviament: serveix per mesurar què pesa cada part i on es
 // trenca el prefix reaprofitable (winds_promptstats.go).
-func windChatSystemBlocks(s *Server, wind companion.Wind, msg string) []promptBlock {
+func windChatSystemBlocks(s *Server, wind companion.Wind, msg string, previous []llm.Message) []promptBlock {
 	ws, _ := s.ventWorkspace()
+	// El que el vent aprèn en segon pla (coneixement, memòria, habilitats,
+	// lliçons) queda congelat durant la conversa (winds_notes_snap.go): el
+	// que aprèn d'aquest fil ja és al fil, i canviar el system a cada torn
+	// obligava a tornar a processar l'historial sencer.
+	notes := s.frozenWindNotes(wind.ID, windConversationKey(previous, msg), map[string]string{
+		"brain":   companion.WindBrainSystem(s.windBrain(wind.ID)),
+		"memory":  s.windMemorySystem(wind.ID),
+		"skills":  s.windSkillsSystem(wind.ID),
+		"lessons": s.windLessonsBrief(wind.ID),
+	})
 	// Primer el que gairebé no canvia (instruccions, poders, connexions) i després el que
 	// canvia amb l'ús (calaix, equip, cervell, memòria, lliçons): un servidor local només
 	// reaprofita el prefix fins al primer canvi.
@@ -168,10 +178,10 @@ func windChatSystemBlocks(s *Server, wind companion.Wind, msg string) []promptBl
 		{"now", windNowBrief()},
 		{"team", s.gregalTeamBrief(wind)},
 		{"drawer", s.windCalaixBrief(wind)},
-		{"brain", companion.WindBrainSystem(s.windBrain(wind.ID))},
-		{"memory", s.windMemorySystem(wind.ID)},
-		{"skills", s.windSkillsSystem(wind.ID)},
-		{"lessons", s.windLessonsBrief(wind.ID)},
+		{"brain", notes["brain"]},
+		{"memory", notes["memory"]},
+		{"skills", notes["skills"]},
+		{"lessons", notes["lessons"]},
 		{"projects", windProjectesBrief(ws)},
 		{"rules", s.windRulesBrief()},
 		{"language", companion.ReplyLanguageBrief(msg)},
@@ -217,7 +227,7 @@ func (s *Server) gregalTeamBrief(wind companion.Wind) string {
 // windChatBrief és el mateix torn en un sol text (encàrrecs, fitxes i el
 // registre dels tests); el xat directe envia windChatMessages.
 func windChatBrief(s *Server, wind companion.Wind, previous []llm.Message, msg string) string {
-	return windBriefFromSystem(windChatSystemPrompt(s, wind, msg), previous, msg)
+	return windBriefFromSystem(windChatSystemPrompt(s, wind, msg, previous), previous, msg)
 }
 
 func windBriefFromSystem(system string, previous []llm.Message, msg string) string {
@@ -401,11 +411,11 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 			res, err = s.runReadOnlyLoopForRole(ctx, "", windTurnSteps, p, role, messages)
 		}
 	} else {
-		blocks := windChatSystemBlocks(s, wind, msg)
+		blocks := windChatSystemBlocks(s, wind, msg, previous)
 		system := joinPromptBlocks(blocks)
 		recordPromptStats(wind.ID, blocks)
 		brief := windBriefFromSystem(system, previous, msg)
-		ctx = withWindPrompt(agent.WithSkillsDirs(ctx, s.windSkillsDir(wind.ID)), windTurnMessages(system, previous, msg))
+		ctx = withWindPrompt(agent.WithSkillsDirs(ctx, s.windSkillsDir(wind.ID)), windTurnMessagesAt(system, previous, msg, turnStart))
 		var routed *routedRole
 		if p, role, routeWhy := s.windRouteRole(msg); routeWhy != "" {
 			log.Printf("vents router %s: %s", wind.ID, routeWhy)
@@ -439,7 +449,7 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 		msgID := newMessageID()
 		history := append([]llm.Message(nil), base...)
 		if !isContinue {
-			history = append(history, llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()})
+			history = append(history, llm.Message{Role: "user", Content: msg, Ts: turnStart.Unix()})
 		}
 		for _, n := range tornTexte.narracions(reply) {
 			history = append(history, llm.Message{Role: "assistant", Content: n, Ts: time.Now().Unix()})
@@ -483,7 +493,7 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 	reply += s.windWebCards(turnStart, reply)
 	history := append([]llm.Message(nil), base...)
 	if !isContinue {
-		history = append(history, llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()})
+		history = append(history, llm.Message{Role: "user", Content: msg, Ts: turnStart.Unix()})
 	}
 	// El que el vent ha escrit abans de les eines també és conversa: si només
 	// es desa la resposta final, en recarregar el fil desapareix.
