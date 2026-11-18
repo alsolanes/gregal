@@ -414,15 +414,38 @@ func imageMatches(words []string, hay string) bool {
 
 // Una línia que només és l'adreça d'una foto, o un enllaç a una foto, és una
 // foto: el model de vegades l'escriu així en lloc de ![...](...), i llavors es
-// veia l'adreça (sobretot a l'Android). Només línies senceres: un enllaç
-// dins d'una frase continua sent un enllaç.
+// veia l'adreça (sobretot a l'Android). També en llistes numerades.
 // També «[foto.jpg](…/f/…/foto.jpg) (327 kB)»: el que torna send_file quan
 // el vent baixa una foto i te l'envia (es veia com un enllaç a un fitxer).
+// Un enllaç a una foto dins d'una frase es queda a la frase, i la foto va a
+// sota: si no, només en veies l'enllaç.
 var (
-	bareImageLineRe = regexp.MustCompile(`(?mi)^([ \t]*(?:[-*][ \t]+)?)(https?://[^\s<>()]+\.(?:jpe?g|png|webp|gif)(?:\?[^\s<>()]*)?)[ \t]*$`)
-	linkImageLineRe = regexp.MustCompile(`(?mi)^([ \t]*(?:[-*][ \t]+)?)\[([^\]\n]+)\]\((https?://[^\s<>()]+\.(?:jpe?g|png|webp|gif)(?:\?[^\s<>()]*)?)\)(?:[ \t]*\([\d.,]+[ \t]*[kKMG]?B\))?[ \t]*$`)
+	bareImageLineRe = regexp.MustCompile(`(?mi)^([ \t]*(?:(?:[-*]|\d{1,2}[.)])[ \t]+)?)(https?://[^\s<>()]+\.(?:jpe?g|png|webp|gif)(?:\?[^\s<>()]*)?)[ \t]*$`)
+	linkImageLineRe = regexp.MustCompile(`(?mi)^([ \t]*(?:(?:[-*]|\d{1,2}[.)])[ \t]+)?)\[([^\]\n]+)\]\((https?://[^\s<>()]+\.(?:jpe?g|png|webp|gif)(?:\?[^\s<>()]*)?)\)(?:[ \t]*\([\d.,]+[ \t]*[kKMG]?B\))?[ \t]*$`)
+	inlineImageRe   = regexp.MustCompile(`(?i)(^|[^!])\[([^\]\n]+)\]\((https?://[^\s<>()]+\.(?:jpe?g|png|webp|gif)(?:\?[^\s<>()]*)?)\)`)
+	embeddedImageRe = regexp.MustCompile(`!\[([^\]\n]*)\]\((https?://[^\s<>()]+)\)`)
 	imageExtRe      = regexp.MustCompile(`(?i)\.(?:jpe?g|png|webp|gif)$`)
+	// La pàgina d'un fitxer de Commons o de la Viquipèdia no és la foto: el
+	// navegador no la pot pintar i l'Android l'amaga. Special:FilePath hi porta.
+	filePageRe = regexp.MustCompile(`(?i)^https?://([a-z]+\.(?:m\.)?(?:wikimedia|wikipedia)\.org)/wiki/(?:File|Fitxer|Archivo|Fichier|Imatge|Image):([^?#]+)$`)
 )
+
+// imageAlt: el nom d'un fitxer com a peu, sense l'extensió ni guions.
+func imageAlt(alt string) string {
+	alt = strings.TrimSpace(alt)
+	if imageExtRe.MatchString(alt) {
+		alt = strings.NewReplacer("-", " ", "_", " ").Replace(imageExtRe.ReplaceAllString(alt, ""))
+	}
+	return alt
+}
+
+// directImageURL: l'adreça que de debò torna la foto.
+func directImageURL(u string) string {
+	if m := filePageRe.FindStringSubmatch(u); m != nil {
+		return "https://" + m[1] + "/wiki/Special:FilePath/" + m[2] + "?width=960"
+	}
+	return u
+}
 
 func embedImageLinks(reply string) string {
 	if !strings.Contains(reply, "http") {
@@ -433,14 +456,35 @@ func embedImageLinks(reply string) string {
 	for i := 0; i < len(parts); i += 2 {
 		p := linkImageLineRe.ReplaceAllStringFunc(parts[i], func(line string) string {
 			m := linkImageLineRe.FindStringSubmatch(line)
-			// El nom d'un fitxer com a peu: sense l'extensió ni guions.
-			alt := strings.TrimSpace(m[2])
-			if imageExtRe.MatchString(alt) {
-				alt = strings.NewReplacer("-", " ", "_", " ").Replace(imageExtRe.ReplaceAllString(alt, ""))
-			}
-			return m[1] + "![" + alt + "](" + m[3] + ")"
+			return m[1] + "![" + imageAlt(m[2]) + "](" + m[3] + ")"
 		})
-		parts[i] = bareImageLineRe.ReplaceAllString(p, "${1}![](${2})")
+		p = bareImageLineRe.ReplaceAllString(p, "${1}![](${2})")
+		// Les que ja hi són com a foto no es repeteixen.
+		shown := map[string]bool{}
+		for _, m := range embeddedImageRe.FindAllStringSubmatch(p, -1) {
+			shown[m[2]] = true
+		}
+		lines := strings.Split(p, "\n")
+		for k, line := range lines {
+			var fotos []string
+			for _, m := range inlineImageRe.FindAllStringSubmatch(line, -1) {
+				if !shown[m[3]] {
+					shown[m[3]] = true
+					fotos = append(fotos, "!["+imageAlt(m[2])+"]("+m[3]+")")
+				}
+			}
+			if len(fotos) > 0 {
+				lines[k] = line + "\n\n" + strings.Join(fotos, "\n")
+			}
+		}
+		p = strings.Join(lines, "\n")
+		parts[i] = embeddedImageRe.ReplaceAllStringFunc(p, func(img string) string {
+			m := embeddedImageRe.FindStringSubmatch(img)
+			if d := directImageURL(m[2]); d != m[2] {
+				return "![" + m[1] + "](" + d + ")"
+			}
+			return img
+		})
 	}
 	return strings.Join(parts, "```")
 }

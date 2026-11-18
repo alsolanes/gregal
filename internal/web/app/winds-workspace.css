@@ -46,7 +46,7 @@ body.shell-winds .side-scroll { overflow:auto; }
 .vw-welcome > p:last-child { color:var(--muted); font-size:14px; margin:0; }
 /* El compositor és el #box de Codi: mateix farcit, radi, vora, fons i anell de focus (la regla
    compartida «#box, .vw-composer» és a refine.css). */
-.vw-composer { flex:none; background:var(--composer, var(--surface)); border:1px solid var(--line-hi); border-radius:28px; padding:12px 14px 9px; }
+.vw-composer { position:relative; flex:none; background:var(--composer, var(--surface)); border:1px solid var(--line-hi); border-radius:28px; padding:12px 14px 9px; }
 .vw-composer textarea { display:block; width:100%; resize:none; background:transparent; border:0; color:var(--ink); outline:0; font:inherit; font-size:15.5px; line-height:1.6; min-height:30px; max-height:180px; padding:0; field-sizing:content; }
 .vw-composer textarea::placeholder { color:var(--faint); }
 .vw-composer textarea:focus,.vw-composer textarea:focus-visible { outline:none!important; border:0!important; box-shadow:none!important; }
@@ -1262,6 +1262,11 @@ dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize
 .vw-tempesta-toggle svg { width:14px; height:14px; }
 .vw-tempesta-toggle:hover { color:var(--ink); background:var(--hover); }
 .vw-tempesta-toggle.on { color:var(--accent-hi); background:var(--surface-hi); font-weight:600; }
+/* «A fons»: avís curt sobre el quadre d'escriure; desapareix sol. */
+.vw-storm-hint { position:absolute; right:14px; bottom:calc(100% + 8px); max-width:min(360px, calc(100% - 28px)); padding:6px 12px; border-radius:999px; background:var(--surface-hi); color:var(--muted); font-size:12.5px; line-height:1.35; box-shadow:0 2px 10px rgba(0,0,0,.18); pointer-events:none; animation:vw-storm-hint-in .18s ease-out; transition:opacity .3s; }
+.vw-storm-hint.out { opacity:0; }
+@keyframes vw-storm-hint-in { from { opacity:0; transform:translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .vw-storm-hint { animation:none; transition:none; } }
 .vw-tempesta { margin-top:8px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:var(--surface); display:flex; flex-direction:column; gap:6px; max-width:520px; }
 .vw-tempesta-head { font-size:12.5px; color:var(--muted); font-weight:600; }
 .vw-tempesta-agent { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text); }

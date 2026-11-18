@@ -84,4 +84,22 @@ class FloatingChatHeaderLookTest {
         val deep = ui.onNodeWithTag("tempesta-toggle").assertIsDisplayed().getBoundsInRoot()
         assertTrue("«A fons» fora de la pastilla", deep.top >= bar.top && deep.bottom <= bar.bottom)
     }
+
+    // Tocar «A fons» diu què fa amb una línia que se'n va sola.
+    @Test fun deepTellsWhatItDoesThenGoes() {
+        ui.setContent {
+            var on by remember { mutableStateOf(false) }
+            CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
+                VentsComposer("ca", TextFieldValue(""), {}, "Escriu…", canSend = false,
+                    accent = Color(0xFFEFA68F), tempesta = on, onTempesta = { on = !on }) {}
+            }
+        }
+        ui.mainClock.advanceTimeBy(300)
+        ui.onNodeWithTag("tempesta-toggle").performClick()
+        ui.onNodeWithText("diversos vents", substring = true).assertExists()
+        ui.mainClock.advanceTimeBy(3000)
+        ui.onNodeWithTag("tempesta-hint").assertDoesNotExist()
+        ui.onNodeWithTag("tempesta-toggle").performClick()
+        ui.onNodeWithText("A fons desactivat").assertExists()
+    }
 }

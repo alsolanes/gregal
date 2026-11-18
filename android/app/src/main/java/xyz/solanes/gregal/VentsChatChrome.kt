@@ -48,6 +48,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -435,12 +437,22 @@ internal fun VentsComposer(
             // activada, s'il·lumina amb el color del vent.
             if (onTempesta != null) {
                 val deepLabel = if (lang == "en") "Deep" else "A fons"
-                IconButton(onClick = onTempesta,
+                // En tocar-lo, una línia que diu què fa i se'n va sola en
+                // 2,5 s: no tapa res ni s'ha de tancar.
+                var hintFor by remember { mutableStateOf<Boolean?>(null) }
+                var hintSeq by remember { mutableStateOf(0) }
+                LaunchedEffect(hintSeq) {
+                    if (hintSeq > 0) { kotlinx.coroutines.delay(2500); hintFor = null }
+                }
+                Box {
+                hintFor?.let { on -> TempestaHint(on, lang) }
+                IconButton(onClick = { hintFor = !tempesta; hintSeq++; onTempesta() },
                     modifier = Modifier.size(48.dp).clip(CircleShape)
                         .background(if (tempesta) ringColor.copy(alpha = .18f) else Color.Transparent)
                         .testTag("tempesta-toggle")
                         .semantics { contentDescription = deepLabel; stateDescription = if (tempesta) "on" else "off" }) {
                     Icon(Icons.Rounded.AutoAwesome, null, tint = if (tempesta) Sea else Muted, modifier = Modifier.size(20.dp))
+                }
                 }
             }
             // Mentre el vent treballa: amb text, enviar (el missatge entra
@@ -499,6 +511,37 @@ internal fun GregalFloatingHeader(lang: String, accent: Color, style: WindStyle,
 /** Com un botó flotant: un cercle del color de fons, semitransparent, darrere de
  *  l'avatar i de cada botó. La barra no és una franja; només ells es llegeixen
  *  sobre el fil que passa per sota. */
+/** «A fons»: avís curt a sobre del botó, alineat a la seva dreta; no agafa el focus ni els tocs. */
+@Composable
+internal fun TempestaHint(on: Boolean, lang: String) {
+    val text = when {
+        lang == "en" && on -> "Deep: several winds work on it and give you one answer, slower"
+        lang == "en" -> "Deep off"
+        on -> "A fons: diversos vents hi treballen i et donen una sola resposta, més lenta"
+        else -> "A fons desactivat"
+    }
+    val gap = with(androidx.compose.ui.platform.LocalDensity.current) { 8.dp.roundToPx() }
+    val above = remember(gap) {
+        object : androidx.compose.ui.window.PopupPositionProvider {
+            override fun calculatePosition(
+                anchorBounds: androidx.compose.ui.unit.IntRect,
+                windowSize: androidx.compose.ui.unit.IntSize,
+                layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+                popupContentSize: androidx.compose.ui.unit.IntSize,
+            ) = androidx.compose.ui.unit.IntOffset(
+                (anchorBounds.right - popupContentSize.width).coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0)),
+                (anchorBounds.top - popupContentSize.height - gap).coerceAtLeast(0),
+            )
+        }
+    }
+    androidx.compose.ui.window.Popup(popupPositionProvider = above, properties = androidx.compose.ui.window.PopupProperties(focusable = false)) {
+        Text(text, color = Ink, fontSize = 12.5.sp, lineHeight = 17.sp,
+            modifier = Modifier.widthIn(max = 280.dp).clip(RoundedCornerShape(14.dp)).background(SuperficieAlta)
+                .padding(horizontal = 12.dp, vertical = 7.dp).testTag("tempesta-hint")
+                .semantics { liveRegion = LiveRegionMode.Polite })
+    }
+}
+
 private fun Modifier.softBacking(bg: Color): Modifier = drawBehind { drawCircle(bg.copy(alpha = .9f), radius = size.minDimension / 2f) }
 
 /** El mateix fons semitransparent en forma de pastilla (cara + nom). */

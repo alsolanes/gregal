@@ -32,7 +32,7 @@ func (t *tornText) narracions(reply string) []string {
 		if r != "" && strings.Contains(r, s) {
 			continue
 		}
-		out = append(out, s)
+		out = append(out, embedImageLinks(s))
 	}
 	return out
 }

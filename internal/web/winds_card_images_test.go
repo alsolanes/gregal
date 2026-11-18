@@ -190,7 +190,8 @@ func TestImageNeedsTheMainWord(t *testing.T) {
 }
 
 // L'adreça d'una foto sola en una línia (o un enllaç a una foto) es mostra com
-// a foto; dins d'una frase o d'un bloc de codi, no es toca.
+// a foto; dins d'una frase, l'enllaç s'hi queda i la foto va a sota; dins
+// d'un bloc de codi, no es toca.
 func TestImageLinksOnTheirOwnLineBecomePhotos(t *testing.T) {
 	in := "Mira:\n\nhttps://upload.wikimedia.org/a/b/Montserrat.jpg\n\n- [El monestir](https://e.org/m.webp?w=800)\n\nAquí hi ha [una foto](https://e.org/x.png) que comento.\n\n```\nhttps://e.org/codi.png\n```"
 	out := embedImageLinks(in)
@@ -331,5 +332,35 @@ func TestBrokenCardJSONIsRepaired(t *testing.T) {
 		if got := balanceJSON(in); got != want {
 			t.Errorf("balanceJSON(%s) = %s, want %s", in, got, want)
 		}
+	}
+}
+
+// «Ensenya'm imatges»: el vent les envia i n'escriu els enllaços en una llista
+// numerada, dins d'una frase o a la pàgina del fitxer de Commons, i també en
+// el text d'entre eines. Abans en veies només els enllaços.
+func TestImageLinksInListsSentencesAndNarrationShowPhotos(t *testing.T) {
+	in := "Aquí les tens:\n\n1. [El Pedraforca](https://e.org/pedra.jpg)\n2) https://e.org/cim.png\n\nI aquesta, [de la cara nord](https://e.org/nord.webp), és la millor.\n\n![Vall](https://commons.wikimedia.org/wiki/File:Vall_de_Gresolet.jpg)"
+	out := embedImageLinks(in)
+	for _, want := range []string{
+		"1. ![El Pedraforca](https://e.org/pedra.jpg)",
+		"2) ![](https://e.org/cim.png)",
+		"I aquesta, [de la cara nord](https://e.org/nord.webp), és la millor.\n\n![de la cara nord](https://e.org/nord.webp)",
+		"![Vall](https://commons.wikimedia.org/wiki/Special:FilePath/Vall_de_Gresolet.jpg?width=960)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("falta %q a:\n%s", want, out)
+		}
+	}
+	if again := embedImageLinks(out); again != out {
+		t.Fatalf("passar-hi dues vegades no ha de canviar res:\n%s", again)
+	}
+
+	var tt tornText
+	tt.token("T'envio les fotos:\n\n[cim.jpg](http://127.0.0.1:8097/f/abc/cim.jpg) (80 kB)")
+	tt.fita()
+	tt.token("Ja està.")
+	got := tt.narracions("Ja està.")
+	if len(got) != 1 || !strings.Contains(got[0], "![cim](http://127.0.0.1:8097/f/abc/cim.jpg)") {
+		t.Fatalf("la narració també ha de dur la foto: %q", got)
 	}
 }

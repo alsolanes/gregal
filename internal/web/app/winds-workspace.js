@@ -184,7 +184,7 @@
   const send=el('button','vw-send');paintSend(send);
   // Tempesta: «Pensa-ho a fons» fa treballar diversos vents alhora i en surt una
   // sola resposta (winds_tempesta.go). Només a la conversa amb un vent.
-  const storm=state.view==='chat'&&state.active?.legacyWind?btn('',()=>{state.tempesta=!state.tempesta;storm.classList.toggle('on',!!state.tempesta);storm.setAttribute('aria-pressed',String(!!state.tempesta));},'vw-tempesta-toggle'+(state.tempesta?' on':'')):null;
+  const storm=state.view==='chat'&&state.active?.legacyWind?btn('',()=>{state.tempesta=!state.tempesta;storm.classList.toggle('on',!!state.tempesta);storm.setAttribute('aria-pressed',String(!!state.tempesta));stormHint(composer,!!state.tempesta);},'vw-tempesta-toggle'+(state.tempesta?' on':'')):null;
   if(storm){storm.append(icon('sparkles'));storm.setAttribute('aria-label',t('A fons','Deep'));storm.title=t('Pensa-ho a fons: diversos vents hi treballen alhora i t’arriba una sola resposta (més lent i gasta més)','Think it through: several winds work on it at once and you get one answer (slower and uses more)');storm.setAttribute('aria-pressed',String(!!state.tempesta));}
   pick.append(select);foot.append(pick);if(address)foot.append(address);foot.append(model);if(storm)foot.append(storm);foot.append(...voiceButtons(),send);composer.append(input,foot);
   if(Rec()&&!workspace)content.append(voiceStrip());
@@ -192,6 +192,14 @@
   // La carpeta va fora del quadre d'escriure, a sota i més petita: dins ocupava
   // una línia sencera i semblava un camp més del missatge.
   if(workspace){const line=el('div','vw-folder-hint vw-folder-under');line.title=state.workspace;line.append(folder(),el('span','',state.workspace));content.append(line);}
+ }
+ // En tocar «A fons», una línia que diu què fa i se'n va sola en 2,5 s: qui
+ // ja ho coneix no l'ha de tancar ni li tapa res.
+ function stormHint(composer,on){
+  composer.querySelector('.vw-storm-hint')?.remove();
+  const h=el('div','vw-storm-hint',on?t('A fons: diversos vents hi treballen i et donen una sola resposta, més lenta','Deep: several winds work on it and give you one answer, slower'):t('A fons desactivat','Deep off'));
+  h.setAttribute('role','status');composer.append(h);
+  setTimeout(()=>{h.classList.add('out');setTimeout(()=>h.remove(),300);},2500);
  }
  // Model dels vents: propi (POST /api/model amb scope «vents»), independent
  // del de la feina. Abans el botó obria el selector de la feina, que es
