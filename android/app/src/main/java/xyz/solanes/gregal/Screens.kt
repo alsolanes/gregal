@@ -334,6 +334,12 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
     }
 }
 
+/** Els marges de la llista del xat: fora (s'atura a les barres) o, amb vidre
+ *  esmerilat, dins (passa per sota de les barres i s'hi veu desenfocada). */
+internal fun chatListPadding(bars: PaddingValues, frosted: Boolean): Pair<PaddingValues, PaddingValues> =
+    if (frosted) PaddingValues(0.dp) to PaddingValues(top = bars.calculateTopPadding(), bottom = bars.calculateBottomPadding())
+    else bars to PaddingValues(0.dp)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
@@ -657,11 +663,13 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val flip = remember { ComposerFlip() }
     val flipScope = rememberCoroutineScope()
     val motion = LocalWindMotion.current
+    val frost = rememberFrost()
 
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
+                modifier = Modifier.frostGlass(frost),
                 navigationIcon = {
                     IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu"), tint = Ink) }
                 },
@@ -707,11 +715,13 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
             // Mentre falta el proveïdor no hi ha res a enviar, i amb el
             // teclat obert el composer tapava «Desa i comença».
             // A la tauleta, el composer té la mateixa amplada de lectura que el xat.
-            if (!(msgs.isEmpty() && needsProvider) && !opening) composerArea(
-                Modifier.imePadding().fillMaxWidth()
-                    .wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = ChatMaxWidth)
-                    .landing(flip, flipScope, motion),
-            )
+            if (!(msgs.isEmpty() && needsProvider) && !opening) Box(Modifier.frostGlass(frost)) {
+                composerArea(
+                    Modifier.imePadding().fillMaxWidth()
+                        .wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = ChatMaxWidth)
+                        .landing(flip, flipScope, motion),
+                )
+            }
         },
     ) { pad ->
         if (msgs.isEmpty() && needsProvider) {
@@ -758,7 +768,8 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 }
             }
         } else {
-            Box(Modifier.fillMaxSize().padding(pad)) {
+            val (outer, inner) = chatListPadding(pad, frosted = frost != null)
+            Box(Modifier.fillMaxSize().padding(outer).frostSource(frost)) {
                 val rows = remember(msgs, lang) { chatRows(msgs, lang) }
                 // A la tauleta les línies de tota l'amplada no es llegien: com a
                 // l'escriptori, una columna centrada d'amplada de lectura.
@@ -766,6 +777,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     Modifier.fillMaxHeight().align(Alignment.TopCenter).widthIn(max = ChatMaxWidth)
                         .fillMaxWidth().padding(horizontal = 12.dp),
                     state = listState,
+                    contentPadding = inner,
                 ) {
                     items(
                         count = rows.size,
@@ -804,7 +816,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         onClick = follow::requestFollow,
                         shape = CircleShape, color = Superficie, shadowElevation = 4.dp,
                         border = BorderStroke(1.dp, Line),
-                        modifier = Modifier.align(Alignment.BottomCenter).padding(10.dp).size(44.dp),
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(inner).padding(10.dp).size(44.dp),
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(Icons.Rounded.KeyboardArrowDown, tr(lang, "app.chat.scrollBottom"), tint = Ink)
