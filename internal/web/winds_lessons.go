@@ -210,7 +210,10 @@ func (s *Server) windLessonsLearn(w companion.Wind, task, reply, trace string) {
 	b.WriteString("\nTask: " + cut(task, 600) + "\n\nTrace:\n" + trace + "\n\nFinal answer: " + cut(reply, 800))
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	out, err := windLessonsLoop(s, ctx, []llm.Message{{Role: "user", Content: b.String()}})
+	// Com la memòria i el coneixement: sense raonar i com a crida lateral. Amb
+	// Qwen a halogen arribava a 3.900 tokens de pensament (80 s) per triar 0-3
+	// línies, al slot de la conversa, i el missatge següent esperava al darrere.
+	out, err := windLessonsLoop(s, backgroundModelCtx(ctx), []llm.Message{{Role: "user", Content: b.String()}})
 	if err != nil || strings.Contains(strings.ToUpper(out), "NONE") && !strings.Contains(out, "\n- ") && !strings.HasPrefix(strings.TrimSpace(out), "- ") {
 		return
 	}

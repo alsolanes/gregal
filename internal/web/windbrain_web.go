@@ -45,6 +45,15 @@ func (s *Server) windLearn(w companion.Wind, question, answer string) {
 
 func (s *Server) windLearnRevision(w companion.Wind, question, answer string, revision uint64) {
 	defer func() { _ = recover() }() // el cervell no pot tombar el xat
+	// Extraction is untrusted: never promote invented citations or chat-only
+	// details into topic knowledge. A source domain must exist in the exchange.
+	// Sense cap domini a la conversa no es pot desar res, i la crida es
+	// llençaria sempre (amb halogen, 9-33 s de servidor per resposta i el
+	// missatge següent fent cua al darrere): ni es fa.
+	allowed := windSourceDomains(question + "\n" + answer)
+	if len(allowed) == 0 {
+		return
+	}
 	p, role, ok := s.sideRoleRef()
 	if !ok {
 		return
@@ -70,15 +79,9 @@ func (s *Server) windLearnRevision(w companion.Wind, question, answer string, re
 	b.WriteString("\nExchange:\nUser: " + question + "\n" + w.Name + ": " + answer)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	out, err := windLearnLoop(s, ctx, client, cfg, p, role, []llm.Message{{Role: "user", Content: b.String()}})
+	out, err := windLearnLoop(s, backgroundModelCtx(ctx), client, cfg, p, role, []llm.Message{{Role: "user", Content: b.String()}})
 	if err != nil {
 		return
-	}
-	// Extraction is untrusted: never promote invented citations or chat-only
-	// details into topic knowledge. A source domain must exist in the exchange.
-	allowed := map[string]bool{}
-	for _, domain := range windSourceDomain.FindAllString(question+"\n"+answer, -1) {
-		allowed[strings.TrimPrefix(strings.ToLower(domain), "www.")] = true
 	}
 	var facts []string
 	for _, l := range strings.Split(out, "\n") {
@@ -95,6 +98,24 @@ func (s *Server) windLearnRevision(w companion.Wind, question, answer string, re
 		return
 	}
 	_ = companion.AppendWindBrainIfRevision(s.windStateDir(), w.ID, revision, facts)
+}
+
+// windSourceDomains són els dominis (sense www.) que surten a un text: les
+// úniques fonts que una nota de coneixement pot citar.
+func windSourceDomains(text string) map[string]bool {
+	allowed := map[string]bool{}
+	for _, domain := range windSourceDomain.FindAllString(text, -1) {
+		allowed[strings.TrimPrefix(strings.ToLower(domain), "www.")] = true
+	}
+	return allowed
+}
+
+// backgroundModelCtx prepara una crida de fons del vent (memòria,
+// coneixement, foto): sense raonar, que per triar dues línies no cal (amb
+// Qwen a halogen, 1.000-1.500 tokens de pensament contra 2-300), i marcada
+// com a lateral perquè a llama.cpp no ocupi el slot de la conversa.
+func backgroundModelCtx(ctx context.Context) context.Context {
+	return llm.WithSideCall(llm.WithThink(ctx, "no"))
 }
 
 var windSourceDomain = regexp.MustCompile(`(?i)\b[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}\b`)

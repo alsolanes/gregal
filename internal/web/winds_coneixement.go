@@ -163,7 +163,7 @@ func (s *Server) windMemoryLearnRevision(w companion.Wind, question, answer stri
 	b.WriteString("\nExchange:\nUser: " + question + "\n" + w.Name + ": " + answer)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	out, err := windLearnLoop(s, ctx, client, cfg, p, role, []llm.Message{{Role: "user", Content: b.String()}})
+	out, err := windLearnLoop(s, backgroundModelCtx(ctx), client, cfg, p, role, []llm.Message{{Role: "user", Content: b.String()}})
 	if err != nil {
 		return
 	}

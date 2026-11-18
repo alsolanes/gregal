@@ -292,6 +292,7 @@ func (s *Server) windSubjectPhoto(question, reply string) string {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	ctx = backgroundModelCtx(ctx)
 	subject := subjectPicker(s, ctx, question, reply, asked)
 	if subject == "" || ctx.Err() != nil {
 		return reply
