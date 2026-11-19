@@ -2860,7 +2860,35 @@ function toolCard(name, args) {
     const code = el.querySelector('.tool-args code');
     navigator.clipboard?.writeText(code ? code.textContent : '').then(() => { copy.textContent = gregalT('ui.copied'); setTimeout(() => { copy.textContent = gregalT('ui.copy'); }, 1500); });
   };
+  foldExplore(el, name, args);
   return el.querySelector('details');
+}
+// Les crides d'exploració seguides (llegir, cercar, llistar) es pleguen en
+// una sola fila «Explorat · 3 fitxers · 2 cerques», com fa Codex: una
+// paret d'«Executa ls…» no diu res, i el que canvia coses es veu d'una en
+// una. L'estat de la fila (en curs, fallada) el treu el CSS de les de dins.
+function foldExplore(el, name, args) {
+  const ts = window.gregalToolSummary;
+  const acts = ts && ts.explore(name, String(args || ''));
+  if (!acts) return;
+  el.dataset.explore = JSON.stringify(acts);
+  const prev = el.previousElementSibling;
+  let fold = prev && prev.classList.contains('explore-fold') ? prev : null;
+  if (!fold) {
+    if (!prev || !prev.dataset.explore) return;
+    fold = document.createElement('div');
+    fold.className = 'msg t explore-fold';
+    fold.innerHTML = '<div class="body"><details class="tool"><summary><span class="tspin"></span><b></b><span class="targs"></span></summary><div class="explore-list"></div></details></div>';
+    prev.replaceWith(fold);
+    fold.querySelector('.explore-list').appendChild(prev);
+  }
+  fold.querySelector('.explore-list').appendChild(el);
+  const items = [...fold.querySelectorAll('.explore-list > .msg.t')];
+  const s = ts.exploreSummary(items.map(i => JSON.parse(i.dataset.explore)), document.documentElement.lang);
+  fold.querySelector('summary b').textContent = s.label;
+  fold.querySelector('summary .targs').textContent = s.target;
+  // Una crida que ja havia fallat no es plega fora de la vista.
+  if (fold.querySelector('.explore-list .tool.failed')) fold.querySelector('details').open = true;
 }
 
 // toolShotOK accepta només captures en data URL (browser screenshot): mai
@@ -2892,7 +2920,11 @@ function toolCardDone(card, name, output, image) {
   if (out) out.innerHTML = md(txt.slice(0, 3000)) || '<span class="faint">' + escapeHTML(gregalT('ui.noOutput')) + '</span>';
   toolShot(out, image);
   if (toolShotOK(image)) card.open = true; // la captura és el resultat: es veu
-  if (failed) card.open = true; // els errors no s'amaguen
+  if (failed) { // els errors no s'amaguen, tampoc dins una fila «Explorat»
+    card.open = true;
+    const fold = card.parentElement.closest('details.tool');
+    if (fold) fold.open = true;
+  }
   // Gràfics desats al dashboard de l'app: comptador a la barra lateral i un
   // botó per obrir aquell tauler.
   if (!failed && name === 'dashboard_save' && window.gregalPlots) {
@@ -4045,7 +4077,7 @@ async function doAgent(task, resumed) {
       } else if(ev==='tool_result'){
         turnPhase='working'; turnNote=''; pintaTurnBar();
         activityItem('eina',d.name,gregalT('act.toolDone') + stepLine(),'ok');
-        if (d.name === 'todowrite' || d.name === 'todoread') { pendents.shift()?.remove(); todoCard(d.output); }
+        if (d.name === 'todowrite' || d.name === 'todoread') { pendents.shift()?.closest('.msg')?.remove(); todoCard(d.output); }
         else { lastDoneCard = pendents.shift(); toolCardDone(lastDoneCard, d.name, d.output, d.image); }
         if (!pendents.length) setActivity('model', gregalT('act.now.model'));
       } else if(ev==='bet'){

@@ -486,6 +486,31 @@ html body:is(.shell-winds,.winds-side) #side .vw-project[data-selected="true"] .
   html body:not(.shell-winds) #main .run-summary-file:hover { background:var(--hover); }
 }
 
+/* ---------- Fil de Codi: una línia per crida d'eina ----------
+   Dins el grup de feina les crides no fan caixa: verb apagat i objectiu en
+   mono, i el fons només torna en passar-hi o en obrir-la. Deu caixes amb
+   «Executa» omplien la pantalla sense dir gaire. */
+html body:not(.shell-winds) #main .wg-body .tool,
+html body:not(.shell-winds) #main .wg-body .tool.done { border:0; border-radius:6px; background:transparent; padding:3px 8px; font-family:inherit; }
+html body:not(.shell-winds) #main .wg-body .tool:hover,
+html body:not(.shell-winds) #main .wg-body .tool[open] { background:var(--hover); }
+html body:not(.shell-winds) #main .wg-body .tool summary { min-height:20px; }
+html body:not(.shell-winds) #main .wg-body .tool summary::before { content:none; }
+html body:not(.shell-winds) #main .wg-body .tool summary > b { font-weight:500; color:var(--muted); }
+html body:not(.shell-winds) #main .wg-body .tool .targs { font-size:12px; }
+html body:not(.shell-winds) #main .wg-body .tool.done .tspin { color:var(--faint); }
+html body:not(.shell-winds) #main .wg-body .tool.failed summary > b { color:var(--red); }
+html body:not(.shell-winds) #main .wg-body > .msg.t + .msg.t { margin-top:-6px; }
+/* Fila «Explorat»: l'estat surt de les crides de dins. */
+#main .explore-fold > .body > .tool > summary .tspin::before { content:'✓'; color:var(--faint); }
+#main .explore-fold:has(.explore-list .tool.interrupted) > .body > .tool > summary .tspin::before { content:'■'; }
+#main .explore-fold:has(.explore-list .tool.failed) > .body > .tool > summary .tspin::before { content:'✗'; color:var(--red); }
+#main .explore-fold:has(.explore-list .tool.pending) > .body > .tool > summary .tspin::before { content:'◍'; color:var(--amber); }
+body.working #main .explore-fold:has(.explore-list .tool.pending) > .body > .tool > summary .tspin { animation:pulse 1.1s ease-in-out infinite; }
+#main .explore-list { display:flex; flex-direction:column; gap:1px; margin:4px 0 2px 5px; padding-left:8px; border-left:1px solid var(--line); }
+#main .explore-list > .msg.t { margin:0; }
+html body:not(.shell-winds) #main .explore-fold > .body > .tool[open], html body:not(.shell-winds) #main .explore-fold > .body > .tool[open]:hover { background:transparent; }
+
 /* ---------- Preferències i panells: opció A ---------- */
 @media (min-width:761px) {
 html body #prefsModal .pf-nav { padding:12px 10px; gap:2px; }
