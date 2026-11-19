@@ -93,7 +93,7 @@ fun VentetProfile(vm: GregalViewModel, lang: String, onClose: () -> Unit) {
         pet.hungry -> tr(lang, "app.cap.hungry")
         else -> tr(lang, "app.cap.profileHello")
     }
-    ModalBottomSheet(onDismissRequest = onClose, containerColor = Superficie) {
+    ModalBottomSheet(onDismissRequest = onClose, containerColor = SuperficieOpaca) {
         Column(
             Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp).testTag("ventet-profile"),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp),

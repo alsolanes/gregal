@@ -82,4 +82,22 @@ class GlassTest {
             assertEquals(1f, s.surfaceContainerHigh.alpha)
         }
     }
+
+    @Test
+    fun `el calaix, els fulls i els diàlegs tenen superfície opaca amb vidre`() {
+        for (p in totes) {
+            assertEquals(p.surface, p.solidSurface)
+            val g = p.glassy()
+            assertEquals(1f, g.solidSurface.alpha)
+            assertEquals(g.surface.compositeOver(g.deepTop), g.solidSurface)
+        }
+        // Cap full, diàleg o calaix amb la superfície translúcida: el text de
+        // sota s'hi llegiria a través (vist a l'emulador amb el calaix).
+        val src = java.io.File("src/main/java/xyz/solanes/gregal")
+        val overlay = Regex("""(ModalBottomSheet|AlertDialog|ModalDrawerSheet)\(.*[cC]ontainerColor = (Superficie|PillDark|BubbleDark)\b""")
+        val dolents = src.listFiles()!!.filter { it.extension == "kt" }.flatMap { f ->
+            f.readLines().mapIndexedNotNull { i, l -> if (overlay.containsMatchIn(l)) "${f.name}:${i + 1}" else null }
+        }
+        assertTrue("translúcids: $dolents", dolents.isEmpty())
+    }
 }

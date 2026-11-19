@@ -87,7 +87,7 @@ internal fun TidySheet(vm: GregalViewModel, lang: String, onDismiss: () -> Unit)
         }
     }
     LaunchedEffect(Unit) { reload() }
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Superficie) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = SuperficieOpaca) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 6.dp).testTag("tidy-sheet"),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(if (en) "Tidy up your winds" else "Posa ordre als vents", color = Ink, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)

@@ -52,6 +52,10 @@ data class GregalPalette(
     /** Estil Vidre: superfícies translúcides damunt del fons amb taques de llum ([glassy]). */
     val glass: Boolean = false,
 ) {
+    /** La superfície opaca: amb Vidre, la translúcida composta damunt del fons.
+     *  Per al que s'obre damunt del contingut (calaix, fulls, diàlegs), que
+     *  translúcid deixaria llegir el text de sota. */
+    val solidSurface: Color get() = if (glass) surface.compositeOver(deepTop) else surface
     // Àlies històrics: noms que ja feia servir tota la UI.
     val pillDark: Color get() = surface
     val bubbleDark: Color get() = surface
@@ -157,7 +161,7 @@ fun GregalPalette.scheme(): ColorScheme {
     // la superfície ja composta: translúcids no es llegirien damunt del text.
     // El fons de Material també queda opac: hi ha diàlegs a pantalla completa
     // que el fan servir de color.
-    val surface = if (glass) surface.compositeOver(deepTop) else surface
+    val surface = solidSurface
     val surfaceHi = if (glass) surfaceHi.compositeOver(deepTop) else surfaceHi
     val low = lerp(deepTop, surface, 0.5f)
     val high = lerp(surface, surfaceHi, 0.5f)
@@ -471,6 +475,8 @@ val DeepBottom @Composable @ReadOnlyComposable get() = LocalPal.current.deepBott
 // Els noms de superfície en català com al document: `Surface` xocaria amb el
 // composable de Material3 que tots els fitxers importen.
 val Superficie @Composable @ReadOnlyComposable get() = LocalPal.current.surface
+/** Superfície per al calaix, els fulls i els diàlegs: opaca també amb Vidre. */
+val SuperficieOpaca @Composable @ReadOnlyComposable get() = LocalPal.current.solidSurface
 val SuperficieAlta @Composable @ReadOnlyComposable get() = LocalPal.current.surfaceHi
 val Ink @Composable @ReadOnlyComposable get() = LocalPal.current.ink
 val Tinta @Composable @ReadOnlyComposable get() = LocalPal.current.text

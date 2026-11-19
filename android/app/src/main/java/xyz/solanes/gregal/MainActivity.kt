@@ -293,7 +293,7 @@ class MainActivity : ComponentActivity() {
                     ModalNavigationDrawer(
                         drawerState = drawer,
                         drawerContent = {
-                            ModalDrawerSheet(drawerContainerColor = Superficie) {
+                            ModalDrawerSheet(drawerContainerColor = SuperficieOpaca) {
                                 GregalDrawerContent(
                                     vm, lang, screen, conn.local, "${conn.host}:${conn.port}", st.project, st.branch,
                                     nav = { nav(it) }, close = { scope.launch { drawer.close() } },

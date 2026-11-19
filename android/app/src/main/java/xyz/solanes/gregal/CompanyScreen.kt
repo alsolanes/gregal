@@ -411,7 +411,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                         if (tab == "chats") VentsInboxFilters(lang, inboxFilter, unread = newsCount.values.sum()) { inboxFilter = it }
                         // Explora puja des de baix, a sobre de la portada: abans
                         // s'obria enmig de la capçalera i empenyia tot cap avall.
-                        if (exploreOpen) ModalBottomSheet(onDismissRequest = { exploreOpen = false }, containerColor = Superficie) {
+                        if (exploreOpen) ModalBottomSheet(onDismissRequest = { exploreOpen = false }, containerColor = SuperficieOpaca) {
                             Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 16.dp).testTag("explore-sheet")) {
                                 VentsExploreSheet(lang, pluginOn("corner"), pluginOn("games"),
                                     onCorner = { cornerOpen = true; exploreOpen = false },
@@ -1431,7 +1431,7 @@ internal fun WindSessionsSheet(vm: GregalViewModel, lang: String, wind: Wind, on
     val list = sessions[wind.id].orEmpty()
     val isLoading = wind.id in loading
     val accent = Color(wind.argb)
-    ModalBottomSheet(onDismissRequest = onClose, containerColor = Superficie) {
+    ModalBottomSheet(onDismissRequest = onClose, containerColor = SuperficieOpaca) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 WindHalo(accent, wind.faceStyle, size = 30, mood = WindMood.IDLE)
