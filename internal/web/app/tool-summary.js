@@ -55,20 +55,24 @@
   function shellSegments(cmd) {
     const segs = [];
     let words = [], w = '', has = false, q = '', pipe = false;
+    // Un \r o un altre caràcter de control canvia com bash talla les paraules.
+    if (/[\x00-\x08\x0b-\x1f\x7f]/.test(cmd)) return null;
     const endWord = () => { if (has) words.push(w); w = ''; has = false; };
     const endSeg = next => { endWord(); if (words.length) segs.push({ pipe, words }); words = []; pipe = next; };
     for (let i = 0; i < cmd.length; i++) {
       const c = cmd[i];
       if (q) {
         if (c === q) q = '';
-        else if (q === '"' && (c === '`' || (c === '$' && cmd[i + 1] === '('))) return null;
+        else if (q === '"' && (c === '`' || c === '$')) return null;
         else if (q === '"' && c === '\\' && i + 1 < cmd.length) w += cmd[++i];
         else w += c;
         continue;
       }
       if (c === "'" || c === '"') { q = c; has = true; continue; }
       if (c === '\\' && i + 1 < cmd.length) { w += cmd[++i]; has = true; continue; }
-      if (c === '`' || c === '<' || (c === '$' && cmd[i + 1] === '(')) return null;
+      // Expansions ($x, ${…}, $[…], $'…'), comentaris i substitucions: aquest
+      // tallador no les entén com bash, així que l'ordre queda com a «Executa».
+      if (c === '`' || c === '<' || c === '$' || c === '#') return null;
       if (c === '>') {
         // Només es tolera llençar la sortida (2>/dev/null) o ajuntar-la (2>&1).
         if (has && !/^\d$/.test(w)) return null;
@@ -102,7 +106,7 @@
     const has = re => rest.some(a => re.test(a));
     switch (prog) {
       case 'find': return rest.some(a => FIND_WRITES.has(a));
-      case 'tree': return has(/^-[^-]*o/);
+      case 'tree': return has(/^--|^-[^-]*[oR]/);
       // GNU accepta abreviacions de les opcions llargues: cap ni una.
       case 'sort': return has(/^--|^-[^-]*o/);
       case 'uniq': return rest.filter(a => a[0] !== '-' || a === '-').length > 1;
@@ -123,7 +127,7 @@
   }
   // Les accions d'un tros d'ordre: [] si és neutre (cd, echo), null si no només mira.
   function shellAction(prog, rest) {
-    if (prog === 'cd' || prog === 'pwd' || prog === 'echo' || prog === 'printf') return [];
+    if (prog === 'cd' || prog === 'pwd' || prog === 'echo') return [];
     if (writes(prog, rest)) return null;
     const { ops, vals } = splitArgs(prog, rest);
     if (prog === 'ls' || prog === 'tree') return [{ kind: 'list', target: ops.join(', ') || '.' }];

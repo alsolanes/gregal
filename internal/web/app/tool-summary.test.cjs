@@ -89,7 +89,11 @@ test('explore lists what an exploring call looks at, and nothing for calls that 
     // Filters after a pipe that write, and searchers or listers that run or write something.
     'ls | sort -o out', 'ls | sort --output=out', 'ls | sort --compress-program=sh', 'ls | uniq - out.txt',
     'rg --pre ./evil.sh x', 'rg --pre=sh x .', 'rg --hostname-bin=./evil x', 'grep -rn x . | rg --pre sh y',
-    'tree -o out.txt src', 'find . -fprint0 out']) {
+    'tree -o out.txt src', 'find . -fprint0 out',
+    // Shell syntax the splitter does not model: ANSI-C quoting, a comment that leaves a quote
+    // open for the splitter but not for bash, expansions that run code, a stray \r.
+    "cat $'a\\x27; rm -rf x'", "cat a #'\nrm -rf x'", 'printf -v x "%s" "$(id)"; echo ${x@P}', 'cat $[1+1]',
+    'cat ${HOME}', 'ls 2>&1\r', 'tree -R -H . src']) {
     assert.equal(explore('bash', args({ command })), null, command);
   }
   assert.equal(explore('edit', args({ path: 'a.go' })), null);
