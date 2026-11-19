@@ -10,6 +10,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.verticalScroll
@@ -56,6 +63,7 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalView
@@ -70,6 +78,48 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+
+/** Cap on va el canvi de pantalla, segons com ha canviat la pila d'enrere. */
+internal enum class NavDirection { Forward, Back, None }
+
+internal fun navDirection(fromDepth: Int, toDepth: Int): NavDirection = when {
+    toDepth > fromDepth -> NavDirection.Forward
+    toDepth < fromDepth -> NavDirection.Back
+    else -> NavDirection.None
+}
+
+/** Endavant entra per la dreta, enrere per l'esquerra; amb la pila igual, només fos. */
+internal fun screenTransition(dir: NavDirection): ContentTransform {
+    return when (dir) {
+        NavDirection.Forward -> (slideInHorizontally(tween(260)) { it } + fadeIn(tween(220))) togetherWith
+            (slideOutHorizontally(tween(260)) { -it / 6 } + fadeOut(tween(160)))
+        NavDirection.Back -> (slideInHorizontally(tween(260)) { -it } + fadeIn(tween(220))) togetherWith
+            (slideOutHorizontally(tween(260)) { it / 6 } + fadeOut(tween(160)))
+        NavDirection.None -> fadeIn(tween(220)) togetherWith fadeOut(tween(160))
+    }
+}
+
+/**
+ * Canvia de pantalla amb direcció. La profunditat viatja amb la pantalla:
+ * go() i back() canvien la pila i la pantalla en ordre diferent, i la
+ * transició ha de comparar la d'abans amb la de després. La clau és la
+ * pantalla sola, perquè buidar la pila no torni a crear la que es veu.
+ * Sense moviment no hi ha AnimatedContent: fins i tot amb transicions
+ * buides deixa la pantalla vella un fotograma de més.
+ */
+@Composable
+internal fun ScreenSwitcher(screen: Screen, depth: Int, content: @Composable (Screen) -> Unit) {
+    if (!windMotionEnabled()) {
+        content(screen)
+        return
+    }
+    AnimatedContent(
+        targetState = screen to depth,
+        transitionSpec = { screenTransition(navDirection(initialState.second, targetState.second)) },
+        contentKey = { it.first },
+        label = "pantalla",
+    ) { (s, _) -> content(s) }
+}
 
 /** Connexió desada (SharedPreferences: host, port, token). */
 class Prefs(val ctx: Context) {
@@ -304,7 +354,7 @@ class MainActivity : ComponentActivity() {
                         GregalBg {
                             // Visor a pantalla completa (Viewer.kt): fotos, webs i gràfics.
                             ViewerOverlay(lang)
-                            AnimatedContent(targetState = screen, label = "pantalla") { s ->
+                            ScreenSwitcher(screenState, backDepth.size) { s ->
                                 when (s) {
                                     Screen.Chat -> ChatScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Company -> androidx.compose.runtime.key(conn) { CompanyScreen(vm) { scope.launch { drawer.open() } } }
