@@ -34,6 +34,105 @@ class WorkTest {
         assertEquals("2 charts", summarizeTool("dashboard_save", """{"dashboard":"Vendes","plots":[{},{}]}""", "en").meta)
     }
 
+    private fun bash(command: String, lang: String = "en") =
+        summarizeTool("bash", "{\"command\":${jsonStr(command)}}", lang)
+
+    private fun jsonStr(s: String) = "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n") + "\""
+
+    private fun exploreBash(command: String) = exploreTool("bash", "{\"command\":${jsonStr(command)}}")
+
+    @Test
+    fun readOnlyShellCommandsReadAsWhatTheyDo() {
+        assertEquals(ToolSum("List", "internal/web, desktop", ""), bash("ls internal/web desktop 2>/dev/null | head -50"))
+        assertEquals(ToolSum("Read", "internal/web/index.html", "lines 1190–1205"), bash("sed -n 1190,1205p internal/web/index.html"))
+        assertEquals(ToolSum("Read", "a.js, b.js", ""), bash("cat a.js b.js"))
+        assertEquals(ToolSum("Search", "\"work-group\"", "in internal/web/app"), bash("grep -rn \"work-group\" internal/web/app | head -40"))
+        assertEquals(ToolSum("Search", "\"TODO\"", ""), bash("cd /c/dev/gregal && rg -n TODO"))
+        assertEquals("Llista", bash("ls src", "ca").label)
+        assertEquals("línies 1–40", bash("sed -n 1,40p a.go", "ca").meta)
+    }
+
+    @Test
+    fun testsAndGitGetTheirOwnVerbOtherCommandsKeepRun() {
+        assertEquals(ToolSum("Test", "go test ./internal/web -run TestX", ""), bash("go test ./internal/web -run TestX"))
+        assertEquals("Test", bash("npm test").label)
+        assertEquals("Test", bash("node --test internal/web/app/x.test.cjs").label)
+        assertEquals("Test", bash("pytest -q tests").label)
+        assertEquals("Test", bash("cargo test --lib").label)
+        assertEquals("Test", bash("go test ./... 2>&1 | tail -20").label)
+        // Només una ordre sola té el verb: una cadena pot fer una altra cosa després.
+        assertEquals(ToolSum("Run", "go test ./... && rm -rf x", ""), bash("go test ./... && rm -rf x"))
+        assertEquals("Run", bash("git status && rm -rf x").label)
+        assertEquals("Read", bash("sed -n -E 1,5p a.go").label)
+        assertEquals(ToolSum("Git", "status --short", ""), bash("git status --short"))
+        assertEquals(ToolSum("Run", "npm run build", ""), bash("npm run build"))
+        assertEquals("Prova", bash("go test ./...", "ca").label)
+        assertEquals("Executa", bash("npm run build", "ca").label)
+        // bash_background no és mai exploració: engega alguna cosa.
+        assertEquals("Start", summarizeTool("bash_background", """{"command":"ls"}""", "en").label)
+    }
+
+    @Test
+    fun exploreListsWhatACallLooksAtAndNothingForCallsThatChangeThings() {
+        assertEquals(listOf(ExploreAct("read", "a.go")), exploreTool("read", """{"path":"a.go"}"""))
+        assertEquals(listOf(ExploreAct("search", "x")), exploreTool("grep", """{"pattern":"x"}"""))
+        assertEquals(listOf(ExploreAct("list", "*.go")), exploreTool("glob", """{"pattern":"*.go"}"""))
+        assertEquals(listOf(ExploreAct("read", "a.go"), ExploreAct("search", "y")), exploreBash("cat a.go; grep -n y b.go | head"))
+        for (command in listOf(
+            "cat a > b", "sed -i s/a/b/ f", "find . -name x -delete", "find . -exec rm {} ;",
+            "rm -rf out", "ls; npm install", "go test ./...", "git status", "cat a | tee b", "cat $(rm x)",
+            // sed: in situ amagat en opcions combinades o abreujades, un segon -e o un fitxer de guió.
+            "sed -n -Ei 1p f", "sed -n -ri 1,5p f", "sed -n --in 1p f", "sed -n -e \"w /tmp/x\" -e 1p f",
+            "sed -n -ew/tmp/x 1p f", "sed -n --expression=w/tmp/x 1p f", "sed -n -f evil.sed -e 1p f", "sed -n --file=evil.sed 1p f",
+            // Filtres després d'una canonada que escriuen, i cercadors o llistadors que executen o escriuen.
+            "ls | sort -o out", "ls | sort --output=out", "ls | sort --compress-program=sh", "ls | uniq - out.txt",
+            "rg --pre ./evil.sh x", "rg --pre=sh x .", "rg --hostname-bin=./evil x", "grep -rn x . | rg --pre sh y",
+            "tree -o out.txt src", "find . -fprint0 out",
+            "cat `rm x`", "cat \"\$(rm x)\"", "cat < a", "ls & rm x", "echo 'open",
+            // Cometes que no tanquen on sembla, expansions que executen i un \r enganxat a la redirecció.
+            "ls \$'\\'' ; touch pwned #'", "cat \$'\\'' >out #'", "ls #'\ntouch pwned2 #'",
+            "printf -v x %s 'a[\$(touch p)]'; ls \$[x]", "printf -v x %s '\$(touch p)'; ls \${x@P}",
+            "ls \${x:='\$(touch p)'} 2>/dev/null; ls \${x@P}", "ls \"\${x@P}\"", "ls >&1\rx", "tree -R src",
+        )) {
+            assertNull(command, exploreBash(command))
+        }
+        assertNull(exploreTool("edit", """{"path":"a.go"}"""))
+        assertNull(exploreTool("bash", "not json"))
+    }
+
+    @Test
+    fun exploreSummaryCountsDistinctFilesSearchesAndListings() {
+        val calls = listOf(
+            exploreBash("ls internal/web desktop"),
+            exploreTool("read", """{"path":"a.go"}"""),
+            exploreBash("sed -n 1,9p a.go; cat b.go"),
+            exploreTool("grep", """{"pattern":"x"}"""),
+        )
+        assertEquals(ToolSum("Explored", "2 files · 1 search · 1 listing"), exploreSummary(calls, "en"))
+        assertEquals("2 fitxers · 1 cerca · 1 llistat", exploreSummary(calls, "ca").target)
+        assertEquals("1 fitxer", exploreSummary(listOf(exploreTool("read", """{"path":"a"}""")), "ca").target)
+    }
+
+    @Test
+    fun consecutiveExploringStepsFoldIntoOneRow() {
+        fun tool(id: String, name: String, args: String) =
+            WorkStep(id, StepKind.Tool, name, tool = name, explore = exploreTool(name, args))
+        val steps = listOf(
+            tool("1", "read", """{"path":"a.go"}"""),
+            tool("2", "bash", """{"command":"ls src"}"""),
+            WorkStep("n", StepKind.Note, "Note"),
+            tool("3", "grep", """{"pattern":"x"}"""),
+            tool("4", "edit", """{"path":"a.go"}"""),
+            tool("5", "bash", """{"command":"cat a.go"}"""),
+            tool("6", "glob", """{"pattern":"*.go"}"""),
+            tool("7", "bash", """{"command":"sed -n 1,5p a.go"}"""),
+        )
+        assertEquals(
+            listOf(listOf("1", "2"), listOf("n"), listOf("3"), listOf("4"), listOf("5", "6", "7")),
+            foldExplore(steps).map { row -> row.map { it.id } },
+        )
+    }
+
     @Test
     fun workGroupLifecycle() {
         var w = WorkGroup(started = 1000)

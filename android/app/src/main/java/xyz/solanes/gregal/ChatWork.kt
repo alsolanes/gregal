@@ -242,7 +242,20 @@ fun WorkGroupCard(work: WorkGroup, activity: Activity?, statusLine: String, lang
             }
             if (open && work.steps.isNotEmpty()) {
                 Column(Modifier.padding(start = 14.dp, end = 12.dp, bottom = 10.dp)) {
-                    work.steps.forEachIndexed { i, s -> StepRow(s, last = i == work.steps.lastIndex, lang = lang) }
+                    val rows = foldExplore(work.steps)
+                    rows.forEachIndexed { i, row ->
+                        if (row.size == 1) StepRow(row[0], last = i == rows.lastIndex, lang = lang)
+                        else {
+                            val sum = exploreSummary(row.map { it.explore }, lang)
+                            val state = when {
+                                row.any { it.state == StepState.Running } -> StepState.Running
+                                row.any { it.state == StepState.Failed } -> StepState.Failed
+                                else -> StepState.Ok
+                            }
+                            StepRow(WorkStep("fold-" + row[0].id, StepKind.Tool, sum.label, sum.target, state = state),
+                                last = i == rows.lastIndex, lang = lang, fold = row)
+                        }
+                    }
                 }
             }
         }
@@ -257,10 +270,16 @@ private fun StatusDot(color: Color, mark: String?) {
     }
 }
 
-/** Un pas de la línia de temps: punt d'estat, acció, objectiu i detall plegable. */
+/**
+ * Un pas de la línia de temps: punt d'estat, acció, objectiu i detall plegable.
+ * Amb `fold`, és la fila «Explorat» i el que es desplega són els seus passos.
+ */
 @Composable
-private fun StepRow(s: WorkStep, last: Boolean, lang: String) {
+private fun StepRow(s: WorkStep, last: Boolean, lang: String, fold: List<WorkStep> = emptyList()) {
     var showDetail by remember(s.id) { mutableStateOf(false) }
+    // Els errors no s'amaguen, tampoc dins una fila «Explorat».
+    val foldFailed = fold.any { it.state == StepState.Failed }
+    LaunchedEffect(foldFailed) { if (foldFailed) showDetail = true }
     val color = when {
         s.state == StepState.Running -> Sea
         s.state == StepState.Failed -> Red
@@ -286,24 +305,31 @@ private fun StepRow(s: WorkStep, last: Boolean, lang: String) {
         Column(
             Modifier.weight(1f)
                 .clip(RoundedCornerShape(8.dp))
-                .then(if (s.detail.isNotBlank()) Modifier.clickable { showDetail = !showDetail } else Modifier)
+                .then(if (s.detail.isNotBlank() && fold.isEmpty()) Modifier.clickable { showDetail = !showDetail } else Modifier)
                 .padding(start = 6.dp, end = 4.dp, top = 2.dp, bottom = 8.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(s.label, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                    maxLines = if (s.kind == StepKind.Note || s.kind == StepKind.Info) 2 else 1,
-                    overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                if (s.meta.isNotBlank()) {
-                    Spacer(Modifier.width(6.dp))
-                    Text(s.meta, color = Faint, fontSize = 12.sp, maxLines = 1)
+            // A la fila «Explorat» només la capçalera plega: tocar un pas de dins no la tanca.
+            Column(if (fold.isNotEmpty()) Modifier.fillMaxWidth().clickable(role = Role.Button) { showDetail = !showDetail } else Modifier) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(s.label, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                        maxLines = if (s.kind == StepKind.Note || s.kind == StepKind.Info) 2 else 1,
+                        overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (s.meta.isNotBlank()) {
+                        Spacer(Modifier.width(6.dp))
+                        Text(s.meta, color = Faint, fontSize = 12.sp, maxLines = 1)
+                    }
+                }
+                if (s.target.isNotBlank()) {
+                    Text(s.target, color = Muted, fontSize = 12.sp,
+                        fontFamily = if (s.kind == StepKind.Tool && fold.isEmpty()) FontFamily.Monospace else FontFamily.Default,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
-            if (s.target.isNotBlank()) {
-                Text(s.target, color = Muted, fontSize = 12.sp,
-                    fontFamily = if (s.kind == StepKind.Tool) FontFamily.Monospace else FontFamily.Default,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
-            if (showDetail) {
+            if (showDetail && fold.isNotEmpty()) {
+                Column(Modifier.padding(top = 6.dp)) {
+                    fold.forEachIndexed { j, c -> StepRow(c, last = j == fold.lastIndex, lang = lang) }
+                }
+            } else if (showDetail) {
                 Surface(shape = RoundedCornerShape(8.dp), color = CodeDark,
                     modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
                     Text(

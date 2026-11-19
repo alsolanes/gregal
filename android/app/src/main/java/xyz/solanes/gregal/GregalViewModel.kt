@@ -2356,7 +2356,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 val args = o.opt("args")?.toString().orEmpty()
                 val sum = summarizeTool(name, args, lang)
                 val id = f("id").ifEmpty { "c${nextMsgId()}" }
-                updateWork { it.add(WorkStep(id, StepKind.Tool, sum.label, sum.target, sum.meta, "", StepState.Running, name)) }
+                updateWork { it.add(WorkStep(id, StepKind.Tool, sum.label, sum.target, sum.meta, "", StepState.Running, name, exploreTool(name, args))) }
                 if (name == "preview") previewArgs[id] = args
                 setActivity("tool:$id", sum.label + if (sum.target.isNotEmpty()) " · " + oneLine(sum.target, 48) else "")
             }
