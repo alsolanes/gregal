@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+## v1.88.0 - 2026-11-19 - Estil Vidre a Android
+
+- **Estil Vidre a Android.** A Preferències → Aparença hi ha l'interruptor
+  «Vidre»: les superfícies de tota l'app es tornen translúcides damunt d'un
+  fons amb taques de llum que es mouen a poc a poc (s'aturen amb l'app en
+  segon pla o amb el moviment reduït). A Android 12 o més, la capçalera i
+  el compositor del xat són de vidre esmerilat: els missatges hi passen per
+  sota, desenfocats. Els diàlegs, els fulls i el calaix queden opacs perquè
+  es llegeixin bé.
+- **Els vents tenen aura quan treballen (Android).** Els vents grans que
+  pensen, cerquen, llegeixen o escriuen porten un halo que gira i batega a
+  poc a poc, i que es fon quan acaben.
+- **Les pantalles d'Android entren amb direcció.** Obrir una pantalla la fa
+  entrar des de la dreta i tornar enrere, des de l'esquerra; amb el
+  moviment reduït, el canvi és immediat.
+- **Backlog per projecte.** Cada projecte té una llista de tasques (feature,
+  bug, task, spike, epic) amb criteris d'acceptació, a la web, al mòbil i
+  per als agents; quan una tasca passa a revisió, una revisió independent
+  comprova cada criteri contra el diff. Els objectius passen a ser tasques
+  del backlog, i els desats abans s'hi traslladen sols.
+- **La resposta en directe dels Vents ja no tremola (Android).** El text
+  llisca fotograma a fotograma i es revela per paraules senceres.
+- **L'escriptori arrenca amb els colors de la paleta actual.**
+
 ## v1.87.11 - 2026-11-18 - Vents que reaprofiten la memòria cau
 
 - **Els Vents reaprofiten més la memòria del model entre missatges.** El
