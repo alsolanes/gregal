@@ -232,7 +232,7 @@ internal fun ConnexionsSheet(conn: Conn, lang: String, onClose: () -> Unit) {
         } catch (e: Exception) { if (e is CancellationException) throw e; msg = connexioConnectError(lang, e.message.orEmpty()) }
     }
 
-    ModalBottomSheet(onDismissRequest = onClose, containerColor = Superficie,
+    ModalBottomSheet(onDismissRequest = onClose, containerColor = SuperficieOpaca,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp).testTag("connexions-sheet"),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {

@@ -557,7 +557,8 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         .workingRing(active = busy, corner = 28.dp)
                         // L'anell de l'accent en escriure, com el compositor de l'escriptori.
                         .focusRing(composerFocused, Sea)
-                        .shadow(if (composerFocused) 10.dp else 4.dp, GregalShape.xl),
+                        // Amb Vidre, sense ombra: es veuria a través de la pastilla translúcida.
+                        .shadow(if (LocalPal.current.glass) 0.dp else if (composerFocused) 10.dp else 4.dp, GregalShape.xl),
                     shape = GregalShape.xl, color = PillDark,
                     border = BorderStroke(
                         1.dp,
@@ -814,7 +815,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 if (!follow.following && msgs.isNotEmpty()) {
                     Surface(
                         onClick = follow::requestFollow,
-                        shape = CircleShape, color = Superficie, shadowElevation = 4.dp,
+                        shape = CircleShape, color = SuperficieOpaca, shadowElevation = 4.dp,
                         border = BorderStroke(1.dp, Line),
                         modifier = Modifier.align(Alignment.BottomCenter).padding(inner).padding(10.dp).size(44.dp),
                     ) {

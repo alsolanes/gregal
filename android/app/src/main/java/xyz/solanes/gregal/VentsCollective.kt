@@ -13,7 +13,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 
 /*
  * El primer cop que obres l'app: com vols dir als teus ajudants. No als
@@ -70,7 +69,7 @@ internal fun CollectivePickerDialog(vm: GregalViewModel, lang: String) {
     var plural by remember { mutableStateOf("") }
     var singular by remember { mutableStateOf("") }
     var singularEdited by remember { mutableStateOf(false) }
-    Dialog(onDismissRequest = { vm.skipCollective() }) {
+    GregalDialog(onDismissRequest = { vm.skipCollective() }) {
         Surface(shape = RoundedCornerShape(24.dp), color = Superficie, modifier = Modifier.testTag("collective-picker")) {
             // Amb el teclat obert, el camp «un» i els botons han de quedar a l'abast.
             Column(Modifier.imePadding().verticalScroll(rememberScrollState()).padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

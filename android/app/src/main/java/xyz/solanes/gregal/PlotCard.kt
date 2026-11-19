@@ -18,7 +18,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
 /** Data-only native plot: state is shared by the inline and enlarged view. */
@@ -28,7 +27,7 @@ fun PlotCard(spec: PlotSpec, lang: String = "ca") {
     var enlarged by rememberSaveable(spec) { mutableStateOf(false) }
     PlotContent(spec, lang, view, { view = it }, false, { enlarged = true })
     if (enlarged) {
-        Dialog(onDismissRequest = { enlarged = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        GregalDialog(onDismissRequest = { enlarged = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             Surface(Modifier.fillMaxWidth().padding(12.dp), shape = RoundedCornerShape(18.dp), color = LocalPal.current.surface) {
                 Column(Modifier.heightIn(max = 680.dp).verticalScroll(rememberScrollState())) {
                     PlotContent(spec, lang, view, { view = it }, true, { enlarged = false })

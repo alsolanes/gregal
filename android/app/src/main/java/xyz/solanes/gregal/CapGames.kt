@@ -18,7 +18,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 
@@ -61,7 +60,7 @@ fun CapCloudGame(lang: String, st: CapState, onDone: (Int) -> Unit) {
             clouds.removeAll { cloudY(it, now) == null }
         }
     }
-    Dialog(onDismissRequest = { onDone(-1) }) {
+    GregalDialog(onDismissRequest = { onDone(-1) }) {
         Surface(shape = RoundedCornerShape(24.dp), color = Superficie) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -115,7 +114,7 @@ fun CapRpsGame(lang: String, st: CapState, onDone: (Int) -> Unit) {
     var thinking by remember { mutableStateOf(false) }
     val over = round >= 3
     LaunchedEffect(thinking) { if (thinking) { delay(700); thinking = false } }
-    Dialog(onDismissRequest = { onDone(-1) }) {
+    GregalDialog(onDismissRequest = { onDone(-1) }) {
         Surface(shape = RoundedCornerShape(24.dp), color = Superficie) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(tr(lang, "app.cap.game.ppt"), color = Ink, fontWeight = FontWeight.Bold)
@@ -169,7 +168,7 @@ fun CapRpsGame(lang: String, st: CapState, onDone: (Int) -> Unit) {
 @Composable
 fun CapWardrobe(lang: String, st: CapState, fresh: List<String>, onWear: (String) -> Unit, onClose: () -> Unit) {
     val pet = st.pet
-    Dialog(onDismissRequest = onClose) {
+    GregalDialog(onDismissRequest = onClose) {
         Surface(shape = RoundedCornerShape(24.dp), color = Superficie) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {

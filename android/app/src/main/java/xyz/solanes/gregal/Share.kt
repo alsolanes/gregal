@@ -245,7 +245,7 @@ fun shareImageIntent(ctx: Context, file: File, chooser: String) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShareSheet(vm: GregalViewModel, lang: String, target: ShareTarget, onDismiss: () -> Unit) {
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Superficie) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = SuperficieOpaca) {
         ShareSheetBody(vm, lang, target, onDismiss)
     }
 }

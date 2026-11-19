@@ -117,7 +117,7 @@ internal fun GroupProfileDialog(vm: GregalViewModel, lang: String, rot: Rotllana
     var error by remember { mutableStateOf(false) }
     var selectedProfile by remember { mutableStateOf<Wind?>(null) }
     val minimum = if (rot.members.size > 1) 2 else 1
-    AlertDialog(onDismissRequest = { if (!saving) onDismiss() }, containerColor = Superficie,
+    AlertDialog(onDismissRequest = { if (!saving) onDismiss() }, containerColor = SuperficieOpaca,
         title = { Text(rot.name) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {

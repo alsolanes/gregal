@@ -63,7 +63,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material3.SuggestionChip
@@ -435,7 +434,7 @@ fun trimHours(h: Double): String =
 fun RunDetail(r: RunItem, vm: GregalViewModel, onDismiss: () -> Unit, lang: String = "ca") {
     var reintentant by remember(r.id) { mutableStateOf(false) }
     var errorReintent by remember(r.id) { mutableStateOf<String?>(null) }
-    Dialog(onDismissRequest = onDismiss) {
+    GregalDialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
             colors = CardDefaults.cardColors(containerColor = DeepBottom),

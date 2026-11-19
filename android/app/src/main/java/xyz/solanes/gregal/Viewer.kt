@@ -41,7 +41,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.launch
 
@@ -143,7 +142,7 @@ fun ViewerOverlay(lang: String) {
     val scope = rememberCoroutineScope()
     val item = items[pager.currentPage.coerceIn(0, items.lastIndex)]
     var showCode by remember(item) { mutableStateOf(false) }
-    Dialog(onDismissRequest = { Viewer.close() }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+    GregalDialog(onDismissRequest = { Viewer.close() }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         CompositionLocalProvider(LocalInViewer provides true) {
             Column(Modifier.fillMaxSize().background(DeepTop).testTag("viewer")) {
                 Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 4.dp, vertical = 4.dp),

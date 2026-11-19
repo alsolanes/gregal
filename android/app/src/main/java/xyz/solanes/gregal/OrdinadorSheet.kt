@@ -266,7 +266,7 @@ internal fun OrdinadorSheet(
         }
     }
 
-    ModalBottomSheet(onDismissRequest = onClose, containerColor = Superficie,
+    ModalBottomSheet(onDismissRequest = onClose, containerColor = SuperficieOpaca,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().fillMaxHeight(.92f).padding(horizontal = 16.dp).padding(bottom = 16.dp).testTag("ordinador-sheet"),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {

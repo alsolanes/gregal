@@ -235,7 +235,7 @@ internal fun ResponsabilitatsSheet(conn: Conn, lang: String, winds: List<Wind>, 
         try { withContext(Dispatchers.IO) { conn.api().respAction(action, id) } } catch (e: Exception) { if (e is CancellationException) throw e }
         reload()
     }
-    ModalBottomSheet(onDismissRequest = onClose, containerColor = Superficie,
+    ModalBottomSheet(onDismissRequest = onClose, containerColor = SuperficieOpaca,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 16.dp).verticalScroll(rememberScrollState())
             .testTag("resp-sheet"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -380,7 +380,7 @@ internal fun RespWhySheet(conn: Conn, lang: String, messageId: String, onClose: 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun RespWhySheetContent(why: RespWhy?, lang: String, onClose: () -> Unit) {
-    ModalBottomSheet(onDismissRequest = onClose, containerColor = Superficie) {
+    ModalBottomSheet(onDismissRequest = onClose, containerColor = SuperficieOpaca) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 20.dp).verticalScroll(rememberScrollState())) {
             RespWhyBody(why, lang)
         }

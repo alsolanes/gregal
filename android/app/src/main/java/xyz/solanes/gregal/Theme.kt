@@ -6,6 +6,7 @@ import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
@@ -15,6 +16,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 /** Paleta Gregal. Els noms en anglès es queden (els call sites no canvien),
  *  però els valors són els de `docs/identitat.md` ("Paleta" / "Paleta clara").
@@ -52,6 +55,10 @@ data class GregalPalette(
     /** Estil Vidre: superfícies translúcides damunt del fons amb taques de llum ([glassy]). */
     val glass: Boolean = false,
 ) {
+    /** La superfície opaca: amb Vidre, la translúcida composta damunt del fons.
+     *  Per al que s'obre damunt del contingut (calaix, fulls, diàlegs), que
+     *  translúcid deixaria llegir el text de sota. */
+    val solidSurface: Color get() = if (glass) surface.compositeOver(deepTop) else surface
     // Àlies històrics: noms que ja feia servir tota la UI.
     val pillDark: Color get() = surface
     val bubbleDark: Color get() = surface
@@ -157,7 +164,7 @@ fun GregalPalette.scheme(): ColorScheme {
     // la superfície ja composta: translúcids no es llegirien damunt del text.
     // El fons de Material també queda opac: hi ha diàlegs a pantalla completa
     // que el fan servir de color.
-    val surface = if (glass) surface.compositeOver(deepTop) else surface
+    val surface = solidSurface
     val surfaceHi = if (glass) surfaceHi.compositeOver(deepTop) else surfaceHi
     val low = lerp(deepTop, surface, 0.5f)
     val high = lerp(surface, surfaceHi, 0.5f)
@@ -471,6 +478,13 @@ val DeepBottom @Composable @ReadOnlyComposable get() = LocalPal.current.deepBott
 // Els noms de superfície en català com al document: `Surface` xocaria amb el
 // composable de Material3 que tots els fitxers importen.
 val Superficie @Composable @ReadOnlyComposable get() = LocalPal.current.surface
+/** La paleta per al que s'obre damunt del contingut: amb Vidre, les
+ *  superfícies opaques (translúcides deixarien llegir el text de sota). */
+fun GregalPalette.solid(): GregalPalette =
+    if (glass) copy(surface = solidSurface, surfaceHi = surfaceHi.compositeOver(deepTop), glass = false) else this
+
+/** Superfície per al calaix, els fulls i els diàlegs: opaca també amb Vidre. */
+val SuperficieOpaca @Composable @ReadOnlyComposable get() = LocalPal.current.solidSurface
 val SuperficieAlta @Composable @ReadOnlyComposable get() = LocalPal.current.surfaceHi
 val Ink @Composable @ReadOnlyComposable get() = LocalPal.current.ink
 val Tinta @Composable @ReadOnlyComposable get() = LocalPal.current.text
@@ -493,3 +507,14 @@ val SendBg @Composable @ReadOnlyComposable get() = LocalPal.current.sendBg
 val SendFg @Composable @ReadOnlyComposable get() = LocalPal.current.sendFg
 val UserBubble @Composable @ReadOnlyComposable get() = LocalPal.current.userBubble
 val OnUserBubble @Composable @ReadOnlyComposable get() = LocalPal.current.onUserBubble
+
+/** El diàleg de l'app: el de Compose amb la paleta opaca ([solid]). */
+@Composable
+fun GregalDialog(
+    onDismissRequest: () -> Unit,
+    properties: DialogProperties = DialogProperties(),
+    content: @Composable () -> Unit,
+) = Dialog(onDismissRequest, properties) {
+    CompositionLocalProvider(LocalPal provides LocalPal.current.solid(), content = content)
+}
+
