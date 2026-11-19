@@ -118,6 +118,17 @@ fun windStyleOf(code: String?): WindStyle {
 /** De l'estil al codi de tres lletres que viatja al backend. */
 fun WindStyle.encode(): String = eyes.key + mouth.key + shape.key
 
+/** Aura del color del vent mentre treballa; a les llistes petites seria soroll. */
+internal fun windShowsAura(mood: WindMood, size: Int): Boolean = size >= 64 && mood in windWorkMoods
+
+private val windWorkMoods = setOf(
+    WindMood.THINKING, WindMood.SEARCHING, WindMood.READING,
+    WindMood.WRITING, WindMood.WORKING, WindMood.DISCUSSING,
+)
+
+/** Gir (graus) i batec (escala) de l'aura al temps `t` del rellotge de 12 s; sense moviment `t` és 0 i queda quieta. */
+internal fun windAuraSway(t: Float): Pair<Float, Float> = t % 6f / 6f * 360f to 1f + sin(PI.toFloat() * t) * .06f
+
 @Composable
 fun WindFace(
     size: Int = 96,
@@ -180,6 +191,8 @@ fun WindFace(
     val tone = remember(accent) { lerp(accent, Color(0xFF1B1530), .8f) }
     val handEdge = remember(accent) { lerp(accent, Color(0xFF1B1530), .45f) }
     val bodyPaint = remember(style.shape, accent) { WindBodyPaint(style.shape, accent) }
+    // L'aura entra i surt amb un fos quan el vent comença o acaba la feina.
+    val aura by animateFloatAsState(if (windShowsAura(mood, size)) 1f else 0f, tween(450), label = "wind-aura")
     val motionLayer = if (motion) Modifier.graphicsLayer {
         val t = time()
         val breath = wave(t, 4f)
@@ -233,6 +246,20 @@ fun WindFace(
         // Inclinació del mòbil (−1..1), llegida aquí perquè només redibuixi.
         val (tx, ty) = lean.value
         val paint = if (tx == 0f && ty == 0f) bodyPaint else WindBodyPaint(style.shape, accent, tx, ty)
+        if (aura > 0f) {
+            // Darrere el cos: un halo suau i un anell que gira, tots dos del color del vent.
+            val (spin, pulse) = windAuraSway(t)
+            val reach = min(w, h) / 2f * pulse.coerceAtMost(1f)
+            drawCircle(Brush.radialGradient(
+                0f to accent.copy(alpha = .38f * aura), .7f to accent.copy(alpha = .16f * aura), 1f to Color.Transparent,
+                center = Offset(cx, cy), radius = reach), reach, Offset(cx, cy))
+            val ring = r * 1.16f * pulse
+            withTransform({ rotate(spin, Offset(cx, cy)) }) {
+                drawCircle(Brush.sweepGradient(
+                    listOf(Color.Transparent, accent.copy(alpha = .7f * aura), Color.Transparent), Offset(cx, cy)),
+                    ring, Offset(cx, cy), style = Stroke(r * .07f, cap = StrokeCap.Round))
+            }
+        }
         drawWindBody(style.shape, paint, cx, cy, r, if (motion) .5f + wave(t, 6f) * 5.5f else 0f)
         // A single small tool on large profiles, never a costume over the eyes.
         // El 'head' del kit (auriculars, gorres...) es dibuixa com al web: en
