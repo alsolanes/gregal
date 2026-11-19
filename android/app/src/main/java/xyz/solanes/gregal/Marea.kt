@@ -19,7 +19,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -32,10 +34,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
@@ -52,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.toSize
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -303,62 +308,54 @@ fun GlassCard(
 @Composable
 fun SeaBackdrop(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val pal = LocalPal.current
-    Box(
-        modifier.background(
-            Brush.verticalGradient(
-                0f to pal.deepTop,
-                0.55f to pal.deepTop,
-                1f to pal.deepBottom,
-            )
-        )
-    ) {
-        // Capa pròpia: cada pas de les taques només redibuixa les taques.
-        Box(Modifier.matchParentSize().graphicsLayer().aurora(pal))
-        Box(
-            Modifier
-                .height(180.dp)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(pal.sea.copy(alpha = 0.07f), Color.Transparent)
-                    )
-                )
-        )
-        content()
-    }
-}
-
-/**
- * Les taques de llum del fons Vidre ([auroraBlobs]). Es mouen a ~15 fps i
- * només es redibuixen (no es recomponen): el desplaçament és tan lent que més
- * fotogrames només gastarien bateria. Cada pas espera un fotograma, així que
- * en segon pla (sense fotogrames) s'atura. Sense moviment, quietes.
- */
-@Composable
-private fun Modifier.aurora(pal: GregalPalette): Modifier {
+    val sea = remember { SeaFrame() }
     val blobs = remember(pal) { auroraBlobs(pal) }
-    if (blobs.isEmpty()) return this
-    val motion = windMotionEnabled()
-    val time = remember { mutableFloatStateOf(0f) }
-    if (motion) LaunchedEffect(Unit) {
+    // Les taques del Vidre es mouen a ~15 fps i només es redibuixen (no es
+    // recomponen): el desplaçament és tan lent que més fotogrames només
+    // gastarien bateria. Cada pas espera un fotograma, així que en segon pla
+    // (sense fotogrames) s'atura. Sense moviment, quietes.
+    if (blobs.isNotEmpty() && windMotionEnabled()) LaunchedEffect(Unit) {
         while (true) {
             withFrameNanos { }
             delay(66)
-            time.floatValue += 0.066f
+            sea.time.floatValue += 0.066f
         }
     }
-    return drawBehind {
-        val t = time.floatValue
-        blobs.forEachIndexed { i, b ->
-            // Cada taca fa el seu cercle lent (40–56 s per volta), desfasades.
-            val angle = 2f * PI.toFloat() * t / (40f + i * 8f) + i * 2.1f
-            val center = Offset(
-                size.width * (b.x + 0.08f * cos(angle)),
-                size.height * (b.y + 0.05f * sin(angle)),
-            )
-            val r = size.width * b.radius
-            drawCircle(Brush.radialGradient(listOf(b.color, Color.Transparent), center, r), r, center)
-        }
+    val veil = with(LocalDensity.current) { 180.dp.toPx() }
+    Box(modifier.onGloballyPositioned { sea.origin = it.positionInRoot(); sea.size = it.size.toSize() }) {
+        // Capa pròpia: cada pas de les taques només redibuixa el fons.
+        Box(Modifier.matchParentSize().graphicsLayer().drawBehind { drawSea(pal, blobs, sea.time.floatValue, veil, size) })
+        CompositionLocalProvider(LocalSeaFrame provides SeaView(sea, blobs, veil)) { content() }
     }
+}
+
+/** On és el fons del mar i en quin moment de les taques: el vidre esmerilat
+ *  el torna a pintar sota les barres perquè no hi hagi franja. */
+internal class SeaFrame {
+    var origin = Offset.Zero
+    var size = Size.Zero
+    val time = mutableFloatStateOf(0f)
+}
+
+internal class SeaView(val frame: SeaFrame, val blobs: List<AuroraBlob>, val veil: Float)
+
+internal val LocalSeaFrame = compositionLocalOf<SeaView?> { null }
+
+/** El degradat, les taques de llum ([auroraBlobs]) i el vel d'escuma de dalt,
+ *  en un rectangle de la mida del fons. */
+private fun DrawScope.drawSea(pal: GregalPalette, blobs: List<AuroraBlob>, t: Float, veil: Float, full: Size) {
+    drawRect(Brush.verticalGradient(0f to pal.deepTop, 0.55f to pal.deepTop, 1f to pal.deepBottom, endY = full.height), size = full)
+    blobs.forEachIndexed { i, b ->
+        // Cada taca fa el seu cercle lent (40–56 s per volta), desfasades.
+        val angle = 2f * PI.toFloat() * t / (40f + i * 8f) + i * 2.1f
+        val center = Offset(
+            full.width * (b.x + 0.08f * cos(angle)),
+            full.height * (b.y + 0.05f * sin(angle)),
+        )
+        val r = full.width * b.radius
+        drawCircle(Brush.radialGradient(listOf(b.color, Color.Transparent), center, r), r, center)
+    }
+    drawRect(Brush.verticalGradient(listOf(pal.sea.copy(alpha = 0.07f), Color.Transparent), endY = veil), size = Size(full.width, veil))
 }
 
 /**
@@ -391,15 +388,20 @@ fun Modifier.frostSource(frost: Frost?): Modifier = if (frost == null) this else
 fun Modifier.frostGlass(frost: Frost?): Modifier {
     if (frost == null) return this
     val pal = LocalPal.current
+    val sea = LocalSeaFrame.current
     var at by remember { mutableStateOf(Offset.Zero) }
     val radius = with(LocalDensity.current) { 24.dp.toPx() }
     return onGloballyPositioned { at = it.positionInRoot() }.drawBehind {
         frost.blurred.renderEffect = BlurEffect(radius, radius, TileMode.Clamp)
         frost.blurred.record(frost.layer.size) { drawLayer(frost.layer) }
         val shift = frost.origin - at
-        // El fons opac tapa el contingut nítid que passa per sota; damunt, la
-        // còpia desenfocada i el tint de la superfície perquè el títol es llegeixi.
-        drawRect(pal.deepTop)
+        // A sota, el mateix fons del mar (sense franja) tapa el contingut nítid
+        // que passa per sota; damunt, la còpia desenfocada i el tint de la
+        // superfície perquè el títol es llegeixi.
+        if (sea == null) drawRect(pal.deepTop) else clipRect {
+            val o = sea.frame.origin - at
+            translate(o.x, o.y) { drawSea(pal, sea.blobs, sea.frame.time.floatValue, sea.veil, sea.frame.size) }
+        }
         clipRect { translate(shift.x, shift.y) { drawLayer(frost.blurred) } }
         drawRect(pal.surface)
     }

@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -57,22 +60,27 @@ class FrostTest {
         }
     }
 
-    /** Blau del píxel 3 px a l'esquerra de la vora, al mig de la barra. */
     // Captura amb HardwareRenderer: el dibuix per programari no aplica RenderEffect.
     @Before fun hardware() { System.setProperty("robolectric.pixelCopyRenderMode", "hardware") }
 
     @After fun software() { System.clearProperty("robolectric.pixelCopyRenderMode") }
 
-    /** El píxel 3 px a l'esquerra de la vora, al mig de la barra (r, g, b de 0 a 1). */
-    private fun leftOfEdge(): FloatArray {
+    /** El píxel (x, y) de la finestra (r, g, b de 0 a 1), capturat per maquinari. */
+    private fun pixel(x: Int, y: Int): FloatArray {
         ui.waitForIdle()
-        val bar = ui.onNodeWithTag("bar").fetchSemanticsNode().boundsInRoot
         val view = ui.activity.window.decorView
         val bmp = android.graphics.Bitmap.createBitmap(view.width, view.height, android.graphics.Bitmap.Config.ARGB_8888)
         android.view.PixelCopy.request(ui.activity.window, bmp, {}, android.os.Handler(android.os.Looper.getMainLooper()))
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
-        val px = bmp.getPixel((bar.left + bar.right).toInt() / 2 - 3, (bar.top + bar.bottom).toInt() / 2)
+        val px = bmp.getPixel(x, y)
         return floatArrayOf(android.graphics.Color.red(px) / 255f, android.graphics.Color.green(px) / 255f, android.graphics.Color.blue(px) / 255f)
+    }
+
+    /** El píxel 3 px a l'esquerra de la vora, al mig de la barra. */
+    private fun leftOfEdge(): FloatArray {
+        ui.waitForIdle()
+        val bar = ui.onNodeWithTag("bar").fetchSemanticsNode().boundsInRoot
+        return pixel((bar.left + bar.right).toInt() / 2 - 3, (bar.top + bar.bottom).toInt() / 2)
     }
 
     @Test fun ambVidreLaBarraDesenfocaElQueTeDarrere() {
@@ -124,5 +132,30 @@ class FrostTest {
         assertEquals(64.dp, outer2.calculateTopPadding())
         assertEquals(80.dp, outer2.calculateBottomPadding())
         assertEquals(0.dp, inner2.calculateTopPadding())
+    }
+
+    // Vist a l'emulador: sota la barra hi havia un color pla i feia franja
+    // damunt de les taques. Ara la barra és el mateix fons amb el tint a sobre.
+    @Test fun laBarraNoFaFranjaDamuntDelFons() {
+        val pal = DarkPal.glassy()
+        var bar by mutableStateOf(true)
+        ui.setContent {
+            CompositionLocalProvider(LocalPal provides pal, LocalWindMotion provides false) {
+                SeaBackdrop(Modifier.fillMaxSize()) {
+                    val frost = rememberFrost()
+                    Box(Modifier.fillMaxSize().frostSource(frost))
+                    if (bar) Box(Modifier.fillMaxWidth().height(60.dp).frostGlass(frost).testTag("bar"))
+                }
+            }
+        }
+        val b = ui.onNodeWithTag("bar").fetchSemanticsNode().boundsInRoot
+        val x = b.left.toInt() + 30
+        val y = (b.top + b.bottom).toInt() / 2
+        val amb = pixel(x, y)
+        bar = false
+        val fons = pixel(x, y)
+        val s = pal.surface
+        val esperat = floatArrayOf(s.red, s.green, s.blue).mapIndexed { i, c -> c * s.alpha + fons[i] * (1 - s.alpha) }
+        for (i in 0..2) assertEquals("canal $i: barra ${amb.toList()} fons ${fons.toList()}", esperat[i], amb[i], 0.02f)
     }
 }
