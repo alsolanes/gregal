@@ -100,4 +100,23 @@ class GlassTest {
         }
         assertTrue("translúcids: $dolents", dolents.isEmpty())
     }
+
+    @Test
+    fun `els diàlegs propis fan servir la paleta opaca`() {
+        for (p in totes) {
+            val d = p.glassy().solid()
+            assertEquals(1f, d.surface.alpha)
+            assertEquals(1f, d.surfaceHi.alpha)
+            assertEquals(p.ink, d.ink)
+            assertEquals(p, p.solid())
+        }
+        // Vist a l'emulador: «Què pot fer Gregal» deixava llegir el xat a través.
+        // Tots els diàlegs passen per GregalDialog, que els dona la paleta opaca.
+        val src = java.io.File("src/main/java/xyz/solanes/gregal")
+        val cru = Regex("""(?<![A-Za-z])(androidx\.compose\.ui\.window\.)?Dialog\(""")
+        val dolents = src.listFiles()!!.filter { it.extension == "kt" && it.name != "Theme.kt" }.flatMap { f ->
+            f.readLines().mapIndexedNotNull { i, l -> if (cru.containsMatchIn(l)) "${f.name}:${i + 1}" else null }
+        }
+        assertTrue("diàlegs sense GregalDialog: $dolents", dolents.isEmpty())
+    }
 }

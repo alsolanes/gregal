@@ -20,7 +20,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -103,7 +102,7 @@ internal fun ApresDialog(conn: Conn, lang: String, onDismiss: () -> Unit) {
             error = true; null
         }
     }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    GregalDialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxWidth().fillMaxHeight(0.9f).padding(top = 16.dp).testTag("apres-dialog")) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {

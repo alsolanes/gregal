@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import java.time.Instant
 import java.time.ZoneId
@@ -79,7 +78,7 @@ internal fun ProgramatsDialog(vm: GregalViewModel, lang: String, onDismiss: () -
     var showNovaRutina by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) { vm.loadProgramats(); vm.loadRutines() }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    GregalDialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxWidth().fillMaxHeight(0.85f).padding(top = 16.dp)) {
                 // Capçalera: títol i tanca.
@@ -183,7 +182,7 @@ internal fun NovaRutinaDialog(vm: GregalViewModel, lang: String, preselectedWind
     var hora by remember { mutableStateOf("09:00") }
     var hores by remember { mutableStateOf("6") }
     var prompt by remember { mutableStateOf("") }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    GregalDialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(tr(lang, "app.rutines.new"), color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp)

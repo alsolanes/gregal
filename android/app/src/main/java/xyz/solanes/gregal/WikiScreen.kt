@@ -24,7 +24,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
 /**
@@ -61,7 +60,7 @@ internal fun WikiDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Unit
     var open by remember { mutableStateOf<GregalApi.WikiPage?>(null) }
     var confirmDelete by remember { mutableStateOf<GregalApi.WikiPage?>(null) }
     LaunchedEffect(Unit) { vm.loadWiki() }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    GregalDialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxWidth().fillMaxHeight(0.85f).padding(top = 16.dp)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -121,7 +120,7 @@ internal fun WikiDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Unit
             val source = vm.lecturaDePagina(p.nom)
             if (source == null) err = true else full = source
         }
-        Dialog(onDismissRequest = { open = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        GregalDialog(onDismissRequest = { open = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.background) {
                 Column(Modifier.fillMaxWidth().fillMaxHeight(0.85f).padding(top = 16.dp)) {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {

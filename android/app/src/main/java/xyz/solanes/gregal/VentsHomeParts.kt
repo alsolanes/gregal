@@ -23,7 +23,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 
 // Peces de la portada dels Vents: abans la llista quedava sota el selector
 // mòbil/servidor, la seva explicació, la tira de personatges i tres accessos.
@@ -106,7 +105,7 @@ internal fun WhereStatus(vm: GregalViewModel, lang: String) {
 internal fun WhereDialog(vm: GregalViewModel, lang: String, onClose: () -> Unit) {
     val conn by vm.conn.collectAsState()
     var showSwitch by remember { mutableStateOf(conn.local) }
-    Dialog(onDismissRequest = onClose) {
+    GregalDialog(onDismissRequest = onClose) {
         Surface(shape = RoundedCornerShape(24.dp), color = Superficie) {
             Column(Modifier.padding(vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(tr(lang, "app.where.title"), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold,

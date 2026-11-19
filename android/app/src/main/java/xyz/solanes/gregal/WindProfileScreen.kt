@@ -26,7 +26,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.launch
 
@@ -39,7 +38,7 @@ internal fun WindProfileDialog(vm: GregalViewModel, lang: String, wind: Wind, on
     val rutines by vm.rutines.collectAsState()
     LaunchedEffect(wind.id) { vm.loadWindProfile(wind.id); vm.loadVentDetall(wind.id); vm.loadJobs(); vm.loadRutines() }
     val current = profile?.takeIf { it.wind.id == wind.id }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    GregalDialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         WindProfileContent(vm, lang, current?.wind ?: wind, current, busy, error, chats[wind.id].orEmpty(), rutines.orEmpty(),
             onDismiss = onDismiss,
             onRetry = { vm.loadWindProfile(wind.id) },
@@ -440,7 +439,7 @@ private fun ConeixementEditor(vm: GregalViewModel, lang: String, wind: Wind, exi
             loading = false
         }
     }
-    Dialog(onDismissRequest = onClose) {
+    GregalDialog(onDismissRequest = onClose) {
         Surface(shape = RoundedCornerShape(20.dp), color = Superficie, shadowElevation = 6.dp) {
             Column(Modifier.padding(20.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(if (existing == null) tr(lang, "app.vents.skillsNew") else existing.nom, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = Ink)

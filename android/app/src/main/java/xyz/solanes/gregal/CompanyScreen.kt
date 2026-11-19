@@ -64,7 +64,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -900,7 +899,7 @@ private fun WindsModelDialog(vm: GregalViewModel, lang: String, onDismiss: () ->
     val models by vm.models.collectAsState()
     var query by remember { mutableStateOf("") }
     LaunchedEffect(Unit) { vm.loadProviders(); vm.loadModels() }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    GregalDialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(shape = RoundedCornerShape(20.dp), color = Superficie, shadowElevation = 8.dp) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(tr(lang, "app.vents.pickWindsModel"), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Ink)
@@ -958,7 +957,7 @@ private fun ChatRowDialog(vm: GregalViewModel, lang: String, target: RowTarget, 
         if (target is RowTarget.Dm) "app.vents.chatConfirmClear" else "app.vents.chatConfirmDeleteRot",
         currentName,
     )
-    androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
+    GregalDialog(onDismissRequest = onClose) {
         Surface(shape = RoundedCornerShape(20.dp), color = Superficie, shadowElevation = 6.dp) {
             Column(Modifier.padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(currentName, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = Ink,
@@ -2234,7 +2233,7 @@ fun WindFab(vm: GregalViewModel, onOpen: () -> Unit) {
 @Composable
 private fun CrewSheet(vm: GregalViewModel, lang: String, ui: GregalViewModel.CrewUi, winds: List<Wind>) {
     var task by remember(ui.task) { mutableStateOf(ui.task) }
-    Dialog(onDismissRequest = { if (!ui.starting) vm.closeCrew() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    GregalDialog(onDismissRequest = { if (!ui.starting) vm.closeCrew() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(shape = RoundedCornerShape(28.dp), color = Superficie, modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(tr(lang, "app.crew.title"), color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -2369,7 +2368,7 @@ internal fun WhereSwitch(vm: GregalViewModel, lang: String) {
 private fun SectionPickerDialog(vm: GregalViewModel, lang: String, targetKey: String?, onClose: () -> Unit) {
     val meta by vm.windsMeta.collectAsState()
     var name by remember { mutableStateOf("") }
-    androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
+    GregalDialog(onDismissRequest = onClose) {
         Surface(shape = RoundedCornerShape(20.dp), color = Superficie, shadowElevation = 6.dp) {
             Column(Modifier.padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(tr(lang, "app.vents.sections"), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = Ink)

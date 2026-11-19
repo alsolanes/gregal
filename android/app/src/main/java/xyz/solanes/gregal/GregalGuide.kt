@@ -24,7 +24,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
 /**
@@ -86,7 +85,7 @@ internal fun guideTopics(lang: String): List<GuideTopic> {
 @Composable
 internal fun GregalGuide(lang: String, accent: Color, onTry: (String) -> Unit, onClose: () -> Unit) {
     val pal = LocalPal.current
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    GregalDialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(Modifier.fillMaxSize().background(Superficie).openingBloom(accent, pal.lila, working = false).testTag("gregal-guide")) {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {

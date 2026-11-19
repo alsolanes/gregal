@@ -13,7 +13,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
 internal fun libraryDate(value: String, lang: String): String = runCatching {
@@ -39,7 +38,7 @@ internal fun WindLibraryDialog(vm: GregalViewModel, lang: String, onDismiss: () 
         val pending = state.pending != null
         LaunchedEffect(Unit) { vm.loadWindLibrary() }
         val dismiss = { if (!pending) onDismiss() }
-        Dialog(onDismissRequest = dismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        GregalDialog(onDismissRequest = dismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             Surface(color = MaterialTheme.colorScheme.background, shape = MaterialTheme.shapes.large,
                 modifier = Modifier.fillMaxWidth().padding(12.dp)) {
                 Column(Modifier.fillMaxWidth().fillMaxHeight(.90f).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

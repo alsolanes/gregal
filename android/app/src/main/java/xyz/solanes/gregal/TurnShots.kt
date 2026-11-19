@@ -26,7 +26,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -102,7 +101,7 @@ internal fun TurnShotsStrip(conn: Conn, lang: String, accent: Color, shots: List
 @Composable
 internal fun TurnShotsViewer(conn: Conn, lang: String, accent: Color, shots: List<MsgShot>, start: Int, onClose: () -> Unit) {
     var i by remember { mutableStateOf(start.coerceIn(0, shots.lastIndex)) }
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    GregalDialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
             Modifier.fillMaxWidth().padding(12.dp).clip(GregalShape.lg).background(Superficie).padding(14.dp).testTag("turn-shots-viewer"),
             verticalArrangement = Arrangement.spacedBy(10.dp),

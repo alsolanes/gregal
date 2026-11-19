@@ -20,7 +20,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -95,7 +94,7 @@ internal fun GamesDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Uni
 
     watching?.let { id -> GameViewer(conn, lang, id) { watching = null }; return }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    GregalDialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().padding(top = 12.dp)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -157,7 +156,7 @@ internal fun GamesDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Uni
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 private fun GameViewer(conn: Conn, lang: String, id: String, onClose: () -> Unit) {
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    GregalDialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(Modifier.fillMaxSize().background(Color(0xFF0B1020))) {
             AndroidView(modifier = Modifier.fillMaxSize(), factory = { ctx ->
                 WebView(ctx).apply {

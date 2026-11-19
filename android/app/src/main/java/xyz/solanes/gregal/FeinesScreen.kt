@@ -28,7 +28,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
 /**
@@ -102,7 +101,7 @@ internal fun FeinesDialog(vm: GregalViewModel, lang: String, onOpenThread: (Stri
     val autos by vm.automations.collectAsState()
     var file by remember { mutableStateOf<Pair<WindTask, String>?>(null) }
     LaunchedEffect(Unit) { vm.loadWindTasks(); vm.loadWindAsks(); vm.loadAutomations("") }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    GregalDialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxWidth().fillMaxHeight(0.85f).padding(top = 16.dp)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -239,7 +238,7 @@ private fun FeinaFileDialog(vm: GregalViewModel, lang: String, t: WindTask, file
         vm.readTaskFile(t.pathOf(file)) { text, error -> content = text; err = error }
     }
     val html = file.endsWith(".html", true) || file.endsWith(".htm", true)
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    GregalDialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxWidth().fillMaxHeight(0.92f).padding(top = 12.dp)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
