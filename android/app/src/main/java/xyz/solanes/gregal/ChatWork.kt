@@ -151,9 +151,11 @@ private fun SweepLine(colors: List<Color>) {
 @Composable
 fun WorkGroupCard(work: WorkGroup, activity: Activity?, statusLine: String, lang: String, onRetro: (() -> Unit)? = null, onRetry: (() -> Unit)? = null) {
     val running = work.running
-    var open by remember { mutableStateOf(false) }
-    // Un torn que falla s'obre sol: el que interessa és veure on.
-    LaunchedEffect(work.failed, running) { if (!running && work.failed) open = true }
+    // Com a la web: obert mentre treballa (s'hi veu la narració i les eines
+    // que va fent) i plegat en acabar. Un torn que falla es queda obert: el
+    // que interessa és veure on.
+    var open by remember { mutableStateOf(running) }
+    LaunchedEffect(work.failed, running) { if (!running) open = work.failed }
     val elapsed = elapsedSince(work.started, running)
     val total = if (running) elapsed else work.ended - work.started
     val stalled = running && activity != null && activity.key in setOf("model", "start") &&

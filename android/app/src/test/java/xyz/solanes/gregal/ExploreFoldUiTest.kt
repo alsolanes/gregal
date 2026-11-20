@@ -84,6 +84,24 @@ class ExploreFoldUiTest {
         ui.onNodeWithText("TS2304: x").assertDoesNotExist()
     }
 
+    // Com a la web: mentre treballa el grup és obert (la narració que ja has
+    // llegit no desapareix de la vista) i en acabar es plega sol.
+    @Test fun theGroupIsOpenWhileWorkingAndFoldsWhenDone() {
+        var work by mutableStateOf(WorkGroup(listOf(
+            WorkStep("n", StepKind.Note, "Busco on es valida", detail = "Busco on es valida"),
+            tool("1", "read", """{"path":"src/login.go"}""", StepState.Running),
+        ), started = 1L))
+        // El rellotge i l'onada del torn en curs no s'aturen mai sols.
+        ui.mainClock.autoAdvance = false
+        ui.setContent { MaterialTheme { WorkGroupCard(work, null, "", "ca") } }
+        ui.onNodeWithText("Busco on es valida").assertIsDisplayed()
+        ui.onNodeWithText("login.go").assertIsDisplayed()
+        work = work.close(9_000L, failed = false)
+        // Acabat, ja no hi ha res que corri: el rellotge pot avançar (plegar-se és animat).
+        ui.mainClock.autoAdvance = true
+        ui.onNodeWithText("Busco on es valida").assertDoesNotExist()
+    }
+
     // Sovint és l'única còpia del que ha dit el model: es llegeix sencera, no retallada.
     @Test fun longNarrationIsNotCut() {
         val long = (1..12).joinToString("\n") { "Línia $it de la narració" }

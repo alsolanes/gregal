@@ -28,6 +28,8 @@ Same as the web (task 008, branch `task/008-codi-eines-dins-de-frases`): the wor
 - [x] Chip texts follow the web's `chip()`: edit/patch `login.go +3 −3`, write `n.txt +2`, read the file name, web_fetch the domain, bash the command (without a leading `cd x &&`), git `git …`, an exploration fold its counts (`1 fitxer · 2 cerques`), tools with no verb of their own `calendar · today`. At most 48 characters.
 - [x] A failed call has a red chip (bash: `codi N` / `exit N`) and its detail is open. A read-only bash command (one the exploration classifier in `Work.kt` recognises) that exits with 1 or 2 is grey with «sense resultats» / "nothing found", not red and not opened.
 - [x] Unit tests in `WorkTest.kt` cover the sentence choice, the chip texts and the failed/quiet outcome with the same cases as the web tests.
+- [x] Narration the model writes before a tool call becomes a sentence step inside the work group that owns the chips of the calls after it, like the web, instead of a chat message (`NarrationWorkTest.kt::narrationBeforeAToolGoesIntoTheWorkGroup`). Added after review of the first version, agreed with the user.
+- [x] The work group is open while the turn works and folds when it ends; a failed turn stays open (`ExploreFoldUiTest.kt::theGroupIsOpenWhileWorkingAndFoldsWhenDone`).
 
 ## Out of scope
 
@@ -43,9 +45,13 @@ Same as the web (task 008, branch `task/008-codi-eines-dins-de-frases`): the wor
 - `WorkGroup.finishTool` takes the step state from `toolOutcome`: a quiet call (read-only bash exiting 1 or 2) is `Ok`, so it is not red anywhere and does not count in the header's error total; a `TOOL BLOCKED` / `EINA BLOQUEJADA` output is `Failed` even though `toolOutputFailed` does not recognise it.
 - A fold's chip takes its state from the calls inside it: failed if any failed, otherwise running if any is running. Android has no separate "interrupted" state: `WorkGroup.close` turns calls still running into failed or done.
 - Only tool calls become chips. Thinking, review, blocked, subagent, user and info steps keep their own rows, visible as before.
-- Follow-up: on Android the narration written before a tool call is settled as a chat message outside the work group (`settleLiveAsMessage` in `GregalViewModel.kt`); only narration followed by reasoning becomes a `Note` step inside it. So most runs of calls get Gregal's grey sentence rather than the model's own words. Moving that narration into the group, as the web does, is a ViewModel change of its own.
+- The narration written before a tool call now goes into the work group as a sentence step (`narrationToWork` in `GregalViewModel.kt`; `settleLiveAsMessage` is gone), and the group is open while the turn works and folds when it ends, as on the web, so text already read does not disappear while the turn works. Tests: `NarrationWorkTest.kt::narrationBeforeAToolGoesIntoTheWorkGroup`, `ExploreFoldUiTest.kt::theGroupIsOpenWhileWorkingAndFoldsWhenDone`.
 - Follow-up: the chips are about 26dp tall, below the 48dp touch target guideline.
 - Not verified on a device or emulator: the layout (FlowRow inside the timeline's `IntrinsicSize.Min` row) is only checked by compiling.
 - `ExploreFoldUiTest.consecutiveExplorationFoldsAndExpands` (task 005) asserted that the «Explorat» row is visible as soon as the card opens. This task changes that requirement (calls hide behind chips), so it became `consecutiveExplorationFoldsIntoOneChipThatOpensAndCloses`, which asserts the fold chip, opening it and closing it. UI tests were added next to it: narration owning its chips, a failed call opening red while a quiet one stays closed, a failed chip you closed staying closed when another call fails, and long narration not being cut.
 - A debug APK builds (`./gradlew.bat assembleDebug -Pgregal.skipBackend`).
 - Narration that owns chips is shown whole (no `maxLines`): when the reasoning is blank or repeats it, the `Note` step is the only copy of what the model said.
+- Follow-up: `lastAssistantText()` (the notification excerpt) no longer falls back to the narration; a turn that ends with no final text would show the previous turn's answer. Look only at messages after the turn's work group.
+- Follow-up: `answerId` in `GregalViewModel.kt` is write-only; remove it.
+- Follow-up: a resumed conversation (`resumeSession`) rebuilds the transcript as plain messages, so narration shows as chat text there, unlike the live view.
+- Follow-up: the group's open state uses plain `remember`, so it resets when the card scrolls off and back; `rememberSaveable` keyed on the message would keep it.
