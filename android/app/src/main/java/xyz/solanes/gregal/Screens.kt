@@ -1215,9 +1215,13 @@ fun CodeBlock(lang: String, code: String, uiLang: String = "ca") {
                     Text(tr(uiLang, "app.code.copy"), color = Muted, fontSize = 12.sp)
                 }
             }
+            // Cada línia sencera i el bloc es desplaça de costat: partides a
+            // l'amplada del mòbil, les línies perdien el sagnat i el codi es
+            // llegia com un paràgraf. La capçalera queda fora del desplaçament.
             Text(
                 code.trimEnd(), color = Ink, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                fontSize = 13.sp, modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+                fontSize = 13.sp, lineHeight = 19.sp, softWrap = false,
+                modifier = Modifier.horizontalScroll(rememberScrollState()).padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
             )
         }
     }
