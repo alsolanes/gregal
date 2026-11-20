@@ -25,6 +25,6 @@ Task 001 made the web Codi transcript read as what the agent does (List, Read, S
 
 - `android/app/src/main/java/xyz/solanes/gregal/Work.kt` (pure, JVM tests in `WorkTest.kt`), `ChatWork.kt` (`WorkGroupCard`/`StepRow`), `GregalViewModel.kt` (`tool_call`).
 - Numbered 005 because the Android glass series already uses branches `task/001`–`task/004` with its own task files.
-- The Android classifier is stricter than the web one. The review found commands that write or execute but that `tool-summary.js` shows as List/Read: `$'…'` quoting, a `#` comment hiding a newline, `${…@P}`/`$[…]` with `printf -v`, `\r` after `>&1`, and `tree -R`. Android rejects them; they are listed as null cases in `WorkTest.kt`. Follow-up: apply the same rules to `internal/web/app/tool-summary.js` and its test.
+- The review found commands that write or execute but that task 001's classifier showed as List/Read: `$'…'` quoting, a `#` comment hiding a newline, `${…@P}`/`$[…]` with `printf -v`, `\r` after `>&1`, and `tree -R`. Task 001 fixed the web in 31b28b4. It now rejects any `$` or `#` outside single quotes, control characters, `printf -v` and `tree -R`/`-o`/`--`, and `Work.kt` applies the same rules. `WorkTest.kt` carries the cases from both reviews.
 - Follow-up (shared with the web): Go decodes the bash arguments case-insensitively, so `{"command":"ls","Command":"rm x"}` runs the second command while the summary shows the first.
 - The fold has a Robolectric test (`ExploreFoldUiTest.kt`); not checked on a device.

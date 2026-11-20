@@ -93,6 +93,10 @@ class WorkTest {
             "ls \$'\\'' ; touch pwned #'", "cat \$'\\'' >out #'", "ls #'\ntouch pwned2 #'",
             "printf -v x %s 'a[\$(touch p)]'; ls \$[x]", "printf -v x %s '\$(touch p)'; ls \${x@P}",
             "ls \${x:='\$(touch p)'} 2>/dev/null; ls \${x@P}", "ls \"\${x@P}\"", "ls >&1\rx", "tree -R src",
+            // Els mateixos casos que tool-summary.test.cjs: qualsevol $ o # fora de cometes simples,
+            // caràcters de control i opcions llargues de tree.
+            "cat \$'a\\x27; rm -rf x'", "cat a #'\nrm -rf x'", "printf -v x \"%s\" \"\$(id)\"; echo \${x@P}", "cat \$[1+1]",
+            "cat \${HOME}", "ls 2>&1\r", "tree -R -H . src", "ls \$HOME", "ls a#b", "tree --fromfile list",
         )) {
             assertNull(command, exploreBash(command))
         }

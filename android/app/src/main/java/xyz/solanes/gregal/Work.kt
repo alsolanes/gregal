@@ -152,18 +152,19 @@ data class ExploreAct(val kind: String, val target: String, val lines: String = 
 
 private class ShellSeg(val pipe: Boolean, val words: List<String>)
 
-// Només espais i tabuladors separen paraules: \s també accepta \r, que per a bash és part del nom.
 private val SHELL_DISCARD = Regex("^>?[ \\t]*(&[12]|/dev/null)(?=\\z|[ \\t\\n;|&])")
+private val SHELL_CONTROL = Regex("[\\x00-\\x08\\x0b-\\x1f\\x7f]")
 
 /*
  * Ordres de shell que només miren (ls, cat, sed -n, grep…): es llegeixen com
  * el que fan i, seguides, es pleguen en una fila «Explorat». Qualsevol cosa
  * que podria escriure (redirecció a un fitxer, $(…), sed -i, find -exec, un
  * programa desconegut) deixa l'ordre com a «Executa». Port de shellSegments
- * de tool-summary.js, més estricte: també plega davant de $'…', ${…}, $[…] i
- * comentaris, que amaguen ordres darrere de cometes que no tanquen on sembla.
+ * de tool-summary.js.
  */
 private fun shellSegments(cmd: String): List<ShellSeg>? {
+    // Un \r o un altre caràcter de control canvia com bash talla les paraules.
+    if (SHELL_CONTROL.containsMatchIn(cmd)) return null
     val segs = mutableListOf<ShellSeg>()
     var words = mutableListOf<String>()
     val w = StringBuilder()
@@ -179,7 +180,7 @@ private fun shellSegments(cmd: String): List<ShellSeg>? {
         if (q != null) {
             when {
                 c == q -> q = null
-                q == '"' && (c == '`' || (c == '$' && (next == '(' || next == '{' || next == '['))) -> return null
+                q == '"' && (c == '`' || c == '$') -> return null
                 q == '"' && c == '\\' && next != null -> { w.append(next); i++ }
                 else -> w.append(c)
             }
@@ -189,8 +190,9 @@ private fun shellSegments(cmd: String): List<ShellSeg>? {
         when {
             c == '\'' || c == '"' -> { q = c; has = true }
             c == '\\' && next != null -> { w.append(next); has = true; i++ }
-            c == '`' || c == '<' || (c == '$' && (next == '(' || next == '{' || next == '[' || next == '\'')) -> return null
-            c == '#' && !has -> return null
+            // Expansions ($x, ${…}, $[…], $'…'), comentaris i substitucions: aquest
+            // tallador no les entén com bash, així que l'ordre queda com a «Executa».
+            c == '`' || c == '<' || c == '$' || c == '#' -> return null
             c == '>' -> {
                 // Només es tolera llençar la sortida (2>/dev/null) o ajuntar-la (2>&1).
                 if (has && !(w.length == 1 && w[0] in '0'..'9')) return null
@@ -223,7 +225,7 @@ private val SED_PRINT = Regex("^(\\d+(,\\d+)?p;?)+$")
 
 // Opcions amb què programes que normalment només miren escriuen un fitxer o
 // executen un altre programa (sort -o, rg --pre, tree -o…).
-private val TREE_WRITES = Regex("^-[^-]*[oR]") // -R torna a cridar tree amb -o a cada nivell
+private val TREE_WRITES = Regex("^--|^-[^-]*[oR]") // -R torna a cridar tree amb -o a cada nivell
 private val SORT_WRITES = Regex("^--|^-[^-]*o")
 private val RG_RUNS = Regex("^--(pre|hostname-bin)")
 
