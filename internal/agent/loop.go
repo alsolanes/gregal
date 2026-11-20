@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -520,7 +521,7 @@ func (p *Policy) For(name, argsJSON string) (string, string) {
 		// Escriu a una base de coneixement que dura més que el torn.
 		return "ask", "knowledge: confirm saving a note"
 	case "wind":
-		// El vent aplica les seves pròpies regles (WindAutoAllow).
+		// El torn del vent decideix les seves pròpies eines.
 		return "allow", ""
 	case "remind":
 		// Només programa un missatge al xat de l'usuari (màxim 30 dies).
@@ -779,22 +780,34 @@ func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
 			}
 		}
 	}
-	// Act («edits»): les ordres de desenvolupament dins del projecte (npm
-	// install, pytest, make, cargo, python, git add…) passen soles, com a
-	// Codex o opencode. Es mira amb la mateixa llista de perills que
-	// l'autònom: git push, instal·lacions globals, docker, aturar processos,
-	// esborrats grans i escriure fora del projecte continuen preguntant. Qui
-	// vol que li ho preguntin tot té «Demana abans de canviar» (AskEdits).
-	if (mode == ModeCode || mode == ModeDebug) && (name == "bash" || name == "bash_background") && p != nil && p.ProjectDir != "" && !p.AskEdits {
-		d, reason := p.For(name, argsJSON)
-		if d == "ask" {
-			if ad, _, ok := p.decideAutonomous(name, argsJSON); ok && ad == "allow" {
-				return "allow", "ordre de desenvolupament dins del projecte"
+	d, reason := p.For(name, argsJSON)
+	if (mode == ModeCode || mode == ModeDebug) && p != nil {
+		return p.actRule(name, argsJSON, d, reason)
+	}
+	return d, reason
+}
+
+// actRule és la regla d'Actua comuna a Codi i als Vents (docs/modes.md). Amb
+// «edicions» (el per defecte) la feina dins del projecte passa sola: escriure,
+// editar, executar i provar, un commit local (WindAutoAllow). Amb «Demana abans
+// de canviar» (AskEdits) tot això pregunta. En tots dos, les portes dures de
+// shell (instal·lar, baixar, esborrar fora, serveis del sistema) pregunten
+// sempre, encara que el classificador ho deixi passar. Tot «deny» mana.
+func (p *Policy) actRule(name, argsJSON, d, reason string) (string, string) {
+	if d == "ask" && !p.AskEdits && p.ProjectDir != "" && p.WindAutoAllow(name, argsJSON) {
+		d, reason = "allow", "feina dins del projecte"
+	}
+	if d == "allow" && (name == "bash" || name == "bash_background") {
+		var a struct {
+			Command string `json:"command"`
+		}
+		if json.Unmarshal([]byte(argsJSON), &a) == nil {
+			home, _ := os.UserHomeDir()
+			if r, risky := tools.Risky(a.Command, p.ProjectDir, home); risky {
+				return "ask", "needs your approval: " + r.Kind
 			}
 		}
-		return d, reason
 	}
-	d, reason := p.For(name, argsJSON)
 	return d, reason
 }
 

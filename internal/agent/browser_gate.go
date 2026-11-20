@@ -23,11 +23,7 @@ func (t *Torn) browserGate(c llm.ToolCall, pl *CallPlan) {
 	case "ask":
 		pl.Ask, pl.Reason = true, reason
 		if force {
-			pl.ForceAsk = true
-			if t.forcats == nil {
-				t.forcats = map[string]bool{}
-			}
-			t.forcats[c.ID] = true
+			t.forcaPregunta(c.ID, pl, reason)
 		}
 	default:
 		// Lloc ja permès: el permís per acció de la política no cal, tret
@@ -36,6 +32,16 @@ func (t *Torn) browserGate(c llm.ToolCall, pl *CallPlan) {
 			pl.Ask = false
 		}
 	}
+}
+
+// forcaPregunta fa que la crida es confirmi sí o sí: no es pot recordar ni
+// aprovar automàticament.
+func (t *Torn) forcaPregunta(id string, pl *CallPlan, reason string) {
+	pl.Ask, pl.ForceAsk, pl.Reason = true, true, reason
+	if t.forcats == nil {
+		t.forcats = map[string]bool{}
+	}
+	t.forcats[id] = true
 }
 
 // Motiu és per què la crida pendent demana permís (per a la targeta).

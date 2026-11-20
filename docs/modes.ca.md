@@ -30,8 +30,20 @@ passa a Actua i l'executa amb el permís d'Actua que tenies.
 | Permís | Què passa |
 |---|---|
 | **Demana abans de canviar** | Cada edició, també dins del projecte, i cada ordre que canviï res pregunta abans. |
-| **Aprova les edicions** (per defecte) | Les edicions dins de la carpeta del projecte passen soles; les ordres que canvien coses, escriure fora de la carpeta, commits, PRs i serveis externs (MCP) continuen preguntant. |
+| **Aprova les edicions** (per defecte) | La feina dins de la carpeta del projecte passa sola: les edicions, les ordres de desenvolupament (`npm install`, `pytest`, `make`, `cargo`, `git add`…), engegar una app del projecte, les notes de coneixement del projecte i un commit local. Les ordres perilloses (`git push`, instal·lacions globals, `docker`, aturar processos, esborrats grans), escriure fora de la carpeta, PRs i serveis externs (MCP) continuen preguntant. |
 | **Autonomia total** | Treballa sol fins que acaba i no pregunta res (és el mode autònom: fites, comprovacions, sense l'eina `question`). Només es bloqueja el prohibit: el classificador de shell (`sudo`, baixades passades a un shell, formatar discos…) i les regles `deny`. |
+
+El mateix permís val per a Codi i per als Vents: la mateixa acció rep la mateixa
+resposta als dos. Amb «Demana abans de canviar» i amb «Aprova les edicions», les
+portes dures pregunten sempre, encara que el config permeti l'ordre: instal·lar
+programari, baixar paquets o binaris, esborrar fora del projecte i tocar serveis
+del sistema; i fer pública per primer cop una web amb nom també pregunta (també
+amb l'Autonomia total). Publicar una carpeta del projecte amb un enllaç privat, o
+actualitzar una web que ja és pública, passa sol. El que la política
+denega continua denegat. Els vents mantenen els seus límits propis: a la
+rotllana només pot canviar coses el primer que parla (els altres, i una petició
+de revisió, són de només lectura), els xats compartits només cerquen a la web, i
+un estudi només escriu a la seva carpeta de pràctiques.
 
 On es tria: el botó del cadenat al costat del compositor (web, escriptori),
 `/permissions` o `/permissions ask|edits|full` (TUI), **+ → Permís d'Actua**

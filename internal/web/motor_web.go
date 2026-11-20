@@ -187,6 +187,8 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 		AutoAprova: s.permissiveNow,
 		// Mode auto-review: el revisor decideix abans de molestar ningú.
 		Revisor: agent.NewReviewer(s.client, s.cfg, s.autoReviewNow),
+		// La primera publicació pública d'una web pregunta sempre, com als vents.
+		PortaDura: s.codiPortaDura,
 		// Apostes laterals (agent.bets: side) i crític del contracte autònom.
 		Aposta:     agent.ApostaLateral(s.client, s.cfg, workspace),
 		CriticaPla: agent.CriticaPlaHook(s.client, s.cfg, workspace),
@@ -455,6 +457,9 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 			}
 			switch {
 			case ok:
+				if _, public := s.codiPortaDura(c.Function.Name, c.Function.Arguments); public {
+					grantWebPublic(s.remindOwner(), webArgName(c.Function.Arguments))
+				}
 				pinta(torn.RepAprovacio(true))
 			case caducada:
 				emit("blocked", map[string]string{"id": c.ID, "reason": s.tr("sense resposta a temps (denegat)", "no answer in time (denied)")})
