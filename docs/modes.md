@@ -37,8 +37,9 @@ The same permission applies to Codi (the coding agent) and to the winds (Vents):
 gets the same answer in both. In Ask before changes and in Auto-approve edits,
 the hard gates always ask, even when the config allows the command: installing
 software, downloading packages or binaries, deleting outside the project and
-touching system services; and a site goes public for the first time only with
-your yes (in Codi the `publish` tool keeps it private until you confirm it). What
+touching system services; and making a named site public for the first time
+asks too (also in Full autonomy). Publishing a project folder as a private link,
+or updating a site that is already public, goes ahead alone. What
 the policy denies stays denied. The winds keep their own limits on top: in a
 rotllana only the first speaker can change things (the others, and a review
 request, are read-only), shared chats can only search the web, and a study

@@ -526,7 +526,7 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			if (decision == "allow" || decision == "ask") && name == "publish" {
 				if need, where := s.webNeedsPublicDecision(argsJSON); need {
 					publicFirst = true
-					decision, reason, kind = "ask", "publish: first public publication of a site name", "publish_public"
+					decision, reason, kind = "ask", publishPublicReason, "publish_public"
 					what = strings.TrimSpace("publish public " + where)
 				}
 			}

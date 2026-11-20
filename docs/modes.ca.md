@@ -37,8 +37,9 @@ El mateix permís val per a Codi i per als Vents: la mateixa acció rep la matei
 resposta als dos. Amb «Demana abans de canviar» i amb «Aprova les edicions», les
 portes dures pregunten sempre, encara que el config permeti l'ordre: instal·lar
 programari, baixar paquets o binaris, esborrar fora del projecte i tocar serveis
-del sistema; i una web es fa pública per primer cop només amb el teu sí (a Codi
-l'eina `publish` la deixa privada fins que ho confirmes). El que la política
+del sistema; i fer pública per primer cop una web amb nom també pregunta (també
+amb l'Autonomia total). Publicar una carpeta del projecte amb un enllaç privat, o
+actualitzar una web que ja és pública, passa sol. El que la política
 denega continua denegat. Els vents mantenen els seus límits propis: a la
 rotllana només pot canviar coses el primer que parla (els altres, i una petició
 de revisió, són de només lectura), els xats compartits només cerquen a la web, i

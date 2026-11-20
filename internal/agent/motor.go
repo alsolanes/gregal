@@ -182,6 +182,11 @@ type OpcionsTorn struct {
 	// «deny» les bloqueja amb el motiu per al model. No s'aplica en mode
 	// autònom, que continua demanant confirmació interactiva.
 	Revisor ReviewFunc
+	// PortaDura diu si una crida s'ha de confirmar sí o sí encara que la
+	// política la deixi passar (la web: la primera publicació pública d'una
+	// web). Com les accions irreversibles del navegador, no es pot recordar
+	// ni aprovar automàticament. Opcional.
+	PortaDura func(name, argsJSON string) (reason string, ask bool)
 	// Todos és la checklist del client quan no és la global del procés:
 	// a la web cada pestanya té la seva, i amb la global dues sessions es
 	// trepitjaven. Nil = la global.
@@ -281,9 +286,9 @@ type Torn struct {
 	perExecutar []llm.ToolCall
 	pendents    []llm.ToolCall
 	// motius: per què cada crida pendent demana permís (per al revisor).
-	motius   map[string]string
+	motius map[string]string
 	// forcats: crides que l'usuari ha de confirmar sí o sí (accions
-	// irreversibles del navegador, el seu Chrome): ni l'aprovació
+	// irreversibles del navegador, el seu Chrome, PortaDura): ni l'aprovació
 	// automàtica ni el revisor les deixen passar.
 	forcats  map[string]bool
 	actual   llm.ToolCall
@@ -989,6 +994,11 @@ func (t *Torn) repCrides(calls []llm.ToolCall) []Event {
 		pl := plans[i]
 		if c.Function.Name == "browser" && pl.Fixed == "" {
 			t.browserGate(c, &pl)
+		}
+		if pl.Fixed == "" && t.o.PortaDura != nil {
+			if reason, ask := t.o.PortaDura(c.Function.Name, c.Function.Arguments); ask {
+				t.forcaPregunta(c.ID, &pl, reason)
+			}
 		}
 		if tallades[c.ID] {
 			text := RecercaEsgotada(t.cridesWeb)
