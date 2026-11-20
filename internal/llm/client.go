@@ -974,17 +974,25 @@ func (c *Client) chatStreamWithToolsOnce(ctx context.Context, baseURL, apiKey, m
 	var text string
 	var calls []ToolCall
 	buffer := recoverTruncation(ctx)
+	restart := streamRestartFrom(ctx)
+	shown := false // l'intent en curs ja ha ensenyat text
 	var reasoned strings.Builder
 	err := retryFit(ctx, maxTokens, func(budget int) error {
-		return retryInterruptedStream(ctx, buffer, func() error {
+		return retryInterruptedStream(ctx, buffer || restart != nil, func() error {
 			var err error
 			if buffer {
 				reasoned.Reset()
+			}
+			if shown {
+				restart()
+				shown = false
 			}
 			tokenFn, reasonFn := onToken, onReason
 			if buffer {
 				tokenFn = nil
 				reasonFn = func(s string) { reasoned.WriteString(s) }
+			} else if restart != nil && onToken != nil {
+				tokenFn = func(s string) { shown = true; onToken(s) }
 			}
 			text, calls, err = c.chatStreamWithToolsInner(ctx, baseURL, apiKey, model, msgs, temp, budget, specs, tokenFn, reasonFn)
 			return err

@@ -84,7 +84,11 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 			"Agent output budget raised to %d tokens (the old 1024 limit was too low)."), role.MaxTokens)})
 	}
 	if mode != agent.ModeChat {
-		runCtx = llm.WithRecoverTruncation(runCtx)
+		// El text surt mentre el model l'escriu. Retenir-lo fins al final de
+		// la crida (per poder refer un flux tallat) feia que la resposta
+		// arribés de cop; ara l'intent es refà igual i s'avisa perquè la
+		// pantalla retiri el que ja havia ensenyat.
+		runCtx = llm.WithStreamRestart(runCtx, func() { emit("steer_restart", map[string]string{}) })
 	}
 
 	// think: no del rol (fins ara la web l'ignorava) i comptador de tokens

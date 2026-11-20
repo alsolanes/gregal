@@ -149,6 +149,22 @@ test('returning to a busy session replays that run from the durable v2 event log
   assert.ok(!messages.some(m => m && m.role === 'a' && m.content === 'Another session'));
 });
 
+test('returning to a busy session does not show text the run already discarded', async () => {
+  const { sessions, messages, sandbox } = loadSessions();
+  sandbox.refreshState = { agent_busy: true, transcript: [{ role: 'user', content: 'important task' }] };
+  sandbox.activeResponse = { active: { id: 7, task: 'important task' } };
+  sandbox.eventResponse = { next: 3, events: [
+    { id: 1, run_id: 7, kind: 'token', text: 'Discarded attempt' },
+    { id: 2, run_id: 7, kind: 'steer_restart', text: '{}' },
+    { id: 3, run_id: 7, kind: 'token', text: 'Redone answer' },
+  ] };
+
+  await sessions.switchTo('alpha');
+
+  assert.ok(messages.some(m => m && m.role === 'a' && m.content === 'Redone answer'));
+  assert.ok(!messages.some(m => m && m.role === 'a' && /Discarded/.test(m.content)));
+});
+
 test('switching to a session restores tool calls and their results with the transcript', async () => {
   const { sessions, messages, sandbox } = loadSessions();
   sandbox.refreshState = { transcript: [

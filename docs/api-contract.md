@@ -473,7 +473,11 @@ stored in the durable log as kind `review`) ·
 command, source, text}`, all strings; `p` is 0-100, `passed` is `true`/`false`,
 `source` is `model` or `side`; sent after the call's `tool_result`; durable
 kind `bet` with payload `{id, p, passed, command, source}`) ·
-`assistant` · `fallback` (the
+`assistant` · `token` (`{text}`: answer text of the current step, sent while
+the model writes it) · `steer_restart` (`{}`: the model call in progress is
+being redone, either cut by `/api/steer` with `interrupt` or retried because
+its stream closed before the end; a client must drop the `token` text it has
+shown for the current step, the redone call sends it again) · `fallback` (the
 secondary model responded) · `escalate` · `budget` · `gated` (strict review
 required) · `steps_exhausted` (the `agent.max_steps` limit was reached; the
 following response is a summary, not completed work) · `progress` (turn
