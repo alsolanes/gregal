@@ -331,8 +331,11 @@ class MainActivity : ComponentActivity() {
                     val screenState by vm.screen.collectAsState()
                     val ventsOpen by vm.ventsOpen.collectAsState()
                     val ventsPanel by vm.ventsPanel.collectAsState()
+                    // L'arrel és la portada del mode (com `vm.back()`): des d'allà Enrere surt.
+                    val simple by vm.simpleVents.collectAsState()
+                    val home = if (simple) Screen.Company else Screen.Chat
                     BackHandler(
-                        enabled = drawer.isOpen || (screenState == Screen.Company && (ventsOpen != null || ventsPanel != null)) || backDepth.isNotEmpty() || screenState != Screen.Company,
+                        enabled = drawer.isOpen || (screenState == Screen.Company && (ventsOpen != null || ventsPanel != null)) || backDepth.isNotEmpty() || screenState != home,
                     ) {
                         when {
                             drawer.isOpen -> scope.launch { drawer.close() }
