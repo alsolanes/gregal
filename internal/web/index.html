@@ -2543,6 +2543,10 @@ function temaActual() {
   if (t === 'gpt' || t === 'claude' || t === 'opencode' || t === 'mistral' || t === 'gemini' || t === 'grok') return t;
   return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'clar' : 'fosc';
 }
+// Text que encara arriba: només es refà el bloc que creix (app/md.js).
+function mdLive(body, t) {
+  if (window.gregalMD) window.gregalMD.paintLive(body, t); else body.innerHTML = md(t);
+}
 function md(t) {
   if (window.gregalMD) return window.gregalMD.render(t);
   t = escapeHTML(t);
@@ -3950,7 +3954,7 @@ async function doChat() {
   // .answering / .failed: l'estat del torn per al navegador de prompts.
   const box=add('a answering','', '<span class="spin">' + escapeHTML(gregalT('ui.analyzing')) + '</span>'); let acc='', paintTimer=null, lastPaintAt=0;
   activityItem('xat',gregalT('act.consulta'),text.slice(0,70),'warn');
-  const paint=()=>{ if(paintTimer)return; paintTimer=setTimeout(()=>{paintTimer=null;box.querySelector('.body').innerHTML=md(acc);lastPaintAt=Date.now();if(nearBottom())main.scrollTop=main.scrollHeight;},Math.max(0,120-(Date.now()-lastPaintAt))); };
+  const paint=()=>{ if(paintTimer)return; paintTimer=setTimeout(()=>{paintTimer=null;mdLive(box.querySelector('.body'),acc);lastPaintAt=Date.now();if(nearBottom())main.scrollTop=main.scrollHeight;},Math.max(0,120-(Date.now()-lastPaintAt))); };
   try {
     await stream('/api/chat',{message:text},(ev,d)=>{
       if(ev==='token'){acc+=d.text;paint();}
@@ -4083,8 +4087,8 @@ async function doAgent(task, resumed) {
   const pendents=[]; let lastDoneCard=null;
   const deferredEvents = [];
   let runFinished = false, replayingEvents = false;
-  const paintLiveNow=()=>{if(livePaintTimer){clearTimeout(livePaintTimer);livePaintTimer=null;}if(live){live.querySelector('.body').innerHTML=md(acc);lastLivePaint=Date.now();}};
-  const paintLive=()=>{if(!live)live=add('a','','');if(livePaintTimer)return;livePaintTimer=setTimeout(()=>{livePaintTimer=null;if(live){live.querySelector('.body').innerHTML=md(acc);lastLivePaint=Date.now();}},Math.max(0,120-(Date.now()-lastLivePaint)));};
+  const paintLiveNow=()=>{if(livePaintTimer){clearTimeout(livePaintTimer);livePaintTimer=null;}if(live){mdLive(live.querySelector('.body'),acc);lastLivePaint=Date.now();}};
+  const paintLive=()=>{if(!live)live=add('a','','');if(livePaintTimer)return;livePaintTimer=setTimeout(()=>{livePaintTimer=null;if(live){mdLive(live.querySelector('.body'),acc);lastLivePaint=Date.now();}},Math.max(0,120-(Date.now()-lastLivePaint)));};
   const settleLive=(html)=>!!settleLiveEl(html);
   // settleLiveEl tanca la bombolla en viu i la torna, perque mdBo hi
   // pugui escriure el markdown bo a sobre.
