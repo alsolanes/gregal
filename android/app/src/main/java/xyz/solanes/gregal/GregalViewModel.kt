@@ -2283,12 +2283,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             else Activity(key, text, System.currentTimeMillis())
     }
 
-    /** La narració escrita abans d'una eina és part del treball, no la resposta. */
     /**
-     * El raonament va al panell de treball. El text que ja s'ha vist, NO: es
-     * queda a la conversa. Abans s'esborrava el missatge (i el que s'estava
-     * escrivint) quan el model encara havia de cridar una eina, i es veia com
-     * si la resposta s'esborrés sola a mitges.
+     * La narració escrita abans d'una eina (o del raonament) és part del
+     * treball, no la resposta: va dins el grup com a frase, amb les pastilles
+     * de les crides que la segueixen, com a la web. No desapareix de la vista
+     * perquè el grup és obert mentre el torn treballa (WorkGroupCard).
      */
     private fun narrationToWork() {
         flushTokens()
@@ -2297,17 +2296,6 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         if (live.isNotEmpty()) step(StepKind.Note, oneLine(live, 140), detail = live)
         // El proper text serà un missatge nou, no continuació del que ja s'ha vist.
         answerId = 0L
-    }
-
-    /** El text que s'està escrivint es tanca com a missatge abans de les eines. */
-    private fun settleLiveAsMessage() {
-        flushTokens()
-        val live = _live.value.trim()
-        if (live.isEmpty()) return
-        _live.value = ""
-        val m = ChatMsg("assistant", live)
-        answerId = m.id
-        push(m)
     }
 
     private fun endTurn(failed: Boolean) {
@@ -2395,12 +2383,12 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (t.isNotBlank() && !dup) step(StepKind.Think, appText("app.work.thought"), oneLine(t, 140), detail = t)
             }
             "tool_call" -> {
-                settleLiveAsMessage()
+                narrationToWork()
                 val name = f("name").ifEmpty { text.removePrefix("🔧").trim() }
                 val args = o.opt("args")?.toString().orEmpty()
                 val sum = summarizeTool(name, args, lang)
                 val id = f("id").ifEmpty { "c${nextMsgId()}" }
-                updateWork { it.add(WorkStep(id, StepKind.Tool, sum.label, sum.target, sum.meta, "", StepState.Running, name)) }
+                updateWork { it.add(WorkStep(id, StepKind.Tool, sum.label, sum.target, sum.meta, "", StepState.Running, name, exploreTool(name, args), args)) }
                 if (name == "preview") previewArgs[id] = args
                 setActivity("tool:$id", sum.label + if (sum.target.isNotEmpty()) " · " + oneLine(sum.target, 48) else "")
             }

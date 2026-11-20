@@ -27,8 +27,11 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -41,16 +44,25 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.ForkRight
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Science
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.OpenInBrowser
 import androidx.compose.material.icons.rounded.Send
 import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -60,6 +72,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -74,6 +87,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -137,9 +151,11 @@ private fun SweepLine(colors: List<Color>) {
 @Composable
 fun WorkGroupCard(work: WorkGroup, activity: Activity?, statusLine: String, lang: String, onRetro: (() -> Unit)? = null, onRetry: (() -> Unit)? = null) {
     val running = work.running
-    var open by remember { mutableStateOf(false) }
-    // Un torn que falla s'obre sol: el que interessa és veure on.
-    LaunchedEffect(work.failed, running) { if (!running && work.failed) open = true }
+    // Com a la web: obert mentre treballa (s'hi veu la narració i les eines
+    // que va fent) i plegat en acabar. Un torn que falla es queda obert: el
+    // que interessa és veure on.
+    var open by remember { mutableStateOf(running) }
+    LaunchedEffect(work.failed, running) { if (!running) open = work.failed }
     val elapsed = elapsedSince(work.started, running)
     val total = if (running) elapsed else work.ended - work.started
     val stalled = running && activity != null && activity.key in setOf("model", "start") &&
@@ -242,7 +258,13 @@ fun WorkGroupCard(work: WorkGroup, activity: Activity?, statusLine: String, lang
             }
             if (open && work.steps.isNotEmpty()) {
                 Column(Modifier.padding(start = 14.dp, end = 12.dp, bottom = 10.dp)) {
-                    work.steps.forEachIndexed { i, s -> StepRow(s, last = i == work.steps.lastIndex, lang = lang) }
+                    val lines = workLines(work.steps)
+                    lines.forEachIndexed { i, line ->
+                        key(line.step?.id ?: line.calls[0][0].id) {
+                            if (line.calls.isEmpty()) StepRow(line.step!!, last = i == lines.lastIndex, lang = lang)
+                            else SentenceRow(line, last = i == lines.lastIndex, lang = lang)
+                        }
+                    }
                 }
             }
         }
@@ -257,10 +279,16 @@ private fun StatusDot(color: Color, mark: String?) {
     }
 }
 
-/** Un pas de la línia de temps: punt d'estat, acció, objectiu i detall plegable. */
+/**
+ * Un pas de la línia de temps: punt d'estat, acció, objectiu i detall plegable.
+ * Amb `fold`, és la fila «Explorat» i el que es desplega són els seus passos.
+ */
 @Composable
-private fun StepRow(s: WorkStep, last: Boolean, lang: String) {
-    var showDetail by remember(s.id) { mutableStateOf(false) }
+private fun StepRow(s: WorkStep, last: Boolean, lang: String, fold: List<WorkStep> = emptyList(), open: Boolean = false) {
+    var showDetail by remember(s.id) { mutableStateOf(open) }
+    // Els errors no s'amaguen, tampoc dins una fila «Explorat».
+    val foldFailed = fold.any { it.state == StepState.Failed }
+    LaunchedEffect(foldFailed) { if (foldFailed) showDetail = true }
     val color = when {
         s.state == StepState.Running -> Sea
         s.state == StepState.Failed -> Red
@@ -271,43 +299,39 @@ private fun StepRow(s: WorkStep, last: Boolean, lang: String) {
         s.kind == StepKind.Tool -> Green
         else -> Muted
     }
-    val lineColor = Line
-    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-        // Columna de la línia de temps.
-        Box(Modifier.width(22.dp).fillMaxHeight()) {
-            if (!last) Canvas(Modifier.fillMaxHeight().width(22.dp)) {
-                drawLine(lineColor, Offset(size.width / 2, 18.dp.toPx()), Offset(size.width / 2, size.height), 1.5.dp.toPx())
-            }
-            Box(Modifier.padding(top = 5.dp).size(22.dp, 12.dp), contentAlignment = Alignment.Center) {
-                if (s.state == StepState.Running) PulsingDot(color) else
-                    Box(Modifier.size(8.dp).background(color, CircleShape))
-            }
-        }
+    TimelineRow(color, running = s.state == StepState.Running, last = last) {
         Column(
             Modifier.weight(1f)
                 .clip(RoundedCornerShape(8.dp))
-                .then(if (s.detail.isNotBlank()) Modifier.clickable { showDetail = !showDetail } else Modifier)
+                .then(if (s.detail.isNotBlank() && fold.isEmpty()) Modifier.clickable { showDetail = !showDetail } else Modifier)
                 .padding(start = 6.dp, end = 4.dp, top = 2.dp, bottom = 8.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(s.label, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                    maxLines = if (s.kind == StepKind.Note || s.kind == StepKind.Info) 2 else 1,
-                    overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                if (s.meta.isNotBlank()) {
-                    Spacer(Modifier.width(6.dp))
-                    Text(s.meta, color = Faint, fontSize = 12.sp, maxLines = 1)
+            // A la fila «Explorat» només la capçalera plega: tocar un pas de dins no la tanca.
+            Column(if (fold.isNotEmpty()) Modifier.fillMaxWidth().clickable(role = Role.Button) { showDetail = !showDetail } else Modifier) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(s.label, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                        maxLines = if (s.kind == StepKind.Note || s.kind == StepKind.Info) 2 else 1,
+                        overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (s.meta.isNotBlank()) {
+                        Spacer(Modifier.width(6.dp))
+                        Text(s.meta, color = Faint, fontSize = 12.sp, maxLines = 1)
+                    }
+                }
+                if (s.target.isNotBlank()) {
+                    Text(s.target, color = Muted, fontSize = 12.sp,
+                        fontFamily = if (s.kind == StepKind.Tool && fold.isEmpty()) FontFamily.Monospace else FontFamily.Default,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
-            if (s.target.isNotBlank()) {
-                Text(s.target, color = Muted, fontSize = 12.sp,
-                    fontFamily = if (s.kind == StepKind.Tool) FontFamily.Monospace else FontFamily.Default,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
-            if (showDetail) {
+            if (showDetail && fold.isNotEmpty()) {
+                Column(Modifier.padding(top = 6.dp)) {
+                    fold.forEachIndexed { j, c -> StepRow(c, last = j == fold.lastIndex, lang = lang) }
+                }
+            } else if (showDetail) {
                 Surface(shape = RoundedCornerShape(8.dp), color = CodeDark,
                     modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
                     Text(
-                        s.detail.take(2500), color = Tinta, fontSize = 12.sp, lineHeight = 16.sp,
+                        toolOutputShown(s.tool, s.detail).take(2500), color = Tinta, fontSize = 12.sp, lineHeight = 16.sp,
                         fontFamily = FontFamily.Monospace, maxLines = 24, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.heightIn(max = 360.dp).horizontalScroll(rememberScrollState()).padding(10.dp),
                     )
@@ -315,6 +339,130 @@ private fun StepRow(s: WorkStep, last: Boolean, lang: String) {
             }
         }
     }
+}
+
+/** La columna de la línia de temps (punt d'estat i traç cap al pas següent) i el contingut al costat. */
+@Composable
+private fun TimelineRow(color: Color, running: Boolean, last: Boolean, content: @Composable RowScope.() -> Unit) {
+    val lineColor = Line
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+        Box(Modifier.width(22.dp).fillMaxHeight()) {
+            if (!last) Canvas(Modifier.fillMaxHeight().width(22.dp)) {
+                drawLine(lineColor,Offset(size.width / 2, 18.dp.toPx()), Offset(size.width / 2, size.height), 1.5.dp.toPx())
+            }
+            Box(Modifier.padding(top = 5.dp).size(22.dp, 12.dp), contentAlignment = Alignment.Center) {
+                if (running) PulsingDot(color) else
+                    Box(Modifier.size(8.dp).background(color, CircleShape))
+            }
+        }
+        content()
+    }
+}
+
+/**
+ * Les eines dins de frases (com la web): la narració que precedeix unes
+ * crides, o una frase de Gregal en gris si el model no n'ha dit cap, amb una
+ * pastilla per crida. El detall d'una crida s'obre a sota en tocar-ne la
+ * pastilla; les que fallen ja hi surten obertes.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SentenceRow(line: WorkLine, last: Boolean, lang: String) {
+    val chips = line.calls.map { stepChip(it, lang) }
+    val failed = line.calls.filterIndexed { j, _ -> chips[j].second.state == "failed" }.map { it[0].id }.toSet()
+    var opened by remember { mutableStateOf(failed) }
+    // Només les que fallen de nou s'obren soles: una que ja has tancat es queda tancada.
+    var seenFailed by remember { mutableStateOf(failed) }
+    LaunchedEffect(failed) {
+        opened = opened + (failed - seenFailed)
+        seenFailed = seenFailed + failed
+    }
+    val running = chips.any { it.second.state == "running" }
+    val note = line.step
+    val color = when {
+        running -> Sea
+        failed.isNotEmpty() -> Red
+        note != null -> Lila
+        else -> Muted
+    }
+    TimelineRow(color, running = running, last = last) {
+        Column(Modifier.weight(1f).padding(start = 6.dp, end = 4.dp, top = 2.dp, bottom = 8.dp)) {
+            if (note != null) {
+                Text(note.detail.ifBlank { note.label }, color = Ink, fontSize = 13.sp)
+            } else {
+                Text(toolSentence(line.calls.flatten().map { it.tool to it.args }, lang), color = Muted, fontSize = 13.sp)
+            }
+            FlowRow(
+                Modifier.padding(top = 5.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                line.calls.forEachIndexed { j, row ->
+                    val id = row[0].id
+                    StepChip(chips[j].first, chips[j].second, open = id in opened) {
+                        opened = if (id in opened) opened - id else opened + id
+                    }
+                }
+            }
+            val shown = line.calls.indices.filter { line.calls[it][0].id in opened }
+            shown.forEachIndexed { j, k ->
+                val row = line.calls[k]
+                key(row[0].id) {
+                    Box(Modifier.padding(top = 6.dp)) {
+                        if (row.size == 1) StepRow(row[0], last = j == shown.lastIndex, lang = lang, open = true)
+                        else {
+                            val sum = exploreSummary(row.map { it.explore }, lang)
+                            val state = when (chips[k].second.state) {
+                                "running" -> StepState.Running
+                                "failed" -> StepState.Failed
+                                else -> StepState.Ok
+                            }
+                            StepRow(WorkStep("fold-" + row[0].id, StepKind.Tool, sum.label, sum.target, state = state),
+                                last = j == shown.lastIndex, lang = lang, fold = row, open = true)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StepChip(chip: ToolChip, res: ToolOutcome, open: Boolean, onClick: () -> Unit) {
+    val color = when (res.state) {
+        "running" -> Sea
+        "failed" -> Red
+        "quiet" -> Faint
+        else -> Muted
+    }
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = color.copy(alpha = if (open) 0.18f else 0.08f),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.3f)),
+        modifier = Modifier.clip(RoundedCornerShape(50)).clickable(role = Role.Button, onClick = onClick),
+    ) {
+        Row(Modifier.padding(horizontal = 9.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(chipIcon(chip.icon), null, tint = color, modifier = Modifier.size(13.dp))
+            Spacer(Modifier.width(5.dp))
+            Text(
+                chip.text + if (res.note.isNotEmpty()) " · ${res.note}" else "",
+                color = if (res.state == "done") Tinta else color, fontSize = 12.sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+private fun chipIcon(icon: String): ImageVector = when (icon) {
+    "search" -> Icons.Rounded.Search
+    "read" -> Icons.Rounded.Description
+    "edit" -> Icons.Rounded.Edit
+    "test" -> Icons.Rounded.Science
+    "run" -> Icons.Rounded.Terminal
+    "git" -> Icons.Rounded.ForkRight
+    "web" -> Icons.Rounded.Language
+    "browser" -> Icons.Rounded.OpenInBrowser
+    else -> Icons.Rounded.Build
 }
 
 @Composable

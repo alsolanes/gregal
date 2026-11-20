@@ -113,6 +113,13 @@ private val TOOL_EN = mapOf(
     "knowledge_search" to "Search knowledge", "knowledge_note" to "Save note",
     "lines" to "lines", "line" to "line", "from" to "from", "in" to "in", "edits" to "edits", "edit1" to "edit",
     "tasks" to "tasks", "charts" to "charts", "chart1" to "chart", "files" to "files",
+    "list" to "List", "test" to "Test", "git" to "Git", "explored" to "Explored",
+    "file1" to "file", "search1" to "search", "searches" to "searches", "listing1" to "listing", "listings" to "listings",
+    "s_edit" to "Edited files", "s_test" to "Ran the tests", "s_run" to "Ran a command", "s_git" to "Worked with git",
+    "s_web" to "Looked it up on the web", "s_browser" to "Used the browser", "s_calendar" to "Checked the calendar",
+    "s_mail" to "Checked the mail", "s_remind" to "Checked the reminders", "s_delegate" to "Handed work to helpers",
+    "s_search" to "Searched the code", "s_read" to "Looked through the files", "s_used" to "Used {x}",
+    "quiet" to "nothing found", "exit" to "exit {n}",
 )
 private val TOOL_CA = mapOf(
     "read" to "Llegeix", "write" to "Escriu", "edit" to "Edita", "patch" to "Edita", "glob" to "Cerca fitxers", "grep" to "Cerca",
@@ -125,6 +132,13 @@ private val TOOL_CA = mapOf(
     "knowledge_search" to "Cerca al coneixement", "knowledge_note" to "Desa una nota",
     "lines" to "línies", "line" to "línia", "from" to "des de", "in" to "a", "edits" to "canvis", "edit1" to "canvi",
     "tasks" to "tasques", "charts" to "gràfics", "chart1" to "gràfic", "files" to "fitxers",
+    "list" to "Llista", "test" to "Prova", "git" to "Git", "explored" to "Explorat",
+    "file1" to "fitxer", "search1" to "cerca", "searches" to "cerques", "listing1" to "llistat", "listings" to "llistats",
+    "s_edit" to "Ha editat fitxers", "s_test" to "Ha passat els tests", "s_run" to "Ha executat una ordre", "s_git" to "Ha treballat amb git",
+    "s_web" to "Ha consultat la web", "s_browser" to "Ha fet servir el navegador", "s_calendar" to "Ha consultat el calendari",
+    "s_mail" to "Ha mirat el correu", "s_remind" to "Ha mirat els recordatoris", "s_delegate" to "Ha delegat feina",
+    "s_search" to "Ha cercat al codi", "s_read" to "Ha mirat els fitxers", "s_used" to "Ha fet servir {x}",
+    "quiet" to "sense resultats", "exit" to "codi {n}",
 )
 
 fun oneLine(s: String?, max: Int): String {
@@ -142,6 +156,203 @@ private fun jsonInline(v: Any?): String = when (v) {
     is Map<*, *> -> v.entries.joinToString(",", "{", "}") { "\"${it.key}\":${if (it.value is String) "\"${it.value}\"" else jsonInline(it.value)}" }
     else -> v.toString()
 }
+
+/** El que mira una crida d'exploració: kind és read, list o search. */
+data class ExploreAct(val kind: String, val target: String, val lines: String = "", val dir: String = "")
+
+private class ShellSeg(val pipe: Boolean, val words: List<String>)
+
+private val SHELL_DISCARD = Regex("^>?[ \\t]*(&[12]|/dev/null)(?=\\z|[ \\t\\n;|&])")
+private val SHELL_CONTROL = Regex("[\\x00-\\x08\\x0b-\\x1f\\x7f]")
+
+/*
+ * Ordres de shell que només miren (ls, cat, sed -n, grep…): es llegeixen com
+ * el que fan i, seguides, es pleguen en una fila «Explorat». Qualsevol cosa
+ * que podria escriure (redirecció a un fitxer, $(…), sed -i, find -exec, un
+ * programa desconegut) deixa l'ordre com a «Executa». Port de shellSegments
+ * de tool-summary.js.
+ */
+private fun shellSegments(cmd: String): List<ShellSeg>? {
+    // Un \r o un altre caràcter de control canvia com bash talla les paraules.
+    if (SHELL_CONTROL.containsMatchIn(cmd)) return null
+    val segs = mutableListOf<ShellSeg>()
+    var words = mutableListOf<String>()
+    val w = StringBuilder()
+    var has = false
+    var q: Char? = null
+    var pipe = false
+    fun endWord() { if (has) words += w.toString(); w.clear(); has = false }
+    fun endSeg(next: Boolean) { endWord(); if (words.isNotEmpty()) segs += ShellSeg(pipe, words); words = mutableListOf(); pipe = next }
+    var i = 0
+    while (i < cmd.length) {
+        val c = cmd[i]
+        val next = cmd.getOrNull(i + 1)
+        if (q != null) {
+            when {
+                c == q -> q = null
+                q == '"' && (c == '`' || c == '$') -> return null
+                q == '"' && c == '\\' && next != null -> { w.append(next); i++ }
+                else -> w.append(c)
+            }
+            i++
+            continue
+        }
+        when {
+            c == '\'' || c == '"' -> { q = c; has = true }
+            c == '\\' && next != null -> { w.append(next); has = true; i++ }
+            // Expansions ($x, ${…}, $[…], $'…'), comentaris i substitucions: aquest
+            // tallador no les entén com bash, així que l'ordre queda com a «Executa».
+            c == '`' || c == '<' || c == '$' || c == '#' -> return null
+            c == '>' -> {
+                // Només es tolera llençar la sortida (2>/dev/null) o ajuntar-la (2>&1).
+                if (has && !(w.length == 1 && w[0] in '0'..'9')) return null
+                w.clear(); has = false
+                val m = SHELL_DISCARD.find(cmd.substring(i + 1)) ?: return null
+                i += m.value.length
+            }
+            c == ' ' || c == '\t' -> endWord()
+            c == ';' || c == '\n' -> endSeg(false)
+            c == '&' -> { if (next != '&') return null; i++; endSeg(false) }
+            c == '|' -> if (next == '|') { i++; endSeg(false) } else endSeg(true)
+            else -> { w.append(c); has = true }
+        }
+        i++
+    }
+    if (q != null) return null
+    endSeg(false)
+    return segs
+}
+
+// Opcions que s'enduen la paraula següent (head -n 50, grep -A 3…).
+private val SHELL_VALUED = mapOf(
+    "head" to setOf("-n", "-c"), "tail" to setOf("-n", "-c"), "grep" to setOf("-e", "-f", "-A", "-B", "-C", "-m"),
+    "rg" to setOf("-e", "-g", "-t", "-T", "-A", "-B", "-C", "-m", "--glob", "--type"),
+)
+private val SHELL_READERS = setOf("cat", "head", "tail", "nl", "wc")
+private val SHELL_FILTERS = setOf("head", "tail", "sort", "uniq", "wc", "grep", "rg", "cut", "nl")
+private val FIND_WRITES = setOf("-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprint0", "-fprintf", "-fls")
+private val SED_PRINT = Regex("^(\\d+(,\\d+)?p;?)+$")
+
+// Opcions amb què programes que normalment només miren escriuen un fitxer o
+// executen un altre programa (sort -o, rg --pre, tree -o…).
+private val TREE_WRITES = Regex("^--|^-[^-]*[oR]") // -R torna a cridar tree amb -o a cada nivell
+private val SORT_WRITES = Regex("^--|^-[^-]*o")
+private val RG_RUNS = Regex("^--(pre|hostname-bin)")
+
+private fun shellWrites(prog: String, rest: List<String>): Boolean {
+    fun has(re: Regex) = rest.any { re.containsMatchIn(it) }
+    return when (prog) {
+        "find" -> rest.any { it in FIND_WRITES }
+        "tree" -> has(TREE_WRITES)
+        // GNU accepta abreviacions de les opcions llargues: cap ni una.
+        "sort" -> has(SORT_WRITES)
+        "uniq" -> rest.count { !it.startsWith("-") || it == "-" } > 1
+        "rg" -> has(RG_RUNS)
+        else -> false
+    }
+}
+
+// Les accions d'un tros d'ordre: buit si és neutre (cd, echo), null si no només mira.
+// printf no hi és: amb -v desa una variable que una expansió pot executar després.
+private fun shellAction(prog: String, rest: List<String>): List<ExploreAct>? {
+    if (prog in setOf("cd", "pwd", "echo")) return emptyList()
+    if (shellWrites(prog, rest)) return null
+    val ops = mutableListOf<String>()
+    val vals = mutableMapOf<String, String>()
+    var i = 0
+    while (i < rest.size) {
+        val a = rest[i]
+        if (a.length > 1 && a[0] == '-') {
+            if (a in SHELL_VALUED[prog].orEmpty() && i + 1 < rest.size) vals[a] = rest[++i]
+        } else ops += a
+        i++
+    }
+    return when (prog) {
+        "ls", "tree" -> listOf(ExploreAct("list", ops.joinToString(", ").ifEmpty { "." }))
+        "find" -> {
+            val roots = rest.takeWhile { !it.startsWith("-") && it != "(" && it != "!" }
+            listOf(ExploreAct("list", roots.joinToString(", ").ifEmpty { "." }))
+        }
+        in SHELL_READERS -> ops.map { ExploreAct("read", it) }.ifEmpty { null }
+        "sed" -> {
+            // Llista blanca: sed pot escriure (-i, w) o executar (e, -f amb un
+            // guió), així que només val «sed -n» amb un sol guió de rangs a imprimir.
+            var quiet = false
+            var script: String? = null
+            val files = mutableListOf<String>()
+            var j = 0
+            while (j < rest.size) {
+                val a = rest[j]
+                when {
+                    a == "--quiet" || a == "--silent" || Regex("^-[nErs]+$").matches(a) -> quiet = quiet || a[1] == '-' || 'n' in a
+                    a == "-e" -> { if (script != null || j + 1 >= rest.size) return null; script = rest[++j] }
+                    a.length > 1 && a[0] == '-' -> return null
+                    script == null -> script = a
+                    else -> files += a
+                }
+                j++
+            }
+            if (!quiet || !SED_PRINT.matches(script.orEmpty()) || files.isEmpty()) return null
+            val lines = script!!.split(';').filter { it.isNotEmpty() }.joinToString(", ") { it.dropLast(1).replace(',', '–') }
+            files.map { ExploreAct("read", it, lines = lines) }
+        }
+        "grep", "rg" -> {
+            val pattern = vals["-e"] ?: ops.removeFirstOrNull() ?: return null
+            listOf(ExploreAct("search", pattern, dir = ops.joinToString(", ")))
+        }
+        else -> null
+    }
+}
+
+private fun shellActions(cmd: String): List<ExploreAct>? {
+    val segs = shellSegments(cmd) ?: return null
+    val out = mutableListOf<ExploreAct>()
+    for (seg in segs) {
+        val prog = seg.words[0]
+        val rest = seg.words.drop(1)
+        if (seg.pipe && prog in SHELL_FILTERS) { if (shellWrites(prog, rest)) return null; continue }
+        out += (if (seg.pipe) null else shellAction(prog, rest)) ?: return null
+    }
+    return out.ifEmpty { null }
+}
+
+/** El que mira una crida d'exploració (llegir, cercar, llistar), o null si fa alguna altra cosa. */
+fun exploreTool(name: String, args: String): List<ExploreAct>? {
+    val o = MiniJson.obj(args) ?: return null
+    fun s(k: String) = o[k] as? String ?: ""
+    return when (name) {
+        "read" -> listOf(ExploreAct("read", s("path")))
+        "grep" -> listOf(ExploreAct("search", s("pattern")))
+        "glob" -> listOf(ExploreAct("list", s("pattern")))
+        "bash" -> shellActions(s("command"))?.map { ExploreAct(it.kind, it.target) }
+        else -> null
+    }
+}
+
+/** Resum d'una fila plegada: fitxers diferents llegits, cerques i llistats. */
+fun exploreSummary(calls: List<List<ExploreAct>?>, lang: String = "ca"): ToolSum {
+    val t = if (lang == "en") TOOL_EN else TOOL_CA
+    val acts = calls.flatMap { it.orEmpty() }
+    val files = acts.filter { it.kind == "read" }.map { it.target }.toSet().size
+    val searches = acts.count { it.kind == "search" }
+    val listings = acts.count { it.kind == "list" }
+    fun part(n: Int, one: String, many: String) = if (n > 0) "$n ${if (n == 1) t[one] else t[many]}" else ""
+    return ToolSum(t["explored"]!!, listOf(part(files, "file1", "files"), part(searches, "search1", "searches"), part(listings, "listing1", "listings"))
+        .filter { it.isNotEmpty() }.joinToString(" · "))
+}
+
+/** Passos seguits d'exploració en una sola fila (com fa Codex); la resta, un per fila. */
+fun foldExplore(steps: List<WorkStep>): List<List<WorkStep>> {
+    val rows = mutableListOf<MutableList<WorkStep>>()
+    for (s in steps) {
+        val last = rows.lastOrNull()
+        if (s.explore != null && last != null && last.last().explore != null) last += s else rows += mutableListOf(s)
+    }
+    return rows
+}
+
+private val CD_PREFIX = Regex("^\\s*cd\\s+\\S+\\s*&&\\s*")
+private val TEST_CMD = Regex("^(go test|cargo test|pytest|uv run pytest|python3? -m (pytest|unittest)|node --test|(npm|pnpm|yarn)( run)? test)\\b")
 
 fun summarizeTool(name: String, args: String, lang: String = "ca"): ToolSum {
     val t = if (lang == "en") TOOL_EN else TOOL_CA
@@ -172,7 +383,32 @@ fun summarizeTool(name: String, args: String, lang: String = "ca"): ToolSum {
             target = if (s("pattern").isNotEmpty()) "\"${oneLine(s("pattern"), 80)}\"" else ""
             meta = listOf(if (s("dir").isNotEmpty()) "${t["in"]} ${s("dir")}" else "", s("include")).filter { it.isNotEmpty() }.joinToString(" · ")
         }
-        "bash", "bash_background" -> target = oneLine(s("command"), 200)
+        "bash", "bash_background" -> {
+            val cmd = s("command")
+            val acts = if (tool == "bash") shellActions(cmd) else null
+            if (acts != null) {
+                val kind = acts[0].kind
+                val same = acts.filter { it.kind == kind }
+                label = t[if (kind == "search") "grep" else kind]!!
+                if (kind == "search") {
+                    target = "\"${oneLine(same[0].target, 80)}\""
+                    if (same[0].dir.isNotEmpty()) meta = "${t["in"]} ${same[0].dir}"
+                } else {
+                    target = oneLine(same.map { it.target }.distinct().joinToString(", "), 200)
+                    val lines = if (same.size == 1) same[0].lines else ""
+                    if (lines.isNotEmpty()) meta = "${if (lines.contains('–') || lines.contains(',')) t["lines"] else t["line"]} $lines"
+                }
+            } else {
+                val head = cmd.replace(CD_PREFIX, "")
+                // El verb només per a una ordre sola: una cadena pot fer una altra cosa després.
+                val single = tool == "bash" && !Regex("[;\\n]|&&|\\|\\|").containsMatchIn(head)
+                if (single && TEST_CMD.containsMatchIn(head)) label = t["test"]!!
+                target = if (single && Regex("^git\\s").containsMatchIn(head)) {
+                    label = t["git"]!!
+                    oneLine(head.replace(Regex("^git\\s+"), ""), 200)
+                } else oneLine(cmd, 200)
+            }
+        }
         "bash_output", "bash_kill" -> target = s("id")
         "web_search" -> target = oneLine(s("query"), 120)
         "knowledge_search" -> { target = if (s("query").isNotEmpty()) "\"${oneLine(s("query"), 110)}\"" else ""; meta = s("collection") }
@@ -210,6 +446,135 @@ fun summarizeTool(name: String, args: String, lang: String = "ca"): ToolSum {
     return ToolSum(label, target, meta)
 }
 
+// --- Les eines dins de frases (sentence, chip i outcome de tool-summary.js) ---
+
+private val EDIT_TOOLS = setOf("edit", "patch", "write", "office_edit", "office_create", "pdf_create", "pdf_edit")
+private val READ_TOOLS = setOf("read_image", "office_read", "office_open", "pdf_read", "symbols", "lsp")
+
+// La família d'una crida, per a la icona de la pastilla i la frase que
+// Gregal escriu quan el model no n'ha dit cap.
+private fun toolFamily(name: String, args: String): String {
+    if (name in EDIT_TOOLS) return "edit"
+    exploreTool(name, args)?.let { ex -> return if (ex.any { it.kind == "search" }) "search" else "read" }
+    if (name == "bash" || name == "bash_background") {
+        return when (summarizeTool(name, args, "en").label) { "Test" -> "test"; "Git" -> "git"; else -> "run" }
+    }
+    return when {
+        name == "git_commit" || name.startsWith("gh_") -> "git"
+        name.startsWith("web_") -> "web"
+        name == "browser" -> "browser"
+        name == "calendar" || name == "mail" || name == "delegate" -> name
+        name.startsWith("remind") -> "remind"
+        name in READ_TOOLS -> "read"
+        else -> "tool"
+    }
+}
+
+// Com més diu una família del que ha passat, abans guanya la frase: llegir i
+// després editar és «Ha editat fitxers».
+private val SENTENCE_RANK = listOf("edit", "test", "run", "git", "web", "browser", "calendar", "mail", "remind", "delegate", "tool", "search", "read")
+private val MCP_SERVER = Regex("^mcp_([^_]+)_")
+
+/** La frase de Gregal per a unes crides (nom, arguments) que el model no ha explicat. */
+fun toolSentence(calls: List<Pair<String, String>>, lang: String = "ca"): String {
+    val t = if (lang == "en") TOOL_EN else TOOL_CA
+    val (name, family) = calls.map { it.first to toolFamily(it.first, it.second) }
+        .minByOrNull { SENTENCE_RANK.indexOf(it.second) } ?: return ""
+    if (family != "tool") return t["s_$family"]!!
+    return t["s_used"]!!.replace("{x}", MCP_SERVER.find(name)?.groupValues?.get(1) ?: t[name] ?: name)
+}
+
+data class ToolChip(val icon: String, val text: String)
+
+private val CHIP_ICONS = setOf("search", "read", "edit", "test", "run", "git", "web", "browser")
+private val WEB_HOST = Regex("^[a-z]+://([^/?#]+)", RegexOption.IGNORE_CASE)
+
+/** La pastilla d'una crida al final de la frase, en poques paraules. */
+fun toolChip(name: String, args: String, lang: String = "ca"): ToolChip {
+    val f = toolFamily(name, args)
+    val s = summarizeTool(name, args, lang)
+    val o = MiniJson.obj(args).orEmpty()
+    fun base(p: String) = p.replace(Regex("[/\\\\]+$"), "").split('/', '\\').last()
+    val text = when {
+        name == "edit" || name == "patch" -> base(s.target) + if (s.meta.isNotEmpty()) " ${s.meta}" else ""
+        name == "write" -> lineCount(o["content"] as? String ?: "").let { n -> base(s.target) + if (n > 0) " +$n" else "" }
+        name == "read" || name == "read_image" || name.startsWith("office_") || name.startsWith("pdf_") -> base(s.target)
+        name == "web_fetch" -> WEB_HOST.find(s.target)?.groupValues?.get(1) ?: s.target
+        f == "git" && name == "bash" -> "git ${s.target}"
+        f == "test" || f == "run" -> (o["command"] as? String ?: "").replace(CD_PREFIX, "")
+        // Les eines sense verb propi (calendar, mail, profile…): el nom i els valors.
+        f !in CHIP_ICONS -> listOf(name, oneLine(o.values.filterIsInstance<String>().joinToString(" · "), 30))
+            .filter { it.isNotEmpty() }.joinToString(" · ")
+        else -> s.target.ifEmpty { s.label }
+    }
+    return ToolChip(if (f in CHIP_ICONS) f else "tool", oneLine(text.ifEmpty { s.label }, 48))
+}
+
+/** Com ha anat una crida: state és done, failed o quiet (o running, per a una pastilla en curs). */
+data class ToolOutcome(val state: String, val note: String = "")
+
+private val TOOL_ERROR = Regex("^(ERROR:|EINA BLOQUEJADA|TOOL BLOCKED)")
+// tools.go embolica l'error com a «exit: exit status N» i loop.go hi posa «ERROR: » davant.
+private val EXIT_STATUS = Regex("^ERROR: (?:exit: )?exit status (\\d+)\\n?")
+
+/** La sortida d'una crida per llegir-la: el codi de sortida d'una ordre ja el diu la pastilla. */
+fun toolOutputShown(name: String, output: String): String =
+    if (name == "bash" || name == "bash_background") output.replace(EXIT_STATUS, "") else output
+
+/**
+ * Com ha anat una crida segons la sortida. Una ordre que només mira i surt
+ * amb 1 o 2 (grep sense coincidències, ls d'un fitxer que no hi és) no és un
+ * error de l'agent: és la resposta, i no es pinta de vermell.
+ */
+fun toolOutcome(name: String, args: String, output: String, lang: String = "ca"): ToolOutcome {
+    val t = if (lang == "en") TOOL_EN else TOOL_CA
+    if (!TOOL_ERROR.containsMatchIn(output)) return ToolOutcome("done")
+    val code = EXIT_STATUS.find(output)?.groupValues?.get(1) ?: return ToolOutcome("failed")
+    if ((code == "1" || code == "2") && name == "bash" && exploreTool(name, args) != null) return ToolOutcome("quiet", t["quiet"]!!)
+    return ToolOutcome("failed", t["exit"]!!.replace("{n}", code))
+}
+
+/** La pastilla d'una crida (o d'una fila «Explorat», amb els seus comptes) i com ha anat. */
+fun stepChip(row: List<WorkStep>, lang: String = "ca"): Pair<ToolChip, ToolOutcome> {
+    if (row.size > 1) {
+        // L'estat de la fila és el de les crides de dins: una que falla la fa fallar.
+        val state = when {
+            row.any { it.state == StepState.Failed } -> "failed"
+            row.any { it.state == StepState.Running } -> "running"
+            else -> "done"
+        }
+        return ToolChip("search", exploreSummary(row.map { it.explore }, lang).target) to ToolOutcome(state)
+    }
+    val s = row[0]
+    val res = toolOutcome(s.tool, s.args, s.detail, lang)
+    return toolChip(s.tool, s.args, lang) to when (s.state) {
+        StepState.Running -> ToolOutcome("running")
+        StepState.Failed -> ToolOutcome("failed", if (res.state == "failed") res.note else "")
+        StepState.Ok -> res
+    }
+}
+
+/**
+ * Una línia del treball: un pas sol (calls buit), o una frase amb les crides
+ * que la segueixen. La frase és la narració que les precedeix (step) o, si el
+ * model no n'ha dit cap, null i Gregal hi posa la seva (toolSentence).
+ */
+data class WorkLine(val step: WorkStep?, val calls: List<List<WorkStep>> = emptyList())
+
+fun workLines(steps: List<WorkStep>): List<WorkLine> {
+    val out = mutableListOf<WorkLine>()
+    for (row in foldExplore(steps)) {
+        val last = out.lastOrNull()
+        when {
+            row[0].kind != StepKind.Tool -> out += WorkLine(row[0])
+            last != null && (last.calls.isNotEmpty() || last.step?.kind == StepKind.Note) ->
+                out[out.lastIndex] = last.copy(calls = last.calls + listOf(row))
+            else -> out += WorkLine(null, listOf(row))
+        }
+    }
+    return out
+}
+
 // --- Model del treball d'un torn ---
 
 enum class StepKind { Tool, Think, Note, Blocked, Review, Delegate, Info, Warn, User }
@@ -224,6 +589,10 @@ data class WorkStep(
     val detail: String = "",
     val state: StepState = StepState.Ok,
     val tool: String = "",
+    /** El que mira, si és una crida d'exploració: les seguides es pleguen (foldExplore). */
+    val explore: List<ExploreAct>? = null,
+    /** Els arguments JSON d'una crida d'eina: d'aquí surten la pastilla i la frase. */
+    val args: String = "",
 )
 
 data class WorkGroup(
@@ -248,7 +617,9 @@ data class WorkGroup(
         if (idx < 0) idx = steps.indexOfLast { it.kind == StepKind.Tool && it.state == StepState.Running && (tool.isEmpty() || it.tool == tool) }
         if (idx < 0) return this
         val s = steps[idx]
-        val upd = s.copy(state = if (failed) StepState.Failed else StepState.Ok, detail = output.take(4000))
+        // Un grep sense coincidències no ha fallat; un «TOOL BLOCKED», sí.
+        val res = toolOutcome(s.tool, s.args, output).state
+        val upd = s.copy(state = if ((failed && res != "quiet") || res == "failed") StepState.Failed else StepState.Ok, detail = output.take(4000))
         return copy(steps = steps.toMutableList().also { it[idx] = upd })
     }
 
