@@ -30,8 +30,19 @@ it with the Act permission you had.
 | Permission | Catalan | What happens |
 |---|---|---|
 | **Ask before changes** | Demana abans de canviar | Every edit, including files inside the project, and every command that changes something asks first. |
-| **Auto-approve edits** (default) | Aprova les edicions | Edits inside the project folder go ahead, and so do the usual development commands inside it (`npm install`, `pytest`, `make`, `cargo`, `git add`…). Dangerous commands (`git push`, global installs, `docker`, killing processes, bulk deletes), writes outside the folder, commits, PRs and external services (MCP) still ask. "Always allow" on a command such as `npm install` covers that program and subcommand (not chained, global or dangerous variants). |
+| **Auto-approve edits** (default) | Aprova les edicions | Work inside the project folder goes ahead on its own: edits, the usual development commands (`npm install`, `pytest`, `make`, `cargo`, `git add`…), starting an app from the project, project knowledge notes and a local commit. Dangerous commands (`git push`, global installs, `docker`, killing processes, bulk deletes), writes outside the folder, PRs and external services (MCP) still ask. "Always allow" on a command such as `npm install` covers that program and subcommand (not chained, global or dangerous variants). |
 | **Full autonomy** | Autonomia total | Works on its own until it is done and never asks (this is the autonomous mode: milestones, checks, no `question` tool). Only what is forbidden stays blocked: the shell classifier (`sudo`, piping downloads into a shell, formatting disks…) and `deny` rules. |
+
+The same permission applies to Codi (the coding agent) and to the winds (Vents): the same action
+gets the same answer in both. In Ask before changes and in Auto-approve edits,
+the hard gates always ask, even when the config allows the command: installing
+software, downloading packages or binaries, deleting outside the project and
+touching system services; and a site goes public for the first time only with
+your yes (in Codi the `publish` tool keeps it private until you confirm it). What
+the policy denies stays denied. The winds keep their own limits on top: in a
+rotllana only the first speaker can change things (the others, and a review
+request, are read-only), shared chats can only search the web, and a study
+writes only in its own practice folder.
 
 Where to pick it: the lock button beside the composer (web, desktop),
 `/permissions` or `/permissions ask|edits|full` (TUI), **+ → Act permission**

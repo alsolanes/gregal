@@ -122,16 +122,12 @@ func (p *Policy) decideAutonomous(name, argsJSON string) (string, string, bool) 
 	return "", "", false
 }
 
-// WindAutoAllow diu si un «ask» d'un torn interactiu de vent/colla es pot
-// aprovar sol. Aquests torns no tenen cap UI d'aprovació: un «ask» no el
-// pot respondre ningú i l'eina queda sense executar («REQUIRES APPROVAL»),
-// de manera que demanar codi al vent sempre acaba en «falta permís».
-// La instrucció explícita del xat JA és l'aprovació per a la feina
-// d'aquí: escriure i executar dins del projecte, sense res destructiu.
-// Continua manant tot «deny» (classificador: sudo, curl a internet…;
-// regles explícites del config), i queden fora: esborrats/perilloses,
-// escriure fora del projecte, commits i PRs, serveis externs (MCP) i notes
-// globals. Per a això cal el xat principal.
+// WindAutoAllow diu si un «ask» d'Actua amb «edicions» es pot aprovar sol, a
+// Codi i als Vents igual (actRule): és la feina d'aquí, escriure i executar
+// dins del projecte i un commit local, sense res destructiu. Continua manant
+// tot «deny» (classificador: sudo, curl a internet…; regles explícites del
+// config), i queden fora: esborrats/perilloses, escriure fora del projecte,
+// pushos i PRs, serveis externs (MCP) i notes globals.
 func (p *Policy) WindAutoAllow(name, argsJSON string) bool {
 	projecte := ""
 	var allow, deny []string
@@ -191,15 +187,11 @@ func (p *Policy) WindAutoAllow(name, argsJSON string) bool {
 		}
 		return projecte != "" && InsideProject(projecte, toolPath(name, argsJSON))
 	case "git_commit":
-		// Un commit local dins del projecte no destrueix res i el xat del vent no
-		// té cap finestra on confirmar-lo: deixat en «ask», la feina s'acaba
-		// dient «feta» sense commit i amb una nota d'aprovació pendent que
-		// sembla una errada. Els PRs i els pushos al remot continuen sent del
-		// xat principal.
+		// Un commit local dins del projecte no destrueix res. Els PRs i els
+		// pushos al remot continuen preguntant.
 		return projecte != ""
 	case "knowledge_note":
-		// Una nota global la veurien tots els projectes: això es queda per
-		// al xat principal, on la persona ho pot confirmar.
+		// Una nota global la veurien tots els projectes: es pregunta.
 		return knowledge.NoteScope(knowledge.Where{Project: projecte, Session: procSession}, argsJSON) != knowledge.ScopeGlobal
 	case "bash", "bash_background":
 		var a struct {

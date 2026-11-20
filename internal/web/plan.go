@@ -473,26 +473,25 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 				cp.ProjectDir = d
 				pol = &cp
 			}
+			// La mateixa regla d'Actua que Codi (agent.Policy.Decide): amb
+			// «edicions» la feina dins del projecte passa sola; amb «Demana
+			// abans de canviar», pregunta. Tot «deny» continua denegat.
 			decision, reason := pol.Decide(scope.mode, name, argsJSON)
-			// La instrucció explícita del xat JA és l'aprovació per a la feina
-			// d'aquí (escriure i executar dins del projecte, sense res
-			// destructiu): si no, demanar codi al vent sempre acaba en «falta
-			// permís». Tot «deny» continua denegat.
-			// La carpeta de projectes dels vents (~/gregal/projectes) és seva: un
-			// joc o una web que hi construeixen no ha de demanar permís fitxer a
-			// fitxer encara que el projecte obert sigui un altre. Només rutes
-			// absolutes (una relativa es resol contra el projecte obert).
+			// La carpeta de projectes dels vents (~/gregal/projectes) també és
+			// seu: un joc o una web que hi construeixen es decideix com si fos
+			// el projecte obert. Només rutes absolutes (una relativa es resol
+			// contra el projecte obert).
 			if decision == "ask" && interactive {
-				pol = windProjectesPolicy(pol, name, argsJSON)
+				if pp := windProjectesPolicy(pol, name, argsJSON); pp != pol {
+					pol = pp
+					decision, reason = pol.Decide(scope.mode, name, argsJSON)
+				}
 			}
 			// Provar la seva pròpia web: clicar o escriure en una pàgina local
 			// (127.0.0.1, la previsualització o l'app que ha fet) no demana
 			// permís. Abans cada clic de prova esperava i acabava caducant.
 			if decision == "ask" && interactive && name == "browser" && localBrowserAction(tools.BrowserPageURL(s.id), argsJSON) {
 				decision, reason = "allow", "pàgina local del vent"
-			}
-			if decision == "ask" && interactive && pol.WindAutoAllow(name, argsJSON) {
-				decision, reason = "allow", "ordre del xat del vent ("+reason+")"
 			}
 			// «Pot fer-ho sol»: una petició de permís normal passa sense preguntar.
 			// Les portes dures de sota (esborrar fora, instal·lar, publicar per

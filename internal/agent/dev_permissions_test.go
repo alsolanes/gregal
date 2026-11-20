@@ -35,9 +35,13 @@ func TestActEditsRunsDevCommandsAloneButAsksForTheDangerous(t *testing.T) {
 			t.Errorf("%q must not pass alone in Act, got %s", c, d)
 		}
 	}
-	// Els commits i els PRs continuen preguntant.
-	if d, _ := p.Decide(ModeCode, "git_commit", `{"message":"x"}`); d != "ask" {
+	// Un commit local passa sol, com als vents (tasca 018); els PRs continuen
+	// preguntant.
+	if d, _ := p.Decide(ModeCode, "git_commit", `{"message":"x"}`); d != "allow" {
 		t.Errorf("git_commit: %s", d)
+	}
+	if d, _ := p.Decide(ModeCode, "gh_pr_create", `{"title":"x"}`); d != "ask" {
+		t.Errorf("gh_pr_create: %s", d)
 	}
 }
 
