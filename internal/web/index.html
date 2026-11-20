@@ -2798,7 +2798,7 @@ main.addEventListener('click', e => {
 // Referències a fitxers clicables: es marquen quan canvia la conversa (la
 // bombolla viva es repinta sovint: un sol pas per frame) i s'obren per delegació.
 let frefFrame = 0;
-new MutationObserver(() => { if (!frefFrame) frefFrame = requestAnimationFrame(() => { frefFrame = 0; linkFileRefs(main); }); })
+new MutationObserver(() => { if (!frefFrame) frefFrame = requestAnimationFrame(() => { frefFrame = 0; linkFileRefs(main); paintScrollDown(); }); })
   .observe(main, { childList: true, subtree: true });
 main.addEventListener('click', e => {
   const c = e.target.closest('code.fref');
@@ -2809,7 +2809,9 @@ main.addEventListener('keydown', e => {
   if (c && e.key === 'Enter') { e.preventDefault(); openFileRef(c.textContent); }
 });
 // Botó per tornar al final quan has pujat a llegir: el tenen totes dues
-// apps, i sense ell has de rodar fins baix a mà cada cop.
+// apps, i sense ell has de rodar fins baix a mà cada cop. També es torna a
+// calcular quan canvia el contingut (l'observador de més amunt): en obrir una
+// conversa curta des d'una de llarga no hi ha cap scroll i es quedava a la vista.
 function paintScrollDown() {
   const b = $('toBottom');
   if (b) b.hidden = nearBottom() || !hero.hidden;
@@ -3120,7 +3122,7 @@ function speedAdd(d) {
   if (d.pp > 0) { s.pTok += (d.prompt || 0) - (d.cached || 0); s.pSec += (d.ttft_ms || 0) / 1000; }
   if (d.tg > 0) { s.gTok += d.completion || 0; s.gSec += (d.gen_ms || 0) / 1000; }
   const readout = $('speedReadout');
-  if (readout) { readout.textContent = '⚡ ' + speedAverage(); readout.title = gregalT('ui.speed.average').replace('{v}', speedAverage()).replace('{n}', s.calls) + '\n' + gregalT('ui.speed.help'); readout.hidden = false; }
+  if (readout) { readout.textContent = '⚡ ' + speedAverage(); readout.title = gregalT('ui.speed.average').replace('{v}', speedAverage()).replace('{n}', s.calls) + '\n' + gregalT('ui.speed.help'); readout.hidden = !sending; }
 }
 function speedRate(v) { return !(v > 0) ? '–' : v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v >= 100 ? String(Math.round(v)) : v.toFixed(1); }
 function speedText(pp, tg, est) {
@@ -3242,6 +3244,8 @@ function setSending(active, quiet = false) {
   } else if (!active && abans) {
     const ms = turnT0 ? Date.now() - turnT0 : 0;
     clearInterval(turnTick); turnTick = null; turnT0 = 0; turnNote = '';
+    // La velocitat és per mentre treballa; acabat, la mitjana queda al títol del resum del torn.
+    { const readout = $('speedReadout'); if (readout) readout.hidden = true; }
     if (turnPhase !== 'completed') turnPhase = 'idle';
     else { turnCompletedUntil = Date.now() + 3500; setTimeout(() => { if (!turnT0 && Date.now() >= turnCompletedUntil) { turnPhase = 'idle'; pintaTurnBar(); updateInspector(state); } }, 3600); }
     if (!quiet) {

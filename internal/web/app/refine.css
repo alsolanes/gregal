@@ -470,12 +470,18 @@ html body:is(.shell-winds,.winds-side) #side .vw-project[data-selected="true"] .
   html body:not(.shell-winds) #composer #send { order:8; margin-left:auto; }
 }
 
+/* La resposta, més compacta: amb 1.72 d'interlineat i el marge de paràgraf
+   sencer abans de cada llista, un resum de deu línies omplia mitja pantalla. */
+html body:not(.shell-winds) #main > .msg.a .body { line-height:1.6; }
+html body:not(.shell-winds) #main > .msg.a .body p:has(+ ul),
+html body:not(.shell-winds) #main > .msg.a .body p:has(+ ol) { margin-bottom:.3em; }
+
 /* ---------- Fil de Codi: opció A, més lleuger ----------
    La resposta destaca sobre els passos acabats, agrupats amb una línia
    lateral. El resum final conserva les accions amb un separador discret. */
 @media (min-width:761px) {
   html body:not(.shell-winds) #main { gap:22px; }
-  html body:not(.shell-winds) #main > .msg.a .body { font-size:15.5px; line-height:1.72; }
+  html body:not(.shell-winds) #main > .msg.a .body { font-size:15.5px; }
   html body:not(.shell-winds) #main > .msg.u .msg-inner { border-color:transparent; padding:10px 16px; }
   html body:not(.shell-winds) #main .work-group:not(.failed):not(.running) { border-color:transparent; border-radius:8px; }
   html body:not(.shell-winds) #main .work-group:not(.failed):not(.running) > summary { min-height:34px; padding:6px 10px; border:0; border-radius:8px; }
