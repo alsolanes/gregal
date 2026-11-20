@@ -106,11 +106,11 @@ func TestProgresTornThrottleIEstats(t *testing.T) {
 	avança(2 * time.Minute) // a la cua del proveïdor: cap byte
 	p.delta(llm.ProgressFirst, 0)
 	p.delta(llm.ProgressReasoning, 10)
-	avança(time.Second)
+	avança(900 * time.Millisecond)
 	p.delta(llm.ProgressReasoning, 10) // dins l'interval: res
-	avança(2 * time.Second)
-	p.delta(llm.ProgressReasoning, 5) // 3 s des de l'última: surt
-	avança(time.Second)
+	avança(100 * time.Millisecond)
+	p.delta(llm.ProgressReasoning, 5) // 1 s des de l'última: surt
+	avança(900 * time.Millisecond)
 	p.delta(llm.ProgressText, 4)
 	p.delta(llm.ProgressTool, 7)
 	p.fiModel() // ha canviat: surt el total
@@ -149,7 +149,7 @@ func TestProgresTornThrottleIEstats(t *testing.T) {
 	got = em.progres()
 	last := got[len(got)-1]
 	if len(got) != 7 || last["phase"] != "tools" || last["state"] != "running" || last["tools"] != "web_fetch,read" ||
-		last["since"] != "2026-10-13T10:03:04Z" || last["reasoning"] != "" {
+		last["since"] != "2026-10-13T10:03:01.9Z" || last["reasoning"] != "" {
 		t.Fatalf("fase d'eines: %+v", got[6:])
 	}
 	if txt := textProgres(last); txt != "tools · web_fetch,read" {
