@@ -503,7 +503,7 @@ Cadence: one event when a phase starts (`model`/`waiting` when the request is
 sent, `tools` before the calls run, `review`, `compact`); one immediately when
 the first chunk of a model response arrives (`receiving`), and again on
 `waiting` if the provider call is retried; while receiving, at most one count
-update every 3 seconds and only when a count changed; and one final count
+update every second and only when a count changed; and one final count
 update when the model call returns if the counts changed since the last one.
 A silent provider therefore produces no events: clients should derive elapsed
 time from `since`. Approval and question waits are signalled by their own

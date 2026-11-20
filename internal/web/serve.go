@@ -1844,9 +1844,9 @@ func (s *Server) recordActive(event string, value any) {
 // recordProgress grava l'event `progress` (senyal de vida del torn) al
 // registre durable amb el payload estructurat, perquè /api/v2/events i el
 // seu stream el lliurin. No s'afegeix a la llista d'activitat de
-// /api/active (80 entrades): allà només queda l'últim, a Progress. El volum
-// és baix per construcció: canvis de fase i, durant una crida al model, com
-// a molt una actualització cada intervalProgres (progres.go).
+// /api/active (80 entrades): allà només queda l'últim, a Progress. Hi
+// arriben els canvis de fase i, durant una crida al model, com a molt una
+// actualització cada intervalProgres (progres.go).
 func (s *Server) recordProgress(value any) {
 	payload := interactiveEventPayload("progress", value)
 	if payload == nil {

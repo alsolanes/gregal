@@ -23,8 +23,10 @@ const (
 
 // intervalProgres és el mínim entre dues actualitzacions de comptadors
 // d'una crida al model. Els canvis d'estat (waiting → receiving) i de fase
-// surten de seguida. Variable perquè els tests l'escurcin.
-var intervalProgres = 3 * time.Second
+// surten de seguida. Un segon: amb tres, el comptador i el raonament en viu
+// es quedaven quiets prou estona per semblar penjats. Variable perquè els
+// tests l'escurcin.
+var intervalProgres = time.Second
 
 // progresTorn emet l'event `progress`: el senyal de vida del torn perquè la
 // UI pugui dir "esperant el model 2m47s" o "el model raona (12k caràcters)"
@@ -35,7 +37,7 @@ var intervalProgres = 3 * time.Second
 // Els comptadors de la crida al model els alimenta llm.StreamProgress
 // (cada delta, també en mode recuperació, on el text no surt fins al
 // final). Les actualitzacions que només canvien comptadors van com a molt
-// cada intervalProgres; el volum durable queda baix (vegeu recordProgress).
+// cada intervalProgres (vegeu recordProgress).
 type progresTorn struct {
 	emit func(string, any)
 	ara  func() time.Time
