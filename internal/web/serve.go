@@ -3454,6 +3454,7 @@ func (s *Server) waitApproval(ctx context.Context, emit func(string, any), id, n
 			req[k] = v
 		}
 	}
+	defer turnLogFrom(ctx).waiting()()
 	emit("approve_request", req)
 	// El torn es quedarà esperant: si l'app és fora, ho ha de saber. Amb l'app
 	// oberta no notifica (ella mateixa ho veu a la pantalla).
@@ -3527,6 +3528,7 @@ func (s *Server) waitQuestion(ctx context.Context, emit func(string, any), id, q
 	}
 	limit, para, segons := s.esperaResposta()
 	defer para()
+	defer turnLogFrom(ctx).waiting()()
 	emit("question_request", map[string]any{"key": key, "call_id": id, "query": query, "options": labels, "timeout_s": segons})
 	// Igual que amb el permís: una pregunta sense contestar atura el torn.
 	avís := s.recordTornNecessita(query)
