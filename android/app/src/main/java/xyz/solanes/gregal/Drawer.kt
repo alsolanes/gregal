@@ -156,7 +156,7 @@ fun GregalDrawerContent(
 
 /**
  * Codi | Vents a dalt de tot dels dos calaixos: canvia de calaix i obre la
- * portada del mode triat. El mode es desa, i en tornar a obrir l'app hi és.
+ * portada del mode triat (`nav` hi és per tancar el calaix). El mode es desa, i en tornar a obrir l'app hi és.
  */
 @Composable
 private fun ModeSwitch(vm: GregalViewModel, lang: String, vents: Boolean, nav: (Screen) -> Unit) {
@@ -166,7 +166,7 @@ private fun ModeSwitch(vm: GregalViewModel, lang: String, vents: Boolean, nav: (
         { choice ->
             val toVents = choice == "vents"
             if (toVents != vents) {
-                vm.setSimpleVents(toVents)
+                vm.switchMode(toVents)
                 nav(if (toVents) Screen.Company else Screen.Chat)
             }
         },

@@ -30,5 +30,5 @@ A Android, Codi i Vents ja viuen a la mateixa app, però per passar d'un a l'alt
 - Fet: el selector és `ChoicePills` (el mateix de tema i idioma) dins `ModeSwitch` a `Drawer.kt`, a dalt dels dos calaixos. Fa servir `simpleVents` tal com era (desat a `Prefs`, per defecte segons el paquet); no s'ha canviat el nom.
 - Textos nous `app.mode.code` / `app.mode.vents` (Codi/Code, {Vents}, que dona Vents/Winds com la web). `prefs.codingTools` i `prefs.codingToolsHelp` s'han tret de tots dos idiomes.
 - `PrefsPage.available` ja no rep `coding`: Permisos sempre hi és. `PrefsNavigationTest` i `PrefsPagesUiTest` deien que Permisos s'amagava a Vents; s'han canviat perquè el requisit ha canviat.
-- Tocar el mode que ja està triat no fa res; tocar l'altre també tanca el calaix (és el `nav` de `MainActivity`).
+- Tocar el mode que ja està triat no fa res; tocar l'altre també tanca el calaix (és el `nav` de `MainActivity`). `vm.switchMode` buida la pila d'Enrere: si no, Enrere tornava a una pantalla de l'altre mode amb el calaix del nou.
 - Follow-up: dins de Models, el bloc «Verificació» encara s'amaga amb `simpleVents` (`PrefsScreen.kt`, `if (!simple)`); la tasca 018 hauria de decidir si també és comú.

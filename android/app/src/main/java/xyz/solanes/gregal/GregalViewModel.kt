@@ -472,6 +472,14 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         if (::prefsStore.isInitialized) prefsStore.simpleVents = v
     }
 
+    /** El selector Codi | Vents: el mode nou comença a la seva portada i amb
+     *  la pila buida, perquè Enrere no torni a una pantalla de l'altre mode. */
+    fun switchMode(vents: Boolean) {
+        setSimpleVents(vents)
+        go(if (vents) Screen.Company else Screen.Chat)
+        _backStack.value = emptyList()
+    }
+
     private val _ventsPanel = MutableStateFlow<String?>(null)
     /** Un panell de la portada dels Vents que s'ha demanat des de fora (el calaix):
      *  "directory" (els teus vents) o "explore". La portada l'obre i el buida. */
@@ -6329,8 +6337,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun openRunShown() { _openRun.value = null }
 
     /** Després de connectar: la pantalla de la notificació tocada o, per
-     *  defecte, on es comença a xerrar. Amb Vents net (sense les eines de
-     *  programació) és la portada dels vents; amb elles, el xat general. */
+     *  defecte, on es comença a xerrar: la portada dels vents en mode Vents i
+     *  el xat general en mode Codi. */
     private fun landing(): Screen {
         val home = if (_simpleVents.value) Screen.Company else Screen.Chat
         val screen = when {

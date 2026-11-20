@@ -77,6 +77,18 @@ class DrawerModeSwitchTest {
         }
     }
 
+    // Enrere després de canviar de mode no ha de tornar a una pantalla de l'altre
+    // mode amb el calaix del mode nou.
+    @Test fun switchingModeStartsAFreshBackStack() {
+        val vm = host(simple = false)
+        ui.runOnIdle { vm.go(Screen.Sessions) }
+        ui.onNode(option("app.mode.vents")).performClick()
+        ui.runOnIdle {
+            assertEquals(Screen.Company, vm.screen.value)
+            assertEquals(emptyList<Screen>(), vm.backStack.value)
+        }
+    }
+
     @Test fun theChosenModeIsSavedAndLoadedAgain() {
         host(simple = false)
         ui.onNode(option("app.mode.vents")).performClick()
