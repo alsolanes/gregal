@@ -75,6 +75,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.gestures.scrollBy
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
@@ -446,7 +447,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                 // lluïssor al darrere i el camp a baix— en lloc de saltar a una altra.
                 val capSt = capUi.state
                 val chatting = capSt.history.isNotEmpty() || capUi.busy
-                val homeList = rememberLazyListState()
+                val homeList = rememberChatList("ventet-home", capSt.history.isNotEmpty())
                 val homeFollow = rememberChatFollow(homeList, "ventet-home", capSentKey(capUi))
                 // El missatge que no ha arribat torna al camp, també aquí.
                 LaunchedEffect(capUi.failedText) {
@@ -1209,12 +1210,16 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             field = TextFieldValue(txt, TextRange(txt.length))
         }
     }
-    val listState = rememberLazyListState()
     LaunchedEffect(wind.id) { vm.loadWindChat(wind.id) }
     // Un recordatori o un cor que parla amb el xat obert: el missatge nou entra
     // al moment (la consulta de novetats és cada 20 s), sense haver de sortir i tornar a entrar.
     val openNews by vm.windNewsCount.collectAsState()
     val openNewsTs = openNews[wind.id]
+    // Amb novetats, el fil s'obre pel primer missatge nou quan el servidor ja les ha donat.
+    val unreadAtOpen = remember(wind.id) { openNewsTs ?: vm.windUnreadAtOpen(wind.id) }
+    val ready = msgs.isNotEmpty() && (unreadAtOpen == 0 || wind.id !in loadingChat)
+    val newFrom = remember(wind.id, ready) { if (ready && unreadAtOpen > 0) (msgs.size - unreadAtOpen).coerceAtLeast(0) else null }
+    val listState = rememberChatList("wind:" + wind.id, ready, newFrom)
     LaunchedEffect(openNewsTs) { if (openNewsTs != null) { vm.loadWindChat(wind.id); vm.markWindNewsSeen(wind.id) } }
     // B7: fil visible = novetats llegides a tot arreu; obrir des d'un avís porta al missatge exacte.
     val chatConn by vm.conn.collectAsState()
@@ -1272,6 +1277,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     val facts = remember(m.text) { m.text.lines().map { it.trim() }.filter { it.isNotEmpty() } }
                     MemoryNotice(lang, facts) { vm.forgetLearned(wind.id, facts) }
                 } else Column(Modifier.padding(top = gap)) {
+                    if (idx == newFrom) ThreadDivider(threadCopy(lang, "new"), accent = true)
                     if (m.kind == "guest" && m.speakerName.isNotBlank()) GuestJoinsLine(lang, m.speakerName)
                     val cap = rememberBubbleCapture()
                     BubbleIn("dm#$idx", animate = idx >= liveFrom) {
@@ -2513,6 +2519,29 @@ internal fun androidx.compose.foundation.lazy.LazyListScope.chatReserve(follow: 
     item(key = "reserve", contentType = "reserve") {
         Spacer(Modifier.height(with(androidx.compose.ui.platform.LocalDensity.current) { follow.reserve.toDp() }.coerceAtLeast(8.dp)))
     }
+
+/** On era cada conversa (primer element visible i desplaçament) mentre l'app viu. */
+internal object ChatPositions { val saved = mutableMapOf<String, Pair<Int, Int>>() }
+
+/**
+ * La llista d'una conversa: si ja hi has estat en aquesta execució, on la vas
+ * deixar; si no, quan té contingut ([ready]), pel final o pel primer missatge
+ * nou ([firstNew]), de cop.
+ */
+@Composable
+internal fun rememberChatList(id: String, ready: Boolean, firstNew: Int? = null): LazyListState {
+    val list = remember(id) { ChatPositions.saved[id]?.let { (i, o) -> LazyListState(i, o) } ?: LazyListState() }
+    LaunchedEffect(id, ready) {
+        if (!ready || id in ChatPositions.saved) return@LaunchedEffect
+        snapshotFlow { list.layoutInfo.totalItemsCount }.first { it > 0 }
+        if (firstNew != null) list.scrollToItem(firstNew) else list.scrollToLatest()
+        ChatPositions.saved[id] = list.firstVisibleItemIndex to list.firstVisibleItemScrollOffset
+    }
+    DisposableEffect(id) {
+        onDispose { if (id in ChatPositions.saved) ChatPositions.saved[id] = list.firstVisibleItemIndex to list.firstVisibleItemScrollOffset }
+    }
+    return list
+}
 
 /** A tall last bubble must be aligned at its bottom, not its top. */
 internal suspend fun LazyListState.scrollToLatest() {

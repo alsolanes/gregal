@@ -29,7 +29,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -409,7 +408,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
             ).isNotEmpty()
         } catch (_: Exception) { false }
     }
-    val listState = rememberLazyListState()
+    val listState = rememberChatList("code", msgs.isNotEmpty())
     val haptic = LocalHapticFeedback.current
     var composerFocused by remember { mutableStateOf(false) }
     val busy = sending || st.agentBusy

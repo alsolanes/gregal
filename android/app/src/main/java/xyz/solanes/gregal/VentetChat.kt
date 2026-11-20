@@ -11,7 +11,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
@@ -52,7 +51,7 @@ internal fun VentetConversation(vm: GregalViewModel, lang: String, winds: List<W
     var computer by remember { mutableStateOf(false) }
     val tasks by vm.windTasks.collectAsState()
     val running = tasks.orEmpty().count { it.running }
-    val listState = rememberLazyListState()
+    val listState = rememberChatList("ventet", ui.state.history.isNotEmpty())
     LaunchedEffect(Unit) { vm.loadCap() }
     // El missatge que no ha arribat torna al camp: no es perd res.
     LaunchedEffect(ui.failedText) {

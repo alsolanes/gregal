@@ -595,6 +595,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
         val bare = id.substringAfter(':')
         if (id.startsWith("wind:")) {
+            windUnreadAtOpen[bare] = _windNewsCount.value[bare] ?: 0
             markWindNewsSeen(bare)
             if (_windChat.value[bare].isNullOrEmpty()) _windChatLoading.value = _windChatLoading.value + bare
         } else if (id.startsWith("rot:")) {
@@ -3421,6 +3422,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Quantes novetats tenia cada vent just abans d'obrir-lo (i marcar-les llegides): el fil s'hi obre. */
+    private val windUnreadAtOpen = mutableMapOf<String, Int>()
+    fun windUnreadAtOpen(id: String): Int = windUnreadAtOpen[id] ?: 0
+
     fun markWindNewsSeen(id: String) {
         newsPrefs.edit().putLong("w:$id", System.currentTimeMillis() / 1000).apply()
         _windNews.value = _windNews.value - id
@@ -5482,7 +5487,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             }
             return
         }
-        if (skeleton) _windChatLoading.value = _windChatLoading.value + windId
+        // Amb fil a la mà no es pinta l'esquelet, però el fil sap que encara no té les novetats.
+        _windChatLoading.value = _windChatLoading.value + windId
         viewModelScope.launch {
             // La còpia primer (sense esquelet), en paral·lel: la petició al servidor
             // surt igual de seguida i, quan arriba, la substitueix.
@@ -5514,7 +5520,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     goOffline(source)
                 } else companyError(e)
             }
-            finally { if (skeleton) _windChatLoading.value = _windChatLoading.value - windId }
+            finally { _windChatLoading.value = _windChatLoading.value - windId }
         }
     }
 
