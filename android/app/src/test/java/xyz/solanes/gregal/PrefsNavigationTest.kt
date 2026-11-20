@@ -39,11 +39,10 @@ class PrefsNavigationTest {
     }
 
     @Test fun personalSettingsDoNotDependOnServerAdministration() {
-        assertFalse(PrefsPage.Server.available(coding = true, admin = false))
-        assertFalse(PrefsPage.Permissions.available(coding = false, admin = true))
-        for (page in listOf(PrefsPage.General, PrefsPage.Appearance, PrefsPage.Models, PrefsPage.Connections)) {
-            assertTrue(page.available(coding = false, admin = false))
+        assertFalse(PrefsPage.Server.available(admin = false))
+        for (page in listOf(PrefsPage.General, PrefsPage.Appearance, PrefsPage.Models, PrefsPage.Permissions, PrefsPage.Connections)) {
+            assertTrue(page.available(admin = false))
         }
-        assertTrue(PrefsPage.Server.available(coding = false, admin = true))
+        assertTrue(PrefsPage.Server.available(admin = true))
     }
 }

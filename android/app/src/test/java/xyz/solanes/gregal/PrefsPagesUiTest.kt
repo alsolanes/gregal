@@ -37,7 +37,8 @@ class PrefsPagesUiTest {
 
     @Test fun settingsIndexRoutesToConnectionsWithoutShowingCredentialForms() {
         val vm = host(simple = true)
-        ui.onNodeWithText(PrefsPage.Permissions.title(vm.idioma.value)).assertDoesNotExist()
+        // The permission rule is shared by Codi and Vents, so Vents shows it too.
+        ui.onNodeWithText(PrefsPage.Permissions.title(vm.idioma.value)).assertExists()
         // This host uses the local server, whose owner is an administrator.
         ui.onNodeWithText(PrefsPage.Server.title(vm.idioma.value)).assertExists()
         ui.onAllNodes(hasSetTextAction()).assertCountEquals(0)
@@ -48,6 +49,14 @@ class PrefsPagesUiTest {
         ui.onAllNodes(hasSetTextAction()).assertCountEquals(0)
         ui.runOnIdle { vm.back() }
         ui.onNodeWithText(PrefsPage.Accounts.title(vm.idioma.value)).assertIsDisplayed()
+    }
+
+    @Test fun generalPageHasNoCodingToolsSwitchBecauseTheDrawerSelectorReplacesIt() {
+        val vm = host()
+        ui.onNodeWithText(PrefsPage.General.title(vm.idioma.value)).performClick()
+        ui.onNodeWithText(PrefsPage.About.title(vm.idioma.value), substring = true).assertExists()
+        ui.onNodeWithText("Eines de programació").assertDoesNotExist()
+        ui.onNodeWithText("Coding tools").assertDoesNotExist()
     }
 
     @Test fun themeChoiceStillUpdatesTheExistingPreferenceAndReturnsToAppearance() {
