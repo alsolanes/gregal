@@ -1216,9 +1216,9 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     val openNews by vm.windNewsCount.collectAsState()
     val openNewsTs = openNews[wind.id]
     // Amb novetats, el fil s'obre pel primer missatge nou quan el servidor ja les ha donat.
-    val unreadAtOpen = remember(wind.id) { openNewsTs ?: vm.windUnreadAtOpen(wind.id) }
-    val ready = msgs.isNotEmpty() && (unreadAtOpen == 0 || wind.id !in loadingChat)
-    val newFrom = remember(wind.id, ready) { if (ready && unreadAtOpen > 0) (msgs.size - unreadAtOpen).coerceAtLeast(0) else null }
+    val newMarks by vm.windNew.at.collectAsState()
+    val newFrom = newMarks[wind.id]
+    val ready = msgs.isNotEmpty() && !vm.windNew.pending(wind.id)
     val listState = rememberChatList("wind:" + wind.id, ready, newFrom)
     LaunchedEffect(openNewsTs) { if (openNewsTs != null) { vm.loadWindChat(wind.id); vm.markWindNewsSeen(wind.id) } }
     // B7: fil visible = novetats llegides a tot arreu; obrir des d'un avís porta al missatge exacte.

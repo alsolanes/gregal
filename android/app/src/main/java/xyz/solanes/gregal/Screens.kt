@@ -408,7 +408,8 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
             ).isNotEmpty()
         } catch (_: Exception) { false }
     }
-    val listState = rememberChatList("code", msgs.isNotEmpty())
+    val codeChat by vm.codeChat.collectAsState()
+    val listState = rememberChatList(codeChat, msgs.isNotEmpty())
     val haptic = LocalHapticFeedback.current
     var composerFocused by remember { mutableStateOf(false) }
     val busy = sending || st.agentBusy

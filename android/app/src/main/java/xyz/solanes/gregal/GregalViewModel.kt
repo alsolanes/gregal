@@ -595,7 +595,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
         val bare = id.substringAfter(':')
         if (id.startsWith("wind:")) {
-            windUnreadAtOpen[bare] = _windNewsCount.value[bare] ?: 0
+            windNew.opened(bare, _windNewsCount.value[bare] ?: 0)
             markWindNewsSeen(bare)
             if (_windChat.value[bare].isNullOrEmpty()) _windChatLoading.value = _windChatLoading.value + bare
         } else if (id.startsWith("rot:")) {
@@ -2752,6 +2752,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** La conversa de Codi que es veu (sessió reemprès o nova): la llista en recorda la posició. */
+    private val _codeChat = MutableStateFlow("code")
+    val codeChat: StateFlow<String> = _codeChat
+
     fun resumeSession(name: String, navigate: Boolean = true) {
         if (_conn.value.local) prefsStore.localSession = name
         viewModelScope.launch {
@@ -2771,6 +2775,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
                 _msgs.value = list
+                _codeChat.value = "code:$name"
                 if (list.isEmpty() && serverMsgs > 0) {
                     notify(appText("app.status.sessionHidden", serverMsgs))
                 }
@@ -2786,6 +2791,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.IO) { _conn.value.api().post("/api/new", JSONObject()) }
                 if (_conn.value.local) prefsStore.localSession = ""
                 _msgs.value = emptyList()
+                _codeChat.value = "code:new${nextMsgId()}"
                 refresh()
                 go(Screen.Chat)
             } catch (e: Exception) { notify(appText("app.status.sessionNew", e.message.orEmpty())) }
@@ -3422,9 +3428,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Quantes novetats tenia cada vent just abans d'obrir-lo (i marcar-les llegides): el fil s'hi obre. */
-    private val windUnreadAtOpen = mutableMapOf<String, Int>()
-    fun windUnreadAtOpen(id: String): Int = windUnreadAtOpen[id] ?: 0
+    /** Les novetats que tenia cada vent just abans d'obrir-lo (i marcar-les llegides): el fil s'hi obre. */
+    internal val windNew = WindNewMarks()
 
     fun markWindNewsSeen(id: String) {
         newsPrefs.edit().putLong("w:$id", System.currentTimeMillis() / 1000).apply()
@@ -5506,6 +5511,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (isCompanionOrigin(source, epoch) && request == windHistoryRequests[windId] &&
                     !_windBusy.value.contains(windId)) {
                     if (thread.isNotEmpty()) selectedWindThreads[windId] = thread
+                    windNew.fromServer(windId, history.size)
                     _windChat.value = _windChat.value + (windId to OfflineLogic.withQueued(
                         ventsRecency.restore(source, "wind", windId, history), _outbox.value, windId))
                     cacheChat(source, windId)
@@ -5520,7 +5526,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     goOffline(source)
                 } else companyError(e)
             }
-            finally { _windChatLoading.value = _windChatLoading.value - windId }
+            finally { windNew.settle(windId); _windChatLoading.value = _windChatLoading.value - windId }
         }
     }
 
