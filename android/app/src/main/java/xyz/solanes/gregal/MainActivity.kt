@@ -198,6 +198,12 @@ class Prefs(val ctx: Context) {
     var simpleVents: Boolean
         get() = p.getBoolean("simpleVents", ctx.packageName.endsWith(".vents"))
         set(v) { p.edit().putBoolean("simpleVents", v).apply() }
+    var lastVentsScreen: String
+        get() = p.getString("lastVentsScreen", Screen.Company.name) ?: Screen.Company.name
+        set(v) { p.edit().putString("lastVentsScreen", v).apply() }
+    var lastCodeScreen: String
+        get() = p.getString("lastCodeScreen", Screen.Chat.name) ?: Screen.Chat.name
+        set(v) { p.edit().putString("lastCodeScreen", v).apply() }
     /** Esborrany del composer: el que havies escrit no es perd. */
     var esborrany: String
         get() = p.getString("esborrany", "") ?: ""

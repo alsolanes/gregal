@@ -34,9 +34,9 @@ class DrawerModeSwitchTest {
         override fun getPackageName() = name
     }
 
-    // The drawer rows are selectable too; the switch options are radio buttons.
+    // The drawer rows are selectable too; the switch options are tabs.
     private fun option(key: String) =
-        hasText(tr("ca", key)) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton)
+        hasText(tr("ca", key)) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab)
 
     private fun host(simple: Boolean): GregalViewModel {
         val vm = GregalViewModel(app)

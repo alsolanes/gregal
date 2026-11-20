@@ -376,6 +376,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _expressiveMotion.value = p.expressiveMotion
         _glass.value = p.glass
         _simpleVents.value = p.simpleVents
+        lastVentsScreen = parseRememberedScreen(p.lastVentsScreen, AppArea.Vents, Screen.Company)
+        lastCodeScreen = parseRememberedScreen(p.lastCodeScreen, AppArea.Code, Screen.Chat)
         _usuari.value = p.usuari
         if (p.esborrany.isNotEmpty()) _draft.value = p.esborrany
         // A partir d'aquí totes les peticions van a la sessió del mòbil, no a
@@ -472,14 +474,6 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         if (::prefsStore.isInitialized) prefsStore.simpleVents = v
     }
 
-    /** El selector Codi | Vents: el mode nou comença a la seva portada i amb
-     *  la pila buida, perquè Enrere no torni a una pantalla de l'altre mode. */
-    fun switchMode(vents: Boolean) {
-        setSimpleVents(vents)
-        go(home)
-        _backStack.value = emptyList()
-    }
-
     private val _ventsPanel = MutableStateFlow<String?>(null)
     /** Un panell de la portada dels Vents que s'ha demanat des de fora (el calaix):
      *  "directory" (els teus vents) o "explore". La portada l'obre i el buida. */
@@ -560,12 +554,41 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _prefsPage.value = page
     }
 
+    private var lastVentsScreen = Screen.Company
+    private var lastCodeScreen = Screen.Chat
+
+    private fun rememberAreaScreen(screen: Screen) {
+        when (screen.appArea()) {
+            AppArea.Vents -> {
+                lastVentsScreen = screen
+                if (::prefsStore.isInitialized) prefsStore.lastVentsScreen = screen.name
+            }
+            AppArea.Code -> {
+                lastCodeScreen = screen
+                if (::prefsStore.isInitialized) prefsStore.lastCodeScreen = screen.name
+            }
+            null -> Unit
+        }
+    }
+
+    internal fun switchArea(area: AppArea) {
+        if (activeAppArea(_screen.value, _simpleVents.value) == area && _simpleVents.value == (area == AppArea.Vents)) return
+        val destination = modeDestination(area, lastVentsScreen, lastCodeScreen)
+        setSimpleVents(area == AppArea.Vents)
+        _backStack.value = emptyList()
+        _ventsOpen.value = null
+        _ventsPanel.value = null
+        _screen.value = destination
+        rememberAreaScreen(destination)
+    }
+
     fun go(s: Screen) {
         val cur = _screen.value
         if (s != cur) {
             if (s == Screen.Prefs) _prefsPage.value = PrefsPage.Index
             _backStack.value = if (cur == Screen.Pairing || s == Screen.Pairing) emptyList() else _backStack.value + cur
             _screen.value = s
+            rememberAreaScreen(s)
         }
     }
 
@@ -593,7 +616,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     /** El Ventet és una conversa dels Vents: la secció del menú i els avisos hi porten. */
     fun showVentet() {
         _ventsOpen.value = "cap"
-        if (_screen.value == Screen.Ventet) _screen.value = Screen.Company else go(Screen.Company)
+        if (_screen.value == Screen.Ventet) {
+            _screen.value = Screen.Company
+            rememberAreaScreen(Screen.Company)
+        } else go(Screen.Company)
     }
 
     fun openVentsChat(id: String?) {
@@ -638,10 +664,12 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         if (stack.isNotEmpty()) {
             _screen.value = stack.last()
             _backStack.value = stack.dropLast(1)
+            rememberAreaScreen(_screen.value)
             return true
         }
         if (_screen.value != home) {
             _screen.value = home
+            rememberAreaScreen(home)
             return true
         }
         return false

@@ -70,6 +70,8 @@ internal fun VentsChatHeader(
     onSessions: (() -> Unit)? = null,
     /** Quan hi ha on continuar (mòbil + servidor desat), el «…» obre menú en comptes d'anar directe al perfil. */
     onTransfer: (() -> Unit)? = null,
+    /** A shortcut to the other top-level app area, only on the home header. */
+    onModeSwitch: (() -> Unit)? = null,
     /** Capçalera del fil personal: avatar de 44 dp centrat amb el nom a sota i
      *  botons circulars de 44 dp a banda i banda. */
     centered: Boolean = false,
@@ -85,7 +87,7 @@ internal fun VentsChatHeader(
 ) {
     if (centered) {
         CenteredChatHeader(lang, title, subtitle, accent, style, mood, faces, onBack, onProfile, onComputer,
-            onWiki, onSessions, onTransfer, menu, compact)
+            onWiki, onSessions, onTransfer, onModeSwitch, menu, compact)
         return
     }
     // Barra transparent: el fil passa per sota i només les pastilles (tornar,
@@ -157,6 +159,7 @@ private fun CenteredChatHeader(
     lang: String, title: String, subtitle: String, accent: Color, style: WindStyle, mood: WindMood,
     faces: List<Wind>, onBack: () -> Unit, onProfile: () -> Unit, onComputer: (() -> Unit)?,
     onWiki: (() -> Unit)?, onSessions: (() -> Unit)?, onTransfer: (() -> Unit)?,
+    onModeSwitch: (() -> Unit)? = null,
     menu: Boolean = false,
     compact: Boolean = false,
 ) {
@@ -182,6 +185,7 @@ private fun CenteredChatHeader(
         }
         Box(Modifier.width(52.dp), contentAlignment = Alignment.CenterEnd) {
             when {
+                onModeSwitch != null -> ModeSwitchIcon(lang, AppArea.Vents, { onModeSwitch() }, Modifier.testTag("mode-switch-vents-home"))
                 onComputer != null -> ChatCircleButton(Icons.Rounded.Computer, threadCopy(lang, "computer"), onClick = onComputer)
                 onWiki != null || onSessions != null || onTransfer != null -> {
                     var more by remember { mutableStateOf(false) }
@@ -485,7 +489,7 @@ internal fun VentsComposer(
  */
 @Composable
 internal fun GregalFloatingHeader(lang: String, accent: Color, style: WindStyle, mood: WindMood, working: Boolean,
-    onMenu: () -> Unit, onProfile: () -> Unit, onComputer: () -> Unit, modifier: Modifier = Modifier) {
+    onMenu: () -> Unit, onProfile: () -> Unit, onComputer: () -> Unit, onModeSwitch: (() -> Unit)? = null, modifier: Modifier = Modifier) {
     Box(modifier.fillMaxWidth().height(if (working) 84.dp else 72.dp)
 
         .testTag("gregal-floating-header")) {
@@ -501,6 +505,8 @@ internal fun GregalFloatingHeader(lang: String, accent: Color, style: WindStyle,
                 if (working) Text(threadCopy(lang, "working"), color = Muted, fontSize = 11.sp, lineHeight = 14.sp,
                     modifier = Modifier.padding(top = 2.dp).testTag("gregal-working"))
             }
+            if (onModeSwitch != null) ModeSwitchIcon(lang, AppArea.Vents, { onModeSwitch() },
+                Modifier.softBacking(SuperficieAlta).testTag("mode-switch-vents-home"))
             IconButton(onClick = onComputer, modifier = Modifier.softBacking(SuperficieAlta).testTag("home-computer")) {
                 Icon(Icons.Rounded.Computer, threadCopy(lang, "computer"), tint = Ink)
             }

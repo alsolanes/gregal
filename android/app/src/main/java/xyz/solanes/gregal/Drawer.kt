@@ -73,6 +73,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -100,7 +101,6 @@ fun GregalDrawerContent(
     CappedFontScale(1.5f) {
         Column(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 8.dp)) {
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                ModeSwitch(vm, lang, vents = false, nav)
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 6.dp)) {
                     GregalMark(36.dp)
                     Spacer(Modifier.width(12.dp))
@@ -113,7 +113,10 @@ fun GregalDrawerContent(
                 Box(Modifier.padding(horizontal = 6.dp).clip(RoundedCornerShape(50)).clickable { nav(Screen.Carpeta) }) {
                     ProjectPill(project.ifEmpty { tr(lang, "app.nav.project") }, branch)
                 }
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(12.dp))
+                ModeSwitcher(lang, activeAppArea(screen, simple), { area -> close(); vm.switchArea(area) },
+                    Modifier.fillMaxWidth().padding(horizontal = 6.dp).testTag("area-switcher"))
+                Spacer(Modifier.height(12.dp))
                 DrawerRow(tr(lang, "nav.new"), false, { vm.newSession(); nav(Screen.Chat) }) { Icon(Icons.Rounded.Add, null, tint = Sea, modifier = Modifier.size(22.dp)) }
 
                 DrawerSection(tr(lang, "app.nav.sectionWinds"))
@@ -155,27 +158,6 @@ fun GregalDrawerContent(
 }
 
 /**
- * Codi | Vents a dalt de tot dels dos calaixos: canvia de calaix i obre la
- * portada del mode triat (`nav` hi és per tancar el calaix). El mode es desa, i en tornar a obrir l'app hi és.
- */
-@Composable
-private fun ModeSwitch(vm: GregalViewModel, lang: String, vents: Boolean, nav: (Screen) -> Unit) {
-    ChoicePills(
-        listOf("code" to tr(lang, "app.mode.code"), "vents" to tr(lang, "app.mode.vents")),
-        if (vents) "vents" else "code",
-        { choice ->
-            val toVents = choice == "vents"
-            if (toVents != vents) {
-                vm.switchMode(toVents)
-                nav(if (toVents) Screen.Company else Screen.Chat)
-            }
-        },
-        Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
-    )
-    Spacer(Modifier.height(12.dp))
-}
-
-/**
  * Vents net: quatre llocs, com les apps de companys. Els vents (la portada),
  * el directori dels teus vents, Explora (programats, desats, wiki, biblioteca,
  * feines…) i les notes. El Ventet és la mateixa portada. Programar des del
@@ -194,7 +176,6 @@ private fun SimpleVentsDrawer(
     CappedFontScale(1.5f) {
         Column(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 8.dp)) {
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                ModeSwitch(vm, lang, vents = true, nav)
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 6.dp)) {
                     GregalMark(36.dp)
                     Spacer(Modifier.width(12.dp))
@@ -204,6 +185,9 @@ private fun SimpleVentsDrawer(
                     }
                 }
                 Spacer(Modifier.height(18.dp))
+                ModeSwitcher(lang, activeAppArea(screen, true), { area -> close(); vm.switchArea(area) },
+                    Modifier.fillMaxWidth().padding(horizontal = 6.dp).testTag("area-switcher"))
+                Spacer(Modifier.height(12.dp))
                 val home = screen == Screen.Company || screen == Screen.Ventet
                 val winds by vm.winds.collectAsState()
                 val tasks by vm.windTasks.collectAsState()

@@ -709,6 +709,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     IconButton(onClick = { if (busy) confirmNew = true else { vm.newSession(); vm.go(Screen.Chat) } }) {
                         Icon(Icons.Rounded.Add, tr(lang, "nav.new"), tint = Ink, modifier = Modifier.size(24.dp))
                     }
+                    ModeSwitchIcon(lang, AppArea.Code, vm::switchArea, Modifier.testTag("mode-switch-code"))
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
             )
