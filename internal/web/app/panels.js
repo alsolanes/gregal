@@ -109,6 +109,8 @@ function renderActiveRunEvents(events) {
     const d = payload(e);
     lastKind = e.kind;
     if (e.kind === 'token') { tokenText += e.text || ''; return; }
+    // El torn va refer la crida: el text que duia aquell intent ja no val.
+    if (e.kind === 'steer_restart') { tokenText = ''; return; }
     flushTokens();
     if (e.kind === 'thinking') {
       const text = String(d.text || e.text || '').replace(/^💭\s*/, '').trim();

@@ -58,6 +58,22 @@ func recoverTruncation(ctx context.Context) bool {
 	return v
 }
 
+type streamRestartKey struct{}
+
+// WithStreamRestart is the live alternative to WithRecoverTruncation for a
+// turn someone is watching: the text reaches onToken as it arrives, and an
+// interrupted attempt is still retried. fn is called before the retry when
+// the discarded attempt had already shown text, so the caller can take it
+// back.
+func WithStreamRestart(ctx context.Context, fn func()) context.Context {
+	return context.WithValue(ctx, streamRestartKey{}, fn)
+}
+
+func streamRestartFrom(ctx context.Context) func() {
+	fn, _ := ctx.Value(streamRestartKey{}).(func())
+	return fn
+}
+
 func (*StreamInterruptedError) Error() string {
 	return "el stream del model s'ha interromput abans del senyal final; la resposta pot estar incompleta"
 }

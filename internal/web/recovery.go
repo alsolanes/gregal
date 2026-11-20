@@ -156,6 +156,9 @@ func recoverRunMessages(runEvents []events.Event, status string) []llm.Message {
 		switch ev.Kind {
 		case "token":
 			tokens.WriteString(ev.Text)
+		case "steer_restart":
+			// El torn va descartar el text d'aquest pas i el va refer.
+			tokens.Reset()
 		case "tool_call":
 			flushTokens()
 			call := llm.ToolCall{ID: str(fields, "id"), Type: "function"}

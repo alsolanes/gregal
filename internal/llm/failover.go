@@ -96,7 +96,8 @@ func (c *Client) ChatWithToolsFO(ctx context.Context, prim Target, fb *Target, m
 // ChatStreamWithToolsFO és ChatWithToolsFO amb streaming. Si el primari
 // falla a mig stream, els tokens ja emesos no es poden retirar: el fallback
 // només s'intenta quan encara no n'ha sortit cap (els errors recuperables
-// —429, 5xx, xarxa— arriben quasi sempre abans del cos).
+// —429, 5xx, xarxa— arriben quasi sempre abans del cos), o quan el context
+// porta WithStreamRestart i el caller sap retirar el que ha ensenyat.
 func (c *Client) ChatStreamWithToolsFO(ctx context.Context, prim Target, fb *Target, msgs []Message, temp float64, maxTokens int, specs []ToolSpec, onToken, onReason func(string), notify func(model string)) (string, []ToolCall, bool, error) {
 	emitted := false
 	wrap := func(t string) {
@@ -105,9 +106,21 @@ func (c *Client) ChatStreamWithToolsFO(ctx context.Context, prim Target, fb *Tar
 			onToken(t)
 		}
 	}
+	restart := streamRestartFrom(ctx)
+	if restart != nil {
+		// Un intent refet ja ha retirat el seu text: no compta com a emès.
+		ctx = WithStreamRestart(ctx, func() { emitted = false; restart() })
+	}
 	content, calls, err := c.ChatStreamWithTools(ctx, prim.BaseURL, prim.APIKey, prim.Model, msgs, temp, maxTokens, specs, wrap, onReason)
-	if err == nil || fb == nil || emitted || !IsRetryable(err) {
+	if err == nil || fb == nil || !IsRetryable(err) {
 		return content, calls, false, err
+	}
+	if emitted {
+		// Amb WithStreamRestart el text ja ensenyat es pot retirar.
+		if restart == nil {
+			return content, calls, false, err
+		}
+		restart()
 	}
 	content2, calls2, err2 := c.ChatStreamWithTools(ctx, fb.BaseURL, fb.APIKey, fb.Model, msgs, temp, maxTokens, specs, onToken, onReason)
 	if err2 != nil {

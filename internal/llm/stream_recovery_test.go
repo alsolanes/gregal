@@ -115,3 +115,106 @@ func TestLiveStreamCancellationDoesNotRetryOrFailOver(t *testing.T) {
 		t.Fatalf("err=%v retryable=%v fallback=%v attempts=%d emitted=%q", err, IsRetryable(err), fallback, attempts.Load(), emitted.String())
 	}
 }
+
+// sseData escriu un event del flux del proveïdor de mentida.
+func sseData(t *testing.T, w http.ResponseWriter, data string) {
+	if _, err := fmt.Fprint(w, "data: "+data+"\n\n"); err != nil {
+		t.Errorf("provider write: %v", err)
+	}
+}
+
+// Amb WithStreamRestart el text surt mentre arriba, i un intent interromput
+// s'avisa abans de refer-lo perquè qui l'ha ensenyat el pugui retirar.
+func TestLiveStreamAnnouncesRestartBeforeRetryingInterruptedAttempt(t *testing.T) {
+	var attempts atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		if attempts.Add(1) == 1 {
+			sseData(t, w, `{"choices":[{"delta":{"content":"discard this"}}]}`)
+			return
+		}
+		sseData(t, w, `{"choices":[{"delta":{"content":"recovered"},"finish_reason":"stop"}]}`)
+	}))
+	defer srv.Close()
+	var seen []string
+	ctx := WithStreamRestart(context.Background(), func() { seen = append(seen, "<restart>") })
+	out, _, err := New().ChatStreamWithTools(ctx, srv.URL, "", "m", nil, 0, 512, nil, func(s string) { seen = append(seen, s) }, nil)
+	if got := strings.Join(seen, "|"); err != nil || out != "recovered" || attempts.Load() != 2 || got != "discard this|<restart>|recovered" {
+		t.Fatalf("out=%q seen=%q attempts=%d err=%v", out, got, attempts.Load(), err)
+	}
+}
+
+func TestLiveStreamWithRestartEmitsTextWhileTheCallIsStillOpen(t *testing.T) {
+	seenFirst := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		sseData(t, w, `{"choices":[{"delta":{"content":"first "}}]}`)
+		w.(http.Flusher).Flush()
+		select {
+		case <-seenFirst:
+		case <-time.After(10 * time.Second):
+			return
+		}
+		sseData(t, w, `{"choices":[{"delta":{"content":"second"},"finish_reason":"stop"}]}`)
+	}))
+	defer srv.Close()
+	restarts := 0
+	ctx := WithStreamRestart(context.Background(), func() { restarts++ })
+	n := 0
+	out, _, err := New().ChatStreamWithTools(ctx, srv.URL, "", "m", nil, 0, 512, nil, func(s string) {
+		if n++; n == 1 {
+			close(seenFirst)
+		}
+	}, nil)
+	if err != nil || out != "first second" || n != 2 || restarts != 0 {
+		t.Fatalf("out=%q tokens=%d restarts=%d err=%v", out, n, restarts, err)
+	}
+}
+
+// Un intent que es talla abans d'ensenyar text no té res a retirar.
+func TestLiveStreamRestartIsSilentWhenNothingWasShown(t *testing.T) {
+	var attempts atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		if attempts.Add(1) == 1 {
+			sseData(t, w, `{"choices":[{"delta":{"reasoning_content":"thinking"}}]}`)
+			return
+		}
+		sseData(t, w, `{"choices":[{"delta":{"content":"answer"},"finish_reason":"stop"}]}`)
+	}))
+	defer srv.Close()
+	restarts := 0
+	ctx := WithStreamRestart(context.Background(), func() { restarts++ })
+	out, _, err := New().ChatStreamWithTools(ctx, srv.URL, "", "m", nil, 0, 512, nil, func(string) {}, nil)
+	if err != nil || out != "answer" || attempts.Load() != 2 || restarts != 0 {
+		t.Fatalf("out=%q attempts=%d restarts=%d err=%v", out, attempts.Load(), restarts, err)
+	}
+}
+
+// El text d'un intent tallat ja no impedeix provar el model de reserva: amb
+// WithStreamRestart es pot retirar, i s'avisa abans que la reserva escrigui.
+func TestLiveStreamWithRestartStillFailsOverAfterShownText(t *testing.T) {
+	var attempts atomic.Int32
+	prim := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if attempts.Add(1) == 1 {
+			w.Header().Set("Content-Type", "text/event-stream")
+			sseData(t, w, `{"choices":[{"delta":{"content":"discard this"}}]}`)
+			return
+		}
+		http.Error(w, "overloaded", http.StatusServiceUnavailable)
+	}))
+	defer prim.Close()
+	fb := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		sseData(t, w, `{"choices":[{"delta":{"content":"from fallback"},"finish_reason":"stop"}]}`)
+	}))
+	defer fb.Close()
+	var seen []string
+	ctx := WithStreamRestart(context.Background(), func() { seen = append(seen, "<restart>") })
+	c := New()
+	out, _, used, err := c.ChatStreamWithToolsFO(ctx, Target{BaseURL: prim.URL, Model: "m"}, &Target{BaseURL: fb.URL, Model: "f"}, nil, 0, 512, nil,
+		func(s string) { seen = append(seen, s) }, nil, nil)
+	if got := strings.Join(seen, "|"); err != nil || !used || out != "from fallback" || got != "discard this|<restart>|from fallback" {
+		t.Fatalf("out=%q used=%v seen=%q err=%v", out, used, got, err)
+	}
+}
