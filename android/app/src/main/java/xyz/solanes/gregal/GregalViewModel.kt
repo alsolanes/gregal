@@ -476,7 +476,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
      *  la pila buida, perquè Enrere no torni a una pantalla de l'altre mode. */
     fun switchMode(vents: Boolean) {
         setSimpleVents(vents)
-        go(if (vents) Screen.Company else Screen.Chat)
+        go(home)
         _backStack.value = emptyList()
     }
 
@@ -570,7 +570,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Hi ha alguna pantalla a la qual tornar (o no som a l'arrel)? */
-    val canGoBack: Boolean get() = _backStack.value.isNotEmpty() || _screen.value != Screen.Company
+    val canGoBack: Boolean get() = _backStack.value.isNotEmpty() || _screen.value != home
+
+    /** La portada del mode triat al selector: els vents o el xat de Codi. */
+    private val home: Screen get() = if (_simpleVents.value) Screen.Company else Screen.Chat
 
     /** Neteja la pila (només per a proves). */
     fun resetBackStackForTest() { _backStack.value = emptyList() }
@@ -618,9 +621,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Enrere: torna a la pantalla anterior si n'hi ha; si ja ets a l'arrel i no
-     * tens pila, torna a Vents; retorna false només quan ja ets a Vents i no hi
-     * ha on tornar (l'app pot sortir).
+     * Enrere: torna a la pantalla anterior si n'hi ha; si no tens pila, torna a
+     * la portada del mode (Vents o el xat de Codi); retorna false només quan ja
+     * ets a la portada i no hi ha on tornar (l'app pot sortir).
      */
     fun back(): Boolean {
         if (_screen.value == Screen.Prefs && _prefsPage.value != PrefsPage.Index) {
@@ -637,8 +640,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             _backStack.value = stack.dropLast(1)
             return true
         }
-        if (_screen.value != Screen.Company) {
-            _screen.value = Screen.Company
+        if (_screen.value != home) {
+            _screen.value = home
             return true
         }
         return false
@@ -6355,7 +6358,6 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
      *  defecte, on es comença a xerrar: la portada dels vents en mode Vents i
      *  el xat general en mode Codi. */
     private fun landing(): Screen {
-        val home = if (_simpleVents.value) Screen.Company else Screen.Chat
         val screen = when {
             _openRun.value != null -> Screen.Jobs
             _openScreen.value != null -> pantallaDeNotificacio(_openScreen.value!!) ?: home

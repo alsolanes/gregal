@@ -89,6 +89,20 @@ class DrawerModeSwitchTest {
         }
     }
 
+    // Vist a l'emulador: a Codi, Enrere des del xat (l'arrel) portava als vents.
+    @Test fun backInCodiReturnsToTheCodeChatNotToTheWinds() {
+        val vm = host(simple = true)
+        ui.onNode(option("app.mode.code")).performClick()
+        ui.runOnIdle {
+            assertEquals(false, vm.back())
+            assertEquals(Screen.Chat, vm.screen.value)
+            vm.go(Screen.Sessions)
+            vm.resetBackStackForTest()
+            assertEquals(true, vm.back())
+            assertEquals(Screen.Chat, vm.screen.value)
+        }
+    }
+
     @Test fun theChosenModeIsSavedAndLoadedAgain() {
         host(simple = false)
         ui.onNode(option("app.mode.vents")).performClick()
