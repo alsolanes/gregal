@@ -2449,16 +2449,11 @@ private fun CrewQuestionCard(lang: String, accent: Color) {
     }
 }
 
-/**
- * El xat com a les apps de xat amb IA: en enviar, el teu missatge puja a dalt
- * (sota la capçalera) i la resposta creix a sota, dins l'espai que reserva
- * [chatReserve]. Mentre s'escriu la llista no es mou sola (abans perseguia el
- * final a cada tros de text i anava a salts), i el dit sempre mana.
- */
+/** Com a les apps de xat amb IA: en enviar, el teu missatge puja a dalt i la resposta creix a
+ *  sota, dins l'espai de [chatReserve]; mentre s'escriu la llista no es mou sola i el dit mana. */
 internal class ChatFollowState(private val list: LazyListState) {
     /** S'ha enviat: el proper missatge teu que entri es fixa a dalt. */
     internal var armed = false
-    /** La clau del missatge enviat que va a dalt. */
     internal var pinned by mutableStateOf<Any?>(null)
     /** Alçada (px) de l'espai final: prou perquè el missatge fixat pugui quedar a dalt. */
     internal var reserve by mutableIntStateOf(0)
@@ -2467,13 +2462,18 @@ internal class ChatFollowState(private val list: LazyListState) {
     /** El fil passa de la pantalla: surt el botó per anar al final. */
     val behind: Boolean get() = list.canScrollForward
     fun send() { armed = true }
+    private var room = 0
+    private var atBottom = false
 
     internal suspend fun keepPinned(info: androidx.compose.foundation.lazy.LazyListLayoutInfo) {
-        val key = pinned ?: return
-        val pin = info.visibleItemsInfo.firstOrNull { it.key == key } ?: return
+        val was = room.also { room = info.viewportSize.height - info.beforeContentPadding - info.afterContentPadding }
+        val bottom = atBottom.also { atBottom = !list.canScrollForward }
+        val pin = info.visibleItemsInfo.firstOrNull { it.key == pinned }
+        // El teclat s'obre amb el final a la vista: l'últim missatge no queda tapat.
+        if ((pin == null || reserve <= 0) && bottom && room < was) return list.scrollToLatest()
+        if (pin == null) return
         val last = info.visibleItemsInfo.last()
         val atEnd = last.index == info.totalItemsCount - 1
-        val room = info.viewportSize.height - info.beforeContentPadding - info.afterContentPadding
         if (atEnd) reserve = room - (last.offset - pin.offset) else if (pin.offset <= 0) reserve = 0
         if (dragged || list.isScrollInProgress || pin.offset == 0 || reserve <= 0) return
         // L'espai encara no és al layout: tocaria el final i no arribaria a dalt.
@@ -2484,7 +2484,6 @@ internal class ChatFollowState(private val list: LazyListState) {
     }
 }
 
-/** [lastSent]: la clau de l'últim missatge teu del fil. */
 @Composable
 internal fun rememberChatFollow(list: LazyListState, key: Any, lastSent: Any?): ChatFollowState {
     val follow = remember(list, key) { ChatFollowState(list) }
@@ -2495,7 +2494,10 @@ internal fun rememberChatFollow(list: LazyListState, key: Any, lastSent: Any?): 
     }
     LaunchedEffect(follow, lastSent) {
         if (!follow.armed || lastSent == null) return@LaunchedEffect
-        follow.armed = false; follow.dragged = false; follow.pinned = lastSent
+        follow.armed = false; follow.dragged = false
+        // Al final, on és el que acabes d'enviar, encara que haguessis pujat a llegir.
+        list.scrollToLatest()
+        follow.pinned = lastSent
     }
     LaunchedEffect(list, follow) {
         snapshotFlow { list.layoutInfo to follow.pinned }.collect { (info, _) ->

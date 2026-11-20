@@ -2,7 +2,6 @@ package xyz.solanes.gregal
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
@@ -50,12 +49,13 @@ class ChatPinTest {
     /** Clau i alçada (dp) de cada element; les claus «u…» són missatges teus. */
     private var rows by mutableStateOf((0 until 30).map { (if (it % 2 == 0) "u$it" else "a$it") to 80 })
     private var composer by mutableIntStateOf(80)
+    private var viewport by mutableIntStateOf(851)
 
     private fun host() {
         ui.setContent {
             list = rememberLazyListState()
             follow = rememberChatFollow(list, "fixture", rows.lastOrNull { it.first.startsWith("u") }?.first)
-            LazyColumn(Modifier.fillMaxSize().testTag("list"), state = list,
+            LazyColumn(Modifier.fillMaxWidth().height(viewport.dp).testTag("list"), state = list,
                 contentPadding = PaddingValues(top = 56.dp, bottom = composer.dp)) {
                 items(rows, key = { it.first }) { Box(Modifier.fillMaxWidth().height(it.second.dp).testTag(it.first)) }
                 chatReserve(follow)
@@ -70,14 +70,43 @@ class ChatPinTest {
         rows = if (rows.any { it.first == key }) rows.map { if (it.first == key) key to height else it } else rows + (key to height)
     }
 
-    private fun send() {
-        ui.runOnIdle { follow.send(); set("u-sent", 60) }
+    private fun send(height: Int = 60) {
+        ui.runOnIdle { follow.send(); set("u-sent", height) }
         ui.waitForIdle()
     }
 
     private fun offsetOf(key: String) = list.layoutInfo.visibleItemsInfo.first { it.key == key }.offset
     private fun position() = list.firstVisibleItemIndex to list.firstVisibleItemScrollOffset
     private fun px(dp: Int) = dp * ui.density.density
+
+    @Test fun `amb poc marge a baix el missatge enviat tambe puja a dalt`() {
+        composer = 10
+        host()
+        send()
+        ui.runOnIdle { assertEquals(0, offsetOf("u-sent")) }
+    }
+
+    @Test fun `un missatge mes alt que el marge de baix tambe puja a dalt`() {
+        host()
+        send(height = 240)
+        ui.runOnIdle { assertEquals(0, offsetOf("u-sent")) }
+    }
+
+    @Test fun `enviar despres d'haver pujat a llegir porta el missatge a dalt`() {
+        host()
+        runBlocking { list.scrollToItem(5) }
+        ui.waitForIdle()
+        send()
+        ui.runOnIdle { assertEquals(0, offsetOf("u-sent")) }
+    }
+
+    @Test fun `si el teclat encongeix la llista al final, el final continua a la vista`() {
+        viewport = 700
+        host()
+        ui.runOnIdle { assertFalse(list.canScrollForward) }
+        viewport = 400
+        ui.runOnIdle { assertFalse("l'últim missatge sencer a la vista", list.canScrollForward) }
+    }
 
     @Test fun `en enviar, el missatge puja a dalt sota la capcalera`() {
         host()
@@ -174,9 +203,9 @@ class ChatPinTest {
 
     @Test fun `el compositor que creix no mou els missatges`() {
         host()
-        val open = ui.runOnIdle { position() }
+        runBlocking { list.scrollToItem(5, 20) }
         composer = 240
-        ui.runOnIdle { assertEquals("sense enviar", open, position()) }
+        ui.runOnIdle { assertEquals("llegint més amunt", 5 to 20, position()) }
         composer = 80
         send()
         set("a-reply", 200)
