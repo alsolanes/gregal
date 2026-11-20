@@ -15,6 +15,13 @@
       knowledge_search: 'Search knowledge', knowledge_note: 'Save note',
       lines: 'lines', line: 'line', from: 'from', in: 'in', edits: 'edits', edit1: 'edit',
       tasks: 'tasks', task1: 'task', background: 'background',
+      list: 'List', test: 'Test', git: 'Git', explored: 'Explored',
+      file1: 'file', files: 'files', search1: 'search', searches: 'searches', listing1: 'listing', listings: 'listings',
+      s_edit: 'Edited files', s_test: 'Ran the tests', s_run: 'Ran a command', s_git: 'Worked with git',
+      s_web: 'Looked it up on the web', s_browser: 'Used the browser', s_calendar: 'Checked the calendar',
+      s_mail: 'Checked the mail', s_remind: 'Checked the reminders', s_delegate: 'Handed work to helpers',
+      s_search: 'Searched the code', s_read: 'Looked through the files', s_used: 'Used {x}',
+      quiet: 'nothing found', exit: 'exit {n}',
     },
     ca: {
       read: 'Llegeix', write: 'Escriu', edit: 'Edita', patch: 'Edita', glob: 'Cerca fitxers', grep: 'Cerca',
@@ -27,6 +34,13 @@
       knowledge_search: 'Cerca al coneixement', knowledge_note: 'Desa una nota',
       lines: 'línies', line: 'línia', from: 'des de', in: 'a', edits: 'canvis', edit1: 'canvi',
       tasks: 'tasques', task1: 'tasca', background: 'segon pla',
+      list: 'Llista', test: 'Prova', git: 'Git', explored: 'Explorat',
+      file1: 'fitxer', files: 'fitxers', search1: 'cerca', searches: 'cerques', listing1: 'llistat', listings: 'llistats',
+      s_edit: 'Ha editat fitxers', s_test: 'Ha passat els tests', s_run: 'Ha executat una ordre', s_git: 'Ha treballat amb git',
+      s_web: 'Ha consultat la web', s_browser: 'Ha fet servir el navegador', s_calendar: 'Ha consultat el calendari',
+      s_mail: 'Ha mirat el correu', s_remind: 'Ha mirat els recordatoris', s_delegate: 'Ha delegat feina',
+      s_search: 'Ha cercat al codi', s_read: 'Ha mirat els fitxers', s_used: 'Ha fet servir {x}',
+      quiet: 'sense resultats', exit: 'codi {n}',
     },
   };
 
@@ -42,6 +56,170 @@
       const o = JSON.parse(String(args || ''));
       return o && typeof o === 'object' && !Array.isArray(o) ? o : null;
     } catch (e) { return null; }
+  }
+
+  // Ordres de shell que només miren (ls, cat, sed -n, grep…): es llegeixen
+  // com el que fan i, seguides, es pleguen en una fila «Explorat». Qualsevol
+  // cosa que podria escriure (redirecció a un fitxer, $(…), sed -i, find
+  // -exec, un programa desconegut) deixa l'ordre com a «Executa».
+  function shellSegments(cmd) {
+    const segs = [];
+    let words = [], w = '', has = false, q = '', pipe = false;
+    // Un \r o un altre caràcter de control canvia com bash talla les paraules.
+    if (/[\x00-\x08\x0b-\x1f\x7f]/.test(cmd)) return null;
+    const endWord = () => { if (has) words.push(w); w = ''; has = false; };
+    const endSeg = next => { endWord(); if (words.length) segs.push({ pipe, words }); words = []; pipe = next; };
+    for (let i = 0; i < cmd.length; i++) {
+      const c = cmd[i];
+      if (q) {
+        if (c === q) q = '';
+        else if (q === '"' && (c === '`' || c === '$')) return null;
+        else if (q === '"' && c === '\\' && i + 1 < cmd.length) w += cmd[++i];
+        else w += c;
+        continue;
+      }
+      if (c === "'" || c === '"') { q = c; has = true; continue; }
+      if (c === '\\' && i + 1 < cmd.length) { w += cmd[++i]; has = true; continue; }
+      // Expansions ($x, ${…}, $[…], $'…'), comentaris i substitucions: aquest
+      // tallador no les entén com bash, així que l'ordre queda com a «Executa».
+      if (c === '`' || c === '<' || c === '$' || c === '#') return null;
+      if (c === '>') {
+        // Només es tolera llençar la sortida (2>/dev/null) o ajuntar-la (2>&1).
+        if (has && !/^\d$/.test(w)) return null;
+        w = ''; has = false;
+        const m = /^>?\s*(&[12]|\/dev\/null)(?=$|[\s;|&])/.exec(cmd.slice(i + 1));
+        if (!m) return null;
+        i += m[0].length;
+        continue;
+      }
+      if (c === ' ' || c === '\t') { endWord(); continue; }
+      if (c === ';' || c === '\n') { endSeg(false); continue; }
+      if (c === '&') { if (cmd[i + 1] !== '&') return null; i++; endSeg(false); continue; }
+      if (c === '|') { if (cmd[i + 1] === '|') { i++; endSeg(false); } else endSeg(true); continue; }
+      w += c; has = true;
+    }
+    if (q) return null;
+    endSeg(false);
+    return segs;
+  }
+  // Opcions que s'enduen la paraula següent (head -n 50, grep -A 3…).
+  const VALUED = {
+    head: ['-n', '-c'], tail: ['-n', '-c'], grep: ['-e', '-f', '-A', '-B', '-C', '-m'],
+    rg: ['-e', '-g', '-t', '-T', '-A', '-B', '-C', '-m', '--glob', '--type'],
+  };
+  const READERS = new Set(['cat', 'head', 'tail', 'nl', 'wc']);
+  const FILTERS = new Set(['head', 'tail', 'sort', 'uniq', 'wc', 'grep', 'rg', 'cut', 'nl']);
+  const FIND_WRITES = new Set(['-delete', '-exec', '-execdir', '-ok', '-okdir', '-fprint', '-fprint0', '-fprintf', '-fls']);
+  // Opcions amb què programes que normalment només miren escriuen un fitxer
+  // o executen un altre programa (sort -o, rg --pre, tree -o…).
+  function writes(prog, rest) {
+    const has = re => rest.some(a => re.test(a));
+    switch (prog) {
+      case 'find': return rest.some(a => FIND_WRITES.has(a));
+      case 'tree': return has(/^--|^-[^-]*[oR]/);
+      // GNU accepta abreviacions de les opcions llargues: cap ni una.
+      case 'sort': return has(/^--|^-[^-]*o/);
+      case 'uniq': return rest.filter(a => a[0] !== '-' || a === '-').length > 1;
+      case 'rg': return has(/^--(pre|hostname-bin)/);
+    }
+    return false;
+  }
+  function splitArgs(prog, rest) {
+    const flags = [], ops = [], vals = {};
+    for (let i = 0; i < rest.length; i++) {
+      const a = rest[i];
+      if (a.length > 1 && a[0] === '-') {
+        flags.push(a);
+        if ((VALUED[prog] || []).includes(a) && i + 1 < rest.length) vals[a] = rest[++i];
+      } else ops.push(a);
+    }
+    return { flags, ops, vals };
+  }
+  // Les accions d'un tros d'ordre: [] si és neutre (cd, echo), null si no només mira.
+  function shellAction(prog, rest) {
+    if (prog === 'cd' || prog === 'pwd' || prog === 'echo') return [];
+    if (writes(prog, rest)) return null;
+    const { ops, vals } = splitArgs(prog, rest);
+    if (prog === 'ls' || prog === 'tree') return [{ kind: 'list', target: ops.join(', ') || '.' }];
+    if (prog === 'find') {
+      if (rest.some(a => FIND_WRITES.has(a))) return null;
+      const roots = [];
+      for (const a of rest) { if (a[0] === '-' || a === '(' || a === '!') break; roots.push(a); }
+      return [{ kind: 'list', target: roots.join(', ') || '.' }];
+    }
+    if (READERS.has(prog)) return ops.length ? ops.map(f => ({ kind: 'read', target: f })) : null;
+    if (prog === 'sed') {
+      // Llista blanca: sed pot escriure (-i, w) o executar (e, -f amb un
+      // guió), així que només val «sed -n» amb un sol guió de rangs a imprimir.
+      let quiet = false, script = null;
+      const files = [];
+      for (let i = 0; i < rest.length; i++) {
+        const a = rest[i];
+        if (a === '--quiet' || a === '--silent' || /^-[nErs]+$/.test(a)) { quiet = quiet || a[1] === '-' || a.includes('n'); }
+        else if (a === '-e') { if (script !== null || i + 1 >= rest.length) return null; script = rest[++i]; }
+        else if (a.length > 1 && a[0] === '-') return null;
+        else if (script === null) script = a;
+        else files.push(a);
+      }
+      if (!quiet || !/^(\d+(,\d+)?p;?)+$/.test(script || '') || !files.length) return null;
+      const lines = script.split(';').filter(Boolean).map(r => r.slice(0, -1).replace(',', '–')).join(', ');
+      return files.map(f => ({ kind: 'read', target: f, lines }));
+    }
+    if (prog === 'grep' || prog === 'rg') {
+      const pattern = vals['-e'] !== undefined ? vals['-e'] : ops.shift();
+      if (pattern === undefined) return null;
+      return [{ kind: 'search', target: pattern, dir: ops.join(', ') }];
+    }
+    return null;
+  }
+  function shellActions(cmd) {
+    const segs = shellSegments(String(cmd || ''));
+    if (!segs || !segs.length) return null;
+    const out = [];
+    for (const { pipe, words } of segs) {
+      const [prog, ...rest] = words;
+      if (pipe && FILTERS.has(prog)) { if (writes(prog, rest)) return null; continue; }
+      const a = pipe ? null : shellAction(prog, rest);
+      if (!a) return null;
+      out.push(...a);
+    }
+    return out.length ? out : null;
+  }
+
+  // explore torna què mira una crida d'exploració ([{kind, target}], amb kind
+  // read, list o search), o null si la crida fa alguna altra cosa.
+  function explore(name, args) {
+    const o = parse(args);
+    if (!o) return null;
+    const s = k => (typeof o[k] === 'string' ? o[k] : '');
+    switch (String(name || '')) {
+      case 'read': return [{ kind: 'read', target: s('path') }];
+      case 'grep': return [{ kind: 'search', target: s('pattern') }];
+      case 'glob': return [{ kind: 'list', target: s('pattern') }];
+      case 'bash': {
+        const acts = shellActions(s('command'));
+        return acts && acts.map(a => ({ kind: a.kind, target: a.target }));
+      }
+    }
+    return null;
+  }
+  // exploreSummary resumeix una fila plegada: fitxers diferents llegits,
+  // cerques i llistats, a partir dels resultats d'explore de cada crida.
+  function exploreSummary(calls, lang) {
+    const t = L[lang] || L.en;
+    const files = new Set();
+    let searches = 0, listings = 0;
+    for (const acts of calls) for (const a of acts || []) {
+      if (a.kind === 'read') files.add(a.target);
+      else if (a.kind === 'search') searches++;
+      else if (a.kind === 'list') listings++;
+    }
+    const part = (n, one, many) => (n ? `${n} ${n === 1 ? one : many}` : '');
+    return {
+      label: t.explored,
+      target: [part(files.size, t.file1, t.files), part(searches, t.search1, t.searches), part(listings, t.listing1, t.listings)]
+        .filter(Boolean).join(' · '),
+    };
   }
 
   // summarize returns {label, target, meta}: label is the action, target the
@@ -87,7 +265,30 @@
         out.target = s('pattern') ? `"${oneLine(s('pattern'), 80)}"` : '';
         out.meta = [s('dir') && `${t.in} ${s('dir')}`, s('include')].filter(Boolean).join(' · ');
         break;
-      case 'bash': case 'bash_background': out.target = oneLine(s('command'), 200); break;
+      case 'bash': case 'bash_background': {
+        const cmd = s('command');
+        const acts = tool === 'bash' ? shellActions(cmd) : null;
+        if (acts) {
+          const kind = acts[0].kind, same = acts.filter(a => a.kind === kind);
+          out.label = t[kind === 'search' ? 'grep' : kind];
+          if (kind === 'search') {
+            out.target = `"${oneLine(same[0].target, 80)}"`;
+            if (same[0].dir) out.meta = `${t.in} ${same[0].dir}`;
+          } else {
+            out.target = oneLine([...new Set(same.map(a => a.target))].join(', '), 200);
+            const lines = same.length === 1 && same[0].lines;
+            if (lines) out.meta = `${/[–,]/.test(lines) ? t.lines : t.line} ${lines}`;
+          }
+          break;
+        }
+        const head = cmd.replace(/^\s*cd\s+\S+\s*&&\s*/, '');
+        // El verb només per a una ordre sola: una cadena pot fer una altra cosa després.
+        const single = tool === 'bash' && !/[;\n]|&&|\|\|/.test(head);
+        if (single && /^(go test|cargo test|pytest|uv run pytest|python3? -m (pytest|unittest)|node --test|(npm|pnpm|yarn)( run)? test)\b/.test(head)) out.label = t.test;
+        else if (single && /^git\s/.test(head)) { out.label = t.git; out.target = oneLine(head.replace(/^git\s+/, ''), 200); break; }
+        out.target = oneLine(cmd, 200);
+        break;
+      }
       case 'bash_output': case 'bash_kill': out.target = s('id'); break;
       case 'web_search': out.target = oneLine(s('query'), 120); break;
       case 'knowledge_search': out.target = s('query') ? `"${oneLine(s('query'), 110)}"` : ''; out.meta = s('collection'); break;
@@ -143,12 +344,81 @@
       const extra = Object.keys(o).filter(k => k !== 'command' && o[k] !== '' && o[k] != null);
       return s('command') + (extra.length ? '\n\n' + extra.map(k => `# ${k}: ${typeof o[k] === 'string' ? o[k] : JSON.stringify(o[k])}`).join('\n') : '');
     }
+    const keys = Object.keys(o);
+    if (!keys.length) return '';
     const shown = {};
-    for (const k of Object.keys(o)) shown[k] = clip(o[k]);
+    for (const k of keys) shown[k] = clip(o[k]);
     return JSON.stringify(shown, null, 2);
   }
 
-  const api = { summarize, detail };
+  // La família d'una crida, per a la icona de la pastilla i la frase que
+  // Gregal escriu quan el model no n'ha dit cap.
+  const EDITS = new Set(['edit', 'patch', 'write', 'office_edit', 'office_create', 'pdf_create', 'pdf_edit']);
+  function family(name, args) {
+    const tool = String(name || '');
+    if (EDITS.has(tool)) return 'edit';
+    const ex = explore(tool, args);
+    if (ex) return ex.some(a => a.kind === 'search') ? 'search' : 'read';
+    if (tool === 'bash' || tool === 'bash_background') {
+      const label = summarize(tool, args, 'en').label;
+      return label === 'Test' ? 'test' : label === 'Git' ? 'git' : 'run';
+    }
+    if (tool === 'git_commit' || /^gh_/.test(tool)) return 'git';
+    if (/^web_/.test(tool)) return 'web';
+    if (tool === 'browser') return 'browser';
+    if (tool === 'calendar' || tool === 'mail' || tool === 'delegate') return tool;
+    if (/^remind/.test(tool)) return 'remind';
+    if (['read_image', 'office_read', 'office_open', 'pdf_read', 'symbols', 'lsp'].includes(tool)) return 'read';
+    return 'tool';
+  }
+  // Com més diu una família del que ha passat, abans guanya la frase: llegir
+  // i després editar és «Ha editat fitxers».
+  const RANK = ['edit', 'test', 'run', 'git', 'web', 'browser', 'calendar', 'mail', 'remind', 'delegate', 'tool', 'search', 'read'];
+  function sentence(calls, lang) {
+    const t = L[lang] || L.en;
+    let best = null;
+    for (const c of calls || []) {
+      const f = family(c.name, c.args);
+      if (!best || RANK.indexOf(f) < RANK.indexOf(best.f)) best = { f, name: String(c.name || '') };
+    }
+    if (!best) return '';
+    if (best.f !== 'tool') return t['s_' + best.f];
+    const m = /^mcp_([^_]+)_/.exec(best.name);
+    return t.s_used.replace('{x}', m ? m[1] : (t[best.name] || best.name));
+  }
+  const ICONS = new Set(['search', 'read', 'edit', 'test', 'run', 'git', 'web', 'browser']);
+  const base = p => String(p || '').replace(/[\\/]+$/, '').split(/[\\/]/).pop();
+  // chip: la pastilla d'una crida al final de la frase, en poques paraules.
+  function chip(name, args, lang) {
+    const tool = String(name || '');
+    const f = family(tool, args);
+    const s = summarize(tool, args, lang);
+    const o = parse(args) || {};
+    let text = s.target || s.label;
+    if (tool === 'edit' || tool === 'patch') text = base(s.target) + (s.meta ? ' ' + s.meta : '');
+    else if (tool === 'write') { const n = lineCount(typeof o.content === 'string' ? o.content : ''); text = base(s.target) + (n ? ' +' + n : ''); }
+    else if (tool === 'read' || tool === 'read_image' || /^(office|pdf)_/.test(tool)) text = base(s.target);
+    else if (tool === 'web_fetch') text = (/^[a-z]+:\/\/([^/?#]+)/i.exec(s.target) || [])[1] || s.target;
+    else if (f === 'git' && tool === 'bash') text = 'git ' + s.target;
+    else if (f === 'test' || f === 'run') text = String(o.command || '').replace(/^\s*cd\s+\S+\s*&&\s*/, '');
+    // Les eines sense verb propi (calendar, mail, profile…): el nom i els valors.
+    else if (!ICONS.has(f)) text = [tool, oneLine(Object.keys(o).filter(k => typeof o[k] === 'string').map(k => o[k]).join(' · '), 30)].filter(Boolean).join(' · ');
+    return { icon: ICONS.has(f) ? f : 'tool', text: oneLine(text || s.label, 48) };
+  }
+  // outcome: com ha anat una crida segons la sortida. Una ordre que només
+  // mira i surt amb 1 o 2 (grep sense coincidències, ls d'un fitxer que no hi
+  // és) no és un error de l'agent: és la resposta, i no es pinta de vermell.
+  function outcome(name, args, output, lang) {
+    const t = L[lang] || L.en;
+    const txt = String(output == null ? '' : output);
+    if (!/^ERROR:|^EINA BLOQUEJADA|^TOOL BLOCKED/.test(txt)) return { state: 'done', note: '' };
+    const m = /^ERROR: (?:exit: )?exit status (\d+)/.exec(txt);
+    if (!m) return { state: 'failed', note: '' };
+    if ((m[1] === '1' || m[1] === '2') && String(name) === 'bash' && explore(name, args)) return { state: 'quiet', note: t.quiet };
+    return { state: 'failed', note: t.exit.replace('{n}', m[1]) };
+  }
+
+  const api = { summarize, detail, explore, exploreSummary, sentence, chip, outcome };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.gregalToolSummary = api;
 })(typeof window !== 'undefined' ? window : globalThis);

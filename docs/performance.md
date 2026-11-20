@@ -108,7 +108,8 @@ file is kept.
 | `id` | Mode for the agent, wind id, or `rotllana:wind` |
 | `first_token_ms`, `total_ms` | Time to the first visible word, and to the end of the turn |
 | `steps` | Model calls in the turn |
-| `model_ms`, `tools_ms` | Winds only: time waiting for the model, and time running tools |
+| `model_ms`, `tools_ms` | Time inside the model calls of the turn's steps, and time running tools. For the agent, automatic review, bets, the final summary, compaction and hooks are in neither: they are what is left of `total_ms` |
+| `wait_ms` | Agent only: time stopped waiting for the person to answer an approval or a question |
 | `prompt_tokens`, `completion_tokens` | Agent only, when the provider reports usage |
 | `outcome` | `ok`, `partial`, `stopped` or `error` (with a short redacted `error`) |
 

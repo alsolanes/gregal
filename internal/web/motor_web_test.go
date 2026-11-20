@@ -215,6 +215,11 @@ func TestConduirTornRecoversInterruptedStepWithoutReplayingTools(t *testing.T) {
 		if kind == "token" {
 			text.WriteString(data.(map[string]string)["text"])
 		}
+		// El text surt en viu: l'intent descartat s'ha vist, i steer_restart
+		// és l'avís perquè la pantalla el retiri.
+		if kind == "steer_restart" {
+			text.Reset()
+		}
 		if kind == "tool_result" {
 			toolResults++
 		}

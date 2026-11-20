@@ -275,6 +275,9 @@ button.danger:not(:disabled):hover { background:var(--red-soft); }
 /* Transcript rhythm: narration and tool calls of one step read as a group;
    the gap between turns stays generous. */
 .body > :last-child { margin-bottom:0; }
+/* La part d'una resposta que encara s'escriu (md.js paintLive): no fa caixa. */
+.body > .md-live { display:contents; }
+.body > .md-live > :last-child { margin-bottom:0; }
 .msg.a.working .msg-acts { display:none; }
 .msg.a.working .body { color:var(--muted); }
 .msg.t + .msg.t { margin-top:-18px; }

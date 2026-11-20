@@ -473,7 +473,11 @@ stored in the durable log as kind `review`) ·
 command, source, text}`, all strings; `p` is 0-100, `passed` is `true`/`false`,
 `source` is `model` or `side`; sent after the call's `tool_result`; durable
 kind `bet` with payload `{id, p, passed, command, source}`) ·
-`assistant` · `fallback` (the
+`assistant` · `token` (`{text}`: answer text of the current step, sent while
+the model writes it) · `steer_restart` (`{}`: the model call in progress is
+being redone, either cut by `/api/steer` with `interrupt` or retried because
+its stream closed before the end; a client must drop the `token` text it has
+shown for the current step, the redone call sends it again) · `fallback` (the
 secondary model responded) · `escalate` · `budget` · `gated` (strict review
 required) · `steps_exhausted` (the `agent.max_steps` limit was reached; the
 following response is a summary, not completed work) · `progress` (turn
@@ -503,7 +507,7 @@ Cadence: one event when a phase starts (`model`/`waiting` when the request is
 sent, `tools` before the calls run, `review`, `compact`); one immediately when
 the first chunk of a model response arrives (`receiving`), and again on
 `waiting` if the provider call is retried; while receiving, at most one count
-update every 3 seconds and only when a count changed; and one final count
+update every second and only when a count changed; and one final count
 update when the model call returns if the counts changed since the last one.
 A silent provider therefore produces no events: clients should derive elapsed
 time from `since`. Approval and question waits are signalled by their own

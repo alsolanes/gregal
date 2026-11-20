@@ -54,7 +54,6 @@ function renderSessionTranscript(transcript, busy) {
       calls.forEach(call => {
         const fn = call && call.function || {};
         const card = G().toolCard?.(fn.name || '', fn.arguments || '');
-        if (card) G().intoWorkGroup?.(card);
         if (call && call.id) cards.set(call.id, { card, name: fn.name || '' });
         groupTools++; toolCount++;
       });
@@ -77,6 +76,7 @@ function renderSessionTranscript(transcript, busy) {
     pendingCards.forEach(card => {
       card.classList?.remove('pending'); card.classList?.add('interrupted');
       const mark = card.querySelector?.('.tspin'); if (mark) mark.textContent = '■';
+      G().stepChips?.(card);
     });
     closeGroup(pendingCards.length > 0);
   }
@@ -109,6 +109,8 @@ function renderActiveRunEvents(events) {
     const d = payload(e);
     lastKind = e.kind;
     if (e.kind === 'token') { tokenText += e.text || ''; return; }
+    // El torn va refer la crida: el text que duia aquell intent ja no val.
+    if (e.kind === 'steer_restart') { tokenText = ''; return; }
     flushTokens();
     if (e.kind === 'thinking') {
       const text = String(d.text || e.text || '').replace(/^💭\s*/, '').trim();
@@ -120,7 +122,6 @@ function renderActiveRunEvents(events) {
       if (!grouped && G().beginWorkGroup) { activeGroup = G().beginWorkGroup(); grouped = true; }
       const name = String(d.name || e.text || T('actk.tool'));
       const card = G().toolCard?.(name, d.args || '');
-      if (card) G().intoWorkGroup?.(card);
       const list = pending.get(name) || []; list.push(card); pending.set(name, list);
       toolCount++;
     } else if (e.kind === 'tool_result') {
