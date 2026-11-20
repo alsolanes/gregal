@@ -73,6 +73,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -112,7 +113,10 @@ fun GregalDrawerContent(
                 Box(Modifier.padding(horizontal = 6.dp).clip(RoundedCornerShape(50)).clickable { nav(Screen.Carpeta) }) {
                     ProjectPill(project.ifEmpty { tr(lang, "app.nav.project") }, branch)
                 }
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(12.dp))
+                ModeSwitcher(lang, activeAppArea(screen, simple), { area -> close(); vm.switchArea(area) },
+                    Modifier.fillMaxWidth().padding(horizontal = 6.dp).testTag("area-switcher"))
+                Spacer(Modifier.height(12.dp))
                 DrawerRow(tr(lang, "nav.new"), false, { vm.newSession(); nav(Screen.Chat) }) { Icon(Icons.Rounded.Add, null, tint = Sea, modifier = Modifier.size(22.dp)) }
 
                 DrawerSection(tr(lang, "app.nav.sectionWinds"))
@@ -181,6 +185,9 @@ private fun SimpleVentsDrawer(
                     }
                 }
                 Spacer(Modifier.height(18.dp))
+                ModeSwitcher(lang, activeAppArea(screen, true), { area -> close(); vm.switchArea(area) },
+                    Modifier.fillMaxWidth().padding(horizontal = 6.dp).testTag("area-switcher"))
+                Spacer(Modifier.height(12.dp))
                 val home = screen == Screen.Company || screen == Screen.Ventet
                 val winds by vm.winds.collectAsState()
                 val tasks by vm.windTasks.collectAsState()
