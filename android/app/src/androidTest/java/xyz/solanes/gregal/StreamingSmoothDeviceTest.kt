@@ -21,8 +21,8 @@ import org.junit.runner.RunWith
 /**
  * La bombolla que s'escriu en directe no ha de tremolar: fotograma a
  * fotograma, la resposta no es mou amunt i avall ni s'encongeix. Reprodueix
- * el fil de Vents (seguiment + «llegeix des del principi») amb un streaming
- * a trossos com el del servidor.
+ * el fil de Vents (la pregunta a dalt i la resposta a sota, amb una fase
+ * d'eina pel mig) amb un streaming a trossos com el del servidor.
  */
 @RunWith(AndroidJUnit4::class)
 class StreamingSmoothDeviceTest {
@@ -52,31 +52,39 @@ class StreamingSmoothDeviceTest {
 
     @Test fun liveReplyDoesNotShake() {
         lateinit var list: LazyListState
+        lateinit var follow: ChatFollowState
         val history = (0 until 12).flatMap { i ->
             listOf(GregalViewModel.PetMsg("user", "Pregunta $i sobre el projecte"),
                 GregalViewModel.PetMsg("pet", "Resposta $i: una línia de text perquè el fil ocupi la pantalla."))
-        } + GregalViewModel.PetMsg("user", "Com va la memòria cau?")
+        }
         var msgs by mutableStateOf(history)
-        var busy by mutableStateOf(true)
         ui.mainClock.autoAdvance = false
         ui.setContent {
             list = rememberLazyListState()
-            val follow = rememberChatFollow(list, "fixture")
-            LaunchedEffect(Unit) { follow.requestFollow() }
-            ReadReplyFromStart(list, follow, busy, currentReplyKey(msgs))
+            follow = rememberChatFollow(list, "fixture", msgs.indexOfLast { it.from == "user" })
             LazyColumn(Modifier.fillMaxSize(), state = list,
                 contentPadding = PaddingValues(12.dp)) {
                 items(msgs.size, key = { it }) { idx ->
                     val m = msgs[idx]
-                    Box(Modifier.padding(top = 8.dp).then(if (m.streaming) Modifier.testTag("live") else Modifier)) {
+                    Box(Modifier.padding(top = 8.dp).then(if (idx == history.size + 1) Modifier.testTag("live") else Modifier)) {
                         WindBubble(m, Color(0xFF3A7BD5))
                     }
                 }
+                chatReserve(follow)
             }
         }
         repeat(10) { ui.mainClock.advanceTimeByFrame() }
-        // Trossos de ~14 caràcters cada 3 fotogrames (~50 ms), com arriben del servidor.
+        // Envia: la pregunta puja a dalt.
+        follow.send()
+        msgs = history + GregalViewModel.PetMsg("user", "Com va la memòria cau?")
+        repeat(60) { ui.mainClock.advanceTimeByFrame() }
+        val asked = history.size
+        assertEquals("la pregunta queda a dalt", asked, list.firstVisibleItemIndex)
+        val pinned = list.firstVisibleItemIndex to list.firstVisibleItemScrollOffset
+        // Trossos de ~14 caràcters cada 3 fotogrames (~50 ms), com arriben del servidor;
+        // a mig camí, una fase d'eina tanca el text com a missatge i en comença un altre.
         val chunks = reply.chunked(14)
+        val toolAt = chunks.size / 3
         var sent = 0
         var frame = 0
         val tops = mutableListOf<Float>()
@@ -84,58 +92,31 @@ class StreamingSmoothDeviceTest {
         while (sent < chunks.size || frame < chunks.size * 3 + 120) {
             if (frame % 3 == 0 && sent < chunks.size) {
                 sent++
-                val text = chunks.take(sent).joinToString("")
-                msgs = history + GregalViewModel.PetMsg("pet", text, streaming = true)
+                val first = chunks.take(minOf(sent, toolAt)).joinToString("")
+                val second = chunks.drop(toolAt).take(maxOf(0, sent - toolAt)).joinToString("")
+                msgs = history + GregalViewModel.PetMsg("user", "Com va la memòria cau?") +
+                    GregalViewModel.PetMsg("pet", first, streaming = sent <= toolAt) +
+                    (if (sent > toolAt) listOf(GregalViewModel.PetMsg("pet", second, streaming = true)) else emptyList())
             }
             ui.mainClock.advanceTimeByFrame()
             frame++
+            assertEquals("la llista no es mou mentre s'escriu (fotograma $frame)", pinned,
+                list.firstVisibleItemIndex to list.firstVisibleItemScrollOffset)
             val nodes = ui.onAllNodesWithTag("live").fetchSemanticsNodes()
             if (nodes.isNotEmpty()) {
                 val b = nodes[0].boundsInRoot
                 tops += b.top; heights += b.height
             }
         }
-        // Tremolor: la resposta es mou (amunt i avall) un cop ja es veu, o s'encongeix.
-        var moves = 0; var reversals = 0; var shrinks = 0; var lastDir = 0
-        for (i in 1 until tops.size) {
-            val d = tops[i] - tops[i - 1]
-            if (kotlin.math.abs(d) > 0.5f) {
-                moves++
-                val dir = if (d > 0) 1 else -1
-                if (lastDir != 0 && dir != lastDir) reversals++
-                lastDir = dir
-            }
-            if (heights[i] < heights[i - 1] - 0.5f) shrinks++
-        }
-        // Esglaons: la resposta es mou, s'atura un fotograma i es torna a moure
-        // (el seguiment que arribava tard), i el salt més gran d'un sol fotograma
-        // un cop la resposta ja s'escriu (el primer, quan apareix, no compta).
-        var stalls = 0; var maxStep = 0f
-        for (i in 2 until tops.size) {
-            val a = kotlin.math.abs(tops[i - 1] - tops[i - 2]); val b = kotlin.math.abs(tops[i] - tops[i - 1])
-            if (a > 0.5f && b <= 0.5f && i + 1 < tops.size && kotlin.math.abs(tops[i + 1] - tops[i]) > 0.5f) stalls++
-            if (i > 6) maxStep = maxOf(maxStep, b)
-        }
-        Log.i("StreamSmooth", "stalls=$stalls maxStep=$maxStep")
-        Log.i("StreamSmooth", "frames=${tops.size} moves=$moves reversals=$reversals shrinks=$shrinks " +
-            "top=${tops.firstOrNull()}..${tops.lastOrNull()} h=${heights.firstOrNull()}..${heights.lastOrNull()}")
-        Log.i("StreamSmooth", "tops=" + tops.joinToString(",") { it.toInt().toString() })
-        Log.i("StreamSmooth", "heights=" + heights.joinToString(",") { it.toInt().toString() })
+        val moves = (1 until tops.size).count { kotlin.math.abs(tops[it] - tops[it - 1]) > 0.5f }
+        val shrinks = (1 until heights.size).count { heights[it] < heights[it - 1] - 0.5f }
+        Log.i("StreamSmooth", "frames=${tops.size} moves=$moves shrinks=$shrinks")
+        assertEquals("la resposta no es mou", 0, moves)
         assertEquals("la resposta no s'encongeix mentre s'escriu", 0, shrinks)
-        assertEquals("la resposta no va amunt i avall", 0, reversals)
-        assertTrue("el seguiment no va a esglaons ($stalls aturades)", stalls <= 3)
-        // Quan el començament arriba a la meitat de dalt, la resposta es queda quieta i creix cap avall.
-        val half = ui.onRoot().fetchSemanticsNode().boundsInRoot.height / 2
-        val high = tops.indexOfFirst { it <= half + 40f }
-        assertTrue("la resposta arriba a dalt", high >= 0)
-        val settled = tops.drop(high + 20)
-        assertTrue("quieta un cop a dalt: ${settled.distinct()}", settled.distinct().size == 1)
-        assertTrue("cap salt brusc d'un fotograma ($maxStep px)", maxStep < 40f)
-        // En acabar, el final de la resposta es veu (el seguiment no s'ha perdut).
-        // En acabar el torn, el fil va al final (com sempre).
-        msgs = history + GregalViewModel.PetMsg("pet", reply)
-        busy = false
+        assertTrue("la resposta passa de la pantalla", list.canScrollForward)
+        // En acabar el torn, la llista no es mou.
+        msgs = msgs.map { it.copy(streaming = false) }
         repeat(90) { ui.mainClock.advanceTimeByFrame() }
-        assertFalse("el final es veu en acabar", list.canScrollForward)
+        assertEquals(pinned, list.firstVisibleItemIndex to list.firstVisibleItemScrollOffset)
     }
 }

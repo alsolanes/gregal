@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 /**
  * La conversa amb el Ventet: el mateix xat que els vents (capçalera, fil i
@@ -58,8 +59,7 @@ internal fun VentetConversation(vm: GregalViewModel, lang: String, winds: List<W
         val t = ui.failedText
         if (t.isNotBlank() && field.text.isBlank()) field = TextFieldValue(t, TextRange(t.length))
     }
-    val follow = rememberChatFollow(listState, "ventet")
-    ReadReplyFromStart(listState, follow, ui.busy, capReplyKey(ui))
+    val follow = rememberChatFollow(listState, "ventet", capSentKey(ui))
     // Sense «tens novetats» a la cara: les novetats ja són al fil, amb el seu separador.
     val mood = when {
         ui.busy || ui.going -> WindMood.THINKING
@@ -77,13 +77,13 @@ internal fun VentetConversation(vm: GregalViewModel, lang: String, winds: List<W
                 },
                 accent, st.faceStyle, mood, onBack = onBack, onProfile = { profile = true }, centered = true,
                 onComputer = { computer = true })
-            VentetThread(vm, lang, winds, listState, accent, Modifier.weight(1f), showEmpty = true)
+            VentetThread(vm, lang, winds, listState, follow, accent, Modifier.weight(1f), showEmpty = true)
             // Es pot escriure sempre (l'esborrany es conserva); enviar espera que acabi el torn.
             VentsComposer(lang, field, { field = it }, tr(lang, "app.cap.hint", st.name),
                 canSend = field.text.isNotBlank() && !ui.busy,
                 busy = ui.busy || ui.going, accent = accent,
                 workCount = running, onWork = { work = true }) {
-                follow.requestFollow(); vm.askCap(field.text); field = TextFieldValue("")
+                follow.send(); vm.askCap(field.text); field = TextFieldValue("")
             }
         }
     }
@@ -106,11 +106,20 @@ internal const val CAP_KEY_LIVE = "live:reply"
 /** La clau d'un missatge del fil del Ventet: l'id; l'índex només si el servidor no en dona. */
 internal fun capItemKey(history: List<CapMsg>, index: Int): String = threadItemKey(history[index].id, index)
 
-/** La resposta del torn del Ventet: en directe, la bombolla viva; en acabar, l'últim missatge seu. */
-internal fun capReplyKey(ui: GregalViewModel.CapUi): Any? = when {
-    ui.busy -> if (ui.live.isNotBlank()) CAP_KEY_LIVE else null
-    ui.state.history.lastOrNull()?.from == "cap" -> capItemKey(ui.state.history, ui.state.history.lastIndex)
-    else -> null
+/** La teva pregunta mentre el Ventet respon (la que puja a dalt en enviar). */
+internal fun capSentKey(ui: GregalViewModel.CapUi): Any? = if (ui.busy && ui.asked.isNotBlank()) CAP_KEY_ASKED else null
+
+/**
+ * Claus del fil. El torn que acaba d'arribar en directe ([asked]: la pregunta)
+ * conserva les claus de quan s'escrivia: si canviessin, la llista saltaria en acabar.
+ */
+internal fun capKeys(history: List<CapMsg>, asked: String?): List<String> {
+    val keys = history.indices.map { capItemKey(history, it) }.toMutableList()
+    val u = history.indexOfLast { it.from == "user" }
+    if (asked == null || u < 0 || history[u].text != asked) return keys
+    keys[u] = CAP_KEY_ASKED
+    if (u < history.lastIndex) keys[u + 1] = CAP_KEY_LIVE
+    return keys
 }
 
 /**
@@ -139,6 +148,7 @@ internal fun VentetThread(
     lang: String,
     winds: List<Wind>,
     listState: LazyListState,
+    follow: ChatFollowState,
     accent: Color,
     modifier: Modifier = Modifier,
     /** A la portada el fil només surt quan hi ha conversa: allà l'estat buit és la salutació. */
@@ -148,12 +158,21 @@ internal fun VentetThread(
     val rotllanes by vm.rotllanes.collectAsState()
     val st = ui.state
     val history = st.history
-    val slots = remember(history) { threadSlots(history.map { ThreadEntry(if (it.from == "user") "user" else "cap", it.ts) }) }
+    val entries = remember(history) { history.map { ThreadEntry(if (it.from == "user") "user" else "cap", it.ts) } }
+    val slots = remember(entries) { threadSlots(entries) }
+    // La pregunta en directe es pinta igual que quan arribi al fil (hora, separador, marge).
+    val askedAt = remember(ui.asked) { System.currentTimeMillis() }
+    val askedSlot = remember(entries, askedAt) { threadSlots(entries + ThreadEntry("user", askedAt)).last() }
+    var streamed by remember { mutableStateOf(false) }
+    LaunchedEffect(ui.busy) { if (ui.busy) streamed = true }
+    val keys = remember(history, ui.asked, ui.busy, streamed) { capKeys(history, ui.asked.takeIf { streamed && !ui.busy }) }
     val unread = rememberUnreadIndex("cap", history)
     // Només els missatges que arriben en directe entren amb moviment; en obrir, tot de cop.
     var liveFrom by remember { mutableIntStateOf(Int.MAX_VALUE) }
     LaunchedEffect(history.isNotEmpty()) { if (history.isNotEmpty() && liveFrom == Int.MAX_VALUE) liveFrom = history.size }
-    LazyColumn(modifier.fillMaxWidth(), state = listState,
+    val scope = rememberCoroutineScope()
+    Box(modifier.fillMaxWidth()) {
+    LazyColumn(Modifier.fillMaxSize(), state = listState,
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) {
         if (history.isEmpty() && showEmpty) item {
             if (ui.loadError) CapLoadError(lang) { vm.loadCap() }
@@ -163,13 +182,13 @@ internal fun VentetThread(
                 hint = tr(lang, "app.cap.hello"),
             )
         }
-        items(history.size, key = { capItemKey(history, it) }, contentType = { history[it].from }) { i ->
+        items(history.size, key = { keys[it] }, contentType = { history[it].from }) { i ->
             val m = history[i]
             val slot = slots[i]
             Column(Modifier.padding(top = if (i == 0) 0.dp else if (slot.firstOfRun) GregalChat.gapBetween else GregalChat.gapInRun)) {
                 if (i == unread) ThreadDivider(threadCopy(lang, "unread"), accent = true)
                 slot.separatorAt?.let { ThreadDivider(threadSeparatorLabel(lang, it)) }
-                MessageIn(animate = i >= liveFrom) {
+                MessageIn(animate = i >= liveFrom && keys[i] != CAP_KEY_ASKED && keys[i] != CAP_KEY_LIVE) {
                     when {
                         m.action == "link" -> CapLinkCard(lang, m, accent, winds, rotllanes) { vm.openVentsChat(m.link) }
                         else -> Column {
@@ -196,8 +215,9 @@ internal fun VentetThread(
         // tenir la resposta) i, quan arriba, el text en directe.
         if (ui.busy && ui.asked.isNotBlank() && history.lastOrNull()?.let { it.from == "user" && it.text == ui.asked } != true) {
             item(key = CAP_KEY_ASKED) {
-                Column(Modifier.padding(top = if (history.lastOrNull()?.from == "user") GregalChat.gapInRun else GregalChat.gapBetween)) {
-                    MessageIn(animate = true) { WindBubble(GregalViewModel.PetMsg("user", ui.asked), accent, lang = lang) }
+                Column(Modifier.padding(top = if (history.isEmpty()) 0.dp else if (askedSlot.firstOfRun) GregalChat.gapBetween else GregalChat.gapInRun)) {
+                    askedSlot.separatorAt?.let { ThreadDivider(threadSeparatorLabel(lang, it)) }
+                    MessageIn(animate = true) { WindBubble(GregalViewModel.PetMsg("user", ui.asked, ts = askedAt), accent, lang = lang) }
                 }
             }
         }
@@ -220,6 +240,9 @@ internal fun VentetThread(
                 TextButton(onClick = { vm.capRetry() }) { Text(tr(lang, "app.cap.retry"), color = Sea) }
             }
         }
+        chatReserve(follow)
+    }
+    if (follow.behind) LatestPill(lang) { scope.launch { listState.scrollToLatest() } }
     }
 }
 

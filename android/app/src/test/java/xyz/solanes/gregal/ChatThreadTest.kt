@@ -53,13 +53,22 @@ class ChatThreadTest {
         assertEquals(capItemKey(a, 1), capItemKey(b, 2))
     }
 
-    @Test fun `la resposta en directe i l'acabada fan servir claus del fil`() {
+    @Test fun `el torn que acaba d'arribar en directe conserva les claus de quan s'escrivia`() {
+        val hist = listOf(CapMsg("cap", "abans", id = "m-0"), CapMsg("user", "hola", id = "m-1"), CapMsg("cap", "bon dia", id = "m-2"))
+        assertEquals(listOf("m:m-0", CAP_KEY_ASKED, CAP_KEY_LIVE), capKeys(hist, "hola"))
+    }
+
+    @Test fun `sense torn en directe les claus son les del fil`() {
         val hist = listOf(CapMsg("user", "hola", id = "m-1"), CapMsg("cap", "bon dia", id = "m-2"))
-        val done = GregalViewModel.CapUi(state = CapState(history = hist))
-        assertEquals("m:m-2", capReplyKey(done))
-        val live = done.copy(busy = true, live = "escric…")
-        assertEquals(CAP_KEY_LIVE, capReplyKey(live))
-        assertNull(capReplyKey(done.copy(busy = true)))
+        assertEquals(listOf("m:m-1", "m:m-2"), capKeys(hist, null))
+        // La pregunta d'un altre torn (p. ex. ha fallat): no es toca res.
+        assertEquals(listOf("m:m-1", "m:m-2"), capKeys(hist, "una altra"))
+    }
+
+    @Test fun `la pregunta del Ventet puja a dalt nomes mentre respon`() {
+        val ui = GregalViewModel.CapUi(asked = "hola")
+        assertEquals(CAP_KEY_ASKED, capSentKey(ui.copy(busy = true)))
+        assertNull(capSentKey(ui))
     }
 
     // ─── Ratxes i separadors ─────────────────────────────────────────────

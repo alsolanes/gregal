@@ -2205,6 +2205,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     /** Text que el model escriu ara (fora de _msgs: no copia la llista a cada token). */
     private val _live = MutableStateFlow("")
     val live: StateFlow<String> = _live
+    /** L'id que tindrà el missatge quan el text en directe s'hi tanqui: la llista no canvia de clau. */
+    private val _liveId = MutableStateFlow(nextMsgId())
+    val liveId: StateFlow<Long> = _liveId
     /** Què fa l'agent ara mateix, i des de quan (capçalera del treball). */
     private val _activity = MutableStateFlow<Activity?>(null)
     val activity: StateFlow<Activity?> = _activity
@@ -2268,17 +2271,22 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         flushTokens()
         val live = _live.value.trim()
         if (live.isEmpty()) return
-        _live.value = ""
-        val m = ChatMsg("assistant", live)
-        answerId = m.id
+        answerId = settleLive(live).id
+    }
+
+    /** Primer el missatge i després es buida el directe: mai cap fotograma sense cap dels dos. */
+    private fun settleLive(text: String): ChatMsg {
+        val m = ChatMsg("assistant", text, id = _liveId.value)
         push(m)
+        _live.value = ""
+        _liveId.value = nextMsgId()
+        return m
     }
 
     private fun endTurn(failed: Boolean) {
         flushTokens()
         val live = _live.value.trim()
-        _live.value = ""
-        if (live.isNotEmpty()) push(ChatMsg("assistant", live))
+        if (live.isNotEmpty()) settleLive(live) else _live.value = ""
         val id = workId
         workId = 0L
         if (id != 0L) {
@@ -2343,12 +2351,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             "token" -> appendLive(f("text").ifEmpty { text })
             "assistant", "text" -> {
                 val t = f("text").ifEmpty { text }
-                _live.value = ""
-                if (t.isNotBlank()) {
-                    val m = ChatMsg("assistant", t)
-                    answerId = m.id
-                    push(m)
-                }
+                if (t.isNotBlank()) answerId = settleLive(t).id else _live.value = ""
             }
             "thinking", "thought", "reasoning" -> {
                 narrationToWork()
