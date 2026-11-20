@@ -112,3 +112,54 @@ test('exploreSummary counts distinct files, searches and listings', () => {
   assert.equal(exploreSummary(calls, 'ca').target, '2 fitxers · 1 cerca · 1 llistat');
   assert.equal(exploreSummary([explore('read', args({ path: 'a' }))], 'ca').target, '1 fitxer');
 });
+
+test('detail has no box for a call without arguments', () => {
+  const { detail } = require('./tool-summary.js');
+  assert.equal(detail('remind_list', '{}'), '');
+  assert.equal(detail('calendar', ''), '');
+});
+
+test('sentence describes a run of calls in the past tense, by its most telling call', () => {
+  const { sentence } = require('./tool-summary.js');
+  const c = (name, o) => ({ name, args: args(o || {}) });
+  assert.equal(sentence([c('calendar', { action: 'today' })], 'ca'), 'Ha consultat el calendari');
+  assert.equal(sentence([c('mail', { action: 'unread' })], 'en'), 'Checked the mail');
+  assert.equal(sentence([c('remind_list')], 'ca'), 'Ha mirat els recordatoris');
+  assert.equal(sentence([c('web_search', { query: 'x' }), c('web_fetch', { url: 'https://a.dev' })], 'ca'), 'Ha consultat la web');
+  // Llegir i després editar és editar.
+  assert.equal(sentence([c('read', { path: 'a.go' }), c('edit', { path: 'a.go', old_string: 'a', new_string: 'b' })], 'en'), 'Edited files');
+  assert.equal(sentence([c('bash', { command: 'go test ./...' })], 'ca'), 'Ha passat els tests');
+  assert.equal(sentence([c('bash', { command: 'npm run build' })], 'en'), 'Ran a command');
+  assert.equal(sentence([c('bash', { command: 'ls src' }), c('grep', { pattern: 'x' })], 'en'), 'Searched the code');
+  assert.equal(sentence([c('read', { path: 'a.go' })], 'ca'), 'Ha mirat els fitxers');
+  assert.equal(sentence([c('mcp_github_create_issue', { title: 't' })], 'en'), 'Used github');
+  assert.equal(sentence([c('profile', { action: 'get' })], 'ca'), 'Ha fet servir profile');
+});
+
+test('chip names what a call touched in a few words', () => {
+  const { chip } = require('./tool-summary.js');
+  assert.deepEqual(chip('edit', args({ path: 'C:/p/internal/login.go', old_string: 'a\nb', new_string: 'c' }), 'en'), { icon: 'edit', text: 'login.go +1 −2' });
+  assert.deepEqual(chip('read', args({ path: 'src/app.ts' }), 'en'), { icon: 'read', text: 'app.ts' });
+  assert.deepEqual(chip('read', args({ path: 'C:\\dev\\gregal\\internal\\web\\app\\tool-summary.js' }), 'en'), { icon: 'read', text: 'tool-summary.js' });
+  assert.deepEqual(chip('write', args({ path: 'n.txt', content: 'a\nb\n' }), 'en'), { icon: 'edit', text: 'n.txt +2' });
+  assert.deepEqual(chip('bash', args({ command: 'cd x && go test ./internal/...' }), 'en'), { icon: 'test', text: 'go test ./internal/...' });
+  assert.deepEqual(chip('bash', args({ command: 'npm run build' }), 'en'), { icon: 'run', text: 'npm run build' });
+  assert.deepEqual(chip('web_fetch', args({ url: 'https://pkg.go.dev/crypto/subtle' }), 'en'), { icon: 'web', text: 'pkg.go.dev' });
+  assert.deepEqual(chip('calendar', args({ action: 'today' }), 'ca'), { icon: 'tool', text: 'calendar · today' });
+  assert.deepEqual(chip('remind_list', '{}', 'ca'), { icon: 'tool', text: 'remind_list' });
+  assert.ok(chip('bash', args({ command: 'x'.repeat(200) }), 'en').text.length <= 48);
+});
+
+test('outcome: errors fail, a read-only command that finds nothing is quiet, not failed', () => {
+  const { outcome } = require('./tool-summary.js');
+  const grep = args({ command: 'grep -rn foo src' });
+  // El format real del backend: tools.go fa fmt.Errorf("exit: %v…") i el loop hi posa «ERROR: ».
+  assert.deepEqual(outcome('bash', grep, 'ERROR: exit: exit status 1\n', 'ca'), { state: 'quiet', note: 'sense resultats' });
+  assert.deepEqual(outcome('bash', args({ command: 'ls nope' }), 'ERROR: exit: exit status 2\nls: cannot access', 'en'), { state: 'quiet', note: 'nothing found' });
+  // Una ordre que fa coses (o uns tests) que surt amb error sí que ha fallat.
+  assert.deepEqual(outcome('bash', args({ command: 'npm run build' }), 'ERROR: exit: exit status 2\nTS2304', 'ca'), { state: 'failed', note: 'codi 2' });
+  assert.deepEqual(outcome('bash', grep, 'ERROR: exit: exit status 127\n', 'en'), { state: 'failed', note: 'exit 127' });
+  assert.deepEqual(outcome('read', args({ path: 'a' }), 'ERROR: no such file', 'en'), { state: 'failed', note: '' });
+  assert.deepEqual(outcome('bash', args({ command: 'curl x' }), 'TOOL BLOCKED: patró bloquejat: curl', 'en'), { state: 'failed', note: '' });
+  assert.deepEqual(outcome('calendar', '{}', 'No events.', 'en'), { state: 'done', note: '' });
+});

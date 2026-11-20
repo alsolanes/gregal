@@ -2860,9 +2860,75 @@ function toolCard(name, args) {
     const code = el.querySelector('.tool-args code');
     navigator.clipboard?.writeText(code ? code.textContent : '').then(() => { copy.textContent = gregalT('ui.copied'); setTimeout(() => { copy.textContent = gregalT('ui.copy'); }, 1500); });
   };
+  el.dataset.call = JSON.stringify({ name, args: String(args || '') });
   foldExplore(el, name, args);
+  stepChips(el);
   return el.querySelector('details');
 }
+// Les eines dins de frases: cada crida és una pastilla al final de la frase
+// que la precedeix («Busco on es valida la contrasenya. [login.go]»), i la
+// fila de la crida només es veu oberta, en clicar la pastilla. Si el model no
+// ha dit res abans, Gregal hi posa una frase seva en gris («Ha consultat el
+// calendari»). Les files continuen al DOM, en ordre: les pastilles en són un
+// reflex que es repinta sencer quan una crida comença o acaba.
+// Només les files de toolCard (data-call) i les files «Explorat»: el pensament o
+// un resultat sense crida no tenen pastilla i es queden a la vista.
+const isToolUnit = n => !!n && n.matches('.msg.t[data-call], .msg.t.explore-fold');
+function stepChips(node) {
+  const ts = window.gregalToolSummary;
+  const unit = node && (node.closest('.explore-fold') || node.closest('.msg.t'));
+  if (!ts || !ts.chip || !isToolUnit(unit)) return;
+  let first = unit;
+  while (isToolUnit(first.previousElementSibling)) first = first.previousElementSibling;
+  let owner = first.previousElementSibling;
+  if (owner && owner.matches('.wg-think')) owner = null;
+  if (!owner || !owner.matches('.msg.a:not(:has(.approve, .qcard)), .step-auto')) {
+    owner = document.createElement('div');
+    owner.className = 'msg t step-auto';
+    owner.innerHTML = '<div class="body"><p><span class="step-text"></span></p></div>';
+    first.before(owner);
+  }
+  const units = [];
+  for (let n = owner.nextElementSibling; isToolUnit(n); n = n.nextElementSibling) units.push(n);
+  const lang = document.documentElement.lang;
+  const callsOf = u => (u.matches('.explore-fold') ? [...u.querySelectorAll('.explore-list > .msg.t')] : [u])
+    .map(i => { try { return JSON.parse(i.dataset.call || '{}'); } catch (e) { return {}; } });
+  if (owner.matches('.step-auto')) owner.querySelector('.step-text').textContent = ts.sentence(units.flatMap(callsOf), lang);
+  let box = owner.querySelector('.step-chips');
+  if (!box) {
+    const body = owner.querySelector('.body');
+    let line = body.lastElementChild;
+    if (!line || line.tagName !== 'P') { line = document.createElement('p'); body.appendChild(line); }
+    box = document.createElement('span');
+    box.className = 'step-chips';
+    line.appendChild(box);
+  }
+  box.replaceChildren(...units.map(u => {
+    const d = u.querySelector(':scope > .body > details.tool');
+    const b = document.createElement('button');
+    b.type = 'button';
+    const fold = u.matches('.explore-fold');
+    let c;
+    if (fold) c = { icon: 'search', text: u.querySelector('summary .targs').textContent };
+    else { const k = callsOf(u)[0]; c = ts.chip(k.name, k.args, lang); }
+    // L'estat d'una fila «Explorat» és el de les crides de dins.
+    const state = ['failed', 'pending', 'interrupted', 'quiet'].find(k => fold ? u.querySelector('.explore-list .tool.' + k) : d.classList.contains(k)) || 'done';
+    b.className = 'step-chip ' + state;
+    b.dataset.icon = c.icon;
+    b.textContent = c.text + (d.dataset.note ? ' · ' + d.dataset.note : '');
+    b.title = u.querySelector(':scope > .body > details.tool > summary')?.textContent || c.text;
+    b.setAttribute('aria-expanded', String(d.open));
+    b.unit = u;
+    return b;
+  }));
+}
+main.addEventListener('click', e => {
+  const b = e.target.closest('.step-chip');
+  if (!b || !b.unit) return;
+  const d = b.unit.querySelector(':scope > .body > details.tool');
+  d.open = !d.open;
+  b.setAttribute('aria-expanded', String(d.open));
+});
 // Les crides d'exploració seguides (llegir, cercar, llistar) es pleguen en
 // una sola fila «Explorat · 3 fitxers · 2 cerques», com fa Codex: una
 // paret d'«Executa ls…» no diu res, i el que canvia coses es veu d'una en
@@ -2905,7 +2971,9 @@ function toolShot(out, image) {
 }
 function toolCardDone(card, name, output, image) {
   const txt = String(output == null ? '' : output);
-  const failed = /^ERROR:|^EINA BLOQUEJADA|^TOOL BLOCKED/.test(txt);
+  const call = card && card.closest('.msg.t')?.dataset.call;
+  const res = window.gregalToolSummary.outcome(name, call ? JSON.parse(call).args : '', txt, document.documentElement.lang);
+  const failed = res.state === 'failed';
   if (!card) { // resultat sense crida (no hauria de passar): targeta sencera
     const solt = add('t', '', '<details class="tool ' + (failed ? 'failed' : 'done') + '"><summary><span class="tspin">' +
       (failed ? '✗' : '✓') + '</span><b>' + escapeHTML(name) + '</b></summary><div class="out">' + md(txt.slice(0, 3000)) + '</div></details>');
@@ -2913,11 +2981,15 @@ function toolCardDone(card, name, output, image) {
     return;
   }
   card.classList.remove('pending');
-  card.classList.add(failed ? 'failed' : 'done');
+  card.classList.add(res.state === 'quiet' ? 'quiet' : failed ? 'failed' : 'done');
+  if (res.note) card.dataset.note = res.note;
   const mark = card.querySelector('.tspin');
-  if (mark) mark.textContent = failed ? '✗' : '✓';
+  if (mark) mark.textContent = failed ? '✗' : res.state === 'quiet' ? '–' : '✓';
   const out = card.querySelector('.out');
-  if (out) out.innerHTML = md(txt.slice(0, 3000)) || '<span class="faint">' + escapeHTML(gregalT('ui.noOutput')) + '</span>';
+  // La sortida d'una ordre es llegeix com al terminal, no com a markdown
+  // (un «> tsc» no és una cita); el codi de sortida ja el diu la pastilla.
+  const term = (name === 'bash' || name === 'bash_background') && txt.replace(/^ERROR: (?:exit: )?exit status \d+\n?/, '').slice(0, 3000);
+  if (out) out.innerHTML = (term ? '<pre class="tool-term">' + escapeHTML(term) + '</pre>' : md(txt.slice(0, 3000))) || '<span class="faint">' + escapeHTML(gregalT('ui.noOutput')) + '</span>';
   toolShot(out, image);
   if (toolShotOK(image)) card.open = true; // la captura és el resultat: es veu
   if (failed) { // els errors no s'amaguen, tampoc dins una fila «Explorat»
@@ -2925,6 +2997,7 @@ function toolCardDone(card, name, output, image) {
     const fold = card.parentElement.closest('details.tool');
     if (fold) fold.open = true;
   }
+  stepChips(card);
   // Gràfics desats al dashboard de l'app: comptador a la barra lateral i un
   // botó per obrir aquell tauler.
   if (!failed && name === 'dashboard_save' && window.gregalPlots) {
@@ -2997,6 +3070,7 @@ function stopToolAnimation(card) {
   if (mark) { mark.textContent = '■'; mark.title = gregalT('ui.aturat'); }
   const out = card.querySelector('.out');
   if (out && !out.textContent.trim()) out.textContent = document.documentElement.lang === 'ca' ? 'No s’ha rebut el resultat de l’eina.' : 'No tool result was received.';
+  stepChips(card);
 }
 function stopRunVisuals(session) {
   stoppedVisualSessions.add(session);
@@ -4864,7 +4938,7 @@ window.gregal = {
   api, refresh, marcaOffline, sys, activityItem, setView, setMode, nextMode, md, add, onSessionSwitch,
   saveSessionView, restoreSessionView, forgetSessionView,
   attachActiveRun: (active, restored, after, pending) => { if (window.gregalRuns?.attach) doAgent(active.task, { active, restored, after, pending }); },
-  toolCard, toolCardDone, beginWorkGroup, endWorkGroup, intoWorkGroup, relPath, openFileRef,
+  toolCard, toolCardDone, stepChips, beginWorkGroup, endWorkGroup, intoWorkGroup, relPath, openFileRef,
   isBusy: () => sending || !!state.agent_busy,
   isSending: () => sending,
   newChat: novaConversa,

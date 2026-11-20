@@ -17,6 +17,11 @@
       tasks: 'tasks', task1: 'task', background: 'background',
       list: 'List', test: 'Test', git: 'Git', explored: 'Explored',
       file1: 'file', files: 'files', search1: 'search', searches: 'searches', listing1: 'listing', listings: 'listings',
+      s_edit: 'Edited files', s_test: 'Ran the tests', s_run: 'Ran a command', s_git: 'Worked with git',
+      s_web: 'Looked it up on the web', s_browser: 'Used the browser', s_calendar: 'Checked the calendar',
+      s_mail: 'Checked the mail', s_remind: 'Checked the reminders', s_delegate: 'Handed work to helpers',
+      s_search: 'Searched the code', s_read: 'Looked through the files', s_used: 'Used {x}',
+      quiet: 'nothing found', exit: 'exit {n}',
     },
     ca: {
       read: 'Llegeix', write: 'Escriu', edit: 'Edita', patch: 'Edita', glob: 'Cerca fitxers', grep: 'Cerca',
@@ -31,6 +36,11 @@
       tasks: 'tasques', task1: 'tasca', background: 'segon pla',
       list: 'Llista', test: 'Prova', git: 'Git', explored: 'Explorat',
       file1: 'fitxer', files: 'fitxers', search1: 'cerca', searches: 'cerques', listing1: 'llistat', listings: 'llistats',
+      s_edit: 'Ha editat fitxers', s_test: 'Ha passat els tests', s_run: 'Ha executat una ordre', s_git: 'Ha treballat amb git',
+      s_web: 'Ha consultat la web', s_browser: 'Ha fet servir el navegador', s_calendar: 'Ha consultat el calendari',
+      s_mail: 'Ha mirat el correu', s_remind: 'Ha mirat els recordatoris', s_delegate: 'Ha delegat feina',
+      s_search: 'Ha cercat al codi', s_read: 'Ha mirat els fitxers', s_used: 'Ha fet servir {x}',
+      quiet: 'sense resultats', exit: 'codi {n}',
     },
   };
 
@@ -334,12 +344,81 @@
       const extra = Object.keys(o).filter(k => k !== 'command' && o[k] !== '' && o[k] != null);
       return s('command') + (extra.length ? '\n\n' + extra.map(k => `# ${k}: ${typeof o[k] === 'string' ? o[k] : JSON.stringify(o[k])}`).join('\n') : '');
     }
+    const keys = Object.keys(o);
+    if (!keys.length) return '';
     const shown = {};
-    for (const k of Object.keys(o)) shown[k] = clip(o[k]);
+    for (const k of keys) shown[k] = clip(o[k]);
     return JSON.stringify(shown, null, 2);
   }
 
-  const api = { summarize, detail, explore, exploreSummary };
+  // La família d'una crida, per a la icona de la pastilla i la frase que
+  // Gregal escriu quan el model no n'ha dit cap.
+  const EDITS = new Set(['edit', 'patch', 'write', 'office_edit', 'office_create', 'pdf_create', 'pdf_edit']);
+  function family(name, args) {
+    const tool = String(name || '');
+    if (EDITS.has(tool)) return 'edit';
+    const ex = explore(tool, args);
+    if (ex) return ex.some(a => a.kind === 'search') ? 'search' : 'read';
+    if (tool === 'bash' || tool === 'bash_background') {
+      const label = summarize(tool, args, 'en').label;
+      return label === 'Test' ? 'test' : label === 'Git' ? 'git' : 'run';
+    }
+    if (tool === 'git_commit' || /^gh_/.test(tool)) return 'git';
+    if (/^web_/.test(tool)) return 'web';
+    if (tool === 'browser') return 'browser';
+    if (tool === 'calendar' || tool === 'mail' || tool === 'delegate') return tool;
+    if (/^remind/.test(tool)) return 'remind';
+    if (['read_image', 'office_read', 'office_open', 'pdf_read', 'symbols', 'lsp'].includes(tool)) return 'read';
+    return 'tool';
+  }
+  // Com més diu una família del que ha passat, abans guanya la frase: llegir
+  // i després editar és «Ha editat fitxers».
+  const RANK = ['edit', 'test', 'run', 'git', 'web', 'browser', 'calendar', 'mail', 'remind', 'delegate', 'tool', 'search', 'read'];
+  function sentence(calls, lang) {
+    const t = L[lang] || L.en;
+    let best = null;
+    for (const c of calls || []) {
+      const f = family(c.name, c.args);
+      if (!best || RANK.indexOf(f) < RANK.indexOf(best.f)) best = { f, name: String(c.name || '') };
+    }
+    if (!best) return '';
+    if (best.f !== 'tool') return t['s_' + best.f];
+    const m = /^mcp_([^_]+)_/.exec(best.name);
+    return t.s_used.replace('{x}', m ? m[1] : (t[best.name] || best.name));
+  }
+  const ICONS = new Set(['search', 'read', 'edit', 'test', 'run', 'git', 'web', 'browser']);
+  const base = p => String(p || '').replace(/[\\/]+$/, '').split(/[\\/]/).pop();
+  // chip: la pastilla d'una crida al final de la frase, en poques paraules.
+  function chip(name, args, lang) {
+    const tool = String(name || '');
+    const f = family(tool, args);
+    const s = summarize(tool, args, lang);
+    const o = parse(args) || {};
+    let text = s.target || s.label;
+    if (tool === 'edit' || tool === 'patch') text = base(s.target) + (s.meta ? ' ' + s.meta : '');
+    else if (tool === 'write') { const n = lineCount(typeof o.content === 'string' ? o.content : ''); text = base(s.target) + (n ? ' +' + n : ''); }
+    else if (tool === 'read' || tool === 'read_image' || /^(office|pdf)_/.test(tool)) text = base(s.target);
+    else if (tool === 'web_fetch') text = (/^[a-z]+:\/\/([^/?#]+)/i.exec(s.target) || [])[1] || s.target;
+    else if (f === 'git' && tool === 'bash') text = 'git ' + s.target;
+    else if (f === 'test' || f === 'run') text = String(o.command || '').replace(/^\s*cd\s+\S+\s*&&\s*/, '');
+    // Les eines sense verb propi (calendar, mail, profile…): el nom i els valors.
+    else if (!ICONS.has(f)) text = [tool, oneLine(Object.keys(o).filter(k => typeof o[k] === 'string').map(k => o[k]).join(' · '), 30)].filter(Boolean).join(' · ');
+    return { icon: ICONS.has(f) ? f : 'tool', text: oneLine(text || s.label, 48) };
+  }
+  // outcome: com ha anat una crida segons la sortida. Una ordre que només
+  // mira i surt amb 1 o 2 (grep sense coincidències, ls d'un fitxer que no hi
+  // és) no és un error de l'agent: és la resposta, i no es pinta de vermell.
+  function outcome(name, args, output, lang) {
+    const t = L[lang] || L.en;
+    const txt = String(output == null ? '' : output);
+    if (!/^ERROR:|^EINA BLOQUEJADA|^TOOL BLOCKED/.test(txt)) return { state: 'done', note: '' };
+    const m = /^ERROR: (?:exit: )?exit status (\d+)/.exec(txt);
+    if (!m) return { state: 'failed', note: '' };
+    if ((m[1] === '1' || m[1] === '2') && String(name) === 'bash' && explore(name, args)) return { state: 'quiet', note: t.quiet };
+    return { state: 'failed', note: t.exit.replace('{n}', m[1]) };
+  }
+
+  const api = { summarize, detail, explore, exploreSummary, sentence, chip, outcome };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.gregalToolSummary = api;
 })(typeof window !== 'undefined' ? window : globalThis);

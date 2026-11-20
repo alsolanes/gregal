@@ -399,6 +399,7 @@ export const convs = {
       cards.forEach(({ card }) => {
         card.classList.remove('pending'); card.classList.add('interrupted');
         const mark = card.querySelector('.tspin'); if (mark) mark.textContent = '■';
+        G().stepChips(card);
       });
       const msgsWord = gregalT('conv.messages') || 'messages';
       // Abans s'escrivia «títol · N missatges» a la conversa: repetia el que ja

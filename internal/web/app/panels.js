@@ -54,7 +54,6 @@ function renderSessionTranscript(transcript, busy) {
       calls.forEach(call => {
         const fn = call && call.function || {};
         const card = G().toolCard?.(fn.name || '', fn.arguments || '');
-        if (card) G().intoWorkGroup?.(card);
         if (call && call.id) cards.set(call.id, { card, name: fn.name || '' });
         groupTools++; toolCount++;
       });
@@ -77,6 +76,7 @@ function renderSessionTranscript(transcript, busy) {
     pendingCards.forEach(card => {
       card.classList?.remove('pending'); card.classList?.add('interrupted');
       const mark = card.querySelector?.('.tspin'); if (mark) mark.textContent = '■';
+      G().stepChips?.(card);
     });
     closeGroup(pendingCards.length > 0);
   }
@@ -120,7 +120,6 @@ function renderActiveRunEvents(events) {
       if (!grouped && G().beginWorkGroup) { activeGroup = G().beginWorkGroup(); grouped = true; }
       const name = String(d.name || e.text || T('actk.tool'));
       const card = G().toolCard?.(name, d.args || '');
-      if (card) G().intoWorkGroup?.(card);
       const list = pending.get(name) || []; list.push(card); pending.set(name, list);
       toolCount++;
     } else if (e.kind === 'tool_result') {
