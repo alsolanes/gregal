@@ -32,7 +32,7 @@ function makeElement() {
 
 function loadTurnStatus() {
   const source = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
-  const elements = new Map(['turnBar', 'turnTimer', 'queueList', 'send', 'statusDot'].map(id => [id, makeElement()]));
+  const elements = new Map(['turnBar', 'turnTimer', 'queueList', 'send', 'statusDot', 'speedReadout'].map(id => [id, makeElement()]));
   elements.get('queueList').querySelectorAll = () => [];
   const sandbox = {
     $, Date, Math,
@@ -116,4 +116,15 @@ test('returning to the chat replays an interaction that arrived while another vi
   assert.equal(seen.length, 1);
   assert.equal(seen[0].event, 'question_request');
   assert.equal(pendingInteractions.has('default'), false);
+});
+
+test('the speed readout is hidden when the turn ends', () => {
+  for (const quiet of [false, true]) {
+    const { api, elements, sandbox } = loadTurnStatus();
+    sandbox.buidaCua = () => {};
+    api.setSending(true, quiet);
+    elements.get('speedReadout').hidden = false; // a model call reported its speed
+    api.setSending(false, quiet);
+    assert.equal(elements.get('speedReadout').hidden, true, `quiet=${quiet}`);
+  }
 });
