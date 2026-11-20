@@ -1,7 +1,7 @@
 ---
 title: "Android: on s'obre el xat i on queda quan acaba"
 status: todo
-depends_on: [006]
+depends_on: [015]
 ---
 
 ## Why
@@ -19,7 +19,7 @@ Avui tots els xats s'obren pel primer missatge, el més antic, i en tornar-hi es
 ## Out of scope
 
 - Desar la posició entre execucions de l'app.
-- El comportament mentre s'escriu (tasca 006).
+- El comportament mentre s'escriu (tasca 015).
 
 ## Notes
 

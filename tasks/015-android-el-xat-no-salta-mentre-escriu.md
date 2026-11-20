@@ -20,7 +20,7 @@ Mentre l'agent o el vent escriu, la llista del xat va a salts fins que acaba: pe
 
 ## Out of scope
 
-- On queda el xat en obrir-lo o en tornar-hi (tasca 007).
+- On queda el xat en obrir-lo o en tornar-hi (tasca 016).
 - Canviar l'aspecte de les bombolles o de la targeta de feina.
 
 ## Notes
