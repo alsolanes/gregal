@@ -103,6 +103,22 @@ class DrawerModeSwitchTest {
         }
     }
 
+    // Tornar a Codi porta a l'última pantalla de Codi, però Enrere continua
+    // acabant a la portada de Codi i no a l'altre mode.
+    @Test fun backAfterReturningToARememberedCodeScreenEndsAtTheCodeChat() {
+        val vm = host(simple = false)
+        ui.runOnIdle { vm.go(Screen.Sessions) }
+        ui.onNode(option("app.mode.vents")).performClick()
+        ui.onNode(option("app.mode.code")).performClick()
+        ui.runOnIdle {
+            assertEquals(Screen.Sessions, vm.screen.value)
+            assertEquals(emptyList<Screen>(), vm.backStack.value)
+            assertEquals(true, vm.back())
+            assertEquals(Screen.Chat, vm.screen.value)
+            assertEquals(false, vm.back())
+        }
+    }
+
     @Test fun theChosenModeIsSavedAndLoadedAgain() {
         host(simple = false)
         ui.onNode(option("app.mode.vents")).performClick()
