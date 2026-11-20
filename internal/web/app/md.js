@@ -425,12 +425,14 @@
   const isTableSep = (l) => /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(l);
   const listItem = (l) => /^(\s*)([-*+]|\d+[.)])\s+(.*)$/.exec(l);
 
+  const FENCE = /```([\w+-]*)([^\n]*)(?:\n([\s\S]*?))?(```|$)/g;
+
   function render(text) {
     if (text == null) return "";
     // Blocs de codi abans de res: el seu contingut no es toca (ni s'hi
     // busquen llistes ni títols).
     const blocks = [];
-    let t = esc(text).replace(/```([\w+-]*)([^\n]*)(?:\n([\s\S]*?))?(```|$)/g, (m, l, rest, c) => {
+    let t = esc(text).replace(FENCE, (m, l, rest, c) => {
       c = c || "";
       // Els models escriuen sovint la targeta a la mateixa línia de l'obertura
       // («```gregal-recipe {…}»): el JSON és el contingut, no el nom del bloc.
@@ -524,7 +526,45 @@
     });
   }
 
-  const api = { render, inline, esc, stamp, scaleQty };
+  // liveCut diu fins on un text que encara arriba ja no canviarà de forma:
+  // l'última línia en blanc fora d'un bloc de codi. render tanca tots els
+  // blocs en una línia en blanc, així que pintar les dues meitats per separat
+  // dona el mateix que pintar-ho tot.
+  function liveCut(text) {
+    // Un bloc de codi sense tancar arriba fins al final del text: tot ell
+    // queda a la part oberta.
+    const fences = [];
+    for (const m of text.matchAll(FENCE)) fences.push([m.index, m.index + m[0].length]);
+    let cut = 0;
+    for (const m of text.matchAll(/\n[ \t\r]*\n/g)) {
+      if (!fences.some(([a, b]) => m.index >= a && m.index < b)) cut = m.index + m[0].length;
+    }
+    return cut;
+  }
+
+  // paintLive pinta a body el text d'una resposta que encara arriba. Refer-ho
+  // tot a cada tros feia saltar les respostes llargues i desfeia la selecció:
+  // els blocs acabats s'escriuen un sol cop i només es refà el que creix, que
+  // viu en un contenidor propi (.md-live) perquè el que altres scripts
+  // afegeixen al costat d'un bloc acabat (la targeta d'un gràfic) no es toqui.
+  const livePainted = new WeakMap(); // body → { cut, tail }
+  function paintLive(body, text) {
+    let s = livePainted.get(body);
+    if (!s) {
+      body.innerHTML = "";
+      body.insertAdjacentHTML("beforeend", '<div class="md-live"></div>');
+      s = { cut: 0, tail: body.lastChild };
+      livePainted.set(body, s);
+    }
+    const cut = liveCut(text);
+    if (cut > s.cut) {
+      s.tail.insertAdjacentHTML("beforebegin", render(text.slice(s.cut, cut)));
+      s.cut = cut;
+    }
+    s.tail.innerHTML = render(text.slice(cut));
+  }
+
+  const api = { render, inline, esc, stamp, scaleQty, liveCut, paintLive };
   root.gregalMD = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
