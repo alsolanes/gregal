@@ -1063,12 +1063,13 @@ refused. In the terminal: `/worktree new <name>`, `/worktree list`,
 `/worktree diff|apply|remove <name>`, `/worktree exit`. Headless and TUI:
 `--worktree <name>` (created if needed, reused otherwise).
 
-**Commits and pull requests.** The agent has two tools that always ask for
-approval and are denied in chat, inspect and goal modes: `git_commit` (by
+**Commits and pull requests.** The agent has two tools, denied in chat,
+inspect and goal modes: `git_commit` (a local commit, which goes ahead alone
+with the Act permission Auto-approve edits and asks with Ask before changes; by
 default commits only the files changed in this session, shell changes included;
 other staged files are left out) and `gh_pr_create` (uses `gh`; on the default
 branch it first creates a branch `gregal/<title>`, pushes without force and
-opens the PR). The Changes page has **Commit…** and **Create PR…** dialogs with
+opens the PR; it always asks). The Changes page has **Commit…** and **Create PR…** dialogs with
 a **Suggest** button that drafts the message from the diff with the chat role.
 A reusable GitHub Action for PR reviews is described in
 [github-action.md](github-action.md).

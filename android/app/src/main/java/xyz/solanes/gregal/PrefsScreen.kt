@@ -104,7 +104,7 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val admin by vm.isAdmin.collectAsState()
     val simple by vm.simpleVents.collectAsState()
     val requestedPage by vm.prefsPage.collectAsState()
-    val page = requestedPage.takeIf { it.available(!simple, admin) } ?: PrefsPage.Index
+    val page = requestedPage.takeIf { it.available(admin) } ?: PrefsPage.Index
     val scroll = androidx.compose.runtime.key(page) { rememberScrollState() }
     fun open(target: PrefsPage) = vm.openPreferences(target)
     GregalBg {
@@ -125,7 +125,7 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         PrefsLink(PrefsPage.Appearance, idioma, if (idioma == "en") "Theme and personalisation" else "Tema i personalització", ::open)
                         PrefsSection("Agent")
                         PrefsLink(PrefsPage.Models, idioma, if (idioma == "en") "Current model and provider" else "Model actual i proveïdor", ::open)
-                        if (!simple) PrefsLink(PrefsPage.Permissions, idioma, if (idioma == "en") "Approvals and reviewer" else "Aprovacions i revisor", ::open)
+                        PrefsLink(PrefsPage.Permissions, idioma, if (idioma == "en") "Approvals and reviewer" else "Aprovacions i revisor", ::open)
                         PrefsSection(if (idioma == "en") "Application" else "Aplicació")
                         PrefsLink(PrefsPage.Connections, idioma, if (idioma == "en") "Accounts, calendar and email" else "Comptes, calendari i correu", ::open)
                         if (admin) PrefsLink(PrefsPage.Server, idioma, if (idioma == "en") "Server administration" else "Administració del servidor", ::open)
@@ -140,7 +140,6 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         SettingsRow(Icons.Rounded.Dns, if (conn.local) t("app.server.thisDevice") else "${conn.host}:${conn.port}",
                             trailing = { TextButton(onClick = { vm.switchServer() }) { Text(t("app.server.switch")) } })
                         if (!conn.local) PrefsLink(PrefsPage.Notifications, idioma, if (idioma == "en") "Device notification status" else "Estat dels avisos del dispositiu", ::open)
-                        PreferenceSwitchRow(t("prefs.codingTools"), t("prefs.codingToolsHelp"), !simple) { vm.setSimpleVents(!it) }
                         PrefsLink(PrefsPage.About, idioma, "Gregal Android ${vm.versionNameInstalada()}", ::open)
                     }
                     PrefsPage.About -> {

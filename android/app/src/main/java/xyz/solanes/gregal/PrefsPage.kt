@@ -32,9 +32,5 @@ enum class PrefsPage(val ca: String, val en: String) {
         else -> Index
     }
 
-    fun available(coding: Boolean, admin: Boolean) = when (this) {
-        Permissions -> coding
-        Server -> admin
-        else -> true
-    }
+    fun available(admin: Boolean) = this != Server || admin
 }

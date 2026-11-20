@@ -14,7 +14,9 @@ class BackStackTest {
     private fun vm(): GregalViewModel {
         val app = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.app.Application>()
         val v = GregalViewModel(app)
-        // Com si acabéssim de connectar: aterrem als Vents.
+        // Com si acabéssim de connectar en mode Vents: aterrem als Vents
+        // (en mode Codi l'arrel és el xat: DrawerModeSwitchTest).
+        v.setSimpleVents(true)
         v.go(Screen.Company)
         // La pila queda neta (go(Company) des de Pairing apila Pairing → netegem).
         v.resetBackStackForTest()
@@ -55,6 +57,7 @@ class BackStackTest {
     fun connectingNeverAddsPairingToNavigationHistory() {
         val app = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.app.Application>()
         val v = GregalViewModel(app)
+        v.setSimpleVents(true)
         v.go(Screen.Company)
         assertTrue(v.backStack.value.isEmpty())
         assertFalse(v.back())

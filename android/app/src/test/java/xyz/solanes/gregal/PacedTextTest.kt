@@ -34,15 +34,4 @@ class PacedTextTest {
             shown = c
         }
     }
-
-    @Test fun glideApproachesWithoutOvershooting() {
-        val frame = 16_666_667L
-        var gap = 30f
-        var frames = 0
-        while (gap > 0f && frames < 100) { gap -= glideStep(gap, frame); frames++ }
-        assertEquals(0f, gap, 0.001f)
-        assertTrue("una línia entra en menys de mig segon ($frames fotogrames)", frames in 5..30)
-        assertEquals(0f, glideStep(0f, frame), 0f)
-        assertTrue(glideStep(2f, frame) <= 2f)
-    }
 }

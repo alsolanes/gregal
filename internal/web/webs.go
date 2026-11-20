@@ -369,6 +369,22 @@ func (s *Server) webNeedsPublicDecision(argsJSON string) (bool, string) {
 	return true, s.webPublicURL(name, "")
 }
 
+// codiPortaDura és el que a Codi pregunta sempre, encara que la política ho
+// deixi passar sol: la primera publicació pública d'un nom, com als vents.
+func (s *Server) codiPortaDura(name, argsJSON string) (string, bool) {
+	if name != "publish" {
+		return "", false
+	}
+	if need, _ := s.webNeedsPublicDecision(argsJSON); need {
+		return publishPublicReason, true
+	}
+	return "", false
+}
+
+// publishPublicReason és el motiu de la decisió de fer pública una web per
+// primer cop (Codi i vents).
+const publishPublicReason = "publish: first public publication of a site name"
+
 // --- operacions ---
 
 type webPublishOpts struct {

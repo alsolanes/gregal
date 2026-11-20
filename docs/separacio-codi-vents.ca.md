@@ -28,7 +28,7 @@ Mateix servidor, mateixes dades i mateix login, però **dues interfícies**:
 | Pantalla principal | Xat de l'agent amb el projecte: eines plegades, diffs, pla, aprovacions | Converses amb els vents, la colla i la benvinguda |
 | Laterals | Projectes i converses; Fitxers, Canvis, Terminal i Navegador en un panell | Converses, grups i directori de vents |
 | Hi viu | Objectius, MCP, GitHub, Kanban, Office, gràfics | Automatitzacions (rutines, recordatoris, resum del matí), calendari i correu, feines, Arena, jocs, Racó, biblioteca |
-| Mòbil | Gregal (Android de codi) | Gregal Vents (el que ja hi ha) |
+| Mòbil | Gregal (Android), que s'obre a Codi | Gregal Vents (Android), que s'obre a Vents; totes dues canvien de mode amb el selector «Codi \| Vents» de dalt del calaix i en recorden l'últim |
 
 Les dues es poden obrir des de l'altra amb un sol botó («Obre Vents ↗» /
 «Obre Codi ↗»), però no es barregen.

@@ -196,7 +196,6 @@ internal fun SharedChatConversation(vm: GregalViewModel, lang: String, chat: Sha
             delay(if (chat.id in SharedChatsStore.busy.value) 2_000 else 4_000)
         }
     }
-    val follow = rememberChatFollow(listState, chat.id)
     androidx.activity.compose.BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().background(Superficie).imePadding()) {
         VentsChatHeader(lang, chat.name,
@@ -206,6 +205,7 @@ internal fun SharedChatConversation(vm: GregalViewModel, lang: String, chat: Sha
             onBack = onBack, onProfile = { info = true })
         // Claus d'identitat: el fil es rellegeix sovint i les posicions ballen.
         val keys = remember(msgs) { chatRowKeys(msgs) { m -> "s" + m.ts + "|" + m.speakerId + "|" + m.author } }
+        val follow = rememberChatFollow(listState, chat.id, msgs.indexOfLast { it.mine }.takeIf { it >= 0 }?.let { keys[it] })
 
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = listState,
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) {
@@ -230,13 +230,14 @@ internal fun SharedChatConversation(vm: GregalViewModel, lang: String, chat: Sha
                     Text("  " + tr(lang, "app.company.groupThinking"), fontSize = 12.sp, color = accent)
                 }
             }
+            chatReserve(follow)
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(field, { field = it }, modifier = Modifier.weight(1f), maxLines = 5,
                 placeholder = { Text(tr(lang, "app.shared.hint"), fontSize = 14.sp) }, shape = RoundedCornerShape(22.dp))
             IconButton(enabled = field.isNotBlank() && !busy, onClick = {
                 val text = field.trim(); field = ""
-                follow.requestFollow()
+                follow.send()
                 scope.launch {
                     try { SharedChatsStore.send(vm.conn.value.api(), chat.id, text) }
                     catch (e: Exception) { vm.notify(tr(lang, "app.shared.error", e.message.orEmpty().take(120))) }

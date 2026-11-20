@@ -1071,12 +1071,14 @@ refusa. Al terminal: `/worktree new <nom>`, `/worktree list`,
 `/worktree diff|apply|remove <nom>`, `/worktree exit`. Headless i TUI:
 `--worktree <nom>` (el crea si cal o el reprèn).
 
-**Commits i pull requests.** L'agent té dues eines que sempre demanen permís i
-que es deneguen en els modes xat, consulta i objectiu: `git_commit` (per
+**Commits i pull requests.** L'agent té dues eines que es deneguen en els
+modes xat, consulta i objectiu: `git_commit` (un commit local, que passa sol amb
+el permís d'Actua «Aprova les edicions» i pregunta amb «Demana abans de
+canviar»; per
 defecte fa commit només dels fitxers canviats en aquesta sessió, bash inclòs;
 el que tinguis staged en altres fitxers queda fora) i `gh_pr_create` (fa servir
 `gh`; a la branca per defecte primer crea una branca `gregal/<títol>`, fa push
-sense forçar i obre la PR). La pàgina Canvis té els diàlegs **Fes commit…** i
+sense forçar i obre la PR; sempre pregunta). La pàgina Canvis té els diàlegs **Fes commit…** i
 **Crea una PR…**, amb un botó **Suggereix** que redacta el missatge a partir del
 diff amb el rol chat. Hi ha una GitHub Action reutilitzable per revisar PRs:
 vegeu [github-action.md](github-action.md).
