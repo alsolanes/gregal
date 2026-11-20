@@ -603,6 +603,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
         val bare = id.substringAfter(':')
         if (id.startsWith("wind:")) {
+            windNew.opened(bare, _windNewsCount.value[bare] ?: 0)
             markWindNewsSeen(bare)
             if (_windChat.value[bare].isNullOrEmpty()) _windChatLoading.value = _windChatLoading.value + bare
         } else if (id.startsWith("rot:")) {
@@ -2213,6 +2214,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     /** Text que el model escriu ara (fora de _msgs: no copia la llista a cada token). */
     private val _live = MutableStateFlow("")
     val live: StateFlow<String> = _live
+    /** L'id que tindrà el missatge quan el text en directe s'hi tanqui: la llista no canvia de clau. */
+    private val _liveId = MutableStateFlow(nextMsgId())
+    val liveId: StateFlow<Long> = _liveId
     /** Què fa l'agent ara mateix, i des de quan (capçalera del treball). */
     private val _activity = MutableStateFlow<Activity?>(null)
     val activity: StateFlow<Activity?> = _activity
@@ -2276,17 +2280,22 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         flushTokens()
         val live = _live.value.trim()
         if (live.isEmpty()) return
-        _live.value = ""
-        val m = ChatMsg("assistant", live)
-        answerId = m.id
+        answerId = settleLive(live).id
+    }
+
+    /** Primer el missatge i després es buida el directe: mai cap fotograma sense cap dels dos. */
+    private fun settleLive(text: String): ChatMsg {
+        val m = ChatMsg("assistant", text, id = _liveId.value)
         push(m)
+        _live.value = ""
+        _liveId.value = nextMsgId()
+        return m
     }
 
     private fun endTurn(failed: Boolean) {
         flushTokens()
         val live = _live.value.trim()
-        _live.value = ""
-        if (live.isNotEmpty()) push(ChatMsg("assistant", live))
+        if (live.isNotEmpty()) settleLive(live) else _live.value = ""
         val id = workId
         workId = 0L
         if (id != 0L) {
@@ -2351,12 +2360,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             "token" -> appendLive(f("text").ifEmpty { text })
             "assistant", "text" -> {
                 val t = f("text").ifEmpty { text }
-                _live.value = ""
-                if (t.isNotBlank()) {
-                    val m = ChatMsg("assistant", t)
-                    answerId = m.id
-                    push(m)
-                }
+                if (t.isNotBlank()) answerId = settleLive(t).id else _live.value = ""
             }
             "thinking", "thought", "reasoning" -> {
                 narrationToWork()
@@ -2756,6 +2760,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** La conversa de Codi que es veu (sessió reemprès o nova): la llista en recorda la posició. */
+    private val _codeChat = MutableStateFlow("code")
+    val codeChat: StateFlow<String> = _codeChat
+
     fun resumeSession(name: String, navigate: Boolean = true) {
         if (_conn.value.local) prefsStore.localSession = name
         viewModelScope.launch {
@@ -2775,6 +2783,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
                 _msgs.value = list
+                _codeChat.value = "code:$name"
                 if (list.isEmpty() && serverMsgs > 0) {
                     notify(appText("app.status.sessionHidden", serverMsgs))
                 }
@@ -2790,6 +2799,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.IO) { _conn.value.api().post("/api/new", JSONObject()) }
                 if (_conn.value.local) prefsStore.localSession = ""
                 _msgs.value = emptyList()
+                _codeChat.value = "code:new${nextMsgId()}"
                 refresh()
                 go(Screen.Chat)
             } catch (e: Exception) { notify(appText("app.status.sessionNew", e.message.orEmpty())) }
@@ -3425,6 +3435,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
+
+    /** Les novetats que tenia cada vent just abans d'obrir-lo (i marcar-les llegides): el fil s'hi obre. */
+    internal val windNew = WindNewMarks()
 
     fun markWindNewsSeen(id: String) {
         newsPrefs.edit().putLong("w:$id", System.currentTimeMillis() / 1000).apply()
@@ -5487,7 +5500,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             }
             return
         }
-        if (skeleton) _windChatLoading.value = _windChatLoading.value + windId
+        // Amb fil a la mà no es pinta l'esquelet, però el fil sap que encara no té les novetats.
+        _windChatLoading.value = _windChatLoading.value + windId
         viewModelScope.launch {
             // La còpia primer (sense esquelet), en paral·lel: la petició al servidor
             // surt igual de seguida i, quan arriba, la substitueix.
@@ -5505,6 +5519,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (isCompanionOrigin(source, epoch) && request == windHistoryRequests[windId] &&
                     !_windBusy.value.contains(windId)) {
                     if (thread.isNotEmpty()) selectedWindThreads[windId] = thread
+                    windNew.fromServer(windId, history.size)
                     _windChat.value = _windChat.value + (windId to OfflineLogic.withQueued(
                         ventsRecency.restore(source, "wind", windId, history), _outbox.value, windId))
                     cacheChat(source, windId)
@@ -5519,7 +5534,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     goOffline(source)
                 } else companyError(e)
             }
-            finally { if (skeleton) _windChatLoading.value = _windChatLoading.value - windId }
+            finally { windNew.settle(windId); _windChatLoading.value = _windChatLoading.value - windId }
         }
     }
 

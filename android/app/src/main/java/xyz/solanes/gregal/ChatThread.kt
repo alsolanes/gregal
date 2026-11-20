@@ -145,6 +145,7 @@ internal fun threadCopy(lang: String, key: String): String {
         "today" -> if (en) "Today" else "Avui"
         "yesterday" -> if (en) "Yesterday" else "Ahir"
         "unread" -> if (en) "Something new for you" else "Una novetat per a tu"
+        "new" -> if (en) "New" else "Nous"
         "menu" -> if (en) "Menu" else "Menú"
         "computer" -> if (en) "Computer" else "Ordinador"
         "working" -> if (en) "working…" else "treballant…"

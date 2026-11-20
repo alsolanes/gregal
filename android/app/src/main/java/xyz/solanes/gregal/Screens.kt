@@ -29,7 +29,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -112,6 +111,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
@@ -388,6 +388,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val showRewind by vm.showRewind.collectAsState()
     val checkpoints by vm.checkpoints.collectAsState()
     val live by vm.live.collectAsState()
+    val liveId by vm.liveId.collectAsState()
     val needsProvider by vm.needsProvider.collectAsState()
     val activity by vm.activity.collectAsState()
     var showPlus by remember { mutableStateOf(false) }
@@ -407,12 +408,13 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
             ).isNotEmpty()
         } catch (_: Exception) { false }
     }
-    val listState = rememberLazyListState()
+    val codeChat by vm.codeChat.collectAsState()
+    val listState = rememberChatList(codeChat, msgs.isNotEmpty())
     val haptic = LocalHapticFeedback.current
     var composerFocused by remember { mutableStateOf(false) }
     val busy = sending || st.agentBusy
 
-    val follow = rememberChatFollow(listState, "code")
+    val follow = rememberChatFollow(listState, "code", msgs.lastOrNull { it.role == "user" }?.id)
     LaunchedEffect(notice) { if (notice.isNotEmpty()) { snack.showSnackbar(notice); vm.clearNotice() } }
     LaunchedEffect(showModelMenu) { if (showModelMenu) vm.loadModels() }
 
@@ -629,11 +631,11 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                 busy = busy, canSend = input.isNotBlank(), voice = voiceOk, lang = lang,
                                 onSend = {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    follow.requestFollow(); vm.submit(consumeInput())
+                                    follow.send(); vm.submit(consumeInput())
                                 },
                                 onInterrupt = {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    follow.requestFollow(); vm.submit(consumeInput(), interrupt = true)
+                                    follow.send(); vm.submit(consumeInput(), interrupt = true)
                                 },
                                 onStop = {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -809,12 +811,13 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             }
                         }
                     }
-                    if (live.isNotEmpty()) item(key = "live", contentType = "live") { LiveAnswer(live, lang) }
-                    item(key = "end", contentType = "end") { Spacer(Modifier.height(8.dp)) }
+                    // La mateixa clau que el missatge en què es tancarà: en acabar no salta.
+                    if (live.isNotEmpty() && msgs.none { it.id == liveId }) item(key = liveId, contentType = "live") { LiveAnswer(live, lang) }
+                    chatReserve(follow)
                 }
-                if (!follow.following && msgs.isNotEmpty()) {
+                if (follow.behind) {
                     Surface(
-                        onClick = follow::requestFollow,
+                        onClick = { flipScope.launch { listState.scrollToLatest() } },
                         shape = CircleShape, color = SuperficieOpaca, shadowElevation = 4.dp,
                         border = BorderStroke(1.dp, Line),
                         modifier = Modifier.align(Alignment.BottomCenter).padding(inner).padding(10.dp).size(44.dp),

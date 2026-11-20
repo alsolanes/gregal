@@ -357,3 +357,25 @@ data class WindSessionInfo(
     val whenText: String,
     val current: Boolean,
 )
+
+/**
+ * On va la ratlla «Nous» de cada vent: el primer dels missatges que no havies
+ * vist en obrir-lo. Es fixa una sola vegada per obertura i amb el fil que torna
+ * el servidor (la còpia del mòbil encara no té les novetats); les recàrregues
+ * de després (en acabar un torn, en tornar la xarxa) no la mouen.
+ */
+internal class WindNewMarks {
+    private val unread = mutableMapOf<String, Int>()
+    val at = kotlinx.coroutines.flow.MutableStateFlow<Map<String, Int>>(emptyMap())
+    fun opened(id: String, unread: Int) {
+        if (unread > 0) this.unread[id] = unread else this.unread -= id
+        at.value -= id
+    }
+    fun pending(id: String) = id in unread
+    /** [serverCount]: els missatges del fil del servidor, sense els que esperen a sortir. */
+    fun fromServer(id: String, serverCount: Int) {
+        val n = unread.remove(id) ?: return
+        at.value += id to (serverCount - n).coerceAtLeast(0)
+    }
+    fun settle(id: String) { unread -= id }
+}
