@@ -35,7 +35,8 @@ func TestKnowledgeToolsPolicy(t *testing.T) {
 		{ModeChat, "knowledge_search", `{"query":"x"}`, "allow"},
 		{ModeInspect, "knowledge_search", `{"query":"x"}`, "allow"},
 		{ModeGoal, "knowledge_search", `{"query":"x"}`, "allow"},
-		{ModeCode, "knowledge_note", `{"text":"x"}`, "ask"},
+		{ModeCode, "knowledge_note", `{"text":"x"}`, "allow"}, // nota de projecte: feina d'aquí (tasca 018)
+		{ModeCode, "knowledge_note", `{"text":"x","collection":"Shared"}`, "ask"},
 		{ModeChat, "knowledge_note", `{"text":"x"}`, "deny"},
 		{ModeInspect, "knowledge_note", `{"text":"x"}`, "deny"},
 		{ModeGoal, "knowledge_note", `{"text":"x"}`, "deny"},

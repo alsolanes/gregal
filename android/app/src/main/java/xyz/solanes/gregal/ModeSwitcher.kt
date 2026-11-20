@@ -37,10 +37,7 @@ internal fun ModeSwitcher(lang: String, current: AppArea, onSelect: (AppArea) ->
 
 @Composable
 private fun ModeChoice(lang: String, area: AppArea, selected: Boolean, onClick: () -> Unit) {
-    val label = when (area) {
-        AppArea.Vents -> if (lang == "en") "Winds" else "Vents"
-        AppArea.Code -> if (lang == "en") "Code" else "Codi"
-    }
+    val label = tr(lang, if (area == AppArea.Vents) "app.mode.vents" else "app.mode.code")
     Row(
         Modifier.clip(RoundedCornerShape(50))
             .background(if (selected) SeaSoft(0.2f) else androidx.compose.ui.graphics.Color.Transparent)
@@ -60,10 +57,7 @@ private fun ModeChoice(lang: String, area: AppArea, selected: Boolean, onClick: 
 @Composable
 internal fun ModeSwitchIcon(lang: String, current: AppArea, onSelect: (AppArea) -> Unit, modifier: Modifier = Modifier) {
     val target = if (current == AppArea.Vents) AppArea.Code else AppArea.Vents
-    val label = when (target) {
-        AppArea.Vents -> if (lang == "en") "Switch to Winds" else "Canvia a Vents"
-        AppArea.Code -> if (lang == "en") "Switch to Code" else "Canvia a Codi"
-    }
+    val label = tr(lang, if (target == AppArea.Vents) "app.mode.toVents" else "app.mode.toCode")
     androidx.compose.material3.IconButton(onClick = { onSelect(target) }, modifier = modifier) {
         Icon(if (target == AppArea.Vents) Icons.Rounded.Groups else Icons.Rounded.Code, label, tint = Sea)
     }

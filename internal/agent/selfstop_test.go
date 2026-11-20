@@ -41,11 +41,16 @@ func TestSelfStopHardDenySurvivesAllShellGrantsAndPlanning(t *testing.T) {
 			}
 		}
 	}
-	for _, command := range []string{`systemctl status gregal-telegram`, `systemctl show gregal-telegram`, `systemctl restart nginx.service`} {
+	for _, command := range []string{`systemctl status gregal-telegram`, `systemctl show gregal-telegram`} {
 		args, _ := json.Marshal(map[string]string{"command": command})
 		if decision, reason := pol.Decide(ModeCode, "bash", string(args)); decision != "allow" {
 			t.Errorf("existing explicit grant changed for %q: %s (%s)", command, decision, reason)
 		}
+	}
+	// Tocar un servei del sistema és una porta dura: pregunta encara que el
+	// config ho permeti, a Codi igual que als vents (tasca 018).
+	if decision, reason := pol.Decide(ModeCode, "bash", `{"command":"systemctl restart nginx.service"}`); decision != "ask" {
+		t.Errorf("systemctl restart nginx.service: %s (%s), want ask", decision, reason)
 	}
 }
 

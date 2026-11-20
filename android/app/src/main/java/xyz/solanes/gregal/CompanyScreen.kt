@@ -74,7 +74,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.ClickableText
-import kotlinx.coroutines.flow.conflate
+import androidx.compose.foundation.gestures.scrollBy
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
@@ -448,9 +449,8 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                 // lluïssor al darrere i el camp a baix— en lloc de saltar a una altra.
                 val capSt = capUi.state
                 val chatting = capSt.history.isNotEmpty() || capUi.busy
-                val homeList = rememberLazyListState()
-                val homeFollow = rememberChatFollow(homeList, "ventet-home")
-                ReadReplyFromStart(homeList, homeFollow, capUi.busy, capReplyKey(capUi))
+                val homeList = rememberChatList("ventet-home", capSt.history.isNotEmpty())
+                val homeFollow = rememberChatFollow(homeList, "ventet-home", capSentKey(capUi))
                 // El missatge que no ha arribat torna al camp, també aquí.
                 LaunchedEffect(capUi.failedText) {
                     val t = capUi.failedText
@@ -462,10 +462,10 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                     onSend = { text ->
                         // Al Ventet: respon ell o ho passa a qui toca, i el xat es
                         // queda aquí mateix; res de canviar de finestra.
-                        homeFollow.requestFollow(); vm.askCap(text); askText.value = ""
+                        homeFollow.send(); vm.askCap(text); askText.value = ""
                     },
                     modifier = Modifier.fillMaxSize().padding(pad),
-                    chat = if (chatting) ({ VentetThread(vm, lang, winds, homeList, Color(capSt.argb), showEmpty = false) }) else null,
+                    chat = if (chatting) ({ VentetThread(vm, lang, winds, homeList, homeFollow, Color(capSt.argb), showEmpty = false) }) else null,
                     halo = false,
                     assistant = capSt.name.ifBlank { "Gregal" },
                     aboveComposer = {
@@ -1212,12 +1212,16 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             field = TextFieldValue(txt, TextRange(txt.length))
         }
     }
-    val listState = rememberLazyListState()
     LaunchedEffect(wind.id) { vm.loadWindChat(wind.id) }
     // Un recordatori o un cor que parla amb el xat obert: el missatge nou entra
     // al moment (la consulta de novetats és cada 20 s), sense haver de sortir i tornar a entrar.
     val openNews by vm.windNewsCount.collectAsState()
     val openNewsTs = openNews[wind.id]
+    // Amb novetats, el fil s'obre pel primer missatge nou quan el servidor ja les ha donat.
+    val newMarks by vm.windNew.at.collectAsState()
+    val newFrom = newMarks[wind.id]
+    val ready = msgs.isNotEmpty() && !vm.windNew.pending(wind.id)
+    val listState = rememberChatList("wind:" + wind.id, ready, newFrom)
     LaunchedEffect(openNewsTs) { if (openNewsTs != null) { vm.loadWindChat(wind.id); vm.markWindNewsSeen(wind.id) } }
     // B7: fil visible = novetats llegides a tot arreu; obrir des d'un avís porta al missatge exacte.
     val chatConn by vm.conn.collectAsState()
@@ -1225,26 +1229,21 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     shareTarget?.let { t -> ShareSheet(vm, lang, t, onDismiss = { shareTarget = null }) }
     ThreadReadEffect(chatConn, wind.id, openNewsTs)
     FocusMessageEffect("wind:${wind.id}", listState, msgs.map { it.id })
-    val follow = rememberChatFollow(listState, wind.id)
+    val follow = rememberChatFollow(listState, wind.id, msgs.indexOfLast { it.from == "user" }.takeIf { it >= 0 })
     var liveFrom by remember(wind.id) { mutableIntStateOf(Int.MAX_VALUE) }
     LaunchedEffect(wind.id, msgs.size) { if (msgs.isNotEmpty() && liveFrom == Int.MAX_VALUE) liveFrom = msgs.size }
 
     val isBusy = busy.contains(wind.id)
-    // Al fil, cada missatge és l'element del seu índex (l'estat buit només surt sense missatges).
-    ReadReplyFromStart(listState, follow, isBusy, currentReplyKey(msgs))
     val pal = LocalPal.current
     Box(Modifier.fillMaxSize().background(Superficie).then(if (home) Modifier.openingBloom(accent, pal.lila, isBusy) else Modifier)) {
         Column(Modifier.fillMaxSize()) {
         // La capçalera diu qui és; «què està fent» es diu al final del fil.
         // A la portada de Gregal la capçalera és una capa flotant (a sota): el fil hi passa per sota.
         // Missatges
-        // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
-        // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
         val scope = rememberCoroutineScope()
-        val awayFromLatest = msgs.isNotEmpty() && !follow.following
         Box(Modifier.weight(1f)) {
         // Els botons d'acció de les targetes (RichCards.kt) envien el seu text al vent.
-        val cardSay: (String) -> Unit = { text -> if (!busy.contains(wind.id)) { follow.requestFollow(); vm.sendWindMessage(wind.id, text) } }
+        val cardSay: (String) -> Unit = { text -> if (!busy.contains(wind.id)) { follow.send(); vm.sendWindMessage(wind.id, text) } }
         CompositionLocalProvider(LocalCardSay provides cardSay) {
         LazyColumn(
             Modifier.fillMaxSize(),
@@ -1265,7 +1264,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                         hint = tr(lang, "app.company.windHello", wind.name),
                         // Com al Grok: tres primeres frases a un toc, segons l'ofici del vent.
                         suggestions = windStarters(lang, wind.specialty),
-                        onPick = { follow.requestFollow(); vm.sendWindMessage(wind.id, it) },
+                        onPick = { follow.send(); vm.sendWindMessage(wind.id, it) },
                     )
                 }
             }
@@ -1280,6 +1279,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     val facts = remember(m.text) { m.text.lines().map { it.trim() }.filter { it.isNotEmpty() } }
                     MemoryNotice(lang, facts) { vm.forgetLearned(wind.id, facts) }
                 } else Column(Modifier.padding(top = gap)) {
+                    if (idx == newFrom) ThreadDivider(threadCopy(lang, "new"), accent = true)
                     if (m.kind == "guest" && m.speakerName.isNotBlank()) GuestJoinsLine(lang, m.speakerName)
                     val cap = rememberBubbleCapture()
                     BubbleIn("dm#$idx", animate = idx >= liveFrom) {
@@ -1293,8 +1293,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                                     scope.launch { vm.notify(tr(lang, "app.vents.copied")) }
                                 }
                             },
-                            onContinue = if (!isBusy) ({ follow.requestFollow(); vm.sendWindContinue(wind.id) }) else null,
-                            onRetry = if (!isBusy) ({ follow.requestFollow(); vm.retryLastWindTurn(wind.id) }) else null,
+                            onContinue = if (!isBusy) ({ follow.send(); vm.sendWindContinue(wind.id) }) else null,
+                            onRetry = if (!isBusy) ({ follow.send(); vm.retryLastWindTurn(wind.id) }) else null,
                             onTransfer = if (vm.canTransferToServer() && !isBusy) ({ askTransfer = true }) else null,
                             onDiscard = if (m.kind == "queued") ({ vm.discardQueued(wind.id, m.ts) }) else null,
                             onCopied = { scope.launch { vm.notify(tr(lang, "app.vents.linkCopied")) } })
@@ -1313,7 +1313,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             if (!isBusy) {
                 val quick = msgs.lastOrNull { it.kind != "memory" }?.takeIf { it.from != "user" && !it.streaming }?.let { extractChoices(it.text) }.orEmpty()
                 if (quick.isNotEmpty()) item(key = "quick") {
-                    ChoiceChips(quick, accent) { pick -> follow.requestFollow(); vm.sendWindMessage(wind.id, pick) }
+                    ChoiceChips(quick, accent) { pick -> follow.send(); vm.sendWindMessage(wind.id, pick) }
                 }
             }
             // Prova del que el vent ha programat de debò en aquest torn, amb «Desfés».
@@ -1335,10 +1335,11 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     liveNow?.tempesta?.let { TempestaPanel(lang, it) }
                 }
             }
+            chatReserve(follow)
         }
         }
-        if (awayFromLatest) LatestPill(lang) {
-            follow.requestFollow(); scope.launch { listState.scrollToLatest() }
+        if (follow.behind) LatestPill(lang) {
+            scope.launch { listState.scrollToLatest() }
         }
         }
         // Aprovacions i preguntes del vent: el torn espera aquí la teva resposta.
@@ -1360,7 +1361,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         val lastReply = msgs.lastOrNull { it.from != "user" && it.kind != "memory" && !it.streaming }
         val replyKey = lastReply?.let { "${it.ts}:${it.text.hashCode()}" }.orEmpty()
         val voiceConv = rememberVoiceConversation(lang) { said ->
-            follow.requestFollow()
+            follow.send()
             vm.sendWindMessage(wind.id, said)
         }
         if (voiceConv != null) {
@@ -1389,7 +1390,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     field = TextFieldValue("")
                 }
             } else {
-                follow.requestFollow(); vm.sendWindMessage(wind.id, body); field = TextFieldValue("")
+                follow.send(); vm.sendWindMessage(wind.id, body); field = TextFieldValue("")
             }
         }
         }
@@ -1527,7 +1528,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
     // Mentrestant la rotllana treballa, enviar = steer (el ViewModel decideix).
     val canSend = field.text.isNotBlank()
     LaunchedEffect(rot.id) { vm.loadRotllanaChat(rot.id) }
-    val follow = rememberChatFollow(listState, rot.id)
+    val follow = rememberChatFollow(listState, rot.id, msgs.indexOfLast { it.from == "user" }.takeIf { it >= 0 })
     var liveFrom by remember(rot.id) { mutableIntStateOf(Int.MAX_VALUE) }
     LaunchedEffect(rot.id, msgs.size) { if (msgs.isNotEmpty() && liveFrom == Int.MAX_VALUE) liveFrom = msgs.size }
 
@@ -1540,10 +1541,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
         Column(Modifier.fillMaxSize()) {
         val crewSteps by vm.crewStep.collectAsState()
         val crewStep = crewSteps[rot.id]
-        // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
-        // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
         val scope = rememberCoroutineScope()
-        val awayFromLatest = msgs.isNotEmpty() && !follow.following
         Box(Modifier.weight(1f)) {
         LazyColumn(
             Modifier.fillMaxSize(),
@@ -1604,8 +1602,8 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                             scope.launch { vm.notify(tr(lang, "app.vents.copied")) }
                         }
                     },
-                    onContinue = if (!busy.contains(rot.id)) ({ follow.requestFollow(); vm.sendRotllanaContinue(rot.id, resolved.message.speakerId) }) else null,
-                    onRetry = if (!busy.contains(rot.id)) ({ follow.requestFollow(); vm.retryLastRotllanaTurn(rot.id) }) else null,
+                    onContinue = if (!busy.contains(rot.id)) ({ follow.send(); vm.sendRotllanaContinue(rot.id, resolved.message.speakerId) }) else null,
+                    onRetry = if (!busy.contains(rot.id)) ({ follow.send(); vm.retryLastRotllanaTurn(rot.id) }) else null,
                     onTransfer = if (vm.canTransferToServer() && !busy.contains(rot.id)) ({ askTransfer = true }) else null,
                     onCopied = { scope.launch { vm.notify(tr(lang, "app.vents.linkCopied")) } })
                 }
@@ -1619,7 +1617,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                 val quick = proposer?.let { extractChoices(it.text) }.orEmpty()
                 // La proposta la continua qui l'ha feta: abans responia el vent que menys havia parlat.
                 if (quick.isNotEmpty()) item(key = "quick") {
-                    ChoiceChips(quick, rotAccent) { pick -> follow.requestFollow(); vm.sendRotllanaMessage(rot.id, pick, proposer?.speakerId.orEmpty()) }
+                    ChoiceChips(quick, rotAccent) { pick -> follow.send(); vm.sendRotllanaMessage(rot.id, pick, proposer?.speakerId.orEmpty()) }
                 }
             }
             // Un sol lloc per «què està fent» la colla: els punts al final del
@@ -1642,9 +1640,10 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                     liveRot?.tempesta?.let { TempestaPanel(lang, it) }
                 }
             }
+            chatReserve(follow)
         }
-        if (awayFromLatest) LatestPill(lang) {
-            follow.requestFollow(); scope.launch { listState.scrollToLatest() }
+        if (follow.behind) LatestPill(lang) {
+            scope.launch { listState.scrollToLatest() }
         }
         }
         // Aprovacions i preguntes dels vents del grup: el torn espera aquí la teva resposta.
@@ -1671,7 +1670,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             showModePill = !vm.simpleVents.value) {
             val body = field.text
             val target = resolveMention(body, faces)
-            follow.requestFollow(); vm.sendRotllanaMessage(rot.id, body, target?.id.orEmpty()); field = TextFieldValue("")
+            follow.send(); vm.sendRotllanaMessage(rot.id, body, target?.id.orEmpty()); field = TextFieldValue("")
         }
         }
         // Capçalera flotant: el fil passa per sota de les pastilles.
@@ -2053,7 +2052,6 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                 // Sense animateContentSize en directe: cada línia nova rellançava
                 // l'animació i retallava el text per baix, i amb el seguiment del
                 // final tota la resposta pujava a esgraons a 30 Hz (el tremolor).
-                // La suavitat la posa el seguiment (rememberChatFollow), que llisca.
                 modifier = (if (reading) Modifier.fillMaxWidth().widthIn(max = 640.dp) else Modifier)
                     .combinedClickable(
                     onClick = {}, onLongClick = { onCopy?.invoke() },
@@ -2460,220 +2458,98 @@ private fun CrewQuestionCard(lang: String, accent: Color) {
     }
 }
 
-/** Follow is user intent, not proximity after a newly appended item changes layout. */
-internal class ChatFollowState {
-    var following by mutableStateOf(true)
-        private set
-    var dragging by mutableStateOf(false)
-        private set
-    /**
-     * Si la persona vol el final. No és el mateix que [following]: en obrir un
-     * fil es «segueix» perquè el fil encara cap a la pantalla, però ningú no ha
-     * demanat que el portin a la cua quan creixi.
-     */
-    var wantsEnd by mutableStateOf(false)
-        private set
-    /** S'ha deixat de seguir només perquè la resposta en directe no salti
-     *  (no perquè la persona hagi pujat a llegir): en acabar, es torna al final. */
-    var autoPaused by mutableStateOf(false)
-        private set
-    fun requestFollow() { following = true; wantsEnd = true; autoPaused = false }
-    /** Deixa de seguir el final sense que hi hagi cap dit: per llegir una resposta des del principi. */
-    fun pause() { following = false; wantsEnd = false }
-    /** Pausa mentre la resposta s'escriu: el final es recupera en acabar. */
-    fun pauseForLiveReply() { following = false; autoPaused = true }
-    fun startReading() { dragging = true; following = false; wantsEnd = false; autoPaused = false }
-    fun stopDragging() { dragging = false }
+/** Com a les apps de xat amb IA: en enviar, el teu missatge puja a dalt i la resposta creix a
+ *  sota, dins l'espai de [chatReserve]; mentre s'escriu la llista no es mou sola i el dit mana. */
+internal class ChatFollowState(private val list: LazyListState) {
+    /** S'ha enviat: el proper missatge teu que entri es fixa a dalt. */
+    internal var armed = false
+    internal var pinned by mutableStateOf<Any?>(null)
+    /** Alçada (px) de l'espai final: prou perquè el missatge fixat pugui quedar a dalt. */
+    internal var reserve by mutableIntStateOf(0)
+    /** Has arrossegat des que vas enviar: la llista ja no es mou sola. */
+    internal var dragged = false
+    /** El fil passa de la pantalla: surt el botó per anar al final. */
+    val behind: Boolean get() = list.canScrollForward
+    fun send() { armed = true }
+    private var room = 0
+    private var atBottom = false
+
+    internal suspend fun keepPinned(info: androidx.compose.foundation.lazy.LazyListLayoutInfo) {
+        val was = room.also { room = info.viewportSize.height - info.beforeContentPadding - info.afterContentPadding }
+        val bottom = atBottom.also { atBottom = !list.canScrollForward }
+        val pin = info.visibleItemsInfo.firstOrNull { it.key == pinned }
+        // El teclat s'obre amb el final a la vista: l'últim missatge no queda tapat.
+        if ((pin == null || reserve <= 0) && bottom && room < was) return list.scrollToLatest()
+        if (pin == null) return
+        val last = info.visibleItemsInfo.last()
+        val atEnd = last.index == info.totalItemsCount - 1
+        if (atEnd) reserve = room - (last.offset - pin.offset) else if (pin.offset <= 0) reserve = 0
+        if (dragged || list.isScrollInProgress || pin.offset == 0 || reserve <= 0) return
+        // L'espai encara no és al layout: tocaria el final i no arribaria a dalt.
+        if (atEnd && last.size < reserve - 1) return
+        // En enviar, o quan alguna cosa de sota s'encongeix (la resposta passa a
+        // definitiva, una fase d'eina) i la llista, sense prou contingut, ha baixat.
+        list.scrollBy(pin.offset.toFloat())
+    }
 }
 
-/**
- * El fil s'allarga més que la pantalla per primer cop: fins ara no hi havia res
- * a fer scroll i el que s'estava llegint era el final. Si la persona no ha
- * demanat el final (no ha enviat res ni ha baixat a mà), no se la hi porta: es
- * queda on és i surt «Últims ↓». Sense això, el primer creixement del fil
- * arrencava la vista de cop —el «es torna a pintar» que es veia a la conversa.
- */
-internal fun shouldFollowOnGrowth(wasScrollable: Boolean, scrollable: Boolean, wantsEnd: Boolean): Boolean =
-    !(!wasScrollable && scrollable && !wantsEnd)
-
 @Composable
-internal fun rememberChatFollow(list: LazyListState, key: Any): ChatFollowState {
-    val follow = remember(list, key) { ChatFollowState() }
-    var wasScrollable by remember(list, key) { mutableStateOf(list.canScrollForward) }
+internal fun rememberChatFollow(list: LazyListState, key: Any, lastSent: Any?): ChatFollowState {
+    val follow = remember(list, key) { ChatFollowState(list) }
     LaunchedEffect(list, follow) {
-        list.interactionSource.interactions.collect { interaction ->
-            when (interaction) {
-                is androidx.compose.foundation.interaction.DragInteraction.Start -> follow.startReading()
-                is androidx.compose.foundation.interaction.DragInteraction.Stop,
-                is androidx.compose.foundation.interaction.DragInteraction.Cancel -> {
-                    follow.stopDragging()
-                    if (!list.canScrollForward) follow.requestFollow()
-                }
-            }
+        list.interactionSource.interactions.collect {
+            if (it is androidx.compose.foundation.interaction.DragInteraction.Start) follow.dragged = true
         }
     }
+    LaunchedEffect(follow, lastSent) {
+        if (!follow.armed || lastSent == null) return@LaunchedEffect
+        follow.armed = false; follow.dragged = false
+        // Al final, on és el que acabes d'enviar, encara que haguessis pujat a llegir.
+        list.scrollToLatest()
+        follow.pinned = lastSent
+    }
     LaunchedEffect(list, follow) {
-        // Quants elements i quina vista hi havia l'últim cop: si no ha canviat
-        // res més que l'alçada de l'últim (la resposta que s'escriu), es llisca.
-        var seenCount = -1
-        var seenViewport = -1
-        snapshotFlow {
-            when {
-                follow.dragging || list.isScrollInProgress -> null
-                !list.canScrollForward -> LatestChatLayout(atEnd = true)
-                !follow.following -> null
-                else -> {
-                    val info = list.layoutInfo
-                    val last = info.visibleItemsInfo.lastOrNull()
-                    LatestChatLayout(false, info.totalItemsCount, info.viewportEndOffset,
-                        last?.index ?: -1, last?.offset ?: 0, last?.size ?: 0)
-                }
-            }
-        }.conflate().collect { layout ->
-            if (layout == null || follow.dragging || list.isScrollInProgress) return@collect
-            val scrollable = list.canScrollForward
-            if (!list.canScrollForward) follow.requestFollow()
-            else if (follow.following) {
-                if (!shouldFollowOnGrowth(wasScrollable, scrollable, follow.wantsEnd)) follow.pause()
-                else {
-                    val info = list.layoutInfo
-                    // La mateixa resposta ha crescut una mica: llisca. Un missatge nou,
-                    // el teclat o un salt gran van de cop, com sempre.
-                    val glide = info.totalItemsCount == seenCount && info.viewportEndOffset == seenViewport &&
-                        bottomGap(info) in 1..(info.viewportEndOffset - info.viewportStartOffset) / 2
-                    // A drag can cancel the scroll mutation without ending the observer.
-                    kotlinx.coroutines.coroutineScope {
-                        launch { if (glide) list.glideToLatest { follow.following } else list.scrollToLatest() }.join()
-                    }
-                }
-            }
-            wasScrollable = scrollable
-            seenCount = list.layoutInfo.totalItemsCount
-            seenViewport = list.layoutInfo.viewportEndOffset
+        snapshotFlow { list.layoutInfo to follow.pinned }.collect { (info, _) ->
+            // Un dit atura el moviment sense acabar amb aquest observador.
+            kotlinx.coroutines.coroutineScope { launch { follow.keepPinned(info) }.join() }
         }
     }
     return follow
 }
 
-private data class LatestChatLayout(
-    val atEnd: Boolean,
-    val count: Int = 0,
-    val viewportEnd: Int = 0,
-    val lastIndex: Int = -1,
-    val lastOffset: Int = 0,
-    val lastSize: Int = 0,
-)
+/** L'últim element del xat: l'espai on creix la resposta, sota el missatge enviat. */
+internal fun androidx.compose.foundation.lazy.LazyListScope.chatReserve(follow: ChatFollowState) =
+    item(key = "reserve", contentType = "reserve") {
+        Spacer(Modifier.height(with(androidx.compose.ui.platform.LocalDensity.current) { follow.reserve.toDp() }.coerceAtLeast(8.dp)))
+    }
 
+/** On era cada conversa (primer element visible i desplaçament) mentre l'app viu. */
+internal object ChatPositions { val saved = mutableMapOf<String, Pair<Int, Int>>() }
 
 /**
- * s'ancora a l'inici en aparèixer la primera línia, i deixa d'empènyer el fil
- * cap amunt a cada fragment. En acabar, si seguia la cua, una resposta llarga
- * es llegeix des del principi («Últims ↓» permet anar-ne al final).
- * [replyKey]: la clau de l'element de la darrera resposta del vent.
+ * La llista d'una conversa: si ja hi has estat en aquesta execució, on la vas
+ * deixar; si no, quan té contingut ([ready]), pel final o pel primer missatge
+ * nou ([firstNew]), de cop.
  */
-internal fun shouldPinLiveReply(following: Boolean, dragging: Boolean, replyHigh: Boolean): Boolean =
-    following && !dragging && replyHigh
-
-/** El començament de la resposta ja és a la meitat de dalt de la vista: a partir d'aquí creix cap avall. */
-internal fun replyIsHigh(info: androidx.compose.foundation.lazy.LazyListLayoutInfo, key: Any?): Boolean {
-    if (key == null) return false
-    val item = info.visibleItemsInfo.firstOrNull { it.key == key } ?: return false
-    return item.offset <= (info.viewportEndOffset - info.viewportStartOffset) / 2
-}
-
 @Composable
-internal fun ReadReplyFromStart(list: LazyListState, follow: ChatFollowState, busy: Boolean, replyKey: Any?) {
-    var wasBusy by remember(list) { mutableStateOf(busy) }
-    // La resposta pot arribar just després que el torn acabi: es llegeix la clau d'ara.
-    val reply by rememberUpdatedState(replyKey)
-    // Quan apareix la primera línia de resposta, deixem de perseguir la cua:
-    // el text creix cap avall i el començament queda quiet al lloc on l'has vist.
-    // Si seguíssim cada fragment fins al final, la bombolla sencera pujaria
-    // contínuament mentre el model escriu (el salt que es notava al xat).
-    LaunchedEffect(busy, list) {
-        if (!busy) return@LaunchedEffect
-        // Si la resposta comença a la part de baix (se'n veia un bocí), el
-        // seguiment normal (rememberChatFollow) la fa pujar lliscant; quan el seu
-        // començament arriba a la meitat de dalt, s'atura i creix cap avall.
-        // Abans aquí hi havia un animateScrollToItem que, topant amb el final de
-        // la llista, saltava una línia sencera de cop a cada fragment.
-        snapshotFlow {
-            Triple(follow.following, follow.dragging, replyIsHigh(list.layoutInfo, reply))
-        }.collect { (following, dragging, high) ->
-            if (shouldPinLiveReply(following, dragging, high)) follow.pauseForLiveReply()
-        }
+internal fun rememberChatList(id: String, ready: Boolean, firstNew: Int? = null): LazyListState {
+    val list = remember(id) { ChatPositions.saved[id]?.let { (i, o) -> LazyListState(i, o) } ?: LazyListState() }
+    LaunchedEffect(id, ready) {
+        if (!ready || id in ChatPositions.saved) return@LaunchedEffect
+        snapshotFlow { list.layoutInfo.totalItemsCount }.first { it > 0 }
+        if (firstNew != null) list.scrollToItem(firstNew) else list.scrollToLatest()
+        ChatPositions.saved[id] = list.firstVisibleItemIndex to list.firstVisibleItemScrollOffset
     }
-    LaunchedEffect(busy) {
-        val finished = wasBusy && !busy
-        wasBusy = busy
-        if (!finished) return@LaunchedEffect
-        // En acabar, el final del xat (com demana qui hi parla): si seguia la
-        // cua o només s'havia aturat perquè la resposta no saltés. Si has pujat
-        // a llegir amb el dit, no es mou res.
-        if (!follow.following && !follow.autoPaused) return@LaunchedEffect
-        // Que la resposta definitiva (amb fotos i targetes) ja sigui al layout.
-        kotlinx.coroutines.delay(150)
-        if (follow.dragging || (!follow.following && !follow.autoPaused)) return@LaunchedEffect
-        follow.requestFollow()
-        list.scrollToLatest(animate = true)
+    DisposableEffect(id) {
+        onDispose { if (id in ChatPositions.saved) ChatPositions.saved[id] = list.firstVisibleItemIndex to list.firstVisibleItemScrollOffset }
     }
-}
-
-/** La clau de la resposta del torn en curs: l'últim missatge que no és teu, si va després de l'últim teu. */
-internal fun currentReplyKey(msgs: List<GregalViewModel.PetMsg>): Any? {
-    val lastUser = msgs.indexOfLast { it.from == "user" }
-    val reply = msgs.indexOfLast { it.from != "user" && it.from != "system" }
-    return if (reply > lastUser) reply else null
+    return list
 }
 
 /** A tall last bubble must be aligned at its bottom, not its top. */
-internal suspend fun LazyListState.scrollToLatest(animate: Boolean = false) {
+internal suspend fun LazyListState.scrollToLatest() {
     val last = layoutInfo.totalItemsCount - 1
-    if (last < 0) return
-    if (animate) animateScrollToItem(last, Int.MAX_VALUE) else scrollToItem(last, Int.MAX_VALUE)
-}
-
-/**
- * Quants píxels del final queden per sota de la vista (0 o menys: es veu tot).
- * Si l'últim element ni tan sols s'ha mesurat, [Int.MAX_VALUE].
- */
-internal fun bottomGap(info: androidx.compose.foundation.lazy.LazyListLayoutInfo): Int {
-    val last = info.visibleItemsInfo.lastOrNull() ?: return 0
-    if (last.index != info.totalItemsCount - 1) return Int.MAX_VALUE
-    return last.offset + last.size - (info.viewportEndOffset - info.afterContentPadding)
-}
-
-/**
- * Pas d'un fotograma cap al final: s'hi acosta de forma exponencial (τ ≈ 70 ms),
- * així que una línia nova (20-30 px) entra en uns 200 ms i una ràfega gran
- * s'empaita més de pressa, sense frenar ni arrencar a cada línia. Pura: testejable.
- */
-internal fun glideStep(gap: Float, dtNanos: Long): Float {
-    if (gap <= 0f) return 0f
-    val k = 1f - kotlin.math.exp(-dtNanos / 70_000_000f)
-    return minOf(gap, maxOf(1.5f, gap * k))
-}
-
-/**
- * Segueix el final lliscant fotograma a fotograma mentre la resposta creix.
- * Abans era un scrollToItem a cada canvi de mida: arribava un fotograma tard i
- * a esgraons, i el text en directe tremolava. Un dit l'atura (prioritat d'usuari),
- * i també [keepGoing] quan deixa de ser cert (la resposta ja és a dalt i s'hi queda).
- */
-internal suspend fun LazyListState.glideToLatest(keepGoing: () -> Boolean = { true }) {
-    scroll {
-        var last = 0L
-        while (keepGoing()) {
-            val gap = bottomGap(layoutInfo)
-            if (gap <= 0 || gap == Int.MAX_VALUE) break
-            val dt = androidx.compose.runtime.withFrameNanos { now ->
-                (if (last == 0L) 16_666_667L else now - last).also { last = now }
-            }
-            val now = bottomGap(layoutInfo)
-            if (now <= 0 || now == Int.MAX_VALUE) break
-            if (scrollBy(glideStep(now.toFloat(), dt)) == 0f) break
-        }
-    }
+    if (last >= 0) scrollToItem(last, Int.MAX_VALUE)
 }
 
 /** Píndola que apareix quan has pujat a llegir: un toc i tornes a l'últim missatge. */
