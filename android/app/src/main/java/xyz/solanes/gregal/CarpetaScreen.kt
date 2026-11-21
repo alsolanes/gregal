@@ -11,6 +11,7 @@ import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Refresh
@@ -21,7 +22,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -77,18 +82,14 @@ fun CarpetaScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             Box(
                                 Modifier.size(44.dp).background(SeaSoft(0.14f), CircleShape),
                                 contentAlignment = Alignment.Center,
-                            ) { Text(inicialsProjecte(projecte), color = Sea, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
+                            ) { Icon(Icons.Rounded.Folder, null, tint = Sea, modifier = Modifier.size(22.dp).testTag("carpeta-icona")) }
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Text(
                                     projecte.ifBlank { t("app.carpeta.none") },
                                     color = Ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 )
-                                Text(
-                                    camiCurt(actual),
-                                    color = Muted, fontSize = 12.5.sp, fontFamily = FontFamily.Monospace,
-                                    maxLines = 2, overflow = TextOverflow.Ellipsis,
-                                )
+                                CamiEnUnaLinia(actual, 12.5.sp)
                             }
                             val branca = ws?.branch.orEmpty()
                             if (branca.isNotBlank()) Etiqueta(branca, Sea)
@@ -128,7 +129,7 @@ fun CarpetaScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             val triada = p.path == ws?.current
                             FilaCarpeta(
                                 nom = p.name.ifBlank { p.path.trimEnd('/').substringAfterLast('/') },
-                                cami = camiCurt(p.path),
+                                cami = p.path,
                                 detall = when {
                                     triada -> t("app.carpeta.inUse")
                                     p.missing -> t("app.carpeta.missing")
@@ -158,11 +159,7 @@ fun CarpetaScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                     color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 )
-                                Text(
-                                    camiCurt(d?.path.orEmpty(), maxim = 60),
-                                    color = Muted, fontSize = 11.5.sp, fontFamily = FontFamily.Monospace,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                )
+                                CamiEnUnaLinia(d?.path.orEmpty(), 11.5.sp)
                             }
                             if (d != null && d.git) Etiqueta(t("app.carpeta.repo"), Onada)
                             IconButton(onClick = { vm.obrirCarpeta(d?.parent) }, enabled = !(d?.parent.isNullOrBlank()) && !busy) {
@@ -311,12 +308,29 @@ private fun FilaCarpeta(
                 fontWeight = if (activa) FontWeight.SemiBold else FontWeight.Normal,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
-            if (!cami.isNullOrBlank()) {
-                Text(cami, color = Muted, fontSize = 11.5.sp, fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
+            if (!cami.isNullOrBlank()) CamiEnUnaLinia(cami, 11.5.sp)
         }
         if (!detall.isNullOrBlank()) Etiqueta(detall, detallColor)
         Icon(Icons.Rounded.ChevronRight, null, tint = Line, modifier = Modifier.size(18.dp))
+    }
+}
+
+/**
+ * Un camí en una sola línia, mossegat pel principi i per un separador: és la cua
+ * el que distingeix un projecte d'un altre. En monoespai tots els caràcters fan
+ * el mateix, així que l'amplada diu quants n'hi caben.
+ */
+@Composable
+private fun CamiEnUnaLinia(cami: String, mida: TextUnit) {
+    val estil = LocalTextStyle.current.merge(TextStyle(fontSize = mida, fontFamily = FontFamily.Monospace))
+    val deu = rememberTextMeasurer().measure("0000000000", estil).size.width
+    BoxWithConstraints {
+        val caben = constraints.maxWidth * 10 / deu.coerceAtLeast(1)
+        Text(
+            camiCurt(cami, maxim = caben.coerceAtLeast(8)),
+            color = Muted, fontSize = mida, fontFamily = FontFamily.Monospace,
+            maxLines = 1, softWrap = false, overflow = TextOverflow.StartEllipsis,
+        )
     }
 }
 
