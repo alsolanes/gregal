@@ -19,7 +19,7 @@ import org.robolectric.annotation.LooperMode
 
 /**
  * El text que s'escriu en directe al xat de Codi i el missatge en què es tanca
- * (en una fase d'eina o en acabar el torn) són el mateix element de la llista:
+ * en acabar el torn són el mateix element de la llista:
  * si canviés de clau, la llista saltaria en aquell moment.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -54,7 +54,11 @@ class LiveReplyKeyTest {
             }
             assertFalse("el torn acaba", vm.sending.value)
             val replies = vm.msgs.value.filter { it.role == "assistant" && it.kind == "text" }
-            assertEquals(listOf("Primera part.", "Segona part."), replies.map { it.text })
+            // El text d'abans d'una eina és treball: va dins el grup, com a frase
+            // amb les pastilles de les crides (tasca 009), i no queda com a missatge.
+            assertEquals(listOf("Segona part."), replies.map { it.text })
+            assertTrue("la narració d'abans de l'eina és dins el grup de treball",
+                vm.msgs.value.any { m -> m.work?.steps?.any { it.detail.trim() == "Primera part." } == true })
             for (m in replies) {
                 val ids = seen.filterKeys { m.text.startsWith(it.trim()) }.values.toSet()
                 assertTrue("s'ha vist en directe: ${m.text}", ids.isNotEmpty())
