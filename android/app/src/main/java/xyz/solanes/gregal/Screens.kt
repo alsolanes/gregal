@@ -1559,7 +1559,9 @@ internal fun CodeOpening(
  */
 internal fun sameProject(workspace: String, project: String): Boolean {
     fun norm(p: String) = p.trim().trimEnd('/', '\\')
-    return norm(workspace).isEmpty() || norm(project).isEmpty() || norm(workspace) == norm(project)
+    val w = norm(workspace); val p = norm(project)
+    // Una carpeta de Windows no distingeix majúscules (com runs.WorkspaceKey al servidor).
+    return w.isEmpty() || p.isEmpty() || w.equals(p, ignoreCase = '\\' in w || '\\' in p)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

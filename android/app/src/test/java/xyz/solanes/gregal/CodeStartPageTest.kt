@@ -99,6 +99,9 @@ class CodeStartPageTest {
         assertTrue(sameProject("", "/home/anna/botiga"))
         assertTrue(sameProject("/home/anna/web", ""))
         org.junit.Assert.assertFalse(sameProject("/home/anna/web", "/home/anna/botiga"))
+        // A Windows les carpetes no distingeixen majúscules (com runs.WorkspaceKey al servidor).
+        assertTrue(sameProject("C:\\Users\\anna\\Botiga", "c:\\users\\anna\\botiga\\"))
+        org.junit.Assert.assertFalse(sameProject("/home/anna/Botiga", "/home/anna/botiga"))
     }
 
     @Config(qualifiers = "w780dp-h330dp-xhdpi")
