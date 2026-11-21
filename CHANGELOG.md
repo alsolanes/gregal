@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v1.89.1 - 2026-11-21 - Vidre que es nota i un sol selector
+
+- **Codi i Vents es canvien des del calaix (Android).** Fora les icones de
+  canvi de dins de les pantalles: la cara del vent torna al centre de la
+  portada, i el selector del calaix són dues meitats iguals.
+- **El Vidre es nota (Android).** El fons té quatre taques de llum ben
+  visibles (s'hi afegeix una de càlida), les targetes són més transparents i,
+  en fosc, tenen el cantell de dalt il·luminat. El text gris s'ajusta perquè
+  es continuï llegint damunt la llum.
+
 ## v1.89.0 - 2026-11-21 - Codi en viu i eines dins de frases
 
 - **El text de l'agent surt mentre s'escriu.** A Codi, la resposta apareix
