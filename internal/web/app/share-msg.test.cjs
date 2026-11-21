@@ -40,3 +40,18 @@ test('desar una resposta envia el markdown tal qual amb kind auto', async () => 
   assert.strictEqual(calls[0].opts.method, 'POST');
   assert.deepStrictEqual(JSON.parse(calls[0].opts.body), { action: 'save', body: md, kind: 'auto' });
 });
+
+test('una resposta ja desada no es torna a desar quan el xat es repinta', async () => {
+  const { saveReply, savedNote } = require('./share-msg.js');
+  const md = 'Un consell: rega al vespre (prova de repintat).';
+  let posts = 0;
+  globalThis.api = async () => { posts++; return { ok: true, json: async () => ({ id: 'n7', kind: 'tip' }) }; };
+  try {
+    assert.strictEqual(savedNote(md), undefined);
+    await saveReply(md);
+    const again = await saveReply(md);
+    assert.strictEqual(again.id, 'n7');
+  } finally { delete globalThis.api; }
+  assert.strictEqual(posts, 1);
+  assert.strictEqual(savedNote(md), 'n7');
+});

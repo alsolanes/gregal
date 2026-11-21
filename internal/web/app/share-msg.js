@@ -105,8 +105,15 @@
     try { await navigator.clipboard.writeText(text); return true; } catch (_) { return false; }
   }
   // saveReply: desa la resposta com a nota; el servidor en treu el tipus i el títol de la primera targeta.
-  function saveReply(md) {
-    return api("/api/notes", { action: "save", body: md, kind: "auto" });
+  // El xat es repinta (i torna a crear els botons) a cada missatge i la història
+  // arriba nova del servidor, així que el que ja s'ha desat es recorda pel text.
+  const saved = new Map();
+  const savedNote = (md) => saved.get(md);
+  async function saveReply(md) {
+    if (saved.has(md)) return { id: saved.get(md) };
+    const note = await api("/api/notes", { action: "save", body: md, kind: "auto" });
+    saved.set(md, note.id);
+    return note;
   }
 
   const ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m0 0L7.5 7.5M12 3l4.5 4.5M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>';
@@ -127,25 +134,30 @@
   }
 
   const SAVE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg>';
-  // saveButton(getText, open): «Desa» d'un missatge; un cop desat diu «Desat ✓» i open(id) obre la nota.
-  function saveButton(getText, open) {
+  // saveButton(getText, openNote): «Desa» d'un missatge; un cop desat diu «Desat ✓» i openNote(id) obre la nota.
+  function saveButton(getText, openNote) {
     const b = el("button", "gshare-btn gsave-btn");
     b.type = "button";
+    const done = () => {
+      b.classList.add("gsave-text");
+      b.textContent = tx("Desat ✓", "Saved ✓");
+      b.title = tx("Obre la nota desada", "Open the saved note");
+      b.setAttribute("aria-label", b.title);
+    };
     b.innerHTML = SAVE_ICON;
     b.title = tx("Desa", "Save");
     b.setAttribute("aria-label", b.title);
-    let note = null;
+    if (savedNote(getText())) done();
     b.addEventListener("click", async (e) => {
       e.stopPropagation();
-      if (note) { open(note.id); return; }
+      const id = savedNote(getText());
+      if (id) { openNote(id); return; }
       b.disabled = true;
       try {
-        note = await saveReply(getText());
-        b.classList.add("done");
-        b.textContent = tx("Desat ✓", "Saved ✓");
-        b.title = tx("Obre la nota desada", "Open the saved note");
-        b.setAttribute("aria-label", b.title);
+        await saveReply(getText());
+        done();
       } catch (err) {
+        b.classList.add("gsave-text");
         b.textContent = tx("No s'ha desat", "Not saved");
         b.title = tx("No s'ha pogut desar: ", "Couldn't save: ") + (err.message || err);
       } finally { b.disabled = false; }
@@ -216,7 +228,7 @@
     box.querySelector(".gshare-status").before(pick);
   }
 
-  const api_ = { plainText, cardText, button, saveButton, saveReply, close };
+  const api_ = { plainText, cardText, button, saveButton, saveReply, savedNote, close };
   root.gregalShare = api_;
   if (typeof module !== "undefined" && module.exports) module.exports = api_;
 })(typeof globalThis !== "undefined" ? globalThis : this);

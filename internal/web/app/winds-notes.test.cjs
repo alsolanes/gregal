@@ -71,3 +71,26 @@ test('una recepta desada es pinta a la nota amb les racions que es poden canviar
   assert.match(html, /class="gc-more"/);
   assert.match(html, /class="gc-qty"/);
 });
+
+test('savedQuery: tots els desats o un tipus, amb la cerca', () => {
+  assert.equal(N.savedQuery({ kind: '', q: '' }), 'kind=*');
+  assert.equal(N.savedQuery({ kind: 'recipe', q: '  crema carbassa ' }), 'kind=recipe&q=crema+carbassa');
+});
+
+test('savedChips: «Tots» i un xip per tipus amb nom, icona i recompte; cap si només n’hi ha un', () => {
+  const chips = N.savedChips([{ name: 'recipe', count: 3 }, { name: 'tip', count: 1 }], 'en');
+  assert.deepEqual(chips, [
+    { kind: '', label: 'All', icon: '' },
+    { kind: 'recipe', label: 'Recipes · 3', icon: 'note' },
+    { kind: 'tip', label: 'Tips · 1', icon: 'sparkles' },
+  ]);
+  assert.equal(N.savedChips([{ name: 'tip', count: 2 }], 'ca').length, 0);
+  assert.equal(N.savedChips([], 'ca').length, 0);
+});
+
+test('a la nota, només les tasques del text porten md-check (les caselles de la recepta no)', () => {
+  const html = md.render('- [ ] comprar\n\n```gregal-recipe\n{"title":"Crema","servings":2,"ingredients":[{"name":"carbassa","qty":"500 g"}]}\n```');
+  assert.equal((html.match(/class="md-check"/g) || []).length, 1);
+  assert.match(html, /class="gc-check"/);
+  assert.equal(N.TASK_BOXES, 'input.md-check');
+});

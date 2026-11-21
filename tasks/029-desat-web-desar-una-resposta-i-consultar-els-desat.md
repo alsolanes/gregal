@@ -31,3 +31,5 @@ On the web and the Windows desktop app the person can share a wind's reply but n
 - Verified in a sandbox server with a stub model: save from chat, «Desat ✓» opens the note, servings 2→3 rescale, chips and search filter, pinned tip first.
 - Follow-up: `q` matches inside card fences, so searching «rega» also finds every recipe (it matches «gregal-recipe»); the note excerpt in Notes also shows the raw card JSON. Both come from notes.go.
 - Follow-up: Android parity is task 030.
+- Review fixes: share-msg.js remembers saved replies by their text (`savedNote`), because `paintHistory` rebuilds the buttons and the history comes back from the server as new objects; a repainted reply starts as «Desat ✓» and a second click opens the note instead of saving a duplicate. The memory lasts for the page; after a reload «Desa» shows again.
+- The kind chips show only when there are two kinds or more (`savedChips`): with one kind they would not filter anything.

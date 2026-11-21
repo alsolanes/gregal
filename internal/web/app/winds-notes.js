@@ -86,7 +86,24 @@
   const KIND_ICONS = { recipe: 'note', tip: 'sparkles', plan: 'calendar', route: 'mapPin', compare: 'sliders', facts: 'info', result: 'star', chart: 'grafs', web: 'navegador', text: 'chat' };
   const kindName = (kind, lang) => (KIND_NAMES[kind] ? KIND_NAMES[kind][lang === 'ca' ? 0 : 1] : kind);
 
-  const pure = { linkNotes, toggleTask, dayText, parseTags, fold, agendaGroups, meetingTemplate, isoDay, kindName, KIND_ICONS };
+  /** La consulta de «Els teus desats»: tots els desats (kind=*) o els d'un tipus, i la cerca. */
+  function savedQuery({ kind, q }) {
+    const p = new URLSearchParams({ kind: kind || '*' });
+    if (String(q || '').trim()) p.set('q', String(q).trim());
+    return p.toString();
+  }
+
+  /** Els xips de tipus: «Tots» i un per tipus amb recompte. Amb un sol tipus no filtren res. */
+  function savedChips(kinds, lang) {
+    if (!kinds || kinds.length < 2) return [];
+    return [{ kind: '', label: lang === 'ca' ? 'Tots' : 'All', icon: '' },
+      ...kinds.map(k => ({ kind: k.name, label: kindName(k.name, lang) + ' · ' + k.count, icon: KIND_ICONS[k.name] || 'note' }))];
+  }
+
+  // Les caselles que són tasques del text: les de les targetes (ingredients) no.
+  const TASK_BOXES = 'input.md-check';
+
+  const pure = { linkNotes, toggleTask, dayText, parseTags, fold, agendaGroups, meetingTemplate, isoDay, kindName, KIND_ICONS, savedQuery, savedChips, TASK_BOXES };
   if (typeof module !== 'undefined' && module.exports) { module.exports = pure; return; }
 
   // ---------------------------------------------------------------- vista
@@ -327,8 +344,7 @@
     if (root.gregalMD) body.innerHTML = linkNotes(root.gregalMD.render(n.body || ''));
     else body.textContent = n.body || '';
     // Les tasques es marquen aquí mateix; els enllaços [[…]] obren la nota.
-    // Les caselles de les targetes (ingredients d'una recepta desada) no són tasques del text.
-    body.querySelectorAll('input.md-check').forEach((box, i) => {
+    body.querySelectorAll(TASK_BOXES).forEach((box, i) => {
       box.disabled = false;
       box.onchange = () => save({ id: n.id, body: toggleTask(n.body, i), base: n.updated }, true).catch(fail);
     });
@@ -487,9 +503,14 @@
     content.append(box);
     function paint(d) {
       chipRow.replaceChildren();
-      const chip = (label, kind) => { const on = V.kind === kind; const c = btn(label, () => { V.kind = on ? '' : kind; load(); }, 'act-chip' + (on ? ' on' : '')); c.setAttribute('aria-pressed', String(on)); if (kind) c.prepend(ic(KIND_ICONS[kind] || 'note')); chipRow.append(c); };
       const kinds = d.kinds || [];
-      if (kinds.length > 1) { chip(t('Tots', 'All'), ''); for (const k of kinds) chip(kindName(k.name, lang) + ' · ' + k.count, k.name); }
+      for (const x of savedChips(kinds, lang)) {
+        const on = V.kind === x.kind;
+        const c = btn(x.label, () => { V.kind = on ? '' : x.kind; load(); }, 'act-chip' + (on ? ' on' : ''));
+        c.setAttribute('aria-pressed', String(on));
+        if (x.icon) c.prepend(ic(x.icon));
+        chipRow.append(c);
+      }
       list.replaceChildren();
       const notes = d.notes || [];
       if (!notes.length) {
@@ -508,11 +529,9 @@
       }
     }
     async function load() {
-      const p = new URLSearchParams({ kind: V.kind || '*' });
-      if (V.q.trim()) p.set('q', V.q.trim());
       const epoch = ++V.epoch;
       try {
-        const d = await call('/api/notes?' + p);
+        const d = await call('/api/notes?' + savedQuery(V));
         if (epoch === V.epoch) paint(d);
       } catch (e) { list.replaceChildren(el('p', 'vw-error', t('No s’han pogut carregar els desats: ', 'Couldn’t load the saved items: ') + (e.message || e))); }
     }
