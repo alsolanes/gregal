@@ -76,3 +76,28 @@ test('el xip de desar envia la resposta sense la marca, amb el seu títol i tipu
   assert.strictEqual(savedNote(md), 'n9');
   assert.strictEqual(savedNote(clean), 'n9');
 });
+
+test('tocar el xip de desar el desa amb el títol i el tipus del xip i diu «Saved ✓»', async () => {
+  const { keepChips } = require('./share-msg.js');
+  const clean = 'Rega al vespre i encoixina amb palla (prova del xip).';
+  const md = clean + '\n\n```gregal-keep {"title":"Reg","kind":"tip"}```';
+  let onClick;
+  const chip = {
+    dataset: { keepTitle: 'Reg', keepKind: 'tip' }, textContent: 'Save «Reg»?', disabled: false,
+    classes: new Set(), classList: { add(c) { chip.classes.add(c); } },
+    addEventListener(type, fn) { if (type === 'click') onClick = fn; },
+  };
+  const body = { querySelectorAll: (sel) => (sel === '.gc-keep' ? [chip] : []) };
+  const calls = [];
+  globalThis.document = { documentElement: { lang: 'en' } };
+  globalThis.api = async (url, opts) => { calls.push({ url, opts }); return { ok: true, json: async () => ({ id: 'n11', kind: 'tip' }) }; };
+  try {
+    keepChips(body, () => md, () => {});
+    await onClick({ stopPropagation() {} });
+  } finally { delete globalThis.api; delete globalThis.document; }
+  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(calls[0].url, '/api/notes');
+  assert.deepStrictEqual(JSON.parse(calls[0].opts.body), { action: 'save', body: clean, kind: 'tip', title: 'Reg' });
+  assert.strictEqual(chip.textContent, 'Saved ✓');
+  assert.ok(chip.classes.has('gc-kept'));
+});

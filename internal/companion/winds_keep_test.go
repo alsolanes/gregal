@@ -9,7 +9,7 @@ import (
 // resposta que la persona voldrà tornar a veure, amb quins tipus, i que els
 // desats es busquen amb l'eina notes.
 func TestCardsGuideProposesKeeping(t *testing.T) {
-	for _, want := range []string{"```gregal-keep {\"title\",\"kind\"}", "never for chat, news or one-off answers", "at most one", "notes", "search"} {
+	for _, want := range []string{"```gregal-keep {\"title\",\"kind\"}", "never for chat, news or one-off answers", "At most one per reply", "notes", "search"} {
 		if !strings.Contains(CardsGuide, want) {
 			t.Errorf("CardsGuide: falta %q", want)
 		}

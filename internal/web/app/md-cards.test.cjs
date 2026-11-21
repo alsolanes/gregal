@@ -150,3 +150,7 @@ test('una proposta de desar trencada no ensenya res', () => {
   // Un tipus desconegut el tria el servidor (auto).
   assert.ok(md.render('```gregal-keep {"title":"X","kind":"poema"}```').includes('data-keep-kind="auto"'));
 });
+
+test('un títol amb $& surt tal qual al xip de desar', () => {
+  assert.ok(md.render('```gregal-keep {"title":"Preu $& més","kind":"tip"}```').includes('Save «Preu $&amp; més»?'));
+});

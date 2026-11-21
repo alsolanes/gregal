@@ -28,3 +28,5 @@ The person forgets to save. When Gregal or a wind gives something they will want
 - Follow-up: debate voices (`debateRun` in winds-workspace.js) render with md.js inside `.gc-sayable` but have no save buttons, so a marker there would show a chip that does nothing.
 - Follow-up: the public clip (`/api/winds/clip`) and "send to someone" still carry the raw marker in the text; the clip page hides the chip (no `.gc-sayable`) but the stored text keeps it.
 - Follow-up: the `notes` tool search does not match `kind`; the prompt points winds to a plain notes search by title/text.
+- The prompt change reaches every client (it is in `CardsGuide`, used by every wind, Gregal and group chats). Until task 032 lands, Android shows the raw `gregal-keep` block at the end of such replies: merge 031 and 032 together.
+- The marker is matched only on one line (`gregal-keep {…}` with the JSON on the fence line or on its own single line). A pretty-printed, multi-line JSON marker is not matched and shows as a plain code block.

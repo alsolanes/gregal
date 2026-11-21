@@ -438,7 +438,7 @@
     if (!title) return "";
     const kind = KEEP_KINDS.includes(o.kind) ? o.kind : "auto";
     return '<div class="gc-keep-row"><button type="button" class="gc-keep" data-keep-kind="' + kind + '" data-keep-title="' + esc(title) + '">' +
-      label("card.keep", "Save «{t}»?").replace("{t}", esc(title)) + "</button></div>";
+      label("card.keep", "Save «{t}»?").replace("{t}", () => esc(title)) + "</button></div>";
   }
 
   function render(text) {
