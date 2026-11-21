@@ -32,15 +32,18 @@ import java.io.File
 class CodeStartPageTest {
     @get:Rule val ui = createAndroidComposeRule<androidx.activity.ComponentActivity>()
 
-    private val now = java.time.OffsetDateTime.now()
-    // Com /api/sessions: la més nova primer.
+    // Migdia fix: a la matinada, «fa 3 hores» seria ahir i el test canviaria.
+    private val now = java.time.ZonedDateTime.of(2026, 11, 21, 12, 0, 0, 0, java.time.ZoneId.systemDefault()).toOffsetDateTime()
+    private val project = "/home/anna/botiga"
+    // Com /api/sessions: la més nova primer, de tots els projectes.
     private val sessions = listOf(
-        SessionInfo("s6", 12, "", "Login rebutja tokens caducats", now.minusMinutes(20).toString()),
-        SessionInfo("s5", 8, "", "Paginació de la llista de comandes", now.minusHours(3).toString()),
-        SessionInfo("s4", 30, "", "Migració de la base de dades", now.minusDays(1).toString()),
-        SessionInfo("s3", 5, "", "Tests del parser de CSV", now.minusDays(3).toString()),
-        SessionInfo("s2", 2, "", "README del projecte", now.minusDays(5).toString()),
-        SessionInfo("s1", 4, "", "Primera prova", now.minusDays(9).toString()),
+        SessionInfo("w1", 3, "", "Logo de la web personal", now.minusMinutes(5).toString(), workspace = "/home/anna/web"),
+        SessionInfo("s6", 12, "", "Login rebutja tokens caducats", now.minusMinutes(20).toString(), workspace = project),
+        SessionInfo("s5", 8, "", "Paginació de la llista de comandes", now.minusHours(3).toString(), workspace = project),
+        SessionInfo("s4", 30, "", "Migració de la base de dades", now.minusDays(1).toString(), workspace = project),
+        SessionInfo("s3", 5, "", "Tests del parser de CSV", now.minusDays(3).toString(), workspace = project),
+        SessionInfo("s2", 2, "", "README del projecte", now.minusDays(5).toString(), workspace = project),
+        SessionInfo("s1", 4, "", "Primera prova", now.minusDays(9).toString(), workspace = project),
     )
 
     private fun show(pal: GregalPalette, list: List<SessionInfo> = sessions, onResume: (SessionInfo) -> Unit = {}) {
@@ -49,7 +52,8 @@ class CodeStartPageTest {
             CompositionLocalProvider(LocalPal provides pal, LocalWindMotion provides false) {
                 MaterialTheme(colorScheme = pal.scheme()) {
                     GregalBg {
-                        CodeOpening("ca", "Bona tarda, Anna", list, onResume, Modifier.fillMaxSize()) { m ->
+                        CodeOpening("ca", "Bona tarda, Anna", list, onResume, Modifier.fillMaxSize(),
+                            project = project, nowMs = now.toInstant().toEpochMilli()) { m ->
                             // Un compositor sintètic de l'alçada del de debò.
                             Surface(m.padding(horizontal = 12.dp).height(56.dp), shape = GregalShape.xl, color = Superficie) {
                                 Text("Pregunta o demana", color = Faint, modifier = Modifier.padding(16.dp))
@@ -79,10 +83,31 @@ class CodeStartPageTest {
         assertTrue(top("Paginació de la llista de comandes") < top("Migració de la base de dades"))
         assertTrue(top("Tests del parser de CSV") < top("README del projecte"))
         ui.onNodeWithText("Primera prova").assertDoesNotExist()
-        // Quan: «Avui 14:32», «Ahir».
-        ui.onNode(hasText("Login rebutja tokens caducats") and hasText("Avui", substring = true)).assertExists()
+        // Quan: «Avui 11:40», «Ahir».
+        ui.onNodeWithText("Avui 11:40").assertExists()
         ui.onNodeWithText("Ahir").assertExists()
         assertTrue(top("Pregunta o demana") < top("Login rebutja tokens caducats"))
+    }
+
+    @Test fun `les converses d'un altre projecte no hi surten`() {
+        show(DarkPal)
+        ui.onNodeWithText("Logo de la web personal").assertDoesNotExist()
+    }
+
+    @Test fun `una conversa sense carpeta o un projecte desconegut hi compten`() {
+        assertTrue(sameProject("/home/anna/botiga/", "/home/anna/botiga"))
+        assertTrue(sameProject("", "/home/anna/botiga"))
+        assertTrue(sameProject("/home/anna/web", ""))
+        org.junit.Assert.assertFalse(sameProject("/home/anna/web", "/home/anna/botiga"))
+    }
+
+    @Config(qualifiers = "w780dp-h330dp-xhdpi")
+    @Test fun `en horitzontal les recents es poden desplacar`() {
+        show(DarkPal)
+        save("dark-landscape")
+        // No hi cap: la llista hi és sencera i la portada es desplaça.
+        ui.onNodeWithText("README del projecte").assertExists()
+        ui.onNode(hasScrollAction()).assertExists()
     }
 
     @Test fun `tocar una conversa recent la repren`() {

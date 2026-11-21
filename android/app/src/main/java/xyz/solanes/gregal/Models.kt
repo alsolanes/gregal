@@ -221,7 +221,9 @@ fun roleLabel(r: String, lang: String = "ca"): String {
 }
 
 data class SessionInfo(val name: String, val msgs: Int, val moment: String,
-                       val title: String = "", val at: String = "", val current: Boolean = false) {
+                       val title: String = "", val at: String = "", val current: Boolean = false,
+                       /** La carpeta del projecte on es va desar (buida a les converses antigues). */
+                       val workspace: String = "") {
     fun displayTitle(): String = title.ifBlank { name }
 }
 

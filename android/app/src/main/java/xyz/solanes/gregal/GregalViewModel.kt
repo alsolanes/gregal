@@ -2728,7 +2728,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     // --- sessions ---
 
-    fun loadSessions() {
+    /** [quiet]: la portada de Codi les carrega de passada i, sense xarxa, no ha d'omplir-se d'avisos. */
+    fun loadSessions(quiet: Boolean = false) {
         viewModelScope.launch {
             try {
                 val api = _conn.value.api()
@@ -2737,7 +2738,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 _sessions.value = sessions
                 _active.value = active
-            } catch (e: Exception) { notify(appText("app.status.sessionsLoad", e.message.orEmpty())) }
+            } catch (e: Exception) { if (!quiet) notify(appText("app.status.sessionsLoad", e.message.orEmpty())) }
         }
     }
 
