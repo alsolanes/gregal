@@ -93,6 +93,11 @@ internal object ServerPick {
         exteriorHost: String,
         deviceIps: List<String>,
     ): String {
+        // Al mateix aparell no cal triar: el servidor pot escoltar només al
+        // loopback, i saltar a la IP de la LAN que anuncia el deixava inabastable.
+        if (configuredHost.trim().lowercase() in setOf("127.0.0.1", "localhost", "::1", "[::1]")) {
+            return baseUrlOf(configuredHost, configuredPort)
+        }
         val lan = lanIp.trim()
         if (lan.isNotEmpty() && deviceIps.any { sameNet(it, lan) }) {
             return baseUrlOf(lan, lanPort(configuredHost, configuredPort))

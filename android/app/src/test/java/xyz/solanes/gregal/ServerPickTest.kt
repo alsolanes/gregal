@@ -48,6 +48,18 @@ class ServerPickTest {
         assertEquals("https://gregal.solanes.xyz", ServerPick.base(ext, "443", lan, ext, away))
     }
 
+    /**
+     * Un servidor al mateix aparell (127.0.0.1, «Aquest dispositiu») es queda al
+     * loopback encara que anunciï IPs de la LAN: pot escoltar només al loopback,
+     * i saltar a la LAN el deixava inabastable.
+     */
+    @Test
+    fun aLoopbackServerStaysOnLoopback() {
+        assertEquals("http://127.0.0.1:8097", ServerPick.base("127.0.0.1", "8097", lan, ext, home))
+        ServerPick.forget()
+        assertEquals("http://localhost:8097", ServerPick.base("localhost", "8097", lan, ext, away))
+    }
+
     @Test
     fun withoutLearnedAddressesNothingChanges() {
         assertEquals("http://192.168.1.84:8097", ServerPick.base(lan, "8097", "", "", away))
