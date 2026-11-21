@@ -287,7 +287,7 @@ fun WindAutomationList(vm: GregalViewModel, lang: String, wind: String = "", sho
             // Ha fallat la càrrega: no és el mateix que «no hi ha res programat».
             Surface(color = MaterialTheme.colorScheme.errorContainer, shape = MaterialTheme.shapes.medium) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                    Text(tr(lang, "act.loadError"), color = MaterialTheme.colorScheme.onErrorContainer, fontSize = 14.sp)
+                    Text(tr(lang, "act.loadError", got.error), color = MaterialTheme.colorScheme.onErrorContainer, fontSize = 14.sp)
                     TextButton(onClick = { vm.loadAutomations(wind) }) { Text(tr(lang, "app.chat.retry")) }
                 }
             }
