@@ -19,10 +19,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Compact, labelled area selector used at the top of the navigation drawer. */
+/** El selector Codi | Vents de dalt del calaix: l'únic lloc on es canvia de mode.
+ *  Dues meitats iguals, com un control segmentat. */
 @Composable
 internal fun ModeSwitcher(lang: String, current: AppArea, onSelect: (AppArea) -> Unit, modifier: Modifier = Modifier) {
     Row(
@@ -30,35 +32,26 @@ internal fun ModeSwitcher(lang: String, current: AppArea, onSelect: (AppArea) ->
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        ModeChoice(lang, AppArea.Vents, current == AppArea.Vents) { onSelect(AppArea.Vents) }
-        ModeChoice(lang, AppArea.Code, current == AppArea.Code) { onSelect(AppArea.Code) }
+        ModeChoice(lang, AppArea.Vents, current == AppArea.Vents, Modifier.weight(1f)) { onSelect(AppArea.Vents) }
+        ModeChoice(lang, AppArea.Code, current == AppArea.Code, Modifier.weight(1f)) { onSelect(AppArea.Code) }
     }
 }
 
 @Composable
-private fun ModeChoice(lang: String, area: AppArea, selected: Boolean, onClick: () -> Unit) {
+private fun ModeChoice(lang: String, area: AppArea, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val label = tr(lang, if (area == AppArea.Vents) "app.mode.vents" else "app.mode.code")
     Row(
-        Modifier.clip(RoundedCornerShape(50))
-            .background(if (selected) SeaSoft(0.2f) else androidx.compose.ui.graphics.Color.Transparent)
+        modifier.clip(RoundedCornerShape(50))
+            .background(if (selected) SeaSoft(0.22f) else androidx.compose.ui.graphics.Color.Transparent)
             .clickable(role = Role.Tab, onClick = onClick)
             .semantics { this.selected = selected }
             .heightIn(min = 44.dp).padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
     ) {
         Icon(if (area == AppArea.Vents) Icons.Rounded.Groups else Icons.Rounded.Code, null,
             tint = if (selected) Sea else Muted, modifier = Modifier.padding(vertical = 2.dp))
-        Text(label, color = if (selected) Ink else Muted, fontSize = 13.sp)
-    }
-}
-
-/** One-tap opposite-area shortcut for constrained app-bar slots. */
-@Composable
-internal fun ModeSwitchIcon(lang: String, current: AppArea, onSelect: (AppArea) -> Unit, modifier: Modifier = Modifier) {
-    val target = if (current == AppArea.Vents) AppArea.Code else AppArea.Vents
-    val label = tr(lang, if (target == AppArea.Vents) "app.mode.toVents" else "app.mode.toCode")
-    androidx.compose.material3.IconButton(onClick = { onSelect(target) }, modifier = modifier) {
-        Icon(if (target == AppArea.Vents) Icons.Rounded.Groups else Icons.Rounded.Code, label, tint = Sea)
+        Text(label, color = if (selected) Ink else Muted, fontSize = 14.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
     }
 }

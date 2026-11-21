@@ -338,8 +338,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                         Color(st.argb), st.faceStyle,
                         if (capUi.busy || capUi.going) WindMood.THINKING else WindMood.IDLE,
                         onBack = openDrawer, onProfile = { homeProfile = true }, centered = true, menu = true,
-                        onComputer = { homeComputer = true },
-                        onModeSwitch = { vm.switchArea(AppArea.Code) })
+                        onComputer = { homeComputer = true })
                 } else Column {
                     TopAppBar(
                         title = { Text(if (!manage && tab != "home") askCopy(lang, tab) else tr(lang, if (manage) "app.vents.myWinds" else "app.vents.title"), style = GregalType.title, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis) },
@@ -351,7 +350,6 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                             }
                         },
                         actions = {
-                            ModeSwitchIcon(lang, AppArea.Vents, vm::switchArea, Modifier.testTag("mode-switch-vents"))
                             // On estàs connectat ja ho diu el calaix; la cerca, a «Xats».
                             if (!manage && !simple) WhereChip(vm, lang) { whereOpen = true }
                             if (!manage && (!simple || searching || tab == "chats")) {
@@ -1410,7 +1408,6 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             if (isBusy) live[wind.id]?.mood ?: WindMood.THINKING else WindMood.IDLE,
             working = isBusy || resuming.contains(wind.id),
             onMenu = onBack, onProfile = { profile = true }, onComputer = { computerOpen = true },
-            onModeSwitch = { vm.switchArea(AppArea.Code) },
             modifier = Modifier.align(Alignment.TopCenter))
     }
     if (profile) WindProfileDialog(vm, lang, wind) { profile = false }
