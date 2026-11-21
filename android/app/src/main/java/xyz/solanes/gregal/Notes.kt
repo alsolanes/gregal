@@ -160,8 +160,12 @@ object NotesJson {
         .put("private", n.private).put("locked", n.locked).put("no_remind", n.noRemind).put("base", n.base)
         .also { o -> n.project?.let { o.put("project", it) } }
 
-    /** Una resposta desada: el servidor en treu el tipus i el títol de la primera targeta. */
-    fun reply(text: String): JSONObject = JSONObject().put("action", "save").put("body", text).put("kind", "auto")
+    /**
+     * Una resposta desada. Amb kind "auto" i sense títol, el servidor en treu el
+     * tipus i el títol de la primera targeta; la proposta del vent porta els seus.
+     */
+    fun reply(text: String, title: String, kind: String): JSONObject = JSONObject().put("action", "save").put("body", text).put("kind", kind)
+        .also { o -> if (title.isNotEmpty()) o.put("title", title) }
 
     /** El text de l'editor va sencer: pot no estar desat encara. */
     fun aiRequest(action: String, instruction: String, title: String, body: String): JSONObject =
@@ -192,7 +196,7 @@ fun GregalApi.saveNote(n: NoteInput): Note? = try {
     if (e.message.orEmpty().startsWith("HTTP 409")) null else throw e
 }
 
-fun GregalApi.saveReply(text: String): Note = NotesJson.note(post("/api/notes", NotesJson.reply(text)))
+fun GregalApi.saveReply(text: String, title: String, kind: String): Note = NotesJson.note(post("/api/notes", NotesJson.reply(text, title, kind)))
 
 fun GregalApi.pinNote(id: String, pinned: Boolean) { post("/api/notes", JSONObject().put("action", "pin").put("id", id).put("pinned", pinned)) }
 

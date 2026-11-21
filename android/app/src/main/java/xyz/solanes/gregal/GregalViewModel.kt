@@ -4260,13 +4260,22 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Desa una resposta tal com és (amb les targetes). Llança si falla: qui
-     * la desa és el full de compartir, que tapa els avisos i diu l'error ell mateix.
+     * Desa una resposta tal com és (amb les targetes, sense la proposta de
+     * desar). Llança si falla: qui la desa (el full de compartir o el xip de la
+     * proposta, amb el títol i el tipus del vent) diu l'error ell mateix.
      */
-    suspend fun saveReply(text: String): Note {
+    suspend fun saveReply(text: String, title: String = "", kind: String = "auto"): Note {
+        val body = withoutKeep(text)
+        _savedReplies.value[body]?.let { return it }
         val source = _conn.value
-        return withContext(Dispatchers.IO) { source.api().saveReply(text) }
+        val note = withContext(Dispatchers.IO) { source.api().saveReply(body, title, kind) }
+        _savedReplies.update { it + (body to note) }
+        return note
     }
+
+    /** Les respostes desades en aquesta sessió: «Desa» i el xip diuen «Desat ✓» tots dos. */
+    private val _savedReplies = MutableStateFlow<Map<String, Note>>(emptyMap())
+    val savedReplies: StateFlow<Map<String, Note>> = _savedReplies.asStateFlow()
 
     /** Obre un desat a Notes, on es pot llegir, fixar, editar o esborrar. */
     fun openSavedNote(id: String) {

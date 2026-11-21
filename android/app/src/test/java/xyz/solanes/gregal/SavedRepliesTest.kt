@@ -142,6 +142,41 @@ class SavedRepliesTest {
         }
     }
 
+    @Test fun elXipDeLaPropostaDesaAmbTitolITipusSenseLaMarca() {
+        val reply = recipe + "\n```gregal-keep\n{\"title\":\"Crema per a dos\",\"kind\":\"recipe\"}\n```\n"
+        FakeServer { recipeNote.toString() }.use { server ->
+            val vm = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
+            vm.setConn(server.conn())
+            ui.setContent {
+                CompositionLocalProvider(LocalWindMotion provides false, LocalPal provides DarkPal) {
+                    MaterialTheme(colorScheme = DarkPal.scheme()) {
+                        Column {
+                            WindBubble(GregalViewModel.PetMsg("pet", reply, ts = 1, id = "m-1"), Sea, lang = "ca", vm = vm)
+                            ShareSheetBody(vm, "ca", ShareTarget(reply, "Xaloc"), onDismiss = {})
+                        }
+                    }
+                }
+            }
+            assertTrue(ui.onAllNodesWithText("gregal-keep", substring = true).fetchSemanticsNodes().isEmpty())
+            ui.onNodeWithText("Desar «Crema per a dos»?").performClick()
+            ui.waitUntil(3_000) { ui.onAllNodesWithText("Desat ✓").fetchSemanticsNodes().size == 2 }
+            val (request, body) = server.requests.single()
+            assertTrue(request, request.startsWith("POST /api/notes "))
+            val sent = JSONObject(body)
+            assertEquals(recipe, sent.getString("body"))
+            assertEquals("Crema per a dos", sent.getString("title"))
+            assertEquals("recipe", sent.getString("kind"))
+            // El full de compartir sap que ja està desada: «Desa» no hi torna a sortir.
+            ui.onNodeWithTag("share-saved").assertExists()
+            ui.onNodeWithTag("share-save").assertDoesNotExist()
+        }
+    }
+
+    @Test fun elXipDiuDesarEnCatalaIEnAngles() {
+        assertEquals("Save «Soup»?", tr("en", "saved.keep.ask", "Soup"))
+        assertEquals("Desar «Sopa»?", tr("ca", "saved.keep.ask", "Sopa"))
+    }
+
     private val page = NotesPage(
         listOf(
             Note("a", "Truita de patates", kind = "recipe", updated = "2026-10-20T09:00:00Z"),

@@ -1295,7 +1295,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                             onRetry = if (!isBusy) ({ follow.send(); vm.retryLastWindTurn(wind.id) }) else null,
                             onTransfer = if (vm.canTransferToServer() && !isBusy) ({ askTransfer = true }) else null,
                             onDiscard = if (m.kind == "queued") ({ vm.discardQueued(wind.id, m.ts) }) else null,
-                            onCopied = { scope.launch { vm.notify(tr(lang, "app.vents.linkCopied")) } })
+                            onCopied = { scope.launch { vm.notify(tr(lang, "app.vents.linkCopied")) } }, vm = vm)
                         }
                     }
                     // B6: un missatge que ve d'una responsabilitat diu per què.
@@ -1602,7 +1602,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                     onContinue = if (!busy.contains(rot.id)) ({ follow.send(); vm.sendRotllanaContinue(rot.id, resolved.message.speakerId) }) else null,
                     onRetry = if (!busy.contains(rot.id)) ({ follow.send(); vm.retryLastRotllanaTurn(rot.id) }) else null,
                     onTransfer = if (vm.canTransferToServer() && !busy.contains(rot.id)) ({ askTransfer = true }) else null,
-                    onCopied = { scope.launch { vm.notify(tr(lang, "app.vents.linkCopied")) } })
+                    onCopied = { scope.launch { vm.notify(tr(lang, "app.vents.linkCopied")) } }, vm = vm)
                 }
                 }
                 if (msgs[idx].kind == "question" && idx == msgs.lastIndex) CrewQuestionCard(lang, rotAccent)
@@ -1929,7 +1929,9 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
     /** Última bombolla de la seva ratxa: porta la cua (cantonada de 6 dp). */
     tail: Boolean = true,
     /** L'hora (i l'altaveu) només una vegada per ratxa: a l'última. */
-    showMeta: Boolean = true) {
+    showMeta: Boolean = true,
+    /** Per desar la resposta des del xip de proposta del vent; sense, el xip no surt. */
+    vm: GregalViewModel? = null) {
     // El bloc ```choices són botons de resposta ràpida, no text de la bombolla.
     val m = remember(raw) { if (raw.from == "user") raw else raw.copy(text = withoutChoices(raw.text)) }
     val mine = m.from == "user"
@@ -2113,6 +2115,7 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                                 b.url, b.alt,
                                 link, lang,
                             )
+                            is Rich.Keep -> if (vm != null && !m.streaming) KeepChip(vm, lang, m.text, b, link)
                         }
                     }
                     }

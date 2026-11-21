@@ -45,6 +45,8 @@ sealed interface Rich {
     data class Image(val alt: String, val url: String) : Rich
     data class Result(val spec: ResultSpec) : Rich
     data class Card(val card: RichCard) : Rich
+    /** La proposta de desar del vent: el xip «Desar «títol»?» sota la resposta. */
+    data class Keep(val title: String, val kind: String) : Rich
 }
 
 /** Parteix markdown lleuger en segments (tots els detalls, testeable). */
@@ -561,7 +563,7 @@ private val mdBlocksCache = object : LinkedHashMap<String, List<Rich>>(128, 0.75
 }
 
 fun richBlocks(src: String): List<Rich> = synchronized(mdBlocksCache) {
-    mdBlocksCache[src] ?: groupRich(splitMd(src)).also { mdBlocksCache[src] = it }
+    mdBlocksCache[src] ?: withKeep(src).also { mdBlocksCache[src] = it }
 }
 
 /**
@@ -570,7 +572,28 @@ fun richBlocks(src: String): List<Rich> = synchronized(mdBlocksCache) {
  * llarga n'expulsava tots els missatges acabats (i en tornar amunt calia
  * tornar-los a analitzar, que és just el sotrac que la memòria evita).
  */
-fun richBlocksLive(src: String): List<Rich> = groupRich(splitMd(src))
+fun richBlocksLive(src: String): List<Rich> = withKeep(src)
+
+/**
+ * La proposta de desar (```gregal-keep {"title","kind"}```, CardsGuide de
+ * winds.go; md.js al web) no és text de la resposta: surt de la marca i, si
+ * s'entén, és un bloc al final. Les línies en blanc del davant se'n van amb
+ * ella perquè el que es desa sigui la resposta tal com era.
+ */
+private val keepRe = Regex("\\n*[ \\t]*```gregal-keep[ \\t]*\\n?([^\\n`]*)\\n?[ \\t]*```[ \\t]*")
+private val keepKinds = setOf("recipe", "tip", "plan", "route", "compare", "facts", "result", "chart", "web", "text")
+
+fun withoutKeep(md: String): String = keepRe.replace(md, "")
+
+private fun withKeep(src: String): List<Rich> {
+    val keep = keepRe.findAll(src).mapNotNull { m ->
+        val o = runCatching { org.json.JSONObject(m.groupValues[1].trim()) }.getOrNull() ?: return@mapNotNull null
+        val title = o.optString("title").trim()
+        if (title.isEmpty()) null else Rich.Keep(title, o.optString("kind").takeIf { it in keepKinds } ?: "auto")
+    }.lastOrNull()
+    val blocks = groupRich(splitMd(withoutKeep(src)))
+    return if (keep == null) blocks else blocks + keep
+}
 
 /** Quantes entrades hi ha a la cau (només tests). */
 internal fun richBlocksCached(): Int = synchronized(mdBlocksCache) { mdBlocksCache.size }
