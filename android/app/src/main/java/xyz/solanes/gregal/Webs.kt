@@ -66,6 +66,21 @@ private fun absUrl(base: String, u: String): String {
     }
 }
 
+/**
+ * L'enllaç en una línia curta per a la targeta: sense esquema i, si és llarg, amb
+ * el mig retallat (127.0.0.1:8197/share/…2b86c61/). El sencer és a «Obre» i «Copia l'enllaç».
+ */
+internal fun shortLink(url: String): String {
+    val bare = url.substringAfter("://")
+    if (bare.length <= 36) return bare
+    val slash = bare.indexOf('/')
+    if (slash < 0) return bare
+    val next = bare.indexOf('/', slash + 1)
+    val head = bare.substring(0, if (next < 0) slash + 1 else next + 1)
+    val tail = bare.takeLast(8)
+    return if (head.length + 1 + tail.length < bare.length) "$head…$tail" else bare
+}
+
 /** Les tres respostes del servidor, plegades en una sola llista (cap d'elles és obligatòria). */
 internal fun parseWebs(base: String, shares: JSONObject?, apps: JSONObject?, powers: JSONObject?): List<WebItem> {
     val out = mutableListOf<WebItem>()
@@ -150,7 +165,7 @@ private fun NamedWebRow(lang: String, w: NamedWeb, ctx: Context, act: (String, S
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.size(9.dp).clip(CircleShape).background(dot))
-            Text(w.host, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            Text(w.host, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f))
             Text(tr(lang, "webs.vis." + w.visibility), color = Muted, fontSize = 12.sp)
         }
@@ -306,11 +321,13 @@ private fun WebRow(lang: String, w: WebItem, ctx: Context, vm: GregalViewModel) 
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.size(9.dp).clip(CircleShape).background(statusColor(w.status, ok, bad, mid)))
-            Text(w.name, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            Text(w.name, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f))
             Text(webCopy(lang, w.status), color = Muted, fontSize = 12.sp)
         }
-        if (w.url.isNotBlank()) Text(w.url, color = Sea, fontSize = 12.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
+        // Un túnel ja es diu com el seu enllaç: repetir-lo no diu res.
+        val link = shortLink(w.url)
+        if (w.url.isNotBlank() && link != w.name) Text(link, color = Sea, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.clickable { openUrl(ctx, w.url) })
         if (w.detail.isNotBlank() && w.kind != "site") Text(w.detail, color = Muted, fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

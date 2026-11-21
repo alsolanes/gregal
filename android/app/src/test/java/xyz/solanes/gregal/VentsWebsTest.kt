@@ -76,4 +76,15 @@ class VentsWebsTest {
             assertTrue(k, tr("ca", k) != k && tr("en", k) != k && tr("ca", k) != tr("en", k) || k == "webs.version")
         }
     }
+
+    // A la targeta l'enllaç és una línia curta: el sencer és a «Obre» i «Copia l'enllaç».
+    @Test fun aLongShareLinkBecomesOneShortLine() {
+        assertEquals("127.0.0.1:8197/share/…2b86c61/",
+            shortLink("http://127.0.0.1:8197/share/27d5b9b8558cacf274eb2479be7581e052b86c61/"))
+    }
+
+    @Test fun aShortLinkOnlyLosesItsScheme() {
+        assertEquals("192.168.1.62:8097/apps/x1/", shortLink("http://192.168.1.62:8097/apps/x1/"))
+        assertEquals("blog.trycloudflare.com", shortLink("https://blog.trycloudflare.com"))
+    }
 }

@@ -833,16 +833,11 @@ fun camiCurt(path: String, home: String = "/home/aleix", maxim: Int = 42): Strin
     var p = path
     if (home.isNotBlank() && p.startsWith(home)) p = "~" + p.removePrefix(home)
     if (p.length <= maxim) return p
-    return "…" + p.takeLast(maxim - 1)
-}
-
-/** Les inicials d'un projecte per a la icona rodona (una o dues lletres). */
-fun inicialsProjecte(nom: String): String {
-    val net = nom.trim().trim('-', '_', '.')
-    if (net.isEmpty()) return "?"
-    val parts = net.split('-', '_', ' ').filter { it.isNotBlank() }
-    return if (parts.size >= 2) (parts[0].take(1) + parts[1].take(1)).uppercase()
-    else net.take(2).uppercase()
+    // Sense el separador final, que si no seria l'únic tall i deixaria «…/».
+    val cua = p.trimEnd('/', '\\').takeLast(maxim - 1)
+    // Tallat per un separador es llegeix com a carpetes senceres, no com un tros de nom.
+    val tall = cua.indexOfFirst { it == '/' || it == '\\' }
+    return "…" + if (tall > 0) cua.substring(tall) else cua
 }
 
 

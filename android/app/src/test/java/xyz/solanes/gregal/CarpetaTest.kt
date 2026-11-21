@@ -102,18 +102,24 @@ class CarpetaTest {
     @Test
     fun `un camí llarg es mossega pel principi`() {
         val llarg = "/home/aleix/projectes/2026/client-molt-llarg/codi/font/principal/composables"
-        val curt = camiCurt(llarg, maxim = 30)
-        assertEquals(30, curt.length)
-        assertTrue(curt.startsWith("…"))
-        assertTrue(curt.endsWith("/composables"))
+        // Es talla per un separador: el que queda es llegeix com a carpetes senceres.
+        assertEquals("…/font/principal/composables", camiCurt(llarg, maxim = 30))
     }
 
     @Test
-    fun `les inicials del projecte surten de les paraules`() {
-        assertEquals("GL", inicialsProjecte("gregal-live"))
-        assertEquals("NS", inicialsProjecte("news_site"))
-        assertEquals("MA", inicialsProjecte("-marea-"))
-        assertEquals("?", inicialsProjecte("   "))
+    fun `un camí de Windows llarg guarda el final`() {
+        val llarg = "C:\\Users\\anna\\AppData\\Local\\gregal\\projectes\\flor-de-lluna"
+        assertEquals("…\\projectes\\flor-de-lluna", camiCurt(llarg, maxim = 30))
+    }
+
+    @Test
+    fun `un separador final no deixa el camí en «…» i prou`() {
+        assertEquals("…-carpeta-molt-llarg",camiCurt("/srv/x/un-nom-de-carpeta-molt-llarg/", maxim = 20))
+    }
+
+    @Test
+    fun `una carpeta de nom molt llarg es mossega pel principi encara que no hi hagi separador`() {
+        assertEquals("…" + "b".repeat(9), camiCurt("/" + "a".repeat(20) + "b".repeat(9), maxim = 10))
     }
 
     @Test
