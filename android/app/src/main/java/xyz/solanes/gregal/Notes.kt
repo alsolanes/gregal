@@ -12,7 +12,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.List
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.ui.focus.focusRequester
@@ -24,7 +23,6 @@ import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
@@ -526,10 +524,8 @@ internal fun AgileNote(vm: GregalViewModel, lang: String, start: NoteInput, page
             }
         }
     }
-    Scaffold(containerColor = Superficie, snackbarHost = { NoticeHost(vm) }, topBar = {
-        TopAppBar(
-            title = { Text(tr(lang, "notes.title"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
-            navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu")) } },
+    Scaffold(containerColor = Color.Transparent, snackbarHost = { NoticeHost(vm) }, topBar = {
+        GregalTopBar(tr(lang, "notes.title"), lang, onMenu = onMenu,
             actions = {
                 IconButton(onClick = onList, modifier = Modifier.testTag("notes-list")) {
                     Icon(Icons.AutoMirrored.Rounded.List, tr(lang, "notes.others"))
@@ -547,7 +543,6 @@ internal fun AgileNote(vm: GregalViewModel, lang: String, start: NoteInput, page
                     }
                 }) { Icon(Icons.Rounded.Tune, tr(lang, "notes.details")) }
             },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie),
         )
     }) { pad ->
         BoxWithConstraints(Modifier.fillMaxSize().padding(pad)) {
@@ -626,13 +621,9 @@ private fun NotesList(vm: GregalViewModel, lang: String, page: NotesPage?, onMen
             vm.loadNotes(vm.notesQuery.copy(q = query))
         }
     }
-    Scaffold(containerColor = Superficie, snackbarHost = { NoticeHost(vm) }, topBar = {
-        TopAppBar(
-            title = { Text(tr(lang, "notes.title"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
-            navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu")) } },
-            actions = { IconButton(onClick = { vm.loadNotes() }) { Icon(Icons.Rounded.Refresh, tr(lang, "auto.refresh")) } },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie),
-        )
+    Scaffold(containerColor = Color.Transparent, snackbarHost = { NoticeHost(vm) }, topBar = {
+        GregalTopBar(tr(lang, "notes.title"), lang, onMenu = onMenu,
+            actions = { IconButton(onClick = { vm.loadNotes() }) { Icon(Icons.Rounded.Refresh, tr(lang, "auto.refresh")) } })
     }, floatingActionButton = {
         ExtendedFloatingActionButton(onClick = onNew, icon = { Icon(Icons.Rounded.Add, null) }, text = { Text(tr(lang, "notes.new")) },
             containerColor = Sea, contentColor = Superficie)
@@ -761,10 +752,8 @@ private fun NoteView(vm: GregalViewModel, lang: String, d: NoteDetail, onEdit: (
     var confirmDelete by remember(n.id) { mutableStateOf(false) }
     var aiBusy by remember(n.id) { mutableStateOf(false) }
     var proposal by remember(n.id) { mutableStateOf<String?>(null) }
-    Scaffold(containerColor = Superficie, snackbarHost = { NoticeHost(vm) }, topBar = {
-        TopAppBar(
-            title = { Text(n.title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            navigationIcon = { IconButton(onClick = { vm.closeNote() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, tr(lang, "notes.back")) } },
+    Scaffold(containerColor = Color.Transparent, snackbarHost = { NoticeHost(vm) }, topBar = {
+        GregalTopBar(n.title, lang, onBack = { vm.closeNote() },
             actions = {
                 NoteAIButton(lang, aiBusy) { action, instruction ->
                     if (action != "custom" && n.body.isBlank()) vm.notify(tr(lang, "notes.ai.empty"))
@@ -779,7 +768,6 @@ private fun NoteView(vm: GregalViewModel, lang: String, d: NoteDetail, onEdit: (
                 IconButton(onClick = { onEdit(n) }) { Icon(Icons.Rounded.Edit, tr(lang, "notes.edit")) }
                 IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Rounded.Delete, tr(lang, "notes.delete")) }
             },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie),
         )
     }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 8.dp),
@@ -861,10 +849,8 @@ private fun NoteEditor(vm: GregalViewModel, lang: String, start: NoteInput, onDo
             if (ok) onDone() else conflict = true
         }
     }
-    Scaffold(containerColor = Superficie, snackbarHost = { NoticeHost(vm) }, topBar = {
-        TopAppBar(
-            title = { Text(tr(lang, if (start.id.isBlank()) "notes.new" else "notes.edit"), fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
-            navigationIcon = { IconButton(onClick = onDone) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, tr(lang, "act.cancel")) } },
+    Scaffold(containerColor = Color.Transparent, snackbarHost = { NoticeHost(vm) }, topBar = {
+        GregalTopBar(tr(lang, if (start.id.isBlank()) "notes.new" else "notes.edit"), lang, onBack = onDone,
             actions = {
                 // A l'editor la proposta substitueix el text; es desa amb «Desa».
                 NoteAIButton(lang, aiBusy) { action, instruction ->
@@ -878,7 +864,6 @@ private fun NoteEditor(vm: GregalViewModel, lang: String, start: NoteInput, onDo
                     Text(tr(lang, "notes.save"), fontWeight = FontWeight.SemiBold)
                 }
             },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie),
         )
     }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),

@@ -41,14 +41,12 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Forum
-import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.testTag
-import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material.icons.rounded.Folder
@@ -338,15 +336,11 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                         onBack = openDrawer, onProfile = { homeProfile = true }, centered = true, menu = true,
                         onComputer = { homeComputer = true })
                 } else Column {
-                    TopAppBar(
-                        title = { Text(if (!manage && tab != "home") askCopy(lang, tab) else tr(lang, if (manage) "app.vents.myWinds" else "app.vents.title"), style = GregalType.title, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        navigationIcon = {
-                            val backHome = !manage && tab != "home"
-                            IconButton(onClick = { if (manage) manage = false else if (backHome) tab = "home" else openDrawer() }) {
-                                Icon(if (manage || backHome) Icons.Rounded.ArrowBack else Icons.Rounded.Menu,
-                                    tr(lang, if (manage || backHome) "app.vents.back" else "app.nav.menu"), tint = Ink)
-                            }
-                        },
+                    val backHome = !manage && tab != "home"
+                    GregalTopBar(
+                        if (backHome) askCopy(lang, tab) else tr(lang, if (manage) "app.vents.myWinds" else "app.vents.title"), lang,
+                        onMenu = openDrawer,
+                        onBack = if (manage) ({ manage = false }) else if (backHome) ({ tab = "home" }) else null,
                         actions = {
                             // On estàs connectat ja ho diu el calaix; la cerca, a «Xats».
                             if (!manage && !simple) WhereChip(vm, lang) { whereOpen = true }
@@ -373,7 +367,6 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                                 }
                             }
                         },
-                        colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie),
                     )
                     if (searching && !manage) {
                         OutlinedTextField(
@@ -1259,7 +1252,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         val cardSay: (String) -> Unit = { text -> if (!busy.contains(wind.id)) { follow.send(); vm.sendWindMessage(wind.id, text) } }
         CompositionLocalProvider(LocalCardSay provides cardSay) {
         LazyColumn(
-            Modifier.fillMaxSize(),
+            Modifier.fillMaxSize().fadeUnderChatHeader(),
             state = listState,
             contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = ChatHeaderInset, bottom = 10.dp),
             verticalArrangement = Arrangement.spacedBy(0.dp),
@@ -1550,7 +1543,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
         val scope = rememberCoroutineScope()
         Box(Modifier.weight(1f)) {
         LazyColumn(
-            Modifier.fillMaxSize(),
+            Modifier.fillMaxSize().fadeUnderChatHeader(),
             state = listState,
             contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = ChatHeaderInset, bottom = 10.dp),
             verticalArrangement = Arrangement.spacedBy(0.dp),

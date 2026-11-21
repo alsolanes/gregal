@@ -16,7 +16,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -261,13 +260,9 @@ fun WebsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     // Es refresca en entrar i cada 10 s mentre es mira: una app que arrenca o peta es nota.
     // En segon pla no pica: només mentre la pantalla és visible.
     LifecyclePoll(Unit) { while (true) { vm.loadWebs(); reloadNamed(); delay(10_000) } }
-    Scaffold(containerColor = Superficie, topBar = {
-        TopAppBar(
-            title = { Text(webCopy(lang, "title"), fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Ink) },
-            navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu"), tint = Ink) } },
-            actions = { IconButton(onClick = { vm.loadWebs(); scope.launch { reloadNamed() } }) { Icon(Icons.Rounded.Refresh, webCopy(lang, "refresh"), tint = Ink) } },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie),
-        )
+    Scaffold(containerColor = Color.Transparent, topBar = {
+        GregalTopBar(webCopy(lang, "title"), lang, onMenu = onMenu,
+            actions = { IconButton(onClick = { vm.loadWebs(); scope.launch { reloadNamed() } }) { Icon(Icons.Rounded.Refresh, webCopy(lang, "refresh"), tint = Ink) } })
     }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad)) {
             if (!st.loaded) Text(webCopy(lang, "loading"), color = Muted, modifier = Modifier.padding(20.dp))

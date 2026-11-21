@@ -10,7 +10,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountTree
 import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -19,13 +18,12 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -155,10 +153,8 @@ internal fun AutomatitzacionsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val altres = agrupaAutomatitzacions(lang, jobs.filter { it.kind != "remind" && !it.id.startsWith("wind-") && it.id !in delsVents }, emptyList(), fluxos, emptyList())
         .filter { it.clau != "recordatoris" && it.clau != "plans" && it.items.isNotEmpty() }
 
-    Scaffold(containerColor = Superficie, snackbarHost = { NoticeHost(vm) }, topBar = {
-        TopAppBar(
-            title = { Text(tr(lang, "act.title"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
-            navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu")) } },
+    Scaffold(containerColor = Color.Transparent, snackbarHost = { NoticeHost(vm) }, topBar = {
+        GregalTopBar(tr(lang, "act.title"), lang, onMenu = onMenu,
             actions = {
                 // Activitat (programar feines i els resultats de cada execució) i
                 // Grafs ja no tenen fila al calaix: s'hi va des d'aquí. Els jobs
@@ -167,7 +163,6 @@ internal fun AutomatitzacionsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 IconButton(onClick = { vm.go(Screen.Flows) }) { Icon(Icons.Rounded.AccountTree, tr(lang, "graphs.title")) }
                 IconButton(onClick = { carrega() }) { Icon(Icons.Rounded.Refresh, tr(lang, "auto.refresh")) }
             },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie),
         )
     }) { pad ->
         LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),

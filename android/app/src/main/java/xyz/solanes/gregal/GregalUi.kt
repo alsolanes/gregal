@@ -45,6 +45,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -63,6 +64,9 @@ import androidx.compose.ui.unit.sp
 
 /** Radi de les targetes i files; les píndoles fan servir 999. */
 val CardShape = RoundedCornerShape(20.dp)
+
+/** Etiqueta del títol de `GregalTopBar`: els tests hi reconeixen la capçalera comuna. */
+const val GregalTopBarTitle = "gregal-top-bar-title"
 
 /**
  * Capçalera de pantalla: menú o enrere, títol ferm amb subtítol opcional
@@ -94,7 +98,7 @@ fun GregalTopBar(
             Column {
                 Text(
                     title, style = GregalType.title, color = Ink,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.semantics { heading() },
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.semantics { heading() }.testTag(GregalTopBarTitle),
                 )
                 if (!subtitle.isNullOrBlank()) {
                     Text(subtitle, style = GregalType.caption, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
