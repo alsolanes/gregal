@@ -11,6 +11,7 @@ import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.*
@@ -19,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -438,18 +440,62 @@ fun TurnActionCard(lang: String, a: WindTurnAction, accent: Color, onUndo: () ->
 @Composable
 internal fun DesatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val lang by vm.idioma.collectAsState()
+    val savedNotes by vm.savedNotes.collectAsState()
+    var query by remember { mutableStateOf("") }
+    var kind by remember { mutableStateOf("") }
+    LaunchedEffect(query, kind) {
+        if (query.isNotBlank()) kotlinx.coroutines.delay(250)
+        vm.loadSavedNotes(query, kind)
+    }
     Scaffold(containerColor = Superficie, snackbarHost = { NoticeHost(vm) }, topBar = {
         TopAppBar(
             title = { Text(tr(lang, "saved.title"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
             navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu")) } },
-            actions = { IconButton(onClick = { vm.loadSaved("") }) { Icon(Icons.Rounded.Refresh, tr(lang, "auto.refresh")) } },
+            actions = { IconButton(onClick = { vm.loadSavedNotes(query, kind); vm.loadSaved("") }) { Icon(Icons.Rounded.Refresh, tr(lang, "auto.refresh")) } },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie),
         )
     }) { pad ->
         androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item(key = "notes") {
+                SavedNotes(lang, savedNotes, query, kind, onQuery = { query = it }, onKind = { kind = it }, onOpen = { vm.openSavedNote(it.id) })
+            }
             item(key = "help") { Text(tr(lang, "saved.help"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp) }
             item(key = "gallery") { WindSavedGallery(vm, lang) }
+        }
+    }
+}
+
+/** El nom d'un tipus de desat («Receptes»); un tipus nou del servidor surt tal com ve. */
+fun savedKindLabel(lang: String, kind: String): String =
+    tr(lang, "saved.note.$kind").takeIf { it != "saved.note.$kind" } ?: kind
+
+/** Les respostes desades, a dalt de Desat: cerca, un xip per tipus i les fixades primer. */
+@Composable
+internal fun SavedNotes(lang: String, page: NotesPage?, query: String, kind: String,
+    onQuery: (String) -> Unit, onKind: (String) -> Unit, onOpen: (Note) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(tr(lang, "saved.notes.title").uppercase(), color = Muted, style = GregalType.overline)
+        OutlinedTextField(query, onQuery, Modifier.fillMaxWidth().testTag("saved-search"), singleLine = true,
+            placeholder = { Text(tr(lang, "saved.notes.search")) }, leadingIcon = { Icon(Icons.Rounded.Search, null) },
+            shape = MaterialTheme.shapes.medium)
+        if (page == null) { LinearProgressIndicator(Modifier.fillMaxWidth()); return@Column }
+        if (page.kinds.size > 1 || kind.isNotBlank()) FilterChips(
+            listOf("" to tr(lang, "saved.notes.all")) + page.kinds.map { it.name to savedKindLabel(lang, it.name) + " · " + it.count },
+            kind, onKind)
+        val shown = page.notes.sortedByDescending { it.pinned }
+        if (shown.isEmpty()) Text(tr(lang, if (query.isBlank() && kind.isBlank()) "saved.notes.empty" else "saved.noneHere"),
+            color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
+        for (n in shown) key(n.id) {
+            Surface(color = Ink.copy(alpha = 0.04f), shape = MaterialTheme.shapes.medium,
+                modifier = Modifier.fillMaxWidth().clickable { onOpen(n) }.testTag("saved-note")) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text((if (n.pinned) "📌 " else "") + n.title.ifBlank { n.excerpt.ifBlank { tr(lang, "notes.untitled") } },
+                        color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(listOf(savedKindLabel(lang, n.kind), noteDay(lang, n.updated)).filter { it.isNotBlank() }.joinToString(" · "),
+                        color = Muted, fontSize = 12.sp, maxLines = 1)
+                }
+            }
         }
     }
 }

@@ -11,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Link
@@ -267,6 +268,7 @@ fun ShareSheetBody(vm: GregalViewModel, lang: String, target: ShareTarget, onDis
     val chosen = remember { mutableStateListOf<String>() }
     var link by remember { mutableStateOf<ClipLink?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var savedNote by remember { mutableStateOf<Note?>(null) }
     fun say(msg: String, isBad: Boolean = false) { status = msg; bad = isBad }
     fun run(block: suspend () -> Unit) {
         if (busy) return
@@ -290,6 +292,16 @@ fun ShareSheetBody(vm: GregalViewModel, lang: String, target: ShareTarget, onDis
             }
             ShareOption(Icons.Rounded.ContentCopy, w("copy"), null, "share-copy") {
                 clipboard.setText(AnnotatedString(plain)); say(w("copied"))
+            }
+            // Desa la resposta com a nota (amb les targetes); després es troba a Desat.
+            val kept = savedNote
+            if (kept == null) ShareOption(Icons.Rounded.Bookmark, tr(lang, "saved.reply.save"), tr(lang, "saved.reply.saveSub"), "share-save") {
+                if (!busy) { busy = true; vm.saveReply(target.text) { savedNote = it; busy = false } }
+            } else Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp).testTag("share-saved"),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Icon(Icons.Rounded.Bookmark, contentDescription = null, tint = Sea, modifier = Modifier.size(22.dp))
+                Text(tr(lang, "saved.reply.done"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                TextButton(onClick = { vm.openSavedNote(kept.id); onDismiss() }) { Text(tr(lang, "saved.reply.open"), color = Sea, fontWeight = FontWeight.SemiBold) }
             }
             HorizontalDivider(Modifier.padding(vertical = 6.dp), color = Ink.copy(alpha = 0.08f))
             ShareOption(Icons.Rounded.PersonAdd, w("person"), w("personSub"), "share-person") {
