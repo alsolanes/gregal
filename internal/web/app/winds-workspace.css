@@ -391,6 +391,20 @@ button.vw-choice { white-space:normal; text-align:left; }
 .vw-card-copy span { color:var(--muted); font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .vw-home .vw-demo { margin-top:34px; }
 .vw-home .vw-demo + .vw-today { margin-top:18px; }
+/* Portada d'inici: les cares dels vents a dalt i les converses recents sota el compositor. */
+.vw-start-faces { display:flex; justify-content:safe center; gap:6px; margin:0 0 26px; overflow-x:auto; scrollbar-width:none; }
+button.vw-start-face { display:flex; flex-direction:column; align-items:center; gap:5px; width:68px; flex:none; padding:6px 2px; background:transparent; border:0; border-radius:12px; color:var(--muted); font-size:12px; }
+button.vw-start-face:hover { background:var(--hover); color:var(--ink); }
+.vw-start-face .winds-face { width:40px; height:40px; }
+.vw-start-face > span { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.vw-start-recent { display:flex; flex-direction:column; gap:2px; margin:28px 0 0; }
+.vw-start-recent > h2 { margin:0 0 6px 6px; color:var(--muted); font-size:13px; font-weight:600; }
+button.vw-start-row { display:flex; align-items:center; gap:11px; min-height:48px; padding:6px; background:transparent; border:0; border-radius:12px; text-align:left; }
+button.vw-start-row:hover { background:var(--hover); }
+.vw-start-row .winds-face { width:28px; height:28px; flex:none; }
+.vw-start-row-copy { display:flex; flex-direction:column; min-width:0; }
+.vw-start-row-copy > strong { color:var(--ink); font-size:14px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.vw-start-row-copy > small { color:var(--muted); font-size:12px; }
 /* Barra lateral: «Més» plegat. */
 .vw-more { display:flex; flex-direction:column; }
 .vw-more > summary { list-style:none; cursor:pointer; display:flex; align-items:center; }

@@ -168,7 +168,7 @@
   input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();composer.requestSubmit();}});
   const foot=el('div','vw-composer-foot'),pick=el('span','vw-select'),select=el('select');select.setAttribute('aria-label',t('Amb qui parles','Who you are talking to'));
   select.append(new Option(t('Automàtic','Automatic'),'auto'),new Option(t('Tots els vents (en grup)','All winds (as a group)'),'crew'));for(const w of state.winds)select.append(new Option(w.name+(roleName(w)?' · '+roleName(w):''),w.id));select.value=state.active?.wind||'auto';
-  if(state.view==='chat')pick.hidden=true;
+  if(state.view==='chat'||state.view==='home'&&state.winds.some(w=>w.id==='gregal'))pick.hidden=true;
   const group=state.view==='chat'&&!state.active?.legacyWind?state.winds.filter(w=>(state.active?.members||[]).includes(w.id)):[];
   let address=null;
   if(group.length>1){address=el('div','vw-address');address.setAttribute('role','radiogroup');address.setAttribute('aria-label',t('A qui parles','Who you are talking to'));
@@ -421,22 +421,40 @@
  // Inici, a l'estil de Grok i dots: salutació, compositor gran, la colla a un
  // toc i «Avui»: el que hi ha en marxa i el que ve, en targetes.
  function home(){
-  // B14: la portada és el fil de Gregal, l'assistent que fa la feina ell mateix (com dots/Duet).
-  const gregal=state.winds.find(w=>w.id==='gregal');
-  if(gregal&&!state.homeClassic){content.classList.add('vw-home');talkTo(gregal).catch(fail);return;}
   content.classList.add('vw-home');
+  // La portada d'inici, com a l'Android (VentsStart.kt): cada tema nou és una conversa nova amb
+  // Gregal i els vents són a la vista. Abans (B14) era un sol fil amb Gregal que no s'acabava mai.
+  const gregal=state.winds.find(w=>w.id==='gregal');
+  if(gregal){const faces=el('div','vw-start-faces');faces.setAttribute('aria-label',t('Vents','Winds'));for(const w of [gregal,...state.winds.filter(w=>w!==gregal)]){const n=btn('',()=>startWith(w),'vw-start-face');n.append(face(w),el('span','',w.name));n.title=roleName(w)||w.name;faces.append(n);}content.append(faces);}
   const hour=new Date().getHours(),greet=hour<6?t('Bona nit','Good night'):hour<13?t('Bon dia','Good morning'):hour<20?t('Bona tarda','Good afternoon'):t('Bon vespre','Good evening');
   const welcome=el('div','vw-welcome'),orb=el('div','vw-orb');orb.append(figure(crew()[0],true));
-  welcome.append(orb,el('h1','',greet+'.'),el('p','',t('Pregunta, encarrega o planifica. Els vents s’encarreguen de la resta.','Ask, delegate or plan. Your winds take care of the rest.')));content.append(welcome);
-  if(state.squads.length>1){const squads=el('div','vw-squads');squads.setAttribute('role','tablist');squads.setAttribute('aria-label',t('Equips','Squads'));for(const s of state.squads){const b=btn(ca()?s.ca:s.en,()=>{state.squad=s.id;newChat();},'vw-squad-pill');b.setAttribute('role','tab');b.setAttribute('aria-selected',String(s.id===state.squad));squads.append(b);}content.append(squads);}
+  if(!gregal)welcome.append(orb);welcome.append(el('h1','',greet+'.'),el('p','',t('Pregunta, encarrega o planifica. Els vents s’encarreguen de la resta.','Ask, delegate or plan. Your winds take care of the rest.')));content.append(welcome);
+  if(state.squads.length>1&&!gregal){const squads=el('div','vw-squads');squads.setAttribute('role','tablist');squads.setAttribute('aria-label',t('Equips','Squads'));for(const s of state.squads){const b=btn(ca()?s.ca:s.en,()=>{state.squad=s.id;newChat();},'vw-squad-pill');b.setAttribute('role','tab');b.setAttribute('aria-selected',String(s.id===state.squad));squads.append(b);}content.append(squads);}
   addComposer(!!state.active?.project);
-  const strip=el('div','vw-crew-strip');crew().slice(0,6).forEach(w=>{const n=btn('',()=>talkTo(w),'vw-crew-chip');n.append(face(w),el('span','',w.name));n.title=roleName(w);strip.append(n);});if(crew().length)content.append(strip);
+  const strip=el('div','vw-crew-strip');crew().slice(0,6).forEach(w=>{const n=btn('',()=>talkTo(w),'vw-crew-chip');n.append(face(w),el('span','',w.name));n.title=roleName(w);strip.append(n);});if(crew().length&&!gregal)content.append(strip);
   const prompts=el('div','vw-prompts');for(const [a,b]of state.squad==='data'?[['Analitza aquestes dades','Analyze this data'],['Compara dos models','Compare two models'],['Explora una sèrie temporal','Explore a time series']]:state.squad==='software'?[['Crea una web','Create a website'],['Revisa aquest projecte','Review this project'],['Comprova la seguretat','Check security']]:[['Ajuda’m a triar','Help me choose'],['Recomana’m un llibre','Recommend a book'],['Organitzem la setmana','Let’s organize the week']])prompts.append(btn(t(a,b),()=>{input.value=t(a,b)+' ';input.focus();},'vw-prompt'));content.append(prompts);
+  // Les converses recents en lloc dels exemples quan n'hi ha. La demostració del grup i «Avui»
+  // (que té la seva entrada a la barra) no hi van: la portada és per començar o reprendre una conversa.
+  if(gregal){if(startRecent())prompts.remove();return;}
   // The example explains the crew before first use, right under the composer;
   // afterwards home stays focused on real threads.
   if(!state.chats.length&&!state.tasks.length)collaborationDemo();
   const feed=el('section','vw-avui');feed.setAttribute('aria-label',t('Avui','Today'));content.append(feed);paintAvui(feed).catch(()=>paintToday(feed).catch(()=>{}));
  }
+ // Les converses recents (/api/winds/threads, de la més nova a la més vella): títol, vent i data.
+ function startRecent(){
+  const list=(state.solo||[]).filter(th=>state.winds.some(w=>w.id===th.wind));if(!list.length)return false;
+  const box=el('section','vw-start-recent');box.append(el('h2','',t('Converses recents','Recent conversations')));
+  for(const th of list){const w=state.winds.find(w=>w.id===th.wind),row=btn('',()=>openThread(w,th.name),'vw-start-row'),copy=el('span','vw-start-row-copy');copy.append(el('strong','',cleanTitle(th.title)||w.name),el('small','',[w.name,root.gregalNotes?.dayText(th.at,ca()?'ca':'en')].filter(Boolean).join(' · ')));row.append(face(w),copy);box.append(row);}
+  content.append(box);return true;
+ }
+ // El torn que aquest client té en marxa (amb `w`, només si és d'aquest vent).
+ const running=w=>state.busy&&state.pending&&(!w||state.pending.wind===w.id)?state.pending:null;
+ async function openRunning(p){const chat=state.chats.find(c=>c.id===p.thread),w=state.winds.find(w=>w.id===p.wind);if(chat)await openChat(chat);else if(w)await talkTo(w,p.thread);}
+ // Una conversa nova amb el vent; si el vent respon ara mateix, s'obre la que té en marxa.
+ async function startWith(w){const p=running(w);if(p){await openRunning(p);return;}const thread=await call('/api/winds/sessions','POST',{wind:w.id});showWindThread(w,thread.name,[]);}
+ // Reprendre una conversa la fa l'activa del vent; mentre el vent respon només es mira.
+ async function openThread(w,name){if(running(w)){await talkTo(w,name);return;}const data=await call('/api/winds/session/open','POST',{wind:w.id,name});showWindThread(w,data.name,data.history||[]);}
  // «Avui» a la barra: la safata, com a l'Android (abans portava a la conversa de
  // Gregal, igual que la fila «Gregal», i si ja hi eres semblava que no feia res).
  function todayView(){content.classList.add('vw-today-page');const feed=el('section','vw-avui');feed.setAttribute('aria-label',t('Avui','Today'));content.append(feed);paintAvui(feed).catch(()=>paintToday(feed).catch(()=>{}));}
@@ -1148,11 +1166,16 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  async function submit(){
   // Mentre el vent treballa en aquest fil, el que escrius s'hi afegeix (no espera el torn).
   if(state.busy&&steerable()){const text=input.value.trim();if(text)await steerChat(text);return;}
+  // Des de la portada mentre un vent respon: s'obre aquella conversa amb el text a punt, no una de nova.
+  const p=state.view==='home'&&running();if(p){const text=input.value;await openRunning(p);if(input){input.value=text;state.draft=text;}return;}
   if(state.preparing)return;state.preparing=true;try{await submitRequest();}finally{state.preparing=false;}}
  async function submitRequest(queued=null){
   const typed=queued==null,text=(typed?input.value:queued).trim();if(!text)return;
   if(state.busy){if(typed&&steerable())await steerChat(text);return;}
   const keep=typed?'':input?.value||'';if(typed)state.draft=text;
+  // Portada: Gregal se n'encarrega en una conversa nova, creada abans d'enviar-hi res.
+  const gregal=state.view==='home'&&state.recipient==='auto'&&!state.active?.project&&state.winds.find(w=>w.id==='gregal');
+  if(gregal){const thread=await call('/api/winds/sessions','POST',{wind:gregal.id});showWindThread(gregal,thread.name,[]);}
   const anyone=state.recipient==='auto'||state.recipient==='crew';
   const prepareWork=state.view!=='chat'&&!state.active?.legacyWind&&(anyone||state.active?.project);
   const work=prepareWork&&(await call('/api/winds/intent','POST',{message:text})).intent==='work';

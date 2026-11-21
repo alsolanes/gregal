@@ -169,3 +169,35 @@ func TestWindSessionsIsolation(t *testing.T) {
 		t.Fatalf("other thread was lost: %d %s", rec.Code, rec.Body.String())
 	}
 }
+
+// TestWindNewSessionKeepsMemory: a new conversation (the start page creates
+// one for every topic) starts with an empty thread, but the wind still knows
+// what it learned about the person and about its subject.
+func TestWindNewSessionKeepsMemory(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	s, _ := companionTestServer(t)
+	wind := makeTestWind(t, s, "Gregal")
+	if err := companion.AppendWindMemory(s.windStateDir(), wind.ID, []string{"Prefereix el tren al cotxe"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := companion.AppendWindBrain(s.windStateDir(), wind.ID, []string{"El R2 surt cada 20 minuts"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := saveWindHistory(s, wind, []llm.Message{{Role: "user", Content: "conversa vella"}}); err != nil {
+		t.Fatal(err)
+	}
+	if rec := postJSON(t, s.handleWindSessions, `{"wind":"`+wind.ID+`"}`); rec.Code != http.StatusOK {
+		t.Fatal(rec.Body.String())
+	}
+	if n := len(windHistory(s, wind.ID).messages); n != 0 {
+		t.Fatalf("the new conversation should start empty, got %d messages", n)
+	}
+	if mem := s.windMemorySystem(wind.ID); !strings.Contains(mem, "Prefereix el tren al cotxe") {
+		t.Fatalf("memory lost after a new session: %q", mem)
+	}
+	if brain := s.windBrain(wind.ID); !strings.Contains(brain, "El R2 surt cada 20 minuts") {
+		t.Fatalf("notes lost after a new session: %q", brain)
+	}
+}
