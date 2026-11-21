@@ -9,6 +9,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 
 /** Segment de text ja classificat (pur, testeable). */
@@ -453,7 +454,9 @@ fun renderSegs(segs: List<Seg>, codeBg: Color, activity: Boolean = false, link: 
                 } else append(seg.t)
                 is Seg.Bold -> withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(seg.t) }
                 is Seg.Italic -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(seg.t) }
-                is Seg.Code -> withStyle(SpanStyle(fontFamily = FontFamily.Monospace, background = codeBg)) {
+                // Una mica més petit que el text: el monoespai de la mateixa mida
+                // feia que una ruta dins d'una frase pesés més que la frase.
+                is Seg.Code -> withStyle(SpanStyle(fontFamily = FontFamily.Monospace, background = codeBg, fontSize = 0.88.em)) {
                     append(seg.t)
                 }
                 is Seg.Block -> {

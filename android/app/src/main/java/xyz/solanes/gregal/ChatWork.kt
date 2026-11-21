@@ -164,11 +164,14 @@ fun WorkGroupCard(work: WorkGroup, activity: Activity?, statusLine: String, lang
     val border = when {
         running -> Sea.copy(alpha = 0.35f)
         work.failed -> Red.copy(alpha = 0.45f)
-        else -> Line
+        open -> Line
+        // Plegat i acabat és una línia de resum, no una caixa: la resposta
+        // de sota és el que importa.
+        else -> Color.Transparent
     }
     Surface(
         shape = RoundedCornerShape(16.dp),
-        color = Superficie,
+        color = if (running || work.failed || open) Superficie else Color.Transparent,
         border = BorderStroke(1.dp, border),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 6.dp),
     ) {

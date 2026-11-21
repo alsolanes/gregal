@@ -1404,12 +1404,14 @@ fun MsgRow(m: ChatMsg, stable: Int, lang: String = "ca", onCopyNotice: () -> Uni
     when {
         m.role == "user" -> Row(Modifier.fillMaxWidth().padding(vertical = 4.dp),
             horizontalArrangement = Arrangement.End) {
-            // Bombolla de l'usuari com a la web: superfície `night`, vora
-            // d'escuma fina i radi asimètric (10/10/3/10). Abans era una
-            // bombolla verda de 20 dp que no era de cap tema.
+            // La bombolla de l'usuari, tenyida de l'accent, fins al 85 % de
+            // l'amplada i amb la cantonada de baix a la dreta més tancada: amb
+            // `Superficie` en fosc es confonia amb el fons i, si el text era
+            // llarg, semblava una línia més de la resposta.
             Surface(
-                shape = RoundedCornerShape(18.dp),
-                color = Superficie,
+                shape = RoundedCornerShape(18.dp, 18.dp, 6.dp, 18.dp),
+                color = Sea.copy(alpha = if (LocalPal.current.dark) 0.18f else 0.12f),
+                modifier = Modifier.fillMaxWidth(0.85f).wrapContentWidth(Alignment.End).testTag("user-bubble"),
             ) {
                 Column(Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
                     Text(m.text, color = Ink, style = MaterialTheme.typography.bodyLarge.copy(
