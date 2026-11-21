@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -36,6 +37,11 @@ var Servers = []Server{
 func Configure(custom []Server, off bool) {
 	mu.Lock()
 	defer mu.Unlock()
+	// La mateixa configuració no torna a recórrer el PATH: cada servidor nou
+	// la reaplica, i buscar tots els servidors costa (uns 250 ms a Windows).
+	if off == desactivat && reflect.DeepEqual(custom, extra) {
+		return
+	}
 	desactivat = off
 	extra = custom
 	disponiblesCalc = false

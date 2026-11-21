@@ -6,7 +6,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestDirsLlistaCarpetesIRepos(t *testing.T) {
@@ -36,6 +39,14 @@ func TestDirsLlistaCarpetesIRepos(t *testing.T) {
 	if out.Hidden != 2 || out.Parent == "" || len(out.Roots) == 0 {
 		t.Fatalf("hidden=%d parent=%q roots=%v", out.Hidden, out.Parent, out.Roots)
 	}
+	// La unitat on és la carpeta ha de ser entre les arrels.
+	arrel := "/"
+	if v := filepath.VolumeName(root); v != "" {
+		arrel = strings.ToUpper(v) + `\`
+	}
+	if !slices.Contains(out.Roots, arrel) {
+		t.Fatalf("roots=%v, hi falta %q", out.Roots, arrel)
+	}
 	// Sense path: la carpeta de la sessió.
 	rec = httptest.NewRecorder()
 	s.handleDirs(rec, httptest.NewRequest(http.MethodGet, "/api/dirs", nil))
@@ -47,5 +58,36 @@ func TestDirsLlistaCarpetesIRepos(t *testing.T) {
 	s.handleDirs(rec, httptest.NewRequest(http.MethodGet, "/api/dirs?path="+filepath.Join(root, "fitxer.txt"), nil))
 	if rec.Code != 400 {
 		t.Fatalf("fitxer: HTTP %d", rec.Code)
+	}
+}
+
+// Una unitat que no contesta (una de xarxa desconnectada) no pot retenir el
+// selector de carpetes: es queda fora de la llista i les altres hi surten.
+func TestArrelsNoEsperaUnaUnitatQueNoContesta(t *testing.T) {
+	vellaProva, vellaEspera := provaArrel, esperaArrel
+	penjada := make(chan struct{})
+	provaArrel = func(d string) bool {
+		switch d {
+		case `D:\`, `F:\`:
+			return true
+		case `E:\`:
+			<-penjada // com un os.Stat que no torna
+			return true
+		}
+		return false
+	}
+	esperaArrel = 100 * time.Millisecond
+	t.Cleanup(func() { close(penjada); provaArrel, esperaArrel = vellaProva, vellaEspera })
+
+	fet := make(chan []string, 1)
+	go func() { fet <- unitatsVives() }()
+	var got []string
+	select {
+	case got = <-fet:
+	case <-time.After(2 * time.Second):
+		t.Fatal("la unitat penjada ha retingut la llista")
+	}
+	if strings.Join(got, " ") != `D:\ F:\` {
+		t.Fatalf("unitats = %q, volia la D i la F en ordre", got)
 	}
 }

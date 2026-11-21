@@ -28,6 +28,9 @@ func TestMain(m *testing.M) {
 		return
 	}
 	llm.RetryBase, llm.RetryMax, llm.RetryJitter = 5*time.Millisecond, 20*time.Millisecond, time.Millisecond
+	// Igual amb l'espera abans de tornar a demanar una resposta buida (2 s,
+	// 4 s, 8 s): un proveïdor fals que respon sense text la feia córrer sencera.
+	llm.EmptyRetryWait = time.Millisecond
 	dir, err := os.MkdirTemp("", "gregal-web-test-")
 	if err != nil {
 		panic(err)
