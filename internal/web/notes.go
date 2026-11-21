@@ -195,7 +195,7 @@ func noteDerive(n Note) Note {
 			n.TasksOpen++
 		}
 	}
-	n.Excerpt = noteExcerpt(n.Body, n.Title)
+	n.Excerpt = noteExcerpt(noteReadable(n.Body), n.Title)
 	return n
 }
 
@@ -542,7 +542,8 @@ func searchNotes(all []Note, q, tag, notebook string) []Note {
 		}
 		score := 0
 		if len(terms) > 0 {
-			title, body := foldText(n.Title), foldText(n.Body)
+			readable := noteReadable(n.Body)
+			title, body := foldText(n.Title), foldText(readable)
 			tags := foldText(strings.Join(append(append([]string{}, n.Tags...), n.Hashtags...), " ") + " " + n.Notebook)
 			ok := true
 			for _, t := range terms {
@@ -568,7 +569,7 @@ func searchNotes(all []Note, q, tag, notebook string) []Note {
 			if !ok {
 				continue
 			}
-			n.Snippet = noteSnippet(n.Body, terms)
+			n.Snippet = noteSnippet(readable, terms)
 		}
 		hits = append(hits, scored{n, score})
 	}

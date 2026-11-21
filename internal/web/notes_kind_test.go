@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -77,5 +78,31 @@ func TestNotesKindFilterAndCounts(t *testing.T) {
 	}
 	if got, _ := list(""); len(got) != 4 {
 		t.Fatalf("all notes: %v", got)
+	}
+}
+
+// Un desat es busca i es llegeix pel que diu la targeta, no pel seu JSON.
+func TestNotesCardSearchAndExcerptReadText(t *testing.T) {
+	s := rutinaTestServer(t)
+	body := "Aquí la tens.\n\n```gregal-recipe\n{\"title\":\"Llenties estofades\",\"image_query\":\"lentil stew\",\"ingredients\":[{\"name\":\"llenties\",\"qty\":\"400 g\"}],\"steps\":[{\"text\":\"Sofregeix la ceba\",\"minutes\":8}]}\n```\n"
+	notesSave(t, s, map[string]any{"body": body, "kind": "auto", "title": "Sopar"})
+	list := notesGet(t, s, "?q=llenties")
+	if len(list.Notes) != 1 {
+		t.Fatalf("card text not searchable: %+v", list.Notes)
+	}
+	n := list.Notes[0]
+	for _, raw := range []string{n.Excerpt, n.Snippet} {
+		if strings.ContainsAny(raw, "{}\"") || strings.Contains(raw, "image_query") || !strings.Contains(raw, "Llenties estofades") {
+			t.Fatalf("excerpt/snippet shows JSON or misses the card: %q", raw)
+		}
+	}
+	// Els textos d'una llista després d'un objecte no hereten el camp d'aquell objecte.
+	if got := noteReadable("```gregal-result\n{\"rows\":[{\"lead\":\"A\",\"url\":\"https://x.test\"},\"Visible\"],\"type\":\"bar\"}\n```"); !strings.Contains(got, "A · Visible") || strings.Contains(got, "x.test") || strings.Contains(got, "bar") {
+		t.Fatalf("mixed list: %q", got)
+	}
+	for _, q := range []string{"rega", "title", "image_query", "lentil"} {
+		if got := notesGet(t, s, "?q="+q); len(got.Notes) != 0 {
+			t.Fatalf("q=%s matched the card syntax: %+v", q, got.Notes)
+		}
 	}
 }
