@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -95,6 +96,7 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -755,21 +757,17 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 }
             }
         } else if (msgs.isEmpty()) {
-            // Estat buit: la salutació, la lluïssor i el compositor, i prou. El
-            // model i el projecte ja són a la capçalera.
-            Box(Modifier.fillMaxSize().padding(pad).openingHalo(Sea, Lila).testTag("chat-opening")) {
-                Column(Modifier.fillMaxSize().imePadding(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    // Una mica per damunt del centre, com a l'escriptori.
-                    Spacer(Modifier.weight(0.8f))
-                    OpeningGreeting(askGreeting(lang, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY), vm.usuari.collectAsState().value))
-                    Spacer(Modifier.height(24.dp))
-                    composerArea(
-                        Modifier.fillMaxWidth().widthIn(max = ChatMaxWidth)
-                            .onGloballyPositioned { flip.from = it.boundsInRoot().bottom },
-                    )
-                    Spacer(Modifier.weight(1.2f))
-                }
-            }
+            val sessions by vm.sessions.collectAsState()
+            val conn by vm.conn.collectAsState()
+            LaunchedEffect(conn) { vm.loadSessions(quiet = true) }
+            // Escrivint, les recents s'aparten (com a Vents): amb el teclat no hi cabrien.
+            CodeOpening(
+                lang, askGreeting(lang, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY), vm.usuari.collectAsState().value),
+                if (composerFocused || input.isNotBlank()) emptyList() else sessions,
+                project = st.cwd,
+                onResume = { vm.resumeSession(it.name) },
+                modifier = Modifier.fillMaxSize().padding(pad),
+            ) { m -> composerArea(m.onGloballyPositioned { flip.from = it.boundsInRoot().bottom }) }
         } else {
             val (outer, inner) = chatListPadding(pad, frosted = frost != null)
             Box(Modifier.fillMaxSize().padding(outer).frostSource(frost)) {
@@ -1510,6 +1508,61 @@ fun ModelMenu(
         DropdownMenuItem(text = { Text(tr(lang, "app.menu.refresh"), color = Sea) },
             onClick = { vm.refresh(); vm.loadProviders(); vm.loadModels() })
     }
+}
+
+/**
+ * El xat de Codi buit: la salutació, la lluïssor i el compositor i, a sota,
+ * les cinc converses més noves com a la portada de Vents. El model i el projecte ja
+ * són a la capçalera.
+ */
+@Composable
+internal fun CodeOpening(
+    lang: String,
+    greeting: String,
+    recents: List<SessionInfo>,
+    onResume: (SessionInfo) -> Unit,
+    modifier: Modifier = Modifier,
+    /** La carpeta del projecte obert: només s'hi ensenyen les seves converses. */
+    project: String = "",
+    nowMs: Long = System.currentTimeMillis(),
+    composer: @Composable (Modifier) -> Unit,
+) {
+    val mine = recents.filter { sameProject(it.workspace, project) }.take(5)
+    Box(modifier.openingHalo(Sea, Lila).testTag("chat-opening")) {
+        BoxWithConstraints(Modifier.fillMaxSize().imePadding()) {
+            // Una mica per damunt del centre, com a l'escriptori (abans, pesos
+            // 0,8 i 1,2); desplaçable perquè en horitzontal les recents no hi caben.
+            Column(
+                Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.aligned(BiasAlignment.Vertical(-0.2f)),
+            ) {
+                OpeningGreeting(greeting)
+                Spacer(Modifier.height(24.dp))
+                composer(Modifier.fillMaxWidth().widthIn(max = ChatMaxWidth))
+                if (mine.isNotEmpty()) {
+                    Spacer(Modifier.height(28.dp))
+                    Box(Modifier.widthIn(max = ChatMaxWidth).padding(horizontal = 16.dp)) {
+                        StartRecents(lang) {
+                            mine.forEach { s -> RecentRow(s.displayTitle(), threadWhen(s.at, lang, nowMs), onClick = { onResume(s) }) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Si una conversa és del projecte obert. Les desades abans que el servidor
+ * en recordés la carpeta (buida) i un projecte encara desconegut hi compten:
+ * amagar-les les faria desaparèixer de la portada sense motiu.
+ */
+internal fun sameProject(workspace: String, project: String): Boolean {
+    fun norm(p: String) = p.trim().trimEnd('/', '\\')
+    val w = norm(workspace); val p = norm(project)
+    // Una carpeta de Windows no distingeix majúscules (com runs.WorkspaceKey al servidor).
+    return w.isEmpty() || p.isEmpty() || w.equals(p, ignoreCase = '\\' in w || '\\' in p)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

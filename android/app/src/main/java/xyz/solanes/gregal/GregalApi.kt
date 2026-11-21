@@ -450,7 +450,7 @@ class GregalApi(val base: String, val token: String) {
     fun postRewindTo(seq: Int): String = postAs<SummaryDto>("/api/rewind-to", JSONObject().put("seq", seq)).summary
 
     fun getSessions(): List<SessionInfo> = getAs<List<SessionDto>>("/api/sessions").map { o ->
-        SessionInfo(o.name, o.msgs, o.whenText, o.title, o.at, o.current)
+        SessionInfo(o.name, o.msgs, o.whenText, o.title, o.at, o.current, o.workspace)
     }
 
     // ---- Contracte de torns v2 (cua + events durables) ----
@@ -1637,7 +1637,7 @@ internal class ParallelItemDto(
 @Serializable
 internal class SessionDto(
     val name: String = "", val msgs: Int = 0, @SerialName("when") val whenText: String = "",
-    val title: String = "", val at: String = "", val current: Boolean = false,
+    val title: String = "", val at: String = "", val current: Boolean = false, val workspace: String = "",
 )
 
 @Serializable
