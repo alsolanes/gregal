@@ -349,6 +349,10 @@ data class CrewProposal(val plan: String, val reuse: List<CrewReuse>, val create
     }
 }
 
+/** Una conversa amb un vent, de la llista de recents (`/api/winds/threads`). `at` és RFC 3339. */
+@kotlinx.serialization.Serializable
+data class WindThread(val wind: String, val name: String, val title: String = "", val at: String = "", val msgs: Int = 0)
+
 /** Una sessió (fil) d'un vent: títol, missatges i marca de temps, com les converses del xat general. */
 data class WindSessionInfo(
     val name: String,

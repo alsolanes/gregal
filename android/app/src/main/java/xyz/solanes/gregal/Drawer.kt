@@ -197,7 +197,7 @@ private fun SimpleVentsDrawer(
                 // i la resta plegada. Abans: Gregal, Avui, Feina, Vigilant,
                 // Automatitzacions i A prop teu com a files soltes, i tres blocs més.
                 val gregal = winds.firstOrNull { it.id == "gregal" }
-                DrawerRow(if (en) "New conversation" else "Nova conversa", false, { close(); vm.openVentsPanel(null); nav(Screen.Company) }) {
+                DrawerRow(if (en) "New conversation" else "Nova conversa", false, { close(); vm.openVentsPanel(null); vm.openVentsChat(null); nav(Screen.Company) }) {
                     Icon(Icons.Rounded.Add, null, tint = Sea, modifier = Modifier.size(22.dp))
                 }
                 Spacer(Modifier.height(4.dp))
@@ -218,7 +218,7 @@ private fun SimpleVentsDrawer(
                 DrawerRow(if (en) "Your winds" else "Els teus vents", false, { close(); vm.openVentsPanel(null); nav(Screen.Company); vm.openCrew() }, Icons.Rounded.Groups)
                 // Els vents: Gregal primer i tots els especialistes (abans només cinc).
                 DrawerSection(if (en) "Winds" else "Vents")
-                DrawerRow(gregal?.name ?: tr(lang, "nav.company"), home && panel == null, { close(); vm.openVentsPanel(null); nav(Screen.Company) }) { DrawerWindIcon(vm) }
+                DrawerRow(gregal?.name ?: tr(lang, "nav.company"), home && panel == null, { close(); vm.openVentsPanel(null); vm.openVentsChat(if (gregal != null) "wind:gregal" else null); nav(Screen.Company) }) { DrawerWindIcon(vm) }
                 // Gregal i els cinc amb qui has parlat fa menys (com l'escriptori); la
                 // resta, a «Tots els vents»: amb 20 o 30 vents el calaix no s'acabava.
                 val chats by vm.windChat.collectAsState()
