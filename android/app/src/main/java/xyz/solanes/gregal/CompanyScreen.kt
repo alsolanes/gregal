@@ -2189,53 +2189,6 @@ fun DrawerWindIcon(vm: GregalViewModel) {
 }
 
 /**
- * WindFab — el botó flotant del vent actiu: cara petita i viva a baix a la
- * dreta, sobre qualsevol pantalla. Un toc obre la pantalla Vents.
- */
-@Composable
-fun WindFab(vm: GregalViewModel, onOpen: () -> Unit) {
-    val wind by vm.activeWind.collectAsState()
-    val busy by vm.windBusy.collectAsState()
-    val live by vm.windLive.collectAsState()
-    val news by vm.windNews.collectAsState()
-    val w = wind ?: return
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .fillMaxHeight(),
-        // A l'esquerra: la dreta és dels botons d'acció de cada pantalla
-        // (afegir una feina, crear…), i la cara no els ha de tapar.
-        contentAlignment = Alignment.BottomStart,
-    ) {
-        Surface(
-            shape = CircleShape,
-            shadowElevation = 6.dp,
-            color = Superficie,
-            border = androidx.compose.foundation.BorderStroke(1.dp, Line),
-            modifier = Modifier
-                .padding(16.dp)
-                .size(58.dp)
-                .clip(CircleShape)
-                .clickable(onClick = onOpen)
-                .semantics { contentDescription = "Vent actiu: ${w.name}" },
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                WindFace(
-                    size = 48,
-                    mood = when {
-                        busy.contains(w.id) -> live[w.id]?.mood ?: WindMood.THINKING
-                        news.contains(w.id) -> WindMood.NEWS
-                        else -> WindMood.IDLE
-                    },
-                    accent = Color(w.argb),
-                    style = w.faceStyle,
-                )
-            }
-        }
-    }
-}
-
-/**
  * «Convoca una colla»: escrius l'encàrrec, Gregal proposa qui el pot fer (els
  * vents que ja hi encaixen i especialistes nous amb el seu color i ofici) i,
  * en acceptar, s'obre la rotllana on en parlen i després el fan.

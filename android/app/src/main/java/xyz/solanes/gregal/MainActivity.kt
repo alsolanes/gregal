@@ -391,14 +391,6 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 UpdateAvis(vm)
-                // El vent actiu acompanya per totes les pantalles EXCEPTE als
-                // mateixos vents i al xat de feina: allà ja hi ets, i el FAB
-                // es barrejaria amb els botons de crear conversa o taparia
-                // el botó d'enviar del composer. Tampoc a Preferències ni a
-                // l'emparellament: són formularis i la cara tapava text i camps.
-                if (connected && screen !in setOf(Screen.Company, Screen.Chat, Screen.Ventet, Screen.Carpeta, Screen.Prefs, Screen.Pairing)) {
-                    WindFab(vm) { vm.go(Screen.Company) }
-                }
                 }
             }
             }

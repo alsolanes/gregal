@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AccountTree
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -133,6 +135,8 @@ internal fun AutomatitzacionsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val jobs by vm.jobs.collectAsState()
     val fluxos by vm.flows.collectAsState()
     val activitat by vm.automations.collectAsState()
+    val conn by vm.conn.collectAsState()
+    val admin by vm.isAdmin.collectAsState()
     val delsVents = activitat[""]?.items.orEmpty().map { it.id }.toSet()
 
     fun carrega() {
@@ -155,7 +159,14 @@ internal fun AutomatitzacionsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
         TopAppBar(
             title = { Text(tr(lang, "act.title"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
             navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu")) } },
-            actions = { IconButton(onClick = { carrega() }) { Icon(Icons.Rounded.Refresh, tr(lang, "auto.refresh")) } },
+            actions = {
+                // Activitat (programar feines i els resultats de cada execució) i
+                // Grafs ja no tenen fila al calaix: s'hi va des d'aquí. Els jobs
+                // són de l'administrador del servidor: un altre compte rebria 403.
+                if (conn.local || admin) IconButton(onClick = { vm.go(Screen.Jobs) }) { Icon(Icons.Rounded.History, tr(lang, "nav.activity")) }
+                IconButton(onClick = { vm.go(Screen.Flows) }) { Icon(Icons.Rounded.AccountTree, tr(lang, "graphs.title")) }
+                IconButton(onClick = { carrega() }) { Icon(Icons.Rounded.Refresh, tr(lang, "auto.refresh")) }
+            },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie),
         )
     }) { pad ->
