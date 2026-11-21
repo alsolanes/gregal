@@ -1178,6 +1178,7 @@ fun AssistantResponse(text: String, lang: String = "ca", streaming: Boolean = fa
                 is Rich.Chart -> ChartBlock(b.spec, Sea, false)
                 is Rich.Card -> RichCardBlock(b.card, Sea, lang)
                 is Rich.Image -> MdImage(b.url, b.alt, Sea, lang)
+                is Rich.Keep -> {}
             }
         }
     }

@@ -76,6 +76,8 @@ data class Note(
     val noRemind: Boolean = false,
     /** Carpeta del projecte de Gregal associat (com a /api/workspaces); buit = cap. */
     val project: String = "",
+    /** Tipus d'un desat (una resposta guardada: recipe, tip, plan…); buit = nota normal. */
+    val kind: String = "",
 ) {
     val allTags: List<String> get() = (tags + hashtags).distinctBy { foldNote(it) }
 }
@@ -90,12 +92,16 @@ data class NotesPage(
     val agenda: List<AgendaItem> = emptyList(),
     /** Notes per projecte (name = la ruta). */
     val projects: List<NoteCount> = emptyList(),
+    /** Desats per tipus, el més nombrós primer. */
+    val kinds: List<NoteCount> = emptyList(),
 )
 
 data class NoteDetail(val note: Note, val backlinks: List<Pair<String, String>>)
 
 /** Filtres de la llista. project: "" = tots, "-" = sense projecte, o la ruta. */
-data class NotesQuery(val q: String = "", val tag: String = "", val notebook: String = "", val project: String = "") {
+data class NotesQuery(val q: String = "", val tag: String = "", val notebook: String = "", val project: String = "",
+    /** "*" = tots els desats, o un tipus; "" = totes les notes. */
+    val kind: String = "") {
     /** El projecte que hereta una nota nova feta amb aquest filtre. */
     val newProject: String? get() = project.takeIf { it.isNotBlank() && it != "-" }
 }
@@ -124,7 +130,7 @@ object NotesJson {
         x.optBoolean("pinned"), x.optBoolean("private"), x.optBoolean("locked"),
         x.optString("created"), x.optString("updated"), x.optString("by"), x.optString("edited_by"),
         x.optString("excerpt"), x.optString("snippet"), x.optInt("tasks_open"), x.optInt("tasks_total"),
-        x.optBoolean("no_remind"), x.optString("project"),
+        x.optBoolean("no_remind"), x.optString("project"), x.optString("kind"),
     )
 
     private fun counts(a: JSONArray?): List<NoteCount> = a?.let { arr ->
@@ -139,7 +145,7 @@ object NotesJson {
             counts(o.optJSONArray("tags")), counts(o.optJSONArray("notebooks")), o.optInt("total"),
             (0 until ag.length()).mapNotNull { i -> ag.optJSONObject(i)?.let {
                 AgendaItem(it.optString("note_id"), it.optString("note_title"), it.optInt("index"), it.optString("text"), it.optString("due"), it.optString("time"), it.optString("remind_at"))
-            } }, counts(o.optJSONArray("projects")))
+            } }, counts(o.optJSONArray("projects")), counts(o.optJSONArray("kinds")))
     }
 
     fun detail(raw: String): NoteDetail {
@@ -153,6 +159,13 @@ object NotesJson {
         .put("body", n.body).put("notebook", n.notebook).put("tags", JSONArray(n.tags))
         .put("private", n.private).put("locked", n.locked).put("no_remind", n.noRemind).put("base", n.base)
         .also { o -> n.project?.let { o.put("project", it) } }
+
+    /**
+     * Una resposta desada. Amb kind "auto" i sense títol, el servidor en treu el
+     * tipus i el títol de la primera targeta; la proposta del vent porta els seus.
+     */
+    fun reply(text: String, title: String, kind: String): JSONObject = JSONObject().put("action", "save").put("body", text).put("kind", kind)
+        .also { o -> if (title.isNotEmpty()) o.put("title", title) }
 
     /** El text de l'editor va sencer: pot no estar desat encara. */
     fun aiRequest(action: String, instruction: String, title: String, body: String): JSONObject =
@@ -169,6 +182,7 @@ fun GregalApi.getNotes(q: NotesQuery): NotesPage {
         if (q.tag.isNotBlank()) add("tag=" + enc(q.tag))
         if (q.notebook.isNotBlank()) add("notebook=" + enc(q.notebook))
         if (q.project.isNotBlank()) add("project=" + enc(q.project))
+        if (q.kind.isNotBlank()) add("kind=" + enc(q.kind))
     }
     return NotesJson.page(get("/api/notes" + if (p.isEmpty()) "" else "?" + p.joinToString("&")).toString())
 }
@@ -181,6 +195,8 @@ fun GregalApi.saveNote(n: NoteInput): Note? = try {
 } catch (e: ApiException) {
     if (e.message.orEmpty().startsWith("HTTP 409")) null else throw e
 }
+
+fun GregalApi.saveReply(text: String, title: String, kind: String): Note = NotesJson.note(post("/api/notes", NotesJson.reply(text, title, kind)))
 
 fun GregalApi.pinNote(id: String, pinned: Boolean) { post("/api/notes", JSONObject().put("action", "pin").put("id", id).put("pinned", pinned)) }
 

@@ -25,3 +25,79 @@ test('un bloc que no s\'entén es queda com estava', () => {
   const md = '```gregal-plan\n{trencat\n```';
   assert.strictEqual(plainText(md, 'ca'), md);
 });
+
+test('desar una resposta envia el markdown tal qual amb kind auto', async () => {
+  const { saveReply } = require('./share-msg.js');
+  const md = 'Té:\n\n```gregal-recipe\n{"title":"Crema","servings":2,"ingredients":[{"name":"carbassa","qty":"500 g"}]}\n```';
+  const calls = [];
+  globalThis.api = async (url, opts) => { calls.push({ url, opts }); return { ok: true, json: async () => ({ id: 'n1', kind: 'recipe', title: 'Crema' }) }; };
+  try {
+    const note = await saveReply(md);
+    assert.strictEqual(note.id, 'n1');
+  } finally { delete globalThis.api; }
+  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(calls[0].url, '/api/notes');
+  assert.strictEqual(calls[0].opts.method, 'POST');
+  assert.deepStrictEqual(JSON.parse(calls[0].opts.body), { action: 'save', body: md, kind: 'auto' });
+});
+
+test('una resposta ja desada no es torna a desar quan el xat es repinta', async () => {
+  const { saveReply, savedNote } = require('./share-msg.js');
+  const md = 'Un consell: rega al vespre (prova de repintat).';
+  let posts = 0;
+  globalThis.api = async () => { posts++; return { ok: true, json: async () => ({ id: 'n7', kind: 'tip' }) }; };
+  try {
+    assert.strictEqual(savedNote(md), undefined);
+    await saveReply(md);
+    const again = await saveReply(md);
+    assert.strictEqual(again.id, 'n7');
+  } finally { delete globalThis.api; }
+  assert.strictEqual(posts, 1);
+  assert.strictEqual(savedNote(md), 'n7');
+});
+
+test('la proposta de desar no surt al text per compartir', () => {
+  assert.strictEqual(plainText('Llenties amb **xoriço**.\n\n```gregal-keep {"title":"Llenties","kind":"recipe"}```', 'ca'), 'Llenties amb *xoriço*.');
+  assert.strictEqual(plainText('Pla.\n```gregal-keep\n{"title":"Pla","kind":"plan"}\n```\n', 'ca'), 'Pla.');
+});
+
+test('el xip de desar envia la resposta sense la marca, amb el seu títol i tipus', async () => {
+  const { saveReply, savedNote } = require('./share-msg.js');
+  const clean = 'Llenties: sofregit, llenties i 30 min.';
+  const md = clean + '\n\n```gregal-keep {"title":"Llenties","kind":"recipe"}```';
+  const calls = [];
+  globalThis.api = async (url, opts) => { calls.push({ url, opts }); return { ok: true, json: async () => ({ id: 'n9', kind: 'recipe' }) }; };
+  try {
+    await saveReply(md, { title: 'Llenties', kind: 'recipe' });
+  } finally { delete globalThis.api; }
+  assert.strictEqual(calls[0].url, '/api/notes');
+  assert.deepStrictEqual(JSON.parse(calls[0].opts.body), { action: 'save', body: clean, kind: 'recipe', title: 'Llenties' });
+  // El «Desa» del missatge i el xip són la mateixa cosa desada.
+  assert.strictEqual(savedNote(md), 'n9');
+  assert.strictEqual(savedNote(clean), 'n9');
+});
+
+test('tocar el xip de desar el desa amb el títol i el tipus del xip i diu «Saved ✓»', async () => {
+  const { keepChips } = require('./share-msg.js');
+  const clean = 'Rega al vespre i encoixina amb palla (prova del xip).';
+  const md = clean + '\n\n```gregal-keep {"title":"Reg","kind":"tip"}```';
+  let onClick;
+  const chip = {
+    dataset: { keepTitle: 'Reg', keepKind: 'tip' }, textContent: 'Save «Reg»?', disabled: false,
+    classes: new Set(), classList: { add(c) { chip.classes.add(c); } },
+    addEventListener(type, fn) { if (type === 'click') onClick = fn; },
+  };
+  const body = { querySelectorAll: (sel) => (sel === '.gc-keep' ? [chip] : []) };
+  const calls = [];
+  globalThis.document = { documentElement: { lang: 'en' } };
+  globalThis.api = async (url, opts) => { calls.push({ url, opts }); return { ok: true, json: async () => ({ id: 'n11', kind: 'tip' }) }; };
+  try {
+    keepChips(body, () => md, () => {});
+    await onClick({ stopPropagation() {} });
+  } finally { delete globalThis.api; delete globalThis.document; }
+  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(calls[0].url, '/api/notes');
+  assert.deepStrictEqual(JSON.parse(calls[0].opts.body), { action: 'save', body: clean, kind: 'tip', title: 'Reg' });
+  assert.strictEqual(chip.textContent, 'Saved ✓');
+  assert.ok(chip.classes.has('gc-kept'));
+});

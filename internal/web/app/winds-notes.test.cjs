@@ -50,3 +50,47 @@ test('meetingTemplate porta la data i una tasca amb termini', () => {
   assert.match(m.body, /- \[ \] {2}@2026-11-13/);
   assert.match(N.meetingTemplate('en', new Date(2026, 10, 6)).body, /Action items/);
 });
+
+test('kindName: cada tipus de desat té nom en català i en anglès', () => {
+  const kinds = ['recipe', 'tip', 'plan', 'route', 'compare', 'facts', 'result', 'chart', 'web', 'text'];
+  for (const k of kinds) {
+    assert.ok(N.kindName(k, 'ca') && N.kindName(k, 'ca') !== k, k + ' ca');
+    assert.ok(N.kindName(k, 'en') && N.kindName(k, 'en') !== k, k + ' en');
+    assert.ok(N.KIND_ICONS[k], k + ' icona');
+  }
+  assert.equal(N.kindName('recipe', 'ca'), 'Receptes');
+  assert.equal(N.kindName('recipe', 'en'), 'Recipes');
+  assert.equal(N.kindName('facts', 'ca'), 'Xifres');
+  assert.equal(N.kindName('desconegut', 'en'), 'desconegut');
+});
+
+test('una recepta desada es pinta a la nota amb les racions que es poden canviar', () => {
+  const html = N.linkNotes(md.render('```gregal-recipe\n{"title":"Crema","servings":2,"ingredients":[{"name":"carbassa","qty":"500 g"}]}\n```'));
+  assert.match(html, /class="gregal-card gregal-recipe" data-serves="2"/);
+  assert.match(html, /class="gc-less"/);
+  assert.match(html, /class="gc-more"/);
+  assert.match(html, /class="gc-qty"/);
+});
+
+test('savedQuery: tots els desats o un tipus, amb la cerca', () => {
+  assert.equal(N.savedQuery({ kind: '', q: '' }), 'kind=*');
+  assert.equal(N.savedQuery({ kind: 'recipe', q: '  crema carbassa ' }), 'kind=recipe&q=crema+carbassa');
+});
+
+test('savedChips: «Tots» i un xip per tipus amb nom, icona i recompte; cap si només n’hi ha un', () => {
+  const chips = N.savedChips([{ name: 'recipe', count: 3 }, { name: 'tip', count: 1 }], 'en');
+  assert.deepEqual(chips, [
+    { kind: '', label: 'All', icon: '' },
+    { kind: 'recipe', label: 'Recipes · 3', icon: 'note' },
+    { kind: 'tip', label: 'Tips · 1', icon: 'sparkles' },
+  ]);
+  assert.equal(N.savedChips([{ name: 'tip', count: 2 }], 'ca').length, 0);
+  assert.equal(N.savedChips([], 'ca').length, 0);
+});
+
+test('a la nota, només les tasques del text porten md-check (les caselles de la recepta no)', () => {
+  const html = md.render('- [ ] comprar\n\n```gregal-recipe\n{"title":"Crema","servings":2,"ingredients":[{"name":"carbassa","qty":"500 g"}]}\n```');
+  assert.equal((html.match(/class="md-check"/g) || []).length, 1);
+  assert.match(html, /class="gc-check"/);
+  assert.equal(N.TASK_BOXES, 'input.md-check');
+});

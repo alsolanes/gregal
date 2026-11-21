@@ -61,6 +61,19 @@ class RichCardsTest {
         assertTrue(richBlocksLive("Mira:\n```gregal-recipe\n{\"title\":\"Mig").none { it is Rich.Code })
     }
 
+    @Test fun laPropostaDeDesarEsUnBlocPropiIUnaDeTrencadaNoEsVeu() {
+        val keep = richBlocks("La crema, aquí.\n\n```gregal-keep\n{\"title\":\"Crema de carbassa\",\"kind\":\"recipe\"}\n```")
+        assertEquals(Rich.Keep("Crema de carbassa", "recipe"), keep.last())
+        assertTrue(keep.none { it is Rich.Code })
+        // A la mateixa línia, i amb un tipus que no coneixem: el servidor el tria.
+        assertEquals(Rich.Keep("Truc", "auto"), richBlocksLive("Fet.\n```gregal-keep {\"title\":\" Truc \",\"kind\":\"poema\"}```").last())
+        for (bad in listOf("{trencat", "{\"kind\":\"tip\"}", "{\"title\":\"  \"}")) {
+            val r = richBlocks("Fet.\n\n```gregal-keep\n$bad\n```")
+            assertTrue(bad, r.none { it is Rich.Keep || it is Rich.Code })
+            assertEquals(bad, listOf(Rich.Inline(listOf(Seg.Text("Fet.")))), r)
+        }
+    }
+
     @Test fun lesOpcionsPortenFotoINumeros() {
         val s = parseResultSpec("""{"title":"Tria","image":"https://e.com/a.jpg","numbered":true,"rows":[{"lead":"Model A","value":"699 €"}]}""")!!
         assertEquals("https://e.com/a.jpg", s.image)

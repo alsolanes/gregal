@@ -11,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Link
@@ -131,7 +132,7 @@ object ShareText {
 
     /** El missatge tal com s'ha d'enganxar a un xat de fora (mateixa regla que share-msg.js). */
     fun plain(md: String, lang: String): String {
-        var t = md.replace("\r", "")
+        var t = withoutKeep(md).replace("\r", "")
         t = CARD.replace(t) { m -> cardText(lang, m.groupValues[1], m.groupValues[2].trim())?.let { it + "\n" } ?: m.value }
         t = Regex("!\\[[^\\]\\n]*\\]\\((https?://[^\\s)]+)\\)").replace(t) { it.groupValues[1] }
         t = Regex("!\\[[^\\]\\n]*\\]\\([^)\\n]*\\)").replace(t, "")
@@ -173,6 +174,38 @@ object ShareText {
         )
         return (if (lang == "en") en else ca)[key] ?: key
     }
+}
+
+/**
+ * El xip «Desar «títol»?» que el vent proposa sota una resposta (Rich.Keep):
+ * desa amb el títol i el tipus que diu ell. Un cop desada, «Desat ✓» obre el desat.
+ */
+@Composable
+fun KeepChip(vm: GregalViewModel, lang: String, text: String, keep: Rich.Keep, tint: Color) {
+    val scope = rememberCoroutineScope()
+    val saved = vm.savedReplies.collectAsState().value[withoutKeep(text)]
+    var busy by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf<String?>(null) }
+    AssistChip(
+        enabled = !busy,
+        onClick = {
+            if (saved != null) { vm.openSavedNote(saved.id); return@AssistChip }
+            busy = true
+            scope.launch {
+                failed = try { vm.saveReply(text, keep.title, keep.kind); null } catch (e: Exception) { e.message.orEmpty() }
+                busy = false
+            }
+        },
+        leadingIcon = { Icon(Icons.Rounded.Bookmark, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp)) },
+        label = {
+            Text(when {
+                saved != null -> tr(lang, "saved.reply.done")
+                failed != null -> tr(lang, "saved.keep.failed", failed)
+                else -> tr(lang, "saved.keep.ask", keep.title)
+            }, fontSize = 13.sp)
+        },
+        modifier = Modifier.testTag("keep-chip"),
+    )
 }
 
 /** Què es comparteix: el text del missatge, qui el va dir i, si es pot, la foto de la bombolla. */
@@ -267,6 +300,7 @@ fun ShareSheetBody(vm: GregalViewModel, lang: String, target: ShareTarget, onDis
     val chosen = remember { mutableStateListOf<String>() }
     var link by remember { mutableStateOf<ClipLink?>(null) }
     var busy by remember { mutableStateOf(false) }
+    val savedReplies by vm.savedReplies.collectAsState()
     fun say(msg: String, isBad: Boolean = false) { status = msg; bad = isBad }
     fun run(block: suspend () -> Unit) {
         if (busy) return
@@ -290,6 +324,16 @@ fun ShareSheetBody(vm: GregalViewModel, lang: String, target: ShareTarget, onDis
             }
             ShareOption(Icons.Rounded.ContentCopy, w("copy"), null, "share-copy") {
                 clipboard.setText(AnnotatedString(plain)); say(w("copied"))
+            }
+            // Desa la resposta com a nota (amb les targetes); després es troba a Desat.
+            val kept = savedReplies[withoutKeep(target.text)]
+            if (kept == null) ShareOption(Icons.Rounded.Bookmark, tr(lang, "saved.reply.save"), tr(lang, "saved.reply.saveSub"), "share-save") {
+                run { vm.saveReply(target.text); say("") }
+            } else Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp).testTag("share-saved"),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Icon(Icons.Rounded.Bookmark, contentDescription = null, tint = Sea, modifier = Modifier.size(22.dp))
+                Text(tr(lang, "saved.reply.done"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                TextButton(onClick = { vm.openSavedNote(kept.id); onDismiss() }) { Text(tr(lang, "saved.reply.open"), color = Sea, fontWeight = FontWeight.SemiBold) }
             }
             HorizontalDivider(Modifier.padding(vertical = 6.dp), color = Ink.copy(alpha = 0.08f))
             ShareOption(Icons.Rounded.PersonAdd, w("person"), w("personSub"), "share-person") {

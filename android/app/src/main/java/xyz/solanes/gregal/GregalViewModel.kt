@@ -726,6 +726,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _saved.value = emptyMap()
         _notes.value = null
         _openNote.value = null
+        _savedNotes.value = null
         notesQuery = NotesQuery()
         _turnActions.value = emptyMap()
         _suggestedNames.value = emptyList()
@@ -4241,6 +4242,50 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun closeNote() { _openNote.value = null; loadNotes() }
+
+    // Desat: les respostes guardades són notes amb tipus (kind), a part del filtre de Notes.
+    private val _savedNotes = MutableStateFlow<NotesPage?>(null)
+    val savedNotes: StateFlow<NotesPage?> = _savedNotes.asStateFlow()
+    private var savedNotesQuery = NotesQuery()
+
+    /** Els desats; `kind` buit = de tots els tipus. */
+    fun loadSavedNotes(q: String, kind: String) {
+        val query = NotesQuery(q = q, kind = kind.ifBlank { "*" })
+        savedNotesQuery = query
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val got = withContext(Dispatchers.IO) { source.api().getNotes(query) }
+                if (isCompanionOrigin(source, epoch) && query == savedNotesQuery) _savedNotes.value = got
+            } catch (e: Exception) {
+                if (isCompanionOrigin(source, epoch)) notify(appText("saved.loadError", e.message.orEmpty()))
+            }
+        }
+    }
+
+    /**
+     * Desa una resposta tal com és (amb les targetes, sense la proposta de
+     * desar). Llança si falla: qui la desa (el full de compartir o el xip de la
+     * proposta, amb el títol i el tipus del vent) diu l'error ell mateix.
+     */
+    suspend fun saveReply(text: String, title: String = "", kind: String = "auto"): Note {
+        val body = withoutKeep(text)
+        _savedReplies.value[body]?.let { return it }
+        val source = _conn.value
+        val note = withContext(Dispatchers.IO) { source.api().saveReply(body, title, kind) }
+        _savedReplies.update { it + (body to note) }
+        return note
+    }
+
+    /** Les respostes desades en aquesta sessió: «Desa» i el xip diuen «Desat ✓» tots dos. */
+    private val _savedReplies = MutableStateFlow<Map<String, Note>>(emptyMap())
+    val savedReplies: StateFlow<Map<String, Note>> = _savedReplies.asStateFlow()
+
+    /** Obre un desat a Notes, on es pot llegir, fixar, editar o esborrar. */
+    fun openSavedNote(id: String) {
+        openNote(id)
+        go(Screen.Notes)
+    }
 
     /** [[Títol]]: obre la nota amb aquest títol o, si no n'hi ha, en proposa una de nova. */
     fun openNoteByTitle(title: String, onMissing: (String) -> Unit) {

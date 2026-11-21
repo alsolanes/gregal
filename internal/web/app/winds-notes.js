@@ -77,7 +77,33 @@
     return { title, body, notebook: isCa ? 'Reunions' : 'Meetings' };
   }
 
-  const pure = { linkNotes, toggleTask, dayText, parseTags, fold, agendaGroups, meetingTemplate, isoDay };
+  // Els tipus d'un desat (notes_kind.go): nom per a la llista i icona del joc de Vents.
+  const KIND_NAMES = {
+    recipe: ['Receptes', 'Recipes'], tip: ['Consells', 'Tips'], plan: ['Plans', 'Plans'], route: ['Rutes', 'Routes'],
+    compare: ['Comparacions', 'Comparisons'], facts: ['Xifres', 'Figures'], result: ['Resultats', 'Results'],
+    chart: ['Gràfics', 'Charts'], web: ['Webs', 'Webs'], text: ['Textos', 'Texts'],
+  };
+  const KIND_ICONS = { recipe: 'note', tip: 'sparkles', plan: 'calendar', route: 'mapPin', compare: 'sliders', facts: 'info', result: 'star', chart: 'grafs', web: 'navegador', text: 'chat' };
+  const kindName = (kind, lang) => (KIND_NAMES[kind] ? KIND_NAMES[kind][lang === 'ca' ? 0 : 1] : kind);
+
+  /** La consulta de «Els teus desats»: tots els desats (kind=*) o els d'un tipus, i la cerca. */
+  function savedQuery({ kind, q }) {
+    const p = new URLSearchParams({ kind: kind || '*' });
+    if (String(q || '').trim()) p.set('q', String(q).trim());
+    return p.toString();
+  }
+
+  /** Els xips de tipus: «Tots» i un per tipus amb recompte. Amb un sol tipus no filtren res. */
+  function savedChips(kinds, lang) {
+    if (!kinds || kinds.length < 2) return [];
+    return [{ kind: '', label: lang === 'ca' ? 'Tots' : 'All', icon: '' },
+      ...kinds.map(k => ({ kind: k.name, label: kindName(k.name, lang) + ' · ' + k.count, icon: KIND_ICONS[k.name] || 'note' }))];
+  }
+
+  // Les caselles que són tasques del text: les de les targetes (ingredients) no.
+  const TASK_BOXES = 'input.md-check';
+
+  const pure = { linkNotes, toggleTask, dayText, parseTags, fold, agendaGroups, meetingTemplate, isoDay, kindName, KIND_ICONS, savedQuery, savedChips, TASK_BOXES };
   if (typeof module !== 'undefined' && module.exports) { module.exports = pure; return; }
 
   // ---------------------------------------------------------------- vista
@@ -318,7 +344,7 @@
     if (root.gregalMD) body.innerHTML = linkNotes(root.gregalMD.render(n.body || ''));
     else body.textContent = n.body || '';
     // Les tasques es marquen aquí mateix; els enllaços [[…]] obren la nota.
-    body.querySelectorAll('input[type=checkbox]').forEach((box, i) => {
+    body.querySelectorAll(TASK_BOXES).forEach((box, i) => {
       box.disabled = false;
       box.onchange = () => save({ id: n.id, body: toggleTask(n.body, i), base: n.updated }, true).catch(fail);
     });
@@ -462,5 +488,56 @@
     q.focus();
   }
 
-  root.gregalNotes = { view, newNote: () => newNote(), focusCapture, ...pure };
+  /** «Els teus desats» (pàgina Desat): les respostes desades, amb cerca i un xip per tipus.
+   *  Les fixades surten primer (ho fa el servidor). opts.open(id) obre la nota. */
+  function saved(content, opts) {
+    const lang = ca() ? 'ca' : 'en';
+    const V = { q: '', kind: '', epoch: 0, timer: 0 };
+    const box = el('section', 'notes-saved');
+    box.append(el('h2', '', t('Els teus desats', 'Your saved items')));
+    const search = el('input', 'vw-search'); search.type = 'search';
+    search.placeholder = t('Cerca als desats', 'Search saved items'); search.setAttribute('aria-label', search.placeholder);
+    search.oninput = () => { V.q = search.value; clearTimeout(V.timer); V.timer = setTimeout(load, 200); };
+    const chipRow = el('div', 'notes-chips'), list = el('div', 'notes-saved-list');
+    box.append(search, chipRow, list);
+    content.append(box);
+    function paint(d) {
+      chipRow.replaceChildren();
+      const kinds = d.kinds || [];
+      for (const x of savedChips(kinds, lang)) {
+        const on = V.kind === x.kind;
+        const c = btn(x.label, () => { V.kind = on ? '' : x.kind; load(); }, 'act-chip' + (on ? ' on' : ''));
+        c.setAttribute('aria-pressed', String(on));
+        if (x.icon) c.prepend(ic(x.icon));
+        chipRow.append(c);
+      }
+      list.replaceChildren();
+      const notes = d.notes || [];
+      if (!notes.length) {
+        list.append(el('p', 'vw-muted', kinds.length ? t('Cap desat no hi coincideix.', 'No saved items match.')
+          : t('Encara no has desat res. Toca «Desa» en una resposta d’un {vent} i la tindràs aquí.', 'Nothing saved yet. Tap “Save” on a {vent}’s reply to keep it here.')));
+        return;
+      }
+      for (const n of notes) {
+        const row = el('button', 'notes-row'); row.type = 'button';
+        const head = el('span', 'notes-row-head');
+        if (n.pinned) head.append(flag('pin', t('Fixada', 'Pinned')));
+        head.append(ic(KIND_ICONS[n.kind] || 'note'), el('strong', '', n.title || t('Sense títol', 'Untitled')));
+        row.append(head, el('small', '', [kindName(n.kind, lang), dayText(n.updated, lang)].filter(Boolean).join(' · ')));
+        row.onclick = () => opts.open(n.id);
+        list.append(row);
+      }
+    }
+    async function load() {
+      const epoch = ++V.epoch;
+      try {
+        const d = await call('/api/notes?' + savedQuery(V));
+        if (epoch === V.epoch) paint(d);
+      } catch (e) { list.replaceChildren(el('p', 'vw-error', t('No s’han pogut carregar els desats: ', 'Couldn’t load the saved items: ') + (e.message || e))); }
+    }
+    list.append(el('p', 'vw-muted', t('Carregant…', 'Loading…')));
+    load();
+  }
+
+  root.gregalNotes = { view, saved, newNote: () => newNote(), focusCapture, ...pure };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

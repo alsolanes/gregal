@@ -1133,6 +1133,12 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .gc-actions .gc-note { font-size:12px; color:var(--muted); padding:0 4px; }
 .gc-actions .gc-alt { align-self:center; border:0; background:none; padding:6px 10px; font:inherit; font-size:15px; font-weight:600; color:var(--accent-hi); cursor:pointer; }
 .gc-actions .gc-alt:hover { text-decoration:underline; }
+/* La proposta de desar (md.js gregal-keep): només on share-msg.js la fa funcionar. */
+.gc-keep-row { display:none; margin:10px 0 2px; }
+.gc-sayable .gc-keep-row { display:flex; }
+.gc-keep { border:1px solid var(--line); border-radius:999px; background:none; padding:6px 14px; font:inherit; font-size:14px; font-weight:600; color:var(--accent-hi); cursor:pointer; }
+.gc-keep:hover { background:var(--accent-soft); }
+.gc-keep.gc-kept { color:var(--ink); }
 
 .gregal-route .gc-arrow { margin:0 4px; }
 .gregal-route .gc-leg { display:flex; align-items:center; gap:12px; margin-top:2px; }
@@ -1194,6 +1200,9 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-message:hover .gshare-btn, .gshare-btn:focus-visible { opacity:1; }
 .gshare-btn:hover { color:var(--ink); border-color:var(--accent); }
 @media (hover:none) { .gshare-btn { opacity:.7; } }
+/* Desa (share-msg.js): al costat de Comparteix; un cop desat (o si falla) es queda visible amb el text. */
+.gsave-btn { right:36px; }
+.gsave-btn.gsave-text { width:auto; padding:0 10px; font:inherit; font-size:12px; white-space:nowrap; color:var(--ink); opacity:1; }
 .gshare-menu { position:fixed; z-index:1000; width:270px; padding:6px; border-radius:14px; background:var(--surface-hi, var(--surface)); border:1px solid var(--line); box-shadow:0 18px 50px rgba(0,0,0,.35); display:flex; flex-direction:column; gap:1px; }
 .gshare-item { display:flex; flex-direction:column; align-items:flex-start; gap:1px; text-align:left; padding:9px 11px; border:0; border-radius:9px; background:none; color:var(--ink); font:inherit; font-size:14px; cursor:pointer; }
 .gshare-item small { color:var(--muted); font-size:12px; }

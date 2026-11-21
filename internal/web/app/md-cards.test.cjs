@@ -130,3 +130,27 @@ test('les xifres clau són rajoles amb el número gran i què vol dir', () => {
   assert.ok(h.includes('<b>300 g</b><span>de pes</span>') && h.includes('<small>en repòs</small>'), h);
   assert.ok(!h.includes('<b><b>5 L'), 'values are escaped');
 });
+
+test('la proposta de desar és un xip sota la resposta amb el títol i el tipus', () => {
+  const h = md.render('La recepta.\n\n```gregal-keep {"title":"Llenties <b>guisades</b>","kind":"recipe"}```');
+  assert.ok(h.includes('class="gc-keep"') && h.includes('data-keep-kind="recipe"') && h.includes('data-keep-title="Llenties &lt;b&gt;guisades&lt;/b&gt;"'), h);
+  assert.ok(h.includes('Save «Llenties &lt;b&gt;guisades&lt;/b&gt;»?'), h);
+  assert.ok(!h.includes('gregal-keep') && !h.includes('<b>guisades'), h);
+  assert.ok(h.indexOf('gc-keep') > h.indexOf('La recepta.'), 'under the reply');
+  // També amb el JSON en una línia pròpia.
+  assert.ok(md.render('Té.\n```gregal-keep\n{"title":"Pla","kind":"plan"}\n```').includes('data-keep-kind="plan"'));
+});
+
+test('una proposta de desar trencada no ensenya res', () => {
+  for (const bad of ['```gregal-keep {trencat```', '```gregal-keep {"kind":"recipe"}```']) {
+    const h = md.render('Hola.\n\n' + bad);
+    assert.ok(!h.includes('gc-keep') && !h.includes('gregal-keep') && !h.includes('codeblock'), h);
+    assert.ok(h.includes('Hola.'), h);
+  }
+  // Un tipus desconegut el tria el servidor (auto).
+  assert.ok(md.render('```gregal-keep {"title":"X","kind":"poema"}```').includes('data-keep-kind="auto"'));
+});
+
+test('un títol amb $& surt tal qual al xip de desar', () => {
+  assert.ok(md.render('```gregal-keep {"title":"Preu $& més","kind":"tip"}```').includes('Save «Preu $&amp; més»?'));
+});

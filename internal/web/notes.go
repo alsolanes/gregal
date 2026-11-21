@@ -53,6 +53,9 @@ type Note struct {
 	Title    string `json:"title"`
 	Body     string `json:"body,omitempty"`
 	Notebook string `json:"notebook,omitempty"`
+	// Kind diu que la nota és una cosa desada d'una resposta (recipe, tip…);
+	// buit = una nota normal.
+	Kind string `json:"kind,omitempty"`
 	// Project és la carpeta d'un projecte de Gregal a què l'usuari associa
 	// la nota (la mateixa ruta que /api/workspaces). Buit = cap.
 	Project    string   `json:"project,omitempty"`
@@ -76,6 +79,7 @@ type Note struct {
 type noteHead struct {
 	Title    string   `yaml:"title"`
 	Notebook string   `yaml:"notebook,omitempty"`
+	Kind     string   `yaml:"kind,omitempty"`
 	Project  string   `yaml:"project,omitempty"`
 	Tags     []string `yaml:"tags,omitempty"`
 	Pinned   bool     `yaml:"pinned,omitempty"`
@@ -137,7 +141,7 @@ func parseNote(id string, raw []byte) (Note, error) {
 		}
 	}
 	n := Note{
-		ID: id, Title: head.Title, Body: strings.TrimPrefix(body, "\n"), Notebook: head.Notebook, Project: head.Project,
+		ID: id, Title: head.Title, Body: strings.TrimPrefix(body, "\n"), Notebook: head.Notebook, Kind: head.Kind, Project: head.Project,
 		Tags: head.Tags, Pinned: head.Pinned, Private: head.Private, Locked: head.Locked, NoRemind: head.NoRemind,
 		Created: head.Created, Updated: head.Updated, By: head.By, EditedBy: head.EditedBy,
 	}
@@ -150,7 +154,7 @@ func parseNote(id string, raw []byte) (Note, error) {
 // formatNote és el fitxer tal com es desa.
 func formatNote(n Note) ([]byte, error) {
 	head, err := yaml.Marshal(noteHead{
-		Title: n.Title, Notebook: n.Notebook, Project: n.Project, Tags: n.Tags, Pinned: n.Pinned, Private: n.Private,
+		Title: n.Title, Notebook: n.Notebook, Kind: n.Kind, Project: n.Project, Tags: n.Tags, Pinned: n.Pinned, Private: n.Private,
 		Locked: n.Locked, NoRemind: n.NoRemind, Created: n.Created, Updated: n.Updated, By: n.By, EditedBy: n.EditedBy,
 	})
 	if err != nil {
@@ -191,7 +195,7 @@ func noteDerive(n Note) Note {
 			n.TasksOpen++
 		}
 	}
-	n.Excerpt = noteExcerpt(n.Body, n.Title)
+	n.Excerpt = noteExcerpt(noteReadable(n.Body), n.Title)
 	return n
 }
 
@@ -373,6 +377,7 @@ type noteInput struct {
 	Title    *string   `json:"title"`
 	Body     *string   `json:"body"`
 	Notebook *string   `json:"notebook"`
+	Kind     *string   `json:"kind"` // "auto": el de la primera targeta del cos
 	Project  *string   `json:"project"`
 	Tags     *[]string `json:"tags"`
 	Pinned   *bool     `json:"pinned"`
@@ -432,6 +437,16 @@ func (s *Server) saveNoteOnly(in noteInput, by string) (Note, error) {
 	if in.Notebook != nil {
 		n.Notebook = clipRunes(strings.Join(strings.Fields(*in.Notebook), " "), notesMaxNotebook)
 	}
+	if in.Kind != nil {
+		kind, cardTitle := noteKind(*in.Kind, n.Body)
+		if kind == "" {
+			return Note{}, fmt.Errorf("unknown kind %q", *in.Kind)
+		}
+		n.Kind = kind
+		if strings.TrimSpace(n.Title) == "" {
+			n.Title = clipRunes(cardTitle, notesMaxTitle)
+		}
+	}
 	if in.Project != nil {
 		n.Project = clipRunes(strings.TrimSpace(*in.Project), notesMaxProject)
 	}
@@ -459,7 +474,7 @@ func (s *Server) saveNoteOnly(in noteInput, by string) (Note, error) {
 		return Note{}, errors.New("empty note")
 	}
 	// Fixar, amagar o bloquejar no és editar: no canvia l'ordre ni l'autor.
-	if creating || in.Title != nil || in.Body != nil || in.Notebook != nil || in.Project != nil || in.Tags != nil {
+	if creating || in.Title != nil || in.Body != nil || in.Notebook != nil || in.Kind != nil || in.Project != nil || in.Tags != nil {
 		n.EditedBy = by
 		n.Updated = noteNow()
 	}
@@ -527,7 +542,8 @@ func searchNotes(all []Note, q, tag, notebook string) []Note {
 		}
 		score := 0
 		if len(terms) > 0 {
-			title, body := foldText(n.Title), foldText(n.Body)
+			readable := noteReadable(n.Body)
+			title, body := foldText(n.Title), foldText(readable)
 			tags := foldText(strings.Join(append(append([]string{}, n.Tags...), n.Hashtags...), " ") + " " + n.Notebook)
 			ok := true
 			for _, t := range terms {
@@ -553,7 +569,7 @@ func searchNotes(all []Note, q, tag, notebook string) []Note {
 			if !ok {
 				continue
 			}
-			n.Snippet = noteSnippet(n.Body, terms)
+			n.Snippet = noteSnippet(readable, terms)
 		}
 		hits = append(hits, scored{n, score})
 	}
@@ -717,12 +733,22 @@ func (s *Server) handleNotes(w http.ResponseWriter, r *http.Request) {
 			}
 			found = kept
 		}
+		// kind=<tipus> filtra els desats d'aquest tipus; kind=* tots els desats.
+		if want := strings.TrimSpace(q.Get("kind")); want != "" {
+			kept := make([]Note, 0, len(found))
+			for _, n := range found {
+				if n.Kind != "" && (want == "*" || n.Kind == want) {
+					kept = append(kept, n)
+				}
+			}
+			found = kept
+		}
 		list := make([]Note, len(found))
 		for i, n := range found {
 			list[i] = noteSummary(n)
 		}
 		tags, notebooks := noteCounts(all)
-		writeJSON(w, map[string]any{"notes": list, "tags": tags, "notebooks": notebooks, "projects": noteProjects(all), "total": len(all), "agenda": s.withRemindAt(noteAgenda(all, 60))})
+		writeJSON(w, map[string]any{"notes": list, "tags": tags, "notebooks": notebooks, "projects": noteProjects(all), "kinds": noteKinds(all), "total": len(all), "agenda": s.withRemindAt(noteAgenda(all, 60))})
 	case http.MethodPost:
 		var req struct {
 			Action string `json:"action"`
@@ -770,6 +796,27 @@ func (s *Server) handleNotes(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// noteKinds compta els desats de cada tipus, el més nombrós primer.
+func noteKinds(all []Note) []noteCount {
+	counts := map[string]int{}
+	for _, n := range all {
+		if n.Kind != "" {
+			counts[n.Kind]++
+		}
+	}
+	out := []noteCount{}
+	for k, c := range counts {
+		out = append(out, noteCount{k, c})
+	}
+	sort.Slice(out, func(a, b int) bool {
+		if out[a].Count != out[b].Count {
+			return out[a].Count > out[b].Count
+		}
+		return out[a].Name < out[b].Name
+	})
+	return out
 }
 
 // noteProjects compta les notes de cada projecte associat.

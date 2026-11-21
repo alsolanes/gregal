@@ -45,6 +45,12 @@ class ShareTest {
         assertEquals("De carla", ShareText.word("ca", "from").format(r.from))
     }
 
+    @Test fun laPropostaDeDesarNoEsComparteix() {
+        val md = "Bon profit.\n\n```gregal-keep\n{\"title\":\"Crema\",\"kind\":\"recipe\"}\n```\n"
+        assertEquals("Bon profit.", ShareText.plain(md, "ca"))
+        assertEquals("Bon profit.", ShareText.plain("Bon profit.\n```gregal-keep {trencat```", "en"))
+    }
+
     @Test fun markdownNet() {
         val md = "## Títol\n\n**Molt** bé, mira [la web](https://a.cat) i [el doc](/api/winds/doc?name=a.xlsx).\n\n![foto](https://img.cat/a.jpg)\n![feta](/api/winds/image?id=0123456789abcdef01234567.jpg)\n- un\n- dos"
         assertEquals("*Títol*\n\n*Molt* bé, mira la web (https://a.cat) i el doc.\n\nhttps://img.cat/a.jpg\n\n• un\n• dos", ShareText.plain(md, "ca"))
