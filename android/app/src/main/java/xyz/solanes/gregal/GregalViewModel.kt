@@ -3364,6 +3364,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val _windBusy = MutableStateFlow<Set<String>>(emptySet())
     val windBusy: StateFlow<Set<String>> = _windBusy
 
+    /** Les converses recents de la portada d'inici de Vents. */
+    private val _windThreads = MutableStateFlow<List<WindThread>>(emptyList())
+    val windThreads: StateFlow<List<WindThread>> = _windThreads
+
     /** Torn en directe per xat (id del vent o de la rotllana): la cara en mostra l'estat. */
     private val _windLive = MutableStateFlow<Map<String, WindLive>>(emptyMap())
     val windLive: StateFlow<Map<String, WindLive>> = _windLive
@@ -5450,6 +5454,66 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 _windSessionsLoading.value = _windSessionsLoading.value - windId
             }
         }
+    }
+
+    fun loadWindThreads() {
+        val source = _conn.value
+        viewModelScope.launch {
+            try {
+                val list = withContext(Dispatchers.IO) { source.api().windThreads() }
+                if (_conn.value == source) _windThreads.value = list
+            } catch (_: Exception) {
+                // Sense llista, la portada només ensenya els vents.
+            }
+        }
+    }
+
+    /**
+     * Una conversa nova des de la portada d'inici: es crea la sessió del vent,
+     * es fa l'activa, s'obre i, si hi ha text, s'hi envia. La conversa d'abans
+     * queda desada i a les recents. La conversa s'obre només quan la sessió ja
+     * és la seleccionada: si no, la càrrega del fil portaria l'antiga i el
+     * missatge podia acabar-hi. Torna false si no s'ha pogut començar (el vent
+     * treballa); si falla, [onFailed] torna el text perquè no es perdi.
+     */
+    fun startWindConversation(windId: String, text: String?, onFailed: (String) -> Unit = {}): Boolean {
+        if (windId in _windBusy.value) return false
+        val source = _conn.value; val epoch = companionEpoch
+        // Sense servidor no es pot crear la sessió: el missatge va a la cua del
+        // fil de sempre, com abans, i s'envia quan torni.
+        if (!source.local && _offline.value) {
+            if (!text.isNullOrBlank()) sendWindMessage(windId, text)
+            openVentsChat("wind:$windId")
+            return true
+        }
+        viewModelScope.launch {
+            try {
+                val name = withContext(Dispatchers.IO) { source.api().windSessionNew(windId) }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                selectWindThread(windId, name, emptyList())
+                openVentsChat("wind:$windId")
+                if (!text.isNullOrBlank()) sendWindMessage(windId, text)
+                loadWindThreads()
+            } catch (e: Exception) {
+                if (!text.isNullOrBlank()) onFailed(text)
+                notify(appText("app.status.sessionNew", e.message.orEmpty()))
+            }
+        }
+        return true
+    }
+
+    /** Reprèn una conversa de les recents: la sessió passa a ser la del fil i després s'obre. */
+    fun resumeWindThread(windId: String, name: String) {
+        if (windId !in _windBusy.value) selectWindThread(windId, name, null)
+        openVentsChat("wind:$windId")
+    }
+
+    /** Fa de [name] el fil del vent abans d'obrir-lo; amb [history] null, el fil es buida fins que arriba. */
+    private fun selectWindThread(windId: String, name: String, history: List<PetMsg>?) {
+        windHistoryRequests[windId] = (windHistoryRequests[windId] ?: 0L) + 1
+        selectedWindThreads[windId] = name
+        ventsRecency.clear(_conn.value, "wind", windId)
+        _windChat.value = _windChat.value + (windId to history.orEmpty())
     }
 
     /** Nova sessió del vent: el fil comença de zero; l'anterior queda desada. */

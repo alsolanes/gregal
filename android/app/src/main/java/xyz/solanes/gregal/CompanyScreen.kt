@@ -317,12 +317,10 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
             }
         }
     } else {
-        // La portada és el fil de Gregal (com la maqueta de l'assistent v2): capçalera
-        // centrada amb el menú a l'esquerra i l'ordinador a la dreta, res més a dalt.
-        // Les cares, Avui i Xats viuen al calaix.
+        // Amb Gregal al servidor, la portada és la pàgina d'inici (VentsStart.kt):
+        // cada tema és una conversa nova.
         val homeThread = !manage && !searching && tab == "home" && winds.isNotEmpty()
-        // B14: amb un servidor que té Gregal, la portada és el seu fil (fa la feina ell
-        // mateix); amb un servidor antic, el Ventet de sempre.
+        // Amb un servidor antic, sense Gregal, el Ventet de sempre.
         val gregalWind = winds.firstOrNull { it.id == "gregal" }
         Scaffold(containerColor = Superficie,
             topBar = {
@@ -438,9 +436,29 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                 ventsInbox(winds, rotllanes, chats, rChats, inboxQuery, summaries)
             }
             if (home && gregalWind != null) {
-                Box(Modifier.fillMaxSize().padding(pad)) {
-                    WindConversation(vm, lang, gregalWind, onBack = openDrawer, home = true)
+                // Portada d'inici (tasca 027): cada tema és una conversa nova i els
+                // vents es veuen d'entrada. Abans era el fil de Gregal, que no s'acabava.
+                val threads by vm.windThreads.collectAsState()
+                val windBusy by vm.windBusy.collectAsState()
+                val gregalBusy = gregalWind.id in windBusy
+                var gregalProfile by remember { mutableStateOf(false) }
+                LaunchedEffect(Unit) { vm.loadWindThreads() }
+                Column(Modifier.fillMaxSize().padding(pad)) {
+                    // Si Gregal encara treballa en una conversa, la cara ho diu.
+                    GregalFloatingHeader(lang, Color(gregalWind.argb), gregalWind.faceStyle,
+                        if (gregalBusy) WindMood.THINKING else WindMood.IDLE, gregalBusy,
+                        onMenu = openDrawer, onProfile = { gregalProfile = true }, onComputer = { homeComputer = true })
+                    VentsStartPage(
+                        lang, userName, winds, threads, askText.value, { askText.value = it }, busy = gregalBusy,
+                        onSend = { text ->
+                            if (vm.startWindConversation(gregalWind.id, text) { askText.value = it }) askText.value = ""
+                        },
+                        onWind = { w -> if (!vm.startWindConversation(w.id, null)) vm.openVentsChat("wind:" + w.id) },
+                        onThread = { t -> vm.resumeWindThread(t.wind, t.name) },
+                        modifier = Modifier.weight(1f),
+                    )
                 }
+                if (gregalProfile) WindProfileDialog(vm, lang, gregalWind) { gregalProfile = false }
             } else if (home) {
                 // La portada: salutació, lluïssor i el compositor al mig. Quan hi ha
                 // conversa, aquesta mateixa pantalla passa a ser el xat —amb la
@@ -1160,9 +1178,7 @@ internal fun ConversationRow(
 
 /** El xat d'un vent a pantalla completa: capçalera amb la cara, bombolles, input. */
 @Composable
-internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onBack: () -> Unit,
-    /** Portada de Gregal (B14): cara flotant amb menú i ordinador, i la lluïssor d'obertura. */
-    home: Boolean = false, onWiki: () -> Unit = {}) {
+internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onBack: () -> Unit, onWiki: () -> Unit = {}) {
     val chats by vm.windChat.collectAsState()
     val loadingChat by vm.windChatLoading.collectAsState()
     val busy by vm.windBusy.collectAsState()
@@ -1232,8 +1248,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     LaunchedEffect(wind.id, msgs.size) { if (msgs.isNotEmpty() && liveFrom == Int.MAX_VALUE) liveFrom = msgs.size }
 
     val isBusy = busy.contains(wind.id)
-    val pal = LocalPal.current
-    Box(Modifier.fillMaxSize().background(Superficie).then(if (home) Modifier.openingBloom(accent, pal.lila, isBusy) else Modifier)) {
+    Box(Modifier.fillMaxSize().background(Superficie)) {
         Column(Modifier.fillMaxSize()) {
         // La capçalera diu qui és; «què està fent» es diu al final del fil.
         // A la portada de Gregal la capçalera és una capa flotant (a sota): el fil hi passa per sota.
@@ -1246,7 +1261,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         LazyColumn(
             Modifier.fillMaxSize(),
             state = listState,
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = if (home) 72.dp else ChatHeaderInset, bottom = 10.dp),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = ChatHeaderInset, bottom = 10.dp),
             verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             if (msgs.isEmpty()) {
@@ -1256,9 +1271,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                 item {
                     if (wind.id in loadingChat) ChatSkeleton(accent)
                     else ChatEmptyState(
-                        // A la portada de Gregal la cara ja és a dalt: aquí, només la salutació.
-                        face = { if (!home) WindHalo(size = 88, accent = accent, style = wind.faceStyle, mood = WindMood.HAPPY, tappable = true) },
-                        title = if (home) askGreeting(lang, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY), "") else tr(lang, "app.vents.emptyChatTitle"),
+                        face = { WindHalo(size = 88, accent = accent, style = wind.faceStyle, mood = WindMood.HAPPY, tappable = true) },
+                        title = tr(lang, "app.vents.emptyChatTitle"),
                         hint = tr(lang, "app.company.windHello", wind.name),
                         // Com al Grok: tres primeres frases a un toc, segons l'ofici del vent.
                         suggestions = windStarters(lang, wind.specialty),
@@ -1354,7 +1368,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             }
         }
         // Mentre Gregal fa servir el seu ordinador, la miniatura en directe a sobre del camp.
-        if (home) GregalWorkStrip(chatConn, lang, accent, working = isBusy || resuming.contains(wind.id)) { computerOpen = true }
+        if (wind.id == "gregal") GregalWorkStrip(chatConn, lang, accent, working = isBusy || resuming.contains(wind.id)) { computerOpen = true }
         // Conversa per veu: escolta, envia, llegeix la resposta i torna a escoltar.
         val lastReply = msgs.lastOrNull { it.from != "user" && it.kind != "memory" && !it.streaming }
         val replyKey = lastReply?.let { "${it.ts}:${it.text.hashCode()}" }.orEmpty()
@@ -1392,8 +1406,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             }
         }
         }
-        // Fora de la portada, la capçalera també flota: el fil passa per sota de les pastilles.
-        if (!home) VentsChatHeader(lang, wind.name,
+        // La capçalera flota: el fil passa per sota de les pastilles.
+        VentsChatHeader(lang, wind.name,
             wind.role,
             accent, wind.faceStyle,
             if (isBusy) live[wind.id]?.mood ?: WindMood.THINKING else WindMood.IDLE,
@@ -1403,11 +1417,6 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             onTransfer = if (vm.canTransferToServer()) ({ askTransfer = true }) else null,
             onComputer = { computerOpen = true },
             onWatch = { watchOpen = true },
-            modifier = Modifier.align(Alignment.TopCenter))
-        if (home) GregalFloatingHeader(lang, accent, wind.faceStyle,
-            if (isBusy) live[wind.id]?.mood ?: WindMood.THINKING else WindMood.IDLE,
-            working = isBusy || resuming.contains(wind.id),
-            onMenu = onBack, onProfile = { profile = true }, onComputer = { computerOpen = true },
             modifier = Modifier.align(Alignment.TopCenter))
     }
     if (profile) WindProfileDialog(vm, lang, wind) { profile = false }

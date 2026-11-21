@@ -815,6 +815,9 @@ class GregalApi(val base: String, val token: String) {
             WindSessionInfo(s.name, s.title, s.msgs, s.whenText, s.current)
         }
 
+    /** Les converses recents amb tots els vents, de la més nova a la més vella (màxim 12). */
+    fun windThreads(): List<WindThread> = getAs<WindThreadsDto>("/api/winds/threads").threads
+
     /** Crea una sessió nova del vent i l'activa (el fil del vent comença de zero). */
     fun windSessionNew(windId: String): String =
         postAs<NameDto>("/api/winds/sessions", JSONObject().put("wind", windId)).name
@@ -1798,6 +1801,8 @@ internal class WindSessionDto(
 )
 
 @Serializable internal class WindSessionsDto(val sessions: List<WindSessionDto> = emptyList())
+
+@Serializable internal class WindThreadsDto(val threads: List<WindThread> = emptyList())
 
 @Serializable
 internal class CapPlayDto(val pet: CapPet? = null, val say: String = "", val unlocked: List<String> = emptyList())
