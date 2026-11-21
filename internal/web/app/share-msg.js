@@ -3,13 +3,16 @@
 // fer-ne un enllaç públic de només lectura (winds_share.go). També desar-lo
 // com a nota amb tipus (notes.go): les targetes hi queden tal com eren.
 //
-// Script clàssic: window.gregalShare = { button, saveButton, plainText }.
+// Script clàssic: window.gregalShare = { button, saveButton, keepChips, plainText }.
 // plainText i saveReply també s'exporten per a node (tests); plainText és la
 // mateixa regla que ShareText.kt.
 (function (root) {
   "use strict";
 
   const CARD = /```(gregal-[a-z]+|chart)[ \t]*\n([\s\S]*?)```/g;
+  // La proposta de desar del vent (md.js la pinta com a xip): ni es comparteix ni es desa.
+  const KEEP = /```gregal-keep[ \t]*\n?[^\n`]*\n?[ \t]*```[ \t]*/g;
+  const withoutKeep = (md) => String(md || "").replace(KEEP, "").trim();
   const W = {
     ca: { ing: "Ingredients", steps: "Passos", total: "Total", serves: "{n} racions" },
     en: { ing: "Ingredients", steps: "Steps", total: "Total", serves: "{n} servings" },
@@ -76,7 +79,7 @@
 
   // plainText: el missatge tal com s'ha d'enganxar a un xat de fora.
   function plainText(md, lang) {
-    let t = String(md || "").replace(/\r/g, "");
+    let t = withoutKeep(md).replace(/\r/g, "");
     t = t.replace(CARD, (m, kind, json) => { const c = cardText(lang, kind, json.trim()); return c == null ? m : c + "\n"; });
     // Fotos: la d'internet com a enllaç; la d'un vent no es pot obrir de fora.
     t = t.replace(/!\[[^\]\n]*\]\((https?:\/\/[^\s)]+)\)/g, "$1");
@@ -104,15 +107,17 @@
   async function copy(text) {
     try { await navigator.clipboard.writeText(text); return true; } catch (_) { return false; }
   }
-  // saveReply: desa la resposta com a nota; el servidor en treu el tipus i el títol de la primera targeta.
+  // saveReply: desa la resposta com a nota; sense keep ({title,kind} del xip
+  // de proposta), el servidor en treu el tipus i el títol de la primera targeta.
   // El xat es repinta (i torna a crear els botons) a cada missatge i la història
   // arriba nova del servidor, així que el que ja s'ha desat es recorda pel text.
   const saved = new Map();
-  const savedNote = (md) => saved.get(md);
-  async function saveReply(md) {
-    if (saved.has(md)) return { id: saved.get(md) };
-    const note = await api("/api/notes", { action: "save", body: md, kind: "auto" });
-    saved.set(md, note.id);
+  const savedNote = (md) => saved.get(withoutKeep(md));
+  async function saveReply(md, keep) {
+    const body = withoutKeep(md);
+    if (saved.has(body)) return { id: saved.get(body) };
+    const note = await api("/api/notes", keep ? { action: "save", body, kind: keep.kind, title: keep.title } : { action: "save", body, kind: "auto" });
+    saved.set(body, note.id);
     return note;
   }
 
@@ -163,6 +168,28 @@
       } finally { b.disabled = false; }
     });
     return b;
+  }
+
+  // keepChips(body, getText, openNote): el xip «Desar «títol»?» que md.js pinta
+  // sota la resposta desa amb el títol i el tipus que proposa el vent.
+  function keepChips(body, getText, openNote) {
+    for (const c of body.querySelectorAll(".gc-keep")) {
+      const done = () => { c.textContent = tx("Desat ✓", "Saved ✓"); c.classList.add("gc-kept"); };
+      if (savedNote(getText())) done();
+      c.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const id = savedNote(getText());
+        if (id) { openNote(id); return; }
+        c.disabled = true;
+        try {
+          await saveReply(getText(), { title: c.dataset.keepTitle, kind: c.dataset.keepKind });
+          done();
+        } catch (err) {
+          c.textContent = tx("No s'ha desat", "Not saved");
+          c.title = tx("No s'ha pogut desar: ", "Couldn't save: ") + (err.message || err);
+        } finally { c.disabled = false; }
+      });
+    }
   }
 
   function menu(anchor, md, meta) {
@@ -228,7 +255,7 @@
     box.querySelector(".gshare-status").before(pick);
   }
 
-  const api_ = { plainText, cardText, button, saveButton, saveReply, savedNote, close };
+  const api_ = { plainText, cardText, button, saveButton, keepChips, saveReply, savedNote, close };
   root.gregalShare = api_;
   if (typeof module !== "undefined" && module.exports) module.exports = api_;
 })(typeof globalThis !== "undefined" ? globalThis : this);

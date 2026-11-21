@@ -495,7 +495,9 @@ const CardsGuide = "\n- Cards for a recipe, a plan in time order or options: one
 	"\n  Show what helps: a real photo of the concrete thing they ask about (gallery for several), a chart for numbers over time, a card for steps, plans or options. Don't stack the same information twice (a card and a table of it). A short or personal reply (a message to write, how they feel, advice) gets no visuals." +
 	"\n  Any card can end with \"actions\":[{\"label\",\"prompt\",\"primary\":true},{\"label\"}]: 1-2 next steps to tap." +
 	"\n  image_query: 2-4 English words naming the place or dish; the app adds the photo. A photo URL you got from web_images or the image tool can go in \"image\" instead; never an invented one." +
-	"\n- Things to do or take → checklist (- [ ] item); steps → numbered list; the key tip → > quote."
+	"\n- Things to do or take → checklist (- [ ] item); steps → numbered list; the key tip → > quote." +
+	"\n- Offer to save only what they will want again (a recipe, a tip to reuse, a plan to follow, a dashboard or web): end that reply with ```gregal-keep {\"title\",\"kind\"}``` on its own last line, kind one of recipe|tip|plan|route|compare|facts|result|chart|web|text. The app shows a «Save?» chip; saving is their tap. At most one per reply, never for chat, news or one-off answers." +
+	"\n- What they saved are notes with a kind: for «the lentil recipe we saved», search with the notes tool."
 
 // RotllanaSystem compon el system d'un vent que parla en una rotllana: la
 // seva persona + qui són els altres membres + què ha dit cadascú.

@@ -427,8 +427,24 @@
 
   const FENCE = /```([\w+-]*)([^\n]*)(?:\n([\s\S]*?))?(```|$)/g;
 
+  // Proposta de desar (```gregal-keep {"title","kind"}```, CardsGuide): un
+  // xip sota la resposta; share-msg.js el fa desar. Trencada, no ensenya res.
+  const KEEP = /```gregal-keep[ \t]*\n?([^\n`]*)\n?[ \t]*```[ \t]*/g;
+  const KEEP_KINDS = ["recipe", "tip", "plan", "route", "compare", "facts", "result", "chart", "web", "text"];
+  function keepChip(json) {
+    let o;
+    try { o = JSON.parse(json); } catch (_) { return ""; }
+    const title = String((o && o.title) || "").trim();
+    if (!title) return "";
+    const kind = KEEP_KINDS.includes(o.kind) ? o.kind : "auto";
+    return '<div class="gc-keep-row"><button type="button" class="gc-keep" data-keep-kind="' + kind + '" data-keep-title="' + esc(title) + '">' +
+      label("card.keep", "Save «{t}»?").replace("{t}", esc(title)) + "</button></div>";
+  }
+
   function render(text) {
     if (text == null) return "";
+    let keep = "";
+    text = String(text).replace(KEEP, (m, json) => { keep = keepChip(json.trim()) || keep; return ""; });
     // Blocs de codi abans de res: el seu contingut no es toca (ni s'hi
     // busquen llistes ni títols).
     const blocks = [];
@@ -506,7 +522,7 @@
       para.push(l);
     }
     flushPara();
-    return out.join("\n").replace(/<<B(\d+)<<B/g, (m, i) => blocks[+i]);
+    return out.join("\n").replace(/<<B(\d+)<<B/g, (m, i) => blocks[+i]) + keep;
   }
 
   // stamp afegeix «· fa X min» al peu de les targetes de resultat d'un

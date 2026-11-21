@@ -55,3 +55,24 @@ test('una resposta ja desada no es torna a desar quan el xat es repinta', async 
   assert.strictEqual(posts, 1);
   assert.strictEqual(savedNote(md), 'n7');
 });
+
+test('la proposta de desar no surt al text per compartir', () => {
+  assert.strictEqual(plainText('Llenties amb **xoriço**.\n\n```gregal-keep {"title":"Llenties","kind":"recipe"}```', 'ca'), 'Llenties amb *xoriço*.');
+  assert.strictEqual(plainText('Pla.\n```gregal-keep\n{"title":"Pla","kind":"plan"}\n```\n', 'ca'), 'Pla.');
+});
+
+test('el xip de desar envia la resposta sense la marca, amb el seu títol i tipus', async () => {
+  const { saveReply, savedNote } = require('./share-msg.js');
+  const clean = 'Llenties: sofregit, llenties i 30 min.';
+  const md = clean + '\n\n```gregal-keep {"title":"Llenties","kind":"recipe"}```';
+  const calls = [];
+  globalThis.api = async (url, opts) => { calls.push({ url, opts }); return { ok: true, json: async () => ({ id: 'n9', kind: 'recipe' }) }; };
+  try {
+    await saveReply(md, { title: 'Llenties', kind: 'recipe' });
+  } finally { delete globalThis.api; }
+  assert.strictEqual(calls[0].url, '/api/notes');
+  assert.deepStrictEqual(JSON.parse(calls[0].opts.body), { action: 'save', body: clean, kind: 'recipe', title: 'Llenties' });
+  // El «Desa» del missatge i el xip són la mateixa cosa desada.
+  assert.strictEqual(savedNote(md), 'n9');
+  assert.strictEqual(savedNote(clean), 'n9');
+});

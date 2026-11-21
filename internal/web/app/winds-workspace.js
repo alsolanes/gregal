@@ -1127,7 +1127,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   if(who(H[hi-1])===who(item))row.classList.add('vw-run-cont');if(who(H[hi+1])!==who(item))row.classList.add('vw-run-last');if(!user&&chatReadingSurface(item.text))row.classList.add('vw-reading');if(!user)row.append(face(w));const copy=el('div'),body=el('div','vw-message-text'),text=user?item.text:choicesStrip(withoutSpeaker(item.text,w?.name||item.speaker_name));if(root.gregalMD){body.innerHTML=root.gregalMD.render(text);if(item.ts&&root.gregalMD.stamp)root.gregalMD.stamp(body,item.ts);}else body.textContent=text;copy.append(el('strong','',user?t('Tu','You'):w?.name||item.speaker_name||t('Els teus vents','Your winds')),body);
   // Desa i Comparteix (share-msg.js): desar-la com a nota; text per a WhatsApp/Telegram, a algú de l'app o enllaç públic.
   if(item.streaming)row.dataset.streaming='true';
-  if(!user&&root.gregalShare&&!item.streaming){const sh=root.gregalShare.button(()=>text,{from:w?.name||item.speaker_name||''});row.append(root.gregalShare.saveButton(()=>text,openSaved),sh);}
+  if(!user&&root.gregalShare&&!item.streaming){const sh=root.gregalShare.button(()=>text,{from:w?.name||item.speaker_name||''});row.append(root.gregalShare.saveButton(()=>text,openSaved),sh);root.gregalShare.keepChips(body,()=>text,openSaved);}
   if(!user&&Array.isArray(item.shots)&&item.shots.length)copy.append(shotStrip(item.shots));
   if(user&&item.steer)copy.append(el('span','vw-steer-tag',t('Ho afegeix a la feina en curs','Added to the work in progress')));
   // Un missatge proactiu (B6, amb run o resultat): «per què ho has fet?».

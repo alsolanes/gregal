@@ -1133,6 +1133,12 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .gc-actions .gc-note { font-size:12px; color:var(--muted); padding:0 4px; }
 .gc-actions .gc-alt { align-self:center; border:0; background:none; padding:6px 10px; font:inherit; font-size:15px; font-weight:600; color:var(--accent-hi); cursor:pointer; }
 .gc-actions .gc-alt:hover { text-decoration:underline; }
+/* La proposta de desar (md.js gregal-keep): només on share-msg.js la fa funcionar. */
+.gc-keep-row { display:none; margin:10px 0 2px; }
+.gc-sayable .gc-keep-row { display:flex; }
+.gc-keep { border:1px solid var(--line); border-radius:999px; background:none; padding:6px 14px; font:inherit; font-size:14px; font-weight:600; color:var(--accent-hi); cursor:pointer; }
+.gc-keep:hover { background:var(--accent-soft); }
+.gc-keep.gc-kept { color:var(--ink); }
 
 .gregal-route .gc-arrow { margin:0 4px; }
 .gregal-route .gc-leg { display:flex; align-items:center; gap:12px; margin-top:2px; }
