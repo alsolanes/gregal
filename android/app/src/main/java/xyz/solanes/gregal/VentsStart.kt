@@ -43,7 +43,18 @@ internal fun VentsStartPage(
         lang, name, text, onText, busy, onPhoto = null, onDoc = null, onSend = onSend,
         modifier = modifier, halo = false,
         top = { StartFaces(winds, onWind) },
-        below = { if (threads.isNotEmpty()) StartRecents(lang, winds, threads, onThread) },
+        below = {
+            if (threads.isNotEmpty()) StartRecents(lang) {
+                threads.forEach { t ->
+                    val wind = winds.firstOrNull { it.id == t.wind }
+                    RecentRow(t.title.ifBlank { wind?.name ?: t.wind },
+                        listOfNotNull(wind?.name, threadWhen(t.at, lang).ifBlank { null }).joinToString(" · "),
+                        onClick = { onThread(t) }) {
+                        if (wind != null) WindHalo(Color(wind.argb), wind.faceStyle, size = 26, online = false, showKit = false)
+                    }
+                }
+            }
+        },
         aboveComposer = aboveComposer,
     )
 }
@@ -68,26 +79,28 @@ private fun StartFaces(winds: List<Wind>, onWind: (Wind) -> Unit) {
     }
 }
 
+/** Les converses recents d'una portada, la de Vents i la de Codi: el títol i, a sota, les fileres. */
 @Composable
-private fun StartRecents(lang: String, winds: List<Wind>, threads: List<WindThread>, onThread: (WindThread) -> Unit) {
+internal fun StartRecents(lang: String, rows: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxWidth().testTag("start-recents"), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(tr(lang, "app.vents.start.recent"), color = Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
-        threads.forEach { t ->
-            val wind = winds.firstOrNull { it.id == t.wind }
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(role = Role.Button) { onThread(t) }
-                    .heightIn(min = 48.dp).padding(horizontal = 4.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                if (wind != null) WindHalo(Color(wind.argb), wind.faceStyle, size = 26, online = false, showKit = false)
-                Column(Modifier.weight(1f)) {
-                    Text(t.title.ifBlank { wind?.name ?: t.wind }, color = Ink, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(listOfNotNull(wind?.name, threadWhen(t.at, lang).ifBlank { null }).joinToString(" · "),
-                        color = Muted, fontSize = 12.sp, maxLines = 1)
-                }
-            }
+        rows()
+    }
+}
+
+@Composable
+internal fun RecentRow(title: String, detail: String, onClick: () -> Unit, lead: @Composable () -> Unit = {}) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(role = Role.Button, onClick = onClick)
+            .heightIn(min = 48.dp).padding(horizontal = 4.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        lead()
+        Column(Modifier.weight(1f)) {
+            Text(title, color = Ink, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(detail, color = Muted, fontSize = 12.sp, maxLines = 1)
         }
     }
 }

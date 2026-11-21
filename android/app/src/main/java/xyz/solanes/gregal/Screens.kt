@@ -755,21 +755,15 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 }
             }
         } else if (msgs.isEmpty()) {
-            // Estat buit: la salutació, la lluïssor i el compositor, i prou. El
-            // model i el projecte ja són a la capçalera.
-            Box(Modifier.fillMaxSize().padding(pad).openingHalo(Sea, Lila).testTag("chat-opening")) {
-                Column(Modifier.fillMaxSize().imePadding(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    // Una mica per damunt del centre, com a l'escriptori.
-                    Spacer(Modifier.weight(0.8f))
-                    OpeningGreeting(askGreeting(lang, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY), vm.usuari.collectAsState().value))
-                    Spacer(Modifier.height(24.dp))
-                    composerArea(
-                        Modifier.fillMaxWidth().widthIn(max = ChatMaxWidth)
-                            .onGloballyPositioned { flip.from = it.boundsInRoot().bottom },
-                    )
-                    Spacer(Modifier.weight(1.2f))
-                }
-            }
+            val sessions by vm.sessions.collectAsState()
+            LaunchedEffect(Unit) { vm.loadSessions() }
+            // Escrivint, les recents s'aparten (com a Vents): amb el teclat no hi cabrien.
+            CodeOpening(
+                lang, askGreeting(lang, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY), vm.usuari.collectAsState().value),
+                if (composerFocused || input.isNotBlank()) emptyList() else sessions,
+                onResume = { vm.resumeSession(it.name) },
+                modifier = Modifier.fillMaxSize().padding(pad),
+            ) { m -> composerArea(m.onGloballyPositioned { flip.from = it.boundsInRoot().bottom }) }
         } else {
             val (outer, inner) = chatListPadding(pad, frosted = frost != null)
             Box(Modifier.fillMaxSize().padding(outer).frostSource(frost)) {
@@ -1508,6 +1502,40 @@ fun ModelMenu(
             onClick = { onParallel(); onClose() })
         DropdownMenuItem(text = { Text(tr(lang, "app.menu.refresh"), color = Sea) },
             onClick = { vm.refresh(); vm.loadProviders(); vm.loadModels() })
+    }
+}
+
+/**
+ * El xat de Codi buit: la salutació, la lluïssor i el compositor i, a sota,
+ * les cinc converses més noves com a la portada de Vents. El model i el projecte ja
+ * són a la capçalera.
+ */
+@Composable
+internal fun CodeOpening(
+    lang: String,
+    greeting: String,
+    recents: List<SessionInfo>,
+    onResume: (SessionInfo) -> Unit,
+    modifier: Modifier = Modifier,
+    composer: @Composable (Modifier) -> Unit,
+) {
+    Box(modifier.openingHalo(Sea, Lila).testTag("chat-opening")) {
+        Column(Modifier.fillMaxSize().imePadding(), horizontalAlignment = Alignment.CenterHorizontally) {
+            // Una mica per damunt del centre, com a l'escriptori.
+            Spacer(Modifier.weight(0.8f))
+            OpeningGreeting(greeting)
+            Spacer(Modifier.height(24.dp))
+            composer(Modifier.fillMaxWidth().widthIn(max = ChatMaxWidth))
+            if (recents.isNotEmpty()) {
+                Spacer(Modifier.height(28.dp))
+                Box(Modifier.widthIn(max = ChatMaxWidth).padding(horizontal = 16.dp)) {
+                    StartRecents(lang) {
+                        recents.take(5).forEach { s -> RecentRow(s.displayTitle(), threadWhen(s.at, lang), onClick = { onResume(s) }) }
+                    }
+                }
+            }
+            Spacer(Modifier.weight(1.2f))
+        }
     }
 }
 
