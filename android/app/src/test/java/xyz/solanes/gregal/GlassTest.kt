@@ -42,7 +42,7 @@ class GlassTest {
             assertTrue(g.glass)
             assertTrue("superficie opaca", g.surface.alpha < 1f && g.surfaceHi.alpha < 1f)
             assertEquals(p.ink, g.ink)
-            assertEquals(p.muted, g.muted)
+            assertTrue("el gris continua sent gris", g.muted != g.text)
             assertEquals(p.sea, g.sea)
             assertEquals(p.deepTop, g.deepTop)
             assertTrue(!p.glass)
@@ -59,7 +59,12 @@ class GlassTest {
                 val sup = g.surface.compositeOver(f)
                 assertTrue("$nom: text ${contrast(g.ink, sup)}", contrast(g.ink, sup) >= 7.0)
                 assertTrue("$nom: muted ${contrast(g.muted, sup)}", contrast(g.muted, sup) >= 4.0)
-                assertTrue("$nom: text sense superfície ${contrast(g.text, f)}", contrast(g.text, f) >= 7.0)
+                val hi = g.surfaceHi.compositeOver(f)
+                assertTrue("$nom: muted damunt surfaceHi ${contrast(g.muted, hi)}", contrast(g.muted, hi) >= 4.0)
+                assertTrue("$nom: muted sense superfície ${contrast(g.muted, f)}", contrast(g.muted, f) >= 3.0)
+                // Sobre el fons directe, 4.5 (WCAG AA): amb 7 la llum del Vidre no es
+                // veia (decidit amb l'usuari el 2026-11-21). Dins de les superfícies, 7.
+                assertTrue("$nom: text sense superfície ${contrast(g.text, f)}", contrast(g.text, f) >= 4.5)
             }
         }
     }
@@ -69,7 +74,7 @@ class GlassTest {
         for (p in totes) {
             assertTrue(auroraBlobs(p).isEmpty())
             val colors = auroraBlobs(p.glassy()).map { it.color.copy(alpha = 1f) }
-            assertEquals(listOf(p.sea, p.onada, p.lila), colors)
+            assertEquals(listOf(p.sea, p.onada, p.lila, p.sand), colors)
         }
     }
 

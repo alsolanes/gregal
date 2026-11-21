@@ -129,13 +129,18 @@ val LightPal = GregalPalette(
 val LocalPal = compositionLocalOf { DarkPal }
 
 /** La mateixa paleta en estil Vidre: les superfícies deixen veure el fons i
- *  les vores s'aclareixen una mica perquè el vidre tingui cantell. El text,
- *  l'accent i el fons no canvien (GlassTest en comprova el contrast). */
+ *  les vores s'aclareixen una mica perquè el vidre tingui cantell. L'accent i
+ *  el fons no canvien (GlassTest en comprova el contrast). */
 fun GregalPalette.glassy(): GregalPalette = copy(
-    surface = surface.copy(alpha = if (dark) 0.62f else 0.66f),
-    surfaceHi = surfaceHi.copy(alpha = if (dark) 0.70f else 0.74f),
+    // En fosc, 0.60 deixa marge sobre el mínim del tema Calma (text gris a 4:1
+    // damunt la taca més clara; GlassTest).
+    surface = surface.copy(alpha = if (dark) 0.60f else 0.44f),
+    surfaceHi = surfaceHi.copy(alpha = if (dark) 0.68f else 0.52f),
     line = text.copy(alpha = if (dark) 0.14f else 0.16f),
     lineHi = text.copy(alpha = if (dark) 0.26f else 0.30f),
+    // El gris s'acosta al text: damunt de la llum del fons, el d'abans baixava
+    // per sota de 3:1 (rebuts, etiquetes petites fora de les bombolles).
+    muted = lerp(muted, text, 0.30f),
     glass = true,
 )
 
@@ -143,14 +148,16 @@ fun GregalPalette.glassy(): GregalPalette = copy(
  *  fracció de la pantalla i radi en fracció de l'amplada. */
 data class AuroraBlob(val color: Color, val x: Float, val y: Float, val radius: Float)
 
-/** Les taques del fons: cap sense vidre; amb vidre, l'accent, l'aqua i el lila. */
+/** Les taques del fons: cap sense vidre; amb vidre, l'accent, l'aqua, el lila
+ *  i una de càlida (sorra) a baix, que és la que fa que no sembli un gris fred. */
 fun auroraBlobs(p: GregalPalette): List<AuroraBlob> {
     if (!p.glass) return emptyList()
-    val a = if (p.dark) 0.20f else 0.16f
+    val a = if (p.dark) 0.38f else 0.30f
     return listOf(
-        AuroraBlob(p.sea.copy(alpha = a), 0.15f, 0.12f, 0.95f),
-        AuroraBlob(p.onada.copy(alpha = a), 0.90f, 0.45f, 0.85f),
-        AuroraBlob(p.lila.copy(alpha = a), 0.30f, 0.88f, 0.90f),
+        AuroraBlob(p.sea.copy(alpha = a), 0.12f, 0.10f, 1.10f),
+        AuroraBlob(p.onada.copy(alpha = a), 0.95f, 0.42f, 1.00f),
+        AuroraBlob(p.lila.copy(alpha = a), 0.25f, 0.85f, 1.05f),
+        AuroraBlob(p.sand.copy(alpha = a * 0.8f), 0.85f, 0.95f, 0.80f),
     )
 }
 

@@ -38,6 +38,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
@@ -300,7 +301,10 @@ fun GlassCard(
                 ),
                 shape,
             )
-            .border(1.dp, if (hi) pal.lineHi else pal.line, shape),
+            // Amb Vidre fosc, el cantell de dalt agafa llum: és el que el fa llegir
+            // com a vidre i no com una caixa grisa. En clar la targeta ja és blanca.
+            .border(1.dp, if (pal.glass && pal.dark) Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.40f), if (hi) pal.lineHi else pal.line))
+                else SolidColor(if (hi) pal.lineHi else pal.line), shape),
     ) { content() }
 }
 
