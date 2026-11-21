@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+## v1.89.0 - 2026-11-21 - Codi en viu i eines dins de frases
+
+- **El text de l'agent surt mentre s'escriu.** A Codi, la resposta apareix
+  paraula a paraula en lloc d'arribar tota de cop quan el model acaba. Si
+  una crida es talla i es torna a fer, o salta el model de reserva, el text
+  descartat es retira de la pantalla. Mentre arriba, els paràgrafs, llistes
+  i blocs de codi ja acabats es queden quiets i només es repinta el tros
+  que creix.
+- **Les eines queden dins de frases (web i Android).** Cada crida és una
+  pastilla petita al final de la frase que la precedeix («login.go +3 −3»,
+  l'ordre, el domini) i el detall només s'obre en tocar-la; si el model no
+  ha dit res, Gregal hi posa una frase seva en gris. Les ordres de només
+  lectura diuen què fan (Llista, Llegeix, Cerca, Prova, Git) i les
+  exploracions seguides es pleguen en una fila «Explorat · 4 fitxers · 3
+  cerques». Una ordre que falla surt en vermell i oberta.
+- **El senyal de vida no s'encalla.** Mentre el model raona o prepara una
+  crida d'eina, el comptador i el raonament en viu s'actualitzen cada segon
+  en lloc de cada tres.
+- **El xat d'Android no salta i s'obre on toca.** El text que s'escriu ja
+  no mou la llista, el missatge enviat puja a dalt, el teclat no tapa
+  l'últim missatge, el xat s'obre pel final i en tornar-hi queda on era.
+- **Selector Codi | Vents a Android.** A dalt del calaix; canviar de mode
+  comença a la portada del mode nou, i Enrere ja no salta a l'altre mode.
+- **Blocs de codi a Android.** Cada línia queda sencera i el bloc es
+  desplaça de costat, amb la capçalera (llenguatge i Copia) quieta.
+- **Mateixos permisos a Codi i a Vents.** Tots dos segueixen el mateix
+  nivell d'accés, i fer pública una web per primer cop pregunta sempre.
+- **El xat acabat, més net.** La velocitat (t/s) només es veu mentre el
+  torn treballa, «Ves al final» ja no es queda a la vista en una conversa
+  que hi cap sencera, i les respostes són més compactes.
+- **El registre de torns diu on se'n va el temps.** `turns.jsonl` desa,
+  per a cada torn d'agent, quant ha estat dins del model, quant executant
+  eines i quant esperant que contestis un permís o una pregunta.
+
 ## v1.88.0 - 2026-11-19 - Estil Vidre a Android
 
 - **Estil Vidre a Android.** A Preferències → Aparença hi ha l'interruptor
