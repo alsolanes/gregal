@@ -9,7 +9,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Pause
@@ -447,13 +446,9 @@ internal fun DesatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
         if (query.isNotBlank()) kotlinx.coroutines.delay(250)
         vm.loadSavedNotes(query, kind)
     }
-    Scaffold(containerColor = Superficie, snackbarHost = { NoticeHost(vm) }, topBar = {
-        TopAppBar(
-            title = { Text(tr(lang, "saved.title"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
-            navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu")) } },
-            actions = { IconButton(onClick = { vm.loadSavedNotes(query, kind); vm.loadSaved("") }) { Icon(Icons.Rounded.Refresh, tr(lang, "auto.refresh")) } },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie),
-        )
+    Scaffold(containerColor = Color.Transparent, snackbarHost = { NoticeHost(vm) }, topBar = {
+        GregalTopBar(tr(lang, "saved.title"), lang, onMenu = onMenu,
+            actions = { IconButton(onClick = { vm.loadSavedNotes(query, kind); vm.loadSaved("") }) { Icon(Icons.Rounded.Refresh, tr(lang, "auto.refresh")) } })
     }) { pad ->
         androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {

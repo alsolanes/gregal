@@ -42,6 +42,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
@@ -133,6 +137,22 @@ internal fun VentsChatHeader(
 
 /** Alçada de la capçalera flotant del xat: el fil hi deixa aquest marge a dalt. */
 internal val ChatHeaderInset = 62.dp
+
+/**
+ * El fil s'esvaeix sota la capçalera flotant: sense això el text es llegia
+ * entre els botons. És una màscara i no un degradat de color, perquè amb el
+ * Vidre el fons no és un color pla.
+ */
+internal fun Modifier.fadeUnderChatHeader(): Modifier =
+    graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }.drawWithContent {
+        drawContent()
+        val end = ChatHeaderInset.toPx()
+        drawRect(
+            // Buit fins a sota dels botons (54 dp) i el fil reapareix just després.
+            Brush.verticalGradient(0f to Color.Transparent, 0.87f to Color.Transparent, 1f to Color.Black, startY = 0f, endY = end),
+            size = Size(size.width, end), blendMode = BlendMode.DstIn,
+        )
+    }
 
 /** Un botó rodó de 44 dp amb vora fina (el target tàctil arriba als 48). */
 @Composable
