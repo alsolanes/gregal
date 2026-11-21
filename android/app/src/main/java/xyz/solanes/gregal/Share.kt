@@ -296,7 +296,7 @@ fun ShareSheetBody(vm: GregalViewModel, lang: String, target: ShareTarget, onDis
             // Desa la resposta com a nota (amb les targetes); després es troba a Desat.
             val kept = savedNote
             if (kept == null) ShareOption(Icons.Rounded.Bookmark, tr(lang, "saved.reply.save"), tr(lang, "saved.reply.saveSub"), "share-save") {
-                if (!busy) { busy = true; vm.saveReply(target.text) { savedNote = it; busy = false } }
+                run { savedNote = vm.saveReply(target.text); say("") }
             } else Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp).testTag("share-saved"),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 Icon(Icons.Rounded.Bookmark, contentDescription = null, tint = Sea, modifier = Modifier.size(22.dp))

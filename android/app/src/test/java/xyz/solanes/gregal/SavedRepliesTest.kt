@@ -37,7 +37,7 @@ class SavedRepliesTest {
     @get:Rule val ui = createComposeRule()
 
     /** Servidor de proves: apunta cada petició («POST /api/notes …» + cos) i respon el que digui `reply`. */
-    private class FakeServer(val reply: (String) -> String) : java.io.Closeable {
+    private class FakeServer(val code: Int = 200, val reply: (String) -> String) : java.io.Closeable {
         val requests: MutableList<Pair<String, String>> = Collections.synchronizedList(mutableListOf())
         val socket = ServerSocket(0)
         val worker = thread(isDaemon = true) {
@@ -60,7 +60,7 @@ class SavedRepliesTest {
                     requests += request to String(input.readNBytes(length), Charsets.UTF_8)
                     val bytes = reply(request).toByteArray(Charsets.UTF_8)
                     s.getOutputStream().apply {
-                        write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                        write("HTTP/1.1 $code Response\r\nContent-Type: application/json\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
                         write(bytes); flush()
                     }
                 }
@@ -88,9 +88,7 @@ class SavedRepliesTest {
         FakeServer { recipeNote.toString() }.use { server ->
             val vm = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
             vm.setConn(server.conn())
-            var got: Note? = null
-            vm.saveReply(recipe) { got = it }
-            waitUntil { got != null }
+            val got = kotlinx.coroutines.runBlocking { vm.saveReply(recipe) }
             val (request, body) = server.requests.single()
             assertTrue(request, request.startsWith("POST /api/notes "))
             val sent = JSONObject(body)
@@ -100,8 +98,8 @@ class SavedRepliesTest {
             // Nota nova: sense id ni títol, que el servidor treu de la targeta.
             assertFalse(sent.has("id"))
             assertFalse(sent.has("title"))
-            assertEquals("r1", got!!.id)
-            assertEquals("recipe", got!!.kind)
+            assertEquals("r1", got.id)
+            assertEquals("recipe", got.kind)
         }
     }
 
@@ -122,6 +120,25 @@ class SavedRepliesTest {
             waitUntil { vm.openNote.value != null }
             assertEquals(Screen.Notes, vm.screen.value)
             assertEquals("r1", vm.openNote.value!!.note.id)
+        }
+    }
+
+    @Test fun siDesarFallaHoDiuDinsDelFull() {
+        FakeServer(code = 500) { """{"error":"disc ple"}""" }.use { server ->
+            val vm = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
+            vm.setConn(server.conn())
+            ui.setContent {
+                CompositionLocalProvider(LocalWindMotion provides false, LocalPal provides DarkPal) {
+                    MaterialTheme(colorScheme = DarkPal.scheme()) {
+                        ShareSheetBody(vm, "ca", ShareTarget(recipe, "Xaloc"), onDismiss = {})
+                    }
+                }
+            }
+            ui.onNodeWithTag("share-save").performClick()
+            // El full tapa els avisos de sota: l'error ha de sortir al mateix full, i «Desa» s'hi queda per tornar-hi.
+            ui.waitUntil(3_000) { ui.onAllNodesWithTag("share-status").fetchSemanticsNodes().isNotEmpty() }
+            ui.onNodeWithTag("share-status").assertTextContains("disc ple", substring = true)
+            ui.onNodeWithTag("share-save").assertExists()
         }
     }
 

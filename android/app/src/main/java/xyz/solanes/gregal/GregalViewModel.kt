@@ -4242,7 +4242,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     // Desat: les respostes guardades són notes amb tipus (kind), a part del filtre de Notes.
     private val _savedNotes = MutableStateFlow<NotesPage?>(null)
     val savedNotes: StateFlow<NotesPage?> = _savedNotes.asStateFlow()
-    private var savedNotesQuery = NotesQuery(kind = "*")
+    private var savedNotesQuery = NotesQuery()
 
     /** Els desats; `kind` buit = de tots els tipus. */
     fun loadSavedNotes(q: String, kind: String) {
@@ -4259,18 +4259,13 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Desa una resposta tal com és (amb les targetes); onDone amb el desat, o null si ha fallat (ja avisat). */
-    fun saveReply(text: String, onDone: (Note?) -> Unit) {
+    /**
+     * Desa una resposta tal com és (amb les targetes). Llança si falla: qui
+     * la desa és el full de compartir, que tapa els avisos i diu l'error ell mateix.
+     */
+    suspend fun saveReply(text: String): Note {
         val source = _conn.value
-        viewModelScope.launch {
-            val saved = try {
-                withContext(Dispatchers.IO) { source.api().saveReply(text) }
-            } catch (e: Exception) {
-                notify(appText("notes.saveError", e.message.orEmpty()))
-                null
-            }
-            onDone(saved)
-        }
+        return withContext(Dispatchers.IO) { source.api().saveReply(text) }
     }
 
     /** Obre un desat a Notes, on es pot llegir, fixar, editar o esborrar. */
