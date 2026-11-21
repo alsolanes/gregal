@@ -31,8 +31,6 @@ import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.Language
-import androidx.compose.material.icons.rounded.AccountTree
-import androidx.compose.material.icons.rounded.Toys
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.Code
@@ -79,9 +77,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * El calaix de navegació, agrupat per a què serveix cada lloc: els vents
- * primer (la cara de l'app), després l'agent, l'automatització i les eines;
- * les preferències al peu. La capçalera diu on estàs connectat i en quin
+ * El calaix de navegació, agrupat per a què serveix cada lloc: l'agent,
+ * l'automatització i les eines; les preferències al peu. Els vents no hi
+ * són: el selector Codi | Vents ja hi porta. La capçalera diu on estàs connectat i en quin
  * projecte, i la conversa nova és l'única acció principal.
  */
 @Composable
@@ -119,11 +117,6 @@ fun GregalDrawerContent(
                 Spacer(Modifier.height(12.dp))
                 DrawerRow(tr(lang, "nav.new"), false, { vm.newSession(); nav(Screen.Chat) }) { Icon(Icons.Rounded.Add, null, tint = Sea, modifier = Modifier.size(22.dp)) }
 
-                DrawerSection(tr(lang, "app.nav.sectionWinds"))
-                DrawerRow(tr(lang, "nav.company"), screen == Screen.Company, { nav(Screen.Company) }) { DrawerWindIcon(vm) }
-                DrawerRow(tr(lang, "app.nav.ventet"), screen == Screen.Ventet, { nav(Screen.Ventet) }, Icons.Rounded.Toys)
-                DrawerRow(tr(lang, "nav.notes"), screen == Screen.Notes, { nav(Screen.Notes); vm.loadNotes() }, Icons.Rounded.EditNote)
-
                 DrawerSection(tr(lang, "app.nav.sectionAgent"))
                 DrawerRow(tr(lang, "app.nav.chat"), screen == Screen.Chat, { nav(Screen.Chat) }, Icons.Rounded.ChatBubbleOutline)
                 DrawerRow(tr(lang, "app.work.title"), screen == Screen.Work, { nav(Screen.Work) }, Icons.Rounded.Construction)
@@ -131,20 +124,20 @@ fun GregalDrawerContent(
                 DrawerRow(tr(lang, "nav.backlog"), screen == Screen.Backlog, { nav(Screen.Backlog); vm.loadBacklog() }, Icons.Rounded.Checklist)
 
                 DrawerSection(tr(lang, "app.nav.sectionAutomate"))
-                // Jobs i GitHub són de l'administrador del servidor: un altre compte rebria 403.
-                val admin by vm.isAdmin.collectAsState()
-                if (local || admin) DrawerRow(tr(lang, "nav.activity"), screen == Screen.Jobs, { nav(Screen.Jobs); vm.loadJobs(); vm.loadRuns() }, Icons.Rounded.Schedule)
-                DrawerRow(tr(lang, "graphs.title"), screen == Screen.Flows, { nav(Screen.Flows); vm.loadFlows() }, Icons.Rounded.AccountTree)
-                DrawerRow(tr(lang, "nav.automations"), screen == Screen.Automatitzacions, {
+                // Activitat i Grafs s'obren des d'Automatitzacions: una sola fila.
+                DrawerRow(tr(lang, "nav.automations"), screen in setOf(Screen.Automatitzacions, Screen.Jobs, Screen.Flows), {
                     nav(Screen.Automatitzacions); vm.loadAutomations(""); vm.loadJobs(); vm.loadFlows()
                 }, Icons.Rounded.Schedule)
 
                 DrawerSection(tr(lang, "app.nav.sectionTools"))
                 DrawerRow(tr(lang, "app.carpeta.title"), screen == Screen.Carpeta, { nav(Screen.Carpeta) }, Icons.Rounded.FolderOpen)
+                DrawerRow(tr(lang, "nav.notes"), screen == Screen.Notes, { nav(Screen.Notes); vm.loadNotes() }, Icons.Rounded.EditNote)
                 DrawerRow(webCopy(lang, "title"), screen == Screen.Webs, { nav(Screen.Webs); vm.loadWebs() }, Icons.Rounded.Language)
                 DrawerRow(tr(lang, "nav.office"), screen == Screen.Office, { nav(Screen.Office) }, Icons.Rounded.Description)
                 DrawerRow(tr(lang, "app.retro.title"), screen == Screen.Retro, { close(); vm.openRetro() }, Icons.Rounded.Tag)
-                // Al dispositiu no hi ha la CLI gh: GitHub només en remot.
+                // GitHub és de l'administrador del servidor (un altre compte rebria 403),
+                // i al dispositiu no hi ha la CLI gh: només en remot.
+                val admin by vm.isAdmin.collectAsState()
                 if (!local && admin) DrawerRow(tr(lang, "app.nav.github"), false, { close(); vm.obreGithub() }, Icons.Rounded.Code)
                 DrawerRow(tr(lang, "app.nav.undoTurn"), false, { close(); vm.openRewind() }, Icons.AutoMirrored.Rounded.Undo)
             }
