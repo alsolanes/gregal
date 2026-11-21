@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.*
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.runBlocking
@@ -106,5 +107,90 @@ class AgileNoteUiTest {
         ui.waitUntil(3_000) { saved.isNotEmpty() }
         assertEquals("Trucar a la Marta", saved.single().body)
         assertEquals("", saved.single().id)
+    }
+}
+
+/**
+ * Obrir Notes és trobar una nota: la llista primer, sense teclat; «Nota nova»
+ * obre la nota àgil i enrere hi torna. Comparteix i la drecera van directes a la nota.
+ * Captures a `build/notes-ui/`.
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34], qualifiers = "w393dp-h851dp")
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@LooperMode(LooperMode.Mode.PAUSED)
+class NotesOpeningUiTest {
+    @get:Rule val ui = createAndroidComposeRule<androidx.activity.ComponentActivity>()
+
+    private fun vmWithNotes(page: NotesPage = NotesPage(listOf(
+        Note("a", "Llista de la compra", excerpt = "llet, pa, tomàquets", tags = listOf("casa")),
+        Note("b", "Idees per al jardí", excerpt = "Un hort vertical al balcó"),
+        Note("c", "Reunió de dilluns", excerpt = "Repassar el pressupost i les dates")),
+        emptyList(), emptyList(), 3)): GregalViewModel {
+        val vm = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
+        (GregalViewModel::class.java.getDeclaredField("_notes").apply { isAccessible = true }.get(vm)
+            as kotlinx.coroutines.flow.MutableStateFlow<NotesPage?>).value = page
+        return vm
+    }
+
+    private fun show(vm: GregalViewModel, pal: GregalPalette = DarkPal) {
+        ui.setContent {
+            CompositionLocalProvider(LocalWindMotion provides false, LocalPal provides pal) {
+                MaterialTheme(colorScheme = pal.scheme()) { NotesScreen(vm) {} }
+            }
+        }
+        ui.waitForIdle()
+    }
+
+    private fun shot(name: String) {
+        val view = ui.activity.window.decorView
+        val bmp = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+        ui.runOnUiThread { view.draw(android.graphics.Canvas(bmp)) }
+        java.io.File("build/notes-ui/$name.png").also { it.parentFile!!.mkdirs() }.outputStream().use {
+            bmp.compress(Bitmap.CompressFormat.PNG, 100, it)
+        }
+    }
+
+    @Test fun obreALaLlistaSenseCapEditorEnfocat() {
+        show(vmWithNotes())
+        ui.onNodeWithText("Idees per al jardí").assertExists()
+        ui.onNodeWithText("New note", useUnmergedTree = true).assertExists()
+        ui.onNodeWithTag("agile-body").assertDoesNotExist()
+        ui.onAllNodes(isFocused()).assertCountEquals(0)
+        shot("list-dark")
+    }
+
+    @Test fun llistaClara() {
+        show(vmWithNotes(), LightPal)
+        ui.onNodeWithText("Idees per al jardí").assertExists()
+        shot("list-light")
+    }
+
+    @Test fun senseNotesDiuQueFerISOfereixNotaNova() {
+        show(vmWithNotes(NotesPage(emptyList(), emptyList(), emptyList(), 0)))
+        ui.onNodeWithText("No notes yet", substring = true).assertExists()
+        ui.onNodeWithText("New note", useUnmergedTree = true).assertExists()
+        ui.onAllNodes(isFocused()).assertCountEquals(0)
+        shot("empty-dark")
+    }
+
+    @Test fun notaNovaObreLaNotaAgilIEnrereTornaALaLlista() {
+        show(vmWithNotes())
+        ui.onNodeWithText("New note", useUnmergedTree = true).performClick()
+        ui.waitForIdle()
+        ui.onNodeWithTag("agile-body").assertIsFocused()
+            .assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.EditableText, androidx.compose.ui.text.AnnotatedString("")))
+        ui.runOnUiThread { ui.activity.onBackPressedDispatcher.onBackPressed() }
+        ui.waitForIdle()
+        ui.onNodeWithTag("agile-body").assertDoesNotExist()
+        ui.onNodeWithText("Idees per al jardí").assertExists()
+        ui.onNodeWithText("New note", useUnmergedTree = true).assertExists()
+    }
+
+    @Test fun compartirObreLaNotaAgilAmbElText() {
+        val vm = vmWithNotes()
+        vm.startNoteCapture("comprar pa")
+        show(vm)
+        ui.onNodeWithTag("agile-body").assertTextEquals("comprar pa")
     }
 }

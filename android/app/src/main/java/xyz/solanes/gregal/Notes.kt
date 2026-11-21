@@ -413,16 +413,16 @@ internal fun NotesScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val page by vm.notes.collectAsState()
     val open by vm.openNote.collectAsState()
     var editing by remember { mutableStateOf<NoteInput?>(null) }
-    // Obrir Notes és començar a escriure: una nota en blanc amb el cursor al
-    // cos, que es desa sola. La llista (cerca, agenda, filtres) és a un toc.
-    var showList by remember { mutableStateOf(false) }
+    // Obrir Notes és trobar una nota: primer la llista (cerca, agenda, filtres).
+    // «Nota nova», Comparteix i la drecera obren la nota àgil, que es desa sola.
+    var writing by remember { mutableStateOf(false) }
     var draft by remember { mutableStateOf(blankDraft(vm.notesQuery)) }
     var draftKey by remember { mutableIntStateOf(0) }
-    fun newDraft(start: NoteInput = blankDraft(vm.notesQuery)) { draft = start; draftKey++; showList = false }
+    fun newDraft(start: NoteInput = blankDraft(vm.notesQuery)) { draft = start; draftKey++; writing = true }
     val capture by vm.noteCapture.collectAsState()
-    // En obrir una nota o l'editor, l'esborrany ja s'ha desat: en tornar, una de nova en blanc.
+    // En obrir una nota o l'editor, l'esborrany ja s'ha desat: en tornar, la llista.
     LaunchedEffect(open != null || editing != null) {
-        if (open != null || editing != null) { draft = blankDraft(vm.notesQuery); draftKey++ }
+        if (open != null || editing != null) writing = false
     }
     LaunchedEffect(Unit) {
         if (page == null) vm.loadNotes()
@@ -434,8 +434,8 @@ internal fun NotesScreen(vm: GregalViewModel, onMenu: () -> Unit) {
         val text = vm.takeNoteCapture() ?: return@LaunchedEffect
         newDraft(blankDraft(vm.notesQuery).copy(body = text))
     }
-    BackHandler(enabled = editing != null || open != null || showList) {
-        if (editing != null) editing = null else if (open != null) vm.closeNote() else showList = false
+    BackHandler(enabled = editing != null || open != null || writing) {
+        if (editing != null) editing = null else if (open != null) vm.closeNote() else writing = false
     }
     val current = editing
     when {
@@ -443,18 +443,17 @@ internal fun NotesScreen(vm: GregalViewModel, onMenu: () -> Unit) {
         open != null -> NoteView(vm, lang, open!!, onEdit = { n ->
             editing = NoteInput(n.id, n.title, n.body, n.notebook, n.tags, n.private, n.locked, n.updated, n.noRemind, n.project)
         }, onNew = { title -> editing = NoteInput("", title, "", "", emptyList(), false, false, "") })
-        showList -> NotesList(vm, lang, page, onMenu, onNew = { newDraft() }, onMeeting = { editing = meetingTemplate(lang) },
-            onBack = { showList = false })
-        else -> key(draftKey) {
+        writing -> key(draftKey) {
             AgileNote(vm, lang, draft, page, onMenu,
-                onList = { showList = true },
+                onList = { writing = false },
                 onNew = { newDraft() },
                 onDetails = { editing = it })
         }
+        else -> NotesList(vm, lang, page, onMenu, onNew = { newDraft() }, onMeeting = { editing = meetingTemplate(lang) })
     }
 }
 
-/** La nota en blanc amb què s'obre Notes: hereta el quadern, l'etiqueta i el projecte del filtre. */
+/** La nota en blanc de «Nota nova»: hereta el quadern, l'etiqueta i el projecte del filtre. */
 fun blankDraft(q: NotesQuery): NoteInput =
     NoteInput("", "", "", q.notebook, listOfNotNull(q.tag.ifBlank { null }), false, false, "", project = q.newProject)
 
@@ -601,8 +600,7 @@ internal fun AgileNote(vm: GregalViewModel, lang: String, start: NoteInput, page
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NotesList(vm: GregalViewModel, lang: String, page: NotesPage?, onMenu: () -> Unit, onNew: () -> Unit, onMeeting: () -> Unit,
-    onBack: (() -> Unit)? = null) {
+private fun NotesList(vm: GregalViewModel, lang: String, page: NotesPage?, onMenu: () -> Unit, onNew: () -> Unit, onMeeting: () -> Unit) {
     var quick by remember { mutableStateOf("") }
     var query by remember { mutableStateOf(vm.notesQuery.q) }
     var pinnedOnly by remember { mutableStateOf(false) }
@@ -615,10 +613,7 @@ private fun NotesList(vm: GregalViewModel, lang: String, page: NotesPage?, onMen
     Scaffold(containerColor = Superficie, snackbarHost = { NoticeHost(vm) }, topBar = {
         TopAppBar(
             title = { Text(tr(lang, "notes.title"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
-            navigationIcon = {
-                if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, tr(lang, "notes.back")) }
-                else IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu")) }
-            },
+            navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu")) } },
             actions = { IconButton(onClick = { vm.loadNotes() }) { Icon(Icons.Rounded.Refresh, tr(lang, "auto.refresh")) } },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie),
         )
