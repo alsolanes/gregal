@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+## v1.90.0 - 2026-11-21 - Desats, portades d'inici i pantalles netes
+
+- **Desa el que val la pena (web, escriptori i Android).** Qualsevol
+  resposta d'un vent es desa amb un toc, amb la recepta, el gràfic o la web
+  tal com eren (la recepta conserva el canvi de racions). Quan un vent et
+  dona una cosa que voldràs tornar a tenir (una recepta, un consell, un pla,
+  un tauler), et proposa desar-la; desar continua sent decisió teva. A
+  «Desat» els trobes per tipus, i la cerca i l'extracte llegeixen el
+  contingut de la targeta, no el JSON.
+- **Vents s'obre en una portada d'inici (Android).** Les cares dels vents,
+  les converses recents i el compositor, en lloc d'un fil etern amb Gregal:
+  escriure-hi comença una conversa nova, tocar una cara n'obre una amb aquell
+  vent i tocar una recent la reprèn.
+- **La portada de Codi també (Android).** Sota el compositor hi ha les cinc
+  converses més noves del projecte obert; un toc la reprèn.
+- **El xat de Codi respira (Android).** El teu missatge és una bombolla a la
+  dreta, el codi dins de les frases és una mica més petit i la feina acabada
+  és una línia de resum.
+- **Pantalles més netes (Android).** La cara flotant del vent ja no tapa les
+  llistes: un punt al costat de «Vents», al calaix, avisa quan un vent
+  treballa o té novetats. Notes s'obre a la llista de notes. Webs mostra
+  l'enllaç en una línia curta i la Carpeta de treball deixa veure el final
+  dels camins, amb una icona de carpeta. El calaix de Codi ja no repeteix els
+  vents ni té tres entrades per a les automatitzacions: Activitat i Grafs
+  s'obren des d'Automatitzacions.
+- **Una sola capçalera (Android).** Webs, Notes, Automatitzacions, Desat i
+  Retro fan servir la mateixa capçalera que la resta, sobre el fons comú. En
+  una conversa amb un vent, el text s'esvaeix sota la capçalera flotant en
+  lloc de llegir-se entre els botons. L'error de carregar l'activitat ja diu
+  què ha fallat.
+
 ## v1.89.1 - 2026-11-21 - Vidre que es nota i un sol selector
 
 - **Codi i Vents es canvien des del calaix (Android).** Fora les icones de
