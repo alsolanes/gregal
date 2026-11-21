@@ -127,10 +127,6 @@
 /* ---------- Barres de desplaçament fines ---------- */
 * { scrollbar-width:thin; scrollbar-color:color-mix(in srgb, var(--muted) 35%, transparent) transparent; }
 
-/* Targetes de Vents: superfície neutra, sense el tint verd. */
-.vw-home .vw-card-soft { background:var(--surface); border-color:var(--line); box-shadow:var(--lift); }
-.vw-home .vw-card-soft:hover { background:var(--surface-hi); border-color:var(--line-hi); }
-
 /* =====================================================================
    Segona passada: canvis que es veuen, no només retocs de to.
    ===================================================================== */

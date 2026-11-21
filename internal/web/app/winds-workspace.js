@@ -3,7 +3,7 @@
  'use strict';
  const $=id=>document.getElementById(id), ca=()=>document.documentElement.lang==='ca', t=(a,b)=>{const v=ca()?a:b;return window.gregalCollective?window.gregalCollective.apply(v):v;};
  const state={asks:[],winds:[],squads:[],chats:[],tasks:[],projects:[],workspace:'',view:'home',squad:'daily',active:null,history:[],busy:false,draft:'',snapshot:null,events:[],library:[],filter:'all',meta:null};
- let mounted=false, page, nav, content, messages, asksBox=null, composer, input, status, loadVersion=0, chatTurn=null, pendingTimer=0, demoTimer=0, demoRun=0;
+ let mounted=false, page, nav, content, messages, asksBox=null, composer, input, status, loadVersion=0, chatTurn=null, pendingTimer=0;
  const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;};
  const accent=()=>{const v=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();return /^#[0-9a-f]{6}$/i.test(v)?v:'#8193FF';};
  const btn=(label,action,cls='vw-button')=>{const n=el('button',cls,label);n.type='button';n.onclick=()=>Promise.resolve().then(action).catch(fail);return n;};
@@ -34,7 +34,7 @@
  const roleName=w=>{const specialist=state.squads.find(s=>s.id===w.squad)?.members?.find(m=>m.key===w.specialty);return specialist?(ca()?specialist.ca:specialist.en):w.role||'';};
  function heading(title,copy){const h=el('div','vw-heading');h.append(el('h1','',title));if(copy)h.append(el('p','',copy));content.append(h);}
  function section(title,action){const h=el('div','vw-section-label');h.append(el('span','',title));if(action)h.append(action);nav.append(h);}
- function route(view,active=null){if(state.preparing&&!state.busy)return;clearTimeout(demoTimer);demoRun++;state.chatEpoch=(state.chatEpoch||0)+1;state.draft=input?.value??state.draft;state.view=view;state.active=active;state.history=[];if(view!=='task'&&root.gregalPreview?.getState().open)$('previewClose')?.click();render();}
+ function route(view,active=null){if(state.preparing&&!state.busy)return;state.chatEpoch=(state.chatEpoch||0)+1;state.draft=input?.value??state.draft;state.view=view;state.active=active;state.history=[];if(view!=='task'&&root.gregalPreview?.getState().open)$('previewClose')?.click();render();}
  const draftKey='gregal_vents_draft';
  function saveDraft(){
   try{sessionStorage.setItem(draftKey,JSON.stringify({draft:input?.value??state.draft,chat:state.view==='chat'?state.active?.id:null,wind:state.active?.legacyWind?state.active.wind:null}));}catch{}
@@ -138,7 +138,7 @@
   if(!mounted)return;
   const savedScroll=state.view==='chat'&&messages&&messages.dataset.thread===state.active?.id&&!nearChatEnd(messages)?messages.scrollTop:null;
   renderNav();page.replaceChildren();messages=null;asksBox=null;input=null;composer=null;
-  const top=el('header','vw-top');const menu=iconOnly('menu',t('Obre la navegació','Open navigation'),()=>{if(matchMedia('(max-width:760px)').matches){setDrawer(!document.body.classList.contains('vw-drawer'));return;}const side=$('side');const reopen=side.classList.contains('closed')||side.classList.contains('compact');if(reopen&&root.setSideCompact)root.setSideCompact(false);if(root.setSide)root.setSide(reopen);},'vw-mobile-menu');menu.setAttribute('aria-expanded',String(document.body.classList.contains('vw-drawer')));top.append(menu,el('span','',t('Vents','Winds')),el('span','vw-separator','/'),state.view==='chat'?owner():el('span','',({tasks:t('Feina','Work'),fes:t('Feina','Work'),saved:t('Desat','Saved'),notes:t('Desat','Saved'),home:t('Avui','Today'),today:t('Avui','Today'),crew:t('Els teus vents','Your winds'),apres:t('Què sap de tu','About you'),rules:t('Regles','Rules'),library:t('Biblioteca','Library'),wiki:t('Wiki','Wiki'),pati:t('El pati','Playground')})[state.view]||state.active?.name||squadName(state.squad)));
+  const top=el('header','vw-top');const menu=iconOnly('menu',t('Obre la navegació','Open navigation'),()=>{if(matchMedia('(max-width:760px)').matches){setDrawer(!document.body.classList.contains('vw-drawer'));return;}const side=$('side');const reopen=side.classList.contains('closed')||side.classList.contains('compact');if(reopen&&root.setSideCompact)root.setSideCompact(false);if(root.setSide)root.setSide(reopen);},'vw-mobile-menu');menu.setAttribute('aria-expanded',String(document.body.classList.contains('vw-drawer')));top.append(menu,el('span','',t('Vents','Winds')));if(state.view!=='home')top.append(el('span','vw-separator','/'),state.view==='chat'?owner():el('span','',({tasks:t('Feina','Work'),fes:t('Feina','Work'),saved:t('Desat','Saved'),notes:t('Desat','Saved'),today:t('Avui','Today'),crew:t('Els teus vents','Your winds'),apres:t('Què sap de tu','About you'),rules:t('Regles','Rules'),library:t('Biblioteca','Library'),wiki:t('Wiki','Wiki'),pati:t('El pati','Playground')})[state.view]||state.active?.name||squadName(state.squad)));
   // «La colla» ja és a la barra lateral (i a la de sota, al mòbil): aquí només hi van les accions del fil obert.
   // Fil de Gregal (B14): a dalt només la seva cara, flotant, i l'ordinador; la lluïssor floreix en obrir.
   const gregalHome=state.view==='chat'&&state.active?.wind==='gregal';page.classList.toggle('vw-gregal',gregalHome);
@@ -418,28 +418,20 @@
   }}finally{if(!result){try{await reader.cancel();}catch{}}reader.releaseLock();}
   if(!result)throw new Error(t('La connexió s’ha interromput abans d’acabar.','The connection ended before the response was complete.'));return result;
  }
- // Inici, a l'estil de Grok i dots: salutació, compositor gran, la colla a un
- // toc i «Avui»: el que hi ha en marxa i el que ve, en targetes.
+ // La portada d'inici, com a l'Android (VentsStart.kt) i com Claude o ChatGPT: les cares dels vents,
+ // la salutació, el compositor i les converses recents. Cada tema nou és una conversa nova amb
+ // Gregal; abans (B14) la portada era un sol fil amb Gregal que no s'acabava mai.
  function home(){
   content.classList.add('vw-home');
-  // La portada d'inici, com a l'Android (VentsStart.kt): cada tema nou és una conversa nova amb
-  // Gregal i els vents són a la vista. Abans (B14) era un sol fil amb Gregal que no s'acabava mai.
-  const gregal=state.winds.find(w=>w.id==='gregal');
-  if(gregal){const faces=el('div','vw-start-faces');faces.setAttribute('aria-label',t('Vents','Winds'));for(const w of [gregal,...state.winds.filter(w=>w!==gregal)]){const n=btn('',()=>startWith(w),'vw-start-face');n.append(face(w),el('span','',w.name));n.title=roleName(w)||w.name;faces.append(n);}content.append(faces);}
+  const faces=el('div','vw-start-faces');faces.setAttribute('aria-label',t('Vents','Winds'));
+  for(const w of [...state.winds].sort((a,b)=>(b.id==='gregal')-(a.id==='gregal'))){const n=btn('',()=>startWith(w),'vw-start-face');n.append(face(w),el('span','',w.name));n.title=roleName(w)||w.name;faces.append(n);}
+  content.append(faces);
   const hour=new Date().getHours(),greet=hour<6?t('Bona nit','Good night'):hour<13?t('Bon dia','Good morning'):hour<20?t('Bona tarda','Good afternoon'):t('Bon vespre','Good evening');
-  const welcome=el('div','vw-welcome'),orb=el('div','vw-orb');orb.append(figure(crew()[0],true));
-  if(!gregal)welcome.append(orb);welcome.append(el('h1','',greet+'.'),el('p','',t('Pregunta, encarrega o planifica. Els vents s’encarreguen de la resta.','Ask, delegate or plan. Your winds take care of the rest.')));content.append(welcome);
-  if(state.squads.length>1&&!gregal){const squads=el('div','vw-squads');squads.setAttribute('role','tablist');squads.setAttribute('aria-label',t('Equips','Squads'));for(const s of state.squads){const b=btn(ca()?s.ca:s.en,()=>{state.squad=s.id;newChat();},'vw-squad-pill');b.setAttribute('role','tab');b.setAttribute('aria-selected',String(s.id===state.squad));squads.append(b);}content.append(squads);}
+  const welcome=el('div','vw-welcome');welcome.append(el('h1','',greet+'.'),el('p','',t('Pregunta, encarrega o planifica. Els vents s’encarreguen de la resta.','Ask, delegate or plan. Your winds take care of the rest.')));content.append(welcome);
   addComposer(!!state.active?.project);
-  const strip=el('div','vw-crew-strip');crew().slice(0,6).forEach(w=>{const n=btn('',()=>talkTo(w),'vw-crew-chip');n.append(face(w),el('span','',w.name));n.title=roleName(w);strip.append(n);});if(crew().length&&!gregal)content.append(strip);
+  // Les converses recents; els exemples, només mentre encara no n'hi ha cap.
   const prompts=el('div','vw-prompts');for(const [a,b]of state.squad==='data'?[['Analitza aquestes dades','Analyze this data'],['Compara dos models','Compare two models'],['Explora una sèrie temporal','Explore a time series']]:state.squad==='software'?[['Crea una web','Create a website'],['Revisa aquest projecte','Review this project'],['Comprova la seguretat','Check security']]:[['Ajuda’m a triar','Help me choose'],['Recomana’m un llibre','Recommend a book'],['Organitzem la setmana','Let’s organize the week']])prompts.append(btn(t(a,b),()=>{input.value=t(a,b)+' ';input.focus();},'vw-prompt'));content.append(prompts);
-  // Les converses recents en lloc dels exemples quan n'hi ha. La demostració del grup i «Avui»
-  // (que té la seva entrada a la barra) no hi van: la portada és per començar o reprendre una conversa.
-  if(gregal){if(startRecent())prompts.remove();return;}
-  // The example explains the crew before first use, right under the composer;
-  // afterwards home stays focused on real threads.
-  if(!state.chats.length&&!state.tasks.length)collaborationDemo();
-  const feed=el('section','vw-avui');feed.setAttribute('aria-label',t('Avui','Today'));content.append(feed);paintAvui(feed).catch(()=>paintToday(feed).catch(()=>{}));
+  if(startRecent())prompts.remove();
  }
  // Les converses recents (/api/winds/threads, de la més nova a la més vella): títol, vent i data.
  function startRecent(){
@@ -530,35 +522,6 @@
   const head=el('div','vw-today-head');const more=btn('',()=>root.setView?.('automatitzacions'),'vw-today-more');more.append(el('span','',t('Automatitzacions','Automations')),icon('arrow'));head.append(el('h2','',t('Avui','Today')),more);
   const grid=el('div','vw-cards');grid.append(...cards);feed.replaceChildren(head,grid);
  }
- function collaborationDemo(){
-  const examples={
-   daily:{title:t('Un cap de setmana a Girona','A weekend in Girona'),turns:[
-    ['organisation','Gregal',t('Primer fixem horaris i pressupost; després et proposaré un pla per dies, amb temps lliure.','Let’s settle times and budget first; then I’ll propose a day-by-day plan with some free time.')],
-    ['books','Ponent',t('Hi afegeixo el Call i una llibreria del barri vell, comprovant els horaris actuals abans de recomanar-los.','I’ll add the Jewish Quarter and an old-town bookshop, checking current opening hours before recommending them.')],
-    ['music','Xaloc',t('Miraré si hi ha concerts aquell dissabte i només te’ls proposaré si encaixen amb el pla.','I’ll look for concerts that Saturday and only suggest them if they fit the plan.')]
-   ],summary:t('Cada especialista hi aporta la seva part i Gregal ho reuneix en un pla que pots conservar.','Each specialist adds their part and Gregal pulls it together into a plan you can keep.')},
-   data:{title:t('Entendre una sèrie de vendes','Understanding a sales time series'),turns:[
-    ['quality','Cerç',t('Primer revisaré dates, valors que falten i si les vendes són diàries o setmanals.','First I’ll check dates, missing values, and whether sales are daily or weekly.')],
-    ['timeseries','Migjorn',t('Després separaré tendència i estacionalitat, i compararé la previsió amb una referència senzilla.','Then I’ll separate trend and seasonality, and compare the forecast with a simple baseline.')],
-    ['review','Oratge',t('I comprovaré que la validació respecti l’ordre temporal i que el gràfic no suggereixi més certesa de la que tenim.','I’ll check that validation respects time order and that the chart does not imply more certainty than we have.')]
-   ],summary:t('Cada especialista aporta una comprovació; la conclusió es basa en les dades i queda revisada.','Each specialist contributes a check; the conclusion is grounded in the data and reviewed.')},
-   software:{title:t('Preparar una web accessible','Making a website accessible'),turns:[
-    ['ux','Llebeig',t('Comencem pels usos principals i els criteris d’accessibilitat que cal complir.','Let’s start with the main user journeys and the accessibility criteria to meet.')],
-    ['frontend','Tramuntana',t('Prepararé la interfície adaptable i faré servir els components i estils que ja té el projecte.','I’ll build the responsive interface using the project’s existing components and styles.')],
-    ['testing','Mestral',t('Després revisaré teclat, contrast i amplades mòbils, i indicaré què he comprovat.','Then I’ll check keyboard use, contrast and mobile widths, and report what I verified.')]
-   ],summary:t('Disseny, implementació i revisió s’uneixen en un sol lliurable.','Design, implementation and review come together in one deliverable.')}
-  };
-  const squad=examples[state.squad]?state.squad:'daily',example=examples[squad],template=state.squads.find(s=>s.id===squad);
-  const participants=example.turns.map(([key,name])=>{const member=template?.members?.find(m=>m.key===key);return state.winds.find(w=>w.squad===squad&&w.specialty===key)||{name:member?.name||name,color:member?.color||'#BFC7DF',style:member?.style||'psn',squad,specialty:key};});
-  const card=el('section','vw-demo');card.setAttribute('aria-label',t('Exemple de col·laboració dels vents','Example of the winds collaborating'));
-  const head=el('div','vw-demo-head');const titles=el('div');titles.append(el('p','vw-demo-kicker',t('UN EXEMPLE ANIMAT','A SHORT EXAMPLE')),el('h2','',t('Mira com treballa un grup','See a group work together')));head.append(titles,btn(t('Torna-ho a veure','Play again'),()=>playCollaborationDemo(card,example,participants),'vw-demo-replay'));card.append(head,el('p','vw-demo-prompt',example.title));
-  const thread=el('div','vw-demo-thread');thread.setAttribute('aria-live','polite');thread.setAttribute('aria-relevant','additions text');card.append(thread);content.append(card);playCollaborationDemo(card,example,participants);
- }
- function playCollaborationDemo(card,example,participants){
-  clearTimeout(demoTimer);const run=++demoRun,thread=card.querySelector('.vw-demo-thread');thread.replaceChildren();card.classList.add('is-playing');
-  const turns=[...example.turns.map(([key,name,text],i)=>({person:participants[i],text,role:roleName(participants[i])||name})),{person:null,role:t('La colla','The crew'),text:example.summary,summary:true}];let index=0;
-  const show=()=>{if(run!==demoRun||!card.isConnected)return;const turn=turns[index],row=el('article','vw-demo-turn'+(turn.summary?' vw-demo-summary':''));if(turn.person)row.append(face(turn.person));else{const mark=el('span','vw-demo-mark');mark.append(icon('sparkles'));row.append(mark);}const copy=el('div');copy.append(el('strong','',turn.person?.name||turn.role),el('span','vw-demo-role',turn.person?turn.role:t('Conclusió compartida','Shared takeaway')),el('p','',turn.text));row.append(copy);thread.append(row);index++;if(index<turns.length)demoTimer=setTimeout(show,1900);else card.classList.remove('is-playing');};show();
- }
  async function activate(id){await call('/api/winds/squads','POST',{id,lang:ca()?'ca':'en'});state.winds=(await call('/api/winds')).winds;renderNav();}
  async function bestWind(text){
   const pool=crew().length?crew():state.winds;if(!pool.length)return null;
@@ -576,6 +539,8 @@
   showWindThread(w,data.session||session||'company-'+w.id,data.history||[]);
  }
  function showWindThread(w,session,history){
+  // Un talkTo encara en camí (la fila «Gregal» de la barra, per exemple) no pot tornar a posar-hi el fil d'abans.
+  state.chatEpoch=(state.chatEpoch||0)+1;
   state.active={id:session,wind:w.id,name:w.name,members:[w.id],legacyWind:true};
   state.history=history;
   state.view='chat';
@@ -815,8 +780,8 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
    {i:'⏰',a:t("Recorda-m'ho",'Remind me'),b:t("Un avís a l'hora que diguis.",'A reminder at the time you say.'),p:t("Recorda'm {x}.",'Remind me {x}.'),x:t('Què i quan?','What and when?')},
   ]],
  ];
- // Envia una plantilla a Gregal en una conversa nova (la portada és el fil de Gregal).
- async function sendToGregal(text){newChat();for(let i=0;i<40&&!(state.view==='chat'&&input&&composer);i++)await new Promise(r=>setTimeout(r,75));if(!input||!composer)return;input.value=text;state.draft=text;composer.requestSubmit();}
+ // Envia una plantilla a Gregal en una conversa nova: el compositor de la portada la crea.
+ function sendToGregal(text){newChat();if(!input||!composer)return;input.value=text;state.draft=text;composer.requestSubmit();}
  function fesView(){
   pageTabs(WORK_TABS);
   heading(t('Fes','Do'),t("Plantilles per començar: un toc i Gregal s'hi posa. Les del dia es poden fer cada dia.",'Templates to get going: one tap and Gregal gets on it. The daily ones can run every day.'));

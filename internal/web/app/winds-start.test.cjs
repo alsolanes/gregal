@@ -194,3 +194,49 @@ test('while a wind is answering, the start page opens the running conversation a
   finish();
   await first;
 });
+
+test('the start page header just says Winds, not Today', async () => {
+  const f = await boot();
+  assert.equal(f.page.querySelector('.vw-top').textContent.trim(), 'Winds');
+});
+
+test('the sidebar «Gregal» row opens Gregal’s current conversation', async () => {
+  const f = await boot();
+  await byText(f.nav, '.vw-nav-channel', 'Gregal').click();
+  await settle();
+  assert.ok(f.requests.some(r => r.url === '/api/winds/chat?wind=gregal'));
+  assert.ok(!f.requests.some(r => r.url === '/api/winds/sessions' && r.method === 'POST'), 'no new conversation');
+  assert.match(f.page.querySelector('.vw-messages').textContent, /Fil antic de Gregal/);
+});
+
+test('an old thread still loading cannot replace the new conversation from the start page', async () => {
+  let release;
+  const old = { ok: true, status: 200, json: async () => ({ history: [{ from: 'assistant', text: 'Fil antic de Gregal' }] }) };
+  const f = await boot({ api: r => r.url === '/api/winds/chat?wind=gregal' ? new Promise(res => { release = () => res(old); }) : null });
+  const opening = byText(f.nav, '.vw-nav-channel', 'Gregal').click();
+  f.page.querySelector('textarea').value = 'Planeja el sopar';
+  await f.page.querySelector('.vw-composer').requestSubmit();
+  await settle();
+  release();
+  await opening;
+  await settle();
+  const text = f.page.querySelector('.vw-messages').textContent;
+  assert.match(text, /Fet/);
+  assert.doesNotMatch(text, /Fil antic de Gregal/);
+});
+
+test('a «Do» template starts one new Gregal conversation right away, even on a double tap', async () => {
+  const f = await boot();
+  await byText(f.nav, 'button', 'Work').click();
+  await byText(f.page, '.vw-page-tab', 'Do').click();
+  const card = f.page.querySelectorAll('.vw-fes-card').find(c => !c.querySelector('.vw-fes-form'));
+  const main = card.querySelector('.vw-fes-main');
+  main.click();
+  main.click();
+  await settle();
+  const created = f.requests.filter(r => r.url === '/api/winds/sessions' && r.method === 'POST');
+  assert.deepEqual(created.map(r => r.body), [{ wind: 'gregal' }]);
+  const sent = f.requests.filter(r => r.url === '/api/winds/chat/stream');
+  assert.equal(sent.length, 1);
+  assert.ok(f.requests.indexOf(sent[0]) > f.requests.indexOf(created[0]));
+});

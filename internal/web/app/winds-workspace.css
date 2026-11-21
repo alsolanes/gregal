@@ -96,27 +96,6 @@ button.vw-model:hover,button.vw-model:focus-visible { color:var(--ink); backgrou
 .vw-folder-under span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .vw-folder-hint,.vw-project-path { display:flex; align-items:center; gap:7px; font-size:11px; color:var(--faint); overflow-wrap:anywhere; margin-top:10px; }
 .vw-prompts { display:flex; flex-wrap:wrap; gap:9px; justify-content:center; margin:19px 0 36px; }
-.vw-demo { width:100%; margin:0 auto 30px; padding:20px 22px 17px; border:1px solid var(--line); border-radius:17px; background:var(--surface); box-shadow:var(--lift, 0 12px 32px color-mix(in srgb,var(--ombra) 14%,transparent)); }
-.vw-demo-head { display:flex; align-items:center; justify-content:space-between; gap:16px; }
-.vw-demo-kicker { color:var(--faint); font-size:9px; letter-spacing:.12em; margin:0 0 4px; }
-.vw-demo-head h2 { color:var(--ink); font-size:17px; font-weight:550; line-height:1.35; margin:0; }
-.vw-demo-replay { flex:none; border:1px solid var(--line); border-radius:8px; padding:6px 10px; background:transparent; color:var(--muted); font-size:11px!important; }
-.vw-demo-replay:hover { background:var(--hover-alt); color:var(--ink); }
-.vw-demo-prompt { display:inline-flex; margin:14px 0 11px; padding:6px 10px; border-radius:8px 8px 2px 8px; background:var(--hover-alt); color:var(--text); font-size:12px; }
-.vw-demo-thread { display:grid; gap:7px; }
-.vw-demo-turn { display:grid; grid-template-columns:28px minmax(0,1fr); align-items:start; gap:9px; padding:9px 11px; border-radius:10px; background:color-mix(in srgb,var(--bg) 65%,transparent); animation:vw-demo-arrive .45s cubic-bezier(.2,.75,.25,1) both; }
-.vw-demo-turn:nth-child(2) { animation-delay:.06s; }
-.vw-demo-turn:nth-child(3) { animation-delay:.12s; }
-.vw-demo-turn > .winds-face { width:27px; height:27px; }
-.vw-demo-turn strong { display:inline; color:var(--ink); font-size:11px; font-weight:600; }
-.vw-demo-role { display:inline; margin-left:7px; color:var(--faint); font-size:10px; }
-.vw-demo-turn p { color:var(--muted); font-size:11px; line-height:1.5; margin:2px 0 0; }
-.vw-demo-summary { border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line)); background:var(--accent-soft); }
-.vw-demo-mark { display:grid; place-items:center; width:27px; height:27px; border-radius:50%; color:var(--vw-ink); background:var(--vw-accent); }
-.vw-demo-mark .vw-ic { width:15px; height:15px; }
-.vw-demo.is-playing .vw-demo-thread::after { content:''; width:20px; height:3px; margin:2px 0 0 49px; border-radius:4px; background:var(--vw-accent); animation:vw-demo-pulse 1.2s ease-in-out infinite alternate; }
-@keyframes vw-demo-arrive { from { opacity:0; transform:translateY(7px); } to { opacity:1; transform:translateY(0); } }
-@keyframes vw-demo-pulse { from { opacity:.35; transform:scaleX(.65); transform-origin:left; } to { opacity:.8; transform:scaleX(1); transform-origin:left; } }
 /* Botons: el principal i el secundari de Codi (button.primary i .raco-actions button a polish.css).
    «button.» davant: la regla «.wind-workspace button { font:inherit }» de dalt pesa més que una classe sola. */
 button.vw-button { min-height:36px; border:1px solid var(--line-hi); border-radius:8px; padding:6px 12px; background:transparent; color:var(--text); font-size:14px!important; font-weight:400; line-height:1.4; }
@@ -129,7 +108,6 @@ button.vw-button:hover { border-color:var(--accent); background:var(--surface-hi
 :is(button,a).vw-primary:disabled { opacity:.5; cursor:default; }
 .vw-subtitle { color:var(--muted); font-size:12px; font-weight:500; margin:26px 0 12px; }
 .vw-recent { text-align:left; border:0; border-bottom:1px solid var(--line); padding:15px 2px; color:var(--text); background:transparent; font-size:13px!important; width:100%; }
-.vw-crew-strip { display:flex; justify-content:center; flex-wrap:wrap; gap:8px; margin:16px 0 0; }
 .vw-tabs { display:flex; gap:2px; width:max-content; max-width:100%; margin:20px 0 24px; padding:3px; border-radius:var(--r-md,12px); background:var(--hover); overflow-x:auto; scrollbar-width:none; }
 .vw-tabs button { min-height:30px; background:transparent; border:0; border-radius:7px; color:var(--muted); padding:0 14px; font-size:13px!important; font-weight:500; line-height:1.3; white-space:nowrap; }
 .vw-tabs button:hover { background:transparent; color:var(--ink); }
@@ -287,7 +265,6 @@ label.vw-pick-card > span:last-child { min-width:0; overflow:hidden; text-overfl
  .vw-top { padding:0 18px; gap:9px; min-height:50px; } .vw-top > span:last-of-type { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
  .vw-content { padding:26px 20px; } .vw-home { padding-top:40px; } .vw-welcome h1 { font-size:36px; }
  .vw-prompts { gap:7px; }
- .vw-demo { padding:15px 13px 12px; border-radius:14px; margin-bottom:22px; } .vw-demo-head { align-items:flex-start; } .vw-demo-head h2 { font-size:15px; } .vw-demo-replay { font-size:10px!important; padding:6px 8px; } .vw-demo-turn { grid-template-columns:24px minmax(0,1fr); gap:7px; padding:8px; } .vw-demo-turn > .winds-face,.vw-demo-mark { width:24px; height:24px; }
  .vw-select { max-width:46%; } button.vw-model { max-width:42%; } .vw-user > div { max-width:86%; }
  .vw-member { gap:10px; } .vw-member > .winds-face { width:48px; height:48px; } .vw-member button { padding:7px 9px; }
  .vw-member p { font-size:11px; } .vw-member h2 { font-size:14px; }
@@ -306,7 +283,7 @@ label.vw-pick-card > span:last-child { min-width:0; overflow:hidden; text-overfl
  body.shell-winds.vw-drawer #side #navRail { position:static; }
  body:is(.shell-winds,.winds-side) #side.vw-open { width:272px; min-width:272px; max-width:86vw; }
 }
-@media(prefers-reduced-motion:reduce) { .wind-workspace *,.vw-nav * { transition:none!important; } .vw-thinking-dots i { animation:none; opacity:.6; } .vw-demo-turn,.vw-demo.is-playing .vw-demo-thread::after { animation:none; } }
+@media(prefers-reduced-motion:reduce) { .wind-workspace *,.vw-nav * { transition:none!important; } .vw-thinking-dots i { animation:none; opacity:.6; } }
 /* Wiki: pages as readable cards, opened in a wider reading dialog. */
 .vw-wiki-row { display:flex; flex-direction:column; gap:4px; width:100%; text-align:left; background:transparent; color:var(--text); border:0; border-bottom:1px solid var(--line); padding:18px 2px; }
 .vw-wiki-row:hover { background:var(--hover-alt); }
@@ -357,10 +334,6 @@ label.vw-pick-card > span:last-child { min-width:0; overflow:hidden; text-overfl
 .vw-welcome h1 { font:600 clamp(34px,4.4vw,52px)/1.08 var(--sans, "Inter", "Segoe UI Variable Display", system-ui, sans-serif); letter-spacing:-.04em; margin:0 0 10px; }
 .vw-welcome > p:last-child { font-size:15px; }
 /* Colles: el control segmentat del canvi Codi · Vents i dels segments de preferències. */
-.vw-squads { display:flex; justify-content:center; gap:2px; margin:0 auto 18px; padding:3px; border-radius:var(--r-md,12px); background:var(--hover); border:1px solid transparent; width:max-content; max-width:100%; overflow-x:auto; scrollbar-width:none; }
-button.vw-squad-pill { min-height:30px; border:0; background:transparent; color:var(--muted); font-size:13px!important; font-weight:500; line-height:1.3; padding:0 14px; border-radius:7px; white-space:nowrap; }
-button.vw-squad-pill:hover { color:var(--ink); }
-button.vw-squad-pill[aria-selected="true"] { background:var(--surface); color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.18), 0 0 0 1px var(--line-hi); }
 /* A l'inici el camp respira una mica més, com el de la portada de Codi. */
 .vw-home .vw-composer textarea { min-height:36px; }
 /* Una sola pastilla per a la colla, els suggeriments i les respostes ràpides: vora fina, radi
@@ -389,8 +362,6 @@ button.vw-choice { white-space:normal; text-align:left; }
 .vw-card-copy small { color:var(--faint); font-size:11px; letter-spacing:.04em; }
 .vw-card-copy strong { font-weight:600; font-size:14px; line-height:1.35; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
 .vw-card-copy span { color:var(--muted); font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.vw-home .vw-demo { margin-top:34px; }
-.vw-home .vw-demo + .vw-today { margin-top:18px; }
 /* Portada d'inici: les cares dels vents a dalt i les converses recents sota el compositor. */
 .vw-start-faces { display:flex; justify-content:safe center; gap:6px; margin:0 0 26px; overflow-x:auto; scrollbar-width:none; }
 button.vw-start-face { display:flex; flex-direction:column; align-items:center; gap:5px; width:68px; flex:none; padding:6px 2px; background:transparent; border:0; border-radius:12px; color:var(--muted); font-size:12px; }
@@ -412,7 +383,7 @@ button.vw-start-row:hover { background:var(--hover); }
 .vw-more[open] > summary { color:var(--ink); }
 /* Dins de <details> els botons no s'estiren sols: l'actiu ha d'ocupar tota la fila com la resta. */
 .vw-more > .vw-nav-item:not(summary) { width:100%; padding-left:20px; }
-@media(max-width:760px) { .vw-home { padding-top:28px; } .vw-cards { grid-template-columns:1fr; } .vw-crew-strip { flex-wrap:nowrap; overflow-x:auto; justify-content:safe center; scrollbar-width:none; } }
+@media(max-width:760px) { .vw-home { padding-top:28px; } .vw-cards { grid-template-columns:1fr; } }
 @media(prefers-reduced-motion:reduce) { .vw-orb::before { animation:none; } }
 
 /* ---- Preguntes, aprovacions i respostes ràpides dels vents ---- */
@@ -497,7 +468,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
  .vw-message:not(.vw-user) > div { max-width:calc(100% - 46px); }
  .vw-message > :is(.winds-face,.vw-shared-person) { width:32px; height:32px; }
  .vw-choices { margin-left:45px; }
- button.vw-squad-pill, .vw-tabs button { padding:0 11px; font-size:12.5px!important; }
+ .vw-tabs button { padding:0 11px; font-size:12.5px!important; }
 }
 /* Al telèfon la resposta d'un vent fa servir tota l'amplada, com la de Codi: la cara i el nom en
    fan la capçalera i el text (i les taules) no perden la columna de la cara. */
@@ -630,7 +601,6 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 @media(max-width:600px) { .vw-avui-card { grid-template-columns:28px minmax(0,1fr); gap:10px; padding:12px 12px 8px; } .vw-avui-card > :is(.winds-face,.vw-shared-person) { width:28px; height:28px; } .vw-avui-decide { margin-left:0; width:100%; justify-content:flex-end; } }
 @media(prefers-reduced-motion:reduce) { .vw-avui-card { animation:none; transition:none; } }
 /* Amb la safata plena, la portada no necessita suggeriments: el que toca ja hi és. */
-.vw-home:has(.vw-avui-card) .vw-prompts { display:none; }
 
 /* ---- L'ofici al perfil: nivell, fonts i vigilàncies ---- */
 .vw-trade { margin:4px 0 16px; padding:14px 16px; border:1px solid var(--line); border-radius:var(--r-md,12px); background:var(--bg); }
