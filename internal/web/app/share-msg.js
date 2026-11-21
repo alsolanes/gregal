@@ -1,9 +1,11 @@
 // Compartir un missatge d'un vent: text per a WhatsApp o Telegram (les
 // targetes passen a text llegible), enviar-lo a una altra persona de l'app o
-// fer-ne un enllaç públic de només lectura (winds_share.go).
+// fer-ne un enllaç públic de només lectura (winds_share.go). També desar-lo
+// com a nota amb tipus (notes.go): les targetes hi queden tal com eren.
 //
-// Script clàssic: window.gregalShare = { button, plainText }. plainText també
-// s'exporta per a node (tests) i és la mateixa regla que ShareText.kt.
+// Script clàssic: window.gregalShare = { button, saveButton, plainText }.
+// plainText i saveReply també s'exporten per a node (tests); plainText és la
+// mateixa regla que ShareText.kt.
 (function (root) {
   "use strict";
 
@@ -102,6 +104,11 @@
   async function copy(text) {
     try { await navigator.clipboard.writeText(text); return true; } catch (_) { return false; }
   }
+  // saveReply: desa la resposta com a nota; el servidor en treu el tipus i el títol de la primera targeta.
+  function saveReply(md) {
+    return api("/api/notes", { action: "save", body: md, kind: "auto" });
+  }
+
   const ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m0 0L7.5 7.5M12 3l4.5 4.5M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>';
   let open = null;
   function close() { if (open) { open.remove(); open = null; } document.removeEventListener("pointerdown", outside, true); }
@@ -116,6 +123,33 @@
     b.title = tx("Comparteix", "Share");
     b.setAttribute("aria-label", b.title);
     b.addEventListener("click", (e) => { e.stopPropagation(); open && open.anchor === b ? close() : menu(b, getText(), meta); });
+    return b;
+  }
+
+  const SAVE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg>';
+  // saveButton(getText, open): «Desa» d'un missatge; un cop desat diu «Desat ✓» i open(id) obre la nota.
+  function saveButton(getText, open) {
+    const b = el("button", "gshare-btn gsave-btn");
+    b.type = "button";
+    b.innerHTML = SAVE_ICON;
+    b.title = tx("Desa", "Save");
+    b.setAttribute("aria-label", b.title);
+    let note = null;
+    b.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (note) { open(note.id); return; }
+      b.disabled = true;
+      try {
+        note = await saveReply(getText());
+        b.classList.add("done");
+        b.textContent = tx("Desat ✓", "Saved ✓");
+        b.title = tx("Obre la nota desada", "Open the saved note");
+        b.setAttribute("aria-label", b.title);
+      } catch (err) {
+        b.textContent = tx("No s'ha desat", "Not saved");
+        b.title = tx("No s'ha pogut desar: ", "Couldn't save: ") + (err.message || err);
+      } finally { b.disabled = false; }
+    });
     return b;
   }
 
@@ -182,7 +216,7 @@
     box.querySelector(".gshare-status").before(pick);
   }
 
-  const api_ = { plainText, cardText, button, close };
+  const api_ = { plainText, cardText, button, saveButton, saveReply, close };
   root.gregalShare = api_;
   if (typeof module !== "undefined" && module.exports) module.exports = api_;
 })(typeof globalThis !== "undefined" ? globalThis : this);

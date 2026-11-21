@@ -25,3 +25,18 @@ test('un bloc que no s\'entén es queda com estava', () => {
   const md = '```gregal-plan\n{trencat\n```';
   assert.strictEqual(plainText(md, 'ca'), md);
 });
+
+test('desar una resposta envia el markdown tal qual amb kind auto', async () => {
+  const { saveReply } = require('./share-msg.js');
+  const md = 'Té:\n\n```gregal-recipe\n{"title":"Crema","servings":2,"ingredients":[{"name":"carbassa","qty":"500 g"}]}\n```';
+  const calls = [];
+  globalThis.api = async (url, opts) => { calls.push({ url, opts }); return { ok: true, json: async () => ({ id: 'n1', kind: 'recipe', title: 'Crema' }) }; };
+  try {
+    const note = await saveReply(md);
+    assert.strictEqual(note.id, 'n1');
+  } finally { delete globalThis.api; }
+  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(calls[0].url, '/api/notes');
+  assert.strictEqual(calls[0].opts.method, 'POST');
+  assert.deepStrictEqual(JSON.parse(calls[0].opts.body), { action: 'save', body: md, kind: 'auto' });
+});

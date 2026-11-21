@@ -50,3 +50,24 @@ test('meetingTemplate porta la data i una tasca amb termini', () => {
   assert.match(m.body, /- \[ \] {2}@2026-11-13/);
   assert.match(N.meetingTemplate('en', new Date(2026, 10, 6)).body, /Action items/);
 });
+
+test('kindName: cada tipus de desat té nom en català i en anglès', () => {
+  const kinds = ['recipe', 'tip', 'plan', 'route', 'compare', 'facts', 'result', 'chart', 'web', 'text'];
+  for (const k of kinds) {
+    assert.ok(N.kindName(k, 'ca') && N.kindName(k, 'ca') !== k, k + ' ca');
+    assert.ok(N.kindName(k, 'en') && N.kindName(k, 'en') !== k, k + ' en');
+    assert.ok(N.KIND_ICONS[k], k + ' icona');
+  }
+  assert.equal(N.kindName('recipe', 'ca'), 'Receptes');
+  assert.equal(N.kindName('recipe', 'en'), 'Recipes');
+  assert.equal(N.kindName('facts', 'ca'), 'Xifres');
+  assert.equal(N.kindName('desconegut', 'en'), 'desconegut');
+});
+
+test('una recepta desada es pinta a la nota amb les racions que es poden canviar', () => {
+  const html = N.linkNotes(md.render('```gregal-recipe\n{"title":"Crema","servings":2,"ingredients":[{"name":"carbassa","qty":"500 g"}]}\n```'));
+  assert.match(html, /class="gregal-card gregal-recipe" data-serves="2"/);
+  assert.match(html, /class="gc-less"/);
+  assert.match(html, /class="gc-more"/);
+  assert.match(html, /class="gc-qty"/);
+});
