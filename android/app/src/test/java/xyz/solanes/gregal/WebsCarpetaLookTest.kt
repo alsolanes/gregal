@@ -19,6 +19,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.annotation.LooperMode
+import android.os.Looper
+import org.robolectric.Shadows.shadowOf
 import java.io.File
 import java.net.InetAddress
 import java.net.ServerSocket
@@ -58,23 +60,32 @@ class WebsCarpetaLookTest {
     private val server = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
     private val worker = thread(isDaemon = true) {
         try {
-            while (!server.isClosed) server.accept().use { s ->
-                // Un client que penja a mitja resposta no ha d'aturar el servidor:
-                // la pantalla torna a demanar i la prova espera la dada.
-                try {
-                    val first = s.getInputStream().bufferedReader().readLine().orEmpty()
-                    val path = first.split(' ').getOrElse(1) { "/" }.substringBefore('?')
-                    val body = (respostes[path] ?: "{}").toByteArray()
-                    s.getOutputStream().apply {
-                        write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n".toByteArray())
-                        write(body)
-                        flush()
-                    }
-                } catch (e: java.io.IOException) {
-                    System.err.println("WebsCarpetaLookTest: resposta tallada: ${e.message}")
-                }
+            while (!server.isClosed) {
+                val client = server.accept()
+                // Cada connexió en un fil i amb temps límit: una connexió que no
+                // envia res (una sonda d'abast) encallava tot el servidor i la
+                // prova esperava la dada en va (fallava de tant en tant a la suite).
+                thread(isDaemon = true) { client.use { s -> answer(s) } }
             }
         } catch (e: SocketException) { if (!server.isClosed) throw e }
+    }
+
+    private fun answer(s: java.net.Socket) {
+        // Un client que penja a mitja resposta no ha d'aturar el servidor:
+        // la pantalla torna a demanar i la prova espera la dada.
+        try {
+            s.soTimeout = 5_000
+            val first = s.getInputStream().bufferedReader().readLine().orEmpty()
+            val path = first.split(' ').getOrElse(1) { "/" }.substringBefore('?')
+            val body = (respostes[path] ?: "{}").toByteArray()
+            s.getOutputStream().apply {
+                write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                write(body)
+                flush()
+            }
+        } catch (e: java.io.IOException) {
+            System.err.println("WebsCarpetaLookTest: resposta tallada: ${e.message}")
+        }
     }
 
     @After fun stop() {
@@ -94,7 +105,9 @@ class WebsCarpetaLookTest {
                 MaterialTheme(colorScheme = pal.scheme()) { screen(vm) }
             }
         }
-        ui.waitUntil(30_000) { ready(vm) }
+        // El ViewModel publica el resultat al fil principal, que amb el looper
+        // aturat no sempre es buida sol: sense això la prova fallava de tant en tant.
+        ui.waitUntil(30_000) { shadowOf(Looper.getMainLooper()).idle(); ready(vm) }
         ui.waitForIdle()
         val view = ui.activity.window.decorView
         val bmp = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
