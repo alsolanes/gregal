@@ -82,6 +82,9 @@
   // configuració plegada a sota. Abans hi havia tres capes (Vents · Racó ·
   // Automatitzacions a dalt, Gregal · Fes · Feina, Recursos i «Més») i era
   // fàcil perdre's.
+  // Buidar la barra la fa més curta i el navegador hi retalla el desplaçament:
+  // en tornar-la a pintar, ha de quedar on era.
+  const scroller=nav.closest('.side-scroll'),scrolled=scroller?.scrollTop;
   const top=el('div','vw-nav-top');
   top.append(iconBtn('plus',t('Nova conversa','New conversation'),newChat,'vw-new'));
   const search=btn('',()=>root.gregalPalette?.open?.(),'vw-nav-item vw-nav-icon vw-nav-search');search.append(navIcon('search'),el('span','',t('Cerca','Search')),el('kbd','',/Mac/.test(navigator.platform)?'⌘K':'Ctrl K'));top.append(search);
@@ -125,8 +128,11 @@
   more.append(prefs,subRow(['apres','Què sap de tu','About you']),subRow(['rules','Regles','Rules']),shellRow('memoria','Memòria del projecte','Project memory','wiki'),pc,subRow(['library','Biblioteca','Library']),subRow(['wiki','Wiki','Wiki']),subRow(['pati','El pati','Playground']),shellRow('raco','El Racó dels vents','The winds’ corner','pati'));
   more.open=settingsViews.includes(state.view)||(()=>{try{return localStorage.getItem('gregal_vw_more')==='1';}catch{return false;}})();
   // En obrir-lo, la barra baixa fins al final del menú: si no, les opcions
-  // quedaven sota la barra de baix i semblava que no s'obria.
-  more.addEventListener('toggle',()=>{try{localStorage.setItem('gregal_vw_more',more.open?'1':'0');}catch{}if(more.open&&more.isConnected)requestAnimationFrame(()=>more.lastElementChild?.scrollIntoView?.({block:'nearest',behavior:'smooth'}));});nav.append(more);
+  // quedaven sota la barra de baix i semblava que no s'obria. El navegador
+  // també avisa amb «toggle» quan l'obrim nosaltres en pintar-la: aquell no.
+  let painted=more.open;
+  more.addEventListener('toggle',()=>{const byHand=!painted;painted=false;try{localStorage.setItem('gregal_vw_more',more.open?'1':'0');}catch{}if(byHand&&more.open&&more.isConnected)requestAnimationFrame(()=>more.lastElementChild?.scrollIntoView?.({block:'nearest',behavior:'smooth'}));});nav.append(more);
+  if(scroller)scroller.scrollTop=scrolled;
  }
  // Qui porta la conversa: la cara, el nom i l'ofici. En un grup, les cares de qui hi és.
  function owner(){

@@ -1,5 +1,5 @@
-// La portada d'inici de Vents (winds-workspace.js): la pàgina sencera amb un
-// DOM mínim i una API falsa, com winds.test.js.
+// La portada d'inici de Vents (winds-workspace.js) i la seva barra lateral: la
+// pàgina sencera amb un DOM mínim i una API falsa, com winds.test.js.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -12,10 +12,28 @@ class Element {
   setAttribute(k, v) { this.attributes[k] = String(v); if (k === 'class') this.className = String(v); }
   getAttribute(k) { return this.attributes[k] ?? null; }
   removeAttribute(k) { delete this.attributes[k]; }
-  append(...nodes) { for (const n of nodes) { const e = typeof n === 'string' ? Object.assign(new Element('text', this.doc), { _text: n }) : n; e.remove(); e.parentNode = this; this.children.push(e); } }
+  append(...nodes) { for (const n of nodes) { const e = typeof n === 'string' ? Object.assign(new Element('text', this.doc), { _text: n }) : n; e.remove(); e.parentNode = this; this.children.push(e); } this.layout(); }
   prepend(...nodes) { const old = this.children; this.children = []; this.append(...nodes); this.children.push(...old); }
-  remove() { if (this.parentNode) this.parentNode.children = this.parentNode.children.filter(c => c !== this); this.parentNode = null; }
-  replaceChildren(...nodes) { for (const c of this.children) c.parentNode = null; this.children = []; this._text = ''; this.append(...nodes); }
+  remove() { const p = this.parentNode; if (p) p.children = p.children.filter(c => c !== this); this.parentNode = null; p?.layout(); }
+  replaceChildren(...nodes) { for (const c of this.children) c.parentNode = null; this.children = []; this._text = ''; this.layout(); this.append(...nodes); }
+  // Una caixa que es desplaça, com un navegador que torna a fer el disseny a
+  // cada canvi: cada node fa 20 px, la finestra en fa 100, i si el contingut
+  // s'escurça el desplaçament queda retallat i no torna sol.
+  get scrollHeight() { const count = n => n.children.reduce((a, c) => a + 1 + count(c), 0); return 20 * count(this); }
+  get clientHeight() { return 100; }
+  get scrollTop() { return this._scrollTop || 0; }
+  set scrollTop(v) { this._scrollTop = Math.max(0, Math.min(v, this.scrollHeight - this.clientHeight)); }
+  layout() { for (let n = this; n; n = n.parentNode) if (n._scrollTop) n.scrollTop = n._scrollTop; }
+  // Com als navegadors: canviar `open` d'un <details> avisa amb un sol
+  // «toggle» més tard, tant si ho fa la persona com el codi.
+  get open() { return !!this._open; }
+  set open(v) {
+    if (!!v === this.open) return;
+    this._open = !!v;
+    if (this.tagName !== 'DETAILS' || this._toggling) return;
+    this._toggling = true;
+    setTimeout(() => { this._toggling = false; for (const f of this.listeners.toggle || []) f({ type: 'toggle', target: this }); }, 0);
+  }
   replaceWith(n) { const p = this.parentNode; if (!p) return; const i = p.children.indexOf(this); n.remove(); n.parentNode = p; p.children[i] = n; this.parentNode = null; }
   get firstChild() { return this.children[0] || null; }
   get lastElementChild() { return this.children.at(-1) || null; }
@@ -33,7 +51,7 @@ class Element {
   async click() { if (this.onclick) await this.onclick({ target: this, stopPropagation() {} }); for (const f of this.listeners.click || []) await f({ target: this }); }
   requestSubmit() { return this.onsubmit && this.onsubmit({ preventDefault() {} }); }
   focus() {}
-  scrollIntoView() {}
+  scrollIntoView() { const s = this.closest('.side-scroll'); if (s) s.scrollTop = s.scrollHeight; }
   getBoundingClientRect() { return { top: 0 }; }
 }
 
@@ -54,10 +72,14 @@ function stream(history) {
   return { ok: true, status: 200, body: { getReader: () => ({ read: async () => { if (sent) return { done: true }; sent = true; return { done: false, value: bytes }; }, cancel: async () => {}, releaseLock() {} }) } };
 }
 
-async function boot({ lang = 'en', api } = {}) {
+async function boot({ lang = 'en', api, storage = {} } = {}) {
   const doc = { createElement: t => new Element(t, doc), createElementNS: (_, t) => new Element(t, doc), documentElement: { lang }, querySelector: () => null, addEventListener() {} };
   doc.root = new Element('root', doc);
-  for (const id of ['ventsPage', 'windContextNav', 'windsListCard', 'side']) { const n = new Element('div', doc); n.setAttribute('id', id); doc.root.append(n); }
+  for (const id of ['ventsPage', 'windsListCard', 'side']) { const n = new Element('div', doc); n.setAttribute('id', id); doc.root.append(n); }
+  // Com a index.html: la barra dels vents és dins la part que es desplaça de #side.
+  const scroller = new Element('div', doc), sideNav = new Element('div', doc);
+  scroller.className = 'side-scroll'; sideNav.setAttribute('id', 'windContextNav');
+  scroller.append(sideNav); doc.root.querySelector('#side').append(scroller);
   doc.getElementById = id => doc.root.querySelector('#' + id);
   doc.body = new Element('body', doc);
   const requests = [];
@@ -87,13 +109,13 @@ async function boot({ lang = 'en', api } = {}) {
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'winds-workspace.js'), 'utf8'), {
     window, document: doc, console, URLSearchParams, setTimeout: later, clearTimeout, queueMicrotask, TextDecoder, Option,
     getComputedStyle: () => ({ getPropertyValue: () => '' }), matchMedia: () => ({ matches: true }),
-    sessionStorage: { getItem: () => null, setItem() {} }, localStorage: { getItem: () => null, setItem() {} },
+    sessionStorage: { getItem: () => null, setItem() {} }, localStorage: { getItem: k => storage[k] ?? null, setItem: (k, v) => { storage[k] = String(v); } },
     location: { hash: '', pathname: '/', search: '' }, history: { replaceState() {} }, navigator: { platform: 'Win32' }, requestAnimationFrame: f => f(),
   });
   await window.loadWindsPage();
   await settle();
   const page = doc.getElementById('ventsPage');
-  return { window, doc, page, requests, nav: doc.getElementById('windContextNav') };
+  return { window, doc, page, requests, nav: doc.getElementById('windContextNav'), scroller };
 }
 const settle = () => new Promise(r => setTimeout(r, 5));
 const byText = (root, sel, text) => root.querySelectorAll(sel).find(n => n.textContent.includes(text));
@@ -239,4 +261,30 @@ test('a «Do» template starts one new Gregal conversation right away, even on a
   const sent = f.requests.filter(r => r.url === '/api/winds/chat/stream');
   assert.equal(sent.length, 1);
   assert.ok(f.requests.indexOf(sent[0]) > f.requests.indexOf(created[0]));
+});
+
+test('changing wind from the sidebar keeps the sidebar where it was', async () => {
+  const f = await boot();
+  f.scroller.scrollTop = 160;
+  assert.equal(f.scroller.scrollTop, 160, 'the sidebar is long enough to scroll');
+  await byText(f.nav, 'button', 'Xaloc').click();
+  await settle();
+  assert.match(f.page.querySelector('.vw-top').textContent, /Xaloc/, 'the sidebar was drawn again');
+  assert.equal(f.scroller.scrollTop, 160);
+});
+
+test('a sidebar drawn with «Settings & more» left open does not scroll; opening it by hand does', async () => {
+  const f = await boot({ storage: { gregal_vw_more: '1' } });
+  f.scroller.scrollTop = 160;
+  await byText(f.nav, 'button', 'Xaloc').click();
+  await settle();
+  const more = f.nav.querySelector('details');
+  assert.ok(more.open, 'the menu is drawn open, as it was left');
+  assert.equal(f.scroller.scrollTop, 160, 'drawing it open is not opening it');
+
+  more.open = false;
+  await settle();
+  more.open = true;
+  await settle();
+  assert.equal(f.scroller.scrollTop, f.scroller.scrollHeight - f.scroller.clientHeight, 'opened by hand, its options come into view');
 });
