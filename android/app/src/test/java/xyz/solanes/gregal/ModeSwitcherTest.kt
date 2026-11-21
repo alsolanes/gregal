@@ -25,7 +25,7 @@ class ModeSwitcherTest {
         val selected = mutableStateOf(AppArea.Vents)
         ui.setContent {
             androidx.compose.runtime.CompositionLocalProvider(LocalPal provides LightPal) {
-                ModeSwitcher("en", selected.value, { selected.value = it })
+                ModeSwitcher("en", selected.value, false, { selected.value = it })
             }
         }
         ui.onNodeWithText("Winds").assertIsSelected()

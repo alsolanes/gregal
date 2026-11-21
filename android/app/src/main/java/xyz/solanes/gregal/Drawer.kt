@@ -98,6 +98,9 @@ fun GregalDrawerContent(
 ) {
     val simple by vm.simpleVents.collectAsState()
     if (simple) { SimpleVentsDrawer(vm, lang, screen, local, server, project, branch, nav, close); return }
+    val windBusy by vm.windBusy.collectAsState()
+    val windNews by vm.windNews.collectAsState()
+    val windAttention = windBusy.isNotEmpty() || windNews.isNotEmpty()
     CappedFontScale(1.5f) {
         Column(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 8.dp)) {
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
@@ -114,7 +117,7 @@ fun GregalDrawerContent(
                     ProjectPill(project.ifEmpty { tr(lang, "app.nav.project") }, branch)
                 }
                 Spacer(Modifier.height(12.dp))
-                ModeSwitcher(lang, activeAppArea(screen, simple), { area -> close(); vm.switchArea(area) },
+                ModeSwitcher(lang, activeAppArea(screen, simple), windAttention, { area -> close(); vm.switchArea(area) },
                     Modifier.fillMaxWidth().padding(horizontal = 6.dp).testTag("area-switcher"))
                 Spacer(Modifier.height(12.dp))
                 DrawerRow(tr(lang, "nav.new"), false, { vm.newSession(); nav(Screen.Chat) }) { Icon(Icons.Rounded.Add, null, tint = Sea, modifier = Modifier.size(22.dp)) }
@@ -171,6 +174,9 @@ private fun SimpleVentsDrawer(
 ) {
     val user by vm.usuari.collectAsState()
     val panel by vm.ventsPanel.collectAsState()
+    val windBusy by vm.windBusy.collectAsState()
+    val windNews by vm.windNews.collectAsState()
+    val windAttention = windBusy.isNotEmpty() || windNews.isNotEmpty()
     val codeScreens = setOf(Screen.Chat, Screen.Sessions, Screen.Carpeta, Screen.Work)
     var codeOpen by rememberSaveable { mutableStateOf(false) }
     CappedFontScale(1.5f) {
@@ -185,7 +191,7 @@ private fun SimpleVentsDrawer(
                     }
                 }
                 Spacer(Modifier.height(18.dp))
-                ModeSwitcher(lang, activeAppArea(screen, true), { area -> close(); vm.switchArea(area) },
+                ModeSwitcher(lang, activeAppArea(screen, true), windAttention, { area -> close(); vm.switchArea(area) },
                     Modifier.fillMaxWidth().padding(horizontal = 6.dp).testTag("area-switcher"))
                 Spacer(Modifier.height(12.dp))
                 val home = screen == Screen.Company || screen == Screen.Ventet
