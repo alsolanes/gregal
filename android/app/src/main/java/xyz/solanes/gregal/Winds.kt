@@ -87,7 +87,7 @@ data class Wind(
 
     /** L'estil de cara per a WindFace; l'objecte d'ofici (kit) manen el specialty i la inferència del rol. */
     val faceStyle: WindStyle get() = windStyleOf(style).copy(kit = if (kit.isNotBlank()) kit else if (specialty.isNotBlank()) specialty else inferKit(role),
-        pack = avatar, bearing = windDirection(id, name))
+        pack = avatar, bearing = windDirection(id, name), windId = windId(id, name))
 
     companion object {
         fun parse(raw: String): List<Wind> {

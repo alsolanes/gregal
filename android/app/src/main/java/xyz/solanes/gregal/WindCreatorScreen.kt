@@ -166,7 +166,7 @@ internal fun WindEditor(
             TextButton(onClick = { gallery = false }, modifier = Modifier.fillMaxWidth()) { Text(tr(lang, "app.vents.startFromScratch")) }
             } else {
             // The face owns the canvas: no halo, duplicate title, or preset wall before creation.
-            val face = windStyleOf(style).copy(pack = avatar, bearing = windDirection(edit?.id.orEmpty(), name))
+            val face = windStyleOf(style).copy(pack = avatar, bearing = windDirection(edit?.id.orEmpty(), name), windId = windId(edit?.id.orEmpty(), name))
             val controlsEnabled = !saving && !suggesting
             Surface(
                 shape = RoundedCornerShape(24.dp),

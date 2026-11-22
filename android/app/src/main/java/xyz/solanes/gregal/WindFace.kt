@@ -105,7 +105,9 @@ internal fun windMotionEnabled(): Boolean {
  */
 data class WindStyle(val eyes: WindEyes = WindEyes.DOTS, val mouth: WindMouth = WindMouth.SMILE, val shape: WindShape = WindShape.BALL, val kit: String = "",
     /** The wind's own avatar pack (Wind.avatar) and the bearing it blows from (windDirection): they come from the wind, not the style code. */
-    val pack: String = "", val bearing: Int = 0)
+    val pack: String = "", val bearing: Int = 0,
+    /** windId: what seeds the Mapa de vent picture, so the same wind always gets the same one. */
+    val windId: String = "")
 
 enum class WindEyes(val key: String) { DOTS("p"), WIDE("b"), STARRY("e"), SLEEPY("m") }
 enum class WindMouth(val key: String) { SMILE("s"), OPEN("o"), NEUTRAL("n"), TONGUE("t") }
@@ -124,7 +126,7 @@ fun windStyleOf(code: String?): WindStyle {
 fun WindStyle.encode(): String = eyes.key + mouth.key + shape.key
 
 /** The packs a wind can be drawn with; the account theme is one of them or "free" (task 045). */
-internal val windPacks = listOf("cares", "esperit", "cap", "rosa")
+internal val windPacks = listOf("cares", "esperit", "cap", "rosa", "mapa")
 
 /** The account's avatar theme (`avatarTheme` of GET /api/winds); "free" draws each wind with its own pack. */
 val LocalAvatarTheme = compositionLocalOf { "cares" }
@@ -147,13 +149,16 @@ private val windRose = mapOf("tramuntana" to 0, "gregal" to 45, "llevant" to 90,
  * the eight from its id (or, not saved yet, the slug its name will get).
  */
 internal fun windDirection(id: String, name: String): Int {
-    val key = java.text.Normalizer.normalize(name, java.text.Normalizer.Form.NFD)
-        .replace(Regex("[\u0300-\u036f]"), "").trim().lowercase()
-    windRose[key]?.let { return it }
-    val seed = id.ifEmpty { key.replace(Regex("[^a-z0-9]+"), "-").trim('-') }
+    windRose[plainWindName(name)]?.let { return it }
     // winds.js keeps h * 31 + c as unsigned 32 bit: the low bits of String.hashCode.
-    return (seed.hashCode() and 7) * 45
+    return (windId(id, name).hashCode() and 7) * 45
 }
+
+private fun plainWindName(name: String) = java.text.Normalizer.normalize(name, java.text.Normalizer.Form.NFD)
+    .replace(Regex("[\u0300-\u036f]"), "").trim().lowercase()
+
+/** `windId` in winds.js: the id, or for a wind not saved yet the slug its name will get. */
+internal fun windId(id: String, name: String): String = id.ifEmpty { plainWindName(name).replace(Regex("[^a-z0-9]+"), "-").trim('-') }
 
 /** The higher-contrast ink over the wind's colour, as the web picks it. */
 private fun windInk(accent: Color): Color {
@@ -164,7 +169,7 @@ private fun windInk(accent: Color): Color {
 /** Aura del color del vent mentre treballa; a les llistes petites seria soroll. */
 internal fun windShowsAura(mood: WindMood, size: Int): Boolean = size >= 64 && mood in windWorkMoods
 
-private val windWorkMoods = setOf(
+internal val windWorkMoods = setOf(
     WindMood.THINKING, WindMood.SEARCHING, WindMood.READING,
     WindMood.WRITING, WindMood.WORKING, WindMood.DISCUSSING,
 )
@@ -212,6 +217,7 @@ fun WindFace(
         "esperit" -> return EsperitFace(size, mood, accent, style.bearing, motion, modifier)
         "cap" -> return CapFace(size, mood, accent, style.bearing, motion, modifier)
         "rosa" -> return RosaFace(size, mood, accent, style.bearing, motion, modifier)
+        "mapa" -> return MapFace(size, mood, accent, style, motion, modifier)
     }
     // La forma reacciona quan el dit toca la cara i torna amb molla en deixar-la.
     val touch = if (tappable && motion) remember { MutableInteractionSource() } else null
@@ -902,7 +908,7 @@ private val sayDots = listOf(line("M58 14h.01M61.5 14h.01M65 14h.01", 2.2f))
 private val newsStar = listOf(solid("M66.5 4.5l1.7 4 4 1.7-4 1.7-1.7 4-1.7-4-4-1.7 4-1.7Z", 0xFFF2B53A, 1.3f))
 
 /** Insígnia de l'estat a dalt a la dreta (espai de 80×80). Quieta sense moviment. */
-private fun DrawScope.drawBadge(mood: WindMood, loop: Float, motion: Boolean, done: Float, tone: Color) {
+internal fun DrawScope.drawBadge(mood: WindMood, loop: Float, motion: Boolean, done: Float, tone: Color) {
     fun wave(period: Float) = sin(2f * PI.toFloat() * (loop % period) / period)
     fun drawKit(shapes: List<KitShape>) = drawKit(shapes, tone)
     badgeShapes[mood]?.let { drawKit(it) }
