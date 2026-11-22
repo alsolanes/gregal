@@ -68,9 +68,9 @@ class WindBreathTest {
     }
 
     /** A 40 dp face on black with 20 dp around it; the margin is 10 % of the face (4 dp). */
-    @Composable private fun framed(tag: String, name: String, mood: WindMood) {
+    @Composable private fun framed(tag: String, name: String, mood: WindMood, tappable: Boolean = false) {
         Box(Modifier.testTag(tag).background(Color.Black).padding(20.dp)) {
-            WindFace(size = 40, mood = mood, accent = accent, style = style(name))
+            WindFace(size = 40, mood = mood, accent = accent, style = style(name), tappable = tappable)
         }
     }
 
@@ -122,18 +122,20 @@ class WindBreathTest {
         assertNotEquals("the book stays", ink(image("idle"), dp(50), dp(20), dp(60), dp(30)), ink(image("reading"), dp(50), dp(20), dp(60), dp(30)))
     }
 
-    @Test fun `the breath streams while the wind works, even in a list face, and goes away when it is idle`() {
+    @Test fun `the breath streams while the wind works, still in a list face, and goes away when it is idle`() {
         ui.mainClock.autoAdvance = false
         val mood = mutableStateOf(WindMood.WORKING)
         ui.setContent {
             Row {
-                framed("face", "Tramuntana", mood.value)
+                framed("face", "Tramuntana", mood.value, tappable = true)
+                framed("list", "Tramuntana", WindMood.WORKING)
                 CompositionLocalProvider(LocalWindMotion provides false) { framed("still", "Tramuntana", WindMood.WORKING) }
             }
         }
         ui.mainClock.advanceTimeBy(100)
         val first = image("face")
         val still = image("still")
+        val list = image("list")
         val px = first.width / 80f
         fun below(b: Bitmap) = Bitmap.createBitmap(b, (20 * px).toInt(), (60 * px).toInt() + 1, (40 * px).toInt(), (4 * px).toInt())
         // Brightness along Tramuntana's middle line, which runs south below the
@@ -150,6 +152,7 @@ class WindBreathTest {
         assertNotEquals("the dashes move", before, later)
         assertTrue("with motion off it is shown but still, like the rest of Cares", ink(below(still), 0, 0, Int.MAX_VALUE, Int.MAX_VALUE) > 0)
         assertTrue(below(still).sameAs(below(image("still"))))
+        assertTrue("a list face shows it but keeps still, like the rest of Cares in lists", ink(below(list), 0, 0, Int.MAX_VALUE, Int.MAX_VALUE) > 0 && below(list).sameAs(below(image("list"))))
         mood.value = WindMood.IDLE
         ui.mainClock.advanceTimeBy(100)
         assertEquals("back to idle, no breath", 0, ink(below(image("face")), 0, 0, Int.MAX_VALUE, Int.MAX_VALUE))

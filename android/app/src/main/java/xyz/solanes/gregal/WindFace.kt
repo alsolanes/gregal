@@ -237,10 +237,10 @@ fun WindFace(
             initialValue = 0f, targetValue = 12f,
             animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing)), label = "loop")
     } else null
-    // The breath streams in list faces too, but like the rest of Cares it stays
-    // still when motion is off.
+    // Like the rest of Cares, the breath is shown but still in list faces and
+    // when motion is off.
     val breathing = mood in windBreathMoods
-    val blow = if (breathing && motionAllowed) {
+    val blow = if (breathing && motion) {
         rememberInfiniteTransition(label = "wind-breath").animateFloat(
             initialValue = 0f, targetValue = 1f,
             animationSpec = infiniteRepeatable(tween(750, easing = LinearEasing)), label = "blow")
