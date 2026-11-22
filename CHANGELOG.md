@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## v1.93.0 - 2026-11-22 - Quatre aspectes nous per als vents
+
+- **Quatre aspectes nous per als vents (web, escriptori i Android).** A
+  Preferències → Avatars, a més de les Cares i l'Esperit de vent, hi ha el
+  Cap de vent (el cap dels mapes antics que bufa cap on va el vent), la Rosa
+  de rellotge (la rosa dels vents com una esfera, amb la punta del vent en
+  el seu color) i el Mapa de vent (un mapa del temps viu dins del cercle,
+  amb ratxes que bufen en la direcció del vent). Pots triar-ne un per a tots
+  els vents, o el mode lliure perquè cada vent tingui el seu.
+- **Android ja tria l'aspecte dels vents.** El tema es tria a Preferències i,
+  en mode lliure, cada vent tria el seu a l'editor, com al web.
+- **Les cares bufen quan el vent treballa (web, escriptori i Android).**
+  Mentre un vent pensa, busca, llegeix o escriu, la seva cara bufa unes
+  línies cap on va el vent. En les llistes, l'alè s'hi veu però quiet.
+
 ## v1.92.0 - 2026-11-22 - Els vents treballen sempre en Actua
 
 - **Els vents treballen sempre en Actua (web, escriptori i Android).** El
