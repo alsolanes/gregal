@@ -361,7 +361,9 @@ export const prefs = {
         '<h3 class="pf-sec">' + esc(L('Ajuda i aplicació', 'Help and application')) + '</h3>' +
         fila('prefs.shortcuts', 'prefs.shortcuts.help', '<button type="button" class="pf-open" id="prefsKeys">' + esc(L('Mostra', 'Show')) + '</button>') + desktopUpdates.section()],
       ['appearance', 'palette', this.select('tema') + this.segment('densitat') + this.segment('mida') +
-        '<h3 class="pf-sec">' + esc(L('Personalització', 'Personalization')) + '</h3>' + collective.section() + funPrefs.section()],
+        '<h3 class="pf-sec">' + esc(L('Personalització', 'Personalization')) + '</h3>' + collective.section() +
+        // Avatars dels vents: winds.js l'omple amb el tema del compte.
+        '<div id="prefsAvatars" class="pf-row" hidden></div>' + funPrefs.section()],
       ['models', 'model',
         // Què fa servir ara i si pot respondre (es pinta quan respon el servidor).
         '<div class="pf-row" id="prefsModelRow"><div class="pf-lab"><b>' + esc(T('prefs.providers')) + '</b><span>' + esc(T('prefs.providers.help')) + '</span></div>' +
@@ -455,6 +457,7 @@ export const prefs = {
     this.lligaPlugins();
     voicePrefs.bind(cos);
     collective.bind(cos);
+    if ($('prefsAvatars')) window.gregalWinds?.avatarPrefs($('prefsAvatars'));
     desktopUpdates.bind(cos);
     chromeExt.bind(cos, () => this.repinta());
     wordAddin.bind(cos, () => this.repinta());

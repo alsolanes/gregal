@@ -334,6 +334,58 @@
     o: [['circle', { cx:40, cy:40, r:33 }]],
     n: [['rect', { x:4.3, y:31, width:71.4, height:38.1, rx:17.4 }], ['circle', { cx:21.7, cy:38.5, r:20.1 }], ['circle', { cx:42.4, cy:34.3, r:25.8 }], ['circle', { cx:59.8, cy:41.2, r:18 }]],
   };
+  const num = value => +value.toFixed(2);
+  // Avatar packs: the account's theme draws every wind with one pack, or 'free'
+  // lets each wind use its own `avatar` (empty is Cares). The server keeps both.
+  const packs = ['cares', 'esperit'];
+  let theme = 'cares';
+  function setAvatarTheme(value) { theme = value === 'free' || packs.includes(value) ? value : 'cares'; }
+  function avatarPack(w) { return theme !== 'free' ? theme : packs.includes(w.avatar) ? w.avatar : 'cares'; }
+  // Compass bearing (0 = N) a wind blows from: the eight Catalan winds by name,
+  // case and accents aside; any other wind one of the eight from its id.
+  // Android's WindFace mirrors both: h = h * 31 + each UTF-16 unit, unsigned 32
+  // bit (the bits of Java's String.hashCode), then (h % 8) * 45.
+  const rose = { tramuntana:0, gregal:45, llevant:90, xaloc:135, migjorn:180, garbi:225, ponent:270, mestral:315 };
+  function direction(w) {
+    const name = String(w?.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+    if (Object.hasOwn(rose, name)) return rose[name];
+    // A wind not saved yet (the editor's preview) uses the id its name will get.
+    const id = String(w?.id || name.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''));
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+    return h % 8 * 45;
+  }
+  // Esperit de vent (mockups/vents-avatars.html): a head with two tails that
+  // point to where the wind comes from, its eyes looking where it goes. Drawn
+  // in a 100 box scaled into the 80 one, so mood badges keep their corner. The
+  // idle sway is left out when the system asks for less motion; work moves the
+  // tails from winds.css either way.
+  function esperit(svg, w, fill, ink) {
+    const deg = direction(w), rad = deg * Math.PI / 180, ux = Math.sin(rad), uy = -Math.cos(rad), R = 28;
+    const hx = num(50 - 12 * ux), hy = num(50 - 12 * uy), px = -1.6 * ux, py = -1.6 * uy, q = v => num(v * R);
+    const id = 'wf' + (++faceSerial), defs = svgNode('defs', {}), tail = 'url(#' + id + 't)';
+    defs.append(
+      shapes(svgNode('radialGradient', { id:id + 'h', cx:num(hx - 9), cy:num(hy - 11), r:num(1.9 * R), gradientUnits:'userSpaceOnUse' }),
+        [[0, mix(fill, '#FFFFFF', .5)], [.5, fill], [1, mix(fill, '#1B1530', .35)]].map(([offset, tint]) => ['stop', { offset, 'stop-color':tint }])),
+      shapes(svgNode('linearGradient', { id:id + 't', x1:q(.4), y1:0, x2:q(1.9), y2:0, gradientUnits:'userSpaceOnUse' }),
+        [[0, 1], [.55, .55], [1, 0]].map(([offset, opacity]) => ['stop', { offset, 'stop-color':fill, 'stop-opacity':opacity }])));
+    svg.append(defs);
+    svg.setAttribute('data-avatar', 'esperit');
+    if (!root.matchMedia?.('(prefers-reduced-motion: reduce)').matches) svg.setAttribute('class', svg.getAttribute('class') + ' wf-idle');
+    const drift = group(group(svg, '', { transform:'scale(.8)' }), 'wf-drift', { style:`--wf-dx:${num(px)}px;--wf-dy:${num(py - 1.4)}px` });
+    shapes(group(group(drift, '', { transform:`translate(${hx} ${hy}) rotate(${deg - 90})` }), 'wf-tails'), [
+      ['path', { d:`M0 ${q(-1)}C${q(.9)} ${q(-1.06)} ${q(1.45)} ${q(-.72)} ${q(1.9)} ${q(-.58)}C${q(1.3)} ${q(-.42)} ${q(.85)} ${q(-.18)} ${q(.3)} ${q(-.02)}Z`, fill:tail }],
+      ['path', { d:`M0 ${q(1)}C${q(.8)} ${q(1.03)} ${q(1.22)} ${q(.78)} ${q(1.58)} ${q(.64)}C${q(1.1)} ${q(.5)} ${q(.7)} ${q(.3)} ${q(.25)} ${q(.12)}Z`, fill:tail }],
+      ['path', { d:`M${q(1.02)} ${q(.04)}C${q(1.3)} ${q(-.04)} ${q(1.5)} ${q(.1)} ${q(1.8)} ${q(.02)}`, fill:'none', stroke:tail, 'stroke-width':3.2, 'stroke-linecap':'round' }]]);
+    shapes(drift, [
+      ['circle', { cx:hx, cy:hy, r:R, fill:'url(#' + id + 'h)' }],
+      ...[-1, 1].flatMap(side => [
+        ['ellipse', { cx:num(hx + 14 * side), cy:num(hy + 6), rx:4.6, ry:2.8, fill:'#E4577A', opacity:.32 }],
+        ['ellipse', { cx:num(hx + 8 * side + px), cy:num(hy - 2 + py), rx:2.9, ry:3.7, fill:ink }],
+        ['circle', { cx:num(hx + 8 * side + 1 + px), cy:num(hy - 3.4 + py), r:1, fill:ink === '#FFFFFF' ? fill : '#FFFFFF' }]]),
+      ['path', { d:`M${num(hx - 5)} ${num(hy + 6)}Q${hx} ${num(hy + 10.5)} ${num(hx + 5)} ${num(hy + 6)}`, fill:'none', stroke:ink, 'stroke-width':2.2, 'stroke-linecap':'round' }]]);
+    return svg;
+  }
   // `large` picks the level of detail: false is a clean face for lists and chat
   // rows; true is the whole figure on its own ground, with the tool of its
   // trade; 'figure' is that figure without ground, for scenes that draw theirs.
@@ -349,15 +401,16 @@
     const svg = doc.createElementNS(SVG, 'svg'), key = w.id || w.name || 'crew';
     svg.setAttribute('viewBox', '0 0 80 80'); svg.setAttribute('class', 'winds-face' + (large === true ? ' winds-face-large' : ''));
     svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('focusable', 'false');
-    if (kit) svg.setAttribute('data-kit', kitKey);
     if (w.id) svg.setAttribute('data-wind', w.id);
     if ((!mood || mood === 'idle') && news.has(w.id)) mood = 'news';
     let seed = 0; for (const c of String(key)) seed = (seed * 31 + c.charCodeAt(0)) % 997;
     svg.style.setProperty('--wf-phase', (-((clock() + seed / 83) % 12)).toFixed(2) + 's');
     faceKeys.set(svg, key); faceTones.set(svg, tone);
+    if (avatarPack(w) === 'esperit') return setMood(esperit(svg, w, fill, ink), mood, key);
+    if (kit) svg.setAttribute('data-kit', kitKey);
     // Volume: soft light from the top left, the wind's own deep tone below, a rim
     // of bounced light at the far edge and a satin sheen. No outline, no glare.
-    const id = 'wf' + (++faceSerial), defs = svgNode('defs', {}), num = value => +value.toFixed(2);
+    const id = 'wf' + (++faceSerial), defs = svgNode('defs', {});
     const paint = (suffix, attrs, stops) => {
       const gradient = svgNode('radialGradient', { id:id + suffix, ...attrs });
       shapes(gradient, stops.map(([offset, tint, opacity]) => ['stop', { offset, 'stop-color':tint, 'stop-opacity':opacity ?? 1 }]));
@@ -463,7 +516,7 @@
     state.loading = (async () => {
       try {
         const [winds, chats] = await Promise.all([call('/api/winds'), call('/api/winds/rotllanes')]);
-        state.winds = winds.winds || []; state.conversations = chats.rotllanes || [];
+        setAvatarTheme(winds.avatarTheme); state.winds = winds.winds || []; state.conversations = chats.rotllanes || [];
         draw(); status('windsStatus', ''); return true;
       } catch (_) { status('windsStatus', tr("winds.weCouldNotLoadYourWindsTryRefresh", "No hem pogut carregar els vents. Torna-ho a provar amb «Actualitza la llista»."), true); return false; }
       finally { state.loading = false; }
@@ -720,10 +773,10 @@
   }
   function windForm(w, focusBack, preset) {
     const editing = !!w; w = w || preset || {name:'', role:'', persona:'', color:'#F5B45D', style:'pso'};
-    let name, role, persona, tint, eyes, mouth, shape;
+    let name, role, persona, tint, eyes, mouth, shape, avatar;
     const form = dialogForm(editing ? tr('winds.characterOf', 'El caràcter de {name}', {name:w.name}) : tr('winds.aNewWind', 'Un vent nou'), 'windsWindForm', editing ? tr('winds.saveChanges', 'Desa els canvis') : tr('winds.createWind', 'Crea el vent'), async feedback => {
       if (!name.value.trim()) { paint(feedback, tr('winds.giveYourWindAName', 'Posa un nom al vent.')); name.focus(); return; }
-      const payload = {name:name.value.trim(), role:role.value.trim(), color:color(tint.value), persona:persona.value.trim(), style:eyes.value + mouth.value + shape.value};
+      const payload = {name:name.value.trim(), role:role.value.trim(), color:color(tint.value), persona:persona.value.trim(), style:eyes.value + mouth.value + shape.value, avatar:avatar?.value};
       if (editing) payload.id = w.id;
       const saved = await call('/api/winds', 'POST', payload);
       await verifyWritten(async () => {
@@ -746,8 +799,43 @@
     eyes = select(choices, 'windEyes', tr('winds.eyes', 'Ulls'), [['p',tr('winds.dots','Punts')],['b',tr('winds.wideOpen','Ben oberts')],['e',tr('winds.starry','Estrellats')],['m',tr('winds.halfClosed','Mig tancats')]], s[0]);
     mouth = select(choices, 'windMouth', tr('winds.mouth', 'Boca'), [['s',tr('winds.smile','Somriure')],['o',tr('winds.open','Oberta')],['n',tr('winds.relaxed','Tranquil·la')],['t',tr('winds.tongue','Llengua')]], s[1]);
     shape = select(choices, 'windShape', tr('winds.shape', 'Forma'), [['o',tr('winds.ball','Bola')],['n',tr('winds.cloud','Núvol')],['s',tr('winds.spiral','Espiral')]], s[2]);
-    const update = () => preview.replaceChildren(face({color:tint.value, style:eyes.value + mouth.value + shape.value}, true));
-    [tint, eyes, mouth, shape].forEach(n => { n.addEventListener('change', update); n.addEventListener('input', update); }); update(); form.show();
+    avatar = avatarField(form.fields, w);
+    const update = () => preview.replaceChildren(face({id:w.id, name:name.value, color:tint.value, style:eyes.value + mouth.value + shape.value, avatar:avatar?.value}, true));
+    [tint, eyes, mouth, shape, avatar].filter(Boolean).forEach(n => { n.addEventListener('change', update); n.addEventListener('input', update); }); update(); form.show();
+  }
+  // Packs by name; the first ones are the packs a wind can pick in Free mode.
+  const themeChoices = () => [['cares', tr('winds.avatarCares', 'Cares')], ['esperit', tr('winds.avatarEsperit', 'Esperit de vent')], ['free', tr('winds.avatarFree', 'Lliure')]];
+  // The editor offers a pack only in Free mode; with a theme it names the pack
+  // that draws every wind, and saving leaves the wind's own choice untouched.
+  function avatarField(parent, w) {
+    if (theme !== 'free') {
+      parent.append(node('p', 'winds-muted', tr('winds.avatarThemeInUse', 'Tots els vents es dibuixen amb «{pack}». Es canvia a Preferències › Avatars.', {pack:themeChoices().find(([value]) => value === theme)[1]})));
+      return null;
+    }
+    return select(parent, 'windAvatar', tr('winds.avatar', 'Avatar'), themeChoices().filter(([value]) => packs.includes(value)), packs.includes(w?.avatar) ? w.avatar : 'cares');
+  }
+  // «Avatars» in Preferences, saved per account so every device draws the same.
+  async function avatarPrefs(box) {
+    const label = node('div', 'pf-lab'), choices = node('div', 'pf-seg'), feedback = node('span', 'winds-status');
+    label.append(node('b', '', tr('winds.avatars', 'Avatars')), node('span', '', tr('winds.avatarsHelp', 'Un estil per a tots els vents, o Lliure perquè cada vent triï el seu.')), feedback);
+    choices.setAttribute('role', 'group'); attribute(choices, 'aria-label', tr('winds.avatars', 'Avatars'));
+    feedback.setAttribute('role', 'status');
+    box.replaceChildren(label, choices); box.hidden = false;
+    try { setAvatarTheme((await call('/api/winds')).avatarTheme); }
+    catch (_) { paint(feedback, tr('winds.avatarsNotLoaded', 'No s’han pogut llegir els avatars. Torna a obrir Preferències.')); return; }
+    const mark = () => { for (const b of choices.children) { const on = b.getAttribute('data-v') === theme; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); } };
+    for (const [value, name] of themeChoices()) {
+      const choice = node('button', '', name); choice.setAttribute('type', 'button'); choice.setAttribute('data-v', value);
+      choice.onclick = async () => {
+        try {
+          await call('/api/winds/avatar-theme', 'POST', {theme:value});
+          setAvatarTheme(value); mark(); paint(feedback, '');
+          if (doc.body?.classList.contains('shell-winds')) root.loadWindsPage?.();
+        } catch (_) { paint(feedback, tr('winds.avatarsNotSaved', 'No s’han pogut desar els avatars. Torna-ho a provar.')); }
+      };
+      choices.append(choice);
+    }
+    mark();
   }
   function conversationForm(conversation, focusBack) {
     const editing = !!conversation, minimum = conversation?.members.length > 1 ? 2 : 1;
@@ -810,6 +898,6 @@
     })().finally(()=>{startingCrew=null;});
     return startingCrew;
   }};
-  root.gregalWinds={face, create:windGallery, mood:setMood, moodOf, watchNews, seen:seenNews, messageFromHash};
+  root.gregalWinds={face, create:windGallery, mood:setMood, moodOf, watchNews, seen:seenNews, messageFromHash, direction, setAvatarTheme, avatarTheme:() => theme, avatarField, avatarPrefs};
   root.loadWindsPage = function () { bind(); return load(); };
 })(window);

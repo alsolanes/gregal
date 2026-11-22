@@ -473,3 +473,57 @@ test('failed post-save catalogue verification does not claim success or lose for
   assert.equal(f.$('windsConversationName').value,'Nou');
   assert.match(f.$('windsChatFormDialog').textContent,/no hem pogut comprovar/i);
 });
+
+// Avatar packs: the account theme (Cares, Esperit de vent) draws every face,
+// Free lets each wind use its own `avatar`.
+function avatarServer(state) {
+  const json=data=>({ok:true,json:async()=>data});
+  return (req,{winds})=>{
+    if(req.url==='/api/winds'&&req.method==='GET') return json({winds:winds.map(w=>({...w,avatar:state.avatars[w.id]||''})),avatarTheme:state.theme});
+    if(req.url==='/api/winds/avatar-theme') {state.theme=req.body.theme;return json({theme:state.theme});}
+    if(req.url==='/api/winds/profile?wind=xaloc') return json({wind:{...winds[0],avatar:state.avatars.xaloc||'',persona:'Curiós.'},knowledge:'',personal_memory:''});
+    if(req.url==='/api/winds'&&req.method==='POST') {if(req.body.avatar)state.avatars[req.body.id]=req.body.avatar;return json({wind:{...winds[0],...req.body}});}
+  };
+}
+const packsIn=root=>root.querySelectorAll('svg').map(svg=>svg.getAttribute('data-avatar')||'cares');
+
+test('«Avatars» in Preferences offers Cares, Esperit de vent and Free, and a pack draws every face',async()=>{
+  const state={theme:'cares',avatars:{mestral:'esperit'}};
+  const f=await boot(avatarServer(state));
+  assert.deepEqual(packsIn(f.$('windsList')),['cares','cares'],'Cares by default, even for a wind that chose another pack');
+  const box=f.doc.createElement('div');
+  await f.root.gregalWinds.avatarPrefs(box);
+  assert.match(box.textContent,/Avatars/);
+  assert.deepEqual(box.querySelectorAll('button').map(b=>b.textContent),['Cares','Esperit de vent','Lliure']);
+  assert.equal(byText(box,'button','Cares').getAttribute('aria-pressed'),'true');
+  await byText(box,'button','Esperit de vent').click();
+  assert.deepEqual(f.requests.find(r=>r.url==='/api/winds/avatar-theme').body,{theme:'esperit'});
+  assert.equal(byText(box,'button','Esperit de vent').getAttribute('aria-pressed'),'true');
+  assert.equal(byText(box,'button','Cares').getAttribute('aria-pressed'),'false');
+  await f.root.loadWindsPage(); await settle();
+  assert.deepEqual(packsIn(f.$('windsList')),['esperit','esperit']);
+  await byText(box,'button','Lliure').click();
+  await f.root.loadWindsPage(); await settle();
+  assert.deepEqual(packsIn(f.$('windsList')),['cares','esperit'],'Free: each wind with its own avatar');
+});
+
+test('the wind editor shows the pack picker only in Free mode; with a theme it says which one is in use',async()=>{
+  const state={theme:'free',avatars:{xaloc:'esperit'}};
+  const f=await boot(avatarServer(state));
+  await byText(f.$('windsList'),'button','Xaloc').click();
+  await byText(f.$('windsChatMembers'),'button','Perfil').click();
+  await byText(f.$('windsProfile'),'button','Edita el caràcter').click();
+  assert.equal(f.$('windAvatar').value,'esperit');
+  assert.equal(f.$('windFacePreview').querySelector('svg').getAttribute('data-avatar'),'esperit');
+  f.$('windAvatar').value='cares'; await f.$('windAvatar').emit('change');
+  assert.equal(f.$('windFacePreview').querySelector('svg').getAttribute('data-avatar'),null,'the preview follows the picker');
+  await f.$('windsWindForm').emit('submit');
+  assert.equal(f.requests.findLast(r=>r.url==='/api/winds'&&r.method==='POST').body.avatar,'cares');
+  state.theme='esperit';
+  await f.root.loadWindsPage(); await settle();
+  await byText(f.$('windsProfile'),'button','Edita el caràcter').click();
+  assert.equal(f.$('windAvatar'),null,'no picker while a theme draws every wind');
+  assert.match(f.$('windsDialogBody').textContent,/Esperit de vent/);
+  await f.$('windsWindForm').emit('submit');
+  assert.equal('avatar' in f.requests.findLast(r=>r.url==='/api/winds'&&r.method==='POST').body,false,'the wind keeps its own pack');
+});

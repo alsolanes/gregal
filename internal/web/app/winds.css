@@ -314,6 +314,16 @@
 .winds-face[data-mood=news] .wf-tool { animation:wf-twinkle 2s ease-in-out var(--wf-phase,0s) infinite; }
 .winds-face[data-mood=done] .wf-figure { animation:wf-breathe 4s ease-in-out var(--wf-phase,0s) infinite, wf-hop .8s ease-out var(--wf-since,0s) 1; }
 .winds-face[data-mood=done] .wf-pop { animation:wf-pop .5s cubic-bezier(.3,1.6,.5,1) var(--wf-since,0s) 1 backwards; }
+/* Esperit de vent: the tails sway around the head and it drifts downwind. The
+   idle loop exists only when winds.js drew the face with motion allowed
+   (wf-idle). Real work moves them four times faster, even under reduced
+   motion, because that motion is the work being shown. */
+.winds-face .wf-tails { transform-origin:0 0; }
+.winds-face.wf-idle .wf-tails { animation:wf-wiggle 3s ease-in-out var(--wf-phase,0s) infinite; }
+.winds-face.wf-idle .wf-drift { animation:wf-drift 3s ease-in-out var(--wf-phase,0s) infinite; }
+.winds-face:is([data-mood=thinking],[data-mood=searching],[data-mood=reading],[data-mood=writing],[data-mood=working],[data-mood=discussing]) .wf-tails { animation:wf-wiggle .75s ease-in-out var(--wf-phase,0s) infinite !important; }
+.winds-face:is([data-mood=thinking],[data-mood=searching],[data-mood=reading],[data-mood=writing],[data-mood=working],[data-mood=discussing]) .wf-drift { animation:wf-drift .75s ease-in-out var(--wf-phase,0s) infinite !important; }
+@keyframes wf-drift { 0%,100% { transform:translate(0,0); } 50% { transform:translate(var(--wf-dx,0px),var(--wf-dy,0px)); } }
 @keyframes wf-breathe { 0%,100% { transform:scale(1,1); } 50% { transform:scale(.99,1.025); } }
 @keyframes wf-sway { 0%,100% { transform:rotate(-5deg); } 50% { transform:rotate(6deg); } }
 @keyframes wf-blink { 0%,95%,100% { transform:scaleY(1); } 96.5% { transform:scaleY(.1); } 98% { transform:scaleY(1); } }

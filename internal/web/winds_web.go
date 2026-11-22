@@ -2,8 +2,10 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -19,11 +21,12 @@ import (
 // xat amb context de projecte. La feina proactiva no la fan ells: es crea com
 // un job del sistema (Feines), que ja dispara i notifica.
 //
-//	GET  /api/winds                → {winds:[{id,name,color,role}]}
+//	GET  /api/winds                → {avatarTheme,winds:[{id,name,color,role,avatar}]}
 //	GET  /api/winds/chat?wind=<id> → {wind,history:[{from,text}]}
 //	POST /api/winds/chat           → {reply,wind,history}
 //	POST /api/winds                → crea/actualitza un vent {name,color,role,persona}
 //	DELETE /api/winds              → {id}
+//	POST /api/winds/avatar-theme   → {theme}: cares, esperit o free
 
 // windHistoryEntry conserva l'historial en memòria i el desa al magatzem
 // durador després de cada resposta (mateix patró que les mascotes).
@@ -188,9 +191,50 @@ func (s *Server) handleWinds(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]map[string]any, 0, len(list))
 	for _, w := range list {
-		out = append(out, map[string]any{"id": w.ID, "name": w.Name, "color": w.Color, "role": w.Role, "style": w.Style, "squad": w.Squad, "specialty": w.Specialty, "kit": kitOf(w), "followups": followupsLabel(w)})
+		out = append(out, map[string]any{"id": w.ID, "name": w.Name, "color": w.Color, "role": w.Role, "style": w.Style, "squad": w.Squad, "specialty": w.Specialty, "kit": kitOf(w), "followups": followupsLabel(w), "avatar": w.Avatar})
 	}
-	writeJSON(w, map[string]any{"winds": out})
+	writeJSON(w, map[string]any{"winds": out, "avatarTheme": s.avatarTheme()})
+}
+
+// El tema d'avatars és del compte i viu al costat de winds.json, com el nom
+// col·lectiu: un pack per a tots els vents, o "free" (cada vent el seu Avatar).
+const avatarThemeFile = "avatar-theme.json"
+
+type avatarThemeSetting struct {
+	Theme string `json:"theme"`
+}
+
+func validAvatarTheme(theme string) bool { return theme == "free" || companion.ValidAvatar(theme) }
+
+// avatarTheme torna el tema desat; sense triar (o il·legible), les cares.
+func (s *Server) avatarTheme() string {
+	var saved avatarThemeSetting
+	raw, err := os.ReadFile(filepath.Join(s.windStateDir(), avatarThemeFile))
+	if err == nil && json.Unmarshal(raw, &saved) == nil && validAvatarTheme(saved.Theme) {
+		return saved.Theme
+	}
+	return "cares"
+}
+
+// handleWindsAvatarTheme: POST {theme} desa el tema d'avatars del compte.
+func (s *Server) handleWindsAvatarTheme(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", http.StatusMethodNotAllowed)
+		return
+	}
+	var req avatarThemeSetting
+	if !decodeSmall(w, r, &req) {
+		return
+	}
+	if !validAvatarTheme(req.Theme) {
+		http.Error(w, "unknown avatar theme", http.StatusBadRequest)
+		return
+	}
+	if err := writeWindJSON(filepath.Join(s.windStateDir(), avatarThemeFile), req); err != nil {
+		http.Error(w, "could not save", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, req)
 }
 
 // windLoop és la via de cerca del vent; els tests la substitueixen. Per

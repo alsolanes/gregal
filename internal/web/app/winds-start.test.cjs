@@ -51,6 +51,8 @@ class Element {
   async click() { if (this.onclick) await this.onclick({ target: this, stopPropagation() {} }); for (const f of this.listeners.click || []) await f({ target: this }); }
   requestSubmit() { return this.onsubmit && this.onsubmit({ preventDefault() {} }); }
   focus() {}
+  showModal() {}
+  close() { for (const f of this.listeners.close || []) f({ target: this }); }
   scrollIntoView() { const s = this.closest('.side-scroll'); if (s) s.scrollTop = s.scrollHeight; }
   getBoundingClientRect() { return { top: 0 }; }
 }
@@ -86,7 +88,9 @@ async function boot({ lang = 'en', api, storage = {} } = {}) {
   const json = data => ({ ok: true, status: 200, json: async () => data, text: async () => JSON.stringify(data) });
   const window = {
     document: doc, gregalNotes: notes, addEventListener() {},
-    gregalWinds: { face: w => { const n = new Element('svg', doc); n.dataset.wind = w?.name || ''; return n; }, moodOf: () => '', seen() {}, watchNews() {} },
+    gregalWinds: { face: w => { const n = new Element('svg', doc); n.dataset.wind = w?.name || ''; return n; }, moodOf: () => '', seen() {}, watchNews() {}, setAvatarTheme(theme) { this.theme = theme; },
+      // winds.js draws the real picker (winds.test.js); here only Free mode gets one.
+      avatarField(parent, w) { if (this.theme !== 'free') return null; const s = new Element('select', doc); s.setAttribute('id', 'windAvatar'); s.value = w?.avatar || 'cares'; parent.append(s); return s; } },
     api: async (url, opts = {}) => {
       const req = { url, method: opts.method || 'GET', body: opts.body ? JSON.parse(opts.body) : undefined };
       requests.push(req);
@@ -215,6 +219,51 @@ test('while a wind is answering, the start page opens the running conversation a
   assert.ok(f.page.querySelector('.vw-messages'));
   finish();
   await first;
+});
+
+test('the Vents page hands the account avatar theme from /api/winds to the face drawer', async () => {
+  const f = await boot({ api: r => r.url === '/api/winds' ? { ok: true, status: 200, json: async () => ({ winds, avatarTheme: 'esperit' }) } : null });
+  assert.equal(f.window.gregalWinds.theme, 'esperit');
+});
+
+// A personal wind (no squad) with its own pack, on an account in Free mode or with a theme.
+function avatarBoot(theme) {
+  // More winds than the sidebar lists, so it links to «All winds».
+  const mine = [{ id: 'xaloc', name: 'Xaloc', color: '#F5B45D', role: 'Música', style: 'pso', avatar: 'esperit' }, winds[1],
+    { id: 'ponent', name: 'Ponent', color: '#EACF87', style: 'msn' }, { id: 'mestral', name: 'Mestral', color: '#BFCFA4', style: 'esn' }];
+  const ok = data => ({ ok: true, status: 200, json: async () => data });
+  return boot({ api: r => r.url === '/api/winds' && r.method === 'GET' ? ok({ winds: mine, avatarTheme: theme }) : r.url === '/api/winds' ? ok({ wind: r.body })
+    : r.url === '/api/winds/tidy' ? ok({ groups: [], test: [], unused: [] }) : null });
+}
+const lastWindPost = f => f.requests.findLast(r => r.url === '/api/winds' && r.method === 'POST').body;
+
+test('in Free mode a wind’s profile and the create dialog let you pick its avatar pack', async () => {
+  const f = await avatarBoot('free');
+  await byText(f.nav, 'button', 'All winds').click(); await settle();
+  await byText(byText(f.page, '.vw-member', 'Xaloc'), 'button', 'Profile').click(); await settle();
+  const pick = f.doc.body.querySelector('#windAvatar');
+  assert.equal(pick.value, 'esperit');
+  pick.value = 'cares'; await pick.onchange();
+  assert.deepEqual([lastWindPost(f).id, lastWindPost(f).avatar], ['xaloc', 'cares']);
+  await byText(f.page, 'button', 'Create your own wind').click(); await settle();
+  const dialog = f.doc.body.children.at(-1);
+  dialog.querySelector('input').value = 'Lupa';
+  dialog.querySelector('#windAvatar').value = 'esperit';
+  await byText(dialog, 'button', 'Create wind').click();
+  assert.deepEqual([lastWindPost(f).name, lastWindPost(f).avatar], ['Lupa', 'esperit']);
+});
+
+test('with a theme set, neither the profile nor the create dialog offers a pack, and saving keeps the wind’s own', async () => {
+  const f = await avatarBoot('esperit');
+  await byText(f.nav, 'button', 'All winds').click(); await settle();
+  await byText(byText(f.page, '.vw-member', 'Xaloc'), 'button', 'Profile').click(); await settle();
+  assert.equal(f.doc.body.querySelector('#windAvatar'), null);
+  await byText(f.page, 'button', 'Create your own wind').click(); await settle();
+  const dialog = f.doc.body.children.at(-1);
+  assert.equal(dialog.querySelector('#windAvatar'), null);
+  dialog.querySelector('input').value = 'Lupa';
+  await byText(dialog, 'button', 'Create wind').click();
+  assert.equal('avatar' in lastWindPost(f), false);
 });
 
 test('the start page header just says Winds, not Today', async () => {

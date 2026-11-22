@@ -149,3 +149,65 @@ test('a proactive voice marks its wind until its chat is opened', async () => {
   assert.equal(after.getAttribute('aria-hidden'), 'true');
   assert.ok(JSON.parse(store['gregal.winds.newsSeen']).marinada >= ts);
 });
+
+// Esperit de vent: the face with two wind tails. Android's WindFace mirrors
+// the table and the hash, so these literal directions are the contract.
+test('the wind direction comes from the wind rose by name, or from a stable hash of the id', () => {
+  const { winds } = load();
+  const rose = { Tramuntana:0, Gregal:45, Llevant:90, Xaloc:135, Migjorn:180, 'Garbí':225, Ponent:270, Mestral:315 };
+  for (const [name, deg] of Object.entries(rose)) assert.equal(winds.direction({ id:'x', name }), deg, name);
+  assert.equal(winds.direction({ id:'x', name:'  GARBI ' }), 225, 'case and accents do not matter');
+  assert.equal(winds.direction({ id:'bit', name:'Bit' }), 225);
+  assert.equal(winds.direction({ id:'teca', name:'Teca' }), 315);
+  assert.equal(winds.direction({ id:'llevant-2', name:'Llevant 2' }), 135);
+  assert.equal(winds.direction({ id:'espurna', name:'Espurna' }), 90);
+  assert.equal(load().winds.direction({ id:'espurna', name:'Espurna' }), 90, 'the same id always gets the same direction');
+  assert.equal(winds.direction({ name:'Lupa Ràpida' }), winds.direction({ id:'lupa-rapida', name:'Lupa Ràpida' }), 'the preview of a new wind points where the saved wind will');
+});
+
+test('with a theme every face uses its pack; in free mode each wind uses its own avatar', () => {
+  const { winds } = load();
+  const xaloc = { id:'xaloc', name:'Xaloc', color:'#EFA68F', style:'pso', avatar:'esperit' }, plain = { id:'ponent', name:'Ponent', color:'#EACF87', style:'pso' };
+  const pack = svg => svg.getAttribute('data-avatar');
+  assert.equal(pack(winds.face(xaloc)), null, 'Cares by default, whatever the wind chose');
+  winds.setAvatarTheme('esperit');
+  assert.equal(pack(winds.face(xaloc)), 'esperit');
+  assert.equal(pack(winds.face(plain, true)), 'esperit');
+  winds.setAvatarTheme('free');
+  assert.equal(pack(winds.face(xaloc)), 'esperit');
+  assert.equal(pack(winds.face(plain)), null, 'no avatar of its own: Cares');
+  winds.setAvatarTheme('cares');
+  assert.equal(pack(winds.face(xaloc)), null);
+  winds.setAvatarTheme('bufador');
+  assert.equal(winds.avatarTheme(), 'cares', 'an unknown theme falls back to Cares');
+});
+
+test('Esperit de vent points its tails to where the wind comes from and looks the other way', () => {
+  const { winds } = load();
+  winds.setAvatarTheme('esperit');
+  const svg = winds.face({ id:'ponent', name:'Ponent', color:'#EACF87', style:'pso', specialty:'books' }, true);
+  assert.equal(svg.getAttribute('data-kit'), null, 'the new packs draw no trade kit');
+  const tails = svg.querySelector('.wf-tails');
+  assert.ok(tails && tails.children.length >= 2, 'two tails');
+  // Ponent blows from the west: the tails, drawn along +x, turn to point west.
+  assert.match(tails.parent.attrs.transform, /rotate\(180\)$/);
+  const head = svg.all().find(n => n.tag === 'circle' && /^url\(/.test(n.attrs.fill || ''));
+  const eyes = svg.all().filter(n => n.tag === 'ellipse' && n.attrs.rx === '2.9');
+  assert.equal(eyes.length, 2);
+  assert.ok(+eyes[0].attrs.cx > +head.attrs.cx - 8, 'eyes look east, away from the tails');
+  assert.equal(svg.getAttribute('data-mood'), 'idle');
+});
+
+test('Esperit de vent idles only with motion on; real work always moves the tails', () => {
+  const still = load({ matchMedia:q => ({ matches:/reduce/.test(q) }) }).winds;
+  still.setAvatarTheme('esperit');
+  const w = { id:'xaloc', name:'Xaloc', color:'#EFA68F', style:'pso' };
+  assert.doesNotMatch(still.face(w).getAttribute('class'), /wf-idle/, 'no idle animation under reduced motion');
+  assert.equal(still.face(w, false, 'working').getAttribute('data-mood'), 'working', 'work is still shown');
+  const lively = load({ matchMedia:() => ({ matches:false }) }).winds;
+  lively.setAvatarTheme('esperit');
+  assert.match(lively.face(w).getAttribute('class'), /wf-idle/);
+  const css = fs.readFileSync(path.join(__dirname, 'winds.css'), 'utf8');
+  assert.match(css, /\.winds-face\.wf-idle \.wf-tails\s*\{[^}]*animation:/, 'idle sway hangs on wf-idle');
+  assert.match(css, /\[data-mood=working\][^{]*\.wf-tails[^{]*\{[^}]*animation:[^}]*!important/, 'working tails move even when motion is reduced');
+});

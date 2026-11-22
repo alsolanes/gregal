@@ -29,7 +29,13 @@ type Wind struct {
 	// seu compte. Buit = no canviar en desar (els editors antics no l'envien);
 	// sense valor previ, actiu.
 	Followups string `json:"followups,omitempty"`
+	// Avatar: el pack amb què es dibuixa quan el tema del compte és «free».
+	// Buit = cares; buit en desar = no canviar (els editors antics no l'envien).
+	Avatar string `json:"avatar,omitempty"`
 }
+
+// ValidAvatar diu si p és un pack d'avatars que els clients saben dibuixar.
+func ValidAvatar(p string) bool { return p == "cares" || p == "esperit" }
 
 // FollowupsOn diu si el vent pot oferir-se a fer seguiments pel seu compte.
 func (w Wind) FollowupsOn() bool { return w.Followups != "off" }
@@ -233,6 +239,9 @@ func (ws *WindStore) save(w Wind, create bool) (Wind, error) {
 	if w.Followups != "on" && w.Followups != "off" {
 		w.Followups = ""
 	}
+	if w.Avatar != "" && !ValidAvatar(w.Avatar) {
+		return Wind{}, fmt.Errorf("unknown avatar pack")
+	}
 	if index >= 0 {
 		// Older Android/desktop editors do not send squad metadata.
 		if w.Squad == "" {
@@ -243,6 +252,9 @@ func (ws *WindStore) save(w Wind, create bool) (Wind, error) {
 		}
 		if w.Followups == "" {
 			w.Followups = d.Winds[index].Followups
+		}
+		if w.Avatar == "" {
+			w.Avatar = d.Winds[index].Avatar
 		}
 		d.Winds[index] = w
 	} else {
