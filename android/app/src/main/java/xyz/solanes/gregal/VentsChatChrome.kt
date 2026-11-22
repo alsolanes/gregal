@@ -85,6 +85,8 @@ internal fun VentsChatHeader(
     menu: Boolean = false,
     /** Portada de Gregal: només la cara, petita i flotant, sense nom ni fons (B14). */
     compact: Boolean = false,
+    /** El vent del xat: el seu ofici va en pastilla al costat del nom. */
+    wind: Wind? = null,
     modifier: Modifier = Modifier,
 ) {
     if (centered) {
@@ -105,7 +107,11 @@ internal fun VentsChatHeader(
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 WindHalo(accent, style, size = 30, mood = mood, stacked = faces.drop(1), online = false, showKit = faces.size <= 1)
                 Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                    Text(title, color = Ink, fontSize = 15.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    // El nom es mesura primer: la pastilla es queda amb el que sobra.
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(title, color = Ink, fontSize = 15.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (wind != null) WindRolePill(wind)
+                    }
                     if (subtitle.isNotBlank()) Text(subtitle, color = Muted, fontSize = 11.5.sp, lineHeight = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }

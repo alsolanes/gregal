@@ -1400,8 +1400,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         }
         }
         // La capçalera flota: el fil passa per sota de les pastilles.
-        VentsChatHeader(lang, wind.name,
-            wind.role,
+        VentsChatHeader(lang, wind.name, "",
             accent, wind.faceStyle,
             if (isBusy) live[wind.id]?.mood ?: WindMood.THINKING else WindMood.IDLE,
             onBack = onBack, onProfile = { profile = true },
@@ -1410,6 +1409,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             onTransfer = if (vm.canTransferToServer()) ({ askTransfer = true }) else null,
             onComputer = { computerOpen = true },
             onWatch = { watchOpen = true },
+            wind = wind,
             modifier = Modifier.align(Alignment.TopCenter))
     }
     if (profile) WindProfileDialog(vm, lang, wind) { profile = false }

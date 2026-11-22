@@ -6,14 +6,40 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.automirrored.rounded.ShowChart
+import androidx.compose.material.icons.rounded.BugReport
+import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Code
+import androidx.compose.material.icons.rounded.FitnessCenter
+import androidx.compose.material.icons.rounded.Flight
 import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.LocalShipping
+import androidx.compose.material.icons.rounded.Memory
+import androidx.compose.material.icons.rounded.Movie
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Psychology
+import androidx.compose.material.icons.rounded.RateReview
+import androidx.compose.material.icons.rounded.Restaurant
+import androidx.compose.material.icons.rounded.Savings
+import androidx.compose.material.icons.rounded.Science
+import androidx.compose.material.icons.rounded.Security
+import androidx.compose.material.icons.rounded.ShoppingBag
+import androidx.compose.material.icons.rounded.SportsSoccer
+import androidx.compose.material.icons.rounded.Storage
+import androidx.compose.material.icons.rounded.Timeline
+import androidx.compose.material.icons.rounded.Verified
+import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -185,9 +211,10 @@ internal fun DirectoryRow(lang: String, w: Wind, onProfile: () -> Unit, onTalk: 
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         WindHalo(Color(w.argb), w.faceStyle, size = 44, online = false, showKit = true)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        // El nom es mesura primer: la pastilla es queda amb el que sobra.
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(w.name, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (w.role.isNotBlank()) Text(w.role, color = Muted, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            WindRolePill(w)
         }
         OutlinedButton(
             onClick = onTalk,
@@ -276,5 +303,55 @@ internal fun WindTypingBubble(lang: String, wind: Wind, accent: Color, mood: Win
                 if (!label.isNullOrBlank()) Text(label, color = accent.copy(alpha = .85f), style = GregalType.caption, maxLines = 1)
             }
         }
+    }
+}
+
+/** La icona de la pastilla per a cada kit de les mascotes (`windKits`); null si el vent no en duu. */
+internal fun windKitIcon(kit: String): ImageVector? = when (kit) {
+    "shopping" -> Icons.Rounded.ShoppingBag
+    "books" -> Icons.AutoMirrored.Rounded.MenuBook
+    "sports" -> Icons.Rounded.SportsSoccer
+    "music" -> Icons.Rounded.MusicNote
+    "organisation" -> Icons.Rounded.CalendarMonth
+    "quality" -> Icons.Rounded.Verified
+    "regression" -> Icons.AutoMirrored.Rounded.ShowChart
+    "ml" -> Icons.Rounded.Psychology
+    "timeseries" -> Icons.Rounded.Timeline
+    "research" -> Icons.Rounded.Science
+    "tech" -> Icons.Rounded.Memory
+    "review" -> Icons.Rounded.RateReview
+    "ux" -> Icons.Rounded.Palette
+    "frontend" -> Icons.Rounded.Code
+    "backend" -> Icons.Rounded.Storage
+    "testing" -> Icons.Rounded.BugReport
+    "security" -> Icons.Rounded.Security
+    "delivery" -> Icons.Rounded.LocalShipping
+    "cooking" -> Icons.Rounded.Restaurant
+    "weather" -> Icons.Rounded.WbSunny
+    "travel" -> Icons.Rounded.Flight
+    "fitness" -> Icons.Rounded.FitnessCenter
+    "finance" -> Icons.Rounded.Savings
+    "movies" -> Icons.Rounded.Movie
+    else -> null
+}
+
+/**
+ * La pastilla de l'ofici al costat del nom, com `.tag` a la maqueta: el `role`
+ * tenyit amb el color del vent i el text mig color mig tinta, perquè es llegeixi
+ * en tots dos temes. Es talla amb «…» abans d'empènyer el nom fora de la fila.
+ */
+@Composable
+internal fun WindRolePill(wind: Wind, modifier: Modifier = Modifier) {
+    if (wind.role.isBlank()) return
+    val accent = Color(wind.argb)
+    val tint = lerp(accent, Ink, .5f)
+    Row(
+        modifier.heightIn(min = 20.dp).clip(RoundedCornerShape(6.dp)).background(accent.copy(alpha = .18f))
+            .padding(horizontal = 7.dp).testTag("role-pill"),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        windKitIcon(wind.faceStyle.kit)?.let { Icon(it, null, tint = tint, modifier = Modifier.size(12.dp).testTag("role-pill-icon")) }
+        Text(wind.role, color = tint, fontSize = 11.5.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium,
+            maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

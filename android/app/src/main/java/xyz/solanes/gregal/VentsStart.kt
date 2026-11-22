@@ -67,13 +67,15 @@ private fun StartFaces(winds: List<Wind>, onWind: (Wind) -> Unit) {
     ) {
         winds.forEach { w ->
             Column(
-                Modifier.width(60.dp).clip(RoundedCornerShape(12.dp)).clickable(role = Role.Button) { onWind(w) }
+                // Creix fins a 96 dp per la pastilla de l'ofici: a 60 dp només hi cabien dues lletres.
+                Modifier.widthIn(min = 60.dp, max = 96.dp).clip(RoundedCornerShape(12.dp)).clickable(role = Role.Button) { onWind(w) }
                     .padding(vertical = 4.dp).testTag("start-wind-" + w.id),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 WindHalo(Color(w.argb), w.faceStyle, size = 40, online = false, showKit = false)
                 Text(w.name, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                WindRolePill(w)
             }
         }
     }
