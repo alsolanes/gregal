@@ -8,7 +8,7 @@ const vm = require('node:vm');
 const notes = require('./winds-notes.js');
 
 class Element {
-  constructor(tag, doc) { this.tagName = tag.toUpperCase(); this.doc = doc; this.children = []; this.attributes = {}; this.dataset = {}; this.style = { setProperty() {} }; this.listeners = {}; this.value = ''; this.hidden = false; this.className = ''; this._text = ''; this.parentNode = null; this.namespaceURI = 'http://www.w3.org/2000/svg'; }
+  constructor(tag, doc) { this.tagName = tag.toUpperCase(); this.doc = doc; this.children = []; this.attributes = {}; this.dataset = {}; this.style = { setProperty(k, v) { this[k] = v; } }; this.listeners = {}; this.value = ''; this.hidden = false; this.className = ''; this._text = ''; this.parentNode = null; this.namespaceURI = 'http://www.w3.org/2000/svg'; }
   setAttribute(k, v) { this.attributes[k] = String(v); if (k === 'class') this.className = String(v); }
   getAttribute(k) { return this.attributes[k] ?? null; }
   removeAttribute(k) { delete this.attributes[k]; }
@@ -125,7 +125,7 @@ test('opening Vents shows the start page: faces of the winds and the recent conv
   assert.ok(!f.page.querySelector('.vw-messages'), 'not a thread');
   assert.ok(!f.requests.some(r => r.url.startsWith('/api/winds/chat?')), 'Gregal’s old thread is not loaded');
   assert.ok(f.page.querySelector('.vw-composer'));
-  const faces = f.page.querySelector('.vw-start-faces').querySelectorAll('button').map(b => b.textContent);
+  const faces = f.page.querySelector('.vw-start-faces').querySelectorAll('button').map(b => b.querySelector('span').textContent);
   assert.deepEqual(faces, ['Gregal', 'Xaloc'], 'Gregal first, then the other winds');
   const recent = f.page.querySelector('.vw-start-recent');
   assert.match(recent.textContent, /Recent conversations/);
@@ -287,4 +287,42 @@ test('a sidebar drawn with «Settings & more» left open does not scroll; openin
   more.open = true;
   await settle();
   assert.equal(f.scroller.scrollTop, f.scroller.scrollHeight - f.scroller.clientHeight, 'opened by hand, its options come into view');
+});
+
+// La pastilla de l'ofici: el rol del vent, tenyit amb el seu color.
+const pillOf = (root, name) => byText(root, 'button', name)?.querySelector('.vw-tag');
+
+test('every wind name next to its face carries a pill with its trade in the wind’s colour', async () => {
+  const f = await boot({ api: r => r.url === '/api/winds/tidy' ? { ok: true, status: 200, json: async () => ({ groups: [], test: [], unused: [] }) } : null });
+  const check = (pill, where) => {
+    assert.ok(pill, where + ': there is a pill');
+    assert.equal(pill.textContent, 'Música', where + ': the pill says the trade');
+    assert.equal(pill.style['--c'], '#F5B45D', where + ': in Xaloc’s colour');
+  };
+  check(pillOf(f.nav, 'Xaloc'), 'sidebar');
+  check(pillOf(f.page.querySelector('.vw-start-faces'), 'Xaloc'), 'start page');
+
+  await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();
+  await settle();
+  check(f.page.querySelector('.vw-top').querySelector('.vw-tag'), 'chat header');
+
+  await byText(f.page.querySelector('.vw-mobile-nav'), 'button', 'Winds').click();
+  await settle();
+  check(f.page.querySelectorAll('.vw-member').find(m => m.textContent.includes('Xaloc'))?.querySelector('.vw-tag'), 'All winds');
+});
+
+test('the pill shows the kit’s icon when the wind has one, no icon without a kit, and no pill without a role', async () => {
+  const list = [
+    { id: 'gregal', name: 'Gregal', color: '#8193FF', role: 'Assistent', style: 'psn', squad: 'daily' },
+    { id: 'xaloc', name: 'Xaloc', color: '#F5B45D', role: 'Música', style: 'pso', squad: 'daily', kit: 'music' },
+    { id: 'oreig', name: 'Oreig', color: '#A9D3F0', role: '', style: 'pso', squad: 'daily', kit: 'weather' },
+  ];
+  const f = await boot({ api: r => r.url === '/api/winds' ? { ok: true, status: 200, json: async () => ({ winds: list }) } : null });
+  for (const root of [f.nav, f.page.querySelector('.vw-start-faces')]) {
+    assert.ok(pillOf(root, 'Xaloc')?.querySelector('svg'), 'a kit gives the pill its icon');
+    assert.ok(pillOf(root, 'Gregal'), 'a wind without a kit still has its pill');
+    assert.equal(pillOf(root, 'Gregal').querySelector('svg'), null, '…with no icon');
+    assert.ok(byText(root, 'button', 'Oreig'), 'the wind is listed');
+    assert.equal(pillOf(root, 'Oreig'), null, 'an empty role shows no pill');
+  }
 });
