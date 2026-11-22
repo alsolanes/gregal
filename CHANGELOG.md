@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## v1.92.0 - 2026-11-22 - Els vents treballen sempre en Actua
+
+- **Els vents treballen sempre en Actua (web, escriptori i Android).** El
+  mode de Codi (Pregunta, Actua, Planifica) ja no arriba als vents: si tries
+  Pregunta o Planifica a Codi, els vents i les colles continuen podent fer la
+  feina en lloc de quedar-se en només lectura sense dir-ho. El que et demanen
+  abans de fer ho decideix el cadenat (el nivell d'accés), i el que sempre
+  demana permís (enviar correus, publicar, esborrar, fer push…) ho continua
+  demanant.
+- **El xat d'un vent ja no té la pastilla «Actua» (Android).** Ni a sobre del
+  camp ni al «+», amb Vents net o sense: un vent decideix sol què pot fer, i
+  des de Vents ja no es canvia el mode de Codi.
+
 ## v1.91.0 - 2026-11-22 - Pastilles d'ofici i l'Esperit de vent
 
 - **Cada vent porta la pastilla del seu ofici (web, escriptori i Android).**
