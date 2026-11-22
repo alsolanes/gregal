@@ -494,7 +494,7 @@ test('«Avatars» in Preferences offers every pack and Free, and a pack draws ev
   const box=f.doc.createElement('div');
   await f.root.gregalWinds.avatarPrefs(box);
   assert.match(box.textContent,/Avatars/);
-  assert.deepEqual(box.querySelectorAll('button').map(b=>b.textContent),['Cares','Esperit de vent','Cap de vent','Rosa de rellotge','Lliure']);
+  assert.deepEqual(box.querySelectorAll('button').map(b=>b.textContent),['Cares','Esperit de vent','Cap de vent','Rosa de rellotge','Mapa de vent','Lliure']);
   assert.equal(byText(box,'button','Cares').getAttribute('aria-pressed'),'true');
   await byText(box,'button','Esperit de vent').click();
   assert.deepEqual(f.requests.find(r=>r.url==='/api/winds/avatar-theme').body,{theme:'esperit'});
@@ -514,6 +514,7 @@ test('the wind editor shows the pack picker only in Free mode; with a theme it s
   await byText(f.$('windsChatMembers'),'button','Perfil').click();
   await byText(f.$('windsProfile'),'button','Edita el caràcter').click();
   assert.equal(f.$('windAvatar').value,'esperit');
+  assert.deepEqual(f.$('windAvatar').querySelectorAll('option').map(o=>o.textContent),['Cares','Esperit de vent','Cap de vent','Rosa de rellotge','Mapa de vent']);
   assert.equal(f.$('windFacePreview').querySelector('svg').getAttribute('data-avatar'),'esperit');
   f.$('windAvatar').value='cares'; await f.$('windAvatar').emit('change');
   assert.equal(f.$('windFacePreview').querySelector('svg').getAttribute('data-avatar'),null,'the preview follows the picker');
@@ -545,7 +546,7 @@ test('Cap de vent and Rosa de rellotge are packs in Preferences and in the Free 
   await byText(f.$('windsList'),'button','Xaloc').click();
   await byText(f.$('windsChatMembers'),'button','Perfil').click();
   await byText(f.$('windsProfile'),'button','Edita el caràcter').click();
-  assert.deepEqual(f.$('windAvatar').querySelectorAll('option').map(o=>o.getAttribute('value')),['cares','esperit','cap','rosa']);
+  assert.deepEqual(f.$('windAvatar').querySelectorAll('option').map(o=>o.getAttribute('value')),['cares','esperit','cap','rosa','mapa']);
   assert.equal(f.$('windAvatar').value,'cap');
   f.$('windAvatar').value='rosa'; await f.$('windAvatar').emit('change');
   assert.equal(f.$('windFacePreview').querySelector('svg').getAttribute('data-avatar'),'rosa');

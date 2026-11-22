@@ -152,3 +152,20 @@ func TestCapAndRosaAreAvatarPacks(t *testing.T) {
 		}
 	}
 }
+
+// El Mapa de vent és un pack com els altres: tema del compte i pack d'un vent.
+func TestMapaIsAnAvatarPack(t *testing.T) {
+	s := rutinaTestServer(t)
+	if code := setAvatarTheme(t, s, "mapa"); code != 200 {
+		t.Fatalf("tema mapa: %d", code)
+	}
+	if got := getWinds(t, s).AvatarTheme; got != "mapa" {
+		t.Fatalf("tema desat: %q", got)
+	}
+	if rec := postJSON(t, s.handleWinds, `{"id":"xaloc","name":"Xaloc","avatar":"mapa"}`); rec.Code != 200 {
+		t.Fatalf("avatar mapa: %d %s", rec.Code, rec.Body.String())
+	}
+	if got := avatarOf(t, s, "xaloc"); got != "mapa" {
+		t.Fatalf("avatar desat: %q", got)
+	}
+}

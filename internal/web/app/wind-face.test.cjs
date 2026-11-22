@@ -338,3 +338,78 @@ test('Cap de vent and Rosa de rellotge move while working; idle only with motion
   assert.match(css, /\[data-mood=working\][^{]*\.wf-cap-breath path[^{]*\{[^}]*animation:[^}]*!important/, 'working breath flows');
   assert.match(css, /\[data-mood=working\][^{]*\.wf-point[^{]*\{[^}]*animation:[^}]*!important/, 'working point swings');
 });
+
+// Mapa de vent: streaks on a canvas. Enough of a browser for it: a 2D context
+// that ignores the drawing, an IntersectionObserver the test drives and a
+// requestAnimationFrame that only queues.
+function mapLoad({ reduce = false } = {}) {
+  const frames = [], observers = [], ctx = { fillRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} };
+  const document = { hidden:false, addEventListener() {}, createElementNS:(_, tag) => new El(tag), createElement:tag => Object.assign(new El(tag), tag === 'canvas' ? { getContext:() => ctx } : {}) };
+  class IntersectionObserver { constructor(cb) { this.cb = cb; observers.push(this); } observe() {} unobserve() {} }
+  const { winds } = load({ document, IntersectionObserver, matchMedia:q => ({ matches:reduce && /reduce/.test(q) }), requestAnimationFrame:fn => frames.push(fn) });
+  winds.setAvatarTheme('mapa');
+  const show = (svg, on = true) => observers.forEach(o => o.cb([{ target:svg, isIntersecting:on, boundingClientRect:{ width:40 } }]));
+  return { winds, frames, show, document };
+}
+const ponent = { id:'ponent', name:'Ponent', color:'#EACF87', style:'pso', specialty:'books' };
+const picture = (winds, w, steps) => { let st = winds.mapStart(w); for (let i = 0; i < steps; i++) st = winds.mapStep(st, false); return JSON.stringify(st); };
+
+test('Mapa de vent is drawn on a canvas inside the face, with a theme or as a wind\'s own avatar', () => {
+  const { winds } = mapLoad();
+  const svg = winds.face(ponent, true);
+  assert.equal(svg.getAttribute('data-avatar'), 'mapa');
+  assert.equal(svg.getAttribute('data-kit'), null, 'the new packs draw no trade kit');
+  assert.ok(svg.all().some(n => n.tag === 'canvas'));
+  assert.equal(winds.face(ponent, false, 'working').getAttribute('data-mood'), 'working');
+  winds.setAvatarTheme('free');
+  assert.equal(winds.face({ ...ponent, avatar:'mapa' }).getAttribute('data-avatar'), 'mapa');
+  assert.equal(winds.face(ponent).getAttribute('data-avatar'), null);
+});
+
+test('the streaks blow away from where the wind comes from, faster while it works, and the same wind gets the same picture', () => {
+  const { winds } = mapLoad();
+  // Ponent blows from the west, so its streaks run east: +x on the canvas.
+  let st = winds.mapStart(ponent);
+  const east = Math.PI / 2, sum = [0, 0];
+  for (let i = 0; i < 40; i++) {
+    st = winds.mapStep(st, false);
+    for (const [x0, y0, x1, y1] of st.lines) {
+      const ang = Math.atan2(x1 - x0, y0 - y1);
+      assert.ok(Math.abs(ang - east) <= .61, 'every streak within the swirl of its course: ' + ang);
+      sum[0] += x1 - x0; sum[1] += y1 - y0;
+    }
+  }
+  assert.ok(Math.abs(Math.atan2(sum[0], -sum[1]) - east) < .1, 'on average due east');
+  // Tramuntana blows from the north: down the canvas.
+  const [x0, y0, x1, y1] = winds.mapStep(winds.mapStart({ id:'t', name:'Tramuntana' }), false).lines[0];
+  assert.ok(Math.abs(Math.atan2(x1 - x0, y0 - y1)) > Math.PI - .61);
+  const length = busy => winds.mapStep(winds.mapStart(ponent), busy).lines.reduce((total, [a, b, c, d]) => total + Math.hypot(c - a, d - b), 0);
+  assert.ok(length(true) > 2 * length(false), 'working moves faster');
+  assert.equal(picture(winds, ponent, 200), picture(mapLoad().winds, ponent, 200), 'the same wind always gets the same picture');
+  assert.notEqual(picture(winds, ponent, 200), picture(winds, { id:'llevant-2' }, 200));
+  assert.equal(picture(winds, { name:'Lupa Ràpida' }, 20), picture(winds, { id:'lupa-rapida', name:'Lupa Ràpida' }, 20), 'the preview of a new wind is the picture the saved wind gets');
+});
+
+test('a still map never joins the animation loop; work, motion and being on screen do', () => {
+  const still = mapLoad({ reduce:true });
+  const idle = still.winds.face(ponent);
+  still.show(idle);
+  assert.equal(still.frames.length, 0, 'idle under reduced motion: a still frame, no loop');
+  const busy = still.winds.face(ponent, false, 'working');
+  assert.equal(still.frames.length, 0, 'not on screen yet');
+  still.show(busy);
+  assert.equal(still.frames.length, 1, 'working moves even under reduced motion');
+  still.winds.mood(idle, 'searching');
+  assert.equal(still.frames.length, 1, 'one shared loop for every face');
+  still.frames.shift()();
+  assert.equal(still.frames.length, 1, 'the loop goes on while a face moves');
+  still.show(busy, false); still.winds.mood(idle, 'idle');
+  still.frames.shift()();
+  assert.equal(still.frames.length, 0, 'nothing moving on screen: the loop stops');
+  const lively = mapLoad();
+  lively.show(lively.winds.face(ponent));
+  assert.equal(lively.frames.length, 1, 'with motion allowed the idle map drifts');
+  lively.document.hidden = true;
+  lively.frames.shift()();
+  assert.equal(lively.frames.length, 0, 'a hidden tab stops the loop');
+});

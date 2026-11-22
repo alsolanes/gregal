@@ -318,6 +318,7 @@
     const now = clock(), last = moodSince.get(key);
     if (mood !== 'idle' && last?.mood !== mood) moodSince.set(key, { mood, at:now });
     svg.setAttribute('data-mood', mood);
+    if (maps.has(svg)) mapWake(maps.get(svg), mood);
     // News has no text next to it in every row, so it carries its own label.
     svg.querySelector('title')?.remove();
     if (mood === 'news') {
@@ -357,7 +358,7 @@
   const num = value => +value.toFixed(2);
   // Avatar packs: the account's theme draws every wind with one pack, or 'free'
   // lets each wind use its own `avatar` (empty is Cares). The server keeps both.
-  const packs = ['cares', 'esperit', 'cap', 'rosa'];
+  const packs = ['cares', 'esperit', 'cap', 'rosa', 'mapa'];
   let theme = 'cares';
   function setAvatarTheme(value) { theme = value === 'free' || packs.includes(value) ? value : 'cares'; }
   function avatarPack(w) { return theme !== 'free' ? theme : packs.includes(w.avatar) ? w.avatar : 'cares'; }
@@ -366,11 +367,13 @@
   // Android's WindFace mirrors both: h = h * 31 + each UTF-16 unit, unsigned 32
   // bit (the bits of Java's String.hashCode), then (h % 8) * 45.
   const rose = { tramuntana:0, gregal:45, llevant:90, xaloc:135, migjorn:180, garbi:225, ponent:270, mestral:315 };
+  const plainName = w => String(w?.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  // A wind not saved yet (the editor's preview) uses the id its name will get.
+  const windId = w => String(w?.id || plainName(w).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''));
   function direction(w) {
-    const name = String(w?.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+    const name = plainName(w);
     if (Object.hasOwn(rose, name)) return rose[name];
-    // A wind not saved yet (the editor's preview) uses the id its name will get.
-    const id = String(w?.id || name.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''));
+    const id = windId(w);
     let h = 0;
     for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
     return h % 8 * 45;
@@ -458,6 +461,106 @@
     shapes(dial, [['circle', { r:small ? 7 : 4.5, fill:cream }], ['circle', { r:small ? 3 : 1.8, fill:dark }]]);
     return svg;
   }
+  // Mapa de vent (mockups/vents-avatars.html): a live weather map in a circle,
+  // streaks blowing away from where the wind comes from. mapStep is pure, so
+  // the same wind always gets the same picture; the canvas only paints its
+  // lines. Positions are 0..1 of the canvas, angles compass radians.
+  const workMoods = ['thinking', 'searching', 'reading', 'writing', 'working', 'discussing'];
+  function mapRandom(r) {
+    r = (r + 0x6D2B79F5) >>> 0;
+    let z = Math.imul(r ^ r >>> 15, r | 1);
+    z ^= z + Math.imul(z ^ z >>> 7, z | 61);
+    return [((z ^ z >>> 14) >>> 0) / 4294967296, r];
+  }
+  function mapSpawn(r) {
+    let x, y, life;
+    [x, r] = mapRandom(r); [y, r] = mapRandom(r); [life, r] = mapRandom(r);
+    return [{ x, y, age:0, life:40 + life * 60 }, r];
+  }
+  function mapStart(w) {
+    let r = 0, p;
+    for (const c of windId(w)) r = (r * 31 + c.charCodeAt(0)) >>> 0;
+    const ps = [], seed = r % 1000 / 100;
+    for (let i = 0; i < 90; i++) { [p, r] = mapSpawn(r); ps.push(p); }
+    return { phi:(direction(w) + 180) * Math.PI / 180, seed, t:0, r, ps, lines:[] };
+  }
+  function mapStep(st, busy) {
+    const sp = busy ? .013 : .0055, t = st.t + .016, lines = [];
+    let r = st.r;
+    const ps = st.ps.map(p => {
+      const ang = st.phi + .6 * Math.sin(p.x * 5.5 + st.seed + t * .4) * Math.cos(p.y * 4.5 + t * .7);
+      const x = p.x + Math.sin(ang) * sp, y = p.y - Math.cos(ang) * sp, age = p.age + 1;
+      lines.push([p.x, p.y, x, y, Math.sin(Math.PI * p.age / p.life) * .5]);
+      if (age <= p.life && x > -.05 && x < 1.05 && y > -.05 && y < 1.05) return { x, y, age, life:p.life };
+      let next; [next, r] = mapSpawn(r); return next;
+    });
+    return { ...st, t, r, ps, lines };
+  }
+  function mapPaint(m, busy) {
+    const ctx = m.ctx, S = m.canvas.width;
+    m.st = mapStep(m.st, busy);
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = busy ? .16 : .1; ctx.fillStyle = m.base; ctx.fillRect(0, 0, S, S);
+    ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.strokeStyle = m.ink; ctx.lineWidth = Math.max(1.2, S / (S < 60 ? 28 : 70));
+    for (const [x0, y0, x1, y1, alpha] of m.st.lines) { ctx.globalAlpha = alpha; ctx.beginPath(); ctx.moveTo(x0 * S, y0 * S); ctx.lineTo(x1 * S, y1 * S); ctx.stroke(); }
+    ctx.globalAlpha = 1;
+  }
+  // One requestAnimationFrame for every map that moves and is on screen; none
+  // while the tab is hidden. A still map is painted once and never joins.
+  const maps = new WeakMap(), mapShown = new Set();
+  let mapFrame = 0, mapSeen = null;
+  function mapRun() {
+    if (!mapFrame && !doc.hidden && [...mapShown].some(m => m.moving)) mapFrame = root.requestAnimationFrame(mapTick);
+  }
+  function mapTick() {
+    mapFrame = 0;
+    for (const m of mapShown) if (m.moving) mapPaint(m, m.busy);
+    mapRun();
+  }
+  function mapWake(m, mood) {
+    m.busy = workMoods.includes(mood);
+    m.moving = m.busy || !root.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    mapRun();
+  }
+  function mapWatch(svg) {
+    if (!mapSeen) {
+      doc.addEventListener('visibilitychange', mapRun);
+      mapSeen = new root.IntersectionObserver(entries => {
+        for (const entry of entries) {
+          const m = maps.get(entry.target);
+          if (!entry.isIntersecting) {
+            mapShown.delete(m);
+            if (!entry.target.isConnected) mapSeen.unobserve(entry.target);
+            continue;
+          }
+          mapShown.add(m);
+          // ×2 for sharpness; a new size starts the same picture over.
+          const S = Math.max(48, Math.round(entry.boundingClientRect.width * 2));
+          if (m.size !== S) {
+            m.size = m.canvas.width = m.canvas.height = S; m.st = m.start;
+            m.ctx.fillStyle = m.base; m.ctx.fillRect(0, 0, S, S);
+            for (let i = 0; i < 50; i++) m.st = mapStep(m.st, false);
+            for (let i = 0; i < 20; i++) mapPaint(m, false);
+          }
+        }
+        mapRun();
+      });
+    }
+    mapSeen.observe(svg);
+  }
+  function mapa(svg, w, fill) {
+    const canvas = doc.createElement('canvas'), holder = svgNode('foreignObject', { x:0, y:0, width:80, height:80 }), id = 'wf' + (++faceSerial);
+    canvas.setAttribute('class', 'wf-map');
+    holder.append(canvas);
+    const defs = svgNode('defs', {});
+    defs.append(shapes(svgNode('radialGradient', { id, cx:.32, cy:.26, r:.46 }), [['stop', { offset:0, 'stop-color':'#FFFFFF', 'stop-opacity':.22 }], ['stop', { offset:1, 'stop-color':'#FFFFFF', 'stop-opacity':0 }]]));
+    svg.append(defs, holder);
+    svg.setAttribute('data-avatar', 'mapa');
+    shapes(svg, [['circle', { cx:40, cy:40, r:40, fill:'url(#' + id + ')' }], ['circle', { cx:40, cy:40, r:39.5, fill:'none', stroke:'#FFFFFF', 'stroke-opacity':.08 }]]);
+    const start = mapStart(w);
+    maps.set(svg, { canvas, ctx:canvas.getContext('2d'), start, st:start, base:mix(fill, '#0C0A13', .4), ink:mix(fill, '#FFFFFF', .55), size:0, busy:false, moving:false });
+    mapWatch(svg);
+    return svg;
+  }
   // `large` picks the level of detail: false is a clean face for lists and chat
   // rows; true is the whole figure on its own ground, with the tool of its
   // trade; 'figure' is that figure without ground, for scenes that draw theirs.
@@ -484,6 +587,7 @@
     if (pack === 'esperit') return setMood(esperit(svg, w, fill, ink), mood, key);
     if (pack === 'cap') return setMood(cap(svg, w, fill, ink, size < 28), mood, key);
     if (pack === 'rosa') return setMood(rosa(svg, w, fill, size < 28, large === true), mood, key);
+    if (pack === 'mapa') return setMood(mapa(svg, w, fill), mood, key);
     if (kit) svg.setAttribute('data-kit', kitKey);
     // Volume: soft light from the top left, the wind's own deep tone below, a rim
     // of bounced light at the far edge and a satin sheen. No outline, no glare.
@@ -882,7 +986,7 @@
     [tint, eyes, mouth, shape, avatar].filter(Boolean).forEach(n => { n.addEventListener('change', update); n.addEventListener('input', update); }); update(); form.show();
   }
   // Packs by name; the first ones are the packs a wind can pick in Free mode.
-  const themeChoices = () => [['cares', tr('winds.avatarCares', 'Cares')], ['esperit', tr('winds.avatarEsperit', 'Esperit de vent')], ['cap', tr('winds.avatarCap', 'Cap de vent')], ['rosa', tr('winds.avatarRosa', 'Rosa de rellotge')], ['free', tr('winds.avatarFree', 'Lliure')]];
+  const themeChoices = () => [['cares', tr('winds.avatarCares', 'Cares')], ['esperit', tr('winds.avatarEsperit', 'Esperit de vent')], ['cap', tr('winds.avatarCap', 'Cap de vent')], ['rosa', tr('winds.avatarRosa', 'Rosa de rellotge')], ['mapa', tr('winds.avatarMapa', 'Mapa de vent')], ['free', tr('winds.avatarFree', 'Lliure')]];
   // The editor offers a pack only in Free mode; with a theme it names the pack
   // that draws every wind, and saving leaves the wind's own choice untouched.
   function avatarField(parent, w) {
@@ -976,6 +1080,6 @@
     })().finally(()=>{startingCrew=null;});
     return startingCrew;
   }};
-  root.gregalWinds={face, create:windGallery, mood:setMood, moodOf, watchNews, seen:seenNews, messageFromHash, direction, setAvatarTheme, avatarTheme:() => theme, avatarField, avatarPrefs};
+  root.gregalWinds={face, create:windGallery, mood:setMood, moodOf, watchNews, seen:seenNews, messageFromHash, direction, mapStart, mapStep, setAvatarTheme, avatarTheme:() => theme, avatarField, avatarPrefs};
   root.loadWindsPage = function () { bind(); return load(); };
 })(window);

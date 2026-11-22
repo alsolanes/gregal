@@ -335,6 +335,9 @@
 :is(.vw-nav,.vw-pick-card,.vw-task-faces,.vw-crew-chip,.vw-owner,.vw-owner-faces,.vw-address-wind,.vw-thread-solo,.vw-wx-by) .winds-face .wf-puff { display:inline; }
 .winds-face:is([data-mood=thinking],[data-mood=searching],[data-mood=reading],[data-mood=writing],[data-mood=working]) .wf-breath path { animation:wf-blow .75s linear var(--wf-phase,0s) infinite; }
 @keyframes wf-blow { from { stroke-dashoffset:8; } to { stroke-dashoffset:0; } }
+
+/* Mapa de vent: winds.js paints the canvas; it fills the face as a circle. */
+.winds-face .wf-map { display:block; width:100%; height:100%; border-radius:50%; }
 @keyframes wf-drift { 0%,100% { transform:translate(0,0); } 50% { transform:translate(var(--wf-dx,0px),var(--wf-dy,0px)); } }
 /* Cap de vent's breath flows and Rosa de rellotge's point swings, on the same
    rule: idle only with wf-idle, faster and always while the wind works. */
