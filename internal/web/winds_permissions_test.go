@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -311,55 +312,53 @@ func TestWindInteractivePermissionsUseSessionWorkspace(t *testing.T) {
 	}
 }
 
-func TestWindReadOnlySessionCannotScheduleReminderThroughTool(t *testing.T) {
+// A read-only wind turn (a rotllana voice after the first, a review) leaves
+// nothing behind, whatever Codi's mode is.
+func TestReadOnlyWindTurnCannotScheduleReminderThroughTool(t *testing.T) {
 	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	s, _ := companionTestServer(t)
 	s.cwd = t.TempDir()
-	s.mode = "chat"
+	s.mode = agent.ModeCode
 	makeRotllanaTrio(t, s)
 	provider := windPermissionProvider(t, "remind", `{"wind":"tramuntana","at":"+30m","text":"read-only test"}`)
 	s.cfg.Providers["p"] = config.Provider{BaseURL: provider.URL + "/v1"}
-	rec := postJSON(t, s.handleWindChat, `{"wind":"tramuntana","message":"fes una cosa"}`)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	out, err := windLoopStream(s, s.readOnlyWindCtx(s.interactiveWindCtx(context.Background())), "fes una cosa", nil)
+	if err != nil {
+		t.Fatal(err)
 	}
 	list, err := s.jobs.List()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(list) != 0 {
-		t.Fatalf("read-only wind scheduled a persistent reminder: %+v; response=%s", list, rec.Body.String())
+		t.Fatalf("read-only wind scheduled a persistent reminder: %+v; reply=%s", list, out.text)
 	}
 }
 
 func TestReadOnlyWindCannotRunClassifiedSafeShellThatWrites(t *testing.T) {
-	for _, mode := range []string{agent.ModeChat, agent.ModePlan, agent.ModeInspect, agent.ModeGoal} {
-		t.Run(mode, func(t *testing.T) {
-			t.Setenv("GREGAL_DATA_DIR", t.TempDir())
-			s, _ := companionTestServer(t)
-			s.cwd = t.TempDir()
-			s.mode = mode
-			makeRotllanaTrio(t, s)
-			if err := os.WriteFile(filepath.Join(s.cwd, "go.mod"), []byte("module read-only-test\n\ngo 1.23\n"), 0o600); err != nil {
-				t.Fatal(err)
-			}
-			testSource := `package readonly
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s, _ := companionTestServer(t)
+	s.cwd = t.TempDir()
+	s.mode = agent.ModeCode
+	makeRotllanaTrio(t, s)
+	if err := os.WriteFile(filepath.Join(s.cwd, "go.mod"), []byte("module read-only-test\n\ngo 1.23\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	testSource := `package readonly
 import ("os"; "testing")
 func TestWriteMarker(t *testing.T) { if err := os.WriteFile("marker.txt", []byte("written"), 0600); err != nil { t.Fatal(err) } }
 `
-			if err := os.WriteFile(filepath.Join(s.cwd, "marker_test.go"), []byte(testSource), 0o600); err != nil {
-				t.Fatal(err)
-			}
-			args, _ := json.Marshal(map[string]string{"command": "go test -run TestWriteMarker"})
-			provider := windPermissionProvider(t, "bash", string(args))
-			s.cfg.Providers["p"] = config.Provider{BaseURL: provider.URL + "/v1"}
-			rec := postJSON(t, s.handleWindChat, `{"wind":"tramuntana","message":"check the project"}`)
-			if rec.Code != http.StatusOK {
-				t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
-			}
-			if _, err := os.Stat(filepath.Join(s.cwd, "marker.txt")); !os.IsNotExist(err) {
-				t.Fatalf("read-only mode %q executed safe-classified shell that wrote marker (stat err %v)", mode, err)
-			}
-		})
+	if err := os.WriteFile(filepath.Join(s.cwd, "marker_test.go"), []byte(testSource), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	args, _ := json.Marshal(map[string]string{"command": "go test -run TestWriteMarker"})
+	provider := windPermissionProvider(t, "bash", string(args))
+	s.cfg.Providers["p"] = config.Provider{BaseURL: provider.URL + "/v1"}
+	out, err := windLoopStream(s, s.readOnlyWindCtx(s.interactiveWindCtx(context.Background())), "check the project", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(s.cwd, "marker.txt")); !os.IsNotExist(err) {
+		t.Fatalf("read-only wind turn executed safe-classified shell that wrote marker (stat err %v); reply=%s", err, out.text)
 	}
 }

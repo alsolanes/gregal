@@ -2,7 +2,6 @@ package web
 
 import (
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -21,21 +20,15 @@ func TestCrewClassifierKeepsQuotedAndNegatedRequestsAsChat(t *testing.T) {
 	}
 }
 
-func TestCrewReadOnlyEntryRoutesRejectStartAndKeepChatInConversation(t *testing.T) {
+// The route the clients ask before sending to a rotllana sends work to the
+// crew with Codi in any mode.
+func TestCrewEntryRouteIgnoresTheCodiMode(t *testing.T) {
 	s, _ := rotllanaChatter(t, "chat")
 	for _, mode := range []string{"plan", "chat", "inspect"} {
 		s.mode = mode
-		if s.crewMayResume() {
-			t.Errorf("mode %q permits crew resume", mode)
-		}
-		if s.crewChatAllowed("Implementa una aplicació web") {
-			t.Errorf("mode %q routes a request into crew work", mode)
-		}
-		rec := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, "/api/winds/crew/start", strings.NewReader(`{"task":"build a web app","reuse":["wind"]}`))
-		s.handleCrewStart(rec, req)
-		if rec.Code != http.StatusForbidden {
-			t.Errorf("mode %q: start route returned %d, want 403", mode, rec.Code)
+		rec := postJSON(t, s.handleWindIntent, `{"message":"Implementa una aplicació web"}`)
+		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"intent":"work"`) {
+			t.Errorf("mode %q: intent route returned %d %s, want work", mode, rec.Code, rec.Body.String())
 		}
 	}
 }

@@ -42,7 +42,8 @@ Referents: Claude Duet, els companys de Grok i OpenAI dot. Criteri: el vent és 
 - **Espera:** cap rellotge ni «Pas N». La franja de dalt només surt si el vent fa una feina que es pot dir (cerca, llegeix, una eina) o si fa 20 s que no arriba res. Mentrestant, al fil el vent «escriu» amb la seva cara i els punts. Aturar és al camp de text.
 - **Lectura:** la resposta arriba en directe (també la del Ventet a la portada, per `/api/winds/cap/stream`) i ja amb el seu format. Se segueix el final fins que l'inici de la resposta arriba a dalt; aleshores la vista s'hi queda i surt «Últims ↓». En acabar no salta res.
 - **Respostes sense caixa:** el que escrius tu va en bombolla. El que respon el vent és text net sobre el fons, a tota l'amplada. El color del vent és a la cara, als enllaços i als xips de resposta.
-- **Xat net:** amb Vents net no surt la píndola de mode («Actua»), que continua al `+`. A la capçalera hi ha un sol «⋯» amb noms (Perfil, Converses, Resumeix a la wiki) en lloc de dues icones soles.
+- **Xat net:** a la capçalera hi ha un sol «⋯» amb noms (Perfil, Converses, Resumeix a la wiki) en lloc de dues icones soles.
+- **Sense mode:** els xats dels vents i de les rotllanes no tenen selector de mode (Pregunta, Actua, Planifica), ni al camp ni al `+`, amb Vents net o sense. Els vents treballen sempre en Actua i el que demana permís ho diu el cadenat (el nivell d'accés). El mode és de Codi.
 - **Explora** és un full que puja des de baix, no una llista dins de la capçalera.
 
 ## Pass Android 1.44

@@ -152,7 +152,8 @@ func (s *Server) runTeamSeat(ctx context.Context, cfg *config.Config, role confi
 	if seat.CrewSandbox {
 		system += "\n\nThis seat runs in a private isolated project snapshot. Use only project-relative file paths. The shell starts in this private workspace; do not use absolute paths or cd to the original project. Assigned builder files are integrated automatically after a successful run."
 	}
-	readOnly := serverReadOnlyMode(s)
+	// A crew of winds (automaticReview) does not follow Codi's mode (task 052).
+	readOnly := !automaticReview && serverReadOnlyMode(s)
 	if readOnly {
 		seat.Mode = agent.ModeInspect
 		seat.Tools = append([]string(nil), teamReadTools...)
@@ -172,10 +173,10 @@ func (s *Server) runTeamSeat(ctx context.Context, cfg *config.Config, role confi
 	var toolExecutor func(context.Context, string, string) (string, []string, error)
 	if seat.CrewSandbox {
 		ctx = agent.WithCrewIsolation(ctx)
-		boundary := crewToolBoundary{workspace: workspace, readOnly: serverReadOnlyMode(s) || !seat.EnforceFiles, allowed: append([]string(nil), seat.AllowedFiles...)}
+		boundary := crewToolBoundary{workspace: workspace, readOnly: (!automaticReview && serverReadOnlyMode(s)) || !seat.EnforceFiles, allowed: append([]string(nil), seat.AllowedFiles...)}
 		policy := agent.PolicyFromConfig(cfg, workspace)
 		toolExecutor = func(runCtx context.Context, name, args string) (string, []string, error) {
-			if serverReadOnlyMode(s) && (name == "write" || name == "edit" || name == "patch") {
+			if !automaticReview && serverReadOnlyMode(s) && (name == "write" || name == "edit" || name == "patch") {
 				return "", nil, errors.New("read-only session denied this tool")
 			}
 			if decision, why := policy.Decide(agent.ModeCode, name, args); decision == "deny" {
@@ -192,12 +193,12 @@ func (s *Server) runTeamSeat(ctx context.Context, cfg *config.Config, role confi
 		policy := agent.PolicyFromConfig(cfg, workspace)
 		if decision, why := policy.Decide(seat.Mode, call.Function.Name, call.Function.Arguments); decision == "deny" {
 			emit("team", team.Event{Type: "review", Agent: nodeID, Activity: call.Function.Name,
-					Message: teamBoundaryError(fmt.Errorf("user permissions deny this action: %s", why), language)})
+				Message: teamBoundaryError(fmt.Errorf("user permissions deny this action: %s", why), language)})
 			return false
 		}
 		if seat.EnforceFiles && isTeamOtherWrite(call.Function.Name) {
 			emit("team", team.Event{Type: "review", Agent: nodeID, Activity: call.Function.Name,
-					Message: teamBoundaryError(errors.New("use an assigned project-file write tool"), language)})
+				Message: teamBoundaryError(errors.New("use an assigned project-file write tool"), language)})
 			return false
 		}
 		if seat.EnforceFiles && isTeamFileWrite(call.Function.Name) {

@@ -2,12 +2,21 @@ package web
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"gregal/internal/agent"
+	"gregal/internal/companion"
+	"gregal/internal/config"
 	"gregal/internal/team"
 )
 
@@ -62,24 +71,92 @@ func TestCrewChatRoutingAndPlan(t *testing.T) {
 			t.Fatalf("intent %q: %d %s", tc.message, rec.Code, rec.Body.String())
 		}
 	}
+}
+
+// Codi's mode does not reach the winds: a crew starts and finishes with
+// Codi in Pregunta or Planifica, resumes with the answer to its question,
+// and Codi keeps its mode.
+func TestCrewStartsWhateverTheCodiMode(t *testing.T) {
 	for _, mode := range []string{"plan", "chat", "inspect"} {
-		s.mode = mode
-		if s.crewChatAllowed("Implementa una aplicació web") || s.crewMayResume() {
-			t.Errorf("read-only mode %q must not start or resume crew", mode)
-		}
+		t.Run(mode, func(t *testing.T) {
+			s, _ := companionTestServer(t)
+			a, _ := s.winds.Save(companion.Wind{Name: "Gregal", Role: "Organització"})
+			b, _ := s.winds.Save(companion.Wind{Name: "Ratxa", Role: "Disseny"})
+			savedWork, savedCoord := crewWork, crewCoordinator
+			t.Cleanup(func() { crewWork, crewCoordinator = savedWork, savedCoord })
+			crewWork = func(*Server, context.Context, Rotllana, string, team.FlowSpec, bool) (string, error) {
+				return "Fet", nil
+			}
+			calls := 0
+			crewCoordinator = func(*Server, context.Context, string, string) (string, error) {
+				calls++
+				if calls == 1 {
+					return `{"action":"ask","question":"De quin color?","options":["Blava","Verda"]}`, nil
+				}
+				return `{"action":"finish","conclusion":"Web feta."}`, nil
+			}
+			s.mode = mode
+			rec := postJSON(t, s.handleCrewStart, `{"task":"build a web app","lang":"ca","reuse":["`+a.ID+`","`+b.ID+`"]}`)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("got HTTP %d: %s", rec.Code, rec.Body.String())
+			}
+			var out struct {
+				Rotllana Rotllana `json:"rotllana"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+				t.Fatal(err)
+			}
+			waitCrew(t, s, out.Rotllana.ID, "waiting")
+			rot, _ := s.rotllanaByID(out.Rotllana.ID)
+			if got := s.crewTakeAnswer(rot, "Blava"); got != crewAnswerConsumed {
+				t.Fatalf("the waiting crew must take the answer, got %v", got)
+			}
+			waitCrew(t, s, out.Rotllana.ID, "done")
+			if s.mode != mode {
+				t.Errorf("the crew changed Codi's mode to %q", s.mode)
+			}
+		})
 	}
 }
 
-func TestCrewStartEndpointHonorsReadOnlyMode(t *testing.T) {
-	s, _ := rotllanaChatter(t, "chat")
-	for _, mode := range []string{"plan", "chat", "inspect"} {
-		s.mode = mode
-		rec := httptest.NewRecorder()
-		req := httptest.NewRequest("POST", "/api/winds/crew/start", strings.NewReader(`{"task":"build a web app","reuse":["wind"]}`))
-		s.handleCrewStart(rec, req)
-		if rec.Code != http.StatusForbidden {
-			t.Errorf("mode %q: got HTTP %d, want 403", mode, rec.Code)
-		}
+// A crew's builder seat writes with Codi in Planifica; Codi's own team keeps
+// following Codi's mode.
+func TestCrewSeatWritesWhateverTheCodiMode(t *testing.T) {
+	for _, winds := range []bool{true, false} {
+		t.Run(fmt.Sprintf("winds=%v", winds), func(t *testing.T) {
+			ws := t.TempDir()
+			var calls atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				body := `{"choices":[{"message":{"content":"done"},"finish_reason":"stop"}]}`
+				if calls.Add(1) == 1 {
+					body = `{"choices":[{"message":{"tool_calls":[{"id":"w1","type":"function","function":{"name":"write","arguments":"{\"path\":\"index.html\",\"content\":\"hola\"}"}}]},"finish_reason":"tool_calls"}]}`
+				}
+				if _, err := io.WriteString(w, body); err != nil {
+					t.Error(err)
+				}
+			}))
+			defer server.Close()
+			s := goalTestServer(t)
+			s.cfg.Providers = map[string]config.Provider{"p": {BaseURL: server.URL}}
+			s.permissive = true
+			s.mode = agent.ModePlan
+			role := config.Role{Provider: "p", Model: "m", MaxTokens: 4096, ContextWindow: 32768}
+			seat := teamSeat{Agentic: true, Mode: agent.ModeCode, Tools: []string{"write"}, MaxSteps: 4}
+			if _, _, err := s.runTeamSeat(context.Background(), s.cfg, role, seat, ws, "English", "builder", "write the page", winds, func(string, any) {}, nil); err != nil {
+				t.Fatal(err)
+			}
+			_, err := os.Stat(filepath.Join(ws, "index.html"))
+			if winds && err != nil {
+				t.Fatalf("a crew seat could not write with Codi in plan: %v", err)
+			}
+			if !winds && err == nil {
+				t.Fatal("Codi's own team wrote while Codi is in plan")
+			}
+			if s.mode != agent.ModePlan {
+				t.Errorf("the crew changed Codi's mode to %q", s.mode)
+			}
+		})
 	}
 }
 

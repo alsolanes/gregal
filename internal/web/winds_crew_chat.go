@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"gregal/internal/agent"
 	"gregal/internal/llm"
 	"gregal/internal/team"
 )
@@ -45,18 +44,9 @@ func (s *Server) crewBusyMessage() string {
 	return "The crew is already working in this thread; wait for it to finish or stop it."
 }
 
-func (s *Server) crewMayResume() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return !agent.ReadOnlyMode(s.mode)
-}
-
 func (s *Server) crewChatAllowed(msg string) bool {
-	s.mu.Lock()
-	mode := s.mode
-	s.mu.Unlock()
 	m := strings.TrimLeft(strings.ToLower(strings.TrimSpace(msg)), "¿")
-	if agent.ReadOnlyMode(mode) || strings.HasPrefix(m, "?") || crewQuestion.MatchString(m) || crewCodeNegation.MatchString(m) || crewExplanation.MatchString(m) || (crewQuotedCode.MatchString(m) && crewCodeAction.MatchString(m) && crewCodeObject.MatchString(m)) || (crewEmbeddedNegation.MatchString(m) && crewCodeAction.MatchString(m)) {
+	if strings.HasPrefix(m, "?") || crewQuestion.MatchString(m) || crewCodeNegation.MatchString(m) || crewExplanation.MatchString(m) || (crewQuotedCode.MatchString(m) && crewCodeAction.MatchString(m) && crewCodeObject.MatchString(m)) || (crewEmbeddedNegation.MatchString(m) && crewCodeAction.MatchString(m)) {
 		return false
 	}
 	return crewCodeAction.MatchString(m) && crewCodeObject.MatchString(m)
@@ -90,9 +80,6 @@ func (s *Server) handleWindIntent(w http.ResponseWriter, r *http.Request) {
 // startCrewChat persists the user message once before launching. A single
 // lock protects job reservation and the initial history append from duplicates.
 func (s *Server) startCrewChat(rot Rotllana, msg string) (*crewJob, int, error) {
-	if !s.crewMayResume() {
-		return nil, 0, errConst("crew unavailable in read-only mode")
-	}
 	reservation := crewReservationLock(s, rot.ID)
 	reservation.Lock()
 	defer reservation.Unlock()
@@ -186,14 +173,6 @@ func (s *Server) crewPublishNode(rot Rotllana, flow team.FlowSpec, e team.Event)
 // Serve actual saved crew messages, not synthesized speaker responses. The
 // history mutex is held only while taking snapshots, never during the run.
 func (s *Server) crewChat(w http.ResponseWriter, r *http.Request, rot Rotllana, msg string, stream bool) {
-	if !s.crewMayResume() {
-		errText := "Crew is unavailable in read-only mode."
-		if s.cfg.Lang() == "ca" {
-			errText = "La colla no està disponible en mode de només lectura."
-		}
-		http.Error(w, errText, http.StatusForbidden)
-		return
-	}
 	job, next, err := s.startCrewChat(rot, msg)
 	if err != nil {
 		log.Printf("crew chat start rotllana=%s: %s", rot.ID, redactError(err))

@@ -1378,13 +1378,11 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             tempesta = tempestaOn, onTempesta = { vm.toggleTempesta() },
             onAttachDoc = { pickDocs.launch("*/*") },
             onAttachImage = { pickPhoto.launch("image/*") },
-            onMode = { vm.setMode(it) },
             onPerm = { showPerm = true },
             onWorkspace = if (vm.simpleVents.value) null else ({ vm.go(Screen.Carpeta) }),
             onStop = if (busy.contains(wind.id)) ({ vm.cancelWindTurn(wind.id) }) else null,
             onPreview = { vm.openPreview() },
-            onVoiceTalk = voiceConv?.let { c -> { c.before = replyKey; c.toggle() } },
-            showModePill = !vm.simpleVents.value) {
+            onVoiceTalk = voiceConv?.let { c -> { c.before = replyKey; c.toggle() } }) {
             val body = field.text
             val target = resolveMention(body, winds)
             if (target != null && target.id != wind.id) {
@@ -1485,7 +1483,7 @@ internal fun WindSessionsSheet(vm: GregalViewModel, lang: String, wind: Wind, on
 
 /** El xat d'una rotllana a pantalla completa. */
 @Composable
-private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllana, winds: List<Wind>, onBack: () -> Unit, onWiki: () -> Unit = {}) {
+internal fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllana, winds: List<Wind>, onBack: () -> Unit, onWiki: () -> Unit = {}) {
     val chats by vm.rotllanaChat.collectAsState()
     val loadingChat by vm.rotllanaChatLoading.collectAsState()
     val busy by vm.rotllanaBusy.collectAsState()
@@ -1661,12 +1659,10 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             busy = busy.contains(rot.id), accent = rotAccent, st = st,
             onAttachDoc = { pickDocs.launch("*/*") },
             onAttachImage = { pickPhoto.launch("image/*") },
-            onMode = { vm.setMode(it) },
             onPerm = { showPerm = true },
             onWorkspace = if (vm.simpleVents.value) null else ({ vm.go(Screen.Carpeta) }),
             onStop = if (busy.contains(rot.id)) ({ vm.cancelRotllanaTurn(rot.id) }) else null,
-            onPreview = { vm.openPreview() },
-            showModePill = !vm.simpleVents.value) {
+            onPreview = { vm.openPreview() }) {
             val body = field.text
             val target = resolveMention(body, faces)
             follow.send(); vm.sendRotllanaMessage(rot.id, body, target?.id.orEmpty()); field = TextFieldValue("")

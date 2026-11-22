@@ -248,9 +248,9 @@ internal fun WorkStrip(lang: String, count: Int, onClick: () -> Unit) {
 /**
  * Shared text composer (estil Grok), amb dictat pel micròfon; @mention routing stays
  * in the owning conversation. Quan es passen les accions d'eines ([onAttachDoc],
- * [onMode], [onPerm], [onWorkspace]), apareix el botó «+» amb funcionalitats i
- * una píndola compacta de mode/projecte perquè el vent tingui sempre els permisos
- * que toquen.
+ * [onPerm], [onWorkspace]), apareix el botó «+» amb funcionalitats i una
+ * píndola compacta del projecte. Sense mode: els vents treballen sempre en
+ * Actua i el que demanen permís ho decideix el nivell d'accés.
  */
 @Composable
 internal fun VentsComposer(
@@ -263,16 +263,12 @@ internal fun VentsComposer(
     st: ServerState? = null,
     onAttachDoc: (() -> Unit)? = null,
     onAttachImage: (() -> Unit)? = null,
-    onMode: ((String) -> Unit)? = null,
     onPerm: (() -> Unit)? = null,
     onWorkspace: (() -> Unit)? = null,
     /** Amb un torn en marxa, el botó d'enviar es converteix en «atura». */
     onStop: (() -> Unit)? = null,
     /** Obre la previsualització de la carpeta (la web que el vent ha fet). */
     onPreview: (() -> Unit)? = null,
-    /** La píndola de mode (Actua/Planifica/Pregunta) sobre el camp. Amb Vents
-     *  net no surt: el mode continua al «+», sense un xip que no s'entén. */
-    showModePill: Boolean = true,
     /** Feines en marxa: la franja de 32 dp sobre el camp, que les obre. */
     workCount: Int = 0,
     onWork: (() -> Unit)? = null,
@@ -283,56 +279,32 @@ internal fun VentsComposer(
     onTempesta: (() -> Unit)? = null,
     onSend: () -> Unit,
 ) {
-    val hasTools = onAttachDoc != null || onAttachImage != null || onMode != null || onPerm != null || onWorkspace != null || onPreview != null || onVoiceTalk != null
+    val hasTools = onAttachDoc != null || onAttachImage != null || onPerm != null || onWorkspace != null || onPreview != null || onVoiceTalk != null
     var showPlus by remember { mutableStateOf(false) }
     val ringColor = if (accent != Color.Unspecified) accent else Sea
     Column(Modifier.fillMaxWidth().background(Superficie)) {
         if (workCount > 0 && onWork != null) WorkStrip(lang, workCount, onWork)
-        if (st != null && ((onMode != null && showModePill) || (onWorkspace != null && st.project.isNotBlank()))) {
+        if (st != null && onWorkspace != null && st.project.isNotBlank()) {
             Row(
                 Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (onMode != null && showModePill) {
-                    val uiMode = uiModeOf(st.mode)
-                    val isAct = uiMode == "act"
-                    val modeLabel = tr(lang, when (uiMode) {
-                        "plan" -> "app.mode.plan"
-                        "act" -> "app.mode.act"
-                        else -> "app.mode.ask"
-                    })
-                    Surface(
-                        onClick = { onMode(if (isAct) "chat" else "act") },
-                        shape = RoundedCornerShape(999.dp),
-                        color = (if (isAct) ringColor else SuperficieAlta).copy(alpha = if (isAct) 0.16f else 0.55f),
+                Surface(
+                    onClick = onWorkspace,
+                    shape = RoundedCornerShape(999.dp),
+                    color = SuperficieAlta.copy(alpha = 0.45f),
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
+                        Icon(Icons.Rounded.FolderOpen, null, tint = Muted, modifier = Modifier.size(13.dp))
                         Text(
-                            modeLabel,
-                            color = if (isAct) Ink else Muted,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            st.project + if (st.branch.isNotBlank()) " · " + st.branch else "",
+                            color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
-                    }
-                }
-                if (onWorkspace != null && st.project.isNotBlank()) {
-                    Surface(
-                        onClick = onWorkspace,
-                        shape = RoundedCornerShape(999.dp),
-                        color = SuperficieAlta.copy(alpha = 0.45f),
-                    ) {
-                        Row(
-                            Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            Icon(Icons.Rounded.FolderOpen, null, tint = Muted, modifier = Modifier.size(13.dp))
-                            Text(
-                                st.project + if (st.branch.isNotBlank()) " · " + st.branch else "",
-                                color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            )
-                        }
                     }
                 }
             }
@@ -410,17 +382,6 @@ internal fun VentsComposer(
                                 },
                                 onClick = { showPlus = false; onPreview() },
                             )
-                        }
-                        if (onMode != null && st != null) {
-                            HorizontalDivider(color = Line)
-                            val curUi = uiModeOf(st.mode)
-                            listOf("act" to "app.mode.act", "plan" to "app.mode.plan", "chat" to "app.mode.ask").forEach { (m, k) ->
-                                val sel = curUi == m
-                                DropdownMenuItem(
-                                    text = { Text((if (sel) "✓ " else "") + tr(lang, k), color = if (sel) Sea else Ink, fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal) },
-                                    onClick = { showPlus = false; onMode(m) },
-                                )
-                            }
                         }
                         if (onVoiceTalk != null) {
                             DropdownMenuItem(

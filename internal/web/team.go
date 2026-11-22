@@ -206,7 +206,9 @@ func (s *Server) runTeamFlow(ctx context.Context, run teamFlowRun, emit func(str
 		return ""
 	}
 	defer crewWorkspaces.Close()
-	if serverReadOnlyMode(s) {
+	// Codi's mode is Codi's: a crew of winds always works in Act (task 052).
+	readOnly := func() bool { return !run.winds && serverReadOnlyMode(s) }
+	if readOnly() {
 		for _, node := range flow.Nodes {
 			if node.CrewAssigned {
 				err := fmt.Errorf("read-only session cannot run assigned crew builders")
@@ -250,14 +252,14 @@ func (s *Server) runTeamFlow(ctx context.Context, run teamFlowRun, emit func(str
 			}
 			out, model, err := s.runTeamSeat(ctx, cfg, role, seat, seatWorkspace, language, name, task, run.winds, emit, run.steer)
 			if err == nil && node.CrewAssigned {
-				if serverReadOnlyMode(s) {
+				if readOnly() {
 					return "", errors.New("read-only session denied crew file integration")
 				}
 				policy := agent.PolicyFromConfig(cfg, run.workspace)
 				err = crewWorkspaces.Integrate(node.ID, func(rel string) bool {
 					args, _ := json.Marshal(map[string]string{"path": rel})
 					decision, _ := policy.Decide(agent.ModeCode, "write", string(args))
-					return decision == "deny" || serverReadOnlyMode(s)
+					return decision == "deny" || readOnly()
 				}, func(rel, digest string) error {
 					if !run.winds {
 						return nil

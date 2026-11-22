@@ -22,7 +22,6 @@ type windTurnScope struct {
 func (s *Server) windLoopScope() windTurnScope {
 	s.mu.Lock()
 	ws, repo := s.ventWorkspaceLocked()
-	mode := s.mode
 	pol := agent.PolicyFromConfig(s.cfg, ws)
 	if s.policy != nil {
 		cp := *s.policy
@@ -43,7 +42,7 @@ func (s *Server) windLoopScope() windTurnScope {
 		pol = &cp
 	}
 	s.mu.Unlock()
-	return windTurnScope{mode: mode, workspace: ws, policy: pol}
+	return windTurnScope{mode: agent.ModeCode, workspace: ws, policy: pol}
 }
 
 // interactiveWindCtx és el context dels torns interactius dels vents (xat
@@ -60,10 +59,11 @@ func windSteerKeyOf(ctx context.Context) (turnKey, bool) {
 	return k, ok
 }
 
+// Codi's mode (Pregunta, Planifica…) is a Codi tool and does not reach the
+// winds: a wind turn always acts, and the access level and the hard gates
+// decide what asks first.
 func (s *Server) interactiveWindCtx(ctx context.Context) context.Context {
-	scope := s.windLoopScope()
-	scope.mode = windTurnMode(scope.mode)
-	return context.WithValue(ctx, interactiveWindKey{}, scope)
+	return context.WithValue(ctx, interactiveWindKey{}, s.windLoopScope())
 }
 
 // withWindWorkspaceScope torna a posar la carpeta d'un torn reprès al seu abast
@@ -88,18 +88,6 @@ func (s *Server) readOnlyWindCtx(ctx context.Context) context.Context {
 	return context.WithValue(ctx, interactiveWindKey{}, scope)
 }
 
-// windTurnMode keeps read-only server modes read-only for ordinary wind turns.
-// A request to a specialist does not grant permission to write when the
-// session itself is in question, plan, or inspect mode.
-func windTurnMode(mode string) string {
-	if agent.ReadOnlyMode(mode) || mode == agent.ModeDebug {
-		return mode
-	}
-	// Autonomous permission is not inherited by a wind turn without an
-	// interactive approval surface.
-	return agent.ModeCode
-}
-
 // windStudyCtx és el context d'un estudi («aprèn X»): el vent pot escriure i
 // executar només a la seva carpeta de pràctiques, per provar el que aprèn.
 func (s *Server) windStudyCtx(ctx context.Context, dir string) context.Context {
@@ -108,7 +96,7 @@ func (s *Server) windStudyCtx(ctx context.Context, dir string) context.Context {
 	pol.ProjectDir = dir
 	pol.AlsoDirs = nil
 	pol.AskEdits = false
-	scope.policy, scope.workspace, scope.mode = &pol, dir, agent.ModeCode
+	scope.policy, scope.workspace = &pol, dir
 	return context.WithValue(ctx, interactiveWindKey{}, scope)
 }
 

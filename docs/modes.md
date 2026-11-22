@@ -45,6 +45,12 @@ rotllana only the first speaker can change things (the others, and a review
 request, are read-only), shared chats can only search the web, and a study
 writes only in its own practice folder.
 
+The mode is Codi's alone. A wind turn always runs in Act, whatever mode Codi
+is in: Ask or Plan in Codi do not make the winds read-only, and crews start and
+resume the same way. For the winds only the permission above decides what asks
+first. The wind chats show no mode picker, and nothing in Vents changes Codi's
+mode.
+
 Where to pick it: the lock button beside the composer (web, desktop),
 `/permissions` or `/permissions ask|edits|full` (TUI), **+ → Act permission**
 (Android). In Ask and Plan nothing changes, so the permission only applies in

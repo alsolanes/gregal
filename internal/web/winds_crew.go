@@ -677,10 +677,6 @@ func (s *Server) handleCrewStart(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "POST required", http.StatusMethodNotAllowed)
 		return
 	}
-	if !s.crewMayResume() {
-		http.Error(w, "crew is unavailable in read-only mode", http.StatusForbidden)
-		return
-	}
 	var req struct {
 		Task   string    `json:"task"`
 		Lang   string    `json:"lang"`

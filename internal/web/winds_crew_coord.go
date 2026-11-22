@@ -1067,9 +1067,6 @@ func (s *Server) crewTakeAnswer(rot Rotllana, msg string) crewAnswerResult {
 	reservation := crewReservationLock(s, rot.ID)
 	reservation.Lock()
 	defer reservation.Unlock()
-	if !s.crewMayResume() {
-		return crewAnswerNotApplicable
-	}
 	stateLock := crewStateLock(s, rot.ID)
 	stateLock.Lock()
 	defer stateLock.Unlock()

@@ -79,8 +79,7 @@ class VentsChatChromeTest {
         ui.runOnIdle { assertTrue(profile); assertTrue(back) }
     }
 
-    @Test fun composerWithToolsExposesModeWorkspaceAndPlusMenu() {
-        var pickedMode = ""
+    @Test fun composerWithToolsExposesWorkspaceAndPlusMenu() {
         var openedPerm = false
         var openedWs = false
         var attached = false
@@ -93,15 +92,12 @@ class VentsChatChromeTest {
                         "ca", field, { field = it }, "Escriu…", false,
                         busy = true, accent = Color(0xFFEFA68F), st = st,
                         onAttachDoc = { attached = true },
-                        onMode = { pickedMode = it },
                         onPerm = { openedPerm = true },
                         onWorkspace = { openedWs = true },
                     ) {}
                 }
             }
         }
-        ui.onNodeWithText(tr("ca", "app.mode.act")).assertIsDisplayed().performClick()
-        ui.runOnIdle { assertEquals("chat", pickedMode) }
         ui.onNodeWithText("gregal-live · main").assertIsDisplayed().performClick()
         ui.runOnIdle { assertTrue(openedWs) }
         ui.onNodeWithContentDescription(tr("ca", "app.mode.more")).performClick()

@@ -24,22 +24,39 @@ import (
 
 // --- mode dels torns de vent ---
 
-// Wind turns preserve read-only modes selected for the main session.
-func TestWindTurnModePreservesReadOnlyModes(t *testing.T) {
-	for in, want := range map[string]string{
-		agent.ModeChat: agent.ModeChat, agent.ModeInspect: agent.ModeInspect, agent.ModeGoal: agent.ModeGoal,
-		agent.ModeAutonomous: agent.ModeCode, agent.ModeCode: agent.ModeCode,
-		agent.ModePlan: agent.ModePlan, agent.ModeDebug: agent.ModeDebug, "": agent.ModeCode,
-	} {
-		if got := windTurnMode(in); got != want {
-			t.Errorf("windTurnMode(%q)=%q, volia %q", in, got, want)
+// Codi's mode is a Codi tool: a wind turn always acts, and only the access
+// level decides whether a write inside the project asks first.
+func TestWindTurnsActWhateverTheCodiMode(t *testing.T) {
+	modes := []string{agent.ModeChat, agent.ModeInspect, agent.ModeGoal, agent.ModePlan, agent.ModeDebug, agent.ModeAutonomous, agent.ModeCode, ""}
+	for _, access := range []string{agent.AccessAsk, agent.AccessEdits} {
+		for _, mode := range modes {
+			t.Run(access+"/"+mode, func(t *testing.T) {
+				s, _ := companionTestServer(t)
+				s.cwd = t.TempDir()
+				if code, out := postAccess(t, s, `{"access":"`+access+`"}`); code != 200 {
+					t.Fatalf("access: %d %v", code, out)
+				}
+				s.mode = mode
+				scope := s.interactiveWindCtx(context.Background()).Value(interactiveWindKey{}).(windTurnScope)
+				if scope.mode != agent.ModeCode {
+					t.Fatalf("wind turn mode=%q, want %q", scope.mode, agent.ModeCode)
+				}
+				want := "allow"
+				if access == agent.AccessAsk {
+					want = "ask"
+				}
+				if d, why := scope.policy.Decide(scope.mode, "write", `{"path":"nou.txt","content":"x"}`); d != want {
+					t.Errorf("write inside the project=%s (%s), want %s", d, why, want)
+				}
+			})
 		}
 	}
 }
 
-// Read-only session modes remain read-only through an actual wind tool call.
-func TestWindReadOnlySessionCannotWriteThroughOrdinaryWindRoute(t *testing.T) {
-	for _, mode := range []string{agent.ModeChat, agent.ModePlan, agent.ModeInspect, agent.ModeGoal} {
+// The same through a real wind chat: Pregunta or Planifica in Codi does not
+// stop a wind from writing its work into the project.
+func TestWindWritesInTheProjectWhateverTheCodiMode(t *testing.T) {
+	for _, mode := range []string{agent.ModeChat, agent.ModePlan, agent.ModeInspect, agent.ModeGoal, agent.ModeDebug, agent.ModeAutonomous} {
 		t.Run(mode, func(t *testing.T) {
 			t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 			s, _ := companionTestServer(t)
@@ -53,8 +70,11 @@ func TestWindReadOnlySessionCannotWriteThroughOrdinaryWindRoute(t *testing.T) {
 			if rec.Code != 200 {
 				t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 			}
-			if _, err := os.Stat(filepath.Join(s.cwd, "joc", "index.html")); !os.IsNotExist(err) {
-				t.Fatalf("read-only mode %q allowed a wind write (stat err %v); response=%s", mode, err, rec.Body.String())
+			if data, err := os.ReadFile(filepath.Join(s.cwd, "joc", "index.html")); err != nil || string(data) != "<h1>joc</h1>" {
+				t.Fatalf("Codi mode %q stopped the wind's write (%v %q); response=%s", mode, err, data, rec.Body.String())
+			}
+			if s.mode != mode {
+				t.Errorf("the wind chat changed Codi's mode to %q", s.mode)
 			}
 		})
 	}
