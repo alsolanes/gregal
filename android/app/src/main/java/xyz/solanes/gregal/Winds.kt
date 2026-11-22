@@ -75,6 +75,8 @@ data class Wind(
     val squad: String = "",
     /** "off": el vent no s'ofereix a fer seguiments pel seu compte. */
     val followups: String = "on",
+    /** El paquet d'avatar propi ("cares", "esperit"; buit és Cares): mana només amb el tema «free». */
+    val avatar: String = "",
 ) {
     /** Color ARGB per a Compose. */
     val argb: Long get() = run {
@@ -84,7 +86,8 @@ data class Wind(
     }
 
     /** L'estil de cara per a WindFace; l'objecte d'ofici (kit) manen el specialty i la inferència del rol. */
-    val faceStyle: WindStyle get() = windStyleOf(style).copy(kit = if (kit.isNotBlank()) kit else if (specialty.isNotBlank()) specialty else inferKit(role))
+    val faceStyle: WindStyle get() = windStyleOf(style).copy(kit = if (kit.isNotBlank()) kit else if (specialty.isNotBlank()) specialty else inferKit(role),
+        pack = avatar, bearing = windDirection(id, name))
 
     companion object {
         fun parse(raw: String): List<Wind> {
@@ -92,7 +95,7 @@ data class Wind(
             val a = o.optJSONArray("winds") ?: JSONArray()
             return (0 until a.length()).mapNotNull { i ->
                 val w = a.optJSONObject(i) ?: return@mapNotNull null
-                Wind(w.optString("id"), w.optString("name"), w.optString("color"), w.optString("role"), w.optString("style").ifBlank { "pso" }, w.optString("persona"), w.optString("specialty"), w.optString("kit"), w.optString("squad"), w.optString("followups").ifBlank { "on" })
+                Wind(w.optString("id"), w.optString("name"), w.optString("color"), w.optString("role"), w.optString("style").ifBlank { "pso" }, w.optString("persona"), w.optString("specialty"), w.optString("kit"), w.optString("squad"), w.optString("followups").ifBlank { "on" }, w.optString("avatar"))
             }
         }
     }
@@ -214,9 +217,10 @@ internal fun unreadBadge(n: Int): String = when {
 
 /** Cossos de les peticions POST /api/winds i /api/winds/chat. */
 object WindRequests {
-    fun save(name: String, color: String, role: String, style: String = "pso", persona: String = "", id: String = ""): String =
+    /** Un [avatar] buit no s'envia: el servidor conserva el que tenia el vent. */
+    fun save(name: String, color: String, role: String, style: String = "pso", persona: String = "", id: String = "", avatar: String = ""): String =
         JSONObject().put("name", name).put("color", color).put("role", role).put("style", style)
-            .put("persona", persona).apply { if (id.isNotEmpty()) put("id", id) }.toString()
+            .put("persona", persona).apply { if (id.isNotEmpty()) put("id", id); if (avatar.isNotEmpty()) put("avatar", avatar) }.toString()
 
     /** [tempesta]: diversos vents alhora i una sola resposta (winds_tempesta.go). */
     fun chat(windId: String, message: String, tempesta: Boolean = false): String =

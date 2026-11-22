@@ -718,6 +718,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         selectedWindThreads.clear()
         rotllanaHistoryRequests.clear()
         _winds.value = emptyList()
+        _avatarTheme.value = "cares"
         _offline.value = false
         probeJob?.cancel()
         probeJob = null
@@ -3346,6 +3347,22 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     // ---- Vents: companions personals amb nom de vent ----
     private val _winds = MutableStateFlow<List<Wind>>(emptyList())
     val winds: StateFlow<List<Wind>> = _winds
+    private val _avatarTheme = MutableStateFlow("cares")
+    /** El tema d'avatars del compte (`avatarTheme` de GET /api/winds): un paquet per a tots els vents, o "free". */
+    val avatarTheme: StateFlow<String> = _avatarTheme
+
+    /** Desa el tema d'avatars del compte; totes les cares el segueixen quan el servidor l'ha desat. */
+    fun setAvatarTheme(theme: String) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { source.api().post("/api/winds/avatar-theme", JSONObject().put("theme", theme)) }
+                if (isCompanionOrigin(source, epoch)) _avatarTheme.value = theme
+            } catch (e: Exception) {
+                if (isCompanionOrigin(source, epoch)) companyError(e)
+            }
+        }
+    }
 
     private val _windChat = MutableStateFlow<Map<String, List<PetMsg>>>(emptyMap())
     val windChat: StateFlow<Map<String, List<PetMsg>>> = _windChat
@@ -3501,6 +3518,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private fun showCachedWinds(raw: String) {
         val list = try { Wind.parse(raw) } catch (_: Exception) { return }
         _winds.value = list
+        _avatarTheme.value = avatarThemeOf(raw)
         _activeWind.value = list.firstOrNull { it.id == _activeWind.value?.id } ?: list.firstOrNull()
     }
 
@@ -3669,6 +3687,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 val list = Wind.parse(raw)
                 if (!isCompanionOrigin(source, epoch) || request != windsRequest) return@launch
                 _winds.value = list
+                _avatarTheme.value = avatarThemeOf(raw)
                 _activeWind.value = list.firstOrNull { it.id == _activeWind.value?.id } ?: list.firstOrNull()
                 withContext(Dispatchers.IO) { offlineStore(source)?.saveWinds(raw) }
             } catch (e: Exception) {
@@ -3872,11 +3891,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun createWind(name: String, color: String, role: String, style: String = "pso", persona: String = "", id: String = "", onDone: (Boolean) -> Unit = {}) {
+    fun createWind(name: String, color: String, role: String, style: String = "pso", persona: String = "", id: String = "", avatar: String = "", onDone: (Boolean) -> Unit = {}) {
         val source = _conn.value; val epoch = companionEpoch
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) { source.api().saveWind(name, color, role, style, persona, id) }
+                withContext(Dispatchers.IO) { source.api().saveWind(name, color, role, style, persona, id, avatar) }
                 if (!isCompanionOrigin(source, epoch)) return@launch
                 // Read back the exact catalogue before reporting success to the creator.
                 val list = withContext(Dispatchers.IO) { source.api().getWinds() }

@@ -87,6 +87,7 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val idiomaChoice by vm.idiomaChoice.collectAsState()
     val capHome by vm.capHome.collectAsState()
     val expressiveMotion by vm.expressiveMotion.collectAsState()
+    val avatarTheme by vm.avatarTheme.collectAsState()
     val glass by vm.glass.collectAsState()
     val st by vm.state.collectAsState()
     val updateMsg by vm.updateMsg.collectAsState()
@@ -209,6 +210,11 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         PreferenceSwitchRow(t("prefs.capHome"), t("prefs.capHomeHelp"), capHome) { vm.setCapHome(it) }
                         PreferenceSwitchRow(t("prefs.glass"), t("prefs.glassHelp"), glass) { vm.setGlass(it) }
                         PreferenceSwitchRow(t("prefs.motion"), t("prefs.motionHelp"), expressiveMotion) { vm.setExpressiveMotion(it) }
+                        Spacer(Modifier.height(14.dp))
+                        Text(t("winds.avatars"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text(t("winds.avatarsHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+                        Spacer(Modifier.height(10.dp))
+                        ChoicePills((windPacks + "free").map { it to t(avatarLabelKey(it)) }, avatarTheme, { vm.setAvatarTheme(it) })
                     }
                     PrefsPage.Theme -> {
                         Text(t("prefs.theme"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)

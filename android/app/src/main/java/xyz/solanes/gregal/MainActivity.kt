@@ -308,7 +308,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-            CompositionLocalProvider(LocalPal provides pal, LocalWindMotion provides vm.expressiveMotion.collectAsState().value, androidx.compose.ui.platform.LocalUriHandler provides uris) {
+            CompositionLocalProvider(LocalPal provides pal, LocalWindMotion provides vm.expressiveMotion.collectAsState().value, LocalAvatarTheme provides vm.avatarTheme.collectAsState().value, androidx.compose.ui.platform.LocalUriHandler provides uris) {
             MaterialTheme(colorScheme = scheme, typography = gregalTypography(), shapes = gregalShapes()) {
                 val screen by vm.screen.collectAsState()
                 val connected by vm.connected.collectAsState()

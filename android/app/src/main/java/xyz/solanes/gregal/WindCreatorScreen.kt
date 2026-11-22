@@ -34,7 +34,8 @@ import androidx.compose.ui.unit.sp
 // Solid mascot colors; old pastel presets remain available in the optional gallery.
 private val windEditorColors = listOf("#20BE92", "#1A9BEE", "#27292F", "#FF9F24", "#EB4EB4", "#EF5965", "#8C6CE8", "#EACF87")
 
-internal data class WindDraft(val name: String, val color: String, val role: String, val style: String, val persona: String, val id: String)
+/** [avatar] is empty unless the account is in Free mode: then the server keeps the wind's own pack. */
+internal data class WindDraft(val name: String, val color: String, val role: String, val style: String, val persona: String, val id: String, val avatar: String = "")
 
 @Composable
 internal fun WindCreatorScreen(vm: GregalViewModel, lang: String, edit: Wind?) {
@@ -45,7 +46,7 @@ internal fun WindCreatorScreen(vm: GregalViewModel, lang: String, edit: Wind?) {
     WindEditor(lang, edit, themed = themed,
         onBack = { vm.showWindCreator(false) },
         onSuggest = { name, role, error, done -> vm.suggestWind(name, role, error, done) },
-        onSave = { draft, done -> vm.createWind(draft.name, draft.color, draft.role, draft.style, draft.persona, draft.id, done) })
+        onSave = { draft, done -> vm.createWind(draft.name, draft.color, draft.role, draft.style, draft.persona, draft.id, draft.avatar, done) })
 }
 
 /** A visual editor first; templates and personality are optional second-level choices. */
@@ -66,6 +67,8 @@ internal fun WindEditor(
     var role by rememberSaveable(edit?.id) { mutableStateOf(edit?.role.orEmpty()) }
     var style by rememberSaveable(edit?.id) { mutableStateOf(windStyleOf(edit?.style).encode()) }
     var persona by rememberSaveable(edit?.id) { mutableStateOf(edit?.persona.orEmpty()) }
+    val theme = LocalAvatarTheme.current
+    var avatar by rememberSaveable(edit?.id) { mutableStateOf(edit?.avatar.takeIf { it in windPacks } ?: "cares") }
     var gallery by rememberSaveable(edit?.id) { mutableStateOf(false) }
     var customize by rememberSaveable(edit?.id) { mutableStateOf(false) }
     var personalityOpen by rememberSaveable(edit?.id) { mutableStateOf(false) }
@@ -89,7 +92,7 @@ internal fun WindEditor(
                     error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(bottom = 8.dp)) }
                     Button(onClick = {
                         saving = true; error = null
-                        onSave(WindDraft(name.trim(), color, role.trim(), style, persona, edit?.id.orEmpty())) { success ->
+                        onSave(WindDraft(name.trim(), color, role.trim(), style, persona, edit?.id.orEmpty(), if (theme == "free") avatar else "")) { success ->
                             saving = false
                             if (success) onBack() else error = tr(lang, "app.vents.saveError")
                         }
@@ -163,7 +166,7 @@ internal fun WindEditor(
             TextButton(onClick = { gallery = false }, modifier = Modifier.fillMaxWidth()) { Text(tr(lang, "app.vents.startFromScratch")) }
             } else {
             // The face owns the canvas: no halo, duplicate title, or preset wall before creation.
-            val face = windStyleOf(style)
+            val face = windStyleOf(style).copy(pack = avatar, bearing = windDirection(edit?.id.orEmpty(), name))
             val controlsEnabled = !saving && !suggesting
             Surface(
                 shape = RoundedCornerShape(24.dp),
@@ -209,6 +212,9 @@ internal fun WindEditor(
                     }
                 }
             }
+            if (theme == "free") FaceOptions(lang, "winds.avatar", windPacks, avatar, { avatar = it },
+                ::avatarLabelKey, { face.copy(pack = it) }, color, controlsEnabled)
+            else Text(tr(lang, "winds.avatarThemeInUse", tr(lang, avatarLabelKey(theme))), color = Muted, fontSize = 13.sp)
             EditorDisclosure(tr(lang, "app.vents.customize"), customize, !saving) { customize = !customize }
             if (customize) {
                 FaceOptions(lang, "app.company.windFaceEyes", WindEyes.entries.map { it.key }, face.eyes.key,

@@ -581,8 +581,8 @@ class GregalApi(val base: String, val token: String) {
     /** La resposta tal qual: el mòbil la desa com a còpia per quan el servidor no respongui. */
     fun getWindsRaw(): String = read("/api/winds")
 
-    fun saveWind(name: String, color: String, role: String, style: String = "pso", persona: String = "", id: String = "") {
-        val payload = JSONObject(WindRequests.save(name, color, role, style, persona))
+    fun saveWind(name: String, color: String, role: String, style: String = "pso", persona: String = "", id: String = "", avatar: String = "") {
+        val payload = JSONObject(WindRequests.save(name, color, role, style, persona, avatar = avatar))
         if (id.isNotBlank()) payload.put("id", id)
         post("/api/winds", payload)
     }

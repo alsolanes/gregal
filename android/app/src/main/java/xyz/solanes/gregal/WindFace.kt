@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.dp
 import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
 
@@ -100,7 +101,9 @@ internal fun windMotionEnabled(): Boolean {
  * `kit` és l'especialitat d'un vent de colla ("shopping", "frontend"…): li dona
  * peus i l'eina del seu ofici. No es desa amb l'estil; ve de Wind.specialty.
  */
-data class WindStyle(val eyes: WindEyes = WindEyes.DOTS, val mouth: WindMouth = WindMouth.SMILE, val shape: WindShape = WindShape.BALL, val kit: String = "")
+data class WindStyle(val eyes: WindEyes = WindEyes.DOTS, val mouth: WindMouth = WindMouth.SMILE, val shape: WindShape = WindShape.BALL, val kit: String = "",
+    /** The wind's own avatar pack (Wind.avatar) and the bearing it blows from (windDirection): they come from the wind, not the style code. */
+    val pack: String = "", val bearing: Int = 0)
 
 enum class WindEyes(val key: String) { DOTS("p"), WIDE("b"), STARRY("e"), SLEEPY("m") }
 enum class WindMouth(val key: String) { SMILE("s"), OPEN("o"), NEUTRAL("n"), TONGUE("t") }
@@ -117,6 +120,44 @@ fun windStyleOf(code: String?): WindStyle {
 
 /** De l'estil al codi de tres lletres que viatja al backend. */
 fun WindStyle.encode(): String = eyes.key + mouth.key + shape.key
+
+/** The packs a wind can be drawn with; the account theme is one of them or "free" (task 045). */
+internal val windPacks = listOf("cares", "esperit")
+
+/** The account's avatar theme (`avatarTheme` of GET /api/winds); "free" draws each wind with its own pack. */
+val LocalAvatarTheme = compositionLocalOf { "cares" }
+
+internal fun avatarThemeOf(raw: String): String =
+    org.json.JSONObject(raw).optString("avatarTheme").takeIf { it == "free" || it in windPacks } ?: "cares"
+
+internal fun windPack(theme: String, style: WindStyle): String =
+    if (theme != "free") theme else style.pack.takeIf { it in windPacks } ?: "cares"
+
+/** "winds.avatarCares", "winds.avatarEsperit", "winds.avatarFree". */
+internal fun avatarLabelKey(pack: String) = "winds.avatar" + pack.replaceFirstChar { it.uppercase() }
+
+private val windRose = mapOf("tramuntana" to 0, "gregal" to 45, "llevant" to 90, "xaloc" to 135,
+    "migjorn" to 180, "garbi" to 225, "ponent" to 270, "mestral" to 315)
+
+/**
+ * Compass bearing (0 = N) a wind blows from, as `direction` in winds.js: the
+ * eight Catalan winds by name, case and accents aside; any other wind one of
+ * the eight from its id (or, not saved yet, the slug its name will get).
+ */
+internal fun windDirection(id: String, name: String): Int {
+    val key = java.text.Normalizer.normalize(name, java.text.Normalizer.Form.NFD)
+        .replace(Regex("[\u0300-\u036f]"), "").trim().lowercase()
+    windRose[key]?.let { return it }
+    val seed = id.ifEmpty { key.replace(Regex("[^a-z0-9]+"), "-").trim('-') }
+    // winds.js keeps h * 31 + c as unsigned 32 bit: the low bits of String.hashCode.
+    return (seed.hashCode() and 7) * 45
+}
+
+/** The higher-contrast ink over the wind's colour, as the web picks it. */
+private fun windInk(accent: Color): Color {
+    val dark = Color(0xFF202127)
+    return if (contrastWith(accent, dark) >= contrastWith(accent, Color.White)) dark else Color.White
+}
 
 /** Aura del color del vent mentre treballa; a les llistes petites seria soroll. */
 internal fun windShowsAura(mood: WindMood, size: Int): Boolean = size >= 64 && mood in windWorkMoods
@@ -142,6 +183,10 @@ fun WindFace(
 ) {
     val compact = size < 64
     val motion = (!compact || tappable) && windMotionEnabled()
+    if (windPack(LocalAvatarTheme.current, style) == "esperit") {
+        EsperitFace(size, mood, accent, style.bearing, motion, modifier)
+        return
+    }
     // La forma reacciona quan el dit toca la cara i torna amb molla en deixar-la.
     val touch = if (tappable && motion) remember { MutableInteractionSource() } else null
     val pressScale = if (touch != null) {
@@ -183,10 +228,7 @@ fun WindFace(
     // Paral·laxi de volum només a les cares grans (perfil, creador, xat buit):
     // a les llistes petites seria soroll i sensor per a res.
     val lean = rememberWindLean(motion && !compact)
-    val ink = remember(accent) {
-        val dark = Color(0xFF202127)
-        if (contrastWith(accent, dark) >= contrastWith(accent, Color.White)) dark else Color.White
-    }
+    val ink = remember(accent) { windInk(accent) }
     // Eines i insígnies es dibuixen amb la tinta del mateix vent, no amb un lila fix.
     val tone = remember(accent) { lerp(accent, Color(0xFF1B1530), .8f) }
     val handEdge = remember(accent) { lerp(accent, Color(0xFF1B1530), .45f) }
@@ -422,6 +464,66 @@ fun WindFace(
             sparkle(cx - r * 1.10f, cy - r * 0.45f, r * 0.10f, 1f - twinkle)
         }
         withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, motion, doneHop?.value ?: 1f, tone) }
+    }
+}
+
+// Esperit de vent (`esperit` in winds.js): the tails in their own frame, the
+// head's centre at the origin and pointing along +x, in the web's 100 box (R 28).
+private val esperitTails by lazy {
+    PathParser().parsePathString("M0 -28C25.2 -29.68 40.6 -20.16 53.2 -16.24C36.4 -11.76 23.8 -5.04 8.4 -.56Z" +
+        "M0 28C22.4 28.84 34.16 21.84 44.24 17.92C30.8 14 19.6 8.4 7 3.36Z").toPath()
+}
+private val esperitStreak by lazy { PathParser().parsePathString("M28.56 1.12C36.4 -1.12 42 2.8 50.4 .56").toPath() }
+
+/**
+ * A head with two tails pointing to where the wind blows from, its eyes
+ * looking where it goes. The idle sway follows [motion]; while the wind works
+ * the tails move four times faster even without it, because that is the work.
+ */
+@Composable
+private fun EsperitFace(size: Int, mood: WindMood, accent: Color, bearing: Int, motion: Boolean, modifier: Modifier) {
+    val busy = mood in windWorkMoods
+    val loop = if (motion || busy) {
+        rememberInfiniteTransition(label = "esperit").animateFloat(
+            initialValue = 0f, targetValue = 12f,
+            animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing)), label = "loop")
+    } else null
+    val seed = remember(accent, bearing) { ((accent.hashCode() * 31 + bearing) and 0xffff) / 65535f * 12f }
+    val ink = remember(accent) { windInk(accent) }
+    val tone = remember(accent) { lerp(accent, Color(0xFF1B1530), .8f) }
+    Canvas(modifier.size(size.dp)) {
+        val t = loop?.let { (it.value + seed) % 12f } ?: 0f
+        val period = if (busy) .75f else 3f
+        val turn = 2f * PI.toFloat() * (t % period) / period
+        val sway = if (loop != null) sin(turn) * 5f else 0f
+        val drift = if (loop != null) (1f - cos(turn)) / 2f else 0f
+        val rad = Math.toRadians(bearing.toDouble())
+        val ux = sin(rad).toFloat()
+        val uy = -cos(rad).toFloat()
+        val hx = 50f - 12f * ux
+        val hy = 50f - 12f * uy
+        val px = -1.6f * ux
+        val py = -1.6f * uy
+        val k = min(this.size.width, this.size.height) / 100f
+        withTransform({ scale(k, k, Offset.Zero); translate(px * drift, (py - 1.4f) * drift) }) {
+            withTransform({ translate(hx, hy); rotate(bearing - 90f + sway, Offset.Zero) }) {
+                val tail = Brush.horizontalGradient(0f to accent, .55f to accent.copy(alpha = .55f), 1f to accent.copy(alpha = 0f),
+                    startX = 11.2f, endX = 53.2f)
+                drawPath(esperitTails, tail)
+                drawPath(esperitStreak, tail, style = Stroke(3.2f, cap = StrokeCap.Round))
+            }
+            drawCircle(Brush.radialGradient(0f to lerp(accent, Color.White, .5f), .5f to accent, 1f to lerp(accent, Color(0xFF1B1530), .35f),
+                center = Offset(hx - 9f, hy - 11f), radius = 53.2f), 28f, Offset(hx, hy))
+            for (side in listOf(-1f, 1f)) {
+                drawOval(Color(0xFFE4577A), Offset(hx + 14f * side - 4.6f, hy + 3.2f), Size(9.2f, 5.6f), alpha = .32f)
+                drawOval(ink, Offset(hx + 8f * side + px - 2.9f, hy - 5.7f + py), Size(5.8f, 7.4f))
+                drawCircle(if (ink == Color.White) accent else Color.White, 1f, Offset(hx + 8f * side + 1f + px, hy - 3.4f + py))
+            }
+            val mouth = Path().apply { moveTo(hx - 5f, hy + 6f); quadraticTo(hx, hy + 10.5f, hx + 5f, hy + 6f) }
+            drawPath(mouth, ink, style = Stroke(2.2f, cap = StrokeCap.Round))
+        }
+        val unit = min(this.size.width, this.size.height) / 80f
+        withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, loop != null, 1f, tone) }
     }
 }
 

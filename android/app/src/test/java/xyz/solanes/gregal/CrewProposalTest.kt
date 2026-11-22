@@ -19,7 +19,8 @@ class CrewProposalTest {
         val w = p.create.single().wind
         assertEquals("Ratxa", w.name)
         assertEquals("#F7B2D9", w.color)
-        assertEquals(WindStyle(WindEyes.WIDE, WindMouth.OPEN, WindShape.CLOUD), w.faceStyle)
+        // The style also carries where the wind blows from (task 046), from its name while it has no id.
+        assertEquals(WindStyle(WindEyes.WIDE, WindMouth.OPEN, WindShape.CLOUD, bearing = 270), w.faceStyle)
         assertEquals("Pa i massa mare", JSONObject(p.create.single().json().toString()).getString("role"))
     }
 }
