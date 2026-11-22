@@ -1617,6 +1617,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 // Posa't al dia: només els events posteriors a l'últim
                 // run_queued d'aquest id (registres antics reutilitzaven ids).
                 val id = act.id.toLong()
+                // El que aquest ViewModel ja ha pintat (un torn que s'ha
+                // quedat sense xarxa) no es torna a pintar.
+                val seen = eventCursor
                 val mine = mutableListOf<DurableEvent>()
                 var cur = 0L
                 while (true) {
@@ -1629,7 +1632,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     cur = page.next
                 }
                 if (cur > eventCursor) eventCursor = cur
-                mine.filter { it.kind !in setOf("run_completed", "run_failed", "run_cancelled") }.forEach { receiveDurable(it) }
+                mine.filter { it.id > seen && it.kind !in setOf("run_completed", "run_failed", "run_cancelled") }.forEach { receiveDurable(it) }
                 ok = followRun(api, id)
             } catch (e: CancellationException) {
                 throw e
@@ -2586,11 +2589,12 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 } catch (e: Exception) {
                     // En segon pla Android talla la xarxa: el torn segueix al
                     // servidor, així que s'espera sense gastar els reintents.
-                    val waiting = !AppVisibility.foreground && isUnreachable(e)
+                    // En local, en canvi, vol dir que el backend ha caigut.
+                    val waiting = !AppVisibility.foreground && !_conn.value.local && isUnreachable(e)
                     if (!waiting && ++errors > 30) {
                         // Sense xarxa el torn no ha fallat: en tornar a primer
                         // pla s'hi torna a enganxar, sense bombolla d'error.
-                        if (isUnreachable(e)) return false
+                        if (isUnreachable(e) && !_conn.value.local) return false
                         throw e
                     }
                     setActivity("net", appText("app.work.reconnecting"))

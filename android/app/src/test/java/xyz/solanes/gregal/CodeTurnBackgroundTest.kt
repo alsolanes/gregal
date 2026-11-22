@@ -85,6 +85,8 @@ class CodeTurnBackgroundTest {
             assertTrue("els events del torn hi són", vm.msgs.value.any { it.role == "assistant" && it.text == RunServer.ANSWER })
             assertFalse("el torn acaba", vm.sending.value)
             assertEquals("la tasca no es repeteix", 1, vm.msgs.value.count { it.role == "user" && it.text == "hola" })
+            assertEquals("el que ja s'havia vist abans del tall no es repeteix", 1,
+                vm.msgs.value.count { it.role == "assistant" && it.text == RunServer.EARLY })
         }
     }
 
@@ -99,7 +101,10 @@ class CodeTurnBackgroundTest {
      * consultes del registre es tallen sense resposta, com quan no hi ha xarxa.
      */
     private class RunServer(dropEvents: Int) : AutoCloseable {
-        companion object { const val ANSWER = "Fet: tot llest." }
+        companion object {
+            const val EARLY = "Començo per llegir el codi."
+            const val ANSWER = "Fet: tot llest."
+        }
 
         private val socket = ServerSocket(0)
         val port: Int get() = socket.localPort
@@ -108,9 +113,11 @@ class CodeTurnBackgroundTest {
         val toDrop = AtomicInteger(dropEvents)
         /** El servidor diu que el torn encara corre (GET /api/active). */
         val active = AtomicBoolean(false)
+        private val firstPageServed = AtomicBoolean(false)
         private val events = listOf(
-            """{"id":1,"session_id":"mobil","run_id":7,"kind":"assistant","text":"$ANSWER"}""",
-            """{"id":2,"session_id":"mobil","run_id":7,"kind":"run_completed","text":""}""",
+            """{"id":1,"session_id":"mobil","run_id":7,"kind":"assistant","text":"$EARLY"}""",
+            """{"id":2,"session_id":"mobil","run_id":7,"kind":"assistant","text":"$ANSWER"}""",
+            """{"id":3,"session_id":"mobil","run_id":7,"kind":"run_completed","text":""}""",
         )
         private val acceptor = thread(isDaemon = true, name = "run-server") {
             while (!socket.isClosed) {
@@ -136,13 +143,15 @@ class CodeTurnBackgroundTest {
                 path.startsWith("/api/state") -> """{"mode":"code"}"""
                 line.startsWith("POST /api/v2/runs") -> """{"run":{"id":7,"state":"queued"},"cursor":0}"""
                 path.startsWith("/api/v2/events") -> {
-                    if (toDrop.getAndUpdate { maxOf(0, it - 1) } > 0) {
+                    // La primera consulta arriba abans del tall i només porta el primer event.
+                    val upTo = if (!firstPageServed.getAndSet(true)) 1 else events.size
+                    if (upTo == events.size && toDrop.getAndUpdate { maxOf(0, it - 1) } > 0) {
                         dropped.incrementAndGet()
                         return
                     }
                     val after = path.substringAfter("after=").substringBefore('&').toLong()
-                    val page = events.drop(after.toInt())
-                    """{"events":[${page.joinToString(",")}],"cursor":$after,"next":${maxOf(after, events.size.toLong())}}"""
+                    val page = events.take(upTo).drop(after.toInt())
+                    """{"events":[${page.joinToString(",")}],"cursor":$after,"next":${maxOf(after, upTo.toLong())}}"""
                 }
                 path.startsWith("/api/v2/runs/7") ->
                     """{"run":{"id":7,"state":"${if (toDrop.get() == 0) "completed" else "running"}"}}"""
