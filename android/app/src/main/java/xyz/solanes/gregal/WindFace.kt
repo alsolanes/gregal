@@ -13,6 +13,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.TransformOrigin
@@ -167,6 +168,28 @@ private val windWorkMoods = setOf(
     WindMood.WRITING, WindMood.WORKING, WindMood.DISCUSSING,
 )
 
+// Cares que bufen (`blow` in winds.js, same lines): while a Cares face works it
+// blows downwind. Face units along +x from the rim, turned to the opposite of
+// the wind's bearing; they reach 48 from the centre, the face box plus 10 %.
+private val windBreathMoods = setOf(WindMood.THINKING, WindMood.SEARCHING, WindMood.READING, WindMood.WRITING, WindMood.WORKING)
+private val windGusts = listOf("M35 -7C39 -9 43 -5 47 -7.5" to 3.2f, "M36 0C40 -2 44 2 48 0" to 3.2f, "M35 7C39 9 43 5 47 7.5" to 3.2f)
+private val windPuffs = listOf("M36 -4C39 -5 42 -3 45 -4" to 5f, "M36 4C39 5 42 3 45 4" to 5f)
+
+/** The three long lines, or the short, bolder pair a face under 28 dp can still show. */
+internal fun windBreathLines(size: Int) = if (size < 28) windPuffs else windGusts
+private val windBreathPaths by lazy { (windGusts + windPuffs).associate { (d, _) -> d to PathParser().parsePathString(d).toPath() } }
+
+/**
+ * The breath in face units around (0, 0). The long lines are dashes streaming
+ * outward as [blow] runs 0..1; the gap is wider than the stroke so the round
+ * caps don't close it. The short pair is solid, as in the mockup.
+ */
+private fun DrawScope.drawBreath(size: Int, accent: Color, blow: Float) {
+    val brush = Brush.horizontalGradient(0f to lerp(accent, Color.White, .15f), 1f to accent.copy(alpha = 0f), startX = 34f, endX = 48f)
+    val dash = if (size < 28) null else PathEffect.dashPathEffect(floatArrayOf(3f, 5f), (1f - blow) * 8f)
+    for ((d, width) in windBreathLines(size)) drawPath(windBreathPaths.getValue(d), brush, style = Stroke(width, cap = StrokeCap.Round, pathEffect = dash))
+}
+
 /** Gir (graus) i batec (escala) de l'aura al temps `t` del rellotge de 12 s; sense moviment `t` és 0 i queda quieta. */
 internal fun windAuraSway(t: Float): Pair<Float, Float> = t % 6f / 6f * 360f to 1f + sin(PI.toFloat() * t) * .06f
 
@@ -182,7 +205,8 @@ fun WindFace(
     modifier: Modifier = Modifier,
 ) {
     val compact = size < 64
-    val motion = (!compact || tappable) && windMotionEnabled()
+    val motionAllowed = windMotionEnabled()
+    val motion = (!compact || tappable) && motionAllowed
     if (windPack(LocalAvatarTheme.current, style) == "esperit") {
         EsperitFace(size, mood, accent, style.bearing, motion, modifier)
         return
@@ -212,6 +236,14 @@ fun WindFace(
         rememberInfiniteTransition(label = "wind-loop").animateFloat(
             initialValue = 0f, targetValue = 12f,
             animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing)), label = "loop")
+    } else null
+    // The breath streams in list faces too, but like the rest of Cares it stays
+    // still when motion is off.
+    val breathing = mood in windBreathMoods
+    val blow = if (breathing && motionAllowed) {
+        rememberInfiniteTransition(label = "wind-breath").animateFloat(
+            initialValue = 0f, targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(750, easing = LinearEasing)), label = "blow")
     } else null
     val seed = remember(accent, style) { ((accent.hashCode() * 31 + style.hashCode()) and 0xffff) / 65535f * 12f }
     fun time() = loop?.let { (it.value + seed) % 12f } ?: 0f
@@ -463,7 +495,11 @@ fun WindFace(
             sparkle(cx + r * 1.05f, cy - r * 0.75f, r * 0.13f, twinkle)
             sparkle(cx - r * 1.10f, cy - r * 0.45f, r * 0.10f, 1f - twinkle)
         }
-        withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, motion, doneHop?.value ?: 1f, tone) }
+        if (breathing) withTransform({ scale(unit, unit, Offset.Zero); translate(40f, 40f); rotate(style.bearing + 90f, Offset.Zero) }) {
+            drawBreath(size, accent, blow?.value ?: 0f)
+        }
+        // In Cares the breath replaces the working cog; the other marks stay.
+        if (mood != WindMood.WORKING) withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, motion, doneHop?.value ?: 1f, tone) }
     }
 }
 

@@ -323,6 +323,18 @@
 .winds-face.wf-idle .wf-drift { animation:wf-drift 3s ease-in-out var(--wf-phase,0s) infinite; }
 .winds-face:is([data-mood=thinking],[data-mood=searching],[data-mood=reading],[data-mood=writing],[data-mood=working],[data-mood=discussing]) .wf-tails { animation:wf-wiggle .75s ease-in-out var(--wf-phase,0s) infinite !important; }
 .winds-face:is([data-mood=thinking],[data-mood=searching],[data-mood=reading],[data-mood=writing],[data-mood=working],[data-mood=discussing]) .wf-drift { animation:wf-drift .75s ease-in-out var(--wf-phase,0s) infinite !important; }
+/* Cares que bufen: the breath exists only while the wind works (winds.js) and,
+   like the rest of the Cares face, stands still under reduced motion. Faces
+   under 28 px draw the short, bolder pair instead of the three long lines,
+   solid as in the mockup. The dash gap is wider than the stroke so the round
+   caps don't close it. */
+.winds-face .wf-breath { pointer-events:none; }
+.winds-face .wf-gust path { stroke-dasharray:3 5; }
+.winds-face .wf-puff { display:none; }
+:is(.vw-nav,.vw-pick-card,.vw-task-faces,.vw-crew-chip,.vw-owner,.vw-owner-faces,.vw-address-wind,.vw-thread-solo,.vw-wx-by) .winds-face .wf-gust { display:none; }
+:is(.vw-nav,.vw-pick-card,.vw-task-faces,.vw-crew-chip,.vw-owner,.vw-owner-faces,.vw-address-wind,.vw-thread-solo,.vw-wx-by) .winds-face .wf-puff { display:inline; }
+.winds-face:is([data-mood=thinking],[data-mood=searching],[data-mood=reading],[data-mood=writing],[data-mood=working]) .wf-breath path { animation:wf-blow .75s linear var(--wf-phase,0s) infinite; }
+@keyframes wf-blow { from { stroke-dashoffset:8; } to { stroke-dashoffset:0; } }
 @keyframes wf-drift { 0%,100% { transform:translate(0,0); } 50% { transform:translate(var(--wf-dx,0px),var(--wf-dy,0px)); } }
 @keyframes wf-breathe { 0%,100% { transform:scale(1,1); } 50% { transform:scale(.99,1.025); } }
 @keyframes wf-sway { 0%,100% { transform:rotate(-5deg); } 50% { transform:rotate(6deg); } }

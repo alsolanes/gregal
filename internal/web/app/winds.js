@@ -295,8 +295,24 @@
       root.api('/api/winds/novetats/read', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ wind:id }) }).catch(() => {});
     }
   }
-  const moodSince = new Map(), faceKeys = new WeakMap(), faceTones = new WeakMap();
+  const moodSince = new Map(), faceKeys = new WeakMap(), faceTones = new WeakMap(), faceBreath = new WeakMap();
   const clock = () => (root.performance?.now?.() ?? Date.now()) / 1000;
+  // Cares que bufen (mockups/vents-avatars.html): while a Cares face works it
+  // blows downwind. Lines in face units along +x from the rim, turned to the
+  // opposite of the wind's direction; they reach 48 from the centre, so they
+  // stay within the face box plus 8 (10 %), less than the gap before a name in
+  // any list row. The short, bolder pair is for faces under 28 px (winds.css).
+  const breathMoods = ['thinking', 'searching', 'reading', 'writing', 'working'];
+  const gusts = [['M35 -7C39 -9 43 -5 47 -7.5', 3.2], ['M36 0C40 -2 44 2 48 0', 3.2], ['M35 7C39 9 43 5 47 7.5', 3.2]];
+  const puffs = [['M36 -4C39 -5 42 -3 45 -4', 5], ['M36 4C39 5 42 3 45 4', 5]];
+  function blow(svg, { deg, fill }) {
+    const id = 'wf' + (++faceSerial), box = svgNode('svg', { class:'wf-breath', x:-8, y:-8, width:96, height:96, viewBox:'-8 -8 96 96' });
+    box.append(shapes(svgNode('linearGradient', { id, x1:34, y1:0, x2:48, y2:0, gradientUnits:'userSpaceOnUse' }),
+      [['stop', { offset:0, 'stop-color':mix(fill, '#FFFFFF', .15) }], ['stop', { offset:1, 'stop-color':fill, 'stop-opacity':0 }]]));
+    const turn = group(box, '', { transform:`translate(40 40) rotate(${deg + 90})`, fill:'none', stroke:'url(#' + id + ')', 'stroke-linecap':'round' });
+    for (const [cls, list] of [['wf-gust', gusts], ['wf-puff', puffs]]) shapes(group(turn, cls), list.map(([d, width]) => ['path', { d, 'stroke-width':width }]));
+    svg.append(box);
+  }
   function setMood(svg, mood, key = faceKeys.get(svg)) {
     mood = moods.includes(mood) ? mood : 'idle';
     const now = clock(), last = moodSince.get(key);
@@ -313,7 +329,11 @@
     }
     svg.style.setProperty('--wf-since', mood === 'idle' ? '0s' : (moodSince.get(key).at - now).toFixed(2) + 's');
     svg.querySelector('.wf-badge')?.remove();
-    if (badges[mood]) {
+    svg.querySelector('.wf-breath')?.remove();
+    const breath = faceBreath.get(svg);
+    if (breath && breathMoods.includes(mood)) blow(svg, breath);
+    // In Cares the breath replaces the working cog; the other marks stay.
+    if (badges[mood] && !(breath && mood === 'working')) {
       const tone = faceTones.get(svg), badge = shapes(group(svg, 'wf-badge'), badges[mood], tone), tool = badge.querySelector('.wf-tool, .wf-pop');
       if (tool) shapes(tool, tools[mood], tone);
     }
@@ -470,6 +490,7 @@
       const prop = shapes(group(figure, 'wf-prop'), worn.prop, tone);
       for (const [cx, cy] of worn.hands || []) shapes(prop, [['ellipse', { cx, cy, rx:4.6, ry:4, fill, stroke:mix(fill, '#1B1530', .45), 'stroke-width':1.4 }]]);
     }
+    faceBreath.set(svg, { deg:direction(w), fill });
     return setMood(svg, mood, key);
   }
   function status(id, text, error) {

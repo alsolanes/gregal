@@ -211,3 +211,77 @@ test('Esperit de vent idles only with motion on; real work always moves the tail
   assert.match(css, /\.winds-face\.wf-idle \.wf-tails\s*\{[^}]*animation:/, 'idle sway hangs on wf-idle');
   assert.match(css, /\[data-mood=working\][^{]*\.wf-tails[^{]*\{[^}]*animation:[^}]*!important/, 'working tails move even when motion is reduced');
 });
+
+// Cares que bufen: while a Cares face works it blows toward where its wind goes.
+const breathOf = svg => svg.querySelector('.wf-breath');
+const turnOf = breath => +/rotate\(([-\d.]+)\)/.exec(breath.all().find(n => /rotate/.test(n.attrs.transform || '')).attrs.transform)[1];
+const lines = (breath, cls) => breath.querySelector('.' + cls).children.filter(n => n.tag === 'path');
+
+test('a working Cares face blows three breath lines downwind, and two short ones for small faces', () => {
+  const { winds } = load();
+  const tramuntana = { id:'tramuntana', name:'Tramuntana', color:'#A8D8EA', style:'pso' };
+  for (const mood of ['working', 'thinking', 'searching', 'reading', 'writing']) {
+    const breath = breathOf(winds.face(tramuntana, false, mood));
+    assert.ok(breath, mood + ' blows');
+    assert.equal(lines(breath, 'wf-gust').length, 3);
+    assert.equal(lines(breath, 'wf-puff').length, 2);
+  }
+  for (const mood of ['idle', 'done', 'failed', 'news', 'discussing']) assert.equal(breathOf(winds.face(tramuntana, false, mood)), null, mood + ' does not blow');
+  // The lines are drawn along +x; Tramuntana blows from the north, so they turn to point south.
+  assert.equal(turnOf(breathOf(winds.face(tramuntana, false, 'working'))) % 360, 90);
+  assert.equal(turnOf(breathOf(winds.face({ id:'ponent', name:'Ponent', color:'#EACF87', style:'pso' }, true, 'working'))) % 360, 0, 'Ponent blows east');
+  assert.equal(winds.face(tramuntana, false, 'working').querySelector('.wf-badge'), null, 'in Cares the breath replaces the cog');
+  assert.ok(winds.face(tramuntana, false, 'searching').querySelector('.wf-badge'), 'the other work marks stay');
+  winds.setAvatarTheme('esperit');
+  const esperit = winds.face(tramuntana, false, 'working');
+  assert.equal(breathOf(esperit), null, 'only Cares blows');
+  assert.ok(esperit.querySelector('.wf-badge'), 'the other packs keep the cog');
+  const css = fs.readFileSync(path.join(__dirname, 'winds.css'), 'utf8');
+  assert.match(css, /\.winds-face \.wf-puff\s*\{\s*display:none;/, 'the short lines are for small faces only');
+  const small = /:is\(([^)]*)\) \.winds-face \.wf-gust\s*\{\s*display:none;/.exec(css);
+  assert.ok(small, 'small faces hide the long lines');
+  for (const row of ['.vw-nav', '.vw-pick-card', '.vw-task-faces', '.vw-crew-chip']) assert.ok(small[1].split(',').includes(row), row + ' faces are under 28 px');
+  assert.match(css, new RegExp(':is\\(' + small[1].replace(/[.()]/g, '\\$&') + '\\) \\.winds-face \\.wf-puff\\s*\\{\\s*display:inline;'));
+});
+
+test('the breath stays inside the face box plus a 10% margin, whatever the direction', () => {
+  const { winds } = load();
+  for (const name of ['Tramuntana', 'Gregal', 'Llevant', 'Xaloc', 'Migjorn', 'Garbí', 'Ponent', 'Mestral']) {
+    const breath = breathOf(winds.face({ id:'w', name, color:'#A8D8EA', style:'pso' }, false, 'working'));
+    const box = ['x', 'y', 'width', 'height'].map(k => +breath.attrs[k]);
+    assert.deepEqual(box, [-8, -8, 96, 96], 'the 80 box plus 8 on every side');
+    assert.equal(breath.attrs.viewBox, '-8 -8 96 96');
+    const a = turnOf(breath) * Math.PI / 180;
+    for (const cls of ['wf-gust', 'wf-puff']) for (const line of lines(breath, cls)) {
+      const n = line.attrs.d.match(/-?[\d.]+/g).map(Number);
+      for (let i = 0; i < n.length; i += 2) {
+        const x = 40 + n[i] * Math.cos(a) - n[i + 1] * Math.sin(a), y = 40 + n[i] * Math.sin(a) + n[i + 1] * Math.cos(a);
+        assert.ok(x >= -8 && x <= 88 && y >= -8 && y <= 88, `${name} ${cls} point ${x},${y} inside the box`);
+        assert.ok(Math.hypot(x - 40, y - 40) >= 33, `${name} ${cls} leaves the face`);
+      }
+    }
+  }
+});
+
+test('the breath moves only while the wind works and goes away when it is idle again', () => {
+  const { winds } = load();
+  const svg = winds.face({ id:'gregal', name:'Gregal', color:'#A8D8EA', style:'pso' }, false, 'working');
+  assert.ok(breathOf(svg));
+  winds.mood(svg, 'writing');
+  assert.equal(svg.all().filter(n => (n.attrs.class || '') === 'wf-breath').length, 1, 'a new mood redraws the breath once');
+  winds.mood(svg, 'idle');
+  assert.equal(breathOf(svg), null);
+  assert.equal(svg.querySelector('.wf-badge'), null);
+  const css = fs.readFileSync(path.join(__dirname, 'winds.css'), 'utf8');
+  const rule = /\.winds-face:is\(([^)]*)\) \.wf-breath path\s*\{([^}]*)\}/.exec(css);
+  assert.ok(rule, 'the breath animation hangs on the work moods');
+  for (const mood of ['thinking', 'searching', 'reading', 'writing', 'working']) assert.ok(rule[1].includes(`[data-mood=${mood}]`), mood);
+  assert.match(rule[2], /animation:wf-blow [^;]*infinite;/);
+  assert.doesNotMatch(rule[2], /!important/, 'under reduced motion it stays still, like the rest of the Cares face');
+  assert.doesNotMatch(css, /\.winds-face \.wf-breath path\s*\{[^}]*animation/, 'no breath animation outside work');
+  // Round caps grow each dash by the stroke width: the gap must be wider, or the dashes merge into a solid line.
+  const [dash, gap] = /\.winds-face \.wf-gust path\s*\{\s*stroke-dasharray:([\d.]+) ([\d.]+);/.exec(css).slice(1).map(Number);
+  const width = Math.max(...lines(breathOf(winds.face({ id:'gregal', name:'Gregal', color:'#A8D8EA', style:'pso' }, false, 'working')), 'wf-gust').map(n => +n.attrs['stroke-width']));
+  assert.ok(gap > width, `gap ${gap} wider than the stroke ${width}`);
+  assert.match(css, new RegExp(`@keyframes wf-blow \\{ from \\{ stroke-dashoffset:${dash + gap}; \\}`), 'one whole dash period per loop');
+});
