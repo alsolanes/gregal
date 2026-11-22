@@ -75,7 +75,7 @@ data class Wind(
     val squad: String = "",
     /** "off": el vent no s'ofereix a fer seguiments pel seu compte. */
     val followups: String = "on",
-    /** El paquet d'avatar propi ("cares", "esperit"; buit és Cares): mana només amb el tema «free». */
+    /** El paquet d'avatar propi ("cares", "esperit", "cap", "rosa"; buit és Cares): mana només amb el tema «free». */
     val avatar: String = "",
 ) {
     /** Color ARGB per a Compose. */

@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
@@ -123,7 +124,7 @@ fun windStyleOf(code: String?): WindStyle {
 fun WindStyle.encode(): String = eyes.key + mouth.key + shape.key
 
 /** The packs a wind can be drawn with; the account theme is one of them or "free" (task 045). */
-internal val windPacks = listOf("cares", "esperit")
+internal val windPacks = listOf("cares", "esperit", "cap", "rosa")
 
 /** The account's avatar theme (`avatarTheme` of GET /api/winds); "free" draws each wind with its own pack. */
 val LocalAvatarTheme = compositionLocalOf { "cares" }
@@ -134,7 +135,7 @@ internal fun avatarThemeOf(raw: String): String =
 internal fun windPack(theme: String, style: WindStyle): String =
     if (theme != "free") theme else style.pack.takeIf { it in windPacks } ?: "cares"
 
-/** "winds.avatarCares", "winds.avatarEsperit", "winds.avatarFree". */
+/** "winds.avatarCares", "winds.avatarEsperit", "winds.avatarCap", "winds.avatarRosa", "winds.avatarFree". */
 internal fun avatarLabelKey(pack: String) = "winds.avatar" + pack.replaceFirstChar { it.uppercase() }
 
 private val windRose = mapOf("tramuntana" to 0, "gregal" to 45, "llevant" to 90, "xaloc" to 135,
@@ -207,9 +208,10 @@ fun WindFace(
     val compact = size < 64
     val motionAllowed = windMotionEnabled()
     val motion = (!compact || tappable) && motionAllowed
-    if (windPack(LocalAvatarTheme.current, style) == "esperit") {
-        EsperitFace(size, mood, accent, style.bearing, motion, modifier)
-        return
+    when (windPack(LocalAvatarTheme.current, style)) {
+        "esperit" -> return EsperitFace(size, mood, accent, style.bearing, motion, modifier)
+        "cap" -> return CapFace(size, mood, accent, style.bearing, motion, modifier)
+        "rosa" -> return RosaFace(size, mood, accent, style.bearing, motion, modifier)
     }
     // La forma reacciona quan el dit toca la cara i torna amb molla en deixar-la.
     val touch = if (tappable && motion) remember { MutableInteractionSource() } else null
@@ -557,6 +559,120 @@ private fun EsperitFace(size: Int, mood: WindMood, accent: Color, bearing: Int, 
             }
             val mouth = Path().apply { moveTo(hx - 5f, hy + 6f); quadraticTo(hx, hy + 10.5f, hx + 5f, hy + 6f) }
             drawPath(mouth, ink, style = Stroke(2.2f, cap = StrokeCap.Round))
+        }
+        val unit = min(this.size.width, this.size.height) / 80f
+        withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, loop != null, 1f, tone) }
+    }
+}
+
+// Cap de vent (`cap` in winds.js): the breath in its own frame, leaving the rim
+// along +x, in the web's 100 box. Faces under 28 dp blow two short thick lines.
+private val capGusts by lazy { listOf("M0-7C10-11 18-5 30-9", "M0 0C12-3 22 3 36 0", "M0 7C10 11 18 5 30 9").map { PathParser().parsePathString(it).toPath() } }
+private val capPuffs by lazy { listOf("M0-5C6-7 12-4 18-6", "M0 6C6 8 12 5 18 7").map { PathParser().parsePathString(it).toPath() } }
+
+/**
+ * A head of the old maps, full cheeks and closed eyes, on the side the wind
+ * comes from and blowing toward where it goes. The breath flows at idle with
+ * [motion]; while the wind works it flows faster even without it.
+ */
+@Composable
+private fun CapFace(size: Int, mood: WindMood, accent: Color, bearing: Int, motion: Boolean, modifier: Modifier) {
+    val busy = mood in windWorkMoods
+    val loop = if (motion || busy) {
+        rememberInfiniteTransition(label = "cap").animateFloat(
+            initialValue = 0f, targetValue = 12f,
+            animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing)), label = "loop")
+    } else null
+    val seed = remember(accent, bearing) { ((accent.hashCode() * 31 + bearing) and 0xffff) / 65535f * 12f }
+    val ink = remember(accent) { windInk(accent) }
+    val tone = remember(accent) { lerp(accent, Color(0xFF1B1530), .8f) }
+    val small = size < 28
+    Canvas(modifier.size(size.dp)) {
+        val t = loop?.let { (it.value + seed) % 12f } ?: 0f
+        val period = if (busy) .7f else 1.8f
+        val rad = Math.toRadians(bearing.toDouble())
+        val ux = sin(rad).toFloat()
+        val uy = -cos(rad).toFloat()
+        val r = if (small) 28f else 25f
+        val hx = 50f + 11f * ux
+        val hy = 50f + 11f * uy
+        val mx = hx - 9f * ux
+        val my = hy + 7f - 3f * uy
+        val k = min(this.size.width, this.size.height) / 100f
+        // The web's face clips to its box, so the breath ends at the edge.
+        clipRect {
+            withTransform({ scale(k, k, Offset.Zero) }) {
+                drawOval(Brush.radialGradient(0f to lerp(accent, Color.White, .5f), .5f to accent, 1f to lerp(accent, Color(0xFF1B1530), .35f),
+                    center = Offset(hx - 9f, hy - 11f), radius = 1.9f * r), Offset(hx - r - 1.5f, hy - r), Size(2f * r + 3f, 2f * r))
+                if (small) drawCircle(ink, 4f, Offset(mx, my)) else {
+                    for (side in listOf(-1f, 1f)) drawCircle(Color(0xFFE4577A), 6.5f, Offset(hx + 13f * side, hy + 5f), alpha = .38f)
+                    val eyes = Path().apply {
+                        moveTo(hx - 12f, hy - 3f); relativeQuadraticBezierTo(4f, -4.5f, 8f, 0f)
+                        moveTo(hx + 4f, hy - 3f); relativeQuadraticBezierTo(4f, -4.5f, 8f, 0f)
+                    }
+                    drawPath(eyes, ink, style = Stroke(2.3f, cap = StrokeCap.Round))
+                    drawOval(ink, Offset(mx - 3.4f, my - 3.9f), Size(6.8f, 7.8f))
+                }
+                withTransform({ translate(hx - ux * (r + 3f), hy - uy * (r + 3f)); rotate(bearing + 90f, Offset.Zero) }) {
+                    val breath = lerp(accent, Color.White, .25f)
+                    val brush = Brush.horizontalGradient(0f to breath, 1f to breath.copy(alpha = 0f), startX = 0f, endX = if (small) 18f else 36f)
+                    // Dashes 12/6 flowing outward (wf-flow: offset 18 to 0); the short pair is solid.
+                    val dash = if (small) null else PathEffect.dashPathEffect(floatArrayOf(12f, 6f), 18f * (1f - t % period / period))
+                    for (line in if (small) capPuffs else capGusts) drawPath(line, brush, style = Stroke(if (small) 7f else 3.6f, cap = StrokeCap.Round, pathEffect = dash))
+                }
+            }
+        }
+        val unit = min(this.size.width, this.size.height) / 80f
+        withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, loop != null, 1f, tone) }
+    }
+}
+
+/** One point of the rose (`point` in winds.js): two halves meeting along -y, the light one on the left. */
+private fun DrawScope.rosePoint(len: Float, wd: Float, left: Color, right: Color, alpha: Float = 1f) {
+    drawPath(Path().apply { moveTo(0f, 0f); lineTo(-wd, -wd); lineTo(0f, -len); close() }, left, alpha = alpha)
+    drawPath(Path().apply { moveTo(0f, 0f); lineTo(wd, -wd); lineTo(0f, -len); close() }, right, alpha = alpha)
+}
+
+/**
+ * Rosa de rellotge (`rosa` in winds.js): the wind rose as a dial on a dark tone
+ * of the wind's colour, its long point in the wind's colour turned to where it
+ * comes from. Under 28 dp only that point, wider; from 80 dp the minute ticks.
+ * The point sways at idle with [motion] and swings while the wind works.
+ */
+@Composable
+private fun RosaFace(size: Int, mood: WindMood, accent: Color, bearing: Int, motion: Boolean, modifier: Modifier) {
+    val busy = mood in windWorkMoods
+    val loop = if (motion || busy) {
+        rememberInfiniteTransition(label = "rosa").animateFloat(
+            initialValue = 0f, targetValue = 12f,
+            animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing)), label = "loop")
+    } else null
+    val seed = remember(accent, bearing) { ((accent.hashCode() * 31 + bearing) and 0xffff) / 65535f * 12f }
+    val tone = remember(accent) { lerp(accent, Color(0xFF1B1530), .8f) }
+    val dark = remember(accent) { lerp(accent, Color(0xFF0F0C18), .72f) }
+    val cream = Color(0xFFF3EAD8)
+    val faint = lerp(cream, dark, .45f)
+    val small = size < 28
+    Canvas(modifier.size(size.dp)) {
+        val t = loop?.let { (it.value + seed) % 12f } ?: 0f
+        val period = if (busy) 1.4f else 4f
+        val swing = if (loop != null) -cos(2f * PI.toFloat() * (t % period) / period) * (if (busy) 10f else 5f) else 0f
+        val k = min(this.size.width, this.size.height) / 100f
+        withTransform({ scale(k, k, Offset.Zero); translate(50f, 50f) }) {
+            drawCircle(Brush.radialGradient(0f to lerp(accent, Color(0xFF1B1530), .3f), 1f to dark, center = Offset(-10f, -16f), radius = 70f), 50f, Offset.Zero)
+            if (!small) {
+                drawCircle(cream, 44f, Offset.Zero, alpha = .3f, style = Stroke(1f))
+                if (size >= 80) for (i in 0 until 32) withTransform({ rotate(i * 11.25f, Offset.Zero) }) {
+                    drawLine(cream, Offset(0f, -43.5f), Offset(0f, if (i % 4 != 0) -41.5f else -40f), 1f, alpha = .4f)
+                }
+                for (a in 0 until 360 step 90) withTransform({ rotate(a.toFloat(), Offset.Zero) }) { rosePoint(29f, 5.5f, cream, faint, .55f) }
+                for (a in 45 until 360 step 90) withTransform({ rotate(a.toFloat(), Offset.Zero) }) { rosePoint(20f, 4.5f, cream, faint, .32f) }
+            }
+            withTransform({ rotate(bearing + swing, Offset.Zero) }) {
+                rosePoint(if (small) 40f else 43f, if (small) 12f else 8f, lerp(accent, Color.White, .55f), accent)
+            }
+            drawCircle(cream, if (small) 7f else 4.5f, Offset.Zero)
+            drawCircle(dark, if (small) 3f else 1.8f, Offset.Zero)
         }
         val unit = min(this.size.width, this.size.height) / 80f
         withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, loop != null, 1f, tone) }
