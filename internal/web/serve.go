@@ -3675,9 +3675,10 @@ func (s *Server) handleAccess(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.mu.Lock()
+	// Amb «full» també cal treure un «ask» desat: els vents segueixen AskEdits.
 	if access == agent.AccessAsk {
 		s.cfg.Permissions.Access = config.AccessAsk
-	} else if access == agent.AccessEdits {
+	} else {
 		s.cfg.Permissions.Access = ""
 	}
 	mode := agent.ModeFor(agent.UIModeAct, access)
