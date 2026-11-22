@@ -823,6 +823,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
      * ja es reactiven sols amb LifecyclePoll).
      */
     fun onForegrounded() {
+        // Un torn que s'ha quedat sense xarxa en segon pla segueix al servidor.
+        if (_connected.value && !_sending.value) attachToRunning()
         if (_connected.value && !_conn.value.local) {
             loadWindTasks()
             refreshWindNews()
@@ -2582,9 +2584,17 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    if (++errors > 30) throw e
+                    // En segon pla Android talla la xarxa: el torn segueix al
+                    // servidor, així que s'espera sense gastar els reintents.
+                    val waiting = !AppVisibility.foreground && isUnreachable(e)
+                    if (!waiting && ++errors > 30) {
+                        // Sense xarxa el torn no ha fallat: en tornar a primer
+                        // pla s'hi torna a enganxar, sense bombolla d'error.
+                        if (isUnreachable(e)) return false
+                        throw e
+                    }
                     setActivity("net", appText("app.work.reconnecting"))
-                    delay(minOf(5000L, 400L * errors))
+                    delay(if (waiting) 5000L else minOf(5000L, 400L * errors))
                     // En local, si el backend ha caigut es torna a engegar
                     // (potser en un altre port): segueix pel nou.
                     if (_conn.value.local && errors % 3 == 0) {
@@ -2621,7 +2631,13 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     if (final.isNotEmpty()) break
                     if (cur != null && cur.state in setOf("completed", "failed", "cancelled")) {
                         // Buida el que s'hagi escrit just abans de tancar.
-                        val tail = withContext(Dispatchers.IO) { api.getEvents(eventCursor, 200, sessioApp) }
+                        val tail = try {
+                            withContext(Dispatchers.IO) { api.getEvents(eventCursor, 200, sessioApp) }
+                        } catch (e: CancellationException) { throw e } catch (e: Exception) {
+                            // Sense xarxa: la volta següent ho torna a provar.
+                            if (!isUnreachable(e)) throw e
+                            continue
+                        }
                         if (tail.next > eventCursor) eventCursor = tail.next
                         tail.events.filter { it.runId == run.id }.forEach { receiveDurable(it) }
                         final = cur.state
@@ -2695,11 +2711,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         else -> appText("app.status.connectionFailed")
     }
 
-    private fun requestMessage(e: Exception): String {
+    internal fun requestMessage(e: Exception): String {
         val m = e.message.orEmpty()
         return when {
             m.contains("401") -> appText("app.status.requestBadToken")
-            m.contains("failed to connect", true) || m.contains("unreachable", true) -> appText("app.status.requestConnection")
+            m.contains("failed to connect", true) || m.contains("unreachable", true) || isUnreachable(e) -> appText("app.status.requestConnection")
             m.isNotBlank() -> friendlyError(m, _idioma.value)
             else -> appText("app.status.requestFailed")
         }
