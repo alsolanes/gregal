@@ -43,7 +43,10 @@ class CodeTurnBackgroundTest {
     }
 
     private fun connected(server: RunServer): GregalViewModel {
-        val vm = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val vm = GregalViewModel(app)
+        // Com fa l'activitat: connect() llança syncCollective, que llegeix les prefs.
+        vm.attachPrefs(Prefs(app))
         vm.setConn(Conn("127.0.0.1", server.port.toString(), "token", "alice"))
         vm.connect()
         idleUntil(10) { vm.connected.value }
