@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v1.90.1 - 2026-11-22 - Portada de Vents al web i una barra lateral quieta
+
+- **Vents s'obre en una portada d'inici (web i escriptori).** Com a Android:
+  les cares dels vents, la salutació i el compositor, amb les converses
+  recents a sota (o exemples si encara no en tens). Escriure-hi comença una
+  conversa nova amb Gregal, tocar una cara n'obre una amb aquell vent i tocar
+  una recent la reprèn. Les plantilles de «Fes» comencen la conversa a l'acte.
+- **La barra lateral es queda quieta (web i escriptori).** Canviar de vent ja
+  no fa saltar la barra lateral cap avall quan tens obert «Paràmetres i més».
+
 ## v1.90.0 - 2026-11-21 - Desats, portades d'inici i pantalles netes
 
 - **Desa el que val la pena (web, escriptori i Android).** Qualsevol
