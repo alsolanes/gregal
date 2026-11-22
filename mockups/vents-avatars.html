@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vents · avatars</title>
+<link rel="stylesheet" href="../internal/web/app/winds.css">
+<style>
+:root{--bg:#121316;--sf:#1a1b1f;--sf2:#24262b;--bd:#2b2d33;--tx:#eceef1;--mu:#9a9da5;--fa:#6c6f77}
+body.light{--bg:#f6f4ef;--sf:#fffdf9;--sf2:#ece8df;--bd:#e3ded4;--tx:#1d1c1a;--mu:#6c675e;--fa:#9a958a}
+*{box-sizing:border-box;margin:0}
+body{font:14px/1.5 "Segoe UI Variable","Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--tx);padding-bottom:60px}
+header{position:sticky;top:0;z-index:3;display:flex;gap:12px;align-items:center;padding:12px 28px;background:var(--bg);border-bottom:1px solid var(--bd)}
+header h1{font-size:16px;font-weight:600;margin-right:auto}
+.tg{display:flex;background:var(--sf2);border-radius:9px;padding:3px}
+.tg button{font:inherit;font-size:12.5px;color:var(--mu);background:none;border:0;border-radius:7px;padding:5px 11px;cursor:pointer}
+.tg button[aria-pressed=true]{color:var(--tx);background:var(--bd)}
+main{max-width:1240px;margin:0 auto;padding:22px 28px;display:flex;flex-direction:column;gap:16px}
+.c{display:grid;grid-template-columns:250px 1fr;background:var(--sf);border:1px solid var(--bd);border-radius:18px;overflow:hidden}
+.hero{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:24px 18px;border-right:1px solid var(--bd);text-align:center;background:radial-gradient(circle at 50% 38%,color-mix(in srgb,#f19a86 16%,transparent),transparent 62%)}
+.hero h2{font-size:18px;font-weight:600;margin-top:6px}
+.hero p{font-size:12.5px;color:var(--mu);max-width:210px;line-height:1.45}
+.rec{font-size:11px;font-weight:600;color:#e0a92c;letter-spacing:.05em;text-transform:uppercase}
+.right{padding:18px 20px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.roster{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.w{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px}
+.ctx{display:grid;grid-template-columns:1.3fr 1fr 1.1fr;gap:12px}
+.box{border:1px solid var(--bd);border-radius:12px;padding:10px 12px;background:var(--bg);min-width:0}
+.box .k{font-size:11px;color:var(--fa);margin-bottom:4px}
+.row{display:flex;align-items:center;gap:10px;padding:5px 0}
+.row .x{min-width:0;flex:1}.row .t{display:flex;gap:6px;align-items:center;font-size:13px;font-weight:600}
+.row .s{font-size:12px;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row.sm{padding:3px 0;font-size:13px;gap:8px}
+.tag{display:inline-flex;align-items:center;height:19px;padding:0 7px;border-radius:6px;font-size:11px;font-weight:500;white-space:nowrap;background:color-mix(in srgb,var(--c) 18%,transparent);color:color-mix(in srgb,var(--c) 50%,var(--tx))}
+.msg{display:flex;gap:10px;align-items:flex-start;font-size:13px;padding-top:4px}
+.msg p{color:var(--mu)}
+.av{display:inline-block;flex:none;position:relative}
+.av>svg,.av>canvas{display:block;width:100%;height:100%}
+.av.round>canvas{border-radius:50%}
+.av.round::after{content:"";position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 32% 26%,rgba(255,255,255,.22),transparent 46%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.av.ring{border-radius:50%;box-shadow:0 0 0 2px var(--bg),0 0 0 3.5px #aab4ff}
+.stack{display:inline-flex;flex:none}
+.stack>.av+.av{margin-left:-38%;margin-top:22%}
+.av .winds-face{width:100%;height:100%}
+@media(max-width:1100px){.c{grid-template-columns:1fr}.hero{border-right:0;border-bottom:1px solid var(--bd)}.ctx{grid-template-columns:1fr 1fr}.ctx>.box:first-child{grid-column:1/-1}}
+@media(max-width:760px){main{padding:16px}header{padding:10px 16px;flex-wrap:wrap}.roster{grid-template-columns:repeat(4,1fr);row-gap:14px}.ctx{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><h1>Avatars dels vents</h1>
+ <div class="tg" id="mode"><button data-v="0" aria-pressed="true">En repòs</button><button data-v="1">Treballant</button></div>
+ <div class="tg" id="theme"><button data-v="dark" aria-pressed="true">Fosc</button><button data-v="light">Clar</button></div>
+</header>
+<main id="main"></main>
+<script src="../internal/web/app/winds.js"></script>
+<script>
+const W={
+ tramun:{n:'Tramuntana',c:'#8fb4f0',d:0,tg:'Webs',kit:'frontend'},
+ gregal:{n:'Gregal',c:'#f5c451',d:45,tg:'Coordina',kit:'organisation'},
+ llevant:{n:'Llevant',c:'#f0a6c8',d:90,tg:'Música',kit:'music'},
+ xaloc:{n:'Xaloc',c:'#f19a86',d:135,tg:'Compara',kit:'shopping'},
+ migjorn:{n:'Migjorn',c:'#8fd6c2',d:180,tg:'Notícies',kit:'weather'},
+ garbi:{n:'Garbí',c:'#c4a7f0',d:225,tg:'Diners',kit:'finance'},
+ ponent:{n:'Ponent',c:'#e8cf98',d:270,tg:'Escriu',kit:'books'},
+ mestral:{n:'Mestral',c:'#b5d38a',d:315,tg:'Cuina',kit:'cooking'},
+};
+const ORDER=Object.keys(W);
+const INK='#2a2119',CREAM='#f3ead8';
+let BUSY=false,uid=0;
+const rad=a=>a*Math.PI/180;
+const rgb=h=>{const n=parseInt(h.slice(1),16);return[n>>16&255,n>>8&255,n&255];};
+const mix=(a,b,t)=>'#'+rgb(a).map((v,i)=>Math.round(v+(rgb(b)[i]-v)*t).toString(16).padStart(2,'0')).join('');
+const f=n=>+n.toFixed(2);
+
+/* Esperit: la cara, amb cues de vent que diuen d'on bufa */
+function esperit(k,s,busy){
+ const w=W[k],id='e'+(++uid),th=rad(w.d),ux=Math.sin(th),uy=-Math.cos(th);
+ const R=s<28?31:28,hx=f(50-12*ux),hy=f(50-12*uy),a=w.d-90;
+ const light=mix(w.c,'#ffffff',.5),deep=mix(w.c,'#1b1530',.35);
+ const px=f(-1.6*ux),py=f(-1.6*uy),dur=busy?'.9s':'3.4s';
+ const q=v=>f(v*R);
+ const swoosh=[`M0 ${q(-1)} C${q(.9)} ${q(-1.06)} ${q(1.45)} ${q(-.72)} ${q(1.9)} ${q(-.58)} C${q(1.3)} ${q(-.42)} ${q(.85)} ${q(-.18)} ${q(.3)} ${q(-.02)}Z`,
+  `M0 ${q(1)} C${q(.8)} ${q(1.03)} ${q(1.22)} ${q(.78)} ${q(1.58)} ${q(.64)} C${q(1.1)} ${q(.5)} ${q(.7)} ${q(.3)} ${q(.25)} ${q(.12)}Z`];
+ const streak=s<28?'':`<path d="M${q(1.02)} ${q(.04)} C${q(1.3)} ${q(-.04)} ${q(1.5)} ${q(.1)} ${q(1.8)} ${q(.02)}" fill="none" stroke="url(#${id}t)" stroke-width="3.2" stroke-linecap="round"/>`;
+ const face=s<28?`<ellipse cx="${f(hx-8+px)}" cy="${f(hy-1+py)}" rx="3.6" ry="4.4" fill="${INK}"/><ellipse cx="${f(hx+8+px)}" cy="${f(hy-1+py)}" rx="3.6" ry="4.4" fill="${INK}"/>`:
+ `<ellipse cx="${f(hx-14)}" cy="${f(hy+6)}" rx="4.6" ry="2.8" fill="#e4577a" opacity=".32"/><ellipse cx="${f(hx+14)}" cy="${f(hy+6)}" rx="4.6" ry="2.8" fill="#e4577a" opacity=".32"/>
+  <ellipse cx="${f(hx-8+px)}" cy="${f(hy-2+py)}" rx="2.9" ry="3.7" fill="${INK}"/><ellipse cx="${f(hx+8+px)}" cy="${f(hy-2+py)}" rx="2.9" ry="3.7" fill="${INK}"/>
+  <circle cx="${f(hx-7+px)}" cy="${f(hy-3.4+py)}" r="1" fill="#fff"/><circle cx="${f(hx+9+px)}" cy="${f(hy-3.4+py)}" r="1" fill="#fff"/>
+  <path d="M${f(hx-5)} ${f(hy+6)} Q${hx} ${f(hy+10.5)} ${f(hx+5)} ${f(hy+6)}" fill="none" stroke="${INK}" stroke-width="2.2" stroke-linecap="round"/>`;
+ return `<svg viewBox="0 0 100 100" overflow="visible"><defs>
+ <radialGradient id="${id}h" cx="${f(hx-9)}" cy="${f(hy-11)}" r="${R*1.9}" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${light}"/><stop offset=".5" stop-color="${w.c}"/><stop offset="1" stop-color="${deep}"/></radialGradient>
+ <linearGradient id="${id}t" x1="${q(.4)}" y1="0" x2="${q(1.9)}" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${w.c}"/><stop offset=".55" stop-color="${w.c}" stop-opacity=".55"/><stop offset="1" stop-color="${w.c}" stop-opacity="0"/></linearGradient></defs>
+ <g><animateTransform attributeName="transform" type="translate" values="0 0;${f(-ux*1.6)} ${f(-uy*1.6-1.4)};0 0" dur="${dur}" repeatCount="indefinite"/>
+ <g transform="translate(${hx} ${hy}) rotate(${a})"><g><animateTransform attributeName="transform" type="rotate" values="-5;5;-5" dur="${dur}" repeatCount="indefinite"/>
+ ${swoosh.map(d=>`<path d="${d}" fill="url(#${id}t)"/>`).join('')}${streak}</g></g>
+ <circle cx="${hx}" cy="${hy}" r="${R}" fill="url(#${id}h)"/>
+ ${face}</g></svg>`;
+}
+
+/* Cap de vent: els caps que bufen dels mapes antics */
+function bufador(k,s,busy){
+ const w=W[k],id='b'+(++uid),th=rad(w.d),ux=Math.sin(th),uy=-Math.cos(th);
+ const hx=f(50+11*ux),hy=f(50+11*uy),R=s<28?28:25,a=w.d+90;
+ const light=mix(w.c,'#ffffff',.5),deep=mix(w.c,'#1b1530',.35),breath=mix(w.c,'#ffffff',.25);
+ const mx=f(hx-ux*9),my=f(hy+7-uy*3),dur=busy?'.7s':'1.8s';
+ const lines=s<28?[['M0 -5 C6 -7 12 -4 18 -6',7],['M0 6 C6 8 12 5 18 7',7]]:[['M0 -7 C10 -11 18 -5 30 -9',3.6],['M0 0 C12 -3 22 3 36 0',3.6],['M0 7 C10 11 18 5 30 9',3.6]];
+ const face=s<28?`<circle cx="${mx}" cy="${my}" r="4" fill="${INK}"/>`:
+ `<circle cx="${f(hx-13)}" cy="${f(hy+5)}" r="6.5" fill="#e4577a" opacity=".38"/><circle cx="${f(hx+13)}" cy="${f(hy+5)}" r="6.5" fill="#e4577a" opacity=".38"/>
+  <path d="M${f(hx-12)} ${f(hy-3)} q4 -4.5 8 0 M${f(hx+4)} ${f(hy-3)} q4 -4.5 8 0" fill="none" stroke="${INK}" stroke-width="2.3" stroke-linecap="round"/>
+  <ellipse cx="${mx}" cy="${my}" rx="3.4" ry="3.9" fill="${INK}"/>`;
+ return `<svg viewBox="0 0 100 100" overflow="visible"><defs>
+ <radialGradient id="${id}h" cx="${f(hx-9)}" cy="${f(hy-11)}" r="${R*1.9}" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${light}"/><stop offset=".5" stop-color="${w.c}"/><stop offset="1" stop-color="${deep}"/></radialGradient>
+ <linearGradient id="${id}t" x1="0" y1="0" x2="${s<28?18:36}" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${breath}"/><stop offset="1" stop-color="${breath}" stop-opacity="0"/></linearGradient></defs>
+ <ellipse cx="${hx}" cy="${hy}" rx="${R+1.5}" ry="${R}" fill="url(#${id}h)"/>
+ ${face}
+ <g transform="translate(${f(hx-ux*(R+3))} ${f(hy-uy*(R+3))}) rotate(${a})" fill="none" stroke="url(#${id}t)" stroke-linecap="round">
+ ${lines.map(([d,sw])=>`<path d="${d}" stroke-width="${sw}" stroke-dasharray="${s<28?'40 0':'12 6'}"><animate attributeName="stroke-dashoffset" values="18;0" dur="${dur}" repeatCount="indefinite"/></path>`).join('')}</g></svg>`;
+}
+
+/* Rosa polida: esfera de rellotge, la punta llarga és el vent */
+function rosa(k,s,busy,group){
+ const keys=group||[k],w=W[keys[0]],id='r'+(++uid);
+ const c0=group?'#2a2838':mix(w.c,'#1b1530',.3),c1=group?'#141320':mix(w.c,'#0f0c18',.72);
+ const pt=(ang,len,wd,A,B,op=1)=>`<g transform="rotate(${ang} 50 50)" opacity="${op}"><path d="M50 50 L${50-wd} ${50-wd} L50 ${50-len}Z" fill="${A}"/><path d="M50 50 L${50+wd} ${50-wd} L50 ${50-len}Z" fill="${B}"/></g>`;
+ const minor=s>=32?[0,90,180,270].map(a=>pt(a,29,5.5,CREAM,mix(CREAM,c1,.45),.55)).join('')+[45,135,225,315].map(a=>pt(a,20,4.5,CREAM,mix(CREAM,c1,.45),.32)).join(''):'';
+ const ticks=s>=56?Array.from({length:32},(_,i)=>`<line x1="50" y1="6.5" x2="50" y2="${i%4?8.5:10}" transform="rotate(${i*11.25} 50 50)"/>`).join(''):'';
+ const own=keys.map(kk=>{const ww=W[kk];return `<g>${busy?`<animateTransform attributeName="transform" type="rotate" values="${ww.d-10} 50 50;${ww.d+10} 50 50;${ww.d-10} 50 50" dur="1.4s" repeatCount="indefinite"/>`:''}${pt(busy?0:ww.d,s>=32?43:40,s>=32?8:12,mix(ww.c,'#ffffff',.55),ww.c)}</g>`;}).join('');
+ return `<svg viewBox="0 0 100 100"><defs><radialGradient id="${id}" cx="40" cy="34" r="70" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${c0}"/><stop offset="1" stop-color="${c1}"/></radialGradient></defs>
+ <circle cx="50" cy="50" r="50" fill="url(#${id})"/>
+ ${s>=40?`<circle cx="50" cy="50" r="44" fill="none" stroke="${CREAM}" stroke-opacity=".3" stroke-width="1"/>`:''}
+ <g stroke="${CREAM}" stroke-opacity=".4" stroke-width="1">${ticks}</g>
+ ${minor}${own}
+ <circle cx="50" cy="50" r="${s>=32?4.5:7}" fill="${CREAM}"/><circle cx="50" cy="50" r="${s>=32?1.8:3}" fill="${c1}"/></svg>`;
+}
+
+/* Mapa de vent: un mapa del temps viu dins d'un cercle */
+const maps=[];
+function mapa(k,s,busy,group){
+ const cv=document.createElement('canvas'),dpr=2;cv.width=cv.height=s*dpr;
+ const keys=group||[k];
+ const st={ctx:cv.getContext('2d'),S:s*dpr,s,busy,t:Math.random()*50,seed:keys[0].length*1.7,
+  base:group?'#15131d':mix(W[keys[0]].c,'#0c0a13',.4),
+  flows:keys.map(kk=>({phi:rad(W[kk].d+180),col:mix(W[kk].c,'#ffffff',.55)})),ps:[]};
+ const N=Math.round(Math.min(300,s*2.4));
+ for(let i=0;i<N;i++)st.ps.push(spawn(st,i));
+ st.ctx.fillStyle=st.base;st.ctx.fillRect(0,0,st.S,st.S);
+ for(let i=0;i<70;i++)step(st);
+ maps.push(st);return cv;
+}
+function spawn(st,i){return{x:Math.random(),y:Math.random(),age:0,life:40+Math.random()*60,fl:i%st.flows.length};}
+function step(st){
+ const {ctx,S}=st;st.t+=.016;
+ ctx.globalCompositeOperation='source-over';ctx.globalAlpha=st.busy?.16:.1;ctx.fillStyle=st.base;ctx.fillRect(0,0,S,S);
+ ctx.globalAlpha=1;ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
+ ctx.lineWidth=Math.max(1.2,S/(st.s<30?28:70));
+ const sp=st.busy?.013:.0055;
+ for(const p of st.ps){
+  const fl=st.flows[p.fl];
+  const ang=fl.phi+.6*Math.sin(p.x*5.5+st.seed+st.t*.4)*Math.cos(p.y*4.5+st.t*.7);
+  const nx=p.x+Math.sin(ang)*sp,ny=p.y-Math.cos(ang)*sp;
+  const life=p.age/p.life,al=Math.sin(Math.PI*life)*.5;
+  ctx.strokeStyle=fl.col;ctx.globalAlpha=al;
+  ctx.beginPath();ctx.moveTo(p.x*S,p.y*S);ctx.lineTo(nx*S,ny*S);ctx.stroke();
+  p.x=nx;p.y=ny;p.age++;
+  if(p.age>p.life||nx<-.05||nx>1.05||ny<-.05||ny>1.05)Object.assign(p,spawn(st,p.fl),{fl:p.fl});
+ }
+ ctx.globalAlpha=1;
+}
+(function loop(){for(const m of maps)if(m.ctx.canvas.isConnected)step(m);requestAnimationFrame(loop);})();
+
+/* Cares (ara): el dibuixant real de winds.js */
+function cares(k,s,busy){
+ const api=window.gregalWinds;if(!api?.face)return null;
+ const w=W[k];return api.face({id:k,name:w.n,color:w.c,style:'pso',specialty:w.kit},s>=96);
+}
+
+/* Cares que bufen: el dibuix d'ara; quan treballa, bufa en la seva direcció */
+function bufen(k,s,busy){
+ const svg=cares(k,s,busy);if(!svg)return null;
+ if(!busy)return svg;
+ const w=W[k],id='w'+(++uid),small=s<28;
+ const lines=small?[['M44 -6 C52 -8 58 -5 66 -7',7],['M44 6 C52 8 58 5 66 7',7]]:[['M44 -9 C54 -13 62 -7 74 -11',4],['M46 0 C57 -3 66 3 80 0',4],['M44 9 C54 13 62 7 74 11',4]];
+ const fr=document.createDocumentFragment();fr.append(svg);
+ const ov=document.createElement('span');
+ ov.innerHTML=`<svg viewBox="0 0 180 180" style="position:absolute;left:-40%;top:-40%;width:180%;height:180%;pointer-events:none"><defs><linearGradient id="${id}" x1="42" y1="0" x2="${small?66:80}" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${mix(w.c,'#ffffff',.15)}"/><stop offset="1" stop-color="${w.c}" stop-opacity="0"/></linearGradient></defs>
+ <g transform="translate(90 90) rotate(${w.d+90})" fill="none" stroke="url(#${id})" stroke-linecap="round">${lines.map(([d,sw])=>`<path d="${d}" stroke-width="${sw}" stroke-dasharray="${small?'40 0':'12 6'}"><animate attributeName="stroke-dashoffset" values="18;0" dur=".7s" repeatCount="indefinite"/></path>`).join('')}</g></svg>`;
+ fr.append(ov.firstElementChild);return fr;
+}
+
+const R={esperit,bufador,rosa,mapa,cares,bufen};
+function av(concept,k,s,busy,group){
+ const el=document.createElement('span');el.className='av';el.style.width=el.style.height=s+'px';
+ if(group&&concept!=='rosa'&&concept!=='mapa'){const st=document.createElement('span');st.className='stack';const m=Math.round(s*.68);group.slice(0,2).forEach(g=>st.append(av(concept,g,m)));return st;}
+ const out=R[concept](k,s,busy,group);
+ if(typeof out==='string')el.innerHTML=out;else if(out)el.append(out);else el.textContent='—';
+ if(concept==='mapa')el.classList.add('round');
+ if(busy&&(concept==='rosa'||concept==='mapa'||concept==='cares'))el.classList.add('ring');
+ return el;
+}
+const tag=k=>`<span class="tag" style="--c:${W[k].c}">${W[k].tg}</span>`;
+const CONCEPTS=[
+ ['bufen','Cares que bufen','Les cares d\'avui, tal com són. Quan un vent treballa, bufa en la seva direcció real en lloc de mostrar un indicador de càrrega.'],
+ ['esperit','Esperit de vent','La cara de sempre, feta de vent: les cues diuen d\'on bufa i miren cap on va. Quan treballa, vola més de pressa.'],
+ ['bufador','Cap de vent','Els caps que bufen als mapes antics, en versió d\'avui: galtes plenes i l\'alè cap on va el vent.'],
+ ['mapa','Mapa de vent','Un mapa del temps viu dins d\'un cercle. Cada vent bufa en la seva direcció real; treballant, bufa fort.'],
+ ['rosa','Rosa de rellotge','La rosa dels vents com una esfera: cada vent n\'és la punta llarga i daurada.'],
+ ['cares','Cares (ara)','El dibuix real d\'avui, amb l\'eina de l\'ofici a mida gran. Per comparar.'],
+];
+function render(){
+ maps.length=0;uid=0;
+ const main=document.getElementById('main');main.replaceChildren();
+ for(const [id,name,desc] of CONCEPTS){
+  const card=document.createElement('section');card.className='c';
+  card.innerHTML=`<div class="hero"><div data-h></div><h2>${name}</h2><p>${desc}</p></div>
+  <div class="right"><div class="roster" data-r></div>
+  <div class="ctx"><div class="box"><div class="k">Llista de xats · 40 px</div><div data-l></div></div>
+  <div class="box"><div class="k">Barra lateral · 20 px</div><div data-s></div></div>
+  <div class="box"><div class="k">Al xat · 28 px · i rotllana</div><div data-m></div></div></div></div>`;
+  main.append(card);
+  card.querySelector('[data-h]').append(av(id,'xaloc',id==='cares'||id==='bufen'?120:150,BUSY||id==='bufen'));
+  const r=card.querySelector('[data-r]');
+  for(const k of ORDER){const d=document.createElement('div');d.className='w';d.append(av(id,k,58,BUSY&&k==='xaloc'));d.insertAdjacentHTML('beforeend',`<span>${W[k].n}</span>${tag(k)}`);r.append(d);}
+  const l=card.querySelector('[data-l]');
+  [['xaloc','Llegint ressenyes · pas 3 de 5',1],['migjorn','Notícies del matí: vaga de Rodalies…',0]].forEach(([k,t,b])=>{const d=document.createElement('div');d.className='row';d.append(av(id,k,40,b||BUSY));d.insertAdjacentHTML('beforeend',`<div class="x"><div class="t">${W[k].n} ${tag(k)}</div><div class="s">${t}</div></div>`);l.append(d);});
+  {const d=document.createElement('div');d.className='row';d.append(av(id,'garbi',40,false,['garbi','xaloc','ponent']));d.insertAdjacentHTML('beforeend',`<div class="x"><div class="t">Viatge a Lisboa</div><div class="s">Garbí: He trobat vols a 89 €</div></div>`);l.append(d);}
+  const s=card.querySelector('[data-s]');
+  for(const k of ['gregal','tramun','ponent','llevant']){const d=document.createElement('div');d.className='row sm';d.append(av(id,k,20));d.insertAdjacentHTML('beforeend',`<span style="flex:1">${W[k].n}</span>${tag(k)}`);s.append(d);}
+  const m=card.querySelector('[data-m]');
+  {const d=document.createElement('div');d.className='msg';d.append(av(id,'xaloc',28,BUSY));d.insertAdjacentHTML('beforeend',`<div><b style="font-size:13px">Xaloc</b><p>Tinc quatre portàtils que encaixen. Miro les ressenyes del teclat.</p></div>`);m.append(d);}
+  {const d=document.createElement('div');d.className='msg';d.style.marginTop='8px';d.append(av(id,'ponent',28));d.insertAdjacentHTML('beforeend',`<div><b style="font-size:13px">Ponent</b><p>Ho he revisat: correcte.</p></div>`);m.append(d);}
+ }
+}
+function bindToggle(id,fn){const g=document.getElementById(id);g.onclick=e=>{const b=e.target.closest('button');if(!b)return;g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));fn(b.dataset.v);};}
+bindToggle('mode',v=>{BUSY=v==='1';render();});
+bindToggle('theme',v=>document.body.classList.toggle('light',v==='light'));
+render();
+</script>
+</body>
+</html>
