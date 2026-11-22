@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## v1.91.0 - 2026-11-22 - Pastilles d'ofici i l'Esperit de vent
+
+- **Cada vent porta la pastilla del seu ofici (web, escriptori i Android).**
+  Al costat del nom de cada vent hi ha una pastilla petita amb el que sap
+  fer, del color del vent i amb la icona del seu ofici: a la barra lateral,
+  a la portada, a la capçalera del xat i al directori de vents. Així saps a
+  qui demanar una cosa sense obrir-ne el perfil.
+- **Tria com es veuen els vents: les Cares o l'Esperit de vent (web i
+  escriptori).** A Preferències → Avatars tries un tema per a tots els vents
+  o el mode lliure, en què cada vent té el seu (es tria al perfil del vent).
+  L'Esperit de vent és la cara amb dues cues de vent que apunten d'on bufa
+  cada vent (la Tramuntana del nord, el Gregal del nord-est…) i que van més
+  de pressa quan el vent treballa. A Android, els vents encara es veuen amb
+  les Cares.
+
 ## v1.90.1 - 2026-11-22 - Portada de Vents al web i una barra lateral quieta
 
 - **Vents s'obre en una portada d'inici (web i escriptori).** Com a Android:
