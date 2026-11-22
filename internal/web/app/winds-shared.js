@@ -89,7 +89,7 @@
     };
     const [people, winds] = await Promise.all([call('/api/winds/shared/people').then(x => x.people || []), call('/api/winds').then(x => x.winds || [])]);
     const pc = checks(t('Persones', 'People'), people.map(p => [p, p]));
-    const wc = checks(t('Vents que hi parlen', 'Winds who talk in it'), winds.map(w => [w.id, w.name, root.gregalWinds?.face(w)]));
+    const wc = checks(t('Vents que hi parlen', 'Winds who talk in it'), winds.map(w => [w.id, w.name, root.gregalWinds?.face(w, false, 'idle', 26)]));
     d.append(el('p', 'vw-error'));
     d.append(btn(t('Convida', 'Invite'), async () => {
       const body = { name: name.value.trim(), people: pc.filter(c => c.checked).map(c => c.value), winds: wc.filter(c => c.checked).map(c => c.value) };

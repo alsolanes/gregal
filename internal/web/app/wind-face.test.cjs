@@ -285,3 +285,56 @@ test('the breath moves only while the wind works and goes away when it is idle a
   assert.ok(gap > width, `gap ${gap} wider than the stroke ${width}`);
   assert.match(css, new RegExp(`@keyframes wf-blow \\{ from \\{ stroke-dashoffset:${dash + gap}; \\}`), 'one whole dash period per loop');
 });
+
+// Cap de vent blows away from where the wind comes from; the breath is drawn
+// along +x, so turning it by bearing + 90 sends it to bearing + 180.
+test('Cap de vent blows toward the opposite of the wind direction, with less detail below 28 px', () => {
+  const { winds } = load();
+  winds.setAvatarTheme('cap');
+  const xaloc = { id:'xaloc', name:'Xaloc', color:'#EFA68F', style:'pso', specialty:'shopping' };
+  const big = winds.face(xaloc, true);
+  assert.equal(big.getAttribute('data-avatar'), 'cap');
+  assert.equal(big.getAttribute('data-kit'), null, 'no trade kit');
+  const breath = big.querySelector('.wf-cap-breath');
+  assert.match(breath.attrs.transform, /rotate\(225\)$/, 'Xaloc comes from the SE and blows to the NW');
+  assert.match(winds.face({ id:'ponent', name:'Ponent', color:'#EACF87' }).querySelector('.wf-cap-breath').attrs.transform, /rotate\(0\)$/, 'Ponent blows east');
+  assert.equal(breath.children.length, 3, 'three breath lines');
+  winds.mood(big, 'working'); winds.mood(big, 'idle');
+  assert.ok(big.querySelector('.wf-cap-breath'), 'a mood change keeps the head blowing: Cares que bufen only redraws its own breath');
+  const closedEyes = svg => svg.all().filter(n => n.tag === 'path' && !/wf-cap-breath/.test(n.parent.attrs.class || '')).length;
+  assert.ok(closedEyes(big) > 0, 'closed eyes at full size');
+  const small = winds.face(xaloc, false, 'idle', 20);
+  assert.equal(small.querySelector('.wf-cap-breath').children.length, 2, 'the breath becomes two short lines');
+  assert.equal(closedEyes(small), 0, 'no eyes or cheeks below 28 px');
+  assert.equal(winds.face(xaloc, false, 'idle', 28).querySelector('.wf-cap-breath').children.length, 3, '28 px keeps the details');
+});
+
+test('Rosa de rellotge points its long tip in the wind direction, and only that point below 28 px', () => {
+  const { winds } = load();
+  winds.setAvatarTheme('rosa');
+  const xaloc = { id:'xaloc', name:'Xaloc', color:'#EFA68F', style:'pso' };
+  const big = winds.face(xaloc);
+  assert.equal(big.getAttribute('data-avatar'), 'rosa');
+  const point = big.querySelector('.wf-point');
+  assert.match(point.parent.attrs.transform, /rotate\(135\)$/, 'the point is drawn to the north and turned to the SE');
+  const paths = svg => svg.all().filter(n => n.tag === 'path').length;
+  assert.equal(paths(big), 18, 'the wind point and the eight points of the rose');
+  assert.equal(paths(winds.face(xaloc, false, 'idle', 24)), 2, 'only the wind point below 28 px');
+});
+
+test('Cap de vent and Rosa de rellotge move while working; idle only with motion on', () => {
+  const w = { id:'xaloc', name:'Xaloc', color:'#EFA68F', style:'pso' };
+  for (const pack of ['cap', 'rosa']) {
+    const still = load({ matchMedia:q => ({ matches:/reduce/.test(q) }) }).winds;
+    still.setAvatarTheme(pack);
+    assert.doesNotMatch(still.face(w).getAttribute('class'), /wf-idle/, pack + ': no idle motion under reduced motion');
+    const lively = load({ matchMedia:() => ({ matches:false }) }).winds;
+    lively.setAvatarTheme(pack);
+    assert.match(lively.face(w).getAttribute('class'), /wf-idle/, pack + ': idle motion when allowed');
+  }
+  const css = fs.readFileSync(path.join(__dirname, 'winds.css'), 'utf8');
+  assert.match(css, /\.winds-face\.wf-idle \.wf-cap-breath path\s*\{[^}]*animation:/, 'the breath flows idle only with wf-idle');
+  assert.match(css, /\.winds-face\.wf-idle \.wf-point\s*\{[^}]*animation:/, 'the point swings idle only with wf-idle');
+  assert.match(css, /\[data-mood=working\][^{]*\.wf-cap-breath path[^{]*\{[^}]*animation:[^}]*!important/, 'working breath flows');
+  assert.match(css, /\[data-mood=working\][^{]*\.wf-point[^{]*\{[^}]*animation:[^}]*!important/, 'working point swings');
+});

@@ -9,7 +9,8 @@
  const btn=(label,action,cls='vw-button')=>{const n=el('button',cls,label);n.type='button';n.onclick=()=>Promise.resolve().then(action).catch(fail);return n;};
  async function call(url,method='GET',body){const r=await root.api(url,{method,...(body===undefined?{}:{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});if(!r.ok)throw new Error(await r.text());return r.json();}
  function fail(error){let target=document.querySelector('.vw-dialog[open] .vw-error');const modal=document.querySelector('.vw-dialog[open]');if(modal&&!target){target=el('p','vw-error');modal.append(target);}target=target||status;if(target){target.textContent=t('No s’ha pogut completar: ','Could not complete: ')+error.message;target.setAttribute('role','alert');}}
- const face=(w,work)=>root.gregalWinds.face(w||{name:work?.name,color:accent(),style:'psn'},false,work&&root.gregalWinds.moodOf(work));
+ // size: the CSS pixel size of faces drawn under 28 px, for the packs' small variant.
+ const face=(w,work,size)=>root.gregalWinds.face(w||{name:work?.name,color:accent(),style:'psn'},false,work&&root.gregalWinds.moodOf(work),size);
  // On es presenta un vent, la figura sencera amb l'eina del seu ofici; `ground` hi posa el terra.
  const figure=(w,ground)=>root.gregalWinds.face(w||{color:accent(),style:'psn'},ground?true:'figure');
  const folder=()=>{const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('class','vw-folder');svg.setAttribute('aria-hidden','true');const p=document.createElementNS(svg.namespaceURI,'path');p.setAttribute('d','M3 6a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v10H3Z');p.setAttribute('fill','none');p.setAttribute('stroke','currentColor');p.setAttribute('stroke-width','1.6');svg.append(p);return svg;};
@@ -64,7 +65,7 @@
  const cleanTitle=s=>String(s||'').replace(/^\s*\[[^\]]{0,80}\]\s*/,'').replace(/^(Obre|Open)\s+https?:\/\/(www\.)?([^\/\s]+)\S*/i,'$1 $3').trim()||String(s||'');
  function threadButton(chat,cls='vw-nav-item vw-thread'){const n=btn('',()=>openChat(chat),cls);const label=cleanTitle(chat.name);n.append(el('span','vw-thread-label',label));n.title=label;if(state.view==='chat'&&state.active?.id===chat.id)n.setAttribute('aria-current','page');return n;}
  // Una conversa a soles amb un vent: la seva cara i la primera cosa que li vas demanar.
- function soloButton(th){const w=state.winds.find(w=>w.id===th.wind);const n=btn('',()=>{if(w)talkTo(w,th.name).catch(fail);},'vw-nav-item vw-thread vw-thread-solo');if(w)n.append(face(w));n.append(el('span','vw-thread-label',th.title||w?.name||''));n.title=(w?w.name+' · ':'')+(th.title||'');if(state.view==='chat'&&state.active?.id===th.name)n.setAttribute('aria-current','page');return n;}
+ function soloButton(th){const w=state.winds.find(w=>w.id===th.wind);const n=btn('',()=>{if(w)talkTo(w,th.name).catch(fail);},'vw-nav-item vw-thread vw-thread-solo');if(w)n.append(face(w,null,20));n.append(el('span','vw-thread-label',th.title||w?.name||''));n.title=(w?w.name+' · ':'')+(th.title||'');if(state.view==='chat'&&state.active?.id===th.name)n.setAttribute('aria-current','page');return n;}
  async function refreshSolo(){try{state.solo=(await call('/api/winds/threads')).threads||[];}catch{}}
  function threadRow(chat,fav){const row=el('div','vw-thread-row');row.append(threadButton(chat),threadStar('rot:'+chat.id,fav));return row;}
  function renderThreads(nav){
@@ -106,7 +107,7 @@
   for(const th of state.solo||[])add(byId(th.wind));
   for(const c of state.chats||[])for(const id of c.members||[])add(byId(id));
   for(const w of crew())add(w);
-  for(const w of [gregal,...recent].filter(Boolean)){const n=btn('',()=>talkTo(w).catch(fail),'vw-nav-item vw-nav-channel');n.append(face(w),el('span','',w.name),...tag(w));const role=roleName(w);if(role)n.title=w.name+' · '+role;n.setAttribute('aria-current',state.view==='chat'&&state.active?.wind===w.id?'page':'false');nav.append(n);}
+  for(const w of [gregal,...recent].filter(Boolean)){const n=btn('',()=>talkTo(w).catch(fail),'vw-nav-item vw-nav-channel');n.append(face(w,null,20),el('span','',w.name),...tag(w));const role=roleName(w);if(role)n.title=w.name+' · '+role;n.setAttribute('aria-current',state.view==='chat'&&state.active?.wind===w.id?'page':'false');nav.append(n);}
   if(state.winds.length>recent.length+1){const all=btn('',()=>route('crew'),'vw-nav-item vw-nav-icon vw-nav-more');all.append(navIcon('crew'),el('span','',t('Tots els vents','All winds')),el('small','vw-nav-count',String(state.winds.length)));all.setAttribute('aria-current',state.view==='crew'?'page':'false');nav.append(all);}
   section(t('Converses','Conversations'),iconOnly('plus',t('Nova conversa','New conversation'),newChat,'vw-small'));
   renderThreads(nav);
@@ -141,8 +142,8 @@
  // Qui porta la conversa: la cara, el nom i l'ofici. En un grup, les cares de qui hi és.
  function owner(){
   const box=el('span','vw-owner'),members=state.winds.filter(w=>(state.active?.members||[]).includes(w.id));
-  if(state.active?.legacyWind||members.length===1){const w=state.winds.find(w=>w.id===(state.active.wind||members[0]?.id));if(!w)return el('span','',state.active?.name||'');box.append(face(w),el('strong','',w.name),...tag(w));return box;}
-  const faces=el('span','vw-owner-faces');for(const w of members.slice(0,5))faces.append(face(w));box.append(faces,el('strong','',state.active?.name||t('Conversa en grup','Group conversation')));box.title=members.map(w=>w.name).join(', ');return box;
+  if(state.active?.legacyWind||members.length===1){const w=state.winds.find(w=>w.id===(state.active.wind||members[0]?.id));if(!w)return el('span','',state.active?.name||'');box.append(face(w,null,26),el('strong','',w.name),...tag(w));return box;}
+  const faces=el('span','vw-owner-faces');for(const w of members.slice(0,5))faces.append(face(w,null,24));box.append(faces,el('strong','',state.active?.name||t('Conversa en grup','Group conversation')));box.title=members.map(w=>w.name).join(', ');return box;
  }
  function render(){
   if(!mounted)return;
@@ -184,7 +185,7 @@
   if(group.length>1){address=el('div','vw-address');address.setAttribute('role','radiogroup');address.setAttribute('aria-label',t('A qui parles','Who you are talking to'));
    const paint=()=>{for(const b of address.children)b.setAttribute('aria-checked',String((b.dataset.wind||null)===(state.replyTo||null)));};
    const anyone=btn(t('Qualsevol','Anyone'),()=>{state.replyTo=null;paint();},'vw-address-any');anyone.setAttribute('role','radio');address.append(anyone);
-   for(const w of group){const b=btn('',()=>{state.replyTo=state.replyTo===w.id?null:w.id;paint();input?.focus();},'vw-address-wind');b.dataset.wind=w.id;b.setAttribute('role','radio');b.title=t('Parla amb ','Talk to ')+w.name;b.setAttribute('aria-label',b.title);b.append(face(w));address.append(b);}
+   for(const w of group){const b=btn('',()=>{state.replyTo=state.replyTo===w.id?null:w.id;paint();input?.focus();},'vw-address-wind');b.dataset.wind=w.id;b.setAttribute('role','radio');b.title=t('Parla amb ','Talk to ')+w.name;b.setAttribute('aria-label',b.title);b.append(face(w,null,26));address.append(b);}
    paint();}
   select.onchange=()=>{state.recipient=select.value;};state.recipient=select.value;
   const model=el('button','vw-model');model.type='button';paintModel(model);
@@ -482,7 +483,7 @@
   body.push(foot);
   // Per reprendre: les converses recents, discretes al final.
   const resume=[...(state.solo||[]).slice(0,3).map(th=>({w:state.winds.find(w=>w.id===th.wind),label:th.title,go:()=>{const w=state.winds.find(w=>w.id===th.wind);if(w)talkTo(w,th.name).catch(fail);}})),...state.chats.filter(c=>!c.workspace).slice(0,2).map(c=>({w:state.winds.find(w=>(c.members||[]).includes(w.id)),label:c.name,go:()=>openChat(c)}))].slice(0,4);
-  if(resume.length){const row=el('div','vw-avui-resume');row.append(el('span','',t('Per reprendre','Pick up')));for(const r of resume){const b=btn('',r.go,'vw-crew-chip');if(r.w)b.append(face(r.w));b.append(el('span','',r.label||''));row.append(b);}body.push(row);}
+  if(resume.length){const row=el('div','vw-avui-resume');row.append(el('span','',t('Per reprendre','Pick up')));for(const r of resume){const b=btn('',r.go,'vw-crew-chip');if(r.w)b.append(face(r.w,null,26));b.append(el('span','',r.label||''));row.append(b);}body.push(row);}
   if(content!==target||!feed.isConnected)return;feed.replaceChildren(...body);
  }
  function avuiCard(c,feed){
@@ -760,7 +761,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  async function newRoutine(){if(!crew().length)await activate(state.squad);const d=dialog(t('Una petita ajuda, cada dia.','A little help, every day.'));const name=field(d,t('Nom de la rutina','Routine name')),prompt=field(d,t('Què vols que cerqui o resumeixi?','What should it research or summarize?'),state.draft,true),time=field(d,t('Cada dia a les','Every day at'),'09:00');time.type='time';const select=el('select');select.setAttribute('aria-label',t('Vent responsable','Responsible wind'));for(const w of state.winds)select.append(new Option(w.name+' · '+roleName(w),w.id));select.value=crew()[0]?.id||state.winds[0]?.id;d.append(select,el('p','vw-muted',t('Fa servir la memòria i el coneixement actuals del vent. És una rutina de lectura i cerca; Gregal ha d’estar obert.','Uses the wind’s current memory and knowledge. This is a reading and research routine; Gregal must stay open.')),btn(t('Desa la rutina','Save routine'),async()=>{if(!name.value.trim()||!prompt.value.trim()){(!name.value.trim()?name:prompt).focus();return;}await call('/api/jobs/save','POST',{name:name.value,prompt:prompt.value,kind:'daily',time:time.value,enabled:true,notify:false,wind:select.value});d.close();route('tasks');},'vw-primary'));}
  // Cada feina diu qui hi ha treballat, quan, en quin projecte i què ha deixat.
  function taskList(items){for(const task of items){const row=btn('',()=>{state.events=task.events||[];state.snapshot=null;route('task',{...task,name:task.task});},'vw-task-row');
-   const who=el('span','vw-task-faces');for(const name of Object.values(task.agents||{}))who.append(face(state.winds.find(w=>w.name===name)||{name,color:'#BFC7DF',style:'psn'}));
+   const who=el('span','vw-task-faces');for(const name of Object.values(task.agents||{}))who.append(face(state.winds.find(w=>w.name===name)||{name,color:'#BFC7DF',style:'psn'},null,26));
    const files=[...new Set((task.events||[]).filter(e=>e.type==='tool_result'&&e.path).map(e=>e.path.split(/[\\/]/).pop()))];
    const head=el('div','vw-task-head');head.append(who,el('strong','',task.task),el('span','vw-task-state is-'+(['done','completed'].includes(task.status)?'done':['failed','cancelled'].includes(task.status)?'stopped':'running'),statusName(task.status)));
    const meta=[(task.workspace||'').replace(/[\\/]+$/,'').split(/[\\/]/).pop(),task.created?new Date(task.created).toLocaleString(document.documentElement.lang||undefined,{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'',files.slice(0,3).join(', ')].filter(Boolean).join(' · ');
@@ -947,7 +948,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   const f=data.forecast||{},c=f.current||{},D=f.daily||{};const kind=wxKind(c.weather_code);
   const top=el('div','vw-wx-top'),now=el('div','vw-wx-now');now.innerHTML=wxIcon(kind,c.is_day!==0,compact?40:52);const temp=el('div','vw-wx-temp');temp.append(el('b','',Math.round(c.temperature_2m)+'°'),el('span','',wxName(kind)));now.append(temp);
   const place=el('div','vw-wx-place');const name=btn('',()=>placePicker(w,()=>weatherCard(host,w,compact)),'vw-wx-placebtn');name.append(el('strong','',data.place.name||''));name.title=t('Canvia el lloc','Change the place');place.append(name,el('small','',t('Sensació ','Feels like ')+Math.round(c.apparent_temperature)+'° · '+t('vent ','wind ')+Math.round(c.wind_speed_10m)+' km/h'));
-  if(compact){const from=el('small','vw-wx-by');from.append(face(w),document.createTextNode(w.name));place.append(from);}
+  if(compact){const from=el('small','vw-wx-by');from.append(face(w,null,18),document.createTextNode(w.name));place.append(from);}
   top.append(now,place);card.append(top,wxChart(f));
   const days=el('div','vw-wx-days');(D.time||[]).slice(0,7).forEach((day,i)=>{const cell=el('div','vw-wx-day');const dd=new Date(day+'T12:00');cell.append(el('small','',i===0?t('Avui','Today'):dd.toLocaleDateString(ca()?'ca':'en',{weekday:'short'})));const ic=el('span','');ic.innerHTML=wxIcon(wxKind(D.weather_code[i]),true,26);cell.append(ic,el('b','',Math.round(D.temperature_2m_max[i])+'°'),el('span','vw-wx-min',Math.round(D.temperature_2m_min[i])+'°'));const p=(D.precipitation_probability_max||[])[i];if(p>=20)cell.append(el('span','vw-wx-p',p+'%'));days.append(cell);});
   card.append(days);host.append(card);}

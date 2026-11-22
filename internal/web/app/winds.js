@@ -357,7 +357,7 @@
   const num = value => +value.toFixed(2);
   // Avatar packs: the account's theme draws every wind with one pack, or 'free'
   // lets each wind use its own `avatar` (empty is Cares). The server keeps both.
-  const packs = ['cares', 'esperit'];
+  const packs = ['cares', 'esperit', 'cap', 'rosa'];
   let theme = 'cares';
   function setAvatarTheme(value) { theme = value === 'free' || packs.includes(value) ? value : 'cares'; }
   function avatarPack(w) { return theme !== 'free' ? theme : packs.includes(w.avatar) ? w.avatar : 'cares'; }
@@ -406,10 +406,64 @@
       ['path', { d:`M${num(hx - 5)} ${num(hy + 6)}Q${hx} ${num(hy + 10.5)} ${num(hx + 5)} ${num(hy + 6)}`, fill:'none', stroke:ink, 'stroke-width':2.2, 'stroke-linecap':'round' }]]);
     return svg;
   }
+  // Cap de vent (bufador() in the mockup): a head of the old maps with full
+  // cheeks and closed eyes, blowing toward where the wind goes, so its head
+  // sits on the side the wind comes from. Small faces keep the mouth and two
+  // short thick lines of breath.
+  function cap(svg, w, fill, ink, small) {
+    const deg = direction(w), rad = deg * Math.PI / 180, ux = Math.sin(rad), uy = -Math.cos(rad), R = small ? 28 : 25;
+    const hx = num(50 + 11 * ux), hy = num(50 + 11 * uy), mx = num(hx - 9 * ux), my = num(hy + 7 - 3 * uy), breath = mix(fill, '#FFFFFF', .25);
+    const id = 'wf' + (++faceSerial), defs = svgNode('defs', {});
+    defs.append(
+      shapes(svgNode('radialGradient', { id:id + 'h', cx:num(hx - 9), cy:num(hy - 11), r:num(1.9 * R), gradientUnits:'userSpaceOnUse' }),
+        [[0, mix(fill, '#FFFFFF', .5)], [.5, fill], [1, mix(fill, '#1B1530', .35)]].map(([offset, tint]) => ['stop', { offset, 'stop-color':tint }])),
+      shapes(svgNode('linearGradient', { id:id + 't', x1:0, y1:0, x2:small ? 18 : 36, y2:0, gradientUnits:'userSpaceOnUse' }),
+        [[0, 1], [1, 0]].map(([offset, opacity]) => ['stop', { offset, 'stop-color':breath, 'stop-opacity':opacity }])));
+    svg.append(defs);
+    svg.setAttribute('data-avatar', 'cap');
+    if (!root.matchMedia?.('(prefers-reduced-motion: reduce)').matches) svg.setAttribute('class', svg.getAttribute('class') + ' wf-idle');
+    const box = group(svg, '', { transform:'scale(.8)' });
+    shapes(box, [['ellipse', { cx:hx, cy:hy, rx:R + 1.5, ry:R, fill:'url(#' + id + 'h)' }], ...small ? [['circle', { cx:mx, cy:my, r:4, fill:ink }]] : [
+      ['circle', { cx:num(hx - 13), cy:num(hy + 5), r:6.5, fill:'#E4577A', opacity:.38 }],
+      ['circle', { cx:num(hx + 13), cy:num(hy + 5), r:6.5, fill:'#E4577A', opacity:.38 }],
+      ['path', { d:`M${num(hx - 12)} ${num(hy - 3)}q4-4.5 8 0M${num(hx + 4)} ${num(hy - 3)}q4-4.5 8 0`, fill:'none', stroke:ink, 'stroke-width':2.3, 'stroke-linecap':'round' }],
+      ['ellipse', { cx:mx, cy:my, rx:3.4, ry:3.9, fill:ink }]]]);
+    const lines = small ? [['M0-5C6-7 12-4 18-6', 7], ['M0 6C6 8 12 5 18 7', 7]] : [['M0-7C10-11 18-5 30-9', 3.6], ['M0 0C12-3 22 3 36 0', 3.6], ['M0 7C10 11 18 5 30 9', 3.6]];
+    shapes(group(box, 'wf-cap-breath', { transform:`translate(${num(hx - ux * (R + 3))} ${num(hy - uy * (R + 3))}) rotate(${(deg + 90) % 360})`, fill:'none', stroke:'url(#' + id + 't)', 'stroke-linecap':'round' }),
+      lines.map(([d, width]) => ['path', { d, 'stroke-width':width, 'stroke-dasharray':small ? 'none' : '12 6' }]));
+    return svg;
+  }
+  // Rosa de rellotge (rosa() in the mockup): the wind rose as a dial on a dark
+  // tone of the wind's colour, its long point in the colour of the wind and
+  // turned to where it comes from. Small faces draw only that point, wider; the
+  // whole figure adds the minute ticks.
+  const cream = '#F3EAD8';
+  function rosa(svg, w, fill, small, full) {
+    const id = 'wf' + (++faceSerial), defs = svgNode('defs', {}), dark = mix(fill, '#0F0C18', .72), faint = mix(cream, dark, .45);
+    const point = (len, wd, left, right) => [['path', { d:`M0 0L${-wd} ${-wd}L0 ${-len}Z`, fill:left }], ['path', { d:`M0 0L${wd} ${-wd}L0 ${-len}Z`, fill:right }]];
+    defs.append(shapes(svgNode('radialGradient', { id:id + 'd', cx:-10, cy:-16, r:70, gradientUnits:'userSpaceOnUse' }),
+      [[0, mix(fill, '#1B1530', .3)], [1, dark]].map(([offset, tint]) => ['stop', { offset, 'stop-color':tint }])));
+    svg.append(defs);
+    svg.setAttribute('data-avatar', 'rosa');
+    if (!root.matchMedia?.('(prefers-reduced-motion: reduce)').matches) svg.setAttribute('class', svg.getAttribute('class') + ' wf-idle');
+    const dial = group(svg, '', { transform:'scale(.8) translate(50 50)' });
+    shapes(dial, [['circle', { r:50, fill:'url(#' + id + 'd)' }]]);
+    if (!small) {
+      shapes(dial, [['circle', { r:44, fill:'none', stroke:cream, 'stroke-opacity':.3, 'stroke-width':1 }]]);
+      if (full) shapes(group(dial, '', { stroke:cream, 'stroke-opacity':.4, 'stroke-width':1 }), Array.from({ length:32 }, (_, i) => ['line', { x1:0, y1:-43.5, x2:0, y2:i % 4 ? -41.5 : -40, transform:`rotate(${i * 11.25})` }]));
+      for (const a of [0, 90, 180, 270]) shapes(group(dial, '', { transform:`rotate(${a})`, opacity:.55 }), point(29, 5.5, cream, faint));
+      for (const a of [45, 135, 225, 315]) shapes(group(dial, '', { transform:`rotate(${a})`, opacity:.32 }), point(20, 4.5, cream, faint));
+    }
+    shapes(group(group(dial, '', { transform:`rotate(${direction(w)})` }), 'wf-point'), point(small ? 40 : 43, small ? 12 : 8, mix(fill, '#FFFFFF', .55), fill));
+    shapes(dial, [['circle', { r:small ? 7 : 4.5, fill:cream }], ['circle', { r:small ? 3 : 1.8, fill:dark }]]);
+    return svg;
+  }
   // `large` picks the level of detail: false is a clean face for lists and chat
   // rows; true is the whole figure on its own ground, with the tool of its
   // trade; 'figure' is that figure without ground, for scenes that draw theirs.
-  function face(w, large, mood) {
+  // `size` is the pixel size when the caller draws it under 28 px, so the packs
+  // that have one draw their simpler small variant.
+  function face(w, large, mood, size) {
     w = w || {};
     const s = style(w.style), kitKey = w.kit || w.specialty, kit = kits[kitKey], fill = color(w.color);
     const full = !!large, worn = full ? kit : null, cloud = s[2] === 'n', curl = s[2] === 's', R = cloud ? 30 : 33;
@@ -426,7 +480,10 @@
     let seed = 0; for (const c of String(key)) seed = (seed * 31 + c.charCodeAt(0)) % 997;
     svg.style.setProperty('--wf-phase', (-((clock() + seed / 83) % 12)).toFixed(2) + 's');
     faceKeys.set(svg, key); faceTones.set(svg, tone);
-    if (avatarPack(w) === 'esperit') return setMood(esperit(svg, w, fill, ink), mood, key);
+    const pack = avatarPack(w);
+    if (pack === 'esperit') return setMood(esperit(svg, w, fill, ink), mood, key);
+    if (pack === 'cap') return setMood(cap(svg, w, fill, ink, size < 28), mood, key);
+    if (pack === 'rosa') return setMood(rosa(svg, w, fill, size < 28, large === true), mood, key);
     if (kit) svg.setAttribute('data-kit', kitKey);
     // Volume: soft light from the top left, the wind's own deep tone below, a rim
     // of bounced light at the far edge and a satin sheen. No outline, no glare.
@@ -825,7 +882,7 @@
     [tint, eyes, mouth, shape, avatar].filter(Boolean).forEach(n => { n.addEventListener('change', update); n.addEventListener('input', update); }); update(); form.show();
   }
   // Packs by name; the first ones are the packs a wind can pick in Free mode.
-  const themeChoices = () => [['cares', tr('winds.avatarCares', 'Cares')], ['esperit', tr('winds.avatarEsperit', 'Esperit de vent')], ['free', tr('winds.avatarFree', 'Lliure')]];
+  const themeChoices = () => [['cares', tr('winds.avatarCares', 'Cares')], ['esperit', tr('winds.avatarEsperit', 'Esperit de vent')], ['cap', tr('winds.avatarCap', 'Cap de vent')], ['rosa', tr('winds.avatarRosa', 'Rosa de rellotge')], ['free', tr('winds.avatarFree', 'Lliure')]];
   // The editor offers a pack only in Free mode; with a theme it names the pack
   // that draws every wind, and saving leaves the wind's own choice untouched.
   function avatarField(parent, w) {

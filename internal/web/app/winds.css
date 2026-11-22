@@ -336,6 +336,15 @@
 .winds-face:is([data-mood=thinking],[data-mood=searching],[data-mood=reading],[data-mood=writing],[data-mood=working]) .wf-breath path { animation:wf-blow .75s linear var(--wf-phase,0s) infinite; }
 @keyframes wf-blow { from { stroke-dashoffset:8; } to { stroke-dashoffset:0; } }
 @keyframes wf-drift { 0%,100% { transform:translate(0,0); } 50% { transform:translate(var(--wf-dx,0px),var(--wf-dy,0px)); } }
+/* Cap de vent's breath flows and Rosa de rellotge's point swings, on the same
+   rule: idle only with wf-idle, faster and always while the wind works. */
+.winds-face .wf-point { transform-origin:0 0; }
+.winds-face.wf-idle .wf-cap-breath path { animation:wf-flow 1.8s linear var(--wf-phase,0s) infinite; }
+.winds-face.wf-idle .wf-point { animation:wf-wiggle 4s ease-in-out var(--wf-phase,0s) infinite; }
+.winds-face:is([data-mood=thinking],[data-mood=searching],[data-mood=reading],[data-mood=writing],[data-mood=working],[data-mood=discussing]) .wf-cap-breath path { animation:wf-flow .7s linear var(--wf-phase,0s) infinite !important; }
+.winds-face:is([data-mood=thinking],[data-mood=searching],[data-mood=reading],[data-mood=writing],[data-mood=working],[data-mood=discussing]) .wf-point { animation:wf-swing 1.4s ease-in-out var(--wf-phase,0s) infinite !important; }
+@keyframes wf-flow { from { stroke-dashoffset:18; } to { stroke-dashoffset:0; } }
+@keyframes wf-swing { 0%,100% { transform:rotate(-10deg); } 50% { transform:rotate(10deg); } }
 @keyframes wf-breathe { 0%,100% { transform:scale(1,1); } 50% { transform:scale(.99,1.025); } }
 @keyframes wf-sway { 0%,100% { transform:rotate(-5deg); } 50% { transform:rotate(6deg); } }
 @keyframes wf-blink { 0%,95%,100% { transform:scaleY(1); } 96.5% { transform:scaleY(.1); } 98% { transform:scaleY(1); } }

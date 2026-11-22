@@ -124,3 +124,31 @@ func TestAvatarThemeIsPerAccount(t *testing.T) {
 		t.Fatalf("l'Anna no veu el seu tema: %q", got)
 	}
 }
+
+// Cap de vent i Rosa de rellotge són packs com els altres: valen per al tema
+// i per a cada vent; un nom semblant que no ho és continua sent 400.
+func TestCapAndRosaAreAvatarPacks(t *testing.T) {
+	s := rutinaTestServer(t)
+	for _, pack := range []string{"cap", "rosa"} {
+		if code := setAvatarTheme(t, s, pack); code != 200 {
+			t.Fatalf("tema %s: %d", pack, code)
+		}
+		if got := getWinds(t, s).AvatarTheme; got != pack {
+			t.Fatalf("desat %s, llegit %q", pack, got)
+		}
+		if rec := postJSON(t, s.handleWinds, `{"id":"xaloc","name":"Xaloc","avatar":"`+pack+`"}`); rec.Code != 200 {
+			t.Fatalf("avatar %s: %d %s", pack, rec.Code, rec.Body.String())
+		}
+		if got := avatarOf(t, s, "xaloc"); got != pack {
+			t.Fatalf("avatar desat %s, llegit %q", pack, got)
+		}
+	}
+	for _, unknown := range []string{"bufador", "rellotge"} {
+		if code := setAvatarTheme(t, s, unknown); code != http.StatusBadRequest {
+			t.Fatalf("tema %s ha de ser 400: %d", unknown, code)
+		}
+		if rec := postJSON(t, s.handleWinds, `{"id":"xaloc","name":"Xaloc","avatar":"`+unknown+`"}`); rec.Code != http.StatusBadRequest {
+			t.Fatalf("avatar %s ha de ser 400: %d", unknown, rec.Code)
+		}
+	}
+}

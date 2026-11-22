@@ -88,7 +88,7 @@ async function boot({ lang = 'en', api, storage = {} } = {}) {
   const json = data => ({ ok: true, status: 200, json: async () => data, text: async () => JSON.stringify(data) });
   const window = {
     document: doc, gregalNotes: notes, addEventListener() {},
-    gregalWinds: { face: w => { const n = new Element('svg', doc); n.dataset.wind = w?.name || ''; return n; }, moodOf: () => '', seen() {}, watchNews() {}, setAvatarTheme(theme) { this.theme = theme; },
+    gregalWinds: { face: (w, large, mood, size) => { const n = new Element('svg', doc); n.dataset.wind = w?.name || ''; if (size) n.dataset.size = String(size); return n; }, moodOf: () => '', seen() {}, watchNews() {}, setAvatarTheme(theme) { this.theme = theme; },
       // winds.js draws the real picker (winds.test.js); here only Free mode gets one.
       avatarField(parent, w) { if (this.theme !== 'free') return null; const s = new Element('select', doc); s.setAttribute('id', 'windAvatar'); s.value = w?.avatar || 'cares'; parent.append(s); return s; } },
     api: async (url, opts = {}) => {
@@ -224,6 +224,16 @@ test('while a wind is answering, the start page opens the running conversation a
 test('the Vents page hands the account avatar theme from /api/winds to the face drawer', async () => {
   const f = await boot({ api: r => r.url === '/api/winds' ? { ok: true, status: 200, json: async () => ({ winds, avatarTheme: 'esperit' }) } : null });
   assert.equal(f.window.gregalWinds.theme, 'esperit');
+});
+
+test('the sidebar draws its 20 px faces with the small variant of the packs', async () => {
+  const f = await boot();
+  const svg = byText(f.nav, '.vw-nav-channel', 'Gregal').querySelector('svg');
+  assert.ok(+svg.dataset.size < 28, 'the face is asked for its small size');
+  assert.equal(f.page.querySelector('.vw-start-faces').querySelector('svg').dataset.size, undefined, 'the 40 px start faces keep the details');
+  await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();
+  await settle();
+  assert.ok(+f.page.querySelector('.vw-owner > svg').dataset.size < 28, 'the 26 px owner face in the conversation header is small too');
 });
 
 // A personal wind (no squad) with its own pack, on an account in Free mode or with a theme.

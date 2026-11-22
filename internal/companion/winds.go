@@ -35,7 +35,9 @@ type Wind struct {
 }
 
 // ValidAvatar diu si p és un pack d'avatars que els clients saben dibuixar.
-func ValidAvatar(p string) bool { return p == "cares" || p == "esperit" }
+func ValidAvatar(p string) bool {
+	return p == "cares" || p == "esperit" || p == "cap" || p == "rosa"
+}
 
 // FollowupsOn diu si el vent pot oferir-se a fer seguiments pel seu compte.
 func (w Wind) FollowupsOn() bool { return w.Followups != "off" }
