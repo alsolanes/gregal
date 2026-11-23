@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"gregal/internal/backlog"
+	"gregal/internal/ooxml"
 	"gregal/internal/profile"
 )
 
@@ -28,16 +29,24 @@ const (
 	AuthorUser  = "user"
 )
 
-// Block és un tros de markdown amb la versió del document en què va
+// Els tipus de document: de text (blocs de markdown) o una presentació
+// (un bloc per diapositiva).
+const (
+	KindDoc  = "doc"
+	KindDeck = "deck"
+)
+
+// Block és un tros de markdown, o una diapositiva en una presentació, amb la versió del document en què va
 // canviar per últim cop. Since és la versió en què es va crear: distingeix
 // un bloc editat d'un d'inserit des de l'última versió que algú ha vist.
 type Block struct {
-	ID      string    `json:"id"`
-	MD      string    `json:"md"`
-	Version int       `json:"version"`
-	Since   int       `json:"since,omitempty"`
-	Author  string    `json:"author"`
-	Updated time.Time `json:"updated"`
+	ID      string           `json:"id"`
+	MD      string           `json:"md"`
+	Slide   *ooxml.SlideSpec `json:"slide,omitempty"`
+	Version int              `json:"version"`
+	Since   int              `json:"since,omitempty"`
+	Author  string           `json:"author"`
+	Updated time.Time        `json:"updated"`
 }
 
 // Doc és un document viu.
@@ -196,14 +205,41 @@ func blocks(md, author string, v int, at time.Time) []Block {
 
 // Create fa un document nou amb md partit en blocs.
 func (s *Store) Create(title, md, author string) (Doc, error) {
+	return s.create(title, KindDoc, func(at time.Time) []Block { return blocks(md, author, 1, at) })
+}
+
+// CreateDeck fa una presentació buida; les diapositives hi entren amb
+// InsertSlide.
+func (s *Store) CreateDeck(title string) (Doc, error) {
+	return s.create(title, KindDeck, func(time.Time) []Block { return []Block{} })
+}
+
+func (s *Store) create(title, kind string, mk func(at time.Time) []Block) (Doc, error) {
 	title = strings.TrimSpace(title)
 	if title == "" {
 		return Doc{}, errors.New("a document needs a title")
 	}
 	defer s.lock()()
 	now := time.Now().UTC()
-	d := Doc{ID: newID(12), Title: title, Kind: "doc", Blocks: blocks(md, author, 1, now), Version: 1, Created: now, Updated: now}
+	d := Doc{ID: newID(12), Title: title, Kind: kind, Blocks: mk(now), Version: 1, Created: now, Updated: now}
 	return d, s.write(d)
+}
+
+// sameKind fa que una edició de text no entri en una presentació ni al revés.
+func sameKind(d *Doc, kind string) error {
+	if d.Kind != kind {
+		return fmt.Errorf("document %s is a %s: this edit is for a %s (decks take slides, docs take md)", d.ID, d.Kind, kind)
+	}
+	return nil
+}
+
+// checkSlide accepta només els layouts que el constructor de presentacions
+// coneix: una presentació viva no té plantilla amb layouts propis.
+func checkSlide(sl ooxml.SlideSpec) error {
+	if !ooxml.SlideLayout(sl.Layout) {
+		return fmt.Errorf("slide layout %q: use title, section, content, two_columns, comparison, big_number, image, title_only, blank or closing", sl.Layout)
+	}
+	return nil
 }
 
 // change aplica fn a un document i en puja la versió; fn rep la versió
@@ -342,8 +378,25 @@ func find(d *Doc, block string) int {
 
 // Insert posa els blocs de md després del bloc after ("" = al principi).
 func (s *Store) Insert(id, after, md, author string) (Doc, error) {
+	return s.insert(id, after, KindDoc, func(v int, at time.Time) []Block { return blocks(md, author, v, at) })
+}
+
+// InsertSlide posa una diapositiva després del bloc after ("" = al principi).
+func (s *Store) InsertSlide(id, after string, sl ooxml.SlideSpec, author string) (Doc, error) {
+	if err := checkSlide(sl); err != nil {
+		return Doc{}, err
+	}
+	return s.insert(id, after, KindDeck, func(v int, at time.Time) []Block {
+		return []Block{{ID: newID(8), Slide: &sl, Version: v, Since: v, Author: author, Updated: at}}
+	})
+}
+
+func (s *Store) insert(id, after, kind string, mk func(v int, at time.Time) []Block) (Doc, error) {
 	return s.change(id, func(d *Doc, v int, at time.Time) error {
-		nous := blocks(md, author, v, at)
+		if err := sameKind(d, kind); err != nil {
+			return err
+		}
+		nous := mk(v, at)
 		if len(nous) == 0 {
 			return errors.New("nothing to insert")
 		}
@@ -361,7 +414,23 @@ func (s *Store) Insert(id, after, md, author string) (Doc, error) {
 // Replace canvia el markdown d'un bloc; base és la versió del document
 // que l'autor ha llegit (vegeu conflict).
 func (s *Store) Replace(id, block, md, author string, base int) (Doc, error) {
+	return s.replace(id, block, KindDoc, author, base, Block{MD: strings.TrimSpace(md)})
+}
+
+// ReplaceSlide canvia una diapositiva sencera; base com a Replace.
+func (s *Store) ReplaceSlide(id, block string, sl ooxml.SlideSpec, author string, base int) (Doc, error) {
+	if err := checkSlide(sl); err != nil {
+		return Doc{}, err
+	}
+	return s.replace(id, block, KindDeck, author, base, Block{Slide: &sl})
+}
+
+// replace posa el contingut de nou al bloc block.
+func (s *Store) replace(id, block, kind, author string, base int, nou Block) (Doc, error) {
 	return s.change(id, func(d *Doc, v int, at time.Time) error {
+		if err := sameKind(d, kind); err != nil {
+			return err
+		}
 		i := find(d, block)
 		if i < 0 {
 			return ErrBlockNotFound
@@ -369,7 +438,8 @@ func (s *Store) Replace(id, block, md, author string, base int) (Doc, error) {
 		if err := conflict(d.Blocks[i], author, base); err != nil {
 			return err
 		}
-		d.Blocks[i] = Block{ID: block, MD: strings.TrimSpace(md), Version: v, Since: d.Blocks[i].Since, Author: author, Updated: at}
+		nou.ID, nou.Version, nou.Since, nou.Author, nou.Updated = block, v, d.Blocks[i].Since, author, at
+		d.Blocks[i] = nou
 		return nil
 	})
 }

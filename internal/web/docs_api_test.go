@@ -13,11 +13,67 @@ import (
 )
 
 func docExport(s *Server, id string) *httptest.ResponseRecorder {
+	return docExportAs(s, id, "docx")
+}
+
+func docExportAs(s *Server, id, format string) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/docs/"+id+"/export?format=docx", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/docs/"+id+"/export?format="+format, nil)
 	req.SetPathValue("id", id)
 	s.handleDocExport(rec, req)
 	return rec
+}
+
+func TestDocExportPptx(t *testing.T) {
+	s := backlogServer(t)
+	st, _ := gdocs.Open(s.cwd)
+	d, err := st.CreateDeck("Llançament")
+	if err != nil {
+		t.Fatal(err)
+	}
+	after := ""
+	for _, sl := range []ooxml.SlideSpec{
+		{Layout: "title", Title: "Llançament 2027"},
+		{Layout: "content", Title: "Fases", Bullets: []string{"Beta", "Obert"}},
+		{Layout: "two_columns", Title: "Riscos", Left: "Temps", Right: "Cost"},
+	} {
+		if d, err = st.InsertSlide(d.ID, after, sl, gdocs.AuthorAgent); err != nil {
+			t.Fatal(err)
+		}
+		after = d.Blocks[len(d.Blocks)-1].ID
+	}
+	rec := docExportAs(s, d.ID, "pptx")
+	if rec.Code != 200 || !strings.Contains(rec.Header().Get("Content-Disposition"), "Llançament.pptx") {
+		t.Fatalf("%d %v %s", rec.Code, rec.Header(), rec.Body.String())
+	}
+	pk, err := ooxml.OpenBytes(rec.Body.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if iss := ooxml.NewIssues(pk, nil); len(iss) > 0 {
+		t.Fatalf("pptx invàlid: %v", iss)
+	}
+	text, err := ooxml.ReadPptx(pk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, b, c := strings.Index(text, "# Llançament 2027"), strings.Index(text, "# Fases"), strings.Index(text, "# Riscos")
+	if a < 0 || b < a || c < b || !strings.Contains(text, "Beta") || !strings.Contains(text, "Cost") {
+		t.Fatalf("diapositives:\n%s", text)
+	}
+}
+
+func TestDocExportNomesEnElFormatDelTipus(t *testing.T) {
+	s := backlogServer(t)
+	st, _ := gdocs.Open(s.cwd)
+	d, _ := st.CreateDeck("Llançament")
+	if rec := docExportAs(s, d.ID, "docx"); rec.Code != http.StatusBadRequest {
+		t.Fatalf("una presentació en docx: %d", rec.Code)
+	}
+	text, _ := st.Create("Plan", "a", gdocs.AuthorAgent)
+	if rec := docExportAs(s, text.ID, "pptx"); rec.Code != http.StatusBadRequest {
+		t.Fatalf("un document de text en pptx: %d", rec.Code)
+	}
 }
 
 func TestDocExportDocx(t *testing.T) {

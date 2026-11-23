@@ -293,6 +293,12 @@ var layoutKinds = map[string]struct {
 	"blank":       {[]string{"blank"}, []string{"blank", "en blanc"}},
 }
 
+// SlideLayout diu si k és un dels tipus de layout que BuildSlides coneix.
+func SlideLayout(k string) bool {
+	_, ok := layoutKinds[k]
+	return ok
+}
+
 // PickLayout tria el layout que millor encaixa amb un tipus semàntic.
 // Admet també el nom exacte o l'índex (1-based) d'un layout.
 func (p *Pptx) PickLayout(kind string) (LayoutInfo, error) {
@@ -614,10 +620,10 @@ func firstNonEmpty(xs ...string) string {
 
 // TextOpts és el format extra d'un quadre de text.
 type TextOpts struct {
-	Size    int // centèsimes de punt (2000 = 20 pt); 0 = el del layout
-	Bold    bool
-	Color   string // hex
-	Align   string // l, ctr, r
+	Size     int // centèsimes de punt (2000 = 20 pt); 0 = el del layout
+	Bold     bool
+	Color    string // hex
+	Align    string // l, ctr, r
 	NoBullet bool
 }
 

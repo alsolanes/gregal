@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -17,32 +18,53 @@ import (
 )
 
 // handleDocExport baixa un document viu del projecte de la sessió com a
-// fitxer d'Office, fet dels blocs amb el tema de la marca activa.
+// fitxer d'Office, fet dels blocs amb el tema de la marca activa: un
+// document de text en Word, una presentació en PowerPoint.
 //
-//	GET /api/docs/{id}/export?format=docx
+//	GET /api/docs/{id}/export?format=docx|pptx
 func (s *Server) handleDocExport(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "GET required", http.StatusMethodNotAllowed)
-		return
-	}
-	if f := r.URL.Query().Get("format"); f != "" && f != "docx" {
-		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "format: only docx"})
-		return
-	}
-	_, d, ok := s.sessionDoc(w, r)
+	st, d, ok := s.sessionDoc(w, r)
 	if !ok {
 		return
 	}
-	// Sense tema, NewDocx fa servir el per defecte, que és la marca activa.
-	x := ooxml.NewDocx(ooxml.DocxOptions{Title: d.Title, PageNumbers: true})
-	x.AppendMarkdown(d.Markdown())
-	data, err := x.Pkg.Bytes()
+	format := map[string]string{gdocs.KindDoc: "docx", gdocs.KindDeck: "pptx"}[d.Kind]
+	if f := r.URL.Query().Get("format"); f != "" && f != format {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "format: a " + d.Kind + " exports only as " + format})
+		return
+	}
+	// Sense tema, NewDocx i NewPptx fan servir el per defecte, que és la marca activa.
+	var pkg *ooxml.Package
+	ctype := "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	if d.Kind == gdocs.KindDeck {
+		spec := ooxml.DeckSpec{Title: d.Title}
+		for _, b := range d.Blocks {
+			spec.Slides = append(spec.Slides, *b.Slide)
+		}
+		p := ooxml.NewPptx(ooxml.Theme{}, d.Title)
+		p.BaseDir = st.Root
+		warns, err := p.BuildSlides(spec)
+		if err != nil {
+			writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		// Una imatge que falta no ha d'impedir la baixada.
+		for _, warn := range warns {
+			log.Printf("docs: %s: %s", d.ID, warn)
+		}
+		pkg = p.Pkg
+		ctype = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+	} else {
+		x := ooxml.NewDocx(ooxml.DocxOptions{Title: d.Title, PageNumbers: true})
+		x.AppendMarkdown(d.Markdown())
+		pkg = x.Pkg
+	}
+	data, err := pkg.Bytes()
 	if err != nil {
 		writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	name := d.Title + ".docx"
-	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+	name := d.Title + "." + format
+	w.Header().Set("Content-Type", ctype)
 	w.Header().Set("Content-Disposition", "attachment; filename=\""+senseEspais(name)+"\"; filename*=UTF-8''"+url.PathEscape(name))
 	_, _ = w.Write(data)
 }

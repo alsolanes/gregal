@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+
+	"gregal/internal/ooxml"
 )
 
 func obre(t *testing.T) *Store {
@@ -166,5 +168,78 @@ func TestSeenPerSessio(t *testing.T) {
 	}
 	if l, _ := s.List(); len(l) != 0 {
 		t.Fatalf("el registre surt com a document: %+v", l)
+	}
+}
+
+// deck fa una presentació amb una portada i una diapositiva «Fases».
+func deck(t *testing.T, s *Store) Doc {
+	t.Helper()
+	d, err := s.CreateDeck("Llançament")
+	if err != nil || d.Kind != KindDeck || len(d.Blocks) != 0 {
+		t.Fatalf("%+v %v", d, err)
+	}
+	if d, err = s.InsertSlide(d.ID, "", ooxml.SlideSpec{Layout: "title", Title: "Llançament"}, AuthorAgent); err != nil {
+		t.Fatal(err)
+	}
+	if d, err = s.InsertSlide(d.ID, d.Blocks[0].ID, ooxml.SlideSpec{Layout: "content", Title: "Fases", Bullets: []string{"Beta", "Llançament"}}, AuthorAgent); err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
+func TestDeckUnaDiapositivaPerBloc(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d := deck(t, s)
+	fases := d.Blocks[1]
+	ch, stop := s.Watch(d.ID)
+	defer stop()
+	d2, err := s.ReplaceSlide(d.ID, fases.ID, ooxml.SlideSpec{Layout: "two_columns", Title: "Fases", Left: "Beta", Right: "Llançament"}, AuthorUser, fases.Version)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := d2.Blocks[1]
+	if got.Slide == nil || got.Slide.Layout != "two_columns" || got.Slide.Right != "Llançament" || got.Author != AuthorUser || got.Version != d2.Version || got.Since != fases.Since {
+		t.Fatalf("diapositiva %+v", got)
+	}
+	if c := <-ch; c.Op != "replace" || c.Block.Slide == nil || c.Block.Slide.Left != "Beta" {
+		t.Fatalf("canvi %+v", c)
+	}
+	if again, _ := s.Get(d.ID); again.Blocks[0].Slide.Title != "Llançament" || again.Blocks[1].Slide.Layout != "two_columns" {
+		t.Fatalf("no s'ha desat: %+v", again.Blocks)
+	}
+}
+
+// L'agent no trepitja una diapositiva que la persona ha canviat després.
+func TestDeckConflicte(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d := deck(t, s)
+	fases := d.Blocks[1]
+	if _, err := s.ReplaceSlide(d.ID, fases.ID, ooxml.SlideSpec{Layout: "section", Title: "Fases"}, AuthorUser, fases.Version); err != nil {
+		t.Fatal(err)
+	}
+	var c *ConflictError
+	if _, err := s.ReplaceSlide(d.ID, fases.ID, ooxml.SlideSpec{Layout: "content"}, AuthorAgent, fases.Version); !errors.As(err, &c) {
+		t.Fatalf("sense conflicte: %v", err)
+	}
+}
+
+func TestDeckRefusaLayoutIContingutDAltreTipus(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d := deck(t, s)
+	if _, err := s.ReplaceSlide(d.ID, d.Blocks[1].ID, ooxml.SlideSpec{Layout: "diagonal", Title: "x"}, AuthorAgent, d.Version); err == nil {
+		t.Fatal("layout invàlid acceptat")
+	}
+	if _, err := s.InsertSlide(d.ID, "", ooxml.SlideSpec{Title: "sense layout"}, AuthorAgent); err == nil {
+		t.Fatal("diapositiva sense layout acceptada")
+	}
+	if _, err := s.Insert(d.ID, "", "# text", AuthorAgent); err == nil {
+		t.Fatal("markdown a una presentació")
+	}
+	text, _ := s.Create("Plan", "a", AuthorAgent)
+	if _, err := s.InsertSlide(text.ID, "", ooxml.SlideSpec{Layout: "title"}, AuthorAgent); err == nil {
+		t.Fatal("diapositiva a un document de text")
 	}
 }

@@ -18,21 +18,21 @@ type DeckSpec struct {
 // two_columns, comparison, big_number, image, title_only, blank,
 // closing (o el nom/índex d'un layout de la plantilla).
 type SlideSpec struct {
-	Layout     string     `json:"layout"`
-	Title      string     `json:"title"`
-	Subtitle   string     `json:"subtitle"`
-	Body       string     `json:"body"`
-	Bullets    []string   `json:"bullets"`
-	Left       string     `json:"left"`
-	Right      string     `json:"right"`
-	LeftTitle  string     `json:"left_title"`
-	RightTitle string     `json:"right_title"`
-	Number     string     `json:"number"`
-	Caption    string     `json:"caption"`
-	Image      string     `json:"image"`
-	Table      FlexTable  `json:"table"`
-	Chart      *ChartSpec `json:"chart"`
-	Notes      string     `json:"notes"`
+	Layout     string     `json:"layout,omitempty"`
+	Title      string     `json:"title,omitempty"`
+	Subtitle   string     `json:"subtitle,omitempty"`
+	Body       string     `json:"body,omitempty"`
+	Bullets    []string   `json:"bullets,omitempty"`
+	Left       string     `json:"left,omitempty"`
+	Right      string     `json:"right,omitempty"`
+	LeftTitle  string     `json:"left_title,omitempty"`
+	RightTitle string     `json:"right_title,omitempty"`
+	Number     string     `json:"number,omitempty"`
+	Caption    string     `json:"caption,omitempty"`
+	Image      string     `json:"image,omitempty"`
+	Table      FlexTable  `json:"table,omitempty"`
+	Chart      *ChartSpec `json:"chart,omitempty"`
+	Notes      string     `json:"notes,omitempty"`
 }
 
 // ChartSpec és un gràfic natiu (editable a PowerPoint).
@@ -46,7 +46,7 @@ type ChartSpec struct {
 
 // ChartSeries és una sèrie de dades.
 type ChartSeries struct {
-	Name   string    `json:"name"`
+	Name   string      `json:"name"`
 	Values FlexNumbers `json:"values"`
 }
 

@@ -9,6 +9,7 @@ import (
 
 	"gregal/internal/gdocs"
 	"gregal/internal/llm"
+	"gregal/internal/ooxml"
 )
 
 // L'eina doc: els documents vius del projecte (internal/gdocs). Els canvis
@@ -18,13 +19,18 @@ import (
 
 func docToolSpec() llm.ToolSpec {
 	str := map[string]any{"type": "string"}
-	return llm.ToolSpec{Name: "doc", Description: "Live project documents made of markdown blocks, which the person can see and download as Word. " +
-		"Prefer it over office_create when the person wants a document to work on with you. Actions: " +
-		"create (title, optional md: split into blocks at headings and blank lines; returns the download link to give the person); list; " +
-		"read (id; every block with its id and version); insert (id, md, after = block id, or omitted for the start); " +
-		"replace (id, block, md); delete (id, block). Edit one block at a time instead of rewriting the document.",
+	return llm.ToolSpec{Name: "doc", Description: "Live project documents the person can see and download: a text document made of markdown blocks (Word), " +
+		"or a presentation with kind \"deck\" whose blocks are slides (PowerPoint). " +
+		"Prefer it over office_create when the person wants a document or a new presentation to work on with you. Actions: " +
+		"create (title, kind doc or deck, optional md for a doc: split into blocks at headings and blank lines; a deck starts empty; returns the download link to give the person); list; " +
+		"read (id; every block with its id and version); insert (id, md or for a deck slide, after = block id, or omitted for the start); " +
+		"replace (id, block, md or slide); delete (id, block). A slide is {layout: title|section|content|two_columns|comparison|big_number|image|title_only|blank|closing, " +
+		"title, subtitle, bullets, body, left, right, left_title, right_title, number, caption, image, table, chart: {type, categories, series: [{name, values}]}, notes}. " +
+		"Edit one block or slide at a time instead of rewriting the document.",
 		Parameters: map[string]any{"type": "object", "properties": map[string]any{
 			"action": map[string]any{"type": "string", "enum": []string{"create", "list", "read", "insert", "replace", "delete"}},
+			"kind":   map[string]any{"type": "string", "enum": []string{gdocs.KindDoc, gdocs.KindDeck}},
+			"slide":  map[string]any{"type": "object", "description": "One slide of a deck"},
 			"id":     str, "title": str, "md": str, "after": str, "block": str,
 		}, "required": []string{"action"}}}
 }
@@ -43,7 +49,8 @@ func docExec(dir, session, argsJSON string) (string, error) {
 // passen el de la carpeta personal).
 func DocExecIn(s *gdocs.Store, session, argsJSON string) (string, error) {
 	var a struct {
-		Action, ID, Title, MD, After, Block string
+		Action, ID, Title, Kind, MD, After, Block string
+		Slide                                     *ooxml.SlideSpec
 	}
 	if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 		return "", err
@@ -52,6 +59,20 @@ func DocExecIn(s *gdocs.Store, session, argsJSON string) (string, error) {
 	var err error
 	switch strings.ToLower(strings.TrimSpace(a.Action)) {
 	case "create":
+		if a.Kind == gdocs.KindDeck {
+			if strings.TrimSpace(a.MD) != "" {
+				return "", fmt.Errorf("a deck starts empty: create it without md, then insert its slides one by one")
+			}
+			if d, err = s.CreateDeck(a.Title); err != nil {
+				return "", err
+			}
+			marcaVist(s, session, d)
+			return fmt.Sprintf("Created document %s (an empty deck): insert its slides one by one. Give the person this link to download it as PowerPoint: [%s](/api/docs/%s/export?format=pptx)",
+				d.ID, d.Title, d.ID), nil
+		}
+		if a.Kind != "" && a.Kind != gdocs.KindDoc {
+			return "", fmt.Errorf("unknown kind %q: doc or deck", a.Kind)
+		}
 		if d, err = s.Create(a.Title, a.MD, gdocs.AuthorAgent); err != nil {
 			return "", err
 		}
@@ -71,9 +92,17 @@ func DocExecIn(s *gdocs.Store, session, argsJSON string) (string, error) {
 	case "read":
 		d, err = s.Get(a.ID)
 	case "insert":
-		d, err = s.Insert(a.ID, a.After, a.MD, gdocs.AuthorAgent)
+		if a.Slide != nil {
+			d, err = s.InsertSlide(a.ID, a.After, *a.Slide, gdocs.AuthorAgent)
+		} else {
+			d, err = s.Insert(a.ID, a.After, a.MD, gdocs.AuthorAgent)
+		}
 	case "replace":
-		d, err = s.Replace(a.ID, a.Block, a.MD, gdocs.AuthorAgent, vist(s, session, a.ID))
+		if a.Slide != nil {
+			d, err = s.ReplaceSlide(a.ID, a.Block, *a.Slide, gdocs.AuthorAgent, vist(s, session, a.ID))
+		} else {
+			d, err = s.Replace(a.ID, a.Block, a.MD, gdocs.AuthorAgent, vist(s, session, a.ID))
+		}
 	case "delete":
 		d, err = s.Delete(a.ID, a.Block, gdocs.AuthorAgent, vist(s, session, a.ID))
 	default:
@@ -86,7 +115,15 @@ func DocExecIn(s *gdocs.Store, session, argsJSON string) (string, error) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Document %s · %s · v%d\n", d.ID, d.Title, d.Version)
 	for _, blk := range d.Blocks {
-		fmt.Fprintf(&b, "\n[%s v%d] (%s)\n%s\n", blk.ID, blk.Version, blk.Author, blk.MD)
+		text := blk.MD
+		if blk.Slide != nil {
+			raw, err := json.Marshal(blk.Slide)
+			if err != nil {
+				return "", err
+			}
+			text = string(raw)
+		}
+		fmt.Fprintf(&b, "\n[%s v%d] (%s)\n%s\n", blk.ID, blk.Version, blk.Author, text)
 	}
 	return b.String(), nil
 }

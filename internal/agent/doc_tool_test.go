@@ -189,3 +189,51 @@ func TestEinaDocEnModes(t *testing.T) {
 		}
 	}
 }
+
+func TestDocToolFaUnaPresentacio(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	dir := t.TempDir()
+	run := func(args string) string {
+		t.Helper()
+		out, err := docExec(dir, "s1", args)
+		if err != nil {
+			t.Fatalf("%s: %v", args, err)
+		}
+		return out
+	}
+	out := run(`{"action":"create","kind":"deck","title":"Llançament"}`)
+	m := regexp.MustCompile(`^Created document ([a-z0-9]+) .*\(/api/docs/[a-z0-9]+/export\?format=pptx\)`).FindStringSubmatch(out)
+	if m == nil {
+		t.Fatalf("sortida del create: %s", out)
+	}
+	id := m[1]
+	run(`{"action":"insert","id":"` + id + `","slide":{"layout":"title","title":"Llançament","subtitle":"Pla 2027"}}`)
+	out = run(`{"action":"insert","id":"` + id + `","after":"","slide":{"layout":"content","title":"Fases","bullets":["Beta"]}}`)
+	block := regexp.MustCompile(`\[([a-z0-9]+) v\d+\]`).FindStringSubmatch(out)[1]
+	run(`{"action":"replace","id":"` + id + `","block":"` + block + `","slide":{"layout":"two_columns","title":"Fases","left":"Beta","right":"Llançament"}}`)
+	out = run(`{"action":"read","id":"` + id + `"}`)
+	fases := strings.Index(out, `"layout":"two_columns","title":"Fases","left":"Beta","right":"Llançament"`)
+	portada := strings.Index(out, `"layout":"title","title":"Llançament","subtitle":"Pla 2027"`)
+	if fases < 0 || portada < 0 || fases > portada || strings.Contains(out, "bullets") {
+		t.Fatalf("lectura:\n%s", out)
+	}
+	if _, err := docExec(dir, "s1", `{"action":"insert","id":"`+id+`","md":"# text"}`); err == nil {
+		t.Fatal("markdown a una presentació")
+	}
+}
+
+func TestLesPresentacionsNovesVanADoc(t *testing.T) {
+	desc := map[string]string{}
+	for _, s := range SpecsAll() {
+		desc[s.Name] = s.Description
+	}
+	if d := desc["doc"]; !strings.Contains(d, `kind "deck"`) || !strings.Contains(d, "PowerPoint") {
+		t.Fatalf("doc no parla de presentacions: %s", d)
+	}
+	o := desc["office_create"]
+	for _, want := range []string{`doc tool with kind "deck"`, "template", "attached"} {
+		if !strings.Contains(o, want) {
+			t.Fatalf("falta %q a office_create: %s", want, o)
+		}
+	}
+}
