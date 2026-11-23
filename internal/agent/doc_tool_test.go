@@ -143,6 +143,39 @@ func TestEinaDoc(t *testing.T) {
 	}
 }
 
+func TestEinaDocLlegeixElFormatAmpliatTalCom(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	dir := t.TempDir()
+	para := "A [red **bold**]{color=#c0392b bg=#fff3a3 font=\"Georgia\" size=14} and ++under++.\n{align=justify}"
+	head := "## Title\n{align=center}"
+	d := creaDoc(t, dir, "s1", para)
+	raw, _ := json.Marshal(map[string]string{"action": "insert", "id": d.ID, "after": d.Blocks[0].ID, "md": "Second."})
+	if _, err := docExec(dir, "s1", string(raw)); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := gdocs.Open(dir)
+	d, _ = s.Get(d.ID)
+	raw, _ = json.Marshal(map[string]string{"action": "replace", "id": d.ID, "block": d.Blocks[1].ID, "md": head})
+	if _, err := docExec(dir, "s1", string(raw)); err != nil {
+		t.Fatal(err)
+	}
+	read, err := docExec(dir, "s1", `{"action":"read","id":"`+d.ID+`"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{")\n" + para + "\n", ")\n" + head + "\n"} {
+		if !strings.Contains(read, want) {
+			t.Errorf("read sense %q:\n%s", want, read)
+		}
+	}
+	desc := docToolSpec().Description
+	for _, want := range []string{"++underline++", `[text]{color=#rrggbb bg=#rrggbb font="Name" size=N}`, "{align=center}"} {
+		if !strings.Contains(desc, want) {
+			t.Errorf("la descripció no diu %s", want)
+		}
+	}
+}
+
 func TestEinaDocNoTrepitjaLaPersona(t *testing.T) {
 	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	dir := t.TempDir()

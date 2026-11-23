@@ -7,6 +7,7 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -584,6 +585,15 @@ func (d *Docx) Blocks(bs []Block) []*Node {
 				out = append(out, d.para("", PlainInlines(fmt.Sprintf("[imatge no trobada: %s]", b.Image))))
 			}
 		}
+		// Només els paràgrafs, títols, cites i elements de llista en porten,
+		// i són un sol w:p.
+		if b.ParaAlign != "" {
+			jc := b.ParaAlign
+			if jc == "justify" {
+				jc = "both"
+			}
+			out[len(out)-1].Child("w:pPr").EnsureChild("w:jc", pPrOrder).Set("w:val", jc)
+		}
 	}
 	return out
 }
@@ -623,6 +633,9 @@ func (d *Docx) runs(in Inline) []*Node {
 				rpr.Add(El("w:rStyle", "w:val", id))
 			}
 		}
+		if in.Font != "" {
+			rpr.Add(El("w:rFonts", "w:ascii", in.Font, "w:hAnsi", in.Font, "w:eastAsia", in.Font, "w:cs", in.Font))
+		}
 		if in.Bold {
 			rpr.Add(El("w:b"), El("w:bCs"))
 		}
@@ -631,6 +644,20 @@ func (d *Docx) runs(in Inline) []*Node {
 		}
 		if in.Strike {
 			rpr.Add(El("w:strike"))
+		}
+		if in.Color != "" {
+			rpr.Add(El("w:color", "w:val", strings.ToUpper(in.Color)))
+		}
+		if in.Size > 0 {
+			hp := strconv.Itoa(int(math.Round(in.Size * 2))) // mitjos punts
+			rpr.Add(El("w:sz", "w:val", hp), El("w:szCs", "w:val", hp))
+		}
+		if in.Underline {
+			rpr.Add(El("w:u", "w:val", "single"))
+		}
+		if in.Bg != "" {
+			// w:highlight només admet colors amb nom; un fons qualsevol és ombrejat.
+			rpr.Add(El("w:shd", "w:val", "clear", "w:color", "auto", "w:fill", strings.ToUpper(in.Bg)))
 		}
 		if len(rpr.Children) > 0 {
 			r.Add(rpr)

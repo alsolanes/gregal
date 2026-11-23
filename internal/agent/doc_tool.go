@@ -32,7 +32,8 @@ func docToolSpec() llm.ToolSpec {
 		"read (id, optional range like A1:D20 for a sheet; every block with its id and version, a sheet's cells with their input and computed value); insert (id, md or for a deck slide or for a sheet a new sheet name in sheet, after = block id, or omitted for the start); " +
 		"replace (id, block, md or slide); set_cells (id, block = the sheet, cells: {\"A1\": \"Sales\", \"B1\": \"1200\", \"B3\": \"=SUM(B1:B2)\"}, an empty value clears the cell); delete (id, block). A slide is {layout: title|section|content|two_columns|comparison|big_number|image|title_only|blank|closing, " +
 		"title, subtitle, bullets, body, left, right, left_title, right_title, number, caption, image, table, chart: {type, categories, series: [{name, values}]}, notes}. " +
-		"Edit one block or slide at a time instead of rewriting the document.",
+		"Edit one block or slide at a time instead of rewriting the document. " +
+		"Text blocks also take ++underline++, [text]{color=#rrggbb bg=#rrggbb font=\"Name\" size=N} (any of the keys, size in points) and a line {align=center} (left, center, right or justify) right after a paragraph or heading.",
 		Parameters: map[string]any{"type": "object", "properties": map[string]any{
 			"action": map[string]any{"type": "string", "enum": []string{"create", "list", "read", "insert", "replace", "set_cells", "delete"}},
 			"kind":   map[string]any{"type": "string", "enum": []string{gdocs.KindDoc, gdocs.KindDeck, gdocs.KindSheet}},

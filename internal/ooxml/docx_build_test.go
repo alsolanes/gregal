@@ -3,6 +3,7 @@ package ooxml
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -85,5 +86,46 @@ func TestDocxFromTemplateMapsStyles(t *testing.T) {
 	}
 	if strings.Contains(doc.InnerText(), "CLAU") {
 		t.Error("el cos de la plantilla no s'ha substituït")
+	}
+}
+
+func TestDocxPortaElFormatAmpliat(t *testing.T) {
+	d := NewDocx(DocxOptions{Theme: GetTheme("default")})
+	d.AppendMarkdown("## Head\n{align=center}\n\nA [red]{color=#c0392b bg=#fff3a3 font=\"Georgia\" size=14} and ++under++.\n{align=justify}\n\nRight\n{align=right}")
+	data, err := d.Pkg.Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pk, err := OpenBytes(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if iss := Validate(pk); len(iss) > 0 {
+		t.Fatalf("problemes: %v", iss)
+	}
+	doc, _ := pk.XML("word/document.xml")
+	jc := map[string]string{}
+	runs := map[string]string{}
+	for _, p := range Paragraphs(doc) {
+		if j := p.Path("w:pPr", "w:jc"); j != nil {
+			jc[ParaText(p)] = j.Get("w:val")
+		}
+		for _, r := range p.Elems("w:r") {
+			tx, rpr := r.Child("w:t"), r.Child("w:rPr")
+			if tx != nil && rpr != nil {
+				runs[tx.InnerText()] = rpr.String()
+			}
+		}
+	}
+	if want := map[string]string{"Head": "center", "A red and under.": "both", "Right": "right"}; !reflect.DeepEqual(jc, want) {
+		t.Fatalf("alineacions: %v", jc)
+	}
+	for _, want := range []string{`<w:rFonts w:ascii="Georgia" w:hAnsi="Georgia" w:eastAsia="Georgia" w:cs="Georgia"/>`, `<w:color w:val="C0392B"/>`, `<w:sz w:val="28"/>`, `<w:szCs w:val="28"/>`, `<w:shd w:val="clear" w:color="auto" w:fill="FFF3A3"/>`} {
+		if !strings.Contains(runs["red"], want) {
+			t.Errorf("run red sense %s: %s", want, runs["red"])
+		}
+	}
+	if !strings.Contains(runs["under"], `<w:u w:val="single"/>`) || strings.Contains(runs["A "], "w:u") {
+		t.Errorf("subratllat: %q / %q", runs["under"], runs["A "])
 	}
 }
