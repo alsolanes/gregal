@@ -32,6 +32,8 @@ func Noms() []string {
 		"knowledge_search", "knowledge_note",
 		// La llista de feina del projecte (internal/backlog).
 		"backlog",
+		// Els documents vius del projecte (internal/gdocs).
+		"doc",
 	}
 }
 

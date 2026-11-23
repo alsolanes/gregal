@@ -633,6 +633,8 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/goal", h.route((*Server).handleGoal))
 	// Llista de feina del projecte (backlog_api.go, internal/backlog).
 	handle("/api/backlog", h.route((*Server).handleBacklog))
+	// Documents vius del projecte (docs_api.go, internal/gdocs).
+	handle("/api/docs/{id}/export", h.route((*Server).handleDocExport))
 	handle("/api/verify", h.route((*Server).handleVerify))
 	handle("/api/lang", h.global((*Server).handleLang))
 	// Brandings: paquets de colors, tipus de lletra i logo (internal/brand).

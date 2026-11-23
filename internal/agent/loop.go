@@ -270,7 +270,7 @@ func Specs() []llm.ToolSpec {
 	// lsp només hi és si hi ha algun servidor de llenguatge instal·lat
 	// (es mira un cop per procés: el conjunt d'eines no canvia a mitja
 	// sessió).
-	specs = append(specs, backlogToolSpec())
+	specs = append(specs, backlogToolSpec(), docToolSpec())
 	if t, ok := lspToolSpec(); ok {
 		specs = append(specs, t)
 	}
@@ -510,7 +510,7 @@ func (p *Policy) For(name, argsJSON string) (string, string) {
 		return "ask", "eina MCP: confirma"
 	}
 	switch name {
-	case "read", "grep", "glob", "symbols", "web_search", "web_images", "web_fetch", "delegate", "read_image", "gh_issue", "gh_pr", "office_read", "office_render", "send_file", "pdf_read", "todoread", "todowrite", "question", "skill", "preview", "knowledge_search", "dashboard_save", "backlog":
+	case "read", "grep", "glob", "symbols", "web_search", "web_images", "web_fetch", "delegate", "read_image", "gh_issue", "gh_pr", "office_read", "office_render", "send_file", "pdf_read", "todoread", "todowrite", "question", "skill", "preview", "knowledge_search", "dashboard_save", "backlog", "doc":
 		return "allow", ""
 	case "lsp":
 		if lspEsRename(argsJSON) {
@@ -647,7 +647,7 @@ func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
 	}
 	if ReadOnlyMode(mode) {
 		switch name {
-		case "office_edit", "office_create", "pdf_edit", "pdf_create", "bash_kill":
+		case "office_edit", "office_create", "pdf_edit", "pdf_create", "doc", "bash_kill":
 			return "deny", "read-only mode: cannot modify documents or stop processes"
 		case "git_commit", "gh_pr_create":
 			return "deny", "read-only mode: cannot commit or open pull requests"
@@ -1359,6 +1359,9 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		return out, nil, err
 	case "backlog":
 		out, err := backlogExec(dir, session, argsJSON)
+		return out, nil, err
+	case "doc":
+		out, err := docExec(dir, argsJSON)
 		return out, nil, err
 	case "knowledge_note":
 		out, err := knowledge.NoteTool(knowledge.Where{Project: procDirOr(dir), Session: session}, argsJSON)

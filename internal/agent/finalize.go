@@ -103,7 +103,7 @@ func normSig(sig string) string {
 	// `pas2.txt`, `capitol8.md`… és fer la feina demanada (una tasca de
 	// crear deu fitxers s'aturava al quart). La repetició EXACTA (el
 	// mateix fitxer tres cops) continua comptant a Note.
-	for _, t := range []string{"write", "edit", "patch", "office_edit", "office_create", "pdf_edit", "pdf_create"} {
+	for _, t := range []string{"write", "edit", "patch", "office_edit", "office_create", "pdf_edit", "pdf_create", "doc"} {
 		if strings.HasPrefix(sig, t+"\x00") {
 			return sig
 		}

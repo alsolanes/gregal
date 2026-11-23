@@ -16,7 +16,7 @@ import (
 // eines d'escriptura: en chat i inspect la política ja les denega; no
 // cal ensenyar-les.
 var einesEscriptura = map[string]bool{
-	"write": true, "edit": true, "patch": true, "office_edit": true, "office_create": true, "pdf_edit": true, "pdf_create": true,
+	"write": true, "edit": true, "patch": true, "office_edit": true, "office_create": true, "pdf_edit": true, "pdf_create": true, "doc": true,
 	"git_commit": true, "gh_pr_create": true, "dashboard_save": true,
 	"app": true, "publish": true, "wind": true, "tunnel": true,
 }
