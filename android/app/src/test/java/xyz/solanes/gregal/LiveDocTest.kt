@@ -279,4 +279,90 @@ class LiveDocTest {
         // Una presentació no s'escriu com a markdown.
         assertFalse(DocsJson.doc("""{"id":"k1","title":"Pitch","kind":"deck","version":0,"blocks":[]}""").blank)
     }
+
+    // --- fulls de càlcul (077) ---
+
+    private val sheet = DocsJson.doc("""{"id":"s1","title":"Pressupost","kind":"sheet","version":4,"blocks":[
+        {"id":"f1","md":"","name":"Despeses","cells":{"A1":"Lloguer","B1":"800","B2":"=B1*2"},"values":{"A1":"Lloguer","B1":"800","B2":"1600"},"version":3,"author":"agent"},
+        {"id":"f2","md":"","name":"Resum","cells":{"A1":"=Despeses!B2"},"values":{"A1":"1600"},"version":4,"author":"agent"}]}""")
+
+    @Test
+    fun sheetEventsAreAppliedInPlace() {
+        assertEquals("f1", sheet.shownSheet()?.id)
+        assertEquals("Despeses", sheet.shownSheet()?.name)
+        assertEquals("1600", sheet.shownSheet()?.values?.get("B2"))
+        val out = sheet.showSheet("f2")
+            .apply(ev("""{"op":"replace","block":{"id":"f1","md":"","name":"Despeses","cells":{"A1":"Lloguer","B1":"900","B2":"=B1*2"},"values":{"A1":"Lloguer","B1":"900","B2":"1800"},"version":5},"version":5,"author":"agent"}"""))
+            // Un full que canvia només de valors perquè un altre ha canviat: replace sense versió de bloc nova.
+            .apply(ev("""{"op":"replace","block":{"id":"f2","md":"","name":"Resum","cells":{"A1":"=Despeses!B2"},"values":{"A1":"1800"},"version":4},"version":5,"author":"agent"}"""))
+            .apply(ev("""{"op":"insert","block":{"id":"f3","md":"","name":"Notes","version":6},"after":"f2","version":6,"author":"agent"}"""))
+        assertEquals(listOf("Despeses", "Resum", "Notes"), out.blocks.map { it.name })
+        assertEquals("1800", out.blocks[0].values["B2"])
+        assertEquals("f2", out.shownSheet()?.id)
+        assertEquals("1800", out.shownSheet()?.values?.get("A1"))
+        assertEquals(emptyMap<String, String>(), out.blocks[2].cells)
+        // El full que es mirava, esborrat: es mostra el primer.
+        assertEquals("f1", out.apply(ev("""{"op":"delete","block":{"id":"f2"},"version":7,"author":"agent"}""")).shownSheet()?.id)
+    }
+
+    @Test
+    fun theGridHasColumnLettersAndRoomToWrite() {
+        assertEquals(listOf("A", "B", "Z", "AA", "AZ", "BA"), listOf(0, 1, 25, 26, 51, 52).map { sheetColumn(it) })
+        // Unes quantes columnes i files buides per escriure-hi, més enllà de les dades.
+        assertEquals(6 to 20, sheetSize(sheet.blocks[0]))
+        assertEquals(9 to 45, sheetSize(DocBlock("f", cells = mapOf("H40" to "1", "A2" to "x"))))
+        assertEquals(6 to 20, sheetSize(DocBlock("f")))
+    }
+
+    @Test
+    fun aCellEditSendsTheCellWithTheSheetVersion() {
+        val e = sheet.openCell("f1", "B2")
+        assertEquals("=B1*2", e.edit?.text)
+        assertNull(e.saveRequest())
+        assertNull(e.typed("=B1*2 ").saveRequest())
+        assertEquals(req("PUT", "/api/docs/s1/blocks/f1", """{"cells":{"B2":"=B1*3"},"base_version":3}"""), e.typed("=B1*3").saveRequest())
+        // Buidar una cel·la l'esborra, no el full.
+        assertEquals(req("PUT", "/api/docs/s1/blocks/f1", """{"cells":{"B2":""},"base_version":3}"""), e.typed("").saveRequest())
+        // Una cel·la buida s'obre buida, i amb el scope del document.
+        assertEquals(req("PUT", "/api/docs/s1/blocks/f1?scope=mine", """{"cells":{"C9":"12"},"base_version":3}"""),
+            sheet.copy(scope = "mine").openCell("f1", "C9").typed("12").saveRequest())
+    }
+
+    @Test
+    fun aSavedCellShowsTheNewValues() {
+        val s = sheet.openCell("f1", "B1").typed("900").saved(200,
+            """{"version":5,"block":{"id":"f1","md":"","name":"Despeses","cells":{"A1":"Lloguer","B1":"900","B2":"=B1*2"},"values":{"A1":"Lloguer","B1":"900","B2":"1800"},"version":5}}""")
+        assertNull(s.doc.edit)
+        assertNull(s.error)
+        assertEquals(listOf("f1", "f2"), s.doc.blocks.map { it.id })
+        assertEquals("1800", s.doc.blocks[0].values["B2"])
+        // Buidada, el full es queda.
+        val cleared = sheet.openCell("f1", "B1").typed("").saved(200,
+            """{"version":5,"block":{"id":"f1","md":"","name":"Despeses","cells":{"A1":"Lloguer"},"values":{"A1":"Lloguer"},"version":5}}""")
+        assertEquals(listOf("f1", "f2"), cleared.doc.blocks.map { it.id })
+        assertNull(cleared.doc.blocks[0].cells["B1"])
+    }
+
+    @Test
+    fun aCellConflictKeepsMyInputWithTheNotice() {
+        val s = sheet.openCell("f1", "B1").typed("1000").saved(409,
+            """{"error":"block changed","block":{"id":"f1","md":"","name":"Despeses","cells":{"B1":"850"},"values":{"B1":"850"},"version":6}}""")
+        val e = s.doc.edit!!
+        assertEquals("1000", e.text)
+        assertEquals("850", e.conflict?.cells?.get("B1"))
+        assertEquals("850", s.doc.blocks[0].values["B1"])
+        assertNull(s.error)
+        // Tornar a desar trepitja la versió que s'ha vist.
+        assertEquals(req("PUT", "/api/docs/s1/blocks/f1", """{"cells":{"B1":"1000"},"base_version":6}"""), s.doc.saveRequest())
+    }
+
+    @Test
+    fun aSheetDownloadsAsExcelAndIsCreatedInMyDocuments() {
+        val url = docExportPath(DocRef("s1", "Pressupost 2027", "sheet", "mine"))
+        assertEquals("/api/docs/s1/export?format=xlsx&name=Pressupost+2027.xlsx&scope=mine", url)
+        assertTrue(isServerDocLink(url))
+        assertEquals("Pressupost 2027.xlsx", serverDocName(url))
+        assertEquals(req("POST", "/api/docs?scope=mine", """{"title":"Pressupost","kind":"sheet"}"""), docCreateRequest("Pressupost", "sheet"))
+        assertFalse(sheet.blank)
+    }
 }

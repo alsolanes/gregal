@@ -1,8 +1,14 @@
 package xyz.solanes.gregal
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,6 +41,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -58,12 +66,21 @@ fun DocScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     LaunchedEffect(project != null, ref?.id) { vm.loadDocs(project != null) }
     LaunchedEffect(ref) { ref?.let { vm.followDoc(it) } }
     val open = doc?.takeIf { it.id == ref?.id }
+    // Totes les files de la graella es desplacen alhora de costat.
+    val sheetScroll = rememberScrollState()
     Scaffold(containerColor = Color.Transparent, topBar = {
         GregalTopBar(open?.title ?: tr(lang, "docs.home"), lang, onMenu = onMenu)
     }) { pad ->
         LazyColumn(Modifier.fillMaxSize().padding(pad).testTag("doc-screen"),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 110.dp)) {
-            if (open != null && open.kind != "doc") {
+            if (open != null && open.kind == "sheet") {
+                item(key = "download") {
+                    OutlinedButton(onClick = { vm.downloadServerDoc(docExportPath(DocRef(open.id, open.title, open.kind, open.scope)), open.title + ".xlsx") }) {
+                        Text(tr(lang, "docs.downloadXlsx"))
+                    }
+                }
+                sheetView(vm, lang, open, sheetScroll)
+            } else if (open != null && open.kind != "doc") {
                 // Les presentacions s'obriran i s'editaran a 074.
                 item(key = "deck") { Text(tr(lang, "docs.deckLater"), color = Muted, modifier = Modifier.padding(vertical = 12.dp)) }
             } else if (open != null) {
@@ -104,6 +121,77 @@ private fun NewDocRow(vm: GregalViewModel, lang: String) {
             placeholder = { Text(tr(lang, "docs.newTitle")) })
         Button(onClick = { vm.newDoc(title) }, modifier = Modifier.padding(start = 8.dp).testTag("doc-new")) { Text(tr(lang, "docs.new")) }
     }
+    OutlinedButton(onClick = { vm.newDoc(title, "sheet") }, modifier = Modifier.testTag("doc-new-sheet")) { Text(tr(lang, "docs.newSheet")) }
+}
+
+private val CellWidth = 96.dp
+private val CellHeight = 36.dp
+private val RowHeadWidth = 40.dp
+
+/** Un full de càlcul: les pestanyes, l'editor de la cel·la triada i la graella amb els valors calculats. */
+private fun LazyListScope.sheetView(vm: GregalViewModel, lang: String, d: LiveDoc, hs: ScrollState) {
+    val s = d.shownSheet() ?: return
+    val e = d.edit?.takeIf { it.cell.isNotEmpty() }
+    item(key = "sheet-tabs") {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 8.dp)) {
+            for (b in d.blocks) {
+                val on = b.id == s.id
+                Surface(onClick = { vm.showSheet(b.id) }, shape = RoundedCornerShape(8.dp), color = if (on) SuperficieOpaca else Color.Transparent,
+                    border = BorderStroke(1.dp, if (on) Sea else Line), modifier = Modifier.padding(end = 6.dp).testTag("sheet-tab")) {
+                    Text(b.name, color = if (on) Sea else Ink, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+                }
+            }
+        }
+    }
+    if (e != null) item(key = "cell-editor") { CellEditor(vm, d, e, lang) }
+    val (cols, rows) = sheetSize(s)
+    item(key = "sheet-head") {
+        Row {
+            SheetHead("", RowHeadWidth)
+            Row(Modifier.horizontalScroll(hs)) { repeat(cols) { SheetHead(sheetColumn(it), CellWidth) } }
+        }
+    }
+    items((1..rows).toList(), key = { "r:$it" }) { r ->
+        Row {
+            SheetHead("$r", RowHeadWidth)
+            Row(Modifier.horizontalScroll(hs)) {
+                repeat(cols) { c ->
+                    val name = sheetColumn(c) + r
+                    val on = e?.id == s.id && e.cell == name
+                    Text(s.values[name] ?: s.cells[name].orEmpty(), color = Ink, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.size(CellWidth, CellHeight).border(if (on) 2.dp else 0.5.dp, if (on) Sea else Line)
+                            .clickable { vm.editCell(s.id, name) }.padding(horizontal = 6.dp, vertical = 9.dp).testTag("cell-$name"))
+                }
+            }
+        }
+    }
+}
+
+/** La lletra d'una columna o el número d'una fila. */
+@Composable
+private fun SheetHead(text: String, width: Dp) {
+    Box(Modifier.size(width, CellHeight).border(0.5.dp, Line), contentAlignment = Alignment.Center) {
+        Text(text, color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+/** L'entrada de la cel·la (la fórmula, no el valor); després d'un 409, l'avís i el que hi ha ara. */
+@Composable
+private fun CellEditor(vm: GregalViewModel, d: LiveDoc, e: DocEdit, lang: String) {
+    val sheet = d.blocks.firstOrNull { it.id == e.id }?.name.orEmpty()
+    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp).testTag("doc-cell-editor")) {
+        e.conflict?.let { b ->
+            Text(tr(lang, "docs.sheetConflict"), color = Sea, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            b.cells[e.cell]?.let { Text(e.cell + " = " + it, color = Ink, fontSize = 13.sp) }
+        }
+        val focus = remember { FocusRequester() }
+        LaunchedEffect(e.id, e.cell) { focus.requestFocus() }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(e.text, vm::typeDocBlock, Modifier.weight(1f).focusRequester(focus), enabled = !e.saving, singleLine = true,
+                label = { Text(sheet + "!" + e.cell) })
+            Button(onClick = { vm.saveDocBlock(false) }, enabled = !e.saving, modifier = Modifier.padding(start = 8.dp)) { Text(tr(lang, "docs.save")) }
+        }
+    }
 }
 
 private fun LazyListScope.docSection(vm: GregalViewModel, lang: String, key: String, title: String, items: List<DocRef>, open: DocRef?) {
@@ -115,7 +203,7 @@ private fun LazyListScope.docSection(vm: GregalViewModel, lang: String, key: Str
     items(items, key = { "$key:" + it.id }) { d ->
         Column(Modifier.fillMaxWidth().clickable { vm.openDoc(d) }.padding(vertical = 8.dp)) {
             Text(d.title, color = if (d.id == open?.id && d.scope == open.scope) Sea else Ink, fontSize = 15.sp)
-            Text(when (d.kind) { "doc" -> tr(lang, "docs.kind.doc"); "deck" -> tr(lang, "docs.kind.deck"); else -> d.kind }, color = Muted, fontSize = 12.sp)
+            Text(when (d.kind) { "doc" -> tr(lang, "docs.kind.doc"); "deck" -> tr(lang, "docs.kind.deck"); "sheet" -> tr(lang, "docs.kind.sheet"); else -> d.kind }, color = Muted, fontSize = 12.sp)
         }
     }
 }

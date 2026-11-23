@@ -130,6 +130,12 @@ val STR_CA: Map<String, String> = mapOf(
     "docs.addBlock" to "Afegeix un bloc",
     "docs.conflict" to "L’agent ha canviat aquest bloc",
     "docs.saveError" to "No s’ha pogut desar el bloc: %s",
+    "docs.newSheet" to "Full de càlcul nou",
+    "docs.untitledSheet" to "Full de càlcul sense títol",
+    "docs.kind.sheet" to "Full de càlcul",
+    "docs.downloadXlsx" to "Descarrega en Excel",
+    "docs.sheetConflict" to "L’agent ha canviat aquest full",
+    "docs.cellError" to "No s’ha pogut desar la cel·la: %s",
 )
 
 val STR_EN: Map<String, String> = mapOf(
@@ -260,4 +266,10 @@ val STR_EN: Map<String, String> = mapOf(
     "docs.addBlock" to "Add a block",
     "docs.conflict" to "The agent changed this block",
     "docs.saveError" to "Could not save the block: %s",
+    "docs.newSheet" to "New spreadsheet",
+    "docs.untitledSheet" to "Untitled spreadsheet",
+    "docs.kind.sheet" to "Spreadsheet",
+    "docs.downloadXlsx" to "Download as Excel",
+    "docs.sheetConflict" to "The agent changed this sheet",
+    "docs.cellError" to "Could not save the cell: %s",
 )

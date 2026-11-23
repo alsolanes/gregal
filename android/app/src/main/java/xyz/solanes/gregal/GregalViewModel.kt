@@ -6609,11 +6609,12 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** «Document nou» a «Els meus documents», obert per escriure-hi. */
-    fun newDoc(title: String) {
+    /** «Document nou» (o, amb [kind] "sheet", «Full de càlcul nou») a «Els meus documents», obert per escriure-hi. */
+    fun newDoc(title: String, kind: String = "doc") {
         viewModelScope.launch {
             try {
-                val (code, body) = withContext(Dispatchers.IO) { _conn.value.api().sendDoc(docCreateRequest(title.trim().ifEmpty { appText("docs.untitled") })) }
+                val untitled = appText(if (kind == "sheet") "docs.untitledSheet" else "docs.untitled")
+                val (code, body) = withContext(Dispatchers.IO) { _conn.value.api().sendDoc(docCreateRequest(title.trim().ifEmpty { untitled }, kind)) }
                 if (code != 200) {
                     notify(appText("docs.createError", runCatching { JSONObject(body).optString("error") }.getOrNull().orEmpty().ifBlank { "HTTP $code" }))
                     return@launch
@@ -6673,11 +6674,23 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     fun typeDocBlock(text: String) = _doc.update { it?.typed(text) }
 
+    fun showSheet(id: String) = _doc.update { it?.showSheet(id) }
+
+    /** Una altra cel·la només si la que s'edita no té res per desar; es tanca com amb «Desa» (un full esborrat se'n va). */
+    fun editCell(sheet: String, cell: String) = _doc.update {
+        when {
+            it?.edit == null -> it?.openCell(sheet, cell)
+            it.saveRequest() == null -> it.skipped().doc.openCell(sheet, cell)
+            else -> it
+        }
+    }
+
     /** Desa l'editor obert (doc-view.js); amb [addBelow], si es desa, n'obre un de nou a sota. */
     fun saveDocBlock(addBelow: Boolean) {
         val d = _doc.value ?: return
         if (d.edit?.saving != false) return
         val req = d.saveRequest()
+        val failed = if (d.edit?.cell.isNullOrEmpty()) "docs.saveError" else "docs.cellError"
         viewModelScope.launch {
             var out: DocSaved? = null
             if (req == null) {
@@ -6692,11 +6705,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 } catch (e: Exception) {
                     // El text es queda a l'editor per tornar-ho a provar.
                     _doc.update { cur -> if (cur?.id == d.id) cur.copy(edit = cur.edit?.copy(saving = false)) else cur }
-                    notify(appText("docs.saveError", e.message.orEmpty()))
+                    notify(appText(failed, e.message.orEmpty()))
                 }
             }
             val s = out ?: return@launch
-            s.error?.let { notify(appText("docs.saveError", it)) }
+            s.error?.let { notify(appText(failed, it)) }
             val at = s.at
             if (addBelow && at != null) _doc.update { cur -> if (cur?.id == d.id && cur.edit == null) cur.openNew(at) else cur }
         }
