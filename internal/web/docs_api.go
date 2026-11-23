@@ -206,6 +206,19 @@ func (s *Server) handleDoc(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleDocTheme dona les propietats CSS de la pàgina d'un document de
+// text, tretes del tema amb què s'exporta a Word (el branding actiu), perquè
+// la pàgina del web i el docx s'assemblin.
+//
+//	GET /api/docs/theme
+func (s *Server) handleDocTheme(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "GET required", http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, map[string]any{"vars": ooxml.PageCSS(ooxml.GetTheme(""))})
+}
+
 // handleDocStream envia un event `block` per cada canvi del document des
 // que s'obre. Les capçaleres surten de seguida, ja subscrit, perquè el
 // client pugui llegir el document després sense perdre cap canvi.

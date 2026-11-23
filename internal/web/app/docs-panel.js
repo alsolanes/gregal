@@ -25,7 +25,7 @@ style.textContent = '#docsPanel[hidden]{display:none}#docsPanel{flex:0 0 460px;w
   '#docsDownload,#docsWindow,#docsClose{border:1px solid var(--line-hi);border-radius:4px;background:var(--bg);color:var(--ink);cursor:pointer;padding:6px 9px;font-size:12px;text-decoration:none;white-space:nowrap}' +
   '#docsClose{margin-left:auto}#docsBody{flex:1;overflow:auto;padding:16px 20px}' +
   // Editor de text (doc-view.js): la barra d'eines queda a dalt en fer scroll.
-  '#docsBody .doc-toolbar{position:sticky;top:-16px;z-index:1;display:flex;flex-wrap:wrap;gap:2px;margin:-16px -20px 12px;padding:6px 12px;border-bottom:1px solid var(--line);background:var(--panel)}' +
+  '#docsBody .doc-toolbar{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;gap:2px;margin:0 -16px 16px;padding:6px 16px;border-bottom:1px solid var(--line);background:var(--panel)}' +
   '#docsBody .doc-toolbar button{min-width:28px;border:0;border-radius:4px;background:transparent;color:var(--ink);cursor:pointer;padding:4px 6px;font-size:13px}#docsBody .doc-toolbar button:hover{background:var(--surface)}' +
   '#docsBody .ProseMirror{outline:none;min-height:50vh;white-space:pre-wrap}#docsBody .doc-empty::before{content:attr(data-placeholder);position:absolute;color:var(--muted);pointer-events:none}' +
   '.docs-home h2{margin:0 0 12px;font-size:18px}.docs-home h3{margin:20px 0 6px;font-size:13px;color:var(--muted)}.docs-home-new{display:flex;gap:6px}' +
@@ -35,6 +35,32 @@ style.textContent = '#docsPanel[hidden]{display:none}#docsPanel{flex:0 0 460px;w
   '.docs-home-item:hover{background:var(--surface)}.docs-home-meta,.docs-home-empty{font-size:12px;color:var(--muted)}' +
   '#docsBody .doc-conflict{margin:6px 0;padding:4px 10px;border-left:3px solid var(--line-hi);color:var(--ink)}#docsBody .doc-conflict p:first-child{font-weight:600}' +
   '#docsBody .doc-conflict button{margin:0 6px 6px 0;border:1px solid var(--line-hi);border-radius:4px;background:var(--bg);color:var(--ink);cursor:pointer;padding:4px 9px;font-size:12px}' +
+  // Un document de text és una pàgina A4 blanca en tots dos temes, com a
+  // Word, amb els valors del docx que n'exporta (/api/docs/theme, en punts
+  // sense unitat). --u és un punt, o menys quan el panell és més estret que
+  // la pàgina: tota la pàgina s'encongeix igual.
+  '#docsBody.doc-paper{container-type:inline-size;background:color-mix(in srgb,var(--ink) 10%,var(--panel));padding:0 16px 24px}' +
+  '#docsBody .doc-editor{--u:min(1pt,100cqw / var(--doc-page-w));box-sizing:border-box;width:calc(var(--doc-page-w) * var(--u));min-height:calc(var(--doc-page-w) * 1.414 * var(--u));margin:0 auto;' +
+  'padding:calc(var(--doc-margin-top) * var(--u)) calc(var(--doc-margin-side) * var(--u));background:#fff;color:var(--doc-text);box-shadow:0 1px 4px rgba(0,0,0,.25);' +
+  'font-family:var(--doc-body-font),sans-serif;font-size:calc(var(--doc-body-size) * var(--u));line-height:1.15;overflow-wrap:break-word}' +
+  // Els colors del xat (.body strong, li…) no hi entren: tot surt del tema.
+  '#docsBody .doc-editor *{color:inherit}#docsBody .doc-editor li>ul,#docsBody .doc-editor li>ol{margin-bottom:0}' +
+  '#docsBody .doc-editor h1{margin:1.2em 0 .4em;font-family:var(--doc-heading-font),sans-serif;font-size:calc(var(--doc-h1-size) * var(--u));color:var(--doc-h1-color);line-height:1.15}' +
+  '#docsBody .doc-editor h2{margin:1.1em 0 .35em;font-family:var(--doc-heading-font),sans-serif;font-size:calc(var(--doc-h2-size) * var(--u));color:var(--doc-h2-color);line-height:1.15}' +
+  '#docsBody .doc-editor h3{margin:1em 0 .3em;font-family:var(--doc-heading-font),sans-serif;font-size:calc(var(--doc-h3-size) * var(--u));color:var(--doc-h3-color);line-height:1.15}' +
+  '#docsBody .doc-editor p{margin:0 0 calc(var(--doc-space-after) * var(--u))}' +
+  '#docsBody .doc-editor ul,#docsBody .doc-editor ol{margin:0 0 calc(var(--doc-space-after) * var(--u));padding-left:calc(36 * var(--u))}' +
+  '#docsBody .doc-editor blockquote{margin:calc(6 * var(--u)) calc(28 * var(--u)) calc(10 * var(--u));padding:0 0 0 calc(12 * var(--u));border-left:calc(2.25 * var(--u)) solid var(--doc-accent);color:var(--doc-muted);font-style:italic}' +
+  '#docsBody .doc-editor .codeblock{margin:0 0 calc(var(--doc-space-after) * var(--u));border:0;border-radius:0;background:none}#docsBody .doc-editor .codehead{display:none}' +
+  '#docsBody .doc-editor pre{margin:0;padding:calc(4 * var(--u)) calc(8.5 * var(--u));border:0;border-radius:0;background:var(--doc-light);color:var(--doc-text);font-family:var(--doc-code-font),monospace;font-size:calc(var(--doc-code-size) * var(--u));white-space:pre-wrap}' +
+  '#docsBody .doc-editor code{padding:0;border:0;background:var(--doc-light);color:inherit;font-family:var(--doc-code-font),monospace;font-size:.9em}#docsBody .doc-editor pre code{font-size:inherit;background:none}' +
+  '#docsBody .doc-editor a{color:var(--doc-accent);text-decoration:underline}#docsBody .doc-editor img{max-width:100%;height:auto}' +
+  '#docsBody .doc-editor hr{border:0;border-top:calc(.75 * var(--u)) solid var(--doc-muted);margin:calc(12 * var(--u)) 0}' +
+  '#docsBody .doc-editor .md-table-scroll{overflow-x:auto;margin:0 0 calc(var(--doc-space-after) * var(--u))}#docsBody .doc-editor table{border-collapse:collapse;width:100%;margin:0;font-size:inherit}' +
+  '#docsBody .doc-editor td{padding:calc(2.85 * var(--u)) calc(5.4 * var(--u));border:calc(.5 * var(--u)) solid var(--doc-table-border);background:transparent;color:var(--doc-text);text-align:left}' +
+  '#docsBody .doc-editor th{padding:calc(2.85 * var(--u)) calc(5.4 * var(--u));border:calc(.5 * var(--u)) solid var(--doc-table-border);background:var(--doc-primary);color:#fff;font-weight:700;text-align:left}' +
+  '#docsBody .doc-editor tbody tr:nth-child(even) td{background:var(--doc-light)}' +
+  '#docsBody .doc-editor .doc-empty{color:var(--doc-muted)}#docsBody .doc-editor .doc-conflict{color:inherit;border-left-color:var(--doc-accent)}' +
   // Diapositives (deck-view.js) amb els colors del tema per defecte del pptx
   // (ooxml «default»): una diapositiva és blanca en tots dos temes, com a PowerPoint.
   '#docsBody .deck-slide{margin:0 0 14px;container-type:inline-size;cursor:pointer}' +
@@ -109,6 +135,18 @@ const DOWNLOADS = {
   sheet: ['xlsx', () => tx('Descarrega en Excel', 'Download as Excel')],
 };
 
+// page posa al cos la pàgina d'un document de text amb el tema de
+// l'exportació a Word, i a sobre el lloc de la barra d'eines, que queda
+// fix en desplaçar la pàgina. Torna l'element on es pinta el document.
+async function page(body, scope, my) {
+  const r = await G().api(withScope('/api/docs/theme', scope), { signal: my.signal });
+  if (!r.ok) throw new Error(await r.text());
+  for (const [k, v] of Object.entries((await r.json()).vars)) body.style.setProperty(k, v);
+  // L'editor (doc-view.js) hi posa la barra, fixa a dalt, i la pàgina .doc-editor.
+  body.classList.toggle('doc-paper', true);
+  return body;
+}
+
 // write: el document és nou i s'obre amb el cursor al primer bloc.
 async function follow(id, scope, my, write) {
   const at = path => withScope('/api/docs/' + encodeURIComponent(id) + path, scope);
@@ -120,7 +158,9 @@ async function follow(id, scope, my, write) {
   $('docsDownload').href = at('/export?format=' + format + '&name=' + encodeURIComponent(doc.title + '.' + format));
   $('docsDownload').textContent = label();
   const view = { deck: window.gregalDeckView, sheet: window.gregalSheetView }[doc.kind] || window.gregalDocView;
-  const v = view.view($('docsBody'), doc, window.gregalMD.render, blockEdits(id, scope, doc.kind));
+  let box = $('docsBody');
+  if (view === window.gregalDocView) box = await page(box, scope, my);
+  const v = view.view(box, doc, window.gregalMD.render, blockEdits(id, scope, doc.kind));
   // Una presentació o un full de càlcul nous no tenen text on escriure.
   if (write && view === window.gregalDocView) v.focus();
   const rd = r.body.getReader(), dec = new TextDecoder();
@@ -141,6 +181,7 @@ async function follow(id, scope, my, write) {
 function show(home) {
   pane.hidden = false;
   for (const b of ['docsList', 'docsDownload', 'docsWindow']) $(b).hidden = home;
+  $('docsBody').classList.toggle('doc-paper', false);
   $('workbench').append(pane);
 }
 

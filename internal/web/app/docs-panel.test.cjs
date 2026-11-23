@@ -8,7 +8,13 @@ const { pathToFileURL } = require('node:url');
 const { onDocChanged } = require('./doc-view.js');
 
 class El {
-  constructor(id = '') { this.id = id; this.hidden = false; this.attributes = {}; this.children = []; this.textContent = ''; this.href = ''; }
+  constructor(id = '') {
+    this.id = id; this.hidden = false; this.attributes = {}; this.children = []; this.textContent = ''; this.href = ''; this.className = '';
+    this.props = {};
+    this.style = { setProperty: (k, v) => { this.props[k] = v; } };
+    const classes = new Set();
+    this.classList = { toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)), contains: c => classes.has(c) };
+  }
   setAttribute(k, v) { this.attributes[k] = String(v); }
   append(...n) { this.children.push(...n); }
   replaceChildren(...n) { this.children = n; }
@@ -22,6 +28,8 @@ const byId = id => made.find(e => e.id === id) || els.get(id) || els.set(id, new
 const calls = [];
 const opened = [];
 let edit = null;
+let box = null;
+const THEME = { '--doc-page-w': '595.3', '--doc-body-font': '"Georgia"', '--doc-h1-color': '#123456' };
 const json = data => ({ ok: true, status: 200, json: async () => data });
 
 globalThis.window = globalThis;
@@ -32,7 +40,7 @@ globalThis.open = (url, name) => opened.push([url, name]);
 globalThis.gregalMD = { render: s => s };
 globalThis.gregalDocView = {
   onDocChanged,
-  view: (box, doc, render, e) => { edit = e; return { focus() {}, apply() {} }; },
+  view: (b, doc, render, e) => { box = b; edit = e; return { focus() {}, apply() {} }; },
 };
 globalThis.gregal = {
   sys() {},
@@ -40,6 +48,7 @@ globalThis.gregal = {
     calls.push(url);
     if (url.includes('/stream')) return { ok: true, body: { getReader: () => ({ read: () => new Promise(() => {}) }) } };
     if (/^\/api\/docs(\?|$)/.test(url)) return json({ items: [{ id: 'w1', title: 'Carta' }] });
+    if (/^\/api\/docs\/theme(\?|$)/.test(url)) return json({ vars: THEME });
     if (url.includes('/blocks')) return json({});
     return json({ id: 'w1', title: 'Carta', version: 1, blocks: [] });
   },
@@ -172,4 +181,76 @@ test('a sheet opens in the grid view, saves cells and new sheets, and downloads 
     window.gregal.api = api;
     byId('docsClose').click();
   }
+});
+
+// L'editor (doc-view.js) hi posa la barra i la pàgina .doc-editor.
+test('a text document is drawn on a page with the export theme, under the editor toolbar', async () => {
+  await load;
+  box = null;
+  window.gregalDocs.open('w1', 'mine');
+  await settle();
+  const body = byId('docsBody');
+  assert.ok(body.classList.contains('doc-paper'), 'the body is the page background');
+  assert.equal(box, body, 'the text editor draws its toolbar and page in the themed body');
+  assert.deepEqual(body.props, THEME, 'the page reads the theme the Word export uses');
+
+  // Una presentació no és una pàgina.
+  const api = window.gregal.api;
+  window.gregalDeckView = { view: b => { box = b; return { open() {}, apply() {} }; } };
+  window.gregal.api = async (url, opts) => (/^\/api\/docs\/k1(\?|$)/.test(url) ? json({ id: 'k1', title: 'L', kind: 'deck', version: 1, blocks: [] }) : api(url, opts));
+  try {
+    window.gregalDocs.open('k1', 'mine');
+    await settle();
+    assert.equal(box, body);
+    assert.ok(!body.classList.contains('doc-paper'));
+  } finally {
+    window.gregal.api = api;
+    byId('docsClose').click();
+  }
+});
+
+test('the page CSS takes every font, size and colour from the theme variables', async () => {
+  await load;
+  const css = document.head.children.map(s => s.textContent).join('');
+  const rule = sel => {
+    const m = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].find(r => r[1].split(',').map(s => s.trim()).includes(sel));
+    assert.ok(m, 'no rule for ' + sel);
+    return m[2];
+  };
+  assert.match(rule('#docsBody.doc-paper'), /container-type:inline-size/);
+  assert.match(rule('#docsBody.doc-paper'), /background:color-mix\(in srgb,var\(--ink\) 10%,var\(--panel\)\)/, 'a neutral background around the page, in both themes');
+  const page = rule('#docsBody .doc-editor');
+  // La pàgina és clara en tots dos temes, com a Word, i fa l'amplada A4
+  // del docx o s'encongeix fins a l'amplada del panell.
+  assert.match(page, /background:#fff/);
+  assert.match(page, /--u:min\(1pt,100cqw \/ var\(--doc-page-w\)\)/);
+  assert.match(page, /width:calc\(var\(--doc-page-w\) \* var\(--u\)\)/);
+  assert.match(page, /margin:0 auto/);
+  assert.match(page, /padding:calc\(var\(--doc-margin-top\) \* var\(--u\)\) calc\(var\(--doc-margin-side\) \* var\(--u\)\)/);
+  assert.match(page, /font-family:var\(--doc-body-font\)/);
+  assert.match(page, /font-size:calc\(var\(--doc-body-size\) \* var\(--u\)\)/);
+  assert.match(page, /color:var\(--doc-text\)/);
+  for (const n of [1, 2, 3]) {
+    const h = rule('#docsBody .doc-editor h' + n);
+    assert.match(h, new RegExp('font-size:calc\\(var\\(--doc-h' + n + '-size\\) \\* var\\(--u\\)\\)'));
+    assert.match(h, new RegExp('color:var\\(--doc-h' + n + '-color\\)'));
+  }
+  assert.match(rule('#docsBody .doc-editor h1'), /font-family:var\(--doc-heading-font\)/);
+  assert.match(rule('#docsBody .doc-editor p'), /margin:0 0 calc\(var\(--doc-space-after\) \* var\(--u\)\)/);
+  assert.match(rule('#docsBody .doc-editor blockquote'), /border-left:.*var\(--doc-accent\)/);
+  assert.match(rule('#docsBody .doc-editor blockquote'), /color:var\(--doc-muted\)/);
+  assert.match(rule('#docsBody .doc-editor pre'), /background:var\(--doc-light\)/);
+  assert.match(rule('#docsBody .doc-editor pre'), /font-family:var\(--doc-code-font\)/);
+  assert.match(rule('#docsBody .doc-editor code'), /font-family:var\(--doc-code-font\)/);
+  assert.match(rule('#docsBody .doc-editor td'), /border:.*var\(--doc-table-border\)/);
+  assert.match(rule('#docsBody .doc-editor th'), /background:var\(--doc-primary\)/);
+  assert.match(rule('#docsBody .doc-editor a'), /color:var\(--doc-accent\)/);
+  assert.match(rule('#docsBody .doc-editor img'), /max-width:100%/);
+  // Cap color escrit a mà a la pàgina (llevat del blanc del paper): tots surten del tema.
+  for (const [, sel, decl] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (sel.includes('.doc-page')) assert.doesNotMatch(decl.replace(/#fff\b/gi, ''), /#[0-9a-f]{3,8}\b/i, sel);
+  }
+  const bar = rule('#docsBody .doc-toolbar');
+  assert.match(bar, /position:sticky/);
+  assert.match(bar, /top:0/);
 });

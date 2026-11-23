@@ -635,6 +635,7 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/backlog", h.route((*Server).handleBacklog))
 	// Documents vius del projecte (docs_api.go, internal/gdocs).
 	handle("/api/docs", h.route((*Server).handleDocs))
+	handle("/api/docs/theme", h.global((*Server).handleDocTheme))
 	handle("/api/docs/{id}", h.route((*Server).handleDoc))
 	handle("/api/docs/{id}/stream", h.route((*Server).handleDocStream))
 	handle("/api/docs/{id}/export", h.route((*Server).handleDocExport))

@@ -602,3 +602,33 @@ func TestSheetRefusesBadInputWith400(t *testing.T) {
 		t.Fatalf("full repetit: %d %s", rec.Code, rec.Body.String())
 	}
 }
+
+// La pàgina d'un document al web llegeix el tema de l'exportació a Word:
+// el del branding actiu, tal com el dona ooxml.PageCSS.
+func TestDocThemeIsTheActiveExportTheme(t *testing.T) {
+	ooxml.RegisterTheme(ooxml.Theme{Name: "pagina-web", HeadingFont: "Cambria", BodyFont: "Georgia",
+		Dark: "101010", Primary: "123456", Accent: "ABCDEF", Light: "F0F0F0", Text: "202020", Muted: "707070"})
+	ooxml.SetDefaultTheme("pagina-web")
+	defer ooxml.UnregisterTheme("pagina-web")
+	s := backlogServer(t)
+	code, out := brandCall(t, s, (*Server).handleDocTheme, "GET", "/api/docs/theme", "")
+	if code != 200 {
+		t.Fatalf("code %d", code)
+	}
+	vars, _ := out["vars"].(map[string]any)
+	want := ooxml.PageCSS(ooxml.GetTheme(""))
+	if len(vars) != len(want) {
+		t.Fatalf("vars %v, want %v", vars, want)
+	}
+	for k, v := range want {
+		if vars[k] != v {
+			t.Errorf("%s = %v, want %s", k, vars[k], v)
+		}
+	}
+	if vars["--doc-body-font"] != `"Georgia"` || vars["--doc-h1-color"] != "#123456" {
+		t.Errorf("not the active brand: %v", vars)
+	}
+	if code, _ = brandCall(t, s, (*Server).handleDocTheme, "POST", "/api/docs/theme", ""); code != 405 {
+		t.Errorf("POST: %d", code)
+	}
+}

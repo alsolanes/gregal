@@ -2,6 +2,7 @@ package ooxml
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -170,6 +171,40 @@ func hexOr(v, def string) string {
 		}
 	}
 	return strings.ToUpper(v)
+}
+
+// PageCSS són les propietats CSS amb què el web dibuixa un document de
+// text com la pàgina del docx que n'exporta amb el tema t: les mides en
+// punts (sense unitat), els colors amb «#» i els tipus de lletra entre
+// cometes. Surt dels mateixos valors que defaultStylesXML i NewDocx.
+func PageCSS(t Theme) map[string]string {
+	pt := func(n int, per float64) string {
+		return strconv.FormatFloat(float64(n)/per, 'f', -1, 64)
+	}
+	font := func(f string) string { return `"` + strings.ReplaceAll(f, `"`, "") + `"` }
+	return map[string]string{
+		"--doc-page-w":       pt(a4W, 20),
+		"--doc-margin-top":   pt(marginTop, 20),
+		"--doc-margin-side":  pt(marginSide, 20),
+		"--doc-space-after":  pt(spaceAfter, 20),
+		"--doc-body-size":    pt(szBody, 2),
+		"--doc-h1-size":      pt(szH1, 2),
+		"--doc-h2-size":      pt(szH2, 2),
+		"--doc-h3-size":      pt(szH3, 2),
+		"--doc-code-size":    pt(szCode, 2),
+		"--doc-body-font":    font(t.BodyFont),
+		"--doc-heading-font": font(t.HeadingFont),
+		"--doc-code-font":    font(codeFont),
+		"--doc-text":         "#" + t.Text,
+		"--doc-h1-color":     "#" + t.Primary,
+		"--doc-h2-color":     "#" + t.Primary,
+		"--doc-h3-color":     "#" + t.Dark,
+		"--doc-primary":      "#" + t.Primary,
+		"--doc-accent":       "#" + t.Accent,
+		"--doc-muted":        "#" + t.Muted,
+		"--doc-light":        "#" + t.Light,
+		"--doc-table-border": "#" + tableBorder,
+	}
 }
 
 // SafeFonts són els tipus de lletra que Office i LibreOffice
