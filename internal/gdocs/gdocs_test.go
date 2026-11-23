@@ -92,6 +92,15 @@ func TestSplit(t *testing.T) {
 	}
 }
 
+// La línia d'alineació d'un títol (078) va amb el títol, no en un bloc a part.
+func TestSplitDeixaLAlineacioAmbElTitol(t *testing.T) {
+	got := Split("# Title\n{align=center}\nIntro\n\n## Next\n{align=right}")
+	want := []string{"# Title\n{align=center}", "Intro", "## Next\n{align=right}"}
+	if fmt.Sprintf("%q", got) != fmt.Sprintf("%q", want) {
+		t.Fatalf("%q", got)
+	}
+}
+
 func TestDeleteDeixaLapida(t *testing.T) {
 	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	s := obre(t)

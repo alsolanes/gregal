@@ -759,6 +759,9 @@ func (s *Store) MarkSeen(session, id string, v int) error {
 
 // Split parteix markdown en blocs: a cada línia en blanc i a cada títol
 // (que queda sol en el seu bloc). Un bloc de codi no es parteix.
+// alineacio és la línia {align=…} d'un bloc (format ampliat, 078).
+var alineacio = regexp.MustCompile(`^\{align=(left|center|right|justify)\}$`)
+
 func Split(md string) []string {
 	var out, cur []string
 	tanca := func() {
@@ -768,8 +771,18 @@ func Split(md string) []string {
 		cur = nil
 	}
 	codi := false
+	titol := false // el bloc obert és un títol: només hi pot anar la seva alineació
 	for _, l := range strings.Split(strings.ReplaceAll(md, "\r\n", "\n"), "\n") {
 		t := strings.TrimSpace(l)
+		if titol {
+			titol = false
+			if alineacio.MatchString(t) {
+				cur = append(cur, l)
+				tanca()
+				continue
+			}
+			tanca()
+		}
 		switch {
 		case strings.HasPrefix(t, "```"):
 			if !codi {
@@ -787,7 +800,7 @@ func Split(md string) []string {
 		case strings.HasPrefix(t, "#"):
 			tanca()
 			cur = append(cur, l)
-			tanca()
+			titol = true
 		default:
 			cur = append(cur, l)
 		}
