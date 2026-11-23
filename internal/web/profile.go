@@ -40,6 +40,8 @@ var profileKeys = map[string]bool{
 	"gregal_retro_persona":     true,
 	"gregal_exp_kanban":        true,
 	"gregal_todo_obert":        true,
+	"gregal_user_name":         true, // el nom que es veu al peu de la barra lateral
+	"gregal_user_color":        true, // el color de l'avatar (un vent)
 	"arenaCC":                  true,
 }
 

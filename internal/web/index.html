@@ -217,7 +217,7 @@ button:disabled { opacity:.45; cursor:not-allowed; }
 #side.compact .brand-name, #side.compact .side-quick-btn span:not(:first-child),
 #side.compact .side-fold > summary, #side.compact .side-primary span:last-child,
 #side.compact .nav-item span:last-child, #side.compact .conv-head span,
-#side.compact .conv-search, #side.compact #convs, #side.compact .endpoint-row { display:none; }
+#side.compact .conv-search, #side.compact #convs, #side.compact .side-me-name { display:none; }
 #side.compact .side-quick { display:flex; flex-direction:column; margin:9px 8px 7px; }
 #side.compact .side-quick .side-quick-btn { width:42px; padding:0; }
 #side.compact .side-fold { margin:0 7px; }
@@ -343,9 +343,17 @@ button:disabled { opacity:.45; cursor:not-allowed; }
   background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
   background-position:calc(100% - 12px) 50%,calc(100% - 8px) 50%;
   background-size:4px 4px; background-repeat:no-repeat; font-size:var(--t2); }
-.endpoint-row { min-width:0; display:flex; align-items:center; gap:7px; color:var(--faint); }
-#endpoint { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  font:10px var(--mono); }
+/* La persona al peu (app/user-avatar.js): avatar d'inicials i nom. El punt de
+   connexió és a la cantonada de l'avatar, amb un anell del color del fons. */
+.side-me { --ring:var(--sidebar); flex:1; min-width:0; display:flex; align-items:center; gap:10px;
+  margin-left:-8px; padding:5px 8px; border:0; border-radius:8px; background:transparent;
+  color:var(--ink); font:inherit; font-size:13px; text-align:left; cursor:pointer; }
+.side-me:hover, .side-me:focus-visible { --ring:var(--surface); background:var(--surface); }
+.side-me-avatar { position:relative; width:28px; height:28px; flex:none; display:grid; place-items:center;
+  border-radius:50%; font-size:11px; font-weight:650; letter-spacing:.02em; line-height:1; }
+.side-me-name { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:500; }
+.side-me #statusDot { position:absolute; right:-2px; bottom:-2px; width:9px; height:9px; box-shadow:0 0 0 2px var(--ring); }
+.side-me #statusDot.sense-clau:not(.busy) { background:var(--ring); box-shadow:inset 0 0 0 1.5px var(--amber), 0 0 0 2px var(--ring); }
 
 /* Shell central */
 #wrap { flex:1; min-width:0; height:100%; display:flex; flex-direction:column; }
@@ -1643,7 +1651,7 @@ body.sense-inspector #inspector { display:none; }
   <div id="convs"></div>
 </div><div id="windContextNav" hidden></div>
   </div>
-  <div class="side-foot"><button id="desktopUpdateNotice" class="side-update" hidden><span class="side-update-dot" aria-hidden="true"></span><span id="desktopUpdateNoticeText" role="status" aria-live="polite"></span><span class="side-update-arrow" aria-hidden="true">↻</span></button><div class="endpoint-row"><span id="statusDot" aria-live="polite"></span><span id="endpoint">…</span></div></div>
+  <div class="side-foot"><button id="desktopUpdateNotice" class="side-update" hidden><span class="side-update-dot" aria-hidden="true"></span><span id="desktopUpdateNoticeText" role="status" aria-live="polite"></span><span class="side-update-arrow" aria-hidden="true">↻</span></button><button id="sideMe" class="side-me" type="button"><span id="sideMeAvatar" class="side-me-avatar" aria-hidden="true"><span id="sideMeInitials"></span><span id="statusDot"></span></span><span id="sideMeName" class="side-me-name"></span></button></div>
 </aside>
 <div id="sideShade" aria-hidden="true"></div>
 <div id="prefsModal" role="dialog" aria-modal="true" data-i18n-aria="prefs.title" aria-label="Preferences">
@@ -2182,6 +2190,7 @@ body.sense-inspector #inspector { display:none; }
 <script defer src="/app/winds-pati-zones.js"></script>
 <script defer src="/app/winds-pati.js"></script>
 <script defer src="/app/model-name.js"></script>
+<script defer src="/app/user-avatar.js"></script>
 <script defer src="/app/think-level.js"></script>
 <script defer src="/app/winds-choices.js"></script>
 <script defer src="/app/share-msg.js"></script>
@@ -3400,8 +3409,6 @@ async function refresh(options = {}) {
   if (window.gregalLang) window.gregalLang(r.lang);
   const fullModel = r.provider + '/' + r.model;
   $('model').textContent = r.model_name || (window.gregalModelName && window.gregalModelName(r.model)) || r.model; $('modelPill').title = gregalT('ui.chooseModel') + ' · ' + fullModel;
-  $('endpoint').textContent = $('model').textContent;
-  $('endpoint').title = fullModel;
   $('branch').textContent = r.branch || 'workspace';
   $('project').textContent = r.project || gregalT('ui.project'); $('project').title = r.cwd || '';
   $('activeWorkspacePath').textContent = r.cwd || '';

@@ -117,6 +117,47 @@ func TestProfileMergeNewestWinsAndOnlyAllowedKeys(t *testing.T) {
 	}
 }
 
+func TestProfileKeepsNameAndAvatarColourPerAccount(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	t.Setenv("GREGAL_ACCOUNTS_DIR", t.TempDir()+"/accounts")
+	h := testHubWithUsers(t)
+	s := h.def
+	s.SetToken("admin-secret")
+	tokens := map[string]string{}
+	for _, name := range []string{"anna", "biel"} {
+		if w := accountsPost(t, s, `{"name":"`+name+`","password":"12345678"}`); w.Code != 200 {
+			t.Fatalf("create %s: %d", name, w.Code)
+		}
+		tok, _, err := s.users.Login(name, "12345678")
+		if err != nil {
+			t.Fatal(err)
+		}
+		tokens[name] = tok
+	}
+
+	body := `{"prefs":{"gregal_user_name":{"v":"Anna Puig","t":1000},"gregal_user_color":{"v":"#A8CDE2","t":1000}}}`
+	if code, _ := profileCall(t, s, tokens["anna"], http.MethodPost, body); code != 200 {
+		t.Fatalf("desa: %d", code)
+	}
+	_, p := profileCall(t, s, tokens["anna"], http.MethodGet, "")
+	if v := p.Prefs["gregal_user_name"].V; v == nil || *v != "Anna Puig" {
+		t.Fatalf("nom: %v", v)
+	}
+	if v := p.Prefs["gregal_user_color"].V; v == nil || *v != "#A8CDE2" {
+		t.Fatalf("color: %v", v)
+	}
+	if _, other := profileCall(t, s, tokens["biel"], http.MethodGet, ""); len(other.Prefs) != 0 {
+		t.Fatalf("en Biel no ha de veure el nom de l'Anna: %v", other.Prefs)
+	}
+
+	// Un nom massa llarg no s'hi desa: el que hi havia es queda.
+	long := strings.Repeat("n", profileMaxValue+1)
+	profileCall(t, s, tokens["anna"], http.MethodPost, `{"prefs":{"gregal_user_name":{"v":"`+long+`","t":2000}}}`)
+	if _, p := profileCall(t, s, tokens["anna"], http.MethodGet, ""); *p.Prefs["gregal_user_name"].V != "Anna Puig" {
+		t.Fatal("un nom massa llarg no s'havia de desar")
+	}
+}
+
 func TestProfileNeverCarriesSecretsOrDeviceState(t *testing.T) {
 	for _, k := range []string{"gregal_token", "gregal_session", "gregal_draft_sessions", "gregal_resumed_conversations",
 		"gregal_agent_browser_width", "gregal_preview_width", "gregal_side"} {

@@ -341,6 +341,12 @@
     return svg;
   }
   let faceSerial = 0;
+  // Pick the same higher-contrast ink as Android's WindFace.
+  const darkInk = '#202127';
+  function inkOn(fill) {
+    const background = luminance(fill) + .05;
+    return background / (luminance(darkInk) + .05) >= 1.05 / background ? darkInk : '#FFFFFF';
+  }
   function luminance(hex) {
     const linear = i => {
       const value = parseInt(hex.slice(i, i + 2), 16) / 255;
@@ -570,10 +576,7 @@
     w = w || {};
     const s = style(w.style), kitKey = w.kit || w.specialty, kit = kits[kitKey], fill = color(w.color);
     const full = !!large, worn = full ? kit : null, cloud = s[2] === 'n', curl = s[2] === 's', R = cloud ? 30 : 33;
-    const darkInk = '#202127';
-    // Pick the same higher-contrast ink as Android's WindFace.
-    const background = luminance(fill) + .05;
-    const ink = background / (luminance(darkInk) + .05) >= 1.05 / background ? darkInk : '#FFFFFF';
+    const ink = inkOn(fill);
     const light = mix(fill, '#FFFFFF', .3), deep = mix(fill, '#1B1530', .3), tone = mix(fill, '#1B1530', .8);
     const svg = doc.createElementNS(SVG, 'svg'), key = w.id || w.name || 'crew';
     svg.setAttribute('viewBox', '0 0 80 80'); svg.setAttribute('class', 'winds-face' + (large === true ? ' winds-face-large' : ''));
@@ -1080,6 +1083,7 @@
     })().finally(()=>{startingCrew=null;});
     return startingCrew;
   }};
-  root.gregalWinds={face, create:windGallery, mood:setMood, moodOf, watchNews, seen:seenNews, messageFromHash, direction, mapStart, mapStep, setAvatarTheme, avatarTheme:() => theme, avatarField, avatarPrefs};
+  // The person's avatar in the sidebar foot (user-avatar.js) wears these too.
+  root.gregalWinds={palette:presetDefaults.map(p => ({name:p.name, color:p.color})), inkOn, face, create:windGallery, mood:setMood, moodOf, watchNews, seen:seenNews, messageFromHash, direction, mapStart, mapStep, setAvatarTheme, avatarTheme:() => theme, avatarField, avatarPrefs};
   root.loadWindsPage = function () { bind(); return load(); };
 })(window);

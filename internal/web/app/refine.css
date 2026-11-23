@@ -88,10 +88,6 @@
   box-shadow:0 1px 2px rgba(0,0,0,.18), 0 0 0 1px var(--line-hi);
 }
 
-/* Peu: el model actiu sense lletra de terminal. */
-#side .side-foot .endpoint-row { font-family:inherit; font-size:11.5px; }
-#side #endpoint { font-family:inherit; }
-
 /* ---------- Capçalera ---------- */
 #top { border-bottom-color:var(--line); }
 
@@ -402,12 +398,6 @@ html body #side #newchat.side-quick-btn:hover { background:var(--surface); borde
 html body #side #newchat > span:first-child { color:var(--accent-hi); }
 html body #side #convSearch { background:var(--hover); border-color:transparent; }
 html body #side #convSearch:focus { background:var(--surface); border-color:var(--line-hi); }
-
-/* ---------- Barra lateral de Codi: peu llegible ----------
-   El nom és el mateix del compositor; l'identificador tècnic queda al
-   tooltip. La mida s'aplica al text: #endpoint tenia un font propi de 10 px. */
-html body #side .side-foot .endpoint-row { color:var(--muted); }
-html body #side #endpoint { font-size:12px; line-height:1.4; }
 
 /* ---------- Barra lateral de Vents: opció A, compacta ----------
    Files de 34 px com a Codi, etiquetes alineades i «Nova conversa» sense

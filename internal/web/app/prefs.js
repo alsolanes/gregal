@@ -67,6 +67,36 @@ const GRUPS = {
 // Destins de prefs.obre() que no són un grup sencer.
 const ANCORES = { voice: 'prefsVoiceSec', models: 'prefsModelRow' };
 
+// El teu nom i el color del teu avatar (el peu de la barra lateral, user-avatar.js).
+function perfilHTML() {
+  const av = window.gregalUserAvatar;
+  if (!av) return '';
+  let nom = '';
+  try { nom = localStorage.getItem(av.NAME) || ''; } catch (e) {}
+  const ara = av.color();
+  return '<div class="pf-row" id="prefsNameRow"><div class="pf-lab"><b>' + esc(L('Com et dius', 'What’s your name')) + '</b><span>' +
+    esc(L('Es veu al peu de la barra lateral, amb les teves inicials.', 'Shown at the foot of the sidebar, with your initials.')) + '</span></div>' +
+    '<input class="pf-input pf-input-short" id="prefsUserName" type="text" maxlength="80" autocomplete="name" value="' + esc(nom) +
+    '" placeholder="' + esc(av.fallbackName()) + '" aria-label="' + esc(L('Com et dius', 'What’s your name')) + '"></div>' +
+    '<div class="pf-row"><div class="pf-lab"><b>' + esc(L('Color de l’avatar', 'Avatar colour')) + '</b><span>' +
+    esc(L('Els colors dels vents.', 'The colours of the winds.')) + '</span></div>' +
+    '<div class="pf-swatches" id="prefsUserColor" role="group" aria-label="' + esc(L('Color de l’avatar', 'Avatar colour')) + '">' +
+    av.palette().map(p => '<button type="button" class="pf-swatch" data-color="' + esc(p.color) + '" style="background:' + esc(p.color) +
+      '" aria-pressed="' + (p.color === ara) + '" aria-label="' + esc(p.name) + '" title="' + esc(p.name) + '"></button>').join('') + '</div></div>';
+}
+function lligaPerfil(cos) {
+  const av = window.gregalUserAvatar, nom = cos.querySelector('#prefsUserName');
+  if (!av || !nom) return;
+  const desaPerfil = (k, v) => { try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); } catch (e) {} av.paint(); };
+  nom.oninput = () => desaPerfil(av.NAME, nom.value.trim());
+  cos.querySelectorAll('#prefsUserColor .pf-swatch').forEach(b => {
+    b.onclick = () => {
+      cos.querySelectorAll('#prefsUserColor .pf-swatch').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+      desaPerfil(av.COLOR, b.dataset.color);
+    };
+  });
+}
+
 // Icones dels plugins (el servidor en dona un emoji; aquí, el joc de l'app).
 const PLUGIN_ICONS = { corner: 'sparkles', games: 'ball', arena: 'trophy' };
 
@@ -267,7 +297,9 @@ export const prefs = {
     this.ves(target);
     // Les posicions només existeixen amb el modal visible.
     this.marcaNav();
-    if (cerca && !(window.matchMedia && window.matchMedia('(pointer:coarse)').matches)) cerca.focus();
+    // Des de l'avatar del peu, directament al camp del nom.
+    const focus = grup === 'name' && $('prefsUserName') || cerca;
+    if (focus && !(window.matchMedia && window.matchMedia('(pointer:coarse)').matches)) focus.focus();
   },
   ves(grup) {
     const main = $('prefsMain');
@@ -352,6 +384,7 @@ export const prefs = {
       '</b><span>' + esc(GRUPS[id]()[1]) + '</span></button>').join('') + '</div>';
     const grups = [
       ['general', 'gear',
+        perfilHTML() +
         fila('prefs.lang', 'prefs.lang.help', seg('idioma', idioma(), IDIOMES.map(([v, nom]) => [v, nom]), 'prefs.lang')) +
         fila('prefs.detail', 'prefs.detail.help', seg('vista', vista,
           [['summary', 'prefs.detail.summary'], ['normal', 'prefs.density.normal'], ['verbose', 'prefs.detail.verbose']], 'prefs.detail')) +
@@ -457,6 +490,7 @@ export const prefs = {
     this.lligaPlugins();
     voicePrefs.bind(cos);
     collective.bind(cos);
+    lligaPerfil(cos);
     if ($('prefsAvatars')) window.gregalWinds?.avatarPrefs($('prefsAvatars'));
     desktopUpdates.bind(cos);
     chromeExt.bind(cos, () => this.repinta());
