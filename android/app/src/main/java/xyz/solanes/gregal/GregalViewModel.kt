@@ -9,6 +9,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,7 +33,7 @@ const val CompanyJobId = "company-checkin-daily"
 const val COMPANY_CHECKIN_PROMPT = "Fes una revisió proactiva i de només lectura del projecte actiu. Consulta els objectius oberts, l’estat documentat dels serveis i les darreres proves o canvis que puguis verificar. No inventis observacions: inclou el fitxer, prova, estat o font que sosté cada afirmació, i acaba amb un únic pas següent recomanat. No modifiquis fitxers, no reiniciïs ni despleguis serveis. Si cal actuar, proposa-ho i espera aprovació explícita. Respon en català, breu i útil."
 
 /** Pantalles de l'app. */
-enum class Screen { Pairing, Chat, Sessions, Goals, Backlog, Jobs, Office, Flows, Automatitzacions, Desat, Notes, Prefs, Retro, Company, Work, Ventet, Carpeta, Preview, Webs }
+enum class Screen { Pairing, Chat, Sessions, Goals, Backlog, Jobs, Office, Flows, Automatitzacions, Desat, Notes, Prefs, Retro, Company, Work, Ventet, Carpeta, Preview, Webs, Docs }
 
 /**
  * On parla l'app. `local` és el servidor d'aquest mateix dispositiu (el
@@ -2596,6 +2599,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             "bet" -> step(StepKind.Info, appText("app.work.bet"), oneLine(f("command"), 100),
                 f("p").takeIf { it.isNotEmpty() }?.let { "p=$it" }.orEmpty(),
                 state = if (o.has("passed") && !o.optBoolean("passed")) StepState.Failed else StepState.Ok)
+            // Una targeta per document: les edicions següents ja es veuen a la pantalla.
+            "doc_changed" -> DocsJson.changed(o.toString())?.let { d ->
+                if (_msgs.value.none { it.doc?.id == d.id }) push(ChatMsg("assistant", d.title, "doc", doc = d))
+            }
             "goal" -> push(ChatMsg("assistant", "◆ ${f("title")} (${f("id")})", "goal"))
             // El mode objectiu desa la tasca al backlog: el número queda al fil.
             "backlog_item" -> o.optJSONObject("item")?.let { it ->
@@ -6554,6 +6561,59 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 send(r.optString("task"), forceAgent = true)
                 loadBacklog()
             } catch (e: Exception) { notify(BacklogJson.errorText(e.message)) }
+        }
+    }
+
+    // --- documents vius del projecte (Docs.kt, DocScreen.kt) ---
+
+    private val _docs = MutableStateFlow(listOf<DocRef>())
+    val docs: StateFlow<List<DocRef>> = _docs
+    private val _docId = MutableStateFlow("")
+    val docId: StateFlow<String> = _docId
+    private val _doc = MutableStateFlow<LiveDoc?>(null)
+    val doc: StateFlow<LiveDoc?> = _doc
+
+    fun openDoc(id: String) {
+        _docId.value = id
+        go(Screen.Docs)
+    }
+
+    fun loadDocs() {
+        viewModelScope.launch {
+            try {
+                _docs.value = withContext(Dispatchers.IO) { DocsJson.list(_conn.value.api().get("/api/docs").toString()) }
+            } catch (e: Exception) { notify(appText("docs.error", e.message.orEmpty())) }
+        }
+    }
+
+    /**
+     * Segueix el document mentre la pantalla el mira: obre el stream, llegeix
+     * el document amb les capçaleres ja rebudes (com doc-view.js) i hi aplica
+     * els events. Si el stream cau o el servidor el tanca, torna a començar.
+     */
+    suspend fun followDoc(id: String) {
+        val job = currentCoroutineContext().job
+        _doc.value = null
+        while (true) {
+            try {
+                withContext(Dispatchers.IO) {
+                    val api = _conn.value.api()
+                    val path = "/api/docs/" + Uri.encode(id)
+                    api.streamGet("$path/stream", onOpen = { DocsJson.doc(api.get(path).toString()).let { d -> job.ensureActive(); _doc.value = d } }) { ev ->
+                        // El ping de cada 15 s deixa plegar el fil quan es tanca la pantalla.
+                        job.ensureActive()
+                        if (ev.name == "block") DocsJson.change(ev.data)?.let { c -> _doc.update { if (it?.id == id) it.apply(c) else it } }
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: java.io.IOException) {
+                // La xarxa ha caigut: es torna a connectar.
+            } catch (e: Exception) {
+                notify(appText("docs.error", e.message.orEmpty()))
+                return
+            }
+            delay(2000)
         }
     }
 

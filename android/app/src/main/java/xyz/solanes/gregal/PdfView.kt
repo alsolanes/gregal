@@ -32,9 +32,10 @@ import java.io.File
 const val PDF_PREVIEW_PAGES = 6
 
 /** Enllaç a un document que serveix Gregal (el que crea un vent o un adjunt
- *  editat): es baixa amb l'autenticació de l'app, no al navegador. Pura. */
+ *  editat, o un document viu exportat): es baixa amb l'autenticació de l'app, no al navegador. Pura. */
 fun isServerDocLink(url: String): Boolean =
-    url.startsWith("/api/winds/doc?") || url.startsWith("/api/office/download?")
+    url.startsWith("/api/winds/doc?") || url.startsWith("/api/office/download?") ||
+        (url.startsWith("/api/docs/") && url.substringBefore('?').endsWith("/export"))
 
 /** Nom amb què es desa un document de Gregal: el «name» de l'enllaç, o el
  *  text de l'enllaç si no en du. Pura. */

@@ -110,6 +110,13 @@ val STR_CA: Map<String, String> = mapOf(
     "webs.share" to "Comparteix",
     "webs.undo" to "Desfés",
     "webs.public.confirm" to "Fer-la pública? Qualsevol persona amb l’adreça la podrà veure.",
+    "docs.title" to "Documents",
+    "docs.card" to "Document viu · toca per obrir-lo",
+    "docs.download" to "Descarrega en Word",
+    "docs.list" to "Documents del projecte",
+    "docs.empty" to "Aquest projecte encara no té documents.",
+    "docs.loading" to "Obrint el document…",
+    "docs.error" to "No s’ha pogut obrir el document: %s",
 )
 
 val STR_EN: Map<String, String> = mapOf(
@@ -220,4 +227,11 @@ val STR_EN: Map<String, String> = mapOf(
     "webs.share" to "Share",
     "webs.undo" to "Undo",
     "webs.public.confirm" to "Make it public? Anyone with the address will be able to see it.",
+    "docs.title" to "Documents",
+    "docs.card" to "Live document · tap to open",
+    "docs.download" to "Download as Word",
+    "docs.list" to "Project documents",
+    "docs.empty" to "This project has no documents yet.",
+    "docs.loading" to "Opening the document…",
+    "docs.error" to "Could not open the document: %s",
 )

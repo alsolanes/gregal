@@ -13,10 +13,12 @@ data class ChatMsg(
     val at: Long = 0L,
     /** Només kind == "work": el treball plegable del torn (Work.kt). */
     val work: WorkGroup? = null,
+    /** Només kind == "doc": el document viu que l'agent ha escrit (Docs.kt). */
+    val doc: DocRef? = null,
     /** Identitat estable per a les claus de la llista (no canvia en editar-lo). */
     val id: Long = nextMsgId(),
 )
-// kind: text | activity | error | goal | work — at: ms d'època (0 = sense segell)
+// kind: text | activity | error | goal | work | doc — at: ms d'època (0 = sense segell)
 
 private val msgSeq = java.util.concurrent.atomic.AtomicLong(1)
 fun nextMsgId(): Long = msgSeq.getAndIncrement()

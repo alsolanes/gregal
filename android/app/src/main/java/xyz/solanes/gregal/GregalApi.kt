@@ -1421,15 +1421,17 @@ class GregalApi(val base: String, val token: String) {
         streamRead(exec(path, "POST", payload.toString()), onEvent)
     }
 
-    /** SSE per GET (execució de grafs): mateix Bearer, mateix parser. */
-    fun streamGet(path: String, onEvent: (SseEvent) -> Unit) {
-        streamRead(exec(path, "GET"), onEvent)
+    /** SSE per GET (execució de grafs, documents): mateix Bearer, mateix
+     *  parser. [onOpen] corre amb les capçaleres ja rebudes, abans del primer event. */
+    fun streamGet(path: String, onOpen: () -> Unit = {}, onEvent: (SseEvent) -> Unit) {
+        streamRead(exec(path, "GET"), onEvent, onOpen)
     }
 
-    private fun streamRead(r: Response, onEvent: (SseEvent) -> Unit) = r.use {
+    private fun streamRead(r: Response, onEvent: (SseEvent) -> Unit, onOpen: () -> Unit = {}) = r.use {
         val code = r.code
         if (code == 401) throw ApiException("HTTP 401: server requires a valid token")
         if (code !in 200..299) throw ApiException("HTTP $code: ${bodyText(r).take(200)}")
+        onOpen()
         // Només els events amb nom i dades (com feia SseParser).
         readEvents(r) { type, data ->
             if (!type.isNullOrEmpty() && data.isNotEmpty()) onEvent(SseEvent(type, data))

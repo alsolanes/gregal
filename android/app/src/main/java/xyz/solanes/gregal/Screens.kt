@@ -797,6 +797,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                         onRetro = if (m.work.runId > 0) ({ vm.openRetro(m.work.runId) }) else null,
                                         onRetry = if (!m.work.running && m.work.failed) ({ vm.retryLastMainTurn() }) else null,
                                     )
+                                    m.kind == "doc" && m.doc != null -> DocCard(m.doc, lang) { vm.openDoc(m.doc.id) }
                                     m.kind == "activity" -> {
                                         // Avisos sense torn (cua, comparació…): una targeta per tram.
                                         if (index == 0 || msgs[index - 1].kind != "activity") {
