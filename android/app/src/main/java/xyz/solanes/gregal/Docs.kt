@@ -2,7 +2,11 @@ package xyz.solanes.gregal
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
 import java.net.URLEncoder
 
@@ -40,7 +44,43 @@ data class DocBlock(
     val name: String = "",
     val cells: Map<String, String> = emptyMap(),
     val values: Map<String, String> = emptyMap(),
+    val slide: JsonObject? = null,
 )
+
+/** Els layouts d'una diapositiva, en l'ordre de la llista de «Diapositiva nova» (deck-view.js). */
+val slideLayouts = listOf("title", "section", "content", "two_columns", "comparison", "big_number", "image", "title_only", "blank", "closing")
+
+/** Els camps del formulari d'un layout, com els fa servir ooxml.buildSlide; les notes hi són sempre. */
+fun slideFields(layout: String): List<String> = when (layout) {
+    "title", "section", "closing" -> listOf("title", "subtitle")
+    "content" -> listOf("title", "body", "bullets")
+    "two_columns", "comparison" -> listOf("title", "left_title", "left", "right_title", "right")
+    "big_number" -> listOf("title", "number", "caption")
+    "image" -> listOf("title", "image", "body")
+    "title_only" -> listOf("title")
+    else -> emptyList()
+} + "notes"
+
+fun slideText(s: JsonObject?, key: String): String = (s?.get(key) as? JsonPrimitive)?.contentOrNull.orEmpty()
+
+fun slideBullets(s: JsonObject?): List<String> = (s?.get("bullets") as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty()
+
+private fun slideForm(s: JsonObject): Map<String, String> = slideFields(slideText(s, "layout")).associateWith {
+    if (it == "bullets") slideBullets(s).joinToString("\n") else slideText(s, it)
+}
+
+/** La diapositiva [s] amb els camps del formulari a sobre: els que no s'hi veuen (un gràfic, una taula) es queden.
+ *  Els espais del principi d'un punt es queden: el constructor els llegeix com a nivell. */
+private fun slideWith(s: JsonObject, form: Map<String, String>): JsonObject = JsonObject(s.toMutableMap().apply {
+    for ((k, v) in form) {
+        val lines = v.split("\n").map { it.trimEnd() }.filter { it.isNotBlank() }
+        when {
+            k == "bullets" && lines.isNotEmpty() -> put(k, JsonArray(lines.map { JsonPrimitive(it) }))
+            k != "bullets" && v.isNotBlank() -> put(k, JsonPrimitive(v.trim()))
+            else -> remove(k)
+        }
+    }
+})
 
 /** La lletra d'una columna: 0 → A, 26 → AA. */
 fun sheetColumn(i: Int): String = (if (i >= 26) sheetColumn(i / 26 - 1) else "") + ('A' + i % 26)
@@ -65,6 +105,7 @@ fun sheetSize(b: DocBlock): Pair<Int, Int> {
  * `opened` és el text amb què s'ha obert (sense tocar no es desa) i `base`
  * la versió del bloc que la persona té; `conflict` és el bloc d'ara després
  * d'un 409; `gone`, que el stream l'ha esborrat mentre s'editava.
+ * En una presentació, `slide` és la diapositiva tal com s'ha obert i `fields` el formulari del seu layout.
  */
 data class DocEdit(
     val id: String,
@@ -76,6 +117,8 @@ data class DocEdit(
     val saving: Boolean = false,
     val gone: Boolean = false,
     val cell: String = "",
+    val slide: JsonObject? = null,
+    val fields: Map<String, String> = emptyMap(),
 )
 
 data class DocRequest(val method: String, val path: String, val body: String? = null)
@@ -106,6 +149,8 @@ data class LiveDoc(
     @Transient val scope: String = "",
     /** En un full de càlcul, la pestanya que es mira (buit = la primera). */
     @Transient val sheet: String = "",
+    /** En una presentació, l'última diapositiva oberta: la nova va després. */
+    @Transient val current: String = "",
 ) {
     /** Sense blocs ni editor: es veu un bloc buit on escriure, com a la web (no en una presentació). */
     val blank: Boolean get() = kind == "doc" && blocks.isEmpty() && edit == null
@@ -141,8 +186,44 @@ data class LiveDoc(
 
     fun open(id: String): LiveDoc {
         val b = blocks.firstOrNull { it.id == id } ?: return this
+        if (kind == "deck") {
+            val s = b.slide ?: JsonObject(emptyMap())
+            return copy(current = id, edit = DocEdit(id, base = b.version, slide = s, fields = slideForm(s)))
+        }
         return copy(edit = DocEdit(id, opened = b.md.trim(), text = b.md, base = b.version))
     }
+
+    fun typedField(key: String, value: String): LiveDoc = copy(edit = edit?.copy(fields = edit.fields + (key to value)))
+
+    /** La diapositiva oberta per últim, si encara hi és; si no, l'última (o el principi d'una presentació buida). */
+    val slideAfter: String get() = blocks.firstOrNull { it.id == current }?.id ?: blocks.lastOrNull()?.id.orEmpty()
+
+    /** «Diapositiva nova»: una de buida del [layout] després d'[after]. */
+    fun addSlideRequest(after: String, layout: String): DocRequest =
+        DocRequest("POST", scoped(blocksPath(), scope), buildJsonObject {
+            put("after", after); put("slide", buildJsonObject { put("layout", layout) })
+        }.toString())
+
+    /** La resposta de «Diapositiva nova»: s'insereix després d'[after] i se n'obre el formulari. */
+    fun slideAdded(after: String, code: Int, body: String): DocSaved {
+        val a = runCatching { GregalJson.decodeFromString(BlockAnswer.serializer(), body) }.getOrNull() ?: BlockAnswer()
+        if (code != 200) return DocSaved(this, error = a.error.ifBlank { "HTTP $code" })
+        var d = this
+        var at = after
+        for (n in a.blocks) {
+            d = d.apply(DocChange("insert", n, at, a.version))
+            at = n.id
+        }
+        return DocSaved(d.open(at), at)
+    }
+
+    /** «Esborra la diapositiva»: amb la versió que la persona té, com en desar. */
+    fun deleteRequest(): DocRequest? {
+        val e = edit ?: return null
+        return DocRequest("DELETE", scoped(blocksPath() + "/" + URLEncoder.encode(e.id, "UTF-8") + "?base_version=" + e.base, scope))
+    }
+
+    private fun blocksPath() = "/api/docs/" + URLEncoder.encode(id, "UTF-8") + "/blocks"
 
     fun openNew(after: String): LiveDoc = copy(edit = DocEdit("", after = after))
 
@@ -164,7 +245,14 @@ data class LiveDoc(
     fun saveRequest(): DocRequest? {
         val e = edit ?: return null
         val md = e.text.trim()
-        val path = "/api/docs/" + URLEncoder.encode(id, "UTF-8") + "/blocks"
+        val path = blocksPath()
+        if (e.slide != null) {
+            // Després d'un 409, els camps de la persona van sobre la diapositiva d'ara.
+            val s = slideWith(e.conflict?.slide ?: e.slide, e.fields)
+            if (e.conflict == null && s == slideWith(e.slide, slideForm(e.slide))) return null
+            return DocRequest("PUT", scoped(path + "/" + URLEncoder.encode(e.id, "UTF-8"), scope),
+                buildJsonObject { put("slide", s); put("base_version", e.base) }.toString())
+        }
         if (e.id.isEmpty()) return if (md.isEmpty()) null else DocRequest("POST", scoped(path, scope), buildJsonObject { put("after", e.after); put("md", md) }.toString())
         // Sense tocar no es desa: el text obert pot ser més vell que el de l'agent.
         if (e.conflict == null && md == e.opened) return null
@@ -206,15 +294,17 @@ data class LiveDoc(
                 }
                 DocSaved(d, at)
             }
-            e.cell.isEmpty() && e.text.isBlank() -> DocSaved(closedWithout(e.id))
+            // Un DELETE respon sense bloc.
+            e.slide != null && b == null -> DocSaved(closedWithout(e.id))
+            e.slide == null && e.cell.isEmpty() && e.text.isBlank() -> DocSaved(closedWithout(e.id))
             else -> DocSaved(closed.copy(blocks = b?.let { n -> blocks.map { if (it.id == n.id) n else it } } ?: blocks), e.id)
         }
     }
 }
 
-/** L'enllaç «Descarrega en Word» o, d'un full de càlcul, «Descarrega en Excel»: es baixa com
+/** L'enllaç «Descarrega en Word» (en Excel un full de càlcul, en PowerPoint una presentació): es baixa com
  *  els altres documents de Gregal (isServerDocLink), amb el títol com a nom del fitxer. */
-fun docExportPath(d: DocRef): String = (if (d.kind == "sheet") "xlsx" else "docx").let { f ->
+fun docExportPath(d: DocRef): String = when (d.kind) { "sheet" -> "xlsx"; "deck" -> "pptx"; else -> "docx" }.let { f ->
     docPath(d, "/export?format=$f&name=" + URLEncoder.encode(d.title + "." + f, "UTF-8"))
 }
 

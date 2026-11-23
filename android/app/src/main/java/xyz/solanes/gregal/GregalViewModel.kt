@@ -6609,11 +6609,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** «Document nou» (o, amb [kind] "sheet", «Full de càlcul nou») a «Els meus documents», obert per escriure-hi. */
+    /** «Document nou» (o, amb [kind] "sheet" o "deck", «Full de càlcul nou» o «Presentació nova») a «Els meus documents», obert per escriure-hi. */
     fun newDoc(title: String, kind: String = "doc") {
         viewModelScope.launch {
             try {
-                val untitled = appText(if (kind == "sheet") "docs.untitledSheet" else "docs.untitled")
+                val untitled = appText(when (kind) { "sheet" -> "docs.untitledSheet"; "deck" -> "docs.untitledDeck"; else -> "docs.untitled" })
                 val (code, body) = withContext(Dispatchers.IO) { _conn.value.api().sendDoc(docCreateRequest(title.trim().ifEmpty { untitled }, kind)) }
                 if (code != 200) {
                     notify(appText("docs.createError", runCatching { JSONObject(body).optString("error") }.getOrNull().orEmpty().ifBlank { "HTTP $code" }))
@@ -6685,12 +6685,43 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun typeSlideField(key: String, value: String) = _doc.update { it?.typedField(key, value) }
+
+    /** Cancel·la el formulari d'una diapositiva sense desar-lo. */
+    fun cancelDocEdit() = _doc.update { if (it?.edit?.saving == false) it.skipped().doc else it }
+
+    /** «Diapositiva nova» del [layout] després de l'actual; se n'obre el formulari, com a deck-view.js. */
+    fun addSlide(layout: String) {
+        val d = _doc.value ?: return
+        if (d.edit?.saving == true) return
+        val after = d.slideAfter
+        viewModelScope.launch {
+            try {
+                val (code, body) = withContext(Dispatchers.IO) { _conn.value.api().sendDoc(d.addSlideRequest(after, layout)) }
+                var out: DocSaved? = null
+                _doc.update { cur -> if (cur?.id == d.id && cur.edit?.saving != true) cur.skipped().doc.slideAdded(after, code, body).also { out = it }.doc else cur }
+                out?.error?.let { notify(appText("docs.slideError", it)) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) { notify(appText("docs.slideError", e.message.orEmpty())) }
+        }
+    }
+
+    /** «Esborra la diapositiva» oberta, amb el mateix 409 que en desar. */
+    fun deleteSlide() = sendDocEdit(false) { it.deleteRequest() }
+
     /** Desa l'editor obert (doc-view.js); amb [addBelow], si es desa, n'obre un de nou a sota. */
-    fun saveDocBlock(addBelow: Boolean) {
+    fun saveDocBlock(addBelow: Boolean) = sendDocEdit(addBelow) { it.saveRequest() }
+
+    private fun sendDocEdit(addBelow: Boolean, request: (LiveDoc) -> DocRequest?) {
         val d = _doc.value ?: return
         if (d.edit?.saving != false) return
-        val req = d.saveRequest()
-        val failed = if (d.edit?.cell.isNullOrEmpty()) "docs.saveError" else "docs.cellError"
+        val req = request(d)
+        val failed = when {
+            d.edit?.slide != null -> "docs.slideError"
+            d.edit?.cell.isNullOrEmpty() -> "docs.saveError"
+            else -> "docs.cellError"
+        }
         viewModelScope.launch {
             var out: DocSaved? = null
             if (req == null) {

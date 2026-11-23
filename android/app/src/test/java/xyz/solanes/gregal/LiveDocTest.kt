@@ -365,4 +365,113 @@ class LiveDocTest {
         assertEquals(req("POST", "/api/docs?scope=mine", """{"title":"Pressupost","kind":"sheet"}"""), docCreateRequest("Pressupost", "sheet"))
         assertFalse(sheet.blank)
     }
+
+    // --- presentacions (074) ---
+
+    private val deck = DocsJson.doc("""{"id":"k1","title":"Llançament","kind":"deck","version":5,"blocks":[
+        {"id":"s1","md":"","slide":{"layout":"title","title":"Llançament 2027","subtitle":"Pla de l'equip"},"version":2,"author":"agent"},
+        {"id":"s2","md":"","slide":{"layout":"content","title":"Objectius","bullets":["Créixer","  Mercats nous"],"chart":{"type":"bar","categories":["A"],"series":[{"name":"x","values":[1]}]},"notes":"Breu"},"version":5,"author":"agent"}]}""")
+
+    @Test
+    fun deckEventsAreAppliedInPlace() {
+        assertEquals("Llançament 2027", slideText(deck.blocks[0].slide, "title"))
+        assertEquals(listOf("Créixer", "  Mercats nous"), slideBullets(deck.blocks[1].slide))
+        val out = deck
+            .apply(ev("""{"op":"replace","block":{"id":"s1","md":"","slide":{"layout":"title","title":"Llançament 2028"},"version":6},"version":6,"author":"agent"}"""))
+            .apply(ev("""{"op":"insert","block":{"id":"s3","md":"","slide":{"layout":"big_number","number":"42%","caption":"Quota"},"version":7},"after":"s1","version":7,"author":"agent"}"""))
+            .apply(ev("""{"op":"delete","block":{"id":"s2"},"version":8,"author":"agent"}"""))
+        assertEquals(listOf("s1", "s3"), out.blocks.map { it.id })
+        assertEquals("Llançament 2028", slideText(out.blocks[0].slide, "title"))
+        assertEquals("", slideText(out.blocks[0].slide, "subtitle"))
+        assertEquals("42%", slideText(out.blocks[1].slide, "number"))
+        // La diapositiva que s'edita es queda amb el que la persona hi escriu.
+        val editing = deck.open("s1").typedField("title", "Meu")
+            .apply(ev("""{"op":"replace","block":{"id":"s1","md":"","slide":{"layout":"title","title":"De l'agent"},"version":6},"version":6,"author":"agent"}"""))
+        assertEquals("Meu", editing.edit?.fields?.get("title"))
+        assertEquals("De l'agent", slideText(editing.blocks[0].slide, "title"))
+    }
+
+    @Test
+    fun aSlideFormShowsTheFieldsOfItsLayout() {
+        assertEquals(listOf("title", "subtitle", "notes"), slideFields("title"))
+        assertEquals(listOf("title", "body", "bullets", "notes"), slideFields("content"))
+        assertEquals(listOf("title", "left_title", "left", "right_title", "right", "notes"), slideFields("comparison"))
+        assertEquals(listOf("title", "number", "caption", "notes"), slideFields("big_number"))
+        assertEquals(listOf("title", "image", "body", "notes"), slideFields("image"))
+        assertEquals(listOf("notes"), slideFields("blank"))
+        assertEquals(10, slideLayouts.size)
+        val e = deck.open("s2").edit!!
+        assertEquals(mapOf("title" to "Objectius", "body" to "", "bullets" to "Créixer\n  Mercats nous", "notes" to "Breu"), e.fields)
+        assertEquals(5, e.base)
+    }
+
+    @Test
+    fun eachSlideActionBuildsItsRequest() {
+        val open = deck.open("s2")
+        // Sense tocar (o només amb espais) no es desa res.
+        assertNull(open.saveRequest())
+        assertNull(open.typedField("title", "Objectius ").saveRequest())
+        // Es desa la diapositiva sencera: el gràfic, que el formulari no mostra, es queda.
+        assertEquals(req("PUT", "/api/docs/k1/blocks/s2?scope=mine",
+            """{"slide":{"layout":"content","title":"Objectius 2027","bullets":["Créixer","  Mercats nous","Marge"],"chart":{"type":"bar","categories":["A"],"series":[{"name":"x","values":[1]}]},"body":"Tres eixos"},"base_version":5}"""),
+            deck.copy(scope = "mine").open("s2").typedField("title", "Objectius 2027").typedField("body", " Tres eixos")
+                .typedField("bullets", "Créixer\n  Mercats nous\n\nMarge").typedField("notes", "").saveRequest())
+        assertEquals(req("DELETE", "/api/docs/k1/blocks/s2?base_version=5"), open.deleteRequest())
+        // Una diapositiva nova va després de l'última oberta; sense cap d'oberta, al final; en una buida, al principi.
+        assertEquals("s1", deck.open("s1").skipped().doc.slideAfter)
+        assertEquals("s2", deck.slideAfter)
+        assertEquals("", deck.copy(blocks = emptyList()).slideAfter)
+        assertEquals(req("POST", "/api/docs/k1/blocks?scope=mine", """{"after":"s1","slide":{"layout":"two_columns"}}"""),
+            deck.copy(scope = "mine").addSlideRequest("s1", "two_columns"))
+    }
+
+    @Test
+    fun aSavedOrAddedOrDeletedSlideUpdatesTheDeck() {
+        val s = deck.open("s1").typedField("title", "Nou").saved(200,
+            """{"version":6,"block":{"id":"s1","md":"","slide":{"layout":"title","title":"Nou"},"version":6}}""")
+        assertNull(s.doc.edit)
+        assertEquals("Nou", slideText(s.doc.blocks[0].slide, "title"))
+        assertEquals(listOf("s1", "s2"), s.doc.blocks.map { it.id })
+        // Un DELETE respon sense bloc: la diapositiva se'n va.
+        val gone = deck.open("s1").saved(200, """{"version":6}""")
+        assertEquals(listOf("s2"), gone.doc.blocks.map { it.id })
+        assertNull(gone.doc.edit)
+        // La nova s'insereix al seu lloc i se n'obre el formulari.
+        val added = deck.slideAdded("s1", 200, """{"version":6,"blocks":[{"id":"s9","md":"","slide":{"layout":"two_columns"},"version":6}]}""")
+        assertEquals(listOf("s1", "s9", "s2"), added.doc.blocks.map { it.id })
+        assertEquals("s9", added.doc.edit?.id)
+        assertEquals("s9", added.doc.slideAfter)
+        assertEquals(listOf("title", "left_title", "left", "right_title", "right", "notes"), added.doc.edit?.fields?.keys?.toList())
+        assertNull(added.error)
+        assertEquals("bad layout", deck.slideAdded("s1", 400, """{"error":"bad layout"}""").error)
+    }
+
+    @Test
+    fun aSlideConflictKeepsMyFieldsWithTheNotice() {
+        val s = deck.open("s2").typedField("title", "Meus objectius").saved(409,
+            """{"error":"block changed","block":{"id":"s2","md":"","slide":{"layout":"content","title":"Objectius de l'agent","table":[["a","b"]]},"version":7}}""")
+        val e = s.doc.edit!!
+        assertNull(s.error)
+        assertEquals("Meus objectius", e.fields["title"])
+        assertEquals("Objectius de l'agent", slideText(e.conflict?.slide, "title"))
+        assertEquals("Objectius de l'agent", slideText(s.doc.blocks[1].slide, "title"))
+        // Tornar a desar trepitja la versió vista, sobre la diapositiva d'ara (la taula es queda).
+        assertEquals(req("PUT", "/api/docs/k1/blocks/s2",
+            """{"slide":{"layout":"content","title":"Meus objectius","table":[["a","b"]],"bullets":["Créixer","  Mercats nous"],"notes":"Breu"},"base_version":7}"""),
+            s.doc.saveRequest())
+        assertEquals(req("DELETE", "/api/docs/k1/blocks/s2?base_version=7"), s.doc.deleteRequest())
+        // Esborrar també pot topar amb un canvi de l'agent: la diapositiva es queda.
+        val d = deck.open("s2").saved(409, """{"error":"block changed","block":{"id":"s2","md":"","slide":{"layout":"content","title":"Altre"},"version":8}}""")
+        assertEquals(8, d.doc.edit?.base)
+        assertEquals(listOf("s1", "s2"), d.doc.blocks.map { it.id })
+    }
+
+    @Test
+    fun aDeckDownloadsAsPowerPointAndIsCreatedInMyDocuments() {
+        val url = docExportPath(DocRef("k1", "Pitch 2027", "deck", "mine"))
+        assertEquals("/api/docs/k1/export?format=pptx&name=Pitch+2027.pptx&scope=mine", url)
+        assertTrue(isServerDocLink(url))
+        assertEquals("Pitch 2027.pptx", serverDocName(url))
+        assertEquals(req("POST", "/api/docs?scope=mine", """{"title":"Pitch","kind":"deck"}"""), docCreateRequest("Pitch", "deck"))
+    }
 }
