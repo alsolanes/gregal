@@ -111,3 +111,34 @@ test('on the desktop, «Open in a window» asks for the personal document window
   }
   assert.deepEqual(asked, [['w1', 'default', 'mine'], ['p1', 'default', '']]);
 });
+
+test('a deck opens in the slide view, saves slides and downloads as PowerPoint', async () => {
+  await load;
+  const sent = [];
+  const api = window.gregal.api;
+  let deckEdit = null;
+  window.gregalDeckView = { view: (box, doc, render, e) => { deckEdit = e; return { open() {}, apply() {} }; } };
+  window.gregal.api = async (url, opts = {}) => {
+    if (opts.body) sent.push([url, JSON.parse(opts.body)]);
+    if (/^\/api\/docs\/k1(\?|$)/.test(url)) return json({ id: 'k1', title: 'Llançament', kind: 'deck', version: 1, blocks: [] });
+    return api(url, opts);
+  };
+  try {
+    edit = null;
+    window.gregalDocs.open('k1', 'mine', true);
+    await settle();
+    assert.equal(edit, null, 'the text view is not used for a deck');
+    assert.equal(deckEdit.tx('Diapositiva', 'Slide'), 'Slide');
+    await deckEdit.put('s1', { layout: 'content', title: 'Fases' }, 2);
+    await deckEdit.post('s1', { layout: 'title' });
+    assert.deepEqual(sent, [
+      ['/api/docs/k1/blocks/s1?scope=mine', { slide: { layout: 'content', title: 'Fases' }, base_version: 2 }],
+      ['/api/docs/k1/blocks?scope=mine', { after: 's1', slide: { layout: 'title' } }],
+    ]);
+    assert.equal(byId('docsDownload').href, '/api/docs/k1/export?format=pptx&name=Llan%C3%A7ament.pptx&scope=mine');
+    assert.equal(byId('docsDownload').textContent, 'Download as PowerPoint');
+  } finally {
+    window.gregal.api = api;
+    byId('docsClose').click();
+  }
+});

@@ -81,6 +81,34 @@ test('a new document is created in my documents and opens to write in', async ()
   assert.deepEqual(errors, ['title required', 'offline']);
 });
 
+test('«New presentation» creates a deck in my documents', async () => {
+  const box = new Node(fakeDocument, 'div'), created = [];
+  home(box, { mine: [], project: null }, { ...en, open() {}, create: (...a) => created.push(a) });
+  const form = box.all('docs-home-new')[0];
+  const deck = form.children.find(c => c.textContent === 'New presentation');
+  form.find('input').value = 'Llançament';
+  deck.onclick();
+  form.find('input').value = '';
+  deck.onclick();
+  assert.deepEqual(created, [['Llançament', 'deck'], ['Untitled presentation', 'deck']]);
+
+  const calls = [], opened = [];
+  const api = async (url, opts) => {
+    calls.push([url, JSON.parse(opts.body)]);
+    return { ok: true, status: 200, json: async () => ({ id: 'k9', kind: 'deck', version: 1, blocks: [] }) };
+  };
+  await newDoc('Llançament', { api, open: (...a) => opened.push(a), error() {}, kind: 'deck' });
+  assert.deepEqual(calls, [['/api/docs?scope=mine', { title: 'Llançament', kind: 'deck' }]]);
+  assert.deepEqual(opened, [['k9', 'mine', true]]);
+});
+
+test('the slide view is loaded by the app and by the document window', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.match(html, /<script defer src="\/app\/deck-view.js"><\/script>/);
+  const page = fs.readFileSync(path.join(__dirname, '..', 'docs_api.go'), 'utf8');
+  assert.match(page, /<script src="\/app\/deck-view.js"><\/script>/);
+});
+
 test('the app has a Gregal Docs button in the sidebar rail, shared by Codi and Vents', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   const rail = html.slice(html.indexOf('<div class="rail-main">'), html.indexOf('<details id="sideMore"'));

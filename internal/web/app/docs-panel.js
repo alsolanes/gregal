@@ -31,6 +31,19 @@ style.textContent = '#docsPanel[hidden]{display:none}#docsPanel{flex:0 0 460px;w
   '.docs-home-item:hover{background:var(--surface)}.docs-home-meta,.docs-home-empty{font-size:12px;color:var(--muted)}' +
   '#docsBody .doc-block textarea{display:block;width:100%;box-sizing:border-box;margin:6px 0;padding:6px 8px;border:1px solid var(--line-hi);border-radius:4px;background:var(--bg);color:var(--ink);font:13px/1.5 ui-monospace,monospace;resize:vertical}' +
   '#docsBody .doc-conflict{margin:6px 0;padding:4px 10px;border-left:3px solid var(--line-hi);color:var(--ink)}#docsBody .doc-conflict p:first-child{font-weight:600}' +
+  // Diapositives (deck-view.js) amb els colors del tema per defecte del pptx
+  // (ooxml «default»): una diapositiva és blanca en tots dos temes, com a PowerPoint.
+  '#docsBody .deck-slide{margin:0 0 14px;container-type:inline-size;cursor:pointer}' +
+  '#docsBody .slide{aspect-ratio:16/9;box-sizing:border-box;overflow:hidden;padding:6cqw 7cqw;border-radius:4px;box-shadow:0 1px 4px #0004;background:#fff;color:#222;font:3cqw/1.35 Calibri,system-ui,sans-serif}' +
+  '#docsBody .slide h2{margin:0 0 3cqw;padding-bottom:1.5cqw;border-bottom:.5cqw solid #2E86AB;color:#1F2A44;font-size:5.5cqw;line-height:1.15}#docsBody .slide h3{margin:0 0 1cqw;font-size:3.4cqw;color:#1F4E79}' +
+  '#docsBody .slide p,#docsBody .slide ul{margin:0 0 1.5cqw}#docsBody .slide ul{padding-left:1.2em}#docsBody .slide-cols{display:flex;gap:5cqw}#docsBody .slide-cols>div{flex:1;min-width:0}#docsBody .slide img{max-width:100%;max-height:30cqw}' +
+  '#docsBody .slide-title,#docsBody .slide-closing,#docsBody .slide-section{display:flex;flex-direction:column;justify-content:center;background:#1F4E79;color:#EAF1F8}#docsBody .slide-section{background:#1F2A44}' +
+  '#docsBody .slide-title h2,#docsBody .slide-closing h2,#docsBody .slide-section h2{border:0;color:#fff;font-size:7cqw}' +
+  '#docsBody .slide-number{font-size:14cqw;font-weight:700;color:#2E86AB;line-height:1.1}#docsBody .slide-chart{color:#6B7280;font-style:italic}' +
+  '#docsBody .deck-form{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid var(--line-hi);border-radius:4px}#docsBody .deck-form h3{margin:0;font-size:13px;color:var(--muted)}' +
+  '#docsBody .deck-form label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted)}#docsBody .deck-form input,#docsBody .deck-form textarea{box-sizing:border-box;width:100%;padding:6px 8px;border:1px solid var(--line-hi);border-radius:4px;background:var(--bg);color:var(--ink);font:13px/1.5 system-ui,sans-serif}' +
+  '#docsBody .deck-form-buttons,#docsBody .deck-add{display:flex;gap:6px;flex-wrap:wrap}#docsBody .deck-empty{color:var(--muted)}' +
+  '#docsBody .deck-form button,#docsBody .deck-add button,#docsBody .deck-add select{border:1px solid var(--line-hi);border-radius:4px;background:var(--bg);color:var(--ink);cursor:pointer;padding:6px 9px;font-size:12px}' +
   '@media(max-width:1000px){#docsPanel{position:fixed;inset:92px 0 0 auto;width:min(100%,560px);z-index:30;box-shadow:-4px 0 16px #0003}}';
 document.head.append(style);
 $('docsClose').onclick = () => { ctrl?.abort(); state.visible = false; pane.hidden = true; };
@@ -54,22 +67,31 @@ async function list() {
   $('docsList').replaceChildren(...items.map(d => new Option(d.title, d.id, false, d.id === state.id)));
 }
 
-// blockEdits desa a /api/docs/{id}/blocks el que la persona edita a la vista.
+// blockEdits desa a /api/docs/{id}/blocks el que la persona edita a la vista:
+// el markdown d'un bloc de text, o una diapositiva sencera (un objecte).
 function blockEdits(id, scope) {
   const url = '/api/docs/' + encodeURIComponent(id) + '/blocks';
   const send = async (path, method, body) => {
     const r = await G().api(withScope(url + path, scope), { method, headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) });
     return { status: r.status, body: await r.json().catch(() => ({ error: r.statusText })) };
   };
+  const field = v => (typeof v === 'string' ? 'md' : 'slide');
   return {
-    put: (block, md, base) => send('/' + encodeURIComponent(block), 'PUT', { md, base_version: base }),
-    post: (after, md) => send('', 'POST', { after, md }),
+    put: (block, v, base) => send('/' + encodeURIComponent(block), 'PUT', { [field(v)]: v, base_version: base }),
+    post: (after, v) => send('', 'POST', { after, [field(v)]: v }),
     del: (block, base) => send('/' + encodeURIComponent(block) + '?base_version=' + base, 'DELETE'),
     notice: () => tx("L'agent ha canviat aquest bloc", 'The agent changed this block'),
     empty: () => tx('Escriu aquí…', 'Write here…'),
     error: m => G().sys(m),
+    tx,
   };
 }
+
+// La descàrrega va en el format del document: una presentació en PowerPoint.
+const DOWNLOADS = {
+  doc: ['docx', () => tx('Descarrega en Word', 'Download as Word')],
+  deck: ['pptx', () => tx('Descarrega en PowerPoint', 'Download as PowerPoint')],
+};
 
 // write: el document és nou i s'obre amb el cursor al primer bloc.
 async function follow(id, scope, my, write) {
@@ -78,9 +100,13 @@ async function follow(id, scope, my, write) {
   if (!r.ok) throw new Error(await r.text());
   // El stream ja és subscrit: el document que es llegeix ara no perd cap canvi.
   const doc = await (await G().api(at(''), { signal: my.signal })).json();
-  $('docsDownload').href = at('/export?format=docx&name=' + encodeURIComponent(doc.title + '.docx'));
-  const v = window.gregalDocView.view($('docsBody'), doc, window.gregalMD.render, blockEdits(id, scope));
-  if (write) v.open(null, '');
+  const [format, label] = DOWNLOADS[doc.kind] || DOWNLOADS.doc;
+  $('docsDownload').href = at('/export?format=' + format + '&name=' + encodeURIComponent(doc.title + '.' + format));
+  $('docsDownload').textContent = label();
+  const deck = doc.kind === 'deck';
+  const v = (deck ? window.gregalDeckView : window.gregalDocView).view($('docsBody'), doc, window.gregalMD.render, blockEdits(id, scope));
+  // Una presentació nova ja ensenya «Diapositiva nova»; no té bloc de text on escriure.
+  if (write && !deck) v.open(null, '');
   const rd = r.body.getReader(), dec = new TextDecoder();
   let buf = '';
   for (;;) {
@@ -108,7 +134,7 @@ function open(id, scope = '', write = false) {
   Object.assign(state, { id, visible: true, scope });
   show(false);
   $('docsList').setAttribute('aria-label', scope ? tx('Els meus documents', 'My documents') : tx('Documents del projecte', 'Project documents'));
-  $('docsDownload').textContent = tx('Descarrega en Word', 'Download as Word');
+  $('docsDownload').textContent = '';
   $('docsWindow').textContent = tx('Obre en una finestra', 'Open in a window');
   $('docsClose').setAttribute('aria-label', tx('Tanca el document', 'Close the document'));
   list();
@@ -140,7 +166,7 @@ async function home() {
     if (ctrl !== my) return;
     window.gregalDocHome.home($('docsBody'), { mine, project: codi ? { name: st.project || st.cwd, items: project } : null }, {
       tx, lang: idioma(), open,
-      create: title => window.gregalDocHome.newDoc(title, { api: G().api, open, error: G().sys }),
+      create: (title, kind) => window.gregalDocHome.newDoc(title, { api: G().api, open, error: G().sys, kind }),
     });
   } catch (e) {
     if (!my.signal.aborted) G().sys(String(e.message || e));

@@ -82,7 +82,8 @@ test('doc_changed opens a closed document and only brings forward the one alread
 test('the panel has its strings in Catalan and English and downloads through the export route', () => {
   const src = fs.readFileSync(path.join(__dirname, 'docs-panel.js'), 'utf8');
   assert.match(src, /tx\('Descarrega en Word', 'Download as Word'\)/);
-  assert.match(src, /\/export\?format=docx/);
+  assert.match(src, /tx\('Descarrega en PowerPoint', 'Download as PowerPoint'\)/);
+  assert.match(src, /\/export\?format=' \+ format/);
   assert.match(src, /'\/api\/docs'/);
   assert.match(src, /tx\("L'agent ha canviat aquest bloc", 'The agent changed this block'\)/);
 });

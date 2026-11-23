@@ -1,7 +1,7 @@
 // Inici de Gregal Docs: el botó de la barra lateral obre el panell de
 // documents (docs-panel.js) amb «Els meus documents» (?scope=mine) i, a Codi,
-// els del projecte obert; i «Document nou», que la persona escriu sense
-// l'agent.
+// els del projecte obert; i «Document nou» i «Presentació nova», que la
+// persona escriu sense l'agent.
 // UMD: window.gregalDocHome al navegador, require() als tests de Node.
 (function (root, factory) {
   const api = factory();
@@ -14,7 +14,7 @@
 
   // home pinta l'inici dins box. lists = {mine, project}: mine són els
   // items de GET /api/docs?scope=mine; project, {name, items} del projecte
-  // obert, o null si no n'hi ha. act = {open(id, scope), create(title), tx, lang}.
+  // obert, o null si no n'hi ha. act = {open(id, scope), create(title, kind), tx, lang}.
   function home(box, lists, act) {
     const D = box.ownerDocument, tx = act.tx;
     const el = (tag, cls, text) => {
@@ -46,7 +46,10 @@
     title.setAttribute('aria-label', tx('Títol del document', 'Document title'));
     const create = el('button', '', tx('Document nou', 'New document'));
     create.type = 'submit';
-    form.append(title, create);
+    const deck = el('button', '', tx('Presentació nova', 'New presentation'));
+    deck.type = 'button';
+    deck.onclick = () => act.create(title.value.trim() || tx('Presentació sense títol', 'Untitled presentation'), 'deck');
+    form.append(title, create, deck);
     form.onsubmit = e => {
       e.preventDefault();
       act.create(title.value.trim() || tx('Document sense títol', 'Untitled document'));
@@ -58,12 +61,13 @@
     box.replaceChildren(page);
   }
 
-  // newDoc crea un document de text buit a «Els meus documents» i l'obre
-  // per escriure-hi (open amb write). api és window.gregal.api.
-  async function newDoc(title, { api, open, error }) {
+  // newDoc crea un document buit a «Els meus documents», de text o una
+  // presentació (kind 'deck'), i l'obre per escriure-hi (open amb write).
+  // api és window.gregal.api.
+  async function newDoc(title, { api, open, error, kind = 'doc' }) {
     let r;
     try {
-      r = await api('/api/docs?scope=mine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, kind: 'doc' }) });
+      r = await api('/api/docs?scope=mine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, kind }) });
     } catch (e) {
       error(e.message || String(e));
       return;

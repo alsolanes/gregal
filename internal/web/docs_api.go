@@ -134,7 +134,7 @@ func (s *Server) sessionDoc(w http.ResponseWriter, r *http.Request) (*gdocs.Stor
 // l'agent («Document nou» de Gregal Docs).
 //
 //	GET /api/docs
-//	POST /api/docs {title, kind:"doc"}
+//	POST /api/docs {title, kind:"doc"|"deck"}
 func (s *Server) handleDocs(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		s.handleDocCreate(w, r)
@@ -168,8 +168,8 @@ func (s *Server) handleDocCreate(w http.ResponseWriter, r *http.Request) {
 		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
 		return
 	}
-	if q.Kind != gdocs.KindDoc {
-		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "kind: only \"doc\" can be created here"})
+	if q.Kind != gdocs.KindDoc && q.Kind != gdocs.KindDeck {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "kind: only \"doc\" or \"deck\" can be created here"})
 		return
 	}
 	if strings.TrimSpace(q.Title) == "" {
@@ -180,7 +180,13 @@ func (s *Server) handleDocCreate(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	d, err := st.Create(q.Title, "", gdocs.AuthorUser)
+	var d gdocs.Doc
+	var err error
+	if q.Kind == gdocs.KindDeck {
+		d, err = st.CreateDeck(q.Title)
+	} else {
+		d, err = st.Create(q.Title, "", gdocs.AuthorUser)
+	}
 	if err != nil {
 		writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -249,7 +255,7 @@ func (h *Hub) handleDocPage(w http.ResponseWriter, r *http.Request) {
 		`body #docsPanel{position:static;flex:1;width:auto;border:0;box-shadow:none}body #docsPanel header{display:none}</style>`+
 		`<script>(()=>{let t='';try{t=(JSON.parse(localStorage.getItem('gregal_brand_cache')||'null')||{}).theme||localStorage.getItem('gregal_tema')||''}catch(e){}`+
 		`if(!t||t==='sistema')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)})()</script>`+
-		`</head><body><div id="workbench"></div><script src="/app/md.js"></script><script src="/app/doc-view.js"></script>`+
+		`</head><body><div id="workbench"></div><script src="/app/md.js"></script><script src="/app/doc-view.js"></script><script src="/app/deck-view.js"></script>`+
 		`<script type="module" src="/app/doc-page.js"></script></body></html>`)
 }
 
@@ -257,21 +263,31 @@ func (h *Hub) handleDocPage(w http.ResponseWriter, r *http.Request) {
 // fa l'eina, i la resposta porta els blocs nous en ordre.
 //
 //	POST /api/docs/{id}/blocks {after, md}
+//	POST /api/docs/{id}/blocks {after, slide} (una presentació)
 func (s *Server) handleDocBlocks(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST required", http.StatusMethodNotAllowed)
 		return
 	}
-	var q struct{ After, MD string }
-	if json.NewDecoder(r.Body).Decode(&q) != nil || strings.TrimSpace(q.MD) == "" {
-		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "md required"})
+	var q struct {
+		After, MD string
+		Slide     *ooxml.SlideSpec
+	}
+	if json.NewDecoder(r.Body).Decode(&q) != nil || (strings.TrimSpace(q.MD) == "" && q.Slide == nil) {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "md or slide required"})
 		return
 	}
 	st, ok := s.docStore(w, r)
 	if !ok {
 		return
 	}
-	d, err := st.Insert(r.PathValue("id"), q.After, q.MD, gdocs.AuthorUser)
+	var d gdocs.Doc
+	var err error
+	if q.Slide != nil {
+		d, err = st.InsertSlide(r.PathValue("id"), q.After, *q.Slide, gdocs.AuthorUser)
+	} else {
+		d, err = st.Insert(r.PathValue("id"), q.After, q.MD, gdocs.AuthorUser)
+	}
 	if docWriteErr(w, err) {
 		return
 	}
@@ -290,11 +306,13 @@ func (s *Server) handleDocBlocks(w http.ResponseWriter, r *http.Request) {
 //
 //	PUT /api/docs/{id}/blocks/{block} {md, base_version}
 //	PUT /api/docs/{id}/blocks/{block} {cells, base_version} (un full)
+//	PUT /api/docs/{id}/blocks/{block} {slide, base_version} (una diapositiva)
 //	DELETE /api/docs/{id}/blocks/{block}?base_version=N
 func (s *Server) handleDocBlock(w http.ResponseWriter, r *http.Request) {
 	var q struct {
 		MD    string            `json:"md"`
 		Cells map[string]string `json:"cells"`
+		Slide *ooxml.SlideSpec  `json:"slide"`
 		Base  int               `json:"base_version"`
 	}
 	switch r.Method {
@@ -331,9 +349,12 @@ func (s *Server) handleDocBlock(w http.ResponseWriter, r *http.Request) {
 	}
 	var d gdocs.Doc
 	var err error
-	if q.Cells != nil {
+	switch {
+	case q.Cells != nil:
 		d, err = st.SetCells(id, block, q.Cells, gdocs.AuthorUser, q.Base)
-	} else {
+	case q.Slide != nil:
+		d, err = st.ReplaceSlide(id, block, *q.Slide, gdocs.AuthorUser, q.Base)
+	default:
 		d, err = st.Replace(id, block, q.MD, gdocs.AuthorUser, q.Base)
 	}
 	if docWriteErr(w, err) {
@@ -356,6 +377,8 @@ func docWriteErr(w http.ResponseWriter, err error) bool {
 		writeJSONStatus(w, http.StatusConflict, map[string]any{"error": err.Error(), "block": c.Block})
 	case errors.Is(err, gdocs.ErrNotFound), errors.Is(err, gdocs.ErrBlockNotFound):
 		writeJSONStatus(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+	case errors.Is(err, gdocs.ErrInvalid):
+		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	default:
 		writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}

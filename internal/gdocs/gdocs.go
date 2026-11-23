@@ -89,7 +89,15 @@ func (d Doc) Markdown() string {
 var (
 	ErrNotFound      = errors.New("there is no document with that id in this project")
 	ErrBlockNotFound = errors.New("there is no block with that id in the document (read the document for the ids)")
+	// ErrInvalid marca una edició que no encaixa amb el document (un altre
+	// tipus de bloc, una diapositiva mal feta): les rutes en fan un 400.
+	ErrInvalid = errors.New("invalid edit")
 )
+
+// invalid porta el missatge d'un error d'aquests i en fa un ErrInvalid.
+type invalid struct{ error }
+
+func (e invalid) Unwrap() []error { return []error{e.error, ErrInvalid} }
 
 // ConflictError és una edició d'un bloc que ha canviat després de la
 // versió base de qui l'edita; Block és el bloc d'ara.
@@ -255,7 +263,7 @@ func (s *Store) create(title, kind string, mk func(at time.Time) []Block) (Doc, 
 // sameKind fa que una edició de text no entri en una presentació ni al revés.
 func sameKind(d *Doc, kind string) error {
 	if d.Kind != kind {
-		return fmt.Errorf("document %s is a %s: this edit is for a %s (decks take slides, sheets take cells, docs take md)", d.ID, d.Kind, kind)
+		return invalid{fmt.Errorf("document %s is a %s: this edit is for a %s (decks take slides, sheets take cells, docs take md)", d.ID, d.Kind, kind)}
 	}
 	return nil
 }
@@ -264,10 +272,12 @@ func sameKind(d *Doc, kind string) error {
 // coneix: una presentació viva no té plantilla amb layouts propis.
 func checkSlide(sl ooxml.SlideSpec) error {
 	if !ooxml.SlideLayout(sl.Layout) {
-		return fmt.Errorf("slide layout %q: use title, section, content, two_columns, comparison, big_number, image, title_only, blank or closing", sl.Layout)
+		return invalid{fmt.Errorf("slide layout %q: use title, section, content, two_columns, comparison, big_number, image, title_only, blank or closing", sl.Layout)}
 	}
 	if sl.Chart != nil {
-		return ooxml.CheckChart(*sl.Chart)
+		if err := ooxml.CheckChart(*sl.Chart); err != nil {
+			return invalid{err}
+		}
 	}
 	return nil
 }

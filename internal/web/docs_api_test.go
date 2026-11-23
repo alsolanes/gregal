@@ -500,3 +500,62 @@ func TestNewDocRefusesUnknownKindAndNoTitle(t *testing.T) {
 		t.Fatalf("s'ha creat algun document: %s", rec.Body.String())
 	}
 }
+
+type docAnswer struct {
+	Version int
+	Block   gdocs.Block
+	Blocks  []gdocs.Block
+}
+
+func answer(t *testing.T, rec *httptest.ResponseRecorder) (out docAnswer) {
+	t.Helper()
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+	return out
+}
+
+// newDeckWithSlide crea una presentació a «Els meus documents» i hi posa
+// una diapositiva, tot per les rutes del panell. Torna el document i la
+// diapositiva.
+func newDeckWithSlide(t *testing.T, s *Server) (string, string) {
+	t.Helper()
+	rec := docReq(s, (*Server).handleDocs, "POST", "/api/docs?scope=mine", `{"title":"Llançament","kind":"deck"}`)
+	var d gdocs.Doc
+	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &d) != nil || d.Kind != gdocs.KindDeck || len(d.Blocks) != 0 {
+		t.Fatalf("presentació nova: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = docReq(s, (*Server).handleDocBlocks, "POST", "/api/docs/x/blocks?scope=mine", `{"after":"","slide":{"layout":"content","title":"Fases"}}`, d.ID)
+	nou := answer(t, rec)
+	if rec.Code != 200 || len(nou.Blocks) != 1 || nou.Blocks[0].Slide == nil || nou.Blocks[0].Slide.Title != "Fases" || nou.Blocks[0].Author != gdocs.AuthorUser {
+		t.Fatalf("diapositiva nova: %d %s", rec.Code, rec.Body.String())
+	}
+	return d.ID, nou.Blocks[0].ID
+}
+
+func TestNewDeckAndItsSlidesFromThePanel(t *testing.T) {
+	s := backlogServer(t)
+	id, sl := newDeckWithSlide(t, s)
+	rec := docReq(s, (*Server).handleDocBlock, "PUT", "/api/docs/x/blocks/y?scope=mine", `{"slide":{"layout":"content","title":"Fases","bullets":["Beta","Obert"]},"base_version":2}`, id, sl)
+	if out := answer(t, rec); rec.Code != 200 || out.Block.Slide == nil || len(out.Block.Slide.Bullets) != 2 || out.Block.Version != 3 {
+		t.Fatalf("desa: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = docReq(s, (*Server).handleDocBlock, "PUT", "/api/docs/x/blocks/y?scope=mine", `{"slide":{"layout":"content","title":"Una altra"},"base_version":2}`, id, sl)
+	if out := answer(t, rec); rec.Code != http.StatusConflict || out.Block.Slide == nil || out.Block.Slide.Title != "Fases" {
+		t.Fatalf("conflicte: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+// Una edició que no encaixa amb el document és culpa de qui l'envia: 400.
+func TestDeckRefusesEditsOfAnotherKind(t *testing.T) {
+	s := backlogServer(t)
+	id, sl := newDeckWithSlide(t, s)
+	for _, body := range []string{`{"md":"Text","base_version":2}`, `{"slide":{"layout":"poema","title":"Fases"},"base_version":2}`} {
+		if rec := docReq(s, (*Server).handleDocBlock, "PUT", "/api/docs/x/blocks/y?scope=mine", body, id, sl); rec.Code != http.StatusBadRequest {
+			t.Fatalf("put %s: %d %s", body, rec.Code, rec.Body.String())
+		}
+	}
+	if rec := docReq(s, (*Server).handleDocBlocks, "POST", "/api/docs/x/blocks?scope=mine", `{"after":"","md":"Text"}`, id); rec.Code != http.StatusBadRequest {
+		t.Fatalf("md a una presentació: %d %s", rec.Code, rec.Body.String())
+	}
+}
