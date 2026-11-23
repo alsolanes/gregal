@@ -994,6 +994,9 @@ const CA = {
   'shellTerm.exited': 'El shell ha acabat amb el codi ',
   'shellTerm.restart': 'Obre’n un de nou',
   'shellTerm.gone': 'El shell s’ha tancat.',
+  'shellTerm.connecting': 'S’està obrint el shell…',
+  'shellTerm.copy': 'Copia la sortida',
+  'shellTerm.clear': 'Neteja la pantalla',
   'pg.term.run': 'Engega',
 
   'pg.winds.kicker': 'Companyia que persisteix',
@@ -3145,6 +3148,9 @@ const EN = {
   'shellTerm.exited': 'The shell exited with code ',
   'shellTerm.restart': 'Open a new one',
   'shellTerm.gone': 'The shell has closed.',
+  'shellTerm.connecting': 'Starting the shell…',
+  'shellTerm.copy': 'Copy the output',
+  'shellTerm.clear': 'Clear the screen',
   'pg.term.run': 'Start',
 
   'pg.winds.kicker': 'Companions that persist',

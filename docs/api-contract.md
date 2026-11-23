@@ -618,7 +618,7 @@ server, build or test suite) run here and can outlive the turn; the agent uses
 | `/api/exec/kill` | POST | `{id}` → `{ok,killed}`; stops the entire process group. |
 | `/api/terminal` | POST | `{cols,rows}` (cols 20-400, rows 5-200) → `{ok,cols,rows}`. Opens the session's interactive shell (PowerShell on Windows, `$SHELL` or `/bin/sh` elsewhere) in a pseudo-terminal in `cwd`, or returns to the one already open and resizes it. One per session; it lives until the shell exits or the session is closed. It is the person's own shell: what is typed is not checked against the `bash` policy. With accounts, admin only (403); POSTs must be `application/json` (415). |
 | `/api/terminal/input` | POST | `{data}` → `{ok}`: keys already encoded as a terminal sends them. 409 if no terminal is open. |
-| `/api/terminal/stream` | GET **SSE** | `frame` (same shape as `/api/kanban/stream`: the first has every row, later ones only changed rows), `history` `{lines}` (HTML rows that scrolled off the top, up to 2000 kept), `exited` `{exit}`. 409 if no terminal is open. |
+| `/api/terminal/stream` | GET **SSE** | `frame` (same shape as `/api/kanban/stream`: the first has every row, later ones only changed rows), `history` `{lines}` (HTML rows that scrolled off the top, up to 2000 kept), `exited` `{exit}`. 409 if no terminal is open. In the row HTML (here and in the Kanban), the 16 basic colours are `var(--ansi-N,#hex)` and the defaults `var(--term-fg,#hex)` / `var(--term-bg,#hex)`, so a client can theme them; the fallback is the old colour. |
 
 ## Kanban mode (experimental)
 

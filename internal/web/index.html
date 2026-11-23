@@ -1989,7 +1989,14 @@ body.sense-inspector #inspector { display:none; }
       </section>
       <section class="workspace-page" id="terminalPage" hidden>
         <div class="page-inner">
-          <div class="shell-term-wrap">
+          <div class="shell-term-wrap" id="shellTermWrap" data-state="connecting">
+            <div class="shell-term-head">
+              <span class="shell-term-dot" aria-hidden="true"></span>
+              <span class="shell-term-title" data-i18n="nav.terminal">Terminal</span>
+              <span class="shell-term-cwd" id="shellTermCwd"></span>
+              <button type="button" class="icon-btn" id="shellCopy" data-i18n-title="shellTerm.copy" data-i18n-aria="shellTerm.copy" title="Copy the output" aria-label="Copy the output"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 9h11v11H9z M5 15H4V4h11v1"/></svg><svg class="ui-icon shell-term-ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
+              <button type="button" class="icon-btn" id="shellClear" data-i18n-title="shellTerm.clear" data-i18n-aria="shellTerm.clear" title="Clear the screen" aria-label="Clear the screen"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16 M7.5 16.5l-3-3L14 4l6 6-6.5 6.5z M9.5 8.5l6 6"/></svg></button>
+            </div>
             <div id="shellTerm" class="kb-term shell-term" aria-label="Terminal" data-i18n-aria="nav.terminal"><div id="shellHist"></div><div id="shellScreen"></div></div>
             <textarea id="shellInput" class="kb-input" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Terminal input" data-i18n-aria="shellTerm.input"></textarea>
             <p id="shellTermState" class="shell-term-state" role="status" hidden></p>
