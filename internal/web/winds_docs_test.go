@@ -241,7 +241,7 @@ func TestWindDocsStayPerUserInsideAGitRepo(t *testing.T) {
 // un document viu amb doc; office_create, per a plantilles, presentacions,
 // fulls de càlcul i adjunts.
 func TestWindDocsBriefPrefersLiveDocuments(t *testing.T) {
-	for _, w := range []string{"live document with the doc tool", "Word export link", "office_create only for templates, presentations, spreadsheets and documents the person attached"} {
+	for _, w := range []string{"live document with the doc tool", "Word export link", "new presentation is a live deck with doc", "office_create only for templates, spreadsheets and documents the person attached"} {
 		if !strings.Contains(windDocsBrief, w) {
 			t.Errorf("falta %q a la consigna", w)
 		}
