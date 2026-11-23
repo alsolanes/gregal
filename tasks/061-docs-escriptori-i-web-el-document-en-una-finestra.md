@@ -1,6 +1,6 @@
 ---
 title: "Docs (escriptori i web): el document en una finestra pròpia"
-status: done
+status: blocked
 depends_on: ["059"]
 ---
 
@@ -31,3 +31,4 @@ A long document needs more room than a side panel: on a second screen, next to t
 - NOT checked: the third criterion's hand check and side-by-side screenshot in the desktop (Electron) app. I could not drive the desktop app from this session, so that box stays unticked; the Electron part is covered only by `desktop/doc-window.test.js` and `desktop/ipc.test.js`.
 - Follow-up: the doc page hides the «Download as Word» link (the `attach.js` handler that adds the token is not loaded there).
 - Follow-up: `docs/api-contract.md` does not list `/app/doc/{id}` (the contract test only covers `/api/` routes).
+- Blocked: the code is merged, but criterion 3 needs a hand check in the desktop app (an edit in the window shows in the chat window's panel and the other way round) and a screenshot. It was checked only in a browser against a sandbox server; set `status: done` once a person has checked it in the desktop app.
