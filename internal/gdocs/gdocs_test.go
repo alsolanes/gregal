@@ -297,8 +297,19 @@ func TestFullCellesPerFull(t *testing.T) {
 	if _, err := s.SetCells(d.ID, dades.ID, map[string]string{"A1": "2"}, AuthorUser, dades.Version); !errors.As(err, &conflicte) {
 		t.Fatalf("base vella: %v", err)
 	}
+}
+
+func TestFullCellesValidades(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d := full(t, s)
+	dades := d.Blocks[0]
+	d, err := s.SetCells(d.ID, dades.ID, map[string]string{"A1": "1", "A2": "text"}, AuthorUser, dades.Version)
+	if err != nil {
+		t.Fatal(err)
+	}
 	// Una entrada buida buida la cel·la; una cel·la mal escrita es refusa.
-	if d, err = s.SetCells(d.ID, dades.ID, map[string]string{"A2": ""}, AuthorUser, 3); err != nil || len(d.Blocks[0].Cells) != 1 {
+	if d, err = s.SetCells(d.ID, dades.ID, map[string]string{"A2": ""}, AuthorUser, d.Version); err != nil || len(d.Blocks[0].Cells) != 1 {
 		t.Fatalf("%+v %v", d.Blocks[0], err)
 	}
 	if _, err := s.SetCells(d.ID, dades.ID, map[string]string{"1A": "x"}, AuthorUser, d.Version); err == nil {

@@ -81,9 +81,9 @@ func TestDocExportNomesEnElFormatDelTipus(t *testing.T) {
 	}
 }
 
-func TestDocExportXlsx(t *testing.T) {
-	s := backlogServer(t)
-	st, _ := gdocs.Open(s.cwd)
+// pressupost fa un full de dos fulls amb una fórmula que creua d'un a l'altre.
+func pressupost(t *testing.T, st *gdocs.Store) gdocs.Doc {
+	t.Helper()
 	d, err := st.CreateSheet("Pressupost", "Dades", gdocs.AuthorAgent)
 	if err != nil {
 		t.Fatal(err)
@@ -97,6 +97,13 @@ func TestDocExportXlsx(t *testing.T) {
 	if d, err = st.SetCells(d.ID, d.Blocks[1].ID, map[string]string{"B2": "=Dades!A3*2"}, gdocs.AuthorAgent, 0); err != nil {
 		t.Fatal(err)
 	}
+	return d
+}
+
+func TestDocExportXlsx(t *testing.T) {
+	s := backlogServer(t)
+	st, _ := gdocs.Open(s.cwd)
+	d := pressupost(t, st)
 	rec := docExportAs(s, d.ID, "xlsx")
 	if rec.Code != 200 || !strings.Contains(rec.Header().Get("Content-Disposition"), "Pressupost.xlsx") {
 		t.Fatalf("%d %v %s", rec.Code, rec.Header(), rec.Body.String())
