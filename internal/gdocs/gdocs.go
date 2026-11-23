@@ -239,6 +239,9 @@ func checkSlide(sl ooxml.SlideSpec) error {
 	if !ooxml.SlideLayout(sl.Layout) {
 		return fmt.Errorf("slide layout %q: use title, section, content, two_columns, comparison, big_number, image, title_only, blank or closing", sl.Layout)
 	}
+	if sl.Chart != nil {
+		return ooxml.CheckChart(*sl.Chart)
+	}
 	return nil
 }
 

@@ -235,6 +235,15 @@ func TestDeckRefusaLayoutIContingutDAltreTipus(t *testing.T) {
 	if _, err := s.InsertSlide(d.ID, "", ooxml.SlideSpec{Title: "sense layout"}, AuthorAgent); err == nil {
 		t.Fatal("diapositiva sense layout acceptada")
 	}
+	// Un gràfic que el PowerPoint no pot fer es refusa aquí, no en baixar-lo.
+	coix := &ooxml.ChartSpec{Type: "bar", Categories: []string{"a", "b"}, Series: []ooxml.ChartSeries{{Name: "s", Values: []float64{1}}}}
+	if _, err := s.InsertSlide(d.ID, "", ooxml.SlideSpec{Layout: "content", Title: "x", Chart: coix}, AuthorAgent); err == nil {
+		t.Fatal("gràfic amb més categories que valors acceptat")
+	}
+	buit := &ooxml.ChartSpec{Type: "bar"}
+	if _, err := s.InsertSlide(d.ID, "", ooxml.SlideSpec{Layout: "content", Title: "x", Chart: buit}, AuthorAgent); err == nil {
+		t.Fatal("gràfic sense dades acceptat")
+	}
 	if _, err := s.Insert(d.ID, "", "# text", AuthorAgent); err == nil {
 		t.Fatal("markdown a una presentació")
 	}

@@ -385,8 +385,8 @@ func (p *Pptx) addVisual(slide string, s SlideSpec, b Box) (string, error) {
 
 // ---------- gràfics ----------
 
-// AddChart afegeix un gràfic natiu (barres, columnes, línies, pastís).
-func (p *Pptx) AddChart(slide string, c ChartSpec, b Box) error {
+// CheckChart diu si AddChart podrà fer el gràfic.
+func CheckChart(c ChartSpec) error {
 	if len(c.Series) == 0 || len(c.Categories) == 0 {
 		return fmt.Errorf("el gràfic necessita categories i almenys una sèrie")
 	}
@@ -394,6 +394,14 @@ func (p *Pptx) AddChart(slide string, c ChartSpec, b Box) error {
 		if len(s.Values) != len(c.Categories) {
 			return fmt.Errorf("la sèrie %q té %d valors i hi ha %d categories", s.Name, len(s.Values), len(c.Categories))
 		}
+	}
+	return nil
+}
+
+// AddChart afegeix un gràfic natiu (barres, columnes, línies, pastís).
+func (p *Pptx) AddChart(slide string, c ChartSpec, b Box) error {
+	if err := CheckChart(c); err != nil {
+		return err
 	}
 	part := p.Pkg.NextPartName("ppt/charts", "chart", ".xml")
 	p.Pkg.Put(part, []byte(chartXML(c, p.Theme)))

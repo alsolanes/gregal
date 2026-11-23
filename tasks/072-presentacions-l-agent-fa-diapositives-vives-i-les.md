@@ -34,3 +34,5 @@ Gregal Docs should also cover presentations. A live presentation is a document o
 - Follow-up: the turn note (`notaDocs`) prints `blk.MD`, so a slide the person changed shows with no text; it should show the slide title.
 - Follow-up: the web/desktop/Android panels draw a deck's blocks as empty markdown until 073/074.
 - Follow-up: a model that sends `slide` as a JSON string instead of an object gets a JSON error for the whole call; `office_create` repairs that with `llm.FixJSON`.
+- Review fix: a slide's chart is checked with `ooxml.CheckChart` (the rules `AddChart` applies) when it is stored, so a chart with no data or with series and categories of different lengths is refused to the tool instead of breaking the whole pptx download.
+- Follow-up: slide image paths (and `![](path)` in the docx export) can name any image on disk, absolute or with `..`; confine them to the document's root in a task of its own.
