@@ -11,9 +11,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -508,9 +510,16 @@ func (s *Store) SetCells(id, block string, cells map[string]string, author strin
 		nou := map[string]string{}
 		maps.Copy(nou, b.Cells)
 		for c, in := range cells {
-			c = strings.ToUpper(strings.TrimSpace(c))
-			if _, _, err := excelize.CellNameToCoordinates(c); err != nil {
+			// $B$2, b2 i B02 són B2: una sola clau per cel·la.
+			col, row, err := excelize.CellNameToCoordinates(strings.TrimSpace(c))
+			if err != nil {
 				return fmt.Errorf("cell %q: name cells like B2", c)
+			}
+			if c, err = excelize.CoordinatesToCellName(col, row); err != nil {
+				return err
+			}
+			if err := checkFormula(in); err != nil {
+				return fmt.Errorf("cell %s: %w", c, err)
 			}
 			if strings.TrimSpace(in) == "" {
 				delete(nou, c)
@@ -518,11 +527,23 @@ func (s *Store) SetCells(id, block string, cells map[string]string, author strin
 				nou[c] = in
 			}
 		}
+		if len(nou) > maxSheetCells {
+			return fmt.Errorf("a sheet holds at most %d cells", maxSheetCells)
+		}
 		b.Cells, b.Version, b.Author, b.Updated = nou, v, author, at
 		d.Blocks[i] = b
 		return nil
 	})
 }
+
+// Límits d'un full: les fórmules venen del model o de qualsevol persona, i
+// es calculen amb el document bloquejat.
+const (
+	maxRangeCells = 100_000         // cel·les d'un rang A1:B2 d'una fórmula
+	maxSheetCells = 50_000          // cel·les amb contingut d'un full
+	maxValue      = 32_767          // caràcters d'un valor, el límit d'Excel
+	calcDeadline  = 3 * time.Second // el recàlcul sencer; després, #CALC!
+)
 
 // Workbook fa el llibre d'Excel d'un full de càlcul, amb les fórmules.
 // No porta els valors desats: Excel el recalcula en obrir-lo.
@@ -566,11 +587,41 @@ func calc(d *Doc) error {
 	if err != nil {
 		return err
 	}
+	type valor struct {
+		i              int
+		sheet, cell, v string
+	}
+	var cells []valor
 	for i := range d.Blocks {
 		b := &d.Blocks[i]
 		b.Values = map[string]string{}
 		for c := range b.Cells {
-			v, err := f.CalcCellValue(b.Name, c)
+			b.Values[c] = "#CALC!"
+			cells = append(cells, valor{i: i, sheet: b.Name, cell: c})
+		}
+	}
+	// CalcCellValue no es pot aturar a mitges: si passa del termini, la
+	// cel·la que calcula acaba de fons (amb prou lloc al canal per no
+	// quedar penjada, i sense tocar d), no se'n comencen més, i les que no
+	// han arribat queden en #CALC!.
+	out := make(chan valor, len(cells))
+	prou := make(chan struct{})
+	defer close(prou)
+	id := d.ID
+	go func() {
+		defer close(out)
+		defer func() {
+			if err := f.Close(); err != nil {
+				log.Printf("gdocs: tancar el llibre de %s: %v", id, err)
+			}
+		}()
+		for _, cl := range cells {
+			select {
+			case <-prou:
+				return
+			default:
+			}
+			v, err := f.CalcCellValue(cl.sheet, cl.cell)
 			if err != nil {
 				v = err.Error()
 				// excelize diu «not support X function» d'una funció que
@@ -579,10 +630,48 @@ func calc(d *Doc) error {
 					v = "#NAME?"
 				}
 			}
-			b.Values[c] = v
+			if len(v) > maxValue {
+				v = strings.ToValidUTF8(v[:maxValue], "")
+			}
+			cl.v = v
+			out <- cl
+		}
+	}()
+	termini := time.After(calcDeadline)
+	for {
+		select {
+		case r, ok := <-out:
+			if !ok {
+				return nil
+			}
+			d.Blocks[r.i].Values[r.cell] = r.v
+		case <-termini:
+			return nil
 		}
 	}
-	return f.Close()
+}
+
+// rangRe troba els rangs de cel·la a cel·la d'una fórmula (A1:B20, $a$1:$b$20).
+var rangRe = regexp.MustCompile(`(?i)\$?([A-Z]{1,3})\$?(\d+):\$?([A-Z]{1,3})\$?(\d+)`)
+
+// checkFormula refusa una fórmula amb un rang massa gran per calcular-lo:
+// excelize només retalla a l'àrea usada els rangs que acaben a l'última
+// fila o columna (A:A, 1:1), no un A1:Z1000000.
+func checkFormula(in string) error {
+	if !strings.HasPrefix(strings.TrimSpace(in), "=") {
+		return nil
+	}
+	for _, m := range rangRe.FindAllStringSubmatch(in, -1) {
+		c0, r0, err0 := excelize.CellNameToCoordinates(m[1] + m[2])
+		c1, r1, err1 := excelize.CellNameToCoordinates(m[3] + m[4])
+		if err0 != nil || err1 != nil {
+			continue // no és un rang de cel·les, p. ex. dins d'un text
+		}
+		if (max(c0, c1)-min(c0, c1)+1)*(max(r0, r1)-min(r0, r1)+1) > maxRangeCells {
+			return fmt.Errorf("range %s:%s covers more than %d cells", m[1]+m[2], m[3]+m[4], maxRangeCells)
+		}
+	}
+	return nil
 }
 
 // Delete treu un bloc i en deixa la làpida; base com a Replace.

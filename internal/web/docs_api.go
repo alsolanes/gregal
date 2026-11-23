@@ -303,6 +303,10 @@ func (s *Server) handleDocBlock(w http.ResponseWriter, r *http.Request) {
 			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
 			return
 		}
+		if q.Cells != nil && len(q.Cells) == 0 {
+			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "cells: no cells to set"})
+			return
+		}
 	case http.MethodDelete:
 		var err error
 		if q.Base, err = strconv.Atoi(r.URL.Query().Get("base_version")); err != nil {

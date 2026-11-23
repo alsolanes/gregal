@@ -145,6 +145,9 @@ func TestDocCellsPutAndConflict(t *testing.T) {
 	if code != http.StatusConflict || blk["version"] != 2.0 {
 		t.Fatalf("conflicte: %d %v", code, out)
 	}
+	if code, out = docWrite(t, s, http.MethodPut, "/", `{"cells":{},"base_version":2}`, d.ID, full); code != http.StatusBadRequest {
+		t.Fatalf("sense cel·les: %d %v", code, out)
+	}
 	if code, out = docWrite(t, s, http.MethodPut, "/", `{"cells":{"A1":"5"},"base_version":2}`, "noexist", full); code != http.StatusNotFound {
 		t.Fatalf("document que no hi és: %d %v", code, out)
 	}

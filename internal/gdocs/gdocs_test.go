@@ -6,6 +6,7 @@ import (
 	"maps"
 	"sync"
 	"testing"
+	"time"
 
 	"gregal/internal/ooxml"
 )
@@ -288,7 +289,7 @@ func TestFullCellesPerFull(t *testing.T) {
 	if r := d.Blocks[1]; len(r.Cells) != 1 || r.Cells["A1"] != "9" {
 		t.Fatalf("full Resum %+v", r)
 	}
-	if c := <-ch; c.Op != "replace" || c.Block.ID != dades.ID || c.Block.Cells["A1"] != "1" || c.Author != AuthorUser {
+	if c := rep(t, ch); c.Op != "replace" || c.Block.ID != dades.ID || c.Block.Cells["A1"] != "1" || c.Author != AuthorUser {
 		t.Fatalf("canvi %+v", c)
 	}
 	// La persona tenia el full a la versió d'abans del seu canvi: conflicte.
@@ -308,6 +309,69 @@ func TestFullCellesPerFull(t *testing.T) {
 	}
 	if _, err := s.InsertSheet(d.ID, "", "dades", AuthorAgent); err == nil {
 		t.Fatal("dos fulls amb el mateix nom")
+	}
+	// $B$2, b2 i B02 són la mateixa cel·la, i es desa com a B2.
+	if d, err = s.SetCells(d.ID, dades.ID, map[string]string{"$B$2": "5"}, AuthorUser, d.Version); err != nil {
+		t.Fatal(err)
+	}
+	if d, err = s.SetCells(d.ID, dades.ID, map[string]string{"B02": "6", "A01": "7"}, AuthorUser, d.Version); err != nil {
+		t.Fatal(err)
+	}
+	if c := d.Blocks[0].Cells; len(c) != 2 || c["B2"] != "6" || c["A1"] != "7" {
+		t.Fatalf("cel·les %v", c)
+	}
+}
+
+// rep és el canvi següent del canal; si no n'arriba cap, el test falla en
+// lloc de quedar-se penjat.
+func rep(t *testing.T, ch <-chan Change) Change {
+	t.Helper()
+	select {
+	case c := <-ch:
+		return c
+	case <-time.After(5 * time.Second):
+		t.Fatal("no ha arribat cap canvi")
+		return Change{}
+	}
+}
+
+// Les fórmules venen del model o de qualsevol persona: un rang immens es
+// refusa abans de calcular, i un valor no passa del límit d'Excel.
+func TestFullLimitsDeCalcul(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d := full(t, s)
+	dades := d.Blocks[0]
+	t0 := time.Now()
+	if _, err := s.SetCells(d.ID, dades.ID, map[string]string{"A1": "=SUM(A1:XFC1048575)"}, AuthorAgent, 0); err == nil {
+		t.Fatal("rang de mil milions de cel·les acceptat")
+	}
+	if _, err := s.SetCells(d.ID, dades.ID, map[string]string{"A1": "=sum($a$1:$z$1000000)"}, AuthorAgent, 0); err == nil {
+		t.Fatal("rang de 26 milions de cel·les acceptat")
+	}
+	if el := time.Since(t0); el > 200*time.Millisecond {
+		t.Fatalf("refusar ha trigat %v", el)
+	}
+	massa := map[string]string{}
+	for i := range maxSheetCells + 1 {
+		massa[fmt.Sprintf("A%d", i+1)] = "1"
+	}
+	if _, err := s.SetCells(d.ID, dades.ID, massa, AuthorAgent, 0); err == nil {
+		t.Fatal("full massa gran acceptat")
+	}
+}
+
+func TestFullValorLlargEsRetalla(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d := full(t, s)
+	dades := d.Blocks[0]
+	d, err := s.SetCells(d.ID, dades.ID, map[string]string{"A1": `=REPT("x",100000000)`, "B1": "=SUM(A:A)"}, AuthorAgent, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := d.Blocks[0].Values["A1"]; len(v) != maxValue {
+		t.Fatalf("valor de %d caràcters", len(v))
 	}
 }
 
@@ -338,7 +402,7 @@ func TestFullCalculaLesFormules(t *testing.T) {
 	}
 	vist := map[string]bool{}
 	for range 2 {
-		c := <-ch
+		c := rep(t, ch)
 		vist[c.Block.ID] = c.Op == "replace" && (c.Block.ID != resum.ID || c.Block.Values["A1"] == "12")
 	}
 	if !vist[dades.ID] || !vist[resum.ID] {
