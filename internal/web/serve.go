@@ -762,6 +762,9 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/exec/output", h.route((*Server).handleExecOutput))
 	handle("/api/exec/stream", h.route((*Server).handleExecStream))
 	handle("/api/exec/kill", h.route((*Server).handleExecKill))
+	handle("/api/terminal", h.route((*Server).handleTerminal))
+	handle("/api/terminal/input", h.route((*Server).handleTerminalInput))
+	handle("/api/terminal/stream", h.route((*Server).handleTerminalStream))
 	// Subagents definits, /btw, /recap i memòria automàtica (extras.go).
 	h.extraRoutes(handle)
 	return mux

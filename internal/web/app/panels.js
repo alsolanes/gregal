@@ -15,6 +15,7 @@ import { attach } from './attach.js';
 import { aplica as aplicaIdioma, t as T, tEn, defineixPerDefecte, idioma } from './i18n.js';
 import { flows } from './flows.js';
 import { workshop } from './workshop.js';
+import { shellTerm } from './shell-term.js';
 
 const G = () => window.gregal;
 const $ = id => document.getElementById(id);
@@ -807,6 +808,7 @@ export const browser = {
 export const term = {
   procs: [],
   async load() {
+    shellTerm.open();
     const box = $('procList');
     if (!box) return;
     try {

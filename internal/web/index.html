@@ -1707,6 +1707,7 @@ body.sense-inspector #inspector { display:none; }
     <div class="top-meta">
       <button class="icon-btn" data-view="fitxers" data-i18n-title="nav.files" data-i18n-aria="nav.files" title="Files" aria-label="Files">▤</button>
       <button class="icon-btn" data-view="canvis" data-i18n-title="nav.changes" data-i18n-aria="nav.changes" title="Changes" aria-label="Changes">±<span class="nav-badge" id="navChangesBadge" hidden></span></button>
+      <button class="icon-btn" data-view="terminal" data-i18n-title="nav.terminal" data-i18n-aria="nav.terminal" title="Terminal" aria-label="Terminal"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7l5 5-5 5 M12 18h7"/></svg></button>
       <button class="icon-btn" id="inspToggle" data-i18n-title="ui.toggleInspector" title="Toggle inspector" data-i18n-aria="ui.toggleInspector" aria-label="Toggle inspector" aria-pressed="false">▥</button>
       <button class="icon-btn" id="previewToggle" title="Preview" aria-label="Preview" aria-pressed="false">▣</button>
       <div id="moreWrap">
@@ -1988,6 +1989,11 @@ body.sense-inspector #inspector { display:none; }
       </section>
       <section class="workspace-page" id="terminalPage" hidden>
         <div class="page-inner">
+          <div class="shell-term-wrap">
+            <div id="shellTerm" class="kb-term shell-term" aria-label="Terminal" data-i18n-aria="nav.terminal"><div id="shellHist"></div><div id="shellScreen"></div></div>
+            <textarea id="shellInput" class="kb-input" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Terminal input" data-i18n-aria="shellTerm.input"></textarea>
+            <p id="shellTermState" class="shell-term-state" role="status" hidden></p>
+          </div>
           <header class="page-head">
             <h1 data-i18n="nav.terminal">Terminal</h1>
             <p class="page-copy" data-i18n="pg.term.lead">Long jobs: build, server, full test suite. They do not block the turn.</p>

@@ -116,6 +116,8 @@ type Term struct {
 	seq        uint64
 	dirty      []bool
 	reply      func([]byte)
+	hist       [][]Cell // línies que han sortit per dalt de la pantalla principal
+	histN      uint64   // quantes n'hi han entrat en total (la posició de la següent)
 
 	state    int
 	buf      []byte // paràmetres CSI o text OSC
@@ -207,6 +209,24 @@ func (t *Term) Lines() [][]Cell {
 		out[i] = append([]Cell(nil), r...)
 	}
 	return out
+}
+
+// historyMax és quantes línies d'historial es guarden: prou per tirar enrere
+// la sortida d'un build, sense que un procés xerraire faci créixer la memòria.
+const historyMax = 2000
+
+// History torna les línies d'historial des de la posició from (les que ja
+// s'han perdut se salten) i la posició de la següent que hi entrarà.
+func (t *Term) History(from uint64) ([][]Cell, uint64) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	first := t.histN - uint64(len(t.hist))
+	from = min(max(from, first), t.histN)
+	var out [][]Cell
+	for _, r := range t.hist[from-first:] {
+		out = append(out, append([]Cell(nil), r...))
+	}
+	return out, t.histN
 }
 
 // Text torna la pantalla com a text pla (una línia per fila, sense espais
@@ -490,7 +510,7 @@ func (t *Term) restoreCursor() {
 func (t *Term) index() {
 	t.cur.wrapNext = false
 	if t.cur.y == t.bot {
-		t.scrollUp(t.top, t.bot, 1)
+		t.scrollOff(1)
 	} else if t.cur.y < t.rows-1 {
 		t.cur.y++
 	}
@@ -503,6 +523,22 @@ func (t *Term) reverseIndex() {
 	} else if t.cur.y > 0 {
 		t.cur.y--
 	}
+}
+
+// scrollOff fa scroll de la regió: les línies que surten per dalt de la
+// pantalla principal van a l'historial. Esborrar línies (DL) no passa per
+// aquí: com a xterm, no és fer scroll.
+func (t *Term) scrollOff(n int) {
+	if t.top == 0 && t.screen == &t.main {
+		for _, r := range (*t.screen)[:min(n, t.bot+1)] {
+			t.hist = append(t.hist, append([]Cell(nil), r...))
+			t.histN++
+		}
+		if over := len(t.hist) - historyMax; over > 0 {
+			t.hist = append(t.hist[:0:0], t.hist[over:]...)
+		}
+	}
+	t.scrollUp(t.top, t.bot, n)
 }
 
 func (t *Term) scrollUp(top, bot, n int) {
@@ -740,7 +776,7 @@ func (t *Term) csi(raw string, final byte) []byte {
 	case 'X':
 		t.eraseChars(paramN(ps, 0))
 	case 'S':
-		t.scrollUp(t.top, t.bot, paramN(ps, 0))
+		t.scrollOff(paramN(ps, 0))
 	case 'T':
 		if len(ps) <= 1 {
 			t.scrollDown(t.top, t.bot, paramN(ps, 0))
@@ -848,6 +884,9 @@ func (t *Term) eraseDisplay(mode int) {
 	case 2, 3:
 		for y := 0; y < t.rows; y++ {
 			t.eraseCells(y, 0, t.cols)
+		}
+		if mode == 3 {
+			t.hist = nil
 		}
 	}
 }

@@ -893,7 +893,7 @@ func (s *Server) handleKanbanStream(w http.ResponseWriter, r *http.Request) {
 		case t != nil:
 			if seq := t.vt.Seq(); seq != lastSeq || prev == nil {
 				lastSeq = seq
-				f, lines := kanbanFrame(t, prev)
+				f, lines := kanbanFrame(t.vt, prev)
 				prev = lines
 				emit("frame", f)
 				lastPing = time.Now()
@@ -913,11 +913,11 @@ func (s *Server) handleKanbanStream(w http.ResponseWriter, r *http.Request) {
 
 // kanbanFrame pinta la pantalla i torna només les files que han canviat
 // respecte de prev (totes si prev és nil o la mida ha canviat).
-func kanbanFrame(t *kanbanTerm, prev []string) (map[string]any, []string) {
-	cols, rows := t.vt.Size()
-	cx, cy, cv := t.vt.Cursor()
-	lines := t.vt.Lines()
-	modes := t.vt.Modes()
+func kanbanFrame(vt *vterm.Term, prev []string) (map[string]any, []string) {
+	cols, rows := vt.Size()
+	cx, cy, cv := vt.Cursor()
+	lines := vt.Lines()
+	modes := vt.Modes()
 	out := make([]string, len(lines))
 	changed := map[string]string{}
 	full := prev == nil || len(prev) != len(lines)
@@ -934,6 +934,6 @@ func kanbanFrame(t *kanbanTerm, prev []string) (map[string]any, []string) {
 	return map[string]any{
 		"cols": cols, "rows": rows, "full": full, "lines": changed,
 		"app_cursor": modes.AppCursor, "paste": modes.BracketedPaste,
-		"mouse": int(modes.Mouse), "mouse_sgr": modes.MouseSGR, "title": t.vt.Title(),
+		"mouse": int(modes.Mouse), "mouse_sgr": modes.MouseSGR, "title": vt.Title(),
 	}, out
 }
