@@ -254,3 +254,55 @@ func TestElsDocumentsDeTextNousVanADoc(t *testing.T) {
 		}
 	}
 }
+
+func TestDocToolFaUnFullDeCalcul(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	dir := t.TempDir()
+	run := func(args string) string {
+		t.Helper()
+		out, err := docExec(dir, "s1", args)
+		if err != nil {
+			t.Fatalf("%s: %v", args, err)
+		}
+		return out
+	}
+	out := run(`{"action":"create","kind":"sheet","title":"Pressupost","sheet":"Dades"}`)
+	m := regexp.MustCompile(`^Created document ([a-z0-9]+) .*sheet Dades is block ([a-z0-9]+).*\(/api/docs/[a-z0-9]+/export\?format=xlsx\)`).FindStringSubmatch(out)
+	if m == nil {
+		t.Fatalf("sortida del create: %s", out)
+	}
+	id, dades := m[1], m[2]
+	out = run(`{"action":"insert","id":"` + id + `","after":"` + dades + `","sheet":"Resum"}`)
+	resum := regexp.MustCompile(`\[([a-z0-9]+) v\d+\] \(agent\) sheet Resum`).FindStringSubmatch(out)
+	if resum == nil {
+		t.Fatalf("insert:\n%s", out)
+	}
+	run(`{"action":"set_cells","id":"` + id + `","block":"` + dades + `","cells":{"A1":"10","A2":"20","B1":"=SUM(A1:A2)","C5":"lluny"}}`)
+	run(`{"action":"set_cells","id":"` + id + `","block":"` + resum[1] + `","cells":{"A1":"=Dades!B1/0"}}`)
+	out = run(`{"action":"read","id":"` + id + `","range":"A1:B2"}`)
+	for _, want := range []string{"A1 = 10\n", "A2 = 20\n", "B1 = =SUM(A1:A2) → 30\n", "A1 = =Dades!B1/0 → #DIV/0!\n"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("falta %q a la lectura:\n%s", want, out)
+		}
+	}
+	// Per files: B1 abans que A2.
+	if strings.Contains(out, "C5") || strings.Index(out, "A2 = 20") < strings.Index(out, "B1 = ") {
+		t.Fatalf("fora del rang o desordenat:\n%s", out)
+	}
+	if _, err := docExec(dir, "s1", `{"action":"insert","id":"`+id+`","md":"# text"}`); err == nil {
+		t.Fatal("markdown a un full de càlcul")
+	}
+}
+
+func TestElsFullsDeCalculNousVanADoc(t *testing.T) {
+	desc := map[string]string{}
+	for _, s := range SpecsAll() {
+		desc[s.Name] = s.Description
+	}
+	if d := desc["doc"]; !strings.Contains(d, `kind "sheet"`) || !strings.Contains(d, "Excel") || !strings.Contains(d, "set_cells") {
+		t.Fatalf("doc no parla de fulls de càlcul: %s", d)
+	}
+	if o := desc["office_create"]; !strings.Contains(o, `a new spreadsheet goes to the doc tool with kind "sheet"`) {
+		t.Fatalf("office_create no envia els fulls nous a doc: %s", o)
+	}
+}

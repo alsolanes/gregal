@@ -19,23 +19,30 @@ import (
 
 // handleDocExport baixa un document viu del projecte de la sessió com a
 // fitxer d'Office, fet dels blocs amb el tema de la marca activa: un
-// document de text en Word, una presentació en PowerPoint.
+// document de text en Word, una presentació en PowerPoint, un full de
+// càlcul en Excel.
 //
-//	GET /api/docs/{id}/export?format=docx|pptx
+//	GET /api/docs/{id}/export?format=docx|pptx|xlsx
 func (s *Server) handleDocExport(w http.ResponseWriter, r *http.Request) {
 	st, d, ok := s.sessionDoc(w, r)
 	if !ok {
 		return
 	}
-	format := map[string]string{gdocs.KindDoc: "docx", gdocs.KindDeck: "pptx"}[d.Kind]
+	format := map[string]string{gdocs.KindDoc: "docx", gdocs.KindDeck: "pptx", gdocs.KindSheet: "xlsx"}[d.Kind]
 	if f := r.URL.Query().Get("format"); f != "" && f != format {
 		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "format: a " + d.Kind + " exports only as " + format})
 		return
 	}
 	// Sense tema, NewDocx i NewPptx fan servir el per defecte, que és la marca activa.
 	var pkg *ooxml.Package
+	var data []byte
+	var err error
 	ctype := "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-	if d.Kind == gdocs.KindDeck {
+	switch d.Kind {
+	case gdocs.KindSheet:
+		data, err = sheetXlsx(d)
+		ctype = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	case gdocs.KindDeck:
 		spec := ooxml.DeckSpec{Title: d.Title}
 		for _, b := range d.Blocks {
 			spec.Slides = append(spec.Slides, *b.Slide)
@@ -53,12 +60,14 @@ func (s *Server) handleDocExport(w http.ResponseWriter, r *http.Request) {
 		}
 		pkg = p.Pkg
 		ctype = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-	} else {
+	default:
 		x := ooxml.NewDocx(ooxml.DocxOptions{Title: d.Title, PageNumbers: true})
 		x.AppendMarkdown(d.Markdown())
 		pkg = x.Pkg
 	}
-	data, err := pkg.Bytes()
+	if pkg != nil {
+		data, err = pkg.Bytes()
+	}
 	if err != nil {
 		writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -67,6 +76,19 @@ func (s *Server) handleDocExport(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", ctype)
 	w.Header().Set("Content-Disposition", "attachment; filename=\""+senseEspais(name)+"\"; filename*=UTF-8''"+url.PathEscape(name))
 	_, _ = w.Write(data)
+}
+
+// sheetXlsx és el llibre d'Excel d'un full de càlcul, amb les fórmules.
+func sheetXlsx(d gdocs.Doc) ([]byte, error) {
+	f, err := gdocs.Workbook(d)
+	if err != nil {
+		return nil, err
+	}
+	buf, err := f.WriteToBuffer()
+	if err != nil {
+		return nil, errors.Join(err, f.Close())
+	}
+	return buf.Bytes(), f.Close()
 }
 
 // docStore obre els documents del projecte de la sessió, o amb ?scope=mine
@@ -267,11 +289,13 @@ func (s *Server) handleDocBlocks(w http.ResponseWriter, r *http.Request) {
 // 409 amb el bloc d'ara, i no es toca res.
 //
 //	PUT /api/docs/{id}/blocks/{block} {md, base_version}
+//	PUT /api/docs/{id}/blocks/{block} {cells, base_version} (un full)
 //	DELETE /api/docs/{id}/blocks/{block}?base_version=N
 func (s *Server) handleDocBlock(w http.ResponseWriter, r *http.Request) {
 	var q struct {
-		MD   string `json:"md"`
-		Base int    `json:"base_version"`
+		MD    string            `json:"md"`
+		Cells map[string]string `json:"cells"`
+		Base  int               `json:"base_version"`
 	}
 	switch r.Method {
 	case http.MethodPut:
@@ -301,7 +325,13 @@ func (s *Server) handleDocBlock(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	d, err := st.Replace(id, block, q.MD, gdocs.AuthorUser, q.Base)
+	var d gdocs.Doc
+	var err error
+	if q.Cells != nil {
+		d, err = st.SetCells(id, block, q.Cells, gdocs.AuthorUser, q.Base)
+	} else {
+		d, err = st.Replace(id, block, q.MD, gdocs.AuthorUser, q.Base)
+	}
 	if docWriteErr(w, err) {
 		return
 	}
@@ -342,7 +372,7 @@ func (s *Server) emitDocChanged(emit func(string, any), root, scope, argsJSON, o
 		return
 	}
 	switch strings.ToLower(strings.TrimSpace(a.Action)) {
-	case "create", "insert", "replace", "delete":
+	case "create", "insert", "replace", "set_cells", "delete":
 	default:
 		return
 	}

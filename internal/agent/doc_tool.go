@@ -2,10 +2,14 @@ package agent
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
+	"math"
 	"sort"
 	"strings"
+
+	"github.com/xuri/excelize/v2"
 
 	"gregal/internal/gdocs"
 	"gregal/internal/llm"
@@ -20,19 +24,21 @@ import (
 func docToolSpec() llm.ToolSpec {
 	str := map[string]any{"type": "string"}
 	return llm.ToolSpec{Name: "doc", Description: "Live project documents the person can see and download: a text document made of markdown blocks (Word), " +
-		"or a presentation with kind \"deck\" whose blocks are slides (PowerPoint). " +
+		"or a presentation with kind \"deck\" whose blocks are slides (PowerPoint), " +
+		"or a spreadsheet with kind \"sheet\" whose blocks are named sheets of cells, with Excel formulas the server calculates (Excel). " +
 		"A new text document (a report, a letter, notes, «a Word») is created here, not with office_create, and your reply gives the Word link create returns. " +
-		"Prefer it over office_create for a new presentation too. Actions: " +
-		"create (title, kind doc or deck, optional md for a doc: split into blocks at headings and blank lines; a deck starts empty; returns the download link to give the person); list; " +
-		"read (id; every block with its id and version); insert (id, md or for a deck slide, after = block id, or omitted for the start); " +
-		"replace (id, block, md or slide); delete (id, block). A slide is {layout: title|section|content|two_columns|comparison|big_number|image|title_only|blank|closing, " +
+		"Prefer it over office_create for a new presentation or a new spreadsheet too. Actions: " +
+		"create (title, kind doc, deck or sheet, optional md for a doc: split into blocks at headings and blank lines; a deck starts empty; a sheet starts with one empty sheet named sheet; returns the download link to give the person); list; " +
+		"read (id, optional range like A1:D20 for a sheet; every block with its id and version, a sheet's cells with their input and computed value); insert (id, md or for a deck slide or for a sheet a new sheet name in sheet, after = block id, or omitted for the start); " +
+		"replace (id, block, md or slide); set_cells (id, block = the sheet, cells: {\"A1\": \"Sales\", \"B1\": \"1200\", \"B3\": \"=SUM(B1:B2)\"}, an empty value clears the cell); delete (id, block). A slide is {layout: title|section|content|two_columns|comparison|big_number|image|title_only|blank|closing, " +
 		"title, subtitle, bullets, body, left, right, left_title, right_title, number, caption, image, table, chart: {type, categories, series: [{name, values}]}, notes}. " +
 		"Edit one block or slide at a time instead of rewriting the document.",
 		Parameters: map[string]any{"type": "object", "properties": map[string]any{
-			"action": map[string]any{"type": "string", "enum": []string{"create", "list", "read", "insert", "replace", "delete"}},
-			"kind":   map[string]any{"type": "string", "enum": []string{gdocs.KindDoc, gdocs.KindDeck}},
+			"action": map[string]any{"type": "string", "enum": []string{"create", "list", "read", "insert", "replace", "set_cells", "delete"}},
+			"kind":   map[string]any{"type": "string", "enum": []string{gdocs.KindDoc, gdocs.KindDeck, gdocs.KindSheet}},
 			"slide":  map[string]any{"type": "object", "description": "One slide of a deck"},
-			"id":     str, "title": str, "md": str, "after": str, "block": str,
+			"cells":  map[string]any{"type": "object", "description": "Cell name → input (a number, text or a formula starting with =)"},
+			"id":     str, "title": str, "md": str, "after": str, "block": str, "sheet": str, "range": str,
 		}, "required": []string{"action"}}}
 }
 
@@ -50,8 +56,9 @@ func docExec(dir, session, argsJSON string) (string, error) {
 // passen el de la carpeta personal).
 func DocExecIn(s *gdocs.Store, session, argsJSON string) (string, error) {
 	var a struct {
-		Action, ID, Title, Kind, MD, After, Block string
-		Slide                                     *ooxml.SlideSpec
+		Action, ID, Title, Kind, MD, After, Block, Sheet, Range string
+		Slide                                                   *ooxml.SlideSpec
+		Cells                                                   map[string]string
 	}
 	if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 		return "", err
@@ -71,8 +78,16 @@ func DocExecIn(s *gdocs.Store, session, argsJSON string) (string, error) {
 			return fmt.Sprintf("Created document %s (an empty deck): insert its slides one by one. Give the person this link to download it as PowerPoint: [%s](/api/docs/%s/export?format=pptx)",
 				d.ID, d.Title, d.ID), nil
 		}
+		if a.Kind == gdocs.KindSheet {
+			if d, err = s.CreateSheet(a.Title, a.Sheet, gdocs.AuthorAgent); err != nil {
+				return "", err
+			}
+			marcaVist(s, session, d)
+			return fmt.Sprintf("Created document %s (a spreadsheet: sheet %s is block %s): fill it with set_cells. Give the person this link to download it as Excel: [%s](/api/docs/%s/export?format=xlsx)",
+				d.ID, d.Blocks[0].Name, d.Blocks[0].ID, d.Title, d.ID), nil
+		}
 		if a.Kind != "" && a.Kind != gdocs.KindDoc {
-			return "", fmt.Errorf("unknown kind %q: doc or deck", a.Kind)
+			return "", fmt.Errorf("unknown kind %q: doc, deck or sheet", a.Kind)
 		}
 		if d, err = s.Create(a.Title, a.MD, gdocs.AuthorAgent); err != nil {
 			return "", err
@@ -95,6 +110,8 @@ func DocExecIn(s *gdocs.Store, session, argsJSON string) (string, error) {
 	case "insert":
 		if a.Slide != nil {
 			d, err = s.InsertSlide(a.ID, a.After, *a.Slide, gdocs.AuthorAgent)
+		} else if a.Sheet != "" {
+			d, err = s.InsertSheet(a.ID, a.After, a.Sheet, gdocs.AuthorAgent)
 		} else {
 			d, err = s.Insert(a.ID, a.After, a.MD, gdocs.AuthorAgent)
 		}
@@ -104,10 +121,12 @@ func DocExecIn(s *gdocs.Store, session, argsJSON string) (string, error) {
 		} else {
 			d, err = s.Replace(a.ID, a.Block, a.MD, gdocs.AuthorAgent, vist(s, session, a.ID))
 		}
+	case "set_cells":
+		d, err = s.SetCells(a.ID, a.Block, a.Cells, gdocs.AuthorAgent, vist(s, session, a.ID))
 	case "delete":
 		d, err = s.Delete(a.ID, a.Block, gdocs.AuthorAgent, vist(s, session, a.ID))
 	default:
-		return "", fmt.Errorf("unknown action %q: create, list, read, insert, replace or delete", a.Action)
+		return "", fmt.Errorf("unknown action %q: create, list, read, insert, replace, set_cells or delete", a.Action)
 	}
 	if err != nil {
 		return "", err
@@ -117,6 +136,13 @@ func DocExecIn(s *gdocs.Store, session, argsJSON string) (string, error) {
 	fmt.Fprintf(&b, "Document %s · %s · v%d\n", d.ID, d.Title, d.Version)
 	for _, blk := range d.Blocks {
 		text := blk.MD
+		if d.Kind == gdocs.KindSheet {
+			if text, err = cellesFull(blk, a.Range); err != nil {
+				return "", err
+			}
+			fmt.Fprintf(&b, "\n[%s v%d] (%s) sheet %s\n%s", blk.ID, blk.Version, blk.Author, blk.Name, text)
+			continue
+		}
 		if blk.Slide != nil {
 			raw, err := json.Marshal(blk.Slide)
 			if err != nil {
@@ -125,6 +151,45 @@ func DocExecIn(s *gdocs.Store, session, argsJSON string) (string, error) {
 			text = string(raw)
 		}
 		fmt.Fprintf(&b, "\n[%s v%d] (%s)\n%s\n", blk.ID, blk.Version, blk.Author, text)
+	}
+	return b.String(), nil
+}
+
+// cellesFull són les cel·les d'un full dins de rng (p. ex. A1:D20, "" =
+// totes), fila per fila: l'entrada i, d'una fórmula, el valor calculat.
+func cellesFull(blk gdocs.Block, rng string) (string, error) {
+	c0, r0, c1, r1 := 1, 1, math.MaxInt, math.MaxInt
+	if rng != "" {
+		from, to, _ := strings.Cut(rng, ":")
+		if to == "" {
+			to = from
+		}
+		var err1, err2 error
+		c0, r0, err1 = excelize.CellNameToCoordinates(strings.TrimSpace(from))
+		c1, r1, err2 = excelize.CellNameToCoordinates(strings.TrimSpace(to))
+		if err := errors.Join(err1, err2); err != nil {
+			return "", fmt.Errorf("range %q: use cells like A1:D20", rng)
+		}
+	}
+	type cella struct {
+		nom  string
+		c, r int
+	}
+	var cs []cella
+	for nom := range blk.Cells {
+		c, r, err := excelize.CellNameToCoordinates(nom)
+		if err == nil && c >= c0 && c <= c1 && r >= r0 && r <= r1 {
+			cs = append(cs, cella{nom, c, r})
+		}
+	}
+	sort.Slice(cs, func(i, j int) bool { return cs[i].r < cs[j].r || cs[i].r == cs[j].r && cs[i].c < cs[j].c })
+	var b strings.Builder
+	for _, c := range cs {
+		in := blk.Cells[c.nom]
+		if strings.HasPrefix(strings.TrimSpace(in), "=") {
+			in += " → " + blk.Values[c.nom]
+		}
+		fmt.Fprintf(&b, "%s = %s\n", c.nom, in)
 	}
 	return b.String(), nil
 }

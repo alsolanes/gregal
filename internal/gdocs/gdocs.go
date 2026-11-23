@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -18,9 +19,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xuri/excelize/v2"
+
 	"gregal/internal/backlog"
 	"gregal/internal/ooxml"
 	"gregal/internal/profile"
+	"gregal/internal/xlsxdoc"
 )
 
 // Qui ha fet un canvi.
@@ -29,24 +33,31 @@ const (
 	AuthorUser  = "user"
 )
 
-// Els tipus de document: de text (blocs de markdown) o una presentació
-// (un bloc per diapositiva).
+// Els tipus de document: de text (blocs de markdown), una presentació
+// (un bloc per diapositiva) o un full de càlcul (un bloc per full).
 const (
-	KindDoc  = "doc"
-	KindDeck = "deck"
+	KindDoc   = "doc"
+	KindDeck  = "deck"
+	KindSheet = "sheet"
 )
 
-// Block és un tros de markdown, o una diapositiva en una presentació, amb la versió del document en què va
+// Block és un tros de markdown, una diapositiva en una presentació o un
+// full en un full de càlcul, amb la versió del document en què va
 // canviar per últim cop. Since és la versió en què es va crear: distingeix
 // un bloc editat d'un d'inserit des de l'última versió que algú ha vist.
 type Block struct {
-	ID      string           `json:"id"`
-	MD      string           `json:"md"`
-	Slide   *ooxml.SlideSpec `json:"slide,omitempty"`
-	Version int              `json:"version"`
-	Since   int              `json:"since,omitempty"`
-	Author  string           `json:"author"`
-	Updated time.Time        `json:"updated"`
+	ID    string           `json:"id"`
+	MD    string           `json:"md"`
+	Slide *ooxml.SlideSpec `json:"slide,omitempty"`
+	// Un full: el nom, l'entrada de cada cel·la (A1 → número, text o
+	// fórmula amb =) i el valor que en surt, calculat pel servidor.
+	Name    string            `json:"name,omitempty"`
+	Cells   map[string]string `json:"cells,omitempty"`
+	Values  map[string]string `json:"values,omitempty"`
+	Version int               `json:"version"`
+	Since   int               `json:"since,omitempty"`
+	Author  string            `json:"author"`
+	Updated time.Time         `json:"updated"`
 }
 
 // Doc és un document viu.
@@ -214,6 +225,17 @@ func (s *Store) CreateDeck(title string) (Doc, error) {
 	return s.create(title, KindDeck, func(time.Time) []Block { return []Block{} })
 }
 
+// CreateSheet fa un full de càlcul amb un full buit que es diu name
+// (Sheet1 si és buit).
+func (s *Store) CreateSheet(title, name, author string) (Doc, error) {
+	if strings.TrimSpace(name) == "" {
+		name = "Sheet1"
+	}
+	return s.create(title, KindSheet, func(at time.Time) []Block {
+		return []Block{{ID: newID(8), Name: strings.TrimSpace(name), Version: 1, Since: 1, Author: author, Updated: at}}
+	})
+}
+
 func (s *Store) create(title, kind string, mk func(at time.Time) []Block) (Doc, error) {
 	title = strings.TrimSpace(title)
 	if title == "" {
@@ -222,13 +244,16 @@ func (s *Store) create(title, kind string, mk func(at time.Time) []Block) (Doc, 
 	defer s.lock()()
 	now := time.Now().UTC()
 	d := Doc{ID: newID(12), Title: title, Kind: kind, Blocks: mk(now), Version: 1, Created: now, Updated: now}
+	if err := calc(&d); err != nil {
+		return Doc{}, err
+	}
 	return d, s.write(d)
 }
 
 // sameKind fa que una edició de text no entri en una presentació ni al revés.
 func sameKind(d *Doc, kind string) error {
 	if d.Kind != kind {
-		return fmt.Errorf("document %s is a %s: this edit is for a %s (decks take slides, docs take md)", d.ID, d.Kind, kind)
+		return fmt.Errorf("document %s is a %s: this edit is for a %s (decks take slides, sheets take cells, docs take md)", d.ID, d.Kind, kind)
 	}
 	return nil
 }
@@ -257,6 +282,9 @@ func (s *Store) change(id string, fn func(d *Doc, v int, at time.Time) error) (D
 	before := append([]Block(nil), d.Blocks...)
 	at := time.Now().UTC()
 	if err := fn(&d, d.Version+1, at); err != nil {
+		return Doc{}, err
+	}
+	if err := calc(&d); err != nil {
 		return Doc{}, err
 	}
 	d.Version++
@@ -293,8 +321,10 @@ func deletedBy(d Doc, block string) string {
 func changes(before []Block, d Doc) []Change {
 	var out []Change
 	old, now := map[string]bool{}, map[string]bool{}
+	values := map[string]map[string]string{}
 	for _, b := range before {
 		old[b.ID] = true
+		values[b.ID] = b.Values
 	}
 	prev := ""
 	for _, b := range d.Blocks {
@@ -302,7 +332,9 @@ func changes(before []Block, d Doc) []Change {
 		switch {
 		case !old[b.ID]:
 			out = append(out, Change{Op: "insert", Block: b, After: prev, Version: d.Version, Author: b.Author})
-		case b.Version == d.Version:
+		// Un full que no s'ha tocat també canvia si les seves fórmules
+		// miren cel·les d'un altre que sí.
+		case b.Version == d.Version, !maps.Equal(values[b.ID], b.Values):
 			out = append(out, Change{Op: "replace", Block: b, Version: d.Version, Author: b.Author})
 		}
 		prev = b.ID
@@ -394,6 +426,13 @@ func (s *Store) InsertSlide(id, after string, sl ooxml.SlideSpec, author string)
 	})
 }
 
+// InsertSheet posa un full buit que es diu name després del bloc after.
+func (s *Store) InsertSheet(id, after, name, author string) (Doc, error) {
+	return s.insert(id, after, KindSheet, func(v int, at time.Time) []Block {
+		return []Block{{ID: newID(8), Name: strings.TrimSpace(name), Version: v, Since: v, Author: author, Updated: at}}
+	})
+}
+
 func (s *Store) insert(id, after, kind string, mk func(v int, at time.Time) []Block) (Doc, error) {
 	return s.change(id, func(d *Doc, v int, at time.Time) error {
 		if err := sameKind(d, kind); err != nil {
@@ -445,6 +484,105 @@ func (s *Store) replace(id, block, kind, author string, base int, nou Block) (Do
 		d.Blocks[i] = nou
 		return nil
 	})
+}
+
+// SetCells escriu cel·les d'un full: cel·la → entrada; una entrada buida
+// buida la cel·la. base com a Replace.
+func (s *Store) SetCells(id, block string, cells map[string]string, author string, base int) (Doc, error) {
+	if len(cells) == 0 {
+		return Doc{}, errors.New("no cells to set")
+	}
+	return s.change(id, func(d *Doc, v int, at time.Time) error {
+		if err := sameKind(d, KindSheet); err != nil {
+			return err
+		}
+		i := find(d, block)
+		if i < 0 {
+			return ErrBlockNotFound
+		}
+		b := d.Blocks[i]
+		if err := conflict(b, author, base); err != nil {
+			return err
+		}
+		// Un mapa nou: el d'abans el comparteix la còpia que fa change.
+		nou := map[string]string{}
+		maps.Copy(nou, b.Cells)
+		for c, in := range cells {
+			c = strings.ToUpper(strings.TrimSpace(c))
+			if _, _, err := excelize.CellNameToCoordinates(c); err != nil {
+				return fmt.Errorf("cell %q: name cells like B2", c)
+			}
+			if strings.TrimSpace(in) == "" {
+				delete(nou, c)
+			} else {
+				nou[c] = in
+			}
+		}
+		b.Cells, b.Version, b.Author, b.Updated = nou, v, author, at
+		d.Blocks[i] = b
+		return nil
+	})
+}
+
+// Workbook fa el llibre d'Excel d'un full de càlcul, amb les fórmules.
+// No porta els valors desats: Excel el recalcula en obrir-lo.
+func Workbook(d Doc) (*excelize.File, error) {
+	f := excelize.NewFile()
+	noms := map[string]bool{}
+	for i, b := range d.Blocks {
+		if noms[strings.ToLower(b.Name)] {
+			return nil, errors.Join(fmt.Errorf("there is already a sheet named %q", b.Name), f.Close())
+		}
+		noms[strings.ToLower(b.Name)] = true
+		var err error
+		if i == 0 {
+			err = f.SetSheetName("Sheet1", b.Name)
+		} else {
+			_, err = f.NewSheet(b.Name)
+		}
+		if err != nil {
+			return nil, errors.Join(fmt.Errorf("sheet %q: %w", b.Name, err), f.Close())
+		}
+		for c, in := range b.Cells {
+			if err := xlsxdoc.SetString(f, b.Name, c, in); err != nil {
+				return nil, errors.Join(fmt.Errorf("%s!%s: %w", b.Name, c, err), f.Close())
+			}
+		}
+	}
+	yes := true
+	if err := f.SetCalcProps(&excelize.CalcPropsOptions{FullCalcOnLoad: &yes}); err != nil {
+		return nil, errors.Join(err, f.Close())
+	}
+	return f, nil
+}
+
+// calc calcula amb excelize el valor de cada cel·la dels fulls, perquè
+// tothom vegi el mateix resultat; refusa un nom de full que Excel no admet.
+func calc(d *Doc) error {
+	if d.Kind != KindSheet {
+		return nil
+	}
+	f, err := Workbook(*d)
+	if err != nil {
+		return err
+	}
+	for i := range d.Blocks {
+		b := &d.Blocks[i]
+		b.Values = map[string]string{}
+		for c := range b.Cells {
+			v, err := f.CalcCellValue(b.Name, c)
+			if err != nil {
+				v = err.Error()
+				// excelize diu «not support X function» d'una funció que
+				// no coneix; Excel hi posa #NAME?, com a un full que no hi és.
+				if !strings.HasPrefix(v, "#") {
+					v = "#NAME?"
+				}
+			}
+			b.Values[c] = v
+		}
+	}
+	return f.Close()
 }
 
 // Delete treu un bloc i en deixa la làpida; base com a Replace.

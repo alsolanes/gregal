@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/xuri/excelize/v2"
+
 	"gregal/internal/gdocs"
 	"gregal/internal/ooxml"
 )
@@ -73,6 +75,78 @@ func TestDocExportNomesEnElFormatDelTipus(t *testing.T) {
 	text, _ := st.Create("Plan", "a", gdocs.AuthorAgent)
 	if rec := docExportAs(s, text.ID, "pptx"); rec.Code != http.StatusBadRequest {
 		t.Fatalf("un document de text en pptx: %d", rec.Code)
+	}
+	if rec := docExportAs(s, text.ID, "xlsx"); rec.Code != http.StatusBadRequest {
+		t.Fatalf("un document de text en xlsx: %d", rec.Code)
+	}
+}
+
+func TestDocExportXlsx(t *testing.T) {
+	s := backlogServer(t)
+	st, _ := gdocs.Open(s.cwd)
+	d, err := st.CreateSheet("Pressupost", "Dades", gdocs.AuthorAgent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d, err = st.SetCells(d.ID, d.Blocks[0].ID, map[string]string{"A1": "10", "A2": "20", "A3": "=SUM(A1:A2)"}, gdocs.AuthorAgent, 0); err != nil {
+		t.Fatal(err)
+	}
+	if d, err = st.InsertSheet(d.ID, d.Blocks[0].ID, "Resum", gdocs.AuthorAgent); err != nil {
+		t.Fatal(err)
+	}
+	if d, err = st.SetCells(d.ID, d.Blocks[1].ID, map[string]string{"B2": "=Dades!A3*2"}, gdocs.AuthorAgent, 0); err != nil {
+		t.Fatal(err)
+	}
+	rec := docExportAs(s, d.ID, "xlsx")
+	if rec.Code != 200 || !strings.Contains(rec.Header().Get("Content-Disposition"), "Pressupost.xlsx") {
+		t.Fatalf("%d %v %s", rec.Code, rec.Header(), rec.Body.String())
+	}
+	f, err := excelize.OpenReader(rec.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	if got := f.GetSheetList(); len(got) != 2 || got[0] != "Dades" || got[1] != "Resum" {
+		t.Fatalf("fulls %v", got)
+	}
+	for _, c := range []struct{ sheet, cell, formula, value string }{
+		{"Dades", "A3", "SUM(A1:A2)", "30"},
+		{"Resum", "B2", "Dades!A3*2", "60"},
+		{"Dades", "A1", "", "10"},
+	} {
+		fx, err1 := f.GetCellFormula(c.sheet, c.cell)
+		v, err2 := f.CalcCellValue(c.sheet, c.cell)
+		if err1 != nil || err2 != nil || fx != c.formula || v != c.value {
+			t.Fatalf("%s!%s: %q = %q (%v %v)", c.sheet, c.cell, fx, v, err1, err2)
+		}
+	}
+}
+
+func TestDocCellsPutAndConflict(t *testing.T) {
+	s := backlogServer(t)
+	st, _ := gdocs.Open(s.cwd)
+	d, err := st.CreateSheet("Pressupost", "", gdocs.AuthorAgent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	full := d.Blocks[0].ID
+	code, out := docWrite(t, s, http.MethodPut, "/", `{"cells":{"A1":"2","A2":"=A1*3"},"base_version":1}`, d.ID, full)
+	blk, _ := out["block"].(map[string]any)
+	vals, _ := blk["values"].(map[string]any)
+	if code != 200 || out["version"] != 2.0 || blk["author"] != gdocs.AuthorUser || vals["A2"] != "6" {
+		t.Fatalf("put: %d %v", code, out)
+	}
+	code, out = docWrite(t, s, http.MethodPut, "/", `{"cells":{"A1":"5"},"base_version":1}`, d.ID, full)
+	blk, _ = out["block"].(map[string]any)
+	if code != http.StatusConflict || blk["version"] != 2.0 {
+		t.Fatalf("conflicte: %d %v", code, out)
+	}
+	if code, out = docWrite(t, s, http.MethodPut, "/", `{"cells":{"A1":"5"},"base_version":2}`, "noexist", full); code != http.StatusNotFound {
+		t.Fatalf("document que no hi és: %d %v", code, out)
 	}
 }
 
@@ -329,7 +403,8 @@ func TestDocChangedWhenTheAgentWrites(t *testing.T) {
 	s.emitDocChanged(emit, s.cwd, "", `{"action":"insert","id":"`+d.ID+`","md":"Dos"}`, "Document "+d.ID+" · Pla · v2\n")
 	s.emitDocChanged(emit, s.cwd, "", `{"action":"read","id":"`+d.ID+`"}`, "Document "+d.ID+" · Pla · v2\n")
 	s.emitDocChanged(emit, s.cwd, "", `{"action":"replace","id":"`+d.ID+`"}`, "ERROR: there is no block with that id")
-	if len(got) != 2 || got[0]["id"] != d.ID || got[0]["title"] != "Pla" || got[1]["id"] != d.ID {
+	s.emitDocChanged(emit, s.cwd, "", `{"action":"set_cells","id":"`+d.ID+`"}`, "Document "+d.ID+" · Pla · v3\n")
+	if len(got) != 3 || got[0]["id"] != d.ID || got[0]["title"] != "Pla" || got[1]["id"] != d.ID || got[2]["id"] != d.ID {
 		t.Fatalf("%v", got)
 	}
 }

@@ -3,6 +3,7 @@ package gdocs
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"sync"
 	"testing"
 
@@ -250,5 +251,97 @@ func TestDeckRefusaLayoutIContingutDAltreTipus(t *testing.T) {
 	text, _ := s.Create("Plan", "a", AuthorAgent)
 	if _, err := s.InsertSlide(text.ID, "", ooxml.SlideSpec{Layout: "title"}, AuthorAgent); err == nil {
 		t.Fatal("diapositiva a un document de text")
+	}
+}
+
+// full fa un full de càlcul amb dos fulls, «Dades» i «Resum».
+func full(t *testing.T, s *Store) Doc {
+	t.Helper()
+	d, err := s.CreateSheet("Pressupost", "Dades", AuthorAgent)
+	if err != nil || d.Kind != KindSheet || len(d.Blocks) != 1 || d.Blocks[0].Name != "Dades" {
+		t.Fatalf("%+v %v", d, err)
+	}
+	if d, err = s.InsertSheet(d.ID, d.Blocks[0].ID, "Resum", AuthorAgent); err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
+func TestFullCellesPerFull(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d := full(t, s)
+	dades, resum := d.Blocks[0], d.Blocks[1]
+	ch, stop := s.Watch(d.ID)
+	defer stop()
+	d, err := s.SetCells(d.ID, dades.ID, map[string]string{"a1": "1", "A2": "text"}, AuthorUser, dades.Version)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d, err = s.SetCells(d.ID, resum.ID, map[string]string{"A1": "9"}, AuthorAgent, resum.Version); err != nil {
+		t.Fatal(err)
+	}
+	got := d.Blocks[0]
+	if got.Cells["A1"] != "1" || got.Cells["A2"] != "text" || got.Author != AuthorUser || got.Version != 3 || got.Since != dades.Since {
+		t.Fatalf("full Dades %+v", got)
+	}
+	if r := d.Blocks[1]; len(r.Cells) != 1 || r.Cells["A1"] != "9" {
+		t.Fatalf("full Resum %+v", r)
+	}
+	if c := <-ch; c.Op != "replace" || c.Block.ID != dades.ID || c.Block.Cells["A1"] != "1" || c.Author != AuthorUser {
+		t.Fatalf("canvi %+v", c)
+	}
+	// La persona tenia el full a la versió d'abans del seu canvi: conflicte.
+	var conflicte *ConflictError
+	if _, err := s.SetCells(d.ID, dades.ID, map[string]string{"A1": "2"}, AuthorUser, dades.Version); !errors.As(err, &conflicte) {
+		t.Fatalf("base vella: %v", err)
+	}
+	// Una entrada buida buida la cel·la; una cel·la mal escrita es refusa.
+	if d, err = s.SetCells(d.ID, dades.ID, map[string]string{"A2": ""}, AuthorUser, 3); err != nil || len(d.Blocks[0].Cells) != 1 {
+		t.Fatalf("%+v %v", d.Blocks[0], err)
+	}
+	if _, err := s.SetCells(d.ID, dades.ID, map[string]string{"1A": "x"}, AuthorUser, d.Version); err == nil {
+		t.Fatal("cel·la 1A acceptada")
+	}
+	if _, err := s.Replace(d.ID, dades.ID, "text", AuthorAgent, d.Version); err == nil {
+		t.Fatal("markdown en un full de càlcul")
+	}
+	if _, err := s.InsertSheet(d.ID, "", "dades", AuthorAgent); err == nil {
+		t.Fatal("dos fulls amb el mateix nom")
+	}
+}
+
+func TestFullCalculaLesFormules(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d := full(t, s)
+	dades, resum := d.Blocks[0], d.Blocks[1]
+	d, err := s.SetCells(d.ID, resum.ID, map[string]string{"A1": "=Dades!A4*2", "B1": "=A1/0", "C1": "=NOEXISTEIX(1)", "D1": "=Fantasma!A1"}, AuthorAgent, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch, stop := s.Watch(d.ID)
+	defer stop()
+	if d, err = s.SetCells(d.ID, dades.ID, map[string]string{"A1": "1", "A2": "2", "A3": "3", "A4": "=SUM(A1:A3)"}, AuthorAgent, 0); err != nil {
+		t.Fatal(err)
+	}
+	if v := d.Blocks[0].Values; v["A4"] != "6" || v["A1"] != "1" {
+		t.Fatalf("valors de Dades %v", v)
+	}
+	want := map[string]string{"A1": "12", "B1": "#DIV/0!", "C1": "#NAME?", "D1": "#NAME?"}
+	if v := d.Blocks[1].Values; !maps.Equal(v, want) {
+		t.Fatalf("valors de Resum %v, volia %v", v, want)
+	}
+	// Resum no ha canviat de versió, però els que miren reben els valors nous.
+	if d.Blocks[1].Version == d.Version {
+		t.Fatalf("Resum ha pujat de versió: %+v", d.Blocks[1])
+	}
+	vist := map[string]bool{}
+	for range 2 {
+		c := <-ch
+		vist[c.Block.ID] = c.Op == "replace" && (c.Block.ID != resum.ID || c.Block.Values["A1"] == "12")
+	}
+	if !vist[dades.ID] || !vist[resum.ID] {
+		t.Fatalf("canvis %v", vist)
 	}
 }
