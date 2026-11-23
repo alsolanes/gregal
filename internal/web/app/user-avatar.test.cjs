@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { initials, displayName } = require('./user-avatar.js');
+const { initials, displayName, label } = require('./user-avatar.js');
 
 test('the avatar shows up to two initials of the name', () => {
   assert.equal(initials('Aleix Solanes'), 'AS');
@@ -18,6 +18,11 @@ test('an empty name falls back to the account, or to «Tu»/«You» in local mod
   assert.equal(displayName({ saved: '  ', account: 'asolanes', local: false }, 'ca'), 'asolanes');
   assert.equal(displayName({ saved: '', account: '', local: true }, 'ca'), 'Tu');
   assert.equal(displayName({ saved: null, account: '', local: true }, 'en'), 'You');
+});
+
+test('the avatar button tells screen readers about a missing API key, since the dot inside it is hidden', () => {
+  assert.equal(label('Anna', '', 'ca'), 'El teu perfil: Anna');
+  assert.equal(label('Anna', 'No API key for zen', 'en'), 'Your profile: Anna · No API key for zen');
 });
 
 test('the sidebar foot holds the person, not the model name', () => {

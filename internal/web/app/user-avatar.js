@@ -36,6 +36,12 @@
     return palette().some(p => p.color === saved) ? saved : DEFAULT_COLOR;
   }
 
+  // El nom accessible del botó: el punt de connexió és dins l'avatar (amagat
+  // als lectors), així que el seu avís (sense clau d'API) va aquí.
+  function label(name, warning, lang) {
+    return (lang === 'en' ? 'Your profile: ' : 'El teu perfil: ') + name + (warning ? ' · ' + warning : '');
+  }
+
   let me = { account: '', local: true };
   const lang = () => root.document.documentElement.lang === 'en' ? 'en' : 'ca';
   // El que es veu sense nom propi: el camp del nom el mostra de suggeriment.
@@ -49,9 +55,8 @@
     avatar.style.color = root.gregalWinds?.inkOn ? root.gregalWinds.inkOn(fill) : '#202127';
     doc.getElementById('sideMeInitials').textContent = initials(name);
     doc.getElementById('sideMeName').textContent = name;
-    const label = (lang() === 'en' ? 'Your profile: ' : 'El teu perfil: ') + name;
-    button.title = label;
-    button.setAttribute('aria-label', label);
+    button.title = label(name, '', lang());
+    button.setAttribute('aria-label', label(name, doc.getElementById('statusDot')?.title, lang()));
   }
 
   async function load() {
@@ -77,5 +82,5 @@
     else boot();
   }
 
-  return { initials, displayName, fallbackName, paint, palette, color, NAME, COLOR };
+  return { initials, displayName, label, fallbackName, paint, palette, color, NAME, COLOR };
 });

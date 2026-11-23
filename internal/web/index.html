@@ -3385,7 +3385,7 @@ async function pintaClau(nom) {
   dot.classList.toggle('sense-clau', clauProveidor.sense);
   const motiu = clauProveidor.sense ? gregalT('ui.noKey').replace('{p}', nom) : '';
   dot.title = motiu;
-  if (motiu) dot.setAttribute('aria-label', motiu); else dot.removeAttribute('aria-label');
+  window.gregalUserAvatar?.paint();
 }
 let stateRefreshVersion = 0;
 async function refresh(options = {}) {

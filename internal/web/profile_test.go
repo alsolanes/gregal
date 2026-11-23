@@ -153,7 +153,7 @@ func TestProfileKeepsNameAndAvatarColourPerAccount(t *testing.T) {
 	// Un nom massa llarg no s'hi desa: el que hi havia es queda.
 	long := strings.Repeat("n", profileMaxValue+1)
 	profileCall(t, s, tokens["anna"], http.MethodPost, `{"prefs":{"gregal_user_name":{"v":"`+long+`","t":2000}}}`)
-	if _, p := profileCall(t, s, tokens["anna"], http.MethodGet, ""); *p.Prefs["gregal_user_name"].V != "Anna Puig" {
+	if _, p := profileCall(t, s, tokens["anna"], http.MethodGet, ""); p.Prefs["gregal_user_name"].V == nil || *p.Prefs["gregal_user_name"].V != "Anna Puig" {
 		t.Fatal("un nom massa llarg no s'havia de desar")
 	}
 }
