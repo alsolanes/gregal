@@ -93,6 +93,11 @@ func Start(spec Spec) (PTY, error) {
 	if len(env) > 0 {
 		envPtr = &env[0]
 	}
+	// El fill hereta del pare la marca «ignora Ctrl+C», i un servidor engegat
+	// en un grup de processos nou (l'app d'escriptori, un llançador) la té:
+	// el ^C de la consola no aturaria res. Al servidor, treure-la només fa
+	// que, si corre dins d'una consola, Ctrl+C l'aturi, com és normal.
+	_, _, _ = procSetConsoleCtrlHandler.Call(0, 0)
 	var pi windows.ProcessInformation
 	// Suspès fins que és dins del job: res del que engegui se n'escapa.
 	flags := uint32(windows.EXTENDED_STARTUPINFO_PRESENT | windows.CREATE_UNICODE_ENVIRONMENT | windows.CREATE_SUSPENDED)
@@ -112,6 +117,8 @@ func Start(spec Spec) (PTY, error) {
 		out:  os.NewFile(uintptr(outR), "conpty-out"),
 	}, nil
 }
+
+var procSetConsoleCtrlHandler = windows.NewLazySystemDLL("kernel32.dll").NewProc("SetConsoleCtrlHandler")
 
 var (
 	jobOnce sync.Once

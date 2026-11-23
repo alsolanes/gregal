@@ -162,3 +162,51 @@ func TestLineHTMLEscapesAndMarksCursor(t *testing.T) {
 		t.Fatalf("html %s", h)
 	}
 }
+
+// Les línies que surten per dalt de la pantalla principal queden a
+// l'historial, en ordre; les de la pantalla alternativa (un TUI) no, i
+// «clear» complet (ED 3) l'esborra.
+func TestHistoryKeepsScrolledLines(t *testing.T) {
+	vt := New(10, 2, nil)
+	feed(vt, "u\r\nd\r\nt\r\nq")
+	h, next := vt.History(0)
+	if next != 2 || len(h) != 2 || rowText(h[0]) != "u" || rowText(h[1]) != "d" {
+		t.Fatalf("historial %d %v", next, h)
+	}
+	if h, next := vt.History(1); next != 2 || len(h) != 1 || rowText(h[0]) != "d" {
+		t.Fatalf("des de 1: %d %v", next, h)
+	}
+	feed(vt, "\x1b[?1049hx\r\ny\r\nz\x1b[?1049l")
+	if _, next := vt.History(0); next != 2 {
+		t.Fatalf("la pantalla alternativa no hi ha d'entrar: %d", next)
+	}
+	feed(vt, "\x1b[3J")
+	if h, next := vt.History(0); len(h) != 0 || next != 2 {
+		t.Fatalf("ED 3 no l'ha buidat: %d %v", next, h)
+	}
+}
+
+// Esborrar línies (DL) a la fila de dalt no les fa sortir de la pantalla:
+// com a xterm, no van a l'historial. Fer scroll (SU) sí.
+func TestHistoryOnlyKeepsScrolledLines(t *testing.T) {
+	vt := New(10, 3, nil)
+	feed(vt, "a\r\nb\x1b[H\x1b[M")
+	if _, next := vt.History(0); next != 0 {
+		t.Fatalf("DL ha omplert l'historial: %d", next)
+	}
+	feed(vt, "\x1b[S")
+	if h, next := vt.History(0); next != 1 || rowText(h[0]) != "b" {
+		t.Fatalf("SU: %d %v", next, h)
+	}
+}
+
+func TestHistoryIsBounded(t *testing.T) {
+	vt := New(10, 1, nil)
+	for i := 0; i < historyMax+50; i++ {
+		feed(vt, "x\r\n")
+	}
+	h, next := vt.History(0)
+	if len(h) != historyMax || next != historyMax+50 {
+		t.Fatalf("%d línies, next %d", len(h), next)
+	}
+}
