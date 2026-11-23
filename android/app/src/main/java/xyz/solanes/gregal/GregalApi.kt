@@ -292,7 +292,22 @@ class GregalApi(val base: String, val token: String) {
     /** Qui soc (GET /api/me): nom, arrels, carpeta de treball i si es admin. */
     fun me(): MeInfo {
         val o = getAs<MeDto>("/api/me")
-        return MeInfo(user = o.user, home = o.home, admin = o.admin, roots = o.roots)
+        return MeInfo(user = o.user, home = o.home, admin = o.admin, roots = o.roots, local = o.local)
+    }
+
+    /** GET /api/profile: les claus del perfil que tenen valor (les esborrades no hi són). */
+    fun profile(): Map<String, String> {
+        val prefs = get("/api/profile").optJSONObject("prefs") ?: return emptyMap()
+        return prefs.keys().asSequence().mapNotNull { k ->
+            prefs.optJSONObject(k)?.takeUnless { it.isNull("v") }?.let { k to it.optString("v") }
+        }.toMap()
+    }
+
+    /** POST /api/profile amb les claus canviades a l'hora `at` (ms); un valor buit esborra la clau, com la web. */
+    fun saveProfile(changes: Map<String, String>, at: Long) {
+        val prefs = JSONObject()
+        changes.forEach { (k, v) -> prefs.put(k, JSONObject().put("v", if (v.isEmpty()) JSONObject.NULL else v).put("t", at)) }
+        post("/api/profile", JSONObject().put("prefs", prefs))
     }
 
     // --- carpeta de treball: on treballen els vents ---
@@ -1618,7 +1633,7 @@ internal class ServerPowersDto(
 )
 
 @Serializable
-internal class MeDto(val user: String = "", val home: String = "", val admin: Boolean = false, val roots: List<String> = emptyList())
+internal class MeDto(val user: String = "", val home: String = "", val admin: Boolean = false, val roots: List<String> = emptyList(), val local: Boolean = false)
 
 @Serializable internal class PreviewWebDto(val path: String = "", val name: String = "", val size: Long = 0L, val mtime: String = "")
 

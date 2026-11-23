@@ -161,7 +161,7 @@ private fun plainWindName(name: String) = java.text.Normalizer.normalize(name, j
 internal fun windId(id: String, name: String): String = id.ifEmpty { plainWindName(name).replace(Regex("[^a-z0-9]+"), "-").trim('-') }
 
 /** The higher-contrast ink over the wind's colour, as the web picks it. */
-private fun windInk(accent: Color): Color {
+internal fun windInk(accent: Color): Color {
     val dark = Color(0xFF202127)
     return if (contrastWith(accent, dark) >= contrastWith(accent, Color.White)) dark else Color.White
 }

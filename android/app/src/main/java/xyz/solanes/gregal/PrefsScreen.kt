@@ -132,6 +132,8 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         if (admin) PrefsLink(PrefsPage.Server, idioma, if (idioma == "en") "Server administration" else "Administració del servidor", ::open)
                     }
                     PrefsPage.General -> {
+                        PrefsGroup(Modifier.fillMaxWidth()) { UserProfileFields(vm, idioma) }
+                        Spacer(Modifier.height(12.dp))
                         PrefsGroup(Modifier.fillMaxWidth()) {
                             Text(t("prefs.lang"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                             Spacer(Modifier.height(10.dp))

@@ -719,6 +719,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         rotllanaHistoryRequests.clear()
         _winds.value = emptyList()
         _avatarTheme.value = "cares"
+        _me.value = MeInfo()
+        _userName.value = ""
+        _userColor.value = USER_DEFAULT_COLOR
         _offline.value = false
         probeJob?.cancel()
         probeJob = null
@@ -1672,6 +1675,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     onOk()
                     // No bloquegen la portada: els vents es carreguen ja.
                     launch { syncCollective() }
+                    launch { syncProfile() }
                     launch { syncJobAlarms() }
                     _offline.value = false
                     withContext(Dispatchers.IO) { reloadOutbox() }
@@ -1726,14 +1730,14 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         // l'endpoint i això no ha d'impedir connectar per la via v1.
         // Les tres peticions són independents: en paral·lel, l'arrencada
         // espera la més lenta en lloc de la suma de les tres.
-        val (health, admin, st) = coroutineScope {
+        val (health, me, st) = coroutineScope {
             val health = async(Dispatchers.IO) { try { api.health() } catch (_: Exception) { null } }
             // Qui ets en aquest servidor: un compte que no és admin no pot veure
             // els jobs ni GitHub, i l'app no els ha de demanar (sortia un error).
             // Un servidor antic sense /api/me és d'un sol usuari: admin.
-            val admin = async(Dispatchers.IO) { try { api.me().admin } catch (_: Exception) { true } }
+            val me = async(Dispatchers.IO) { try { api.me() } catch (_: Exception) { null } }
             val st = async(Dispatchers.IO) { api.getState() }
-            Triple(health.await(), admin.await(), st.await())
+            Triple(health.await(), me.await(), st.await())
         }
         // El servidor diu com se'l pot trobar. Es desa per a la propera
         // arrencada i per quan siguem fora de casa.
@@ -1749,7 +1753,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         _v2Runs.value = health?.supportsV2Interactive() == true
-        _isAdmin.value = admin
+        _isAdmin.value = me?.admin ?: true
+        _me.value = me ?: MeInfo()
         _state.value = st
         // Obrir l'app ha de mostrar la conversa on eres, no un xat buit.
         if (_msgs.value.isEmpty() && st.transcript.isNotEmpty()) _msgs.value = st.transcript
@@ -1761,6 +1766,46 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         // Duet el donen d'alta a la primera obertura). No bloqueja: obre fil.
         try { VentsPush.ensureRegistered(appContext) } catch (_: Throwable) {}
         attachToRunning()
+    }
+
+    private val _me = MutableStateFlow(MeInfo())
+    /** Qui ets en aquest servidor (GET /api/me): el nom del compte, o cap sense comptes. */
+    val me: StateFlow<MeInfo> = _me
+
+    private val _userName = MutableStateFlow("")
+    /** El nom que t'has posat (`gregal_user_name` del perfil); buit = el del compte. */
+    val userName: StateFlow<String> = _userName
+    private val _userColor = MutableStateFlow(USER_DEFAULT_COLOR)
+    /** El color del teu avatar (`gregal_user_color`), un dels dels vents. */
+    val userColor: StateFlow<String> = _userColor
+
+    /** El teu nom i el color de l'avatar, del perfil del compte: els mateixos que a la web. */
+    private suspend fun syncProfile() {
+        val c = _conn.value
+        try {
+            val p = withContext(Dispatchers.IO) { c.api().profile() }
+            if (_conn.value != c) return
+            _userName.value = p[USER_NAME_KEY].orEmpty()
+            _userColor.value = p[USER_COLOR_KEY]?.takeIf { v -> userColors.any { it.color == v } } ?: USER_DEFAULT_COLOR
+        } catch (e: Exception) {
+            // Un servidor sense /api/profile: es queda el nom del compte.
+            if (e is CancellationException) throw e
+        }
+    }
+
+    /** Desa «Com et dius» i el color al perfil, perquè la web i els altres dispositius els vegin. */
+    fun saveUserProfile(name: String, color: String) {
+        val c = _conn.value
+        val own = name.trim()
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { c.api().saveProfile(mapOf(USER_NAME_KEY to own, USER_COLOR_KEY to color), System.currentTimeMillis()) }
+                if (_conn.value == c) { _userName.value = own; _userColor.value = color }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                notify(appText("app.prefs.userSaveFailed", e.message.orEmpty().take(120)))
+            }
+        }
     }
 
     private val _isAdmin = MutableStateFlow(true)

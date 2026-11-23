@@ -688,6 +688,8 @@ data class MeInfo(
     val home: String = "",
     val admin: Boolean = false,
     val roots: List<String> = emptyList(),
+    /** Servidor sense comptes: no hi ha nom de compte. */
+    val local: Boolean = false,
 )
 
 /**

@@ -149,6 +149,7 @@ fun GregalDrawerContent(
             DrawerRow(tr(lang, "app.server.switch"), false, { close(); vm.switchServer() }, Icons.AutoMirrored.Rounded.Logout, muted = true)
             // Amb compte (el servidor de casa), sortir de debò: el token es tanca al servidor.
             if (vm.signedInWithAccount()) DrawerRow(tr(lang, "app.server.signOut", vm.usuari.collectAsState().value), false, { close(); vm.signOut() }, Icons.AutoMirrored.Rounded.Logout, muted = true)
+            UserAvatarRow(vm, lang) { nav(Screen.Prefs); vm.openPreferences(PrefsPage.General) }
         }
     }
 }
@@ -260,6 +261,7 @@ private fun SimpleVentsDrawer(
             HorizontalDivider(Modifier.padding(vertical = 6.dp, horizontal = 8.dp), color = Line)
             DrawerRow(tr(lang, "app.server.switch"), false, { close(); vm.switchServer() }, Icons.Rounded.Dns, muted = true)
             if (vm.signedInWithAccount()) DrawerRow(tr(lang, "app.server.signOut", user), false, { close(); vm.signOut() }, Icons.AutoMirrored.Rounded.Logout, muted = true)
+            UserAvatarRow(vm, lang) { nav(Screen.Prefs); vm.openPreferences(PrefsPage.General) }
         }
     }
 }
