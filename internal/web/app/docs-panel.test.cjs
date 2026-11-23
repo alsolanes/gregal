@@ -142,3 +142,34 @@ test('a deck opens in the slide view, saves slides and downloads as PowerPoint',
     byId('docsClose').click();
   }
 });
+
+test('a sheet opens in the grid view, saves cells and new sheets, and downloads as Excel', async () => {
+  await load;
+  const sent = [];
+  const api = window.gregal.api;
+  let sheetEdit = null, write = null;
+  window.gregalSheetView = { view: (box, doc, render, e) => { sheetEdit = e; return { open(...a) { write = a; }, apply() {} }; } };
+  window.gregal.api = async (url, opts = {}) => {
+    if (opts.body) sent.push([url, JSON.parse(opts.body)]);
+    if (/^\/api\/docs\/f1(\?|$)/.test(url)) return json({ id: 'f1', title: 'Pressupost', kind: 'sheet', version: 1, blocks: [] });
+    return api(url, opts);
+  };
+  try {
+    edit = null;
+    window.gregalDocs.open('f1', 'mine', true);
+    await settle();
+    assert.equal(edit, null, 'the text view is not used for a sheet');
+    assert.equal(write, null, 'no text block is opened in a new sheet');
+    await sheetEdit.put('s1', { cells: { B2: '=B1*2' } }, 2);
+    await sheetEdit.post('s1', { name: 'Full2' });
+    assert.deepEqual(sent, [
+      ['/api/docs/f1/blocks/s1?scope=mine', { cells: { B2: '=B1*2' }, base_version: 2 }],
+      ['/api/docs/f1/blocks?scope=mine', { after: 's1', name: 'Full2' }],
+    ]);
+    assert.equal(byId('docsDownload').href, '/api/docs/f1/export?format=xlsx&name=Pressupost.xlsx&scope=mine');
+    assert.equal(byId('docsDownload').textContent, 'Download as Excel');
+  } finally {
+    window.gregal.api = api;
+    byId('docsClose').click();
+  }
+});

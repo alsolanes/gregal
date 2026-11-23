@@ -523,13 +523,13 @@ func (s *Store) SetCells(id, block string, cells map[string]string, author strin
 			// $B$2, b2 i B02 són B2: una sola clau per cel·la.
 			col, row, err := excelize.CellNameToCoordinates(strings.TrimSpace(c))
 			if err != nil {
-				return fmt.Errorf("cell %q: name cells like B2", c)
+				return invalid{fmt.Errorf("cell %q: name cells like B2", c)}
 			}
 			if c, err = excelize.CoordinatesToCellName(col, row); err != nil {
 				return err
 			}
 			if err := checkFormula(in); err != nil {
-				return fmt.Errorf("cell %s: %w", c, err)
+				return invalid{fmt.Errorf("cell %s: %w", c, err)}
 			}
 			if strings.TrimSpace(in) == "" {
 				delete(nou, c)
@@ -538,7 +538,7 @@ func (s *Store) SetCells(id, block string, cells map[string]string, author strin
 			}
 		}
 		if len(nou) > maxSheetCells {
-			return fmt.Errorf("a sheet holds at most %d cells", maxSheetCells)
+			return invalid{fmt.Errorf("a sheet holds at most %d cells", maxSheetCells)}
 		}
 		b.Cells, b.Version, b.Author, b.Updated = nou, v, author, at
 		d.Blocks[i] = b
@@ -593,9 +593,10 @@ func calc(d *Doc) error {
 	if d.Kind != KindSheet {
 		return nil
 	}
+	// El llibre només falla per un nom de full o de cel·la que Excel no admet.
 	f, err := Workbook(*d)
 	if err != nil {
-		return err
+		return invalid{err}
 	}
 	type valor struct {
 		i              int

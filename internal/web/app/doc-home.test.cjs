@@ -109,6 +109,26 @@ test('the slide view is loaded by the app and by the document window', () => {
   assert.match(page, /<script src="\/app\/deck-view.js"><\/script>/);
 });
 
+test('«New spreadsheet» creates a sheet in my documents, listed as a spreadsheet', () => {
+  const box = new Node(fakeDocument, 'div'), created = [];
+  home(box, { mine: [{ id: 'f1', title: 'Pressupost', kind: 'sheet', updated: '2026-11-20T09:00:00Z' }], project: null }, { ...ca, open() {}, create: (...a) => created.push(a) });
+  assert.match(box.all('docs-home-item')[0].text, /Full de càlcul · /);
+  const form = box.all('docs-home-new')[0];
+  const sheet = form.children.find(c => c.textContent === 'Full de càlcul nou');
+  form.find('input').value = 'Pressupost';
+  sheet.onclick();
+  form.find('input').value = '';
+  sheet.onclick();
+  assert.deepEqual(created, [['Pressupost', 'sheet'], ['Full de càlcul sense títol', 'sheet']]);
+});
+
+test('the grid view is loaded by the app and by the document window', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.match(html, /<script defer src="\/app\/sheet-view.js"><\/script>/);
+  const page = fs.readFileSync(path.join(__dirname, '..', 'docs_api.go'), 'utf8');
+  assert.match(page, /<script src="\/app\/sheet-view.js"><\/script>/);
+});
+
 test('the app has a Gregal Docs button in the sidebar rail, shared by Codi and Vents', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   const rail = html.slice(html.indexOf('<div class="rail-main">'), html.indexOf('<details id="sideMore"'));

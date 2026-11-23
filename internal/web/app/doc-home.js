@@ -1,7 +1,7 @@
 // Inici de Gregal Docs: el botó de la barra lateral obre el panell de
 // documents (docs-panel.js) amb «Els meus documents» (?scope=mine) i, a Codi,
 // els del projecte obert; i «Document nou» i «Presentació nova», que la
-// persona escriu sense l'agent.
+// persona escriu sense l'agent, i «Full de càlcul nou».
 // UMD: window.gregalDocHome al navegador, require() als tests de Node.
 (function (root, factory) {
   const api = factory();
@@ -10,7 +10,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const KINDS = { doc: ['Document', 'Document'], deck: ['Presentació', 'Presentation'] };
+  const KINDS = { doc: ['Document', 'Document'], deck: ['Presentació', 'Presentation'], sheet: ['Full de càlcul', 'Spreadsheet'] };
 
   // home pinta l'inici dins box. lists = {mine, project}: mine són els
   // items de GET /api/docs?scope=mine; project, {name, items} del projecte
@@ -49,7 +49,10 @@
     const deck = el('button', '', tx('Presentació nova', 'New presentation'));
     deck.type = 'button';
     deck.onclick = () => act.create(title.value.trim() || tx('Presentació sense títol', 'Untitled presentation'), 'deck');
-    form.append(title, create, deck);
+    const sheet = el('button', '', tx('Full de càlcul nou', 'New spreadsheet'));
+    sheet.type = 'button';
+    sheet.onclick = () => act.create(title.value.trim() || tx('Full de càlcul sense títol', 'Untitled spreadsheet'), 'sheet');
+    form.append(title, create, deck, sheet);
     form.onsubmit = e => {
       e.preventDefault();
       act.create(title.value.trim() || tx('Document sense títol', 'Untitled document'));
@@ -62,7 +65,7 @@
   }
 
   // newDoc crea un document buit a «Els meus documents», de text o una
-  // presentació (kind 'deck'), i l'obre per escriure-hi (open amb write).
+  // presentació (kind 'deck') o un full de càlcul (kind 'sheet'), i l'obre per escriure-hi (open amb write).
   // api és window.gregal.api.
   async function newDoc(title, { api, open, error, kind = 'doc' }) {
     let r;

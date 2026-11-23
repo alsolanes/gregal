@@ -134,7 +134,7 @@ func (s *Server) sessionDoc(w http.ResponseWriter, r *http.Request) (*gdocs.Stor
 // l'agent («Document nou» de Gregal Docs).
 //
 //	GET /api/docs
-//	POST /api/docs {title, kind:"doc"|"deck"}
+//	POST /api/docs {title, kind:"doc"|"deck"|"sheet"}
 func (s *Server) handleDocs(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		s.handleDocCreate(w, r)
@@ -168,8 +168,8 @@ func (s *Server) handleDocCreate(w http.ResponseWriter, r *http.Request) {
 		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
 		return
 	}
-	if q.Kind != gdocs.KindDoc && q.Kind != gdocs.KindDeck {
-		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "kind: only \"doc\" or \"deck\" can be created here"})
+	if q.Kind != gdocs.KindDoc && q.Kind != gdocs.KindDeck && q.Kind != gdocs.KindSheet {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "kind: only \"doc\", \"deck\" or \"sheet\" can be created here"})
 		return
 	}
 	if strings.TrimSpace(q.Title) == "" {
@@ -182,9 +182,12 @@ func (s *Server) handleDocCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	var d gdocs.Doc
 	var err error
-	if q.Kind == gdocs.KindDeck {
+	switch q.Kind {
+	case gdocs.KindDeck:
 		d, err = st.CreateDeck(q.Title)
-	} else {
+	case gdocs.KindSheet:
+		d, err = st.CreateSheet(q.Title, "", gdocs.AuthorUser)
+	default:
 		d, err = st.Create(q.Title, "", gdocs.AuthorUser)
 	}
 	if err != nil {
@@ -255,7 +258,7 @@ func (h *Hub) handleDocPage(w http.ResponseWriter, r *http.Request) {
 		`body #docsPanel{position:static;flex:1;width:auto;border:0;box-shadow:none}body #docsPanel header{display:none}</style>`+
 		`<script>(()=>{let t='';try{t=(JSON.parse(localStorage.getItem('gregal_brand_cache')||'null')||{}).theme||localStorage.getItem('gregal_tema')||''}catch(e){}`+
 		`if(!t||t==='sistema')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)})()</script>`+
-		`</head><body><div id="workbench"></div><script src="/app/md.js"></script><script src="/app/doc-view.js"></script><script src="/app/deck-view.js"></script>`+
+		`</head><body><div id="workbench"></div><script src="/app/md.js"></script><script src="/app/doc-view.js"></script><script src="/app/deck-view.js"></script><script src="/app/sheet-view.js"></script>`+
 		`<script type="module" src="/app/doc-page.js"></script></body></html>`)
 }
 
@@ -264,17 +267,18 @@ func (h *Hub) handleDocPage(w http.ResponseWriter, r *http.Request) {
 //
 //	POST /api/docs/{id}/blocks {after, md}
 //	POST /api/docs/{id}/blocks {after, slide} (una presentació)
+//	POST /api/docs/{id}/blocks {after, name} (un full nou en un full de càlcul)
 func (s *Server) handleDocBlocks(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST required", http.StatusMethodNotAllowed)
 		return
 	}
 	var q struct {
-		After, MD string
-		Slide     *ooxml.SlideSpec
+		After, MD, Name string
+		Slide           *ooxml.SlideSpec
 	}
-	if json.NewDecoder(r.Body).Decode(&q) != nil || (strings.TrimSpace(q.MD) == "" && q.Slide == nil) {
-		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "md or slide required"})
+	if json.NewDecoder(r.Body).Decode(&q) != nil || (strings.TrimSpace(q.MD) == "" && q.Slide == nil && strings.TrimSpace(q.Name) == "") {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "md, slide or name required"})
 		return
 	}
 	st, ok := s.docStore(w, r)
@@ -283,9 +287,12 @@ func (s *Server) handleDocBlocks(w http.ResponseWriter, r *http.Request) {
 	}
 	var d gdocs.Doc
 	var err error
-	if q.Slide != nil {
+	switch {
+	case q.Slide != nil:
 		d, err = st.InsertSlide(r.PathValue("id"), q.After, *q.Slide, gdocs.AuthorUser)
-	} else {
+	case strings.TrimSpace(q.Name) != "":
+		d, err = st.InsertSheet(r.PathValue("id"), q.After, q.Name, gdocs.AuthorUser)
+	default:
 		d, err = st.Insert(r.PathValue("id"), q.After, q.MD, gdocs.AuthorUser)
 	}
 	if docWriteErr(w, err) {

@@ -559,3 +559,46 @@ func TestDeckRefusesEditsOfAnotherKind(t *testing.T) {
 		t.Fatalf("md a una presentació: %d %s", rec.Code, rec.Body.String())
 	}
 }
+
+// newSheet crea un full de càlcul a «Els meus documents» per la ruta del
+// panell, com fan l'app d'Android i la web. Neix amb un full buit.
+func newSheet(t *testing.T, s *Server) gdocs.Doc {
+	t.Helper()
+	rec := docReq(s, (*Server).handleDocs, "POST", "/api/docs?scope=mine", `{"title":"Pressupost","kind":"sheet"}`)
+	var d gdocs.Doc
+	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &d) != nil || d.Kind != gdocs.KindSheet || len(d.Blocks) != 1 {
+		t.Fatalf("full de càlcul nou: %d %s", rec.Code, rec.Body.String())
+	}
+	return d
+}
+
+// «Full nou» hi afegeix un full, i se n'editen les cel·les.
+func TestNewSheetAndItsSheetsFromThePanel(t *testing.T) {
+	s := backlogServer(t)
+	d := newSheet(t, s)
+	rec := docReq(s, (*Server).handleDocBlocks, "POST", "/api/docs/x/blocks?scope=mine", `{"after":"`+d.Blocks[0].ID+`","name":"Vendes"}`, d.ID)
+	nou := answer(t, rec)
+	if rec.Code != 200 || len(nou.Blocks) != 1 || nou.Blocks[0].Name != "Vendes" || nou.Blocks[0].Author != gdocs.AuthorUser {
+		t.Fatalf("full nou: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = docReq(s, (*Server).handleDocBlock, "PUT", "/api/docs/x/blocks/y?scope=mine", `{"cells":{"A1":"2","A2":"=A1*3"},"base_version":2}`, d.ID, nou.Blocks[0].ID)
+	if out := answer(t, rec); rec.Code != 200 || out.Block.Values["A2"] != "6" {
+		t.Fatalf("cel·les: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+// Una cel·la mal dita, un rang massa gran o un full repetit són culpa de
+// qui els envia: 400, no 500.
+func TestSheetRefusesBadInputWith400(t *testing.T) {
+	s := backlogServer(t)
+	d := newSheet(t, s)
+	sh := d.Blocks[0]
+	for _, body := range []string{`{"cells":{"1A":"3"},"base_version":1}`, `{"cells":{"A1":"=SUM(A1:Z100000)"},"base_version":1}`} {
+		if rec := docReq(s, (*Server).handleDocBlock, "PUT", "/api/docs/x/blocks/y?scope=mine", body, d.ID, sh.ID); rec.Code != http.StatusBadRequest {
+			t.Fatalf("put %s: %d %s", body, rec.Code, rec.Body.String())
+		}
+	}
+	if rec := docReq(s, (*Server).handleDocBlocks, "POST", "/api/docs/x/blocks?scope=mine", `{"after":"","name":"`+sh.Name+`"}`, d.ID); rec.Code != http.StatusBadRequest {
+		t.Fatalf("full repetit: %d %s", rec.Code, rec.Body.String())
+	}
+}
