@@ -34,7 +34,8 @@
     });
   }
   const SPAN = 'color bg font size'.split(' ');
-  const CSS = { color: v => 'color:' + v, bg: v => 'background-color:' + v, font: v => 'font-family:"' + v + '"', size: v => 'font-size:' + v + 'pt' };
+  // La mida va en punts de la pàgina (--u, docs-panel.js), que s'encongeix amb el panell.
+  const CSS = { color: v => 'color:' + v, bg: v => 'background-color:' + v, font: v => 'font-family:"' + v + '"', size: v => 'font-size:calc(' + v + ' * var(--u, 1pt))' };
   // Una taula de markdown (081): la primera fila és la capçalera, i les
   // cel·les només tenen text, com a markdown.
   const cellAlign = el => ({ align: el.style?.textAlign || null });
@@ -309,6 +310,27 @@
   // imageName torna el nom d'una imatge de la carpeta del document
   // (images/<nom>), o null: cap altra ruta no es mostra.
   const imageName = src => /^images\/([^/\\:]+)$/.exec(src)?.[1].replace(/^\.\.?$/, '') || null;
+  // active diu quins botons de la barra estan premuts a la selecció: les
+  // marques que la cobreixen i el tipus de bloc on és el cursor.
+  const MARKS = { bold: M.strong, italic: M.em, underline: M.underline, strike: M.strike, code: M.code, link: M.link };
+  function active(st) {
+    const { from, to, empty, $from } = st.selection, on = new Set(), texts = [];
+    if (!empty) st.doc.nodesBetween(from, to, n => { if (n.isText) texts.push(n.marks); });
+    for (const [name, type] of Object.entries(MARKS)) {
+      // Amb text triat, només si tot el text la porta, com a Word.
+      if (empty ? type.isInSet(st.storedMarks || $from.marks()) : texts.length && texts.every(m => type.isInSet(m))) on.add(name);
+    }
+    const p = $from.parent;
+    if (p.type === S.heading) on.add('h' + p.attrs.level);
+    else if (p.type === S.paragraph && $from.depth === 1) on.add('paragraph');
+    for (let d = $from.depth; d > 0; d--) {
+      const t = $from.node(d).type;
+      if (t === S.bullet_list) on.add('bullets');
+      else if (t === S.ordered_list) on.add('numbers');
+      else if (t === S.blockquote) on.add('quote');
+    }
+    return on;
+  }
   // Enter al mig d'un bloc el parteix en dos: la part nova és un bloc nou, sense id.
   const split = pm.splitBlockAs((n, atEnd) => (atEnd ? null : { type: n.type, attrs: { ...n.attrs, id: null } }));
   const keys = {
@@ -515,6 +537,39 @@
     ['quote', '❝', 'Cita', 'Quote'], ['link', '🔗', 'Enllaç', 'Link'], ['code', '</>', 'Codi', 'Code'],
     ['rule', '—', 'Línia horitzontal', 'Horizontal line'], ['undo', '↶', 'Desfés', 'Undo'], ['redo', '↷', 'Refés', 'Redo'],
   ];
+  // Les icones de la barra (traç de 24 px, del color del text); una eina
+  // sense icona ensenya el seu text. Un grup nou de la barra comença a GROUPS.
+  const ICONS = {
+    paragraph: 'M13 4v16M17 4v16M19 4H9.5a4.5 4.5 0 0 0 0 9H13',
+    h1: 'M4 12h8M4 18V6M12 18V6M17 12l3-2v8',
+    h2: 'M4 12h8M4 18V6M12 18V6M21 18h-4c0-4 4-3 4-6 0-1.5-2-2.5-4-1',
+    h3: 'M4 12h8M4 18V6M12 18V6M17.5 10.5c1.7-1 3.5 0 3.5 1.5a2 2 0 0 1-2 2M17 17.5c2 1.5 4 .3 4-1.5a2 2 0 0 0-2-2',
+    bold: 'M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8',
+    italic: 'M19 4h-9M14 20H5M15 4 9 20',
+    underline: 'M6 4v6a6 6 0 0 0 12 0V4M4 20h16',
+    strike: 'M16 4H9a3 3 0 0 0-2.83 4M14 12a4 4 0 0 1 0 8H6M4 12h16',
+    bullets: 'M3 6h.01M3 12h.01M3 18h.01M8 6h13M8 12h13M8 18h13',
+    numbers: 'M10 6h11M10 12h11M10 18h11M4 6h1v4M4 10h2M6 18H4c0-1 2-2 2-3s-1-1.5-2-1',
+    quote: 'M17 6H3M21 12H8M21 18H8M3 12v6',
+    link: 'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71',
+    code: 'm16 18 6-6-6-6M8 6l-6 6 6 6',
+    rule: 'M4 12h16',
+    undo: 'M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11',
+    redo: 'm15 14 5-5-5-5M20 9H9.5a5.5 5.5 0 0 0 0 11H13',
+    color: 'M6 16 12 4l6 12M8.5 11h7',
+    bg: 'm9 11-6 6v3h9l3-3M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4',
+    left: 'M21 6H3M15 12H3M17 18H3', center: 'M21 6H3M17 12H7M19 18H5',
+    right: 'M21 6H3M21 12H9M21 18H7', justify: 'M3 6h18M3 12h18M3 18h18',
+    chevron: 'm6 9 6 6 6-6',
+    table: 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM3 9h18M3 15h18M12 3v18',
+    rowAdd: 'M4 4h16v6H4zM12 14v6M9 17h6', rowDelete: 'M4 4h16v6H4zM9 17h6',
+    colAdd: 'M4 4h6v16H4zM17 9v6M14 12h6', colDelete: 'M4 4h6v16H4zM14 12h6',
+    image: 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM21 15l-5-5L5 21M10 8.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0',
+  };
+  const icon = (d, cls = 'doc-icon') => '<svg class="' + cls + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + d + '"/></svg>';
+  const GROUPS = new Set('bold bullets link undo'.split(' '));
+  // Les dreceres de teclat que el títol d'un botó recorda.
+  const HINTS = { bold: 'B', italic: 'I', underline: 'U', code: '`', undo: 'Z', redo: 'Y' };
   // Els desplegables d'estil (082): [clau, títol ca, en, opcions [valor, ca, en]].
   // Les fonts són de les que porta el Word tant a Windows com a macOS.
   const CUSTOM = ['custom', 'Color personalitzat…', 'Custom colour…'];
@@ -559,13 +614,26 @@
     bar.className = 'doc-toolbar';
     bar.setAttribute('role', 'toolbar');
     page.className = 'doc-editor';
+    const mod = /Mac|iP/.test(Doc.defaultView?.navigator?.platform || '') ? '⌘' : 'Ctrl+';
+    const toolBtns = {};
+    let tg = null;
     for (const [name, label, ca, en] of TOOLS) {
-      bar.append(button(label, edit.tx(ca, en), () => {
+      const b = button(label, edit.tx(ca, en), () => {
         const href = name === 'link' && prompt(edit.tx("Adreça de l'enllaç", 'Link address'));
         pv.focus();
         if (name !== 'link') ed.run(commands[name]);
         else if (href) ed.run(link(href));
-      }));
+      });
+      b.dataset.tool = name;
+      if (ICONS[name]) b.innerHTML = icon(ICONS[name]);
+      if (HINTS[name]) b.title += ' (' + mod + HINTS[name] + ')';
+      if (!tg || GROUPS.has(name)) {
+        tg = Doc.createElement('div');
+        tg.className = 'doc-tools';
+        bar.append(tg);
+      }
+      tg.append(b);
+      toolBtns[name] = b;
     }
     // L'estil va en un grup propi de la barra: cada desplegable ensenya el
     // valor de la selecció, i un valor que no és a la llista (un color
@@ -591,16 +659,31 @@
         pick.value = /^#/.test(sel.value) ? sel.value : '#000000';
         pick.click();
       };
+      // El color, el ressaltat i l'alineació s'ensenyen amb una icona (i la
+      // mostra del color triat); el desplegable hi va al damunt, transparent.
+      const wrap = Doc.createElement('span'), glyph = key === 'color' || key === 'bg' ? ICONS[key] : key === 'align' ? ICONS.left : '';
+      wrap.className = 'doc-pick doc-pick-' + key + (glyph ? ' doc-pick-icon' : '');
+      wrap.innerHTML = (glyph ? icon(glyph) : '') + icon(ICONS.chevron, 'doc-chevron');
+      wrap.insertBefore(sel, wrap.lastChild);
       pickers.push(v => {
         const known = opts.some(o => o[0] === v);
         Object.assign(extra, { value: v, textContent: v, hidden: known });
         sel.value = v;
+        if (key === 'align') wrap.firstChild.firstChild.setAttribute('d', ICONS[v] || ICONS.left);
+        else if (glyph) wrap.style.setProperty('--swatch', v || (key === 'bg' ? 'transparent' : 'currentColor'));
       });
-      group.append(sel, pick);
+      group.append(wrap, pick);
     }
-    const show = st => { const c = current(st); STYLES.forEach(([key], i) => pickers[i](c[key])); };
+    const show = st => {
+      const c = current(st), on = active(st);
+      STYLES.forEach(([key], i) => pickers[i](c[key]));
+      for (const [name, b] of Object.entries(toolBtns)) {
+        if (name === 'undo' || name === 'redo') b.disabled = !commands[name](st);
+        else if (name !== 'rule') b.setAttribute('aria-pressed', String(on.has(name)));
+      }
+    };
     const insertGroup = Doc.createElement('span'), file = Doc.createElement('input');
-    insertGroup.className = 'doc-toolbar-group';
+    insertGroup.className = 'doc-toolbar-group doc-tools';
     insertGroup.setAttribute('role', 'group');
     insertGroup.setAttribute('aria-label', edit.tx('Taules i imatges', 'Tables and images'));
     Object.assign(file, { type: 'file', accept: 'image/png,image/jpeg,image/gif', hidden: true });
@@ -623,11 +706,12 @@
         if (name !== 'table') ed.run(commands[name]);
         else if (size) ed.run(table(Math.min(+size[1] || 1, 50), Math.min(+size[2] || 1, 20)));
       });
+      if (ICONS[name]) b.innerHTML = icon(ICONS[name]);
       if (commands[name]) cellTools.push([b, commands[name]]);
       insertGroup.append(b);
     }
     insertGroup.append(file);
-    bar.append(group, insertGroup);
+    bar.append(insertGroup, group);
     box.replaceChildren(bar, notes, page);
     const empty = st => {
       const first = st.doc.firstChild;
@@ -662,5 +746,5 @@
     return { apply: ed.apply, focus: () => pv.focus(), get version() { return ed.version; } };
   }
 
-  return { view, editor, onDocChanged, commands, keys, link, style, align, current, table, image, imageName, toDoc, toMd };
+  return { view, editor, onDocChanged, commands, keys, link, style, align, current, active, table, image, imageName, toDoc, toMd };
 });

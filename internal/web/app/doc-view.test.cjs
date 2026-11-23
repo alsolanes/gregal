@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const pm = require('./vendor/prosemirror.min.js');
-const { editor, commands, keys, link, style, align, current, table, image, imageName, toDoc, toMd, onDocChanged } = require('./doc-view.js');
+const { editor, commands, keys, link, style, align, current, active, table, image, imageName, toDoc, toMd, onDocChanged } = require('./doc-view.js');
 
 const DOC = {
   id: 'd1', version: 3,
@@ -160,6 +160,20 @@ test('toolbar alignment left takes the line off a paragraph, and a list cannot b
   const list = editor(block('- hola'), fakeEdit());
   assert.equal(list.run(align('center')), false);
   assert.equal(md(list), '- hola');
+});
+
+test('the toolbar shows as pressed the marks of the selection and the block the cursor is in', () => {
+  const ed = editor({ version: 1, blocks: [{ id: 'h', md: '## Pla', version: 1 }, { id: 'p', md: 'un **fort** i *suau*', version: 1 }, { id: 'l', md: '> - punt', version: 1 }] }, fakeEdit());
+  select(ed, pos(ed, 'fort'), pos(ed, 'fort', true));
+  assert.deepEqual([...active(ed.state)].sort(), ['bold', 'paragraph']);
+  select(ed, pos(ed, 'un'), pos(ed, 'fort', true));
+  assert.deepEqual([...active(ed.state)], ['paragraph'], 'a mark on part of the selection is not pressed');
+  select(ed, pos(ed, 'suau', true));
+  assert.deepEqual([...active(ed.state)].sort(), ['italic', 'paragraph']);
+  select(ed, pos(ed, 'Pla'));
+  assert.deepEqual([...active(ed.state)], ['h2']);
+  select(ed, pos(ed, 'punt'));
+  assert.deepEqual([...active(ed.state)].sort(), ['bullets', 'quote']);
 });
 
 test('a styled document goes editor → markdown → editor unchanged', () => {

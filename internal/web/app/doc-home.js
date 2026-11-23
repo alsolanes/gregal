@@ -34,7 +34,8 @@
         b.type = 'button';
         b.dataset.id = d.id;
         const k = KINDS[d.kind];
-        b.append(el('span', 'docs-home-title', d.title), el('span', 'docs-home-meta', (k ? tx(k[0], k[1]) : d.kind) + ' · ' + when(d.updated)));
+        // La icona del tipus la pinta el CSS del panell (docs-panel.js).
+        b.append(el('span', 'docs-kind docs-kind-' + d.kind), el('span', 'docs-home-title', d.title), el('span', 'docs-home-meta', (k ? tx(k[0], k[1]) : d.kind) + ' · ' + when(d.updated)));
         b.onclick = () => act.open(d.id, scope);
         s.append(b);
       }
@@ -44,12 +45,12 @@
     const title = el('input');
     title.placeholder = tx('Títol del document', 'Document title');
     title.setAttribute('aria-label', tx('Títol del document', 'Document title'));
-    const create = el('button', '', tx('Document nou', 'New document'));
+    const create = el('button', 'docs-kind-doc', tx('Document nou', 'New document'));
     create.type = 'submit';
-    const deck = el('button', '', tx('Presentació nova', 'New presentation'));
+    const deck = el('button', 'docs-kind-deck', tx('Presentació nova', 'New presentation'));
     deck.type = 'button';
     deck.onclick = () => act.create(title.value.trim() || tx('Presentació sense títol', 'Untitled presentation'), 'deck');
-    const sheet = el('button', '', tx('Full de càlcul nou', 'New spreadsheet'));
+    const sheet = el('button', 'docs-kind-sheet', tx('Full de càlcul nou', 'New spreadsheet'));
     sheet.type = 'button';
     sheet.onclick = () => act.create(title.value.trim() || tx('Full de càlcul sense títol', 'Untitled spreadsheet'), 'sheet');
     form.append(title, create, deck, sheet);
