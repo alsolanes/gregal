@@ -6564,42 +6564,84 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // --- documents vius del projecte (Docs.kt, DocScreen.kt) ---
+    // --- Gregal Docs: documents vius (Docs.kt, DocScreen.kt) ---
 
     private val _docs = MutableStateFlow(listOf<DocRef>())
     val docs: StateFlow<List<DocRef>> = _docs
-    private val _docId = MutableStateFlow("")
-    val docId: StateFlow<String> = _docId
+    private val _myDocs = MutableStateFlow(listOf<DocRef>())
+    val myDocs: StateFlow<List<DocRef>> = _myDocs
+    private val _docOpen = MutableStateFlow<DocRef?>(null)
+    val docOpen: StateFlow<DocRef?> = _docOpen
     private val _doc = MutableStateFlow<LiveDoc?>(null)
     val doc: StateFlow<LiveDoc?> = _doc
+    // «Document nou»: quan es llegeixi, s'hi obre l'editor per escriure.
+    private var docWrite = false
 
-    fun openDoc(id: String) {
-        _docId.value = id
+    /** L'inici de Gregal Docs, sense cap document obert. */
+    fun openDocsHome() {
+        _docOpen.value = null
         go(Screen.Docs)
     }
 
-    fun loadDocs() {
+    fun openDoc(d: DocRef) {
+        _docOpen.value = d
+        go(Screen.Docs)
+    }
+
+    /** «Els meus documents» i, si [project], els del projecte de la sessió. */
+    fun loadDocs(project: Boolean) {
         viewModelScope.launch {
             try {
-                _docs.value = withContext(Dispatchers.IO) { DocsJson.list(_conn.value.api().get("/api/docs").toString()) }
+                val api = _conn.value.api()
+                _myDocs.value = withContext(Dispatchers.IO) { DocsJson.list(api.get("/api/docs?scope=mine").toString(), "mine") }
+                _docs.value = if (!project) emptyList() else withContext(Dispatchers.IO) { DocsJson.list(api.get("/api/docs").toString()) }
             } catch (e: Exception) { notify(appText("docs.error", e.message.orEmpty())) }
         }
     }
+
+    /** «Document nou» a «Els meus documents», obert per escriure-hi. */
+    fun newDoc(title: String) {
+        viewModelScope.launch {
+            try {
+                val (code, body) = withContext(Dispatchers.IO) { _conn.value.api().sendDoc(docCreateRequest(title.trim().ifEmpty { appText("docs.untitled") })) }
+                if (code != 200) {
+                    notify(appText("docs.createError", runCatching { JSONObject(body).optString("error") }.getOrNull().orEmpty().ifBlank { "HTTP $code" }))
+                    return@launch
+                }
+                val d = DocsJson.doc(body)
+                docWrite = true
+                openDoc(DocRef(d.id, d.title, d.kind, "mine"))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) { notify(appText("docs.createError", e.message.orEmpty())) }
+        }
+    }
+
+    /** El bloc buit d'un document sense blocs: obre un editor al principi. */
+    fun writeEmptyDoc() = _doc.update { if (it?.blank == true) it.openNew("") else it }
 
     /**
      * Segueix el document mentre la pantalla el mira: obre el stream, llegeix
      * el document amb les capçaleres ja rebudes (com doc-view.js) i hi aplica
      * els events. Si el stream cau o el servidor el tanca, torna a començar.
      */
-    suspend fun followDoc(id: String) {
+    suspend fun followDoc(ref: DocRef) {
         val job = currentCoroutineContext().job
+        val id = ref.id
+        var write = docWrite
+        docWrite = false
         _doc.value = null
         while (true) {
             try {
                 withContext(Dispatchers.IO) {
                     val api = _conn.value.api()
-                    val path = "/api/docs/" + Uri.encode(id)
-                    api.streamGet("$path/stream", onOpen = { DocsJson.doc(api.get(path).toString()).let { d -> job.ensureActive(); _doc.value = d } }) { ev ->
+                    val read = {
+                        val d = DocsJson.doc(api.get(docPath(ref)).toString()).copy(scope = ref.scope)
+                        job.ensureActive()
+                        _doc.value = if (write && d.blank) d.openNew("") else d
+                        write = false
+                    }
+                    api.streamGet(docPath(ref, "/stream"), onOpen = read) { ev ->
                         // El ping de cada 15 s deixa plegar el fil quan es tanca la pantalla.
                         job.ensureActive()
                         if (ev.name == "block") DocsJson.change(ev.data)?.let { c -> _doc.update { if (it?.id == id) it.apply(c) else it } }

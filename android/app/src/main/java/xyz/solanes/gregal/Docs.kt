@@ -9,9 +9,25 @@ import java.net.URLEncoder
 // Documents vius del projecte (/api/docs, internal/gdocs al servidor): la
 // llista, un document, els events `block` del seu stream i l'edició d'un
 // bloc. Com doc-view.js a la web; la pantalla és DocScreen.kt.
+// scope "mine": un document de «Els meus documents», que totes les rutes
+// han de demanar amb ?scope=mine; buit, un del projecte de la sessió.
 
 @Serializable
-data class DocRef(val id: String = "", val title: String = "")
+data class DocRef(val id: String = "", val title: String = "", val kind: String = "doc", val scope: String = "")
+
+private fun scoped(path: String, scope: String): String =
+    if (scope.isEmpty()) path else path + (if ('?' in path) "&" else "?") + "scope=" + scope
+
+/** La ruta del document (sub: "/stream", ...), amb el seu scope. */
+fun docPath(d: DocRef, sub: String = ""): String = scoped("/api/docs/" + URLEncoder.encode(d.id, "UTF-8") + sub, d.scope)
+
+/** «Document nou», com doc-home.js: sempre a «Els meus documents». */
+fun docCreateRequest(title: String): DocRequest =
+    DocRequest("POST", "/api/docs?scope=mine", buildJsonObject { put("title", title); put("kind", "doc") }.toString())
+
+/** El nom de la secció «Aquest projecte»; null si no s'ha de mostrar (com a la web, només a Codi i amb projecte). */
+fun docsProjectName(cwd: String, project: String, vents: Boolean): String? =
+    if (vents || cwd.isBlank()) null else project.ifBlank { cwd }
 
 /** `version` és la del document quan el bloc va canviar per última vegada. */
 @Serializable
@@ -52,12 +68,18 @@ data class DocChange(val op: String = "", val block: DocBlock = DocBlock(), val 
 data class LiveDoc(
     val id: String = "",
     val title: String = "",
+    val kind: String = "doc",
     val version: Int = 0,
     val blocks: List<DocBlock> = emptyList(),
     /** La versió del document llegit: els events fins aquí ja hi són. */
     val base: Int = version,
     @Transient val edit: DocEdit? = null,
+    /** El de la llista d'on s'ha obert: el servidor no el torna. */
+    @Transient val scope: String = "",
 ) {
+    /** Sense blocs ni editor: es veu un bloc buit on escriure, com a la web (no en una presentació). */
+    val blank: Boolean get() = kind == "doc" && blocks.isEmpty() && edit == null
+
     fun apply(c: DocChange): LiveDoc {
         // Un insert de diversos blocs envia un event per bloc amb la mateixa
         // versió: per això es compara amb la base i no amb l'última versió.
@@ -101,12 +123,12 @@ data class LiveDoc(
         val e = edit ?: return null
         val md = e.text.trim()
         val path = "/api/docs/" + URLEncoder.encode(id, "UTF-8") + "/blocks"
-        if (e.id.isEmpty()) return if (md.isEmpty()) null else DocRequest("POST", path, buildJsonObject { put("after", e.after); put("md", md) }.toString())
+        if (e.id.isEmpty()) return if (md.isEmpty()) null else DocRequest("POST", scoped(path, scope), buildJsonObject { put("after", e.after); put("md", md) }.toString())
         // Sense tocar no es desa: el text obert pot ser més vell que el de l'agent.
         if (e.conflict == null && md == e.opened) return null
         val block = path + "/" + URLEncoder.encode(e.id, "UTF-8")
-        if (md.isEmpty()) return DocRequest("DELETE", block + "?base_version=" + e.base)
-        return DocRequest("PUT", block, buildJsonObject { put("md", md); put("base_version", e.base) }.toString())
+        if (md.isEmpty()) return DocRequest("DELETE", scoped(block + "?base_version=" + e.base, scope))
+        return DocRequest("PUT", scoped(block, scope), buildJsonObject { put("md", md); put("base_version", e.base) }.toString())
     }
 
     /** Tanca l'editor quan saveRequest no té res per enviar. */
@@ -148,7 +170,7 @@ data class LiveDoc(
 /** L'enllaç «Descarrega en Word»: es baixa com els altres documents de
  *  Gregal (isServerDocLink), amb el títol com a nom del fitxer. */
 fun docExportPath(d: DocRef): String =
-    "/api/docs/" + URLEncoder.encode(d.id, "UTF-8") + "/export?format=docx&name=" + URLEncoder.encode(d.title + ".docx", "UTF-8")
+    docPath(d, "/export?format=docx&name=" + URLEncoder.encode(d.title + ".docx", "UTF-8"))
 
 @Serializable
 private class DocListDto(val items: List<DocRef> = emptyList())
@@ -158,7 +180,9 @@ object DocsJson {
     fun changed(raw: String): DocRef? =
         runCatching { GregalJson.decodeFromString(DocRef.serializer(), raw) }.getOrNull()?.takeIf { it.id.isNotBlank() }
 
-    fun list(raw: String): List<DocRef> = GregalJson.decodeFromString(DocListDto.serializer(), raw).items
+    /** Els documents d'una llista; cadascun s'obrirà amb el scope que s'ha demanat. */
+    fun list(raw: String, scope: String = ""): List<DocRef> =
+        GregalJson.decodeFromString(DocListDto.serializer(), raw).items.map { it.copy(scope = scope) }
 
     fun doc(raw: String): LiveDoc = GregalJson.decodeFromString(LiveDoc.serializer(), raw)
 

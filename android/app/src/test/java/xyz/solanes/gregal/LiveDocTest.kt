@@ -196,4 +196,62 @@ class LiveDocTest {
             .apply(ev("""{"op":"replace","block":{"id":"b2","md":"x","version":4},"version":4,"author":"user"}"""))
         assertEquals(6, s.version)
     }
+
+    // --- inici de Gregal Docs (071) ---
+
+    private val mineRaw = """{"items":[{"id":"m1","title":"Carta","kind":"doc","version":2,"updated":"2026-11-22T10:00:00Z"},
+        {"id":"m2","title":"Pitch","kind":"deck","version":1,"updated":"2026-11-21T10:00:00Z"}]}"""
+
+    @Test
+    fun eachListOpensItsDocumentsWithItsScope() {
+        val mine = DocsJson.list(mineRaw, "mine")
+        assertEquals(listOf(DocRef("m1", "Carta", "doc", "mine"), DocRef("m2", "Pitch", "deck", "mine")), mine)
+        assertEquals("/api/docs/m1?scope=mine", docPath(mine[0]))
+        assertEquals("/api/docs/m1/stream?scope=mine", docPath(mine[0], "/stream"))
+        assertEquals("/api/docs/m1/export?format=docx&name=Carta.docx&scope=mine", docExportPath(mine[0]))
+        // Els del projecte no duen scope.
+        val project = DocsJson.list("""{"items":[{"id":"p1","title":"Informe","kind":"doc"}]}""")
+        assertEquals("/api/docs/p1", docPath(project[0]))
+        assertEquals("/api/docs/p1/stream", docPath(project[0], "/stream"))
+        // Un document d'un vent avisa amb scope mine (066).
+        assertEquals("mine", DocsJson.changed("""{"id":"w1","title":"Carta","scope":"mine"}""")?.scope)
+    }
+
+    @Test
+    fun theProjectSectionNeedsACodiChatWithAProject() {
+        assertEquals("gregal", docsProjectName(cwd = "/src/gregal", project = "gregal", vents = false))
+        assertEquals("/src/gregal", docsProjectName(cwd = "/src/gregal", project = "", vents = false))
+        assertNull(docsProjectName(cwd = "", project = "", vents = false))
+        assertNull(docsProjectName(cwd = "/src/gregal", project = "gregal", vents = true))
+    }
+
+    @Test
+    fun blockEditsOfAPersonalDocumentCarryTheScope() {
+        val mine = doc.copy(scope = "mine")
+        assertEquals(req("PUT", "/api/docs/d1/blocks/b2?scope=mine", """{"md":"X","base_version":2}"""), mine.open("b2").typed("X").saveRequest())
+        assertEquals(req("DELETE", "/api/docs/d1/blocks/b1?base_version=1&scope=mine"), mine.open("b1").typed("").saveRequest())
+        assertEquals(req("POST", "/api/docs/d1/blocks?scope=mine", """{"after":"","md":"Nou"}"""), mine.openNew("").typed("Nou").saveRequest())
+    }
+
+    @Test
+    fun aNewDocumentIsCreatedInMyDocuments() {
+        assertEquals(req("POST", "/api/docs?scope=mine", """{"title":"Carta","kind":"doc"}"""), docCreateRequest("Carta"))
+    }
+
+    @Test
+    fun anEmptyDocumentShowsABlockToWriteIn() {
+        val created = DocsJson.doc("""{"id":"n1","title":"Carta","kind":"doc","version":0,"blocks":null}""").copy(scope = "mine")
+        assertTrue(created.blank)
+        // Tocar el bloc buit obre un editor al principi; mentre s'escriu ja no hi és.
+        val writing = created.openNew("")
+        assertFalse(writing.blank)
+        assertEquals(req("POST", "/api/docs/n1/blocks?scope=mine", """{"after":"","md":"Hola"}"""), writing.typed("Hola").saveRequest())
+        // Tancat sense res, torna.
+        assertTrue(writing.skipped().doc.blank)
+        // Esborrat l'últim bloc, torna.
+        assertTrue(doc.copy(blocks = doc.blocks.take(1)).open("b1").typed("").saved(200, """{"version":4}""").doc.blank)
+        assertFalse(doc.blank)
+        // Una presentació no s'escriu com a markdown.
+        assertFalse(DocsJson.doc("""{"id":"k1","title":"Pitch","kind":"deck","version":0,"blocks":[]}""").blank)
+    }
 }

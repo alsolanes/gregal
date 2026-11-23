@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Article
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.Dns
@@ -136,6 +137,7 @@ fun GregalDrawerContent(
                 DrawerRow(tr(lang, "app.carpeta.title"), screen == Screen.Carpeta, { nav(Screen.Carpeta) }, Icons.Rounded.FolderOpen)
                 DrawerRow(tr(lang, "nav.notes"), screen == Screen.Notes, { nav(Screen.Notes); vm.loadNotes() }, Icons.Rounded.EditNote)
                 DrawerRow(webCopy(lang, "title"), screen == Screen.Webs, { nav(Screen.Webs); vm.loadWebs() }, Icons.Rounded.Language)
+                DrawerRow(tr(lang, "docs.home"), screen == Screen.Docs, { close(); vm.openDocsHome() }, Icons.AutoMirrored.Rounded.Article)
                 DrawerRow(tr(lang, "nav.office"), screen == Screen.Office, { nav(Screen.Office) }, Icons.Rounded.Description)
                 DrawerRow(tr(lang, "app.retro.title"), screen == Screen.Retro, { close(); vm.openRetro() }, Icons.Rounded.Tag)
                 // GitHub és de l'administrador del servidor (un altre compte rebria 403),
@@ -215,6 +217,7 @@ private fun SimpleVentsDrawer(
                     DrawerRow(tr(lang, "nav.notes"), screen == Screen.Notes, { nav(Screen.Notes); vm.loadNotes() }, Icons.Rounded.EditNote)
                     DrawerRow(webCopy(lang, "title"), screen == Screen.Webs, { nav(Screen.Webs); vm.loadWebs() }, Icons.Rounded.Language)
                 }
+                DrawerRow(tr(lang, "docs.home"), screen == Screen.Docs, { close(); vm.openDocsHome() }, Icons.AutoMirrored.Rounded.Article)
                 DrawerRow(if (en) "Your winds" else "Els teus vents", false, { close(); vm.openVentsPanel(null); nav(Screen.Company); vm.openCrew() }, Icons.Rounded.Groups)
                 // Els vents: Gregal primer i tots els especialistes (abans només cinc).
                 DrawerSection(if (en) "Winds" else "Vents")
