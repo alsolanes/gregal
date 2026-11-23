@@ -51,11 +51,10 @@ func (s *Server) handleDocExport(w http.ResponseWriter, r *http.Request) {
 // els de la carpeta de documents dels vents de qui crida; si no pot, ja ha
 // respost.
 func (s *Server) docStore(w http.ResponseWriter, r *http.Request) (*gdocs.Store, bool) {
-	root := s.sessionCwd()
+	st, err := gdocs.Open(s.sessionCwd())
 	if r.URL.Query().Get("scope") == "mine" {
-		root = s.windDocsDir()
+		st, err = gdocs.OpenAt(s.windDocsDir())
 	}
-	st, err := gdocs.Open(root)
 	if err != nil {
 		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return nil, false
@@ -295,7 +294,11 @@ func (s *Server) emitDocChanged(emit func(string, any), root, scope, argsJSON, o
 	if m == nil {
 		return
 	}
-	st, err := gdocs.Open(root)
+	open := gdocs.Open
+	if scope == "mine" {
+		open = gdocs.OpenAt
+	}
+	st, err := open(root)
 	if err != nil {
 		return
 	}

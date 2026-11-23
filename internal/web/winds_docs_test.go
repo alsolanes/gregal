@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -203,6 +204,36 @@ func TestWindDocsArePerUser(t *testing.T) {
 	}
 	if rec := docReq(bernat, (*Server).handleDoc, "GET", "/api/docs/x?scope=mine", "", d.ID); rec.Code != http.StatusNotFound {
 		t.Fatalf("en Bernat el llegeix: %d", rec.Code)
+	}
+}
+
+// Si la configuració és dins d'un repo de git, les carpetes dels vents no
+// pugen fins a l'arrel del repo: cada persona i el projecte tenen el seu
+// magatzem.
+func TestWindDocsStayPerUserInsideAGitRepo(t *testing.T) {
+	repo := t.TempDir()
+	if out, err := exec.Command("git", "init", "-q", repo).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v %s", err, out)
+	}
+	base := remindTestServer(t)
+	base.cfgPath = filepath.Join(repo, "config.yaml")
+	base.cwd = repo
+	hub := base.Hub()
+	anna := hub.SessionFor(&User{Name: "anna"}, "mobil")
+	bernat := hub.SessionFor(&User{Name: "bernat"}, "mobil")
+	ctx := anna.windDocsCtx(context.Background())
+	out, _, err := anna.windDocExec(ctx, windDocsOf(ctx), `{"action":"create","title":"Diari de l'Anna","md":"Avui"}`, func(string, string) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec := docReq(anna, (*Server).handleDocs, "GET", "/api/docs?scope=mine", ""); !strings.Contains(rec.Body.String(), "Diari") {
+		t.Fatalf("l'Anna no el veu: %s\n%s", rec.Body.String(), out)
+	}
+	if rec := docReq(bernat, (*Server).handleDocs, "GET", "/api/docs?scope=mine", ""); strings.Contains(rec.Body.String(), "Diari") {
+		t.Fatalf("en Bernat veu el de l'Anna: %s", rec.Body.String())
+	}
+	if rec := docReq(anna, (*Server).handleDocs, "GET", "/api/docs", ""); strings.Contains(rec.Body.String(), "Diari") {
+		t.Fatalf("el projecte veu el de l'Anna: %s", rec.Body.String())
 	}
 }
 

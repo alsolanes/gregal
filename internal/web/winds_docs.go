@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"gregal/internal/agent"
+	"gregal/internal/gdocs"
 	"gregal/internal/tools"
 )
 
@@ -128,18 +129,24 @@ func windDocDecide(dir, name, argsJSON string) (string, string) {
 // buscarien al projecte de la sessió, i el client rep doc_changed com en
 // un torn de Codi.
 func (s *Server) windDocExec(ctx context.Context, dir, argsJSON string, emit func(kind, text string)) (string, []string, error) {
-	out, imgs, err := windToolExec(ctx, s.id, dir, "doc", argsJSON)
+	st, err := gdocs.OpenAt(dir)
 	if err != nil {
-		return out, imgs, err
+		return "", nil, err
 	}
-	out = strings.ReplaceAll(out, "/export?format=", "/export?scope=mine&format=")
+	out, err := agent.DocExecIn(st, s.id, argsJSON)
+	if err != nil {
+		return out, nil, err
+	}
+	if strings.HasPrefix(out, "Created document ") {
+		out = strings.Replace(out, "/export?format=", "/export?scope=mine&format=", 1)
+	}
 	s.emitDocChanged(func(ev string, v any) {
 		b, err := json.Marshal(v)
 		if err == nil {
 			emit(ev, string(b))
 		}
 	}, dir, "mine", argsJSON, out)
-	return out, imgs, nil
+	return out, nil, nil
 }
 
 // windDocsBrief és la consigna dels documents per al prompt del vent.

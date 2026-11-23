@@ -96,7 +96,13 @@ type Store struct {
 
 // Open troba els documents del projecte on és dir.
 func Open(dir string) (*Store, error) {
-	root := backlog.Root(dir)
+	return OpenAt(backlog.Root(dir))
+}
+
+// OpenAt obre els documents de root tal com és, sense pujar a l'arrel del
+// repo: les carpetes personals no han de compartir els documents d'un repo
+// que les contingui.
+func OpenAt(root string) (*Store, error) {
 	if root == "" {
 		return nil, backlog.ErrNoDir
 	}

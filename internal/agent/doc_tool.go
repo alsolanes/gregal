@@ -32,17 +32,24 @@ func docToolSpec() llm.ToolSpec {
 // docExec fa l'acció i apunta a la sessió la versió que l'agent ha vist,
 // perquè el torn següent li digui només el que la persona ha canviat després.
 func docExec(dir, session, argsJSON string) (string, error) {
+	s, err := gdocs.Open(procDirOr(dir))
+	if err != nil {
+		return "", err
+	}
+	return DocExecIn(s, session, argsJSON)
+}
+
+// DocExecIn fa l'acció de doc sobre un magatzem ja obert (els vents hi
+// passen el de la carpeta personal).
+func DocExecIn(s *gdocs.Store, session, argsJSON string) (string, error) {
 	var a struct {
 		Action, ID, Title, MD, After, Block string
 	}
 	if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 		return "", err
 	}
-	s, err := gdocs.Open(procDirOr(dir))
-	if err != nil {
-		return "", err
-	}
 	var d gdocs.Doc
+	var err error
 	switch strings.ToLower(strings.TrimSpace(a.Action)) {
 	case "create":
 		if d, err = s.Create(a.Title, a.MD, gdocs.AuthorAgent); err != nil {
