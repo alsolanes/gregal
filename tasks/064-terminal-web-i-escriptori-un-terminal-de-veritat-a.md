@@ -1,6 +1,6 @@
 ---
 title: "Terminal (web i escriptori): un terminal de veritat al lateral del xat"
-status: todo
+status: done
 depends_on: []
 ---
 
@@ -10,11 +10,11 @@ Some steps can only be done by the person: logins that open the browser (`gh aut
 
 ## Acceptance criteria
 
-- [ ] A terminal icon in the chat header opens a panel at the side of the chat with an interactive shell (PowerShell on Windows, `$SHELL` or `/bin/sh` elsewhere) started in the session's `cwd`. A Go test opens the terminal over the new route, writes `echo hola` + Enter, and reads `hola` back.
-- [ ] Typing, colours, Ctrl+C and interactive prompts work, because the shell runs in a real pseudo-terminal; resizing the panel resizes the PTY (`{type:"resize",cols,rows}`). A Go test sends a resize and checks the shell sees the new size (`stty size` / `$Host.UI.RawUI.WindowSize`).
-- [ ] One terminal per session: closing the panel only hides it and reopening shows the same shell with its scrollback; the shell is killed when the session ends. A Go test that ending the session stops the process.
-- [ ] When users are configured, only admin users can open it (403 for others, as the shell is not confined to `roots`); with no users and no token it is open for local use, like the other local routes. A Go test of the 403.
-- [ ] The route is documented in `docs/api-contract.md` (`TestContracteAPIDocumentat` passes), and the panel's strings exist in Catalan and English in `i18n.js`.
+- [x] A terminal icon in the chat header opens a panel at the side of the chat with an interactive shell (PowerShell on Windows, `$SHELL` or `/bin/sh` elsewhere) started in the session's `cwd`. A Go test opens the terminal over the new route, writes `echo hola` + Enter, and reads `hola` back.
+- [x] Typing, colours, Ctrl+C and interactive prompts work, because the shell runs in a real pseudo-terminal; resizing the panel resizes the PTY. A Go test sends a resize and checks the shell sees the new size (`stty size` / `$Host.UI.RawUI.WindowSize`).
+- [x] One terminal per session: closing the panel only hides it and reopening shows the same shell with its scrollback; the shell is killed when the session ends. A Go test that ending the session stops the process.
+- [x] When users are configured, only admin users can open it (403 for others, as the shell is not confined to `roots`); with no users and no token it is open for local use, like the other local routes. A Go test of the 403.
+- [x] The route is documented in `docs/api-contract.md` (`TestContracteAPIDocumentat` passes), and the panel's strings exist in Catalan and English in `i18n.js`.
 
 ## Out of scope
 
@@ -25,10 +25,12 @@ Some steps can only be done by the person: logins that open the browser (`gh aut
 
 ## Notes
 
-- Transport: WebSocket with `golang.org/x/net/websocket` (already in `go.mod`): binary frames for the PTY bytes, JSON text frames for `resize`.
-- New dependencies allowed: a Go PTY library with ConPTY support on Windows, `github.com/charmbracelet/x/xpty` (same family as the existing charmbracelet modules), or `github.com/aymanbagabas/go-pty` if xpty does not fit; and `@xterm/xterm` + `@xterm/addon-fit`, vendored minified in `internal/web/app/vendor/` with their licence added to `THIRD_PARTY_NOTICES.md` (like chart.js). If the vendored files trip the diff guard size limit, stop and ask instead of overriding it.
+- As built: no new dependencies. The repo already had its own PTY (`internal/pty`, ConPTY on Windows) and VT emulator (`internal/vterm`) from the Kanban mode, so the shell reuses them and the panel reuses the Kanban key encoding (`kanban.js`) instead of xterm.js. Transport is SSE read with `fetch` plus JSON POSTs, like `/api/kanban/*`: the API only accepts the `Authorization` header, which a browser WebSocket cannot send. POSTs must be `application/json`, so another site cannot drive the shell with a simple POST in local mode.
+- `internal/vterm` gained scrollback (`History`, last 2000 lines that scroll off the main screen) and `internal/pty` on Windows clears the inherited "ignore Ctrl+C" flag before starting the child; without it Ctrl+C did nothing when the server was started in a new process group (also fixes Ctrl+C in Kanban cards).
+- The shell lives in the existing side tool dock's Terminal tab, above the `/api/exec` process list; the header gets a `>_` icon for it.
 - What the person types is not run through the bash denylist: it is their own shell, not an agent tool. The denylist still applies to commands Gregal sends (065).
-- Desktop gets it through the web app; nothing in `desktop/` should need changing.
-- Side panel: 058 is building a side panel for documents. If it has landed, put the terminal in the same panel slot; otherwise add a minimal one and note the merge as a follow-up.
-- Android gap: no terminal on Android in this task; a phone terminal over the same route would be its own task if wanted.
-- Code to read first: `internal/web/exec.go`, `internal/agent` procs store, `internal/web/app/panels.js` (`term`), `internal/web/app/shell-layout.js`.
+- Desktop gets it through the web app; nothing in `desktop/` changed.
+- Split in two commits (backend, then web panel) to stay under the diff guard's 400 lines per change.
+- Follow-up: 058 landed its documents panel as a separate `#docsPanel` beside the tool dock; moving it into the tool dock as one more tab would leave a single side panel.
+- Follow-up: `clear` with ED 3 empties the server history, but an open panel keeps showing the old lines until it reconnects.
+- Android gap: no terminal on Android; a phone terminal over the same routes would be its own task if wanted.

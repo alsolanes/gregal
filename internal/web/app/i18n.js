@@ -989,6 +989,11 @@ const CA = {
   'pg.files.lead': 'Clic per obrir · doble clic per posar-lo al missatge',
   'pg.files.project': 'Projecte…',
   'pg.term.lead': 'Processos llargs: build, servidor, suite de tests. No bloquegen el torn.',
+  'shellTerm.input': 'Entrada del terminal',
+  'shellTerm.failed': 'No s’ha pogut obrir el terminal: ',
+  'shellTerm.exited': 'El shell ha acabat amb el codi ',
+  'shellTerm.restart': 'Obre’n un de nou',
+  'shellTerm.gone': 'El shell s’ha tancat.',
   'pg.term.run': 'Engega',
 
   'pg.winds.kicker': 'Companyia que persisteix',
@@ -3135,6 +3140,11 @@ const EN = {
   'pg.files.lead': 'Click to open · double click to add it to the message',
   'pg.files.project': 'Project…',
   'pg.term.lead': 'Long jobs: build, server, full test suite. They do not block the turn.',
+  'shellTerm.input': 'Terminal input',
+  'shellTerm.failed': 'Could not open the terminal: ',
+  'shellTerm.exited': 'The shell exited with code ',
+  'shellTerm.restart': 'Open a new one',
+  'shellTerm.gone': 'The shell has closed.',
   'pg.term.run': 'Start',
 
   'pg.winds.kicker': 'Companions that persist',
