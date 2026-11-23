@@ -32,7 +32,7 @@ globalThis.open = (url, name) => opened.push([url, name]);
 globalThis.gregalMD = { render: s => s };
 globalThis.gregalDocView = {
   onDocChanged,
-  view: (box, doc, render, e) => { edit = e; return { open() {}, apply() {} }; },
+  view: (box, doc, render, e) => { edit = e; return { focus() {}, apply() {} }; },
 };
 globalThis.gregal = {
   sys() {},

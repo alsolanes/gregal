@@ -258,7 +258,7 @@ func (h *Hub) handleDocPage(w http.ResponseWriter, r *http.Request) {
 		`body #docsPanel{position:static;flex:1;width:auto;border:0;box-shadow:none}body #docsPanel header{display:none}</style>`+
 		`<script>(()=>{let t='';try{t=(JSON.parse(localStorage.getItem('gregal_brand_cache')||'null')||{}).theme||localStorage.getItem('gregal_tema')||''}catch(e){}`+
 		`if(!t||t==='sistema')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)})()</script>`+
-		`</head><body><div id="workbench"></div><script src="/app/md.js"></script><script src="/app/doc-view.js"></script><script src="/app/deck-view.js"></script><script src="/app/sheet-view.js"></script>`+
+		`</head><body><div id="workbench"></div><script src="/app/md.js"></script><script src="/app/vendor/prosemirror.min.js"></script><script src="/app/doc-view.js"></script><script src="/app/deck-view.js"></script><script src="/app/sheet-view.js"></script>`+
 		`<script type="module" src="/app/doc-page.js"></script></body></html>`)
 }
 

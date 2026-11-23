@@ -2,70 +2,257 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-global.window = global;
-require('./md.js');
-const { view, onDocChanged, keyAction } = require('./doc-view.js');
-
-// Prou DOM per a la vista: fills en ordre, insertBefore, remove i innerHTML
-// amb un comptador d'escriptures per saber què s'ha tornat a pintar.
-class Node {
-  constructor(doc) { this.ownerDocument = doc; this.children = []; this.parentNode = null; this.dataset = {}; this.writes = 0; this._html = ''; }
-  set innerHTML(v) { this._html = v; this.children = []; this.writes++; }
-  get innerHTML() { return this._html; }
-  get text() { return this._html.replace(/<[^>]+>/g, '').trim(); }
-  get firstChild() { return this.children[0] || null; }
-  get nextSibling() { const s = this.parentNode.children; return s[s.indexOf(this) + 1] || null; }
-  insertBefore(el, ref) {
-    el.parentNode = this;
-    const i = ref ? this.children.indexOf(ref) : this.children.length;
-    this.children.splice(i, 0, el);
-  }
-  replaceChildren(...els) { els.forEach(e => { e.parentNode = this; }); this.children = els; }
-  append(el) { this.insertBefore(el, null); }
-  remove() { const s = this.parentNode.children; s.splice(s.indexOf(this), 1); }
-  focus() { this.ownerDocument.activeElement = this; }
-}
-const fakeDocument = { createElement: tag => Object.assign(new Node(fakeDocument), { tag }) };
+const pm = require('./vendor/prosemirror.min.js');
+const { editor, commands, keys, link, toDoc, toMd, onDocChanged } = require('./doc-view.js');
 
 const DOC = {
   id: 'd1', version: 3,
   blocks: [
     { id: 'a', md: '# Pla', version: 1 },
     { id: 'b', md: '- primer\n- segon', version: 2 },
-    { id: 'c', md: '| Fase | Data |\n|---|---|\n| Beta | Març |', version: 3 },
+    { id: 'c', md: 'Tancament', version: 3 },
   ],
 };
 
-test('the document renders one block per block, through md.js', () => {
-  const box = new Node(fakeDocument);
-  view(box, DOC, window.gregalMD.render);
-  assert.deepEqual(box.children.map(e => e.dataset.id), ['a', 'b', 'c']);
-  assert.match(box.children[0].innerHTML, /<h1[^>]*>Pla<\/h1>/);
-  assert.match(box.children[1].innerHTML, /<li>primer<\/li>/);
-  assert.match(box.children[2].innerHTML, /<table/);
+// fakeEdit fa de servidor de les rutes de blocs: apunta les crides i torna
+// la resposta que toca, per defecte un 200.
+function fakeEdit() {
+  const e = {
+    calls: [], next: [], errors: [],
+    reply(r) { e.next.push(r); },
+    async put(id, md, base) { e.calls.push(['put', id, md, base]); return e.take({ version: 9, block: { id, md, version: 9 } }); },
+    async post(after, md) { e.calls.push(['post', after, md]); return e.take({ version: 9, blocks: [{ id: 'n' + e.calls.length, md, version: 9 }] }); },
+    async del(id, base) { e.calls.push(['del', id, base]); return e.take({ version: 9 }); },
+    take(body) { return e.next.shift() || { status: 200, body }; },
+    error: m => e.errors.push(m),
+  };
+  return e;
+}
+
+const md = ed => toMd(ed.state.doc.content.content);
+const ids = ed => { const out = []; ed.state.doc.forEach(n => out.push(n.attrs.id)); return out; };
+// pos torna la posició just abans de text (o just després, amb after) dins del document.
+function pos(ed, text, after = false) {
+  let at = -1;
+  ed.state.doc.descendants((n, p) => {
+    if (at < 0 && n.isText && n.text.includes(text)) at = p + n.text.indexOf(text) + (after ? text.length : 0);
+  });
+  assert.ok(at >= 0, text + ' is in the document');
+  return at;
+}
+const select = (ed, a, b = a) => ed.dispatch(ed.state.tr.setSelection(pm.TextSelection.create(ed.state.doc, a, b)));
+const type = (ed, text, at) => { select(ed, at); ed.dispatch(ed.state.tr.insertText(text)); };
+const block = (s, id = 'a') => ({ version: 1, blocks: [{ id, md: s, version: 1 }] });
+
+test('a document with every basic style goes editor → markdown → editor unchanged', () => {
+  const blocks = [
+    { id: 'h1', md: '# Títol' }, { id: 'h2', md: '## Secció' }, { id: 'h3', md: '### Apartat' },
+    { id: 'p', md: 'Un **negre**, *cursiva*, ++subratllat++, ~~ratllat~~, `codi` i [un enllaç](https://exemple.cat).' },
+    { id: 'ul', md: '- u\n- dos' }, { id: 'ol', md: '1. a\n2. b' }, { id: 'q', md: '> cita' },
+    { id: 'code', md: '```\nx = 1\n```' }, { id: 'hr', md: '---' },
+  ];
+  const doc = toDoc(blocks);
+  assert.equal(doc.childCount, blocks.length, 'each block is one top-level node');
+  const back = [];
+  doc.forEach(n => back.push({ id: n.attrs.id, md: toMd([n]) }));
+  assert.deepEqual(back, blocks);
+  assert.ok(toDoc(back).eq(doc));
 });
 
-test('block events apply in place: insert in its position, replace only that block, delete removes it', () => {
-  const box = new Node(fakeDocument);
-  const v = view(box, DOC, window.gregalMD.render);
-  const [a, b, c] = box.children;
-  v.apply({ op: 'insert', block: { id: 'x', md: 'Nou paràgraf' }, after: 'a', version: 4, author: 'agent' });
-  v.apply({ op: 'insert', block: { id: 'y', md: 'Al principi' }, version: 4, author: 'agent' });
-  v.apply({ op: 'replace', block: { id: 'b', md: 'Llista canviada' }, version: 5, author: 'agent' });
-  v.apply({ op: 'delete', block: { id: 'c' }, version: 6, author: '' });
-  assert.deepEqual(box.children.map(e => e.dataset.id), ['y', 'a', 'x', 'b']);
-  assert.deepEqual(box.children.map(e => e.text), ['Al principi', 'Pla', 'Nou paràgraf', 'Llista canviada']);
-  assert.equal(a.writes, 1, 'the heading was not painted again');
-  assert.equal(b.writes, 2, 'the replaced block was painted once more');
-  assert.equal(c.parentNode.children.includes(c), false);
-  assert.equal(v.version, 6);
+test('underline and strikethrough use the 078 syntax', () => {
+  const p = toDoc([{ id: 'p', md: '++u++ ~~s~~' }]).firstChild;
+  assert.deepEqual([p.child(0).marks[0].type.name, p.child(2).marks[0].type.name], ['underline', 'strike']);
 });
 
-test('events the loaded document already has are ignored', () => {
-  const box = new Node(fakeDocument);
-  const v = view(box, DOC, window.gregalMD.render);
-  assert.equal(v.apply({ op: 'delete', block: { id: 'a' }, version: 3, author: '' }), false);
-  assert.deepEqual(box.children.map(e => e.dataset.id), ['a', 'b', 'c']);
+const ACTIONS = [
+  ['bold', '**hola** món'], ['italic', '*hola* món'], ['underline', '++hola++ món'], ['strike', '~~hola~~ món'],
+  ['code', '`hola` món'], ['h1', '# hola món'], ['h2', '## hola món'], ['h3', '### hola món'],
+  ['bullets', '- hola món'], ['numbers', '1. hola món'], ['quote', '> hola món'], ['rule', 'hola món\n\n---'],
+];
+for (const [name, want] of ACTIONS) {
+  test('toolbar action ' + name + ' writes ' + JSON.stringify(want), () => {
+    const ed = editor(block('hola món'), fakeEdit());
+    if (name === 'rule') select(ed, pos(ed, 'món', true));
+    else select(ed, pos(ed, 'hola'), pos(ed, 'hola', true));
+    assert.equal(ed.run(commands[name]), true);
+    assert.equal(md(ed), want);
+  });
+}
+
+test('toolbar action paragraph turns a heading back into a paragraph', () => {
+  const ed = editor(block('## hola'), fakeEdit());
+  ed.run(commands.paragraph);
+  assert.equal(md(ed), 'hola');
+});
+
+test('toolbar action link wraps the selection in a link', () => {
+  const ed = editor(block('hola món'), fakeEdit());
+  select(ed, pos(ed, 'món'), pos(ed, 'món', true));
+  ed.run(link('https://exemple.cat'));
+  assert.equal(md(ed), 'hola [món](https://exemple.cat)');
+});
+
+test('undo and redo', () => {
+  const ed = editor(block('hola món'), fakeEdit());
+  select(ed, pos(ed, 'hola'), pos(ed, 'hola', true));
+  ed.run(commands.bold);
+  ed.run(commands.undo);
+  assert.equal(md(ed), 'hola món');
+  ed.run(commands.redo);
+  assert.equal(md(ed), '**hola** món');
+});
+
+test('the usual shortcuts run the same commands as the toolbar', () => {
+  assert.equal(keys['Mod-b'], commands.bold);
+  assert.equal(keys['Mod-i'], commands.italic);
+  assert.equal(keys['Mod-u'], commands.underline);
+  assert.equal(keys['Mod-Alt-1'], commands.h1);
+  assert.equal(keys['Mod-Alt-2'], commands.h2);
+  assert.equal(keys['Mod-Alt-3'], commands.h3);
+  assert.equal(keys['Mod-z'], commands.undo);
+  assert.equal(keys['Mod-y'], commands.redo);
+});
+
+test('saving is debounced: a changed node is PUT once with its base_version, an untouched one is not', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const ed = fakeEdit(), e = editor(DOC, ed);
+  type(e, ' nou', pos(e, 'Tancament', true));
+  type(e, '!', pos(e, 'Tancament nou', true));
+  assert.deepEqual(ed.calls, [], 'nothing is sent while typing');
+  t.mock.timers.tick(700);
+  await new Promise(r => setImmediate(r));
+  assert.deepEqual(ed.calls, [['put', 'c', 'Tancament nou!', 3]]);
+  type(e, '?', pos(e, 'nou!', true));
+  await e.flush();
+  assert.deepEqual(ed.calls.at(-1), ['put', 'c', 'Tancament nou!?', 9], 'the next save starts from the saved version');
+});
+
+test('a new node is POSTed after its predecessor and keeps the id the server gives', async () => {
+  const ed = fakeEdit(), e = editor(DOC, ed);
+  select(e, pos(e, 'Pla', true));
+  e.run(keys.Enter);
+  e.dispatch(e.state.tr.insertText('Nou'));
+  await e.flush();
+  assert.deepEqual(ed.calls, [['post', 'a', 'Nou']]);
+  assert.deepEqual(ids(e), ['a', 'n1', 'b', 'c']);
+  e.dispatch(e.state.tr.insertText('!'));
+  await e.flush();
+  assert.deepEqual(ed.calls.at(-1), ['put', 'n1', 'Nou!', 9]);
+});
+
+test('Enter in the middle of a node splits it: the first half is PUT, the second POSTed after it', async () => {
+  const ed = fakeEdit(), e = editor(DOC, ed);
+  select(e, pos(e, 'ment'));
+  e.run(keys.Enter);
+  await e.flush();
+  assert.deepEqual(ed.calls, [['put', 'c', 'Tanca', 3], ['post', 'c', 'ment']]);
+});
+
+test('a removed node is DELETEd, and an emptied one too', async () => {
+  const ed = fakeEdit(), e = editor(DOC, ed);
+  const r = e.state.doc.child(0).nodeSize;
+  e.dispatch(e.state.tr.delete(0, r));
+  await e.flush();
+  assert.deepEqual(ed.calls, [['del', 'a', 1]]);
+  select(e, pos(e, 'Tancament'), pos(e, 'Tancament', true));
+  e.dispatch(e.state.tr.deleteSelection());
+  await e.flush();
+  assert.deepEqual(ed.calls.at(-1), ['del', 'c', 3]);
+  assert.deepEqual(ids(e), ['b', null], 'the empty node stays to write in, as a new block');
+});
+
+test('turning a paragraph into a heading or a list is a PUT of the same block', async () => {
+  const ed = fakeEdit(), e = editor(DOC, ed);
+  select(e, pos(e, 'Tancament'));
+  e.run(commands.h2);
+  e.run(commands.quote);
+  await e.flush();
+  assert.deepEqual(ed.calls, [['put', 'c', '> ## Tancament', 3]]);
+  assert.deepEqual(ids(e), ['a', 'b', 'c']);
+});
+
+test('a 409 keeps the person\'s text with the agent\'s version, until they keep theirs or take the agent\'s', async () => {
+  const ed = fakeEdit(), e = editor(DOC, ed);
+  type(e, ' meu', pos(e, 'Tancament', true));
+  ed.reply({ status: 409, body: { error: 'changed', block: { id: 'c', md: 'Final de l\'agent', version: 7 } } });
+  await e.flush();
+  assert.equal(md(e).split('\n\n')[2], 'Tancament meu');
+  assert.equal(e.conflicts.get('c').md, 'Final de l\'agent');
+  type(e, '!', pos(e, 'meu', true));
+  await e.flush();
+  assert.equal(ed.calls.length, 1, 'a conflicted block is not saved on its own');
+  await e.keepMine('c');
+  assert.deepEqual(ed.calls.at(-1), ['put', 'c', 'Tancament meu!', 7], 'it overwrites the version the notice shows');
+  assert.equal(e.conflicts.size, 0);
+
+  type(e, '?', pos(e, 'meu!', true));
+  ed.reply({ status: 409, body: { error: 'changed', block: { id: 'c', md: 'Una altra', version: 11 } } });
+  await e.flush();
+  e.useTheirs('c');
+  assert.equal(md(e).split('\n\n')[2], 'Una altra');
+  await e.flush();
+  assert.equal(ed.calls.length, 3, 'taking the agent\'s text sends nothing');
+});
+
+test('a save that fails on the network is reported and keeps the text', async () => {
+  const ed = fakeEdit(), e = editor(DOC, ed);
+  ed.put = async () => { throw new Error('offline'); };
+  type(e, ' x', pos(e, 'Tancament', true));
+  await e.flush();
+  assert.deepEqual(ed.errors, ['offline']);
+  assert.match(md(e), /Tancament x$/);
+});
+
+test('agent events update their node in place and the cursor stays on its text', () => {
+  const e = editor(DOC, fakeEdit());
+  e.focused = true;
+  select(e, pos(e, 'Tanca', true));
+  e.apply({ op: 'replace', block: { id: 'a', md: '# Pla nou i més llarg', version: 4 }, version: 4 });
+  e.apply({ op: 'insert', block: { id: 'x', md: 'Inserit', version: 5 }, after: 'b', version: 5 });
+  e.apply({ op: 'insert', block: { id: 'y', md: 'Al principi', version: 6 }, version: 6 });
+  e.apply({ op: 'delete', block: { id: 'b' }, version: 7 });
+  assert.deepEqual(ids(e), ['y', 'a', 'x', 'c']);
+  assert.equal(md(e), 'Al principi\n\n# Pla nou i més llarg\n\nInserit\n\nTancament');
+  assert.equal(e.state.selection.head, pos(e, 'Tanca', true));
+  assert.equal(e.version, 7);
+  assert.equal(e.apply({ op: 'delete', block: { id: 'a' }, version: 3 }), false, 'events the loaded document had are ignored');
+});
+
+test('the node being edited waits for the person to leave it before an agent event lands', async () => {
+  const ed = fakeEdit(), e = editor(DOC, ed);
+  e.focused = true;
+  select(e, pos(e, 'Pla', true));
+  e.apply({ op: 'replace', block: { id: 'a', md: '# Agent', version: 4 }, version: 4 });
+  assert.match(md(e), /^# Pla/);
+  select(e, pos(e, 'Tanca'));
+  assert.match(md(e), /^# Agent/, 'it lands when the cursor leaves');
+  e.apply({ op: 'replace', block: { id: 'c', md: 'Agent c', version: 5 }, version: 5 });
+  e.focused = false;
+  assert.match(md(e), /Agent c$/, 'or when the editor loses the focus');
+  await e.flush();
+  assert.deepEqual(ed.calls, []);
+});
+
+test('the stream\'s copy of the person\'s own saves is not applied twice', async () => {
+  const ed = fakeEdit(), e = editor(DOC, ed);
+  select(e, pos(e, 'Tancament', true));
+  e.run(keys.Enter);
+  e.dispatch(e.state.tr.insertText('Nou'));
+  const saving = e.flush();
+  e.apply({ op: 'insert', block: { id: 'n1', md: 'Nou', version: 9 }, after: 'c', version: 9 });
+  await saving;
+  e.apply({ op: 'replace', block: { id: 'n1', md: 'Nou', version: 9 }, version: 9 });
+  assert.deepEqual(ids(e), ['a', 'b', 'c', 'n1']);
+});
+
+test('an empty document has one empty node, and writing in it saves the first block', async () => {
+  const ed = fakeEdit(), e = editor({ version: 1, blocks: [] }, ed);
+  assert.deepEqual(ids(e), [null]);
+  await e.flush();
+  assert.deepEqual(ed.calls, [], 'nothing to save while it is empty');
+  type(e, 'Primer dia', 1);
+  await e.flush();
+  assert.deepEqual(ed.calls, [['post', '', 'Primer dia']]);
 });
 
 test('doc_changed opens a closed document and only brings forward the one already open', () => {
@@ -79,219 +266,19 @@ test('doc_changed opens a closed document and only brings forward the one alread
   assert.equal(onDocChanged({ id: 'd1', visible: true, scope: 'mine' }, { id: 'd1', scope: 'mine' }), 'front');
 });
 
-test('the panel has its strings in Catalan and English and downloads through the export route', () => {
+test('the panel and the toolbar have their strings in Catalan and English, and the editor library is loaded', () => {
   const src = fs.readFileSync(path.join(__dirname, 'docs-panel.js'), 'utf8');
   assert.match(src, /tx\('Descarrega en Word', 'Download as Word'\)/);
   assert.match(src, /tx\('Descarrega en PowerPoint', 'Download as PowerPoint'\)/);
   assert.match(src, /\/export\?format=' \+ format/);
   assert.match(src, /'\/api\/docs'/);
   assert.match(src, /tx\("L'agent ha canviat aquest bloc", 'The agent changed this block'\)/);
-});
-
-// fakeEdit fa de servidor de les rutes de blocs: apunta les crides i torna
-// la resposta que toca, per defecte un 200.
-function fakeEdit() {
-  const e = {
-    calls: [], next: null, errors: [],
-    reply(r) { e.next = r; },
-    async put(id, md, base) { e.calls.push(['put', id, md, base]); return e.take({ version: 9, block: { id, md, version: 9 } }); },
-    async post(after, md) { e.calls.push(['post', after, md]); return e.take({ version: 9, blocks: [{ id: 'n', md, version: 9 }] }); },
-    async del(id, base) { e.calls.push(['del', id, base]); return e.take({ version: 9 }); },
-    take(body) { const r = e.next || { status: 200, body }; e.next = null; return r; },
-    notice: () => 'The agent changed this block',
-    error: m => e.errors.push(m),
-  };
-  return e;
-}
-const key = (ta, k, extra = {}) => ta.onkeydown({ key: k, preventDefault() {}, ...extra });
-const tick = () => new Promise(r => setImmediate(r));
-
-test('editing a block: open shows its markdown, Esc cancels, saving replaces, emptying deletes', async () => {
-  const box = new Node(fakeDocument), ed = fakeEdit();
-  const v = view(box, DOC, window.gregalMD.render, ed);
-  const b = box.children[1];
-  v.open('b');
-  const ta = v.editing.ta;
-  assert.equal(ta.tag, 'textarea');
-  assert.equal(ta.value, '- primer\n- segon');
-  assert.deepEqual(b.children, [ta]);
-  ta.value = 'Canviat';
-  key(ta, 'Escape');
-  assert.equal(v.editing, null);
-  assert.match(b.innerHTML, /<li>primer<\/li>/, 'cancel shows the old text');
-  assert.deepEqual(ed.calls, []);
-
-  v.open('b');
-  v.editing.ta.value = 'Llista nova';
-  await v.save();
-  assert.deepEqual(ed.calls, [['put', 'b', 'Llista nova', 2]]);
-  assert.equal(b.text, 'Llista nova');
-  assert.equal(v.editing, null);
-
-  v.open('b');
-  assert.equal(v.editing.base, 9, 'the next save starts from the saved version');
-  key(v.editing.ta, 'Escape');
-  v.open('c');
-  v.editing.ta.value = '  ';
-  await v.save();
-  assert.deepEqual(ed.calls.at(-1), ['del', 'c', 3]);
-  assert.deepEqual(box.children.map(e => e.dataset.id), ['a', 'b']);
-});
-
-test('Enter at the end of a block opens a new block below, saved with the id the server gives', async () => {
-  const box = new Node(fakeDocument), ed = fakeEdit();
-  const v = view(box, DOC, window.gregalMD.render, ed);
-  v.open('a');
-  const ta = v.editing.ta;
-  ta.selectionStart = ta.selectionEnd = 1;
-  key(ta, 'Enter');
-  assert.equal(v.editing.ta, ta, 'Enter in the middle of the text is a new line');
-  ta.selectionStart = ta.selectionEnd = ta.value.length;
-  key(ta, 'Enter');
-  await tick();
-  assert.equal(v.editing.id, null, 'a new block has no id until the server gives one');
-  assert.deepEqual(box.children.map(e => e.dataset.id), ['a', undefined, 'b', 'c']);
-  v.editing.ta.value = 'Nou';
-  await v.save();
-  assert.deepEqual(ed.calls, [['post', 'a', 'Nou']]);
-  assert.deepEqual(box.children.map(e => e.dataset.id), ['a', 'n', 'b', 'c']);
-  v.apply({ op: 'insert', block: { id: 'n', md: 'Nou' }, after: 'a', version: 9, author: 'user' });
-  assert.deepEqual(box.children.map(e => e.dataset.id), ['a', 'n', 'b', 'c'], 'the stream event of the same insert is not doubled');
-
-  v.open(null, 'c');
-  await v.save();
-  assert.equal(ed.calls.length, 1, 'an empty new block is dropped without a call');
-  assert.deepEqual(box.children.map(e => e.dataset.id), ['a', 'n', 'b', 'c']);
-});
-
-test('leaving a block or Ctrl+Enter saves it; leaving an untouched block sends nothing', async () => {
-  const box = new Node(fakeDocument), ed = fakeEdit();
-  const v = view(box, DOC, window.gregalMD.render, ed);
-  v.open('b');
-  v.editing.ta.value = 'En sortir';
-  v.editing.ta.onblur();
-  await tick();
-  assert.deepEqual(ed.calls, [['put', 'b', 'En sortir', 2]]);
-  assert.equal(box.children[1].text, 'En sortir');
-
-  v.open('c');
-  v.editing.ta.value = 'Amb Ctrl+Enter';
-  key(v.editing.ta, 'Enter', { ctrlKey: true });
-  await tick();
-  assert.deepEqual(ed.calls.at(-1), ['put', 'c', 'Amb Ctrl+Enter', 3]);
-
-  v.open('a');
-  const ta = v.editing.ta;
-  v.apply({ op: 'replace', block: { id: 'a', md: 'Ho canvia l\'agent', version: 10 }, version: 10, author: 'agent' });
-  ta.onblur();
-  await tick();
-  assert.equal(ed.calls.length, 2, 'an untouched block is not saved over the agent\'s change');
-});
-
-test('a save that fails on the network is reported and keeps the text', async () => {
-  const box = new Node(fakeDocument), ed = fakeEdit();
-  ed.put = async () => { throw new Error('offline'); };
-  const v = view(box, DOC, window.gregalMD.render, ed);
-  v.open('b');
-  v.editing.ta.value = 'No arriba';
-  await v.save();
-  assert.deepEqual(ed.errors, ['offline']);
-  assert.equal(v.editing.ta.value, 'No arriba');
-});
-
-test('a 409 shows the current text and a notice, and keeps the person\'s text', async () => {
-  const box = new Node(fakeDocument), ed = fakeEdit();
-  const v = view(box, DOC, window.gregalMD.render, ed);
-  v.open('b');
-  const ta = v.editing.ta;
-  ta.value = 'El meu text';
-  ed.reply({ status: 409, body: { error: 'changed', block: { id: 'b', md: 'Text de l\'agent', version: 7 } } });
-  await v.save();
-  const [notice, kept] = box.children[1].children;
-  assert.match(notice.innerHTML, /The agent changed this block/);
-  assert.match(notice.innerHTML, /Text de l.agent/);
-  assert.equal(kept, ta);
-  assert.equal(ta.value, 'El meu text');
-  ta.onblur();
-  assert.equal(ed.calls.length, 1, 'leaving after a conflict does not overwrite');
-  key(ta, 'Enter', { ctrlKey: true });
-  await tick();
-  assert.deepEqual(ed.calls.at(-1), ['put', 'b', 'El meu text', 7], 'Ctrl+Enter saves on top of the version now shown');
-  assert.equal(box.children[1].text, 'El meu text');
-});
-
-test('while a block is edited its events do not touch the text area; other blocks still update', () => {
-  const box = new Node(fakeDocument), ed = fakeEdit();
-  const v = view(box, DOC, window.gregalMD.render, ed);
-  v.open('b');
-  const ta = v.editing.ta;
-  ta.value = 'A mig escriure';
-  v.apply({ op: 'replace', block: { id: 'b', md: 'Agent b', version: 4 }, version: 4, author: 'agent' });
-  v.apply({ op: 'replace', block: { id: 'a', md: '# Pla nou', version: 5 }, version: 5, author: 'agent' });
-  assert.deepEqual(box.children[1].children, [ta]);
-  assert.equal(ta.value, 'A mig escriure');
-  assert.equal(v.editing.base, 2, 'saving is still checked against the version it opened');
-  assert.match(box.children[0].innerHTML, /Pla nou/);
-  v.cancel();
-  assert.equal(box.children[1].text, 'Agent b', 'cancel shows what the agent wrote meanwhile');
-});
-
-test('keys in the block editor', () => {
-  const ta = { value: 'abc', selectionStart: 3, selectionEnd: 3 };
-  assert.equal(keyAction({ key: 'Escape' }, ta), 'cancel');
-  assert.equal(keyAction({ key: 'Enter', ctrlKey: true }, ta), 'save');
-  assert.equal(keyAction({ key: 'Enter', metaKey: true }, ta), 'save');
-  assert.equal(keyAction({ key: 'Enter' }, ta), 'insert');
-  assert.equal(keyAction({ key: 'Enter', shiftKey: true }, ta), null);
-  assert.equal(keyAction({ key: 'Enter' }, { ...ta, selectionStart: 1, selectionEnd: 1 }), null);
-  assert.equal(keyAction({ key: 'a' }, ta), null);
-});
-
-const EMPTY = { id: 'd2', version: 1, kind: 'doc', blocks: [] };
-const writable = () => ({ ...fakeEdit(), empty: () => 'Write here…' });
-
-test('a document with no blocks shows an empty block; writing in it saves the first block', async () => {
-  const box = new Node(fakeDocument), ed = writable();
-  const v = view(box, EMPTY, window.gregalMD.render, ed);
-  assert.equal(box.children.length, 1);
-  assert.match(box.children[0].className, /doc-empty/);
-  assert.match(box.children[0].text, /Write here…/);
-  box.children[0].onclick({ target: {} });
-  assert.equal(v.editing.id, null);
-  assert.deepEqual(box.children, [v.editing.el]);
-  assert.equal(v.editing.ta.tag, 'textarea');
-
-  key(v.editing.ta, 'Escape');
-  assert.equal(box.children.length, 1);
-  assert.match(box.children[0].className, /doc-empty/, 'leaving without writing shows the empty block again');
-
-  v.open(null, '');
-  v.editing.ta.value = 'Primer dia';
-  await v.save();
-  assert.deepEqual(ed.calls, [['post', '', 'Primer dia']]);
-  assert.deepEqual(box.children.map(e => e.dataset.id), ['n']);
-  assert.equal(box.children[0].text, 'Primer dia');
-
-  v.apply({ op: 'delete', block: { id: 'n' }, version: 10, author: 'agent' });
-  assert.equal(box.children.length, 1);
-  assert.match(box.children[0].className, /doc-empty/, 'a document that loses its last block can still be written in');
-  v.apply({ op: 'insert', block: { id: 'z', md: 'De l\'agent' }, version: 11, author: 'agent' });
-  assert.deepEqual(box.children.map(e => e.dataset.id), ['z'], 'the empty block goes when a block arrives');
-});
-
-test('a new document opens in edit mode: the cursor in a first empty block', () => {
-  const box = new Node(fakeDocument);
-  const v = view(box, EMPTY, window.gregalMD.render, writable());
-  v.open(null, '');
-  assert.equal(v.editing.id, null);
-  assert.deepEqual(box.children, [v.editing.el]);
-  assert.equal(fakeDocument.activeElement, v.editing.ta);
-});
-
-test('without editing, or in a presentation, an empty document shows no block to write in', () => {
-  const box = new Node(fakeDocument);
-  view(box, EMPTY, window.gregalMD.render);
-  assert.equal(box.children.length, 0);
-  view(box, { ...EMPTY, kind: 'deck' }, window.gregalMD.render, writable());
-  assert.equal(box.children.length, 0);
+  const view = fs.readFileSync(path.join(__dirname, 'doc-view.js'), 'utf8');
+  const tools = [...view.matchAll(/\['(\w+)', '[^']+', '([^']+)', '([^']+)'\]/g)];
+  assert.deepEqual(tools.map(m => m[1]).sort(), [...Object.keys(commands), 'link'].sort(), 'every command has a button');
+  for (const m of tools) assert.notEqual(m[2], m[3], m[1] + ' has its own Catalan and English label');
+  for (const s of [/'Desa el meu text', 'Keep my text'/, /"Adreça de l'enllaç", 'Link address'/]) assert.match(view, s);
+  const index = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const page = fs.readFileSync(path.join(__dirname, '..', 'docs_api.go'), 'utf8');
+  for (const html of [index, page]) assert.ok(html.indexOf('/app/vendor/prosemirror.min.js') >= 0 && html.indexOf('/app/vendor/prosemirror.min.js') < html.indexOf('/app/doc-view.js'));
 });

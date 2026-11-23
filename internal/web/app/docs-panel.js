@@ -23,14 +23,18 @@ style.textContent = '#docsPanel[hidden]{display:none}#docsPanel{flex:0 0 460px;w
   '#docsPanel header{display:flex;gap:6px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)}' +
   '#docsList{flex:1;min-width:0;border:1px solid var(--line-hi);border-radius:4px;background:var(--bg);color:var(--ink);padding:6px}' +
   '#docsDownload,#docsWindow,#docsClose{border:1px solid var(--line-hi);border-radius:4px;background:var(--bg);color:var(--ink);cursor:pointer;padding:6px 9px;font-size:12px;text-decoration:none;white-space:nowrap}' +
-  '#docsClose{margin-left:auto}#docsBody{flex:1;overflow:auto;padding:16px 20px}#docsBody .doc-block{cursor:text}#docsBody .doc-empty{color:var(--muted)}' +
+  '#docsClose{margin-left:auto}#docsBody{flex:1;overflow:auto;padding:16px 20px}' +
+  // Editor de text (doc-view.js): la barra d'eines queda a dalt en fer scroll.
+  '#docsBody .doc-toolbar{position:sticky;top:-16px;z-index:1;display:flex;flex-wrap:wrap;gap:2px;margin:-16px -20px 12px;padding:6px 12px;border-bottom:1px solid var(--line);background:var(--panel)}' +
+  '#docsBody .doc-toolbar button{min-width:28px;border:0;border-radius:4px;background:transparent;color:var(--ink);cursor:pointer;padding:4px 6px;font-size:13px}#docsBody .doc-toolbar button:hover{background:var(--surface)}' +
+  '#docsBody .ProseMirror{outline:none;min-height:50vh;white-space:pre-wrap}#docsBody .doc-empty::before{content:attr(data-placeholder);position:absolute;color:var(--muted);pointer-events:none}' +
   '.docs-home h2{margin:0 0 12px;font-size:18px}.docs-home h3{margin:20px 0 6px;font-size:13px;color:var(--muted)}.docs-home-new{display:flex;gap:6px}' +
   '.docs-home-new input{flex:1;min-width:0;border:1px solid var(--line-hi);border-radius:4px;background:var(--bg);color:var(--ink);padding:6px}' +
   '.docs-home-new button{border:1px solid var(--line-hi);border-radius:4px;background:var(--bg);color:var(--ink);cursor:pointer;padding:6px 9px}' +
   '.docs-home-item{display:flex;flex-direction:column;width:100%;padding:8px 10px;border:0;border-radius:6px;background:transparent;color:var(--ink);text-align:left;cursor:pointer;font:inherit}' +
   '.docs-home-item:hover{background:var(--surface)}.docs-home-meta,.docs-home-empty{font-size:12px;color:var(--muted)}' +
-  '#docsBody .doc-block textarea{display:block;width:100%;box-sizing:border-box;margin:6px 0;padding:6px 8px;border:1px solid var(--line-hi);border-radius:4px;background:var(--bg);color:var(--ink);font:13px/1.5 ui-monospace,monospace;resize:vertical}' +
   '#docsBody .doc-conflict{margin:6px 0;padding:4px 10px;border-left:3px solid var(--line-hi);color:var(--ink)}#docsBody .doc-conflict p:first-child{font-weight:600}' +
+  '#docsBody .doc-conflict button{margin:0 6px 6px 0;border:1px solid var(--line-hi);border-radius:4px;background:var(--bg);color:var(--ink);cursor:pointer;padding:4px 9px;font-size:12px}' +
   // Diapositives (deck-view.js) amb els colors del tema per defecte del pptx
   // (ooxml «default»): una diapositiva és blanca en tots dos temes, com a PowerPoint.
   '#docsBody .deck-slide{margin:0 0 14px;container-type:inline-size;cursor:pointer}' +
@@ -117,8 +121,8 @@ async function follow(id, scope, my, write) {
   $('docsDownload').textContent = label();
   const view = { deck: window.gregalDeckView, sheet: window.gregalSheetView }[doc.kind] || window.gregalDocView;
   const v = view.view($('docsBody'), doc, window.gregalMD.render, blockEdits(id, scope, doc.kind));
-  // Una presentació o un full de càlcul nous no tenen bloc de text on escriure.
-  if (write && view === window.gregalDocView) v.open(null, '');
+  // Una presentació o un full de càlcul nous no tenen text on escriure.
+  if (write && view === window.gregalDocView) v.focus();
   const rd = r.body.getReader(), dec = new TextDecoder();
   let buf = '';
   for (;;) {
