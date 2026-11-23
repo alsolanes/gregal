@@ -31,7 +31,7 @@ class LiveDocTest {
     }
 
     private val doc = DocsJson.doc("""{"id":"d1","title":"Informe","kind":"doc","version":3,
-        "blocks":[{"id":"b1","md":"# Títol","version":1,"author":"agent"},{"id":"b2","md":"Primer paràgraf","version":3,"author":"agent"}]}""")
+        "blocks":[{"id":"b1","md":"# Títol","version":1,"author":"agent"},{"id":"b2","md":"Primer paràgraf","version":2,"author":"agent"}]}""")
 
     private fun ev(raw: String) = DocsJson.change(raw)!!
 
@@ -84,8 +84,8 @@ class LiveDocTest {
 
     @Test
     fun eachActionBuildsItsRequest() {
-        // b2 és a la versió 3: la base que s'envia és la del bloc, no la del document.
-        assertEquals(req("PUT", "/api/docs/d1/blocks/b2", """{"md":"Primer, revisat","base_version":3}"""),
+        // b2 és a la versió 2 i el document a la 3: la base que s'envia és la del bloc.
+        assertEquals(req("PUT", "/api/docs/d1/blocks/b2", """{"md":"Primer, revisat","base_version":2}"""),
             doc.open("b2").typed("Primer, revisat\n").saveRequest())
         assertEquals(req("DELETE", "/api/docs/d1/blocks/b1?base_version=1"), doc.open("b1").typed("  ").saveRequest())
         assertEquals(req("POST", "/api/docs/d1/blocks", """{"after":"b2","md":"Nou"}"""), doc.openNew("b2").typed("Nou").saveRequest())
@@ -155,10 +155,45 @@ class LiveDocTest {
             .apply(ev("""{"op":"replace","block":{"id":"b1","md":"# Nou títol","version":5},"version":5,"author":"agent"}"""))
             .apply(ev("""{"op":"delete","block":{"id":"b2"},"version":6,"author":"agent"}"""))
         assertEquals("El meu text", out.edit?.text)
-        assertEquals(3, out.edit?.base)
+        assertEquals(2, out.edit?.base)
         assertEquals(listOf("b1" to "# Nou títol", "b2" to "De l'agent"), mds(out))
         // Sense editor, el mateix delete s'aplica.
         val closed = out.copy(edit = null).apply(ev("""{"op":"delete","block":{"id":"b2"},"version":7,"author":"agent"}"""))
         assertEquals(listOf("b1"), closed.blocks.map { it.id })
+    }
+
+    private val delB2 = """{"op":"delete","block":{"id":"b2"},"version":4,"author":"agent"}"""
+
+    @Test
+    fun aNewBlockEditorMovesUpWhenItsAnchorIsDeleted() {
+        val out = doc.openNew("b2").typed("Nou").apply(ev(delB2))
+        assertEquals(listOf("b1"), out.blocks.map { it.id })
+        assertEquals("b1", out.edit?.after)
+        assertEquals("Nou", out.edit?.text)
+        assertEquals(req("POST", "/api/docs/d1/blocks", """{"after":"b1","md":"Nou"}"""), out.saveRequest())
+        // El primer bloc: el nou anirà al principi.
+        val top = doc.openNew("b1").apply(ev("""{"op":"delete","block":{"id":"b1"},"version":4,"author":"agent"}"""))
+        assertEquals("", top.edit?.after)
+    }
+
+    @Test
+    fun aDeletedBlockLeavesWhenItsEditorCloses() {
+        val gone = doc.open("b2").apply(ev(delB2))
+        assertEquals(listOf("b1", "b2"), gone.blocks.map { it.id })
+        // Sense tocar: es tanca i el bloc se'n va, com a la web.
+        assertEquals(listOf("b1"), gone.skipped().doc.blocks.map { it.id })
+        // Tocat: el servidor diu 404; es tanca, el bloc se'n va i es diu.
+        val s = gone.typed("El meu text").saved(404, """{"error":"unknown block"}""")
+        assertNull(s.doc.edit)
+        assertEquals(listOf("b1"), s.doc.blocks.map { it.id })
+        assertEquals("unknown block", s.error)
+    }
+
+    @Test
+    fun versionNeverGoesBack() {
+        val s = doc.open("b2").typed("x").saved(200, """{"version":4,"block":{"id":"b2","md":"x","version":4}}""").doc
+            .apply(ev("""{"op":"replace","block":{"id":"b1","md":"y","version":6},"version":6,"author":"agent"}"""))
+            .apply(ev("""{"op":"replace","block":{"id":"b2","md":"x","version":4},"version":4,"author":"user"}"""))
+        assertEquals(6, s.version)
     }
 }

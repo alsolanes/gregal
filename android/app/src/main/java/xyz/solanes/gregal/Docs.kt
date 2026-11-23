@@ -21,7 +21,7 @@ data class DocBlock(val id: String = "", val md: String = "", val version: Int =
  * L'editor obert: el bloc `id`, o un de nou després d'`after` si `id` és buit.
  * `opened` és el text amb què s'ha obert (sense tocar no es desa) i `base`
  * la versió del bloc que la persona té; `conflict` és el bloc d'ara després
- * d'un 409.
+ * d'un 409; `gone`, que el stream l'ha esborrat mentre s'editava.
  */
 data class DocEdit(
     val id: String,
@@ -31,6 +31,7 @@ data class DocEdit(
     val base: Int = 0,
     val conflict: DocBlock? = null,
     val saving: Boolean = false,
+    val gone: Boolean = false,
 )
 
 data class DocRequest(val method: String, val path: String, val body: String? = null)
@@ -62,6 +63,7 @@ data class LiveDoc(
         // versió: per això es compara amb la base i no amb l'última versió.
         if (c.version <= base) return this
         val i = blocks.indexOfFirst { it.id == c.block.id }
+        var e = edit
         val next = when (c.op) {
             // Ja hi és: la resposta del POST l'ha posat abans que arribés pel stream.
             "insert" -> if (i >= 0) blocks else blocks.toMutableList().apply {
@@ -70,11 +72,19 @@ data class LiveDoc(
             }
             // El text de la persona és a l'editor: un replace només canvia el que se'n sap.
             "replace" -> if (i < 0) blocks else blocks.toMutableList().apply { set(i, c.block) }
-            // El bloc que s'edita es queda, perquè l'editor no desaparegui amb el text.
-            "delete" -> if (i < 0 || edit?.id == c.block.id) blocks else blocks.filterIndexed { k, _ -> k != i }
+            "delete" -> when {
+                i < 0 -> blocks
+                // El bloc que s'edita es queda fins que l'editor es tanca, perquè no desaparegui amb el text.
+                edit?.id == c.block.id -> { e = edit.copy(gone = true); blocks }
+                else -> {
+                    // Un bloc nou penjava d'aquest: passa al de sobre (o al principi).
+                    if (edit != null && edit.id.isEmpty() && edit.after == c.block.id) e = edit.copy(after = blocks.getOrNull(i - 1)?.id.orEmpty())
+                    blocks.filterIndexed { k, _ -> k != i }
+                }
+            }
             else -> blocks
         }
-        return copy(blocks = next, version = c.version)
+        return copy(blocks = next, version = maxOf(version, c.version), edit = e)
     }
 
     fun open(id: String): LiveDoc {
@@ -100,7 +110,12 @@ data class LiveDoc(
     }
 
     /** Tanca l'editor quan saveRequest no té res per enviar. */
-    fun skipped(): DocSaved = DocSaved(copy(edit = null), edit?.id?.ifEmpty { null })
+    fun skipped(): DocSaved = when {
+        edit?.gone == true -> DocSaved(closedWithout(edit.id))
+        else -> DocSaved(copy(edit = null), edit?.id?.ifEmpty { null })
+    }
+
+    private fun closedWithout(id: String) = copy(edit = null, blocks = blocks.filter { it.id != id })
 
     /** Aplica la resposta d'una ruta de blocs a l'editor obert. */
     fun saved(code: Int, body: String): DocSaved {
@@ -112,6 +127,8 @@ data class LiveDoc(
             // Es veu el text d'ara i es queda el de la persona; tornar a desar trepitja aquesta versió.
             code == 409 && b != null ->
                 DocSaved(copy(blocks = blocks.map { if (it.id == b.id) b else it }, edit = e.copy(base = b.version, conflict = b, saving = false)))
+            // L'agent l'ha esborrat: no hi ha res on desar el text.
+            code == 404 && e.gone -> DocSaved(closedWithout(e.id), error = a.error.ifBlank { "HTTP $code" })
             code != 200 -> DocSaved(copy(edit = e.copy(saving = false)), error = a.error.ifBlank { "HTTP $code" })
             e.id.isEmpty() -> {
                 var d = closed
@@ -122,8 +139,8 @@ data class LiveDoc(
                 }
                 DocSaved(d, at)
             }
-            b != null -> DocSaved(closed.copy(blocks = blocks.map { if (it.id == b.id) b else it }), e.id)
-            else -> DocSaved(closed.copy(blocks = blocks.filter { it.id != e.id }))
+            e.text.isBlank() -> DocSaved(closedWithout(e.id))
+            else -> DocSaved(closed.copy(blocks = b?.let { n -> blocks.map { if (it.id == n.id) n else it } } ?: blocks), e.id)
         }
     }
 }

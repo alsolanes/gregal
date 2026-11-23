@@ -57,6 +57,8 @@ fun DocScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     }
                 }
                 val e = open.edit
+                // Un bloc nou que penjava del primer, esborrat: va al principi.
+                if (e != null && e.id.isEmpty() && e.after.isEmpty()) item(key = "new-top") { BlockEditor(vm, e, lang) }
                 items(open.blocks, key = { "b:" + it.id }) { b ->
                     if (e?.id == b.id) BlockEditor(vm, e, lang)
                     else Column(Modifier.fillMaxWidth().clickable { vm.editDocBlock(b.id) }) { AssistantResponse(b.md, lang) }
