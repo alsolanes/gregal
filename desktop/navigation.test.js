@@ -71,8 +71,10 @@ test('local pages take the theme colours and product name from the query, and ig
 test('desktop credentials are delivered by the guarded bridge, never URL query parameters', () => {
   const main = fs.readFileSync(require('node:path').join(__dirname, 'main.js'), 'utf8');
   assert.equal(main.includes('encodeURIComponent(TOKEN)'), false);
-  // El token només per a la pàgina de confiança; l'edició no és secreta.
-  assert.ok(main.includes("trusted(event) ? { token: TOKEN, edition: EDITION } : { token: '', edition: EDITION }"));
+  // El token només per a la pàgina de confiança i les finestres de document
+  // del mateix origen (ipc.test.js); l'edició no és secreta.
+  assert.ok(main.includes("const doc = docWindows?.isSender(event) && sameOrigin(event.senderFrame.url, BASE);"));
+  assert.ok(main.includes("trusted(event) || doc ? { token: TOKEN, edition: EDITION } : { token: '', edition: EDITION }"));
   // Els webviews obren enllaços al mateix panell o en una finestra sense
   // preload ni node (browser-bridge.js guestWindowOpen); la resta, denegat.
   assert.ok(main.includes('const how = guestWindowOpen(details, () => BASE);'));
