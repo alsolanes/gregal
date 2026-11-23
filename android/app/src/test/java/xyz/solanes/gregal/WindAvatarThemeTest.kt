@@ -50,6 +50,21 @@ class WindAvatarThemeTest {
         }
     }
 
+    @Test fun `a server older than the client's packs says to update it instead of a raw 400`() {
+        // What v1.91 and v1.92 answer for Cap de vent, Rosa de rellotge and Mapa de vent.
+        FakeGregal(400) { if (it.startsWith("/api/winds/avatar-theme")) "unknown avatar theme" else "unknown avatar pack" }.use { server ->
+            val vm = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
+            vm.setConn(Conn("127.0.0.1", server.port, "token", "alice"))
+            val wait = { repeat(150) { if (vm.notice.value.isEmpty()) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(20)); Thread.sleep(5) } } }
+            vm.setAvatarTheme("mapa"); wait()
+            assertEquals(tr(vm.idioma.value, "winds.avatarServerOld"), vm.notice.value)
+            assertEquals("cares", vm.avatarTheme.value)
+            vm.clearNotice()
+            vm.createWind("Ratxa", "#5B8DEF", "", avatar = "cap"); wait()
+            assertEquals(tr(vm.idioma.value, "winds.avatarServerOld"), vm.notice.value)
+        }
+    }
+
     private fun editor(theme: String, edit: Wind?, onSave: (WindDraft) -> Unit) {
         ui.setContent {
             CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false, LocalAvatarTheme provides theme) {

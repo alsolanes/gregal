@@ -3569,6 +3569,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private fun companyError(e: Exception) {
         val source = _conn.value
         if (!source.local && (isUnreachable(e) || _offline.value)) { goOffline(source); return }
+        // A server that does not know the pack (before v1.93: cap, rosa, mapa) answers 400 with this text.
+        if (e.message.orEmpty().startsWith("HTTP 400: unknown avatar")) { notify(appText("winds.avatarServerOld")); return }
         notify(appText("app.status.company", e.message.orEmpty()))
     }
 

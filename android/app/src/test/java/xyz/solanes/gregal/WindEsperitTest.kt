@@ -28,7 +28,7 @@ import org.robolectric.annotation.GraphicsMode
 import org.robolectric.annotation.LooperMode
 
 /** A local server that answers every request with [reply] and keeps "METHOD path body". */
-internal class FakeGregal(private val reply: (String) -> String) : AutoCloseable {
+internal class FakeGregal(private val status: Int = 200, private val reply: (String) -> String) : AutoCloseable {
     private val socket = ServerSocket(0)
     val port get() = socket.localPort.toString()
     val requests = CopyOnWriteArrayList<String>()
@@ -53,7 +53,7 @@ internal class FakeGregal(private val reply: (String) -> String) : AutoCloseable
                     requests += "$method $path ${String(body)}".trim()
                     val out = reply(path).toByteArray()
                     c.getOutputStream().apply {
-                        write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${out.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                        write("HTTP/1.1 $status X\r\nContent-Type: application/json\r\nContent-Length: ${out.size}\r\nConnection: close\r\n\r\n".toByteArray())
                         write(out); flush()
                     }
                 }
