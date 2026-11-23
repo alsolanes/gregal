@@ -1725,7 +1725,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun connectOnce() {
-        val api = _conn.value.api()
+        val source = _conn.value
+        val api = source.api()
         // Health és només descoberta: un servidor antic pot no tenir
         // l'endpoint i això no ha d'impedir connectar per la via v1.
         // Les tres peticions són independents: en paral·lel, l'arrencada
@@ -1754,7 +1755,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
         _v2Runs.value = health?.supportsV2Interactive() == true
         _isAdmin.value = me?.admin ?: true
-        _me.value = me ?: MeInfo()
+        if (_conn.value == source) _me.value = me ?: MeInfo()
         _state.value = st
         // Obrir l'app ha de mostrar la conversa on eres, no un xat buit.
         if (_msgs.value.isEmpty() && st.transcript.isNotEmpty()) _msgs.value = st.transcript
@@ -1784,23 +1785,34 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         val c = _conn.value
         try {
             val p = withContext(Dispatchers.IO) { c.api().profile() }
-            if (_conn.value != c) return
-            _userName.value = p[USER_NAME_KEY].orEmpty()
-            _userColor.value = p[USER_COLOR_KEY]?.takeIf { v -> userColors.any { it.color == v } } ?: USER_DEFAULT_COLOR
+            if (_conn.value == c) showProfile(p)
         } catch (e: Exception) {
             // Un servidor sense /api/profile: es queda el nom del compte.
             if (e is CancellationException) throw e
         }
     }
 
-    /** Desa «Com et dius» i el color al perfil, perquè la web i els altres dispositius els vegin. */
-    fun saveUserProfile(name: String, color: String) {
+    private fun showProfile(p: Map<String, String>) {
+        _userName.value = p[USER_NAME_KEY].orEmpty()
+        _userColor.value = p[USER_COLOR_KEY]?.takeIf { v -> userColors.any { it.color == v } } ?: USER_DEFAULT_COLOR
+    }
+
+    /**
+     * Desa «Com et dius» i el color al perfil, perquè la web i els altres dispositius
+     * els vegin. Només hi van les claus que han canviat: el servidor es queda la més
+     * nova de cada clau, i un color vell del mòbil no ha de trepitjar el que s'ha triat a la web.
+     */
+    fun saveUserProfile(name: String, color: String, onSaved: () -> Unit) {
         val c = _conn.value
-        val own = name.trim()
+        val changes = buildMap {
+            name.trim().let { if (it != _userName.value) put(USER_NAME_KEY, it) }
+            if (color != _userColor.value) put(USER_COLOR_KEY, color)
+        }
+        if (changes.isEmpty()) { onSaved(); return }
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) { c.api().saveProfile(mapOf(USER_NAME_KEY to own, USER_COLOR_KEY to color), System.currentTimeMillis()) }
-                if (_conn.value == c) { _userName.value = own; _userColor.value = color }
+                val merged = withContext(Dispatchers.IO) { c.api().saveProfile(changes, System.currentTimeMillis()) }
+                if (_conn.value == c) { showProfile(merged); onSaved() }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 notify(appText("app.prefs.userSaveFailed", e.message.orEmpty().take(120)))

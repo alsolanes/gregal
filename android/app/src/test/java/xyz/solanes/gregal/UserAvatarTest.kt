@@ -31,11 +31,32 @@ class UserAvatarTest {
         repeat(300) { if (!done()) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(20)); Thread.sleep(5) } }
     }
 
-    private fun server(profile: String = """{"prefs":{},"keys":[]}""") = FakeGregal { path ->
-        when {
-            path.startsWith("/api/me") -> """{"user":"alice","admin":true,"local":false}"""
-            path.startsWith("/api/profile") -> profile
-            else -> "{}"
+    /** A server whose POST /api/profile answers the saved keys merged into `profile`, as profile.go does. */
+    private fun server(profile: String = """{"prefs":{},"keys":[]}"""): FakeGregal {
+        val stored = JSONObject(profile).getJSONObject("prefs")
+        lateinit var fake: FakeGregal
+        fake = FakeGregal { path ->
+            when {
+                path.startsWith("/api/me") -> """{"user":"alice","admin":true,"local":false}"""
+                path.startsWith("/api/profile") -> {
+                    val last = fake.requests.last()
+                    if (last.startsWith("POST ")) JSONObject(last.substringAfter("/api/profile ")).getJSONObject("prefs").let { sent ->
+                        sent.keys().forEach { stored.put(it, sent.get(it)) }
+                    }
+                    JSONObject().put("prefs", stored).toString()
+                }
+                else -> "{}"
+            }
+        }
+        return fake
+    }
+
+    private fun prefsScreen(vm: GregalViewModel) {
+        vm.openPreferences(PrefsPage.General)
+        ui.setContent {
+            CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
+                MaterialTheme(colorScheme = LightPal.scheme()) { PrefsScreen(vm) {} }
+            }
         }
     }
 
@@ -90,12 +111,7 @@ class UserAvatarTest {
     @Test fun `Com et dius and the avatar colour are saved to the profile in one POST`() {
         server().use { server ->
             val vm = connected(server, false)
-            vm.openPreferences(PrefsPage.General)
-            ui.setContent {
-                CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
-                    MaterialTheme(colorScheme = LightPal.scheme()) { PrefsScreen(vm) {} }
-                }
-            }
+            prefsScreen(vm)
             val lang = vm.idioma.value
             ui.onNodeWithText(tr(lang, "app.prefs.userName")).performTextInput("Maria del Mar Puig")
             ui.onNodeWithContentDescription("Xaloc").performClick()
@@ -109,6 +125,38 @@ class UserAvatarTest {
         }
     }
 
+    @Test fun `changing only the name leaves the colour out of the POST so a newer one from the web is kept`() {
+        server("""{"prefs":{"gregal_user_color":{"v":"#EFA68F","t":1}}}""").use { server ->
+            val vm = connected(server, false)
+            idleUntil { vm.userColor.value == "#EFA68F" }
+            prefsScreen(vm)
+            val lang = vm.idioma.value
+            ui.onNodeWithText(tr(lang, "app.prefs.userName")).performTextInput("Mar")
+            ui.onNodeWithText(tr(lang, "app.prefs.userSave")).performClick()
+            idleUntil { vm.userName.value.isNotEmpty() }
+            val prefs = JSONObject(server.requests.single { it.startsWith("POST /api/profile") }.substringAfter("/api/profile ")).getJSONObject("prefs")
+            assertEquals("Mar", prefs.getJSONObject("gregal_user_name").getString("v"))
+            assertFalse(prefs.has("gregal_user_color"))
+            assertEquals("#EFA68F", vm.userColor.value)
+            ui.onNodeWithText(tr(lang, "app.prefs.userSaved")).assertIsDisplayed()
+        }
+    }
+
+    @Test fun `a save the server refuses does not say Saved`() {
+        FakeGregal(500) { "boom" }.use { server ->
+            val vm = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
+            vm.setConn(Conn("127.0.0.1", server.port, "token", "alice"))
+            prefsScreen(vm)
+            val lang = vm.idioma.value
+            ui.onNodeWithText(tr(lang, "app.prefs.userName")).performTextInput("Mar")
+            ui.onNodeWithText(tr(lang, "app.prefs.userSave")).performClick()
+            idleUntil { server.requests.any { it.startsWith("POST /api/profile") } }
+            repeat(20) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(20)); Thread.sleep(5) }
+            ui.onNodeWithText(tr(lang, "app.prefs.userSaved")).assertDoesNotExist()
+            assertEquals("", vm.userName.value)
+        }
+    }
+
     @Test fun `the name falls back like the web and the initials take the first and last words`() {
         assertEquals("Mar", userDisplayName(" Mar ", "alice", false, "ca"))
         assertEquals("alice", userDisplayName("", "alice", false, "ca"))
@@ -117,5 +165,6 @@ class UserAvatarTest {
         assertEquals("MP", userInitials("Maria del Mar Puig"))
         assertEquals("À", userInitials("àlex"))
         assertEquals("", userInitials("  "))
+        assertEquals("MP", userInitials("Maria Puig"))
     }
 }

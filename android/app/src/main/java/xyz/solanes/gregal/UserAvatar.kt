@@ -60,7 +60,8 @@ internal fun userDisplayName(saved: String, account: String, local: Boolean, lan
 
 /** Primera lletra del primer i de l'últim mot: «Maria del Mar Puig» → «MP». */
 internal fun userInitials(name: String): String {
-    val words = name.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+    // (?U): els espais Unicode també separen, com \s a JavaScript.
+    val words = name.trim().split(Regex("(?U)\\s+")).filter { it.isNotEmpty() }
     if (words.isEmpty()) return ""
     fun first(w: String) = String(Character.toChars(w.codePointAt(0))).uppercase()
     return if (words.size == 1) first(words[0]) else first(words.first()) + first(words.last())
@@ -73,7 +74,7 @@ internal fun UserAvatarRow(vm: GregalViewModel, lang: String, onClick: () -> Uni
     val color by vm.userColor.collectAsState()
     val me by vm.me.collectAsState()
     val name = userDisplayName(saved, me.user, me.local, lang)
-    val fill = hexColor(color, Color(0xFFC1B4DE))
+    val fill = hexColor(color, hexColor(USER_DEFAULT_COLOR, Color.Gray))
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick)
             .heightIn(min = 52.dp).padding(horizontal = 12.dp).testTag("user-avatar"),
@@ -119,7 +120,7 @@ internal fun UserProfileFields(vm: GregalViewModel, lang: String) {
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { vm.saveUserProfile(name, color); done = true }) { Text(tr(lang, "app.prefs.userSave")) }
+            Button(onClick = { vm.saveUserProfile(name, color) { done = true } }) { Text(tr(lang, "app.prefs.userSave")) }
             if (done) Text(tr(lang, "app.prefs.userSaved"), color = Sea, fontSize = 12.5.sp)
         }
     }

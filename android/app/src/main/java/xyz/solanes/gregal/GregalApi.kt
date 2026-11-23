@@ -296,18 +296,23 @@ class GregalApi(val base: String, val token: String) {
     }
 
     /** GET /api/profile: les claus del perfil que tenen valor (les esborrades no hi són). */
-    fun profile(): Map<String, String> {
-        val prefs = get("/api/profile").optJSONObject("prefs") ?: return emptyMap()
+    fun profile(): Map<String, String> = profilePrefs(get("/api/profile"))
+
+    /**
+     * POST /api/profile amb les claus canviades a l'hora `at` (ms); un valor buit
+     * esborra la clau, com la web. Torna el perfil sencer tal com l'ha fusionat el servidor.
+     */
+    fun saveProfile(changes: Map<String, String>, at: Long): Map<String, String> {
+        val prefs = JSONObject()
+        changes.forEach { (k, v) -> prefs.put(k, JSONObject().put("v", if (v.isEmpty()) JSONObject.NULL else v).put("t", at)) }
+        return profilePrefs(post("/api/profile", JSONObject().put("prefs", prefs)))
+    }
+
+    private fun profilePrefs(o: JSONObject): Map<String, String> {
+        val prefs = o.optJSONObject("prefs") ?: return emptyMap()
         return prefs.keys().asSequence().mapNotNull { k ->
             prefs.optJSONObject(k)?.takeUnless { it.isNull("v") }?.let { k to it.optString("v") }
         }.toMap()
-    }
-
-    /** POST /api/profile amb les claus canviades a l'hora `at` (ms); un valor buit esborra la clau, com la web. */
-    fun saveProfile(changes: Map<String, String>, at: Long) {
-        val prefs = JSONObject()
-        changes.forEach { (k, v) -> prefs.put(k, JSONObject().put("v", if (v.isEmpty()) JSONObject.NULL else v).put("t", at)) }
-        post("/api/profile", JSONObject().put("prefs", prefs))
     }
 
     // --- carpeta de treball: on treballen els vents ---
