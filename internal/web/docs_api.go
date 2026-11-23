@@ -108,12 +108,18 @@ func (s *Server) sessionDoc(w http.ResponseWriter, r *http.Request) (*gdocs.Stor
 }
 
 // handleDocs llista els documents del projecte de la sessió, l'últim
-// canviat primer.
+// canviat primer. Amb POST la persona en crea un de text buit, sense
+// l'agent («Document nou» de Gregal Docs).
 //
 //	GET /api/docs
+//	POST /api/docs {title, kind:"doc"}
 func (s *Server) handleDocs(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		s.handleDocCreate(w, r)
+		return
+	}
 	if r.Method != http.MethodGet {
-		http.Error(w, "GET required", http.StatusMethodNotAllowed)
+		http.Error(w, "GET or POST", http.StatusMethodNotAllowed)
 		return
 	}
 	st, ok := s.docStore(w, r)
@@ -130,6 +136,34 @@ func (s *Server) handleDocs(w http.ResponseWriter, r *http.Request) {
 		items = append(items, map[string]any{"id": d.ID, "title": d.Title, "kind": d.Kind, "version": d.Version, "updated": d.Updated})
 	}
 	writeJSON(w, map[string]any{"items": items})
+}
+
+// handleDocCreate fa el document nou de la persona. Neix sense blocs: el
+// primer que hi escriu entra per les rutes de blocs, amb autor user.
+func (s *Server) handleDocCreate(w http.ResponseWriter, r *http.Request) {
+	var q struct{ Title, Kind string }
+	if json.NewDecoder(r.Body).Decode(&q) != nil {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
+		return
+	}
+	if q.Kind != gdocs.KindDoc {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "kind: only \"doc\" can be created here"})
+		return
+	}
+	if strings.TrimSpace(q.Title) == "" {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "title required"})
+		return
+	}
+	st, ok := s.docStore(w, r)
+	if !ok {
+		return
+	}
+	d, err := st.Create(q.Title, "", gdocs.AuthorUser)
+	if err != nil {
+		writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, d)
 }
 
 // handleDoc torna un document sencer.

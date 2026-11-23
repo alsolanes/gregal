@@ -23,7 +23,7 @@ class Node {
   replaceChildren(...els) { els.forEach(e => { e.parentNode = this; }); this.children = els; }
   append(el) { this.insertBefore(el, null); }
   remove() { const s = this.parentNode.children; s.splice(s.indexOf(this), 1); }
-  focus() {}
+  focus() { this.ownerDocument.activeElement = this; }
 }
 const fakeDocument = { createElement: tag => Object.assign(new Node(fakeDocument), { tag }) };
 
@@ -240,4 +240,53 @@ test('keys in the block editor', () => {
   assert.equal(keyAction({ key: 'Enter', shiftKey: true }, ta), null);
   assert.equal(keyAction({ key: 'Enter' }, { ...ta, selectionStart: 1, selectionEnd: 1 }), null);
   assert.equal(keyAction({ key: 'a' }, ta), null);
+});
+
+const EMPTY = { id: 'd2', version: 1, kind: 'doc', blocks: [] };
+const writable = () => ({ ...fakeEdit(), empty: () => 'Write here…' });
+
+test('a document with no blocks shows an empty block; writing in it saves the first block', async () => {
+  const box = new Node(fakeDocument), ed = writable();
+  const v = view(box, EMPTY, window.gregalMD.render, ed);
+  assert.equal(box.children.length, 1);
+  assert.match(box.children[0].className, /doc-empty/);
+  assert.match(box.children[0].text, /Write here…/);
+  box.children[0].onclick({ target: {} });
+  assert.equal(v.editing.id, null);
+  assert.deepEqual(box.children, [v.editing.el]);
+  assert.equal(v.editing.ta.tag, 'textarea');
+
+  key(v.editing.ta, 'Escape');
+  assert.equal(box.children.length, 1);
+  assert.match(box.children[0].className, /doc-empty/, 'leaving without writing shows the empty block again');
+
+  v.open(null, '');
+  v.editing.ta.value = 'Primer dia';
+  await v.save();
+  assert.deepEqual(ed.calls, [['post', '', 'Primer dia']]);
+  assert.deepEqual(box.children.map(e => e.dataset.id), ['n']);
+  assert.equal(box.children[0].text, 'Primer dia');
+
+  v.apply({ op: 'delete', block: { id: 'n' }, version: 10, author: 'agent' });
+  assert.equal(box.children.length, 1);
+  assert.match(box.children[0].className, /doc-empty/, 'a document that loses its last block can still be written in');
+  v.apply({ op: 'insert', block: { id: 'z', md: 'De l\'agent' }, version: 11, author: 'agent' });
+  assert.deepEqual(box.children.map(e => e.dataset.id), ['z'], 'the empty block goes when a block arrives');
+});
+
+test('a new document opens in edit mode: the cursor in a first empty block', () => {
+  const box = new Node(fakeDocument);
+  const v = view(box, EMPTY, window.gregalMD.render, writable());
+  v.open(null, '');
+  assert.equal(v.editing.id, null);
+  assert.deepEqual(box.children, [v.editing.el]);
+  assert.equal(fakeDocument.activeElement, v.editing.ta);
+});
+
+test('without editing, or in a presentation, an empty document shows no block to write in', () => {
+  const box = new Node(fakeDocument);
+  view(box, EMPTY, window.gregalMD.render);
+  assert.equal(box.children.length, 0);
+  view(box, { ...EMPTY, kind: 'deck' }, window.gregalMD.render, writable());
+  assert.equal(box.children.length, 0);
 });

@@ -372,3 +372,46 @@ func TestDocPageServesTheEditorOfAnExistingDoc(t *testing.T) {
 		t.Fatalf("amb token: %d, sessions %d → %d", rec.Code, before, after)
 	}
 }
+
+// «Document nou» de Gregal Docs: POST /api/docs?scope=mine fa un document
+// de text buit a la carpeta de la persona, no al projecte. Buit, no té cap
+// bloc amb autor: el primer que hi escriu la persona és seu.
+func TestNewDocGoesToMyDocuments(t *testing.T) {
+	s := backlogServer(t)
+	rec := docReq(s, (*Server).handleDocs, "POST", "/api/docs?scope=mine", `{"title":"Notes del viatge","kind":"doc"}`)
+	if rec.Code != 200 {
+		t.Fatalf("crear: %d %s", rec.Code, rec.Body.String())
+	}
+	var d gdocs.Doc
+	if err := json.Unmarshal(rec.Body.Bytes(), &d); err != nil {
+		t.Fatal(err)
+	}
+	if d.ID == "" || d.Title != "Notes del viatge" || d.Kind != gdocs.KindDoc || len(d.Blocks) != 0 {
+		t.Fatalf("document nou: %+v", d)
+	}
+	if rec := docReq(s, (*Server).handleDocs, "GET", "/api/docs?scope=mine", ""); !strings.Contains(rec.Body.String(), d.ID) {
+		t.Fatalf("no és a «Els meus documents»: %s", rec.Body.String())
+	}
+	if rec := docReq(s, (*Server).handleDocs, "GET", "/api/docs", ""); strings.Contains(rec.Body.String(), d.ID) {
+		t.Fatalf("ha anat al projecte: %s", rec.Body.String())
+	}
+	if rec := docReq(s, (*Server).handleDocBlocks, "POST", "/api/docs/x/blocks?scope=mine", `{"after":"","md":"Primer dia"}`, d.ID); rec.Code != 200 {
+		t.Fatalf("primer bloc: %d %s", rec.Code, rec.Body.String())
+	}
+	mine, _ := gdocs.Open(s.windDocsDir())
+	if got, _ := mine.Get(d.ID); len(got.Blocks) != 1 || got.Blocks[0].Author != gdocs.AuthorUser {
+		t.Fatalf("blocs: %+v", got.Blocks)
+	}
+}
+
+func TestNewDocRefusesUnknownKindAndNoTitle(t *testing.T) {
+	s := backlogServer(t)
+	for _, body := range []string{`{"title":"Pla","kind":"poema"}`, `{"title":"Pla"}`, `{"title":"  ","kind":"doc"}`, `nope`} {
+		if rec := docReq(s, (*Server).handleDocs, "POST", "/api/docs?scope=mine", body); rec.Code != http.StatusBadRequest {
+			t.Fatalf("%s: %d %s", body, rec.Code, rec.Body.String())
+		}
+	}
+	if rec := docReq(s, (*Server).handleDocs, "GET", "/api/docs?scope=mine", ""); strings.Contains(rec.Body.String(), `"id"`) {
+		t.Fatalf("s'ha creat algun document: %s", rec.Body.String())
+	}
+}

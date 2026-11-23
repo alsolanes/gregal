@@ -30,7 +30,8 @@
   // view pinta doc dins box; render passa markdown a HTML (gregalMD.render).
   // edit desa els canvis de la persona: put(id, md, base), post(after, md) i
   // del(id, base) tornen {status, body} de les rutes de blocs; notice() és
-  // l'avís d'un 409 i error(msg) diu la resta d'errors.
+  // l'avís d'un 409, empty() el text del bloc buit d'un document sense blocs
+  // i error(msg) diu la resta d'errors.
   function view(box, doc, render, edit) {
     const D = box.ownerDocument;
     const els = new Map();
@@ -52,15 +53,35 @@
       return el;
     };
     box.replaceChildren(...doc.blocks.map(make));
+    // Un document sense blocs també s'ha de poder escriure: un bloc buit on
+    // clicar obre l'editor d'un bloc nou al principi. Una presentació no
+    // s'edita en markdown.
+    const writable = !!edit && doc.kind !== 'deck';
+    let empty = null;
+    function syncEmpty() {
+      const want = writable && !els.size && !(editing && !editing.id);
+      if (want && !empty) {
+        empty = D.createElement('div');
+        empty.className = 'doc-block doc-empty';
+        empty.innerHTML = '<p>' + edit.empty() + '</p>';
+        empty.onclick = () => open(null, '');
+        box.append(empty);
+      } else if (!want && empty) {
+        empty.remove();
+        empty = null;
+      }
+    }
+    syncEmpty();
 
-    // open posa un editor al bloc id, o un de bloc nou després d'after.
+    // open posa un editor al bloc id, o un de bloc nou després d'after (buit:
+    // al principi).
     function open(id, after) {
       if (editing && !editing.saving) close(editing);
       let el = els.get(id);
       if (!id) {
         el = D.createElement('div');
         el.className = 'doc-block';
-        box.insertBefore(el, els.get(after).nextSibling || null);
+        box.insertBefore(el, after ? els.get(after).nextSibling || null : box.firstChild);
       }
       const ta = D.createElement('textarea');
       ta.value = id ? blocks.get(id).md : '';
@@ -79,6 +100,7 @@
       el.innerHTML = '';
       el.append(ta);
       editing = me;
+      syncEmpty();
       ta.focus();
       return me;
     }
@@ -88,6 +110,7 @@
       if (!me.id) me.el.remove();
       else if (blocks.has(me.id)) paint(me.el, me.id);
       else { me.el.remove(); els.delete(me.id); }
+      syncEmpty();
     }
 
     // save desa l'editor i torna l'id del bloc després del qual aniria un de
@@ -172,6 +195,7 @@
           blocks.delete(id);
           if (!mine) { el.remove(); els.delete(id); }
         }
+        syncEmpty();
         return true;
       },
     };
