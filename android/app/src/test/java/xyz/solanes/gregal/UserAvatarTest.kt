@@ -215,6 +215,21 @@ class UserAvatarTest {
         assertNull(photoForUpload("not an image".toByteArray()))
     }
 
+    @Test fun `a JPEG over 5 MB is sent as a smaller JPEG at most 1024 px wide`() {
+        val out = java.io.ByteArrayOutputStream()
+        android.graphics.Bitmap.createBitmap(3000, 1500, android.graphics.Bitmap.Config.ARGB_8888).compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, out)
+        // Bytes after the end of the image, as a big camera file has metadata: decoders ignore them.
+        val big = out.toByteArray() + ByteArray(5 * 1024 * 1024)
+        val (jpeg, type) = requireNotNull(photoForUpload(big))
+        assertEquals("image/jpeg", type)
+        assertNotSame(big, jpeg)
+        assertTrue(jpeg.size < 5 * 1024 * 1024)
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeByteArray(jpeg, 0, jpeg.size, bounds)
+        assertEquals(750, bounds.outWidth)
+        assertEquals(375, bounds.outHeight)
+    }
+
     @Test fun `the drawer shows the photo from api me round instead of the initials`() {
         server(photo = "/api/profile/photo?v=1").use { server ->
             server.bytes = { path -> if (path.startsWith("/api/profile/photo") && server.requests.last().startsWith("GET ")) png() else null }

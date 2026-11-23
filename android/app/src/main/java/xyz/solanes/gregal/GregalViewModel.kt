@@ -1842,11 +1842,14 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     /** «Puja una foto»: els bytes de la imatge triada al selector de fotos. */
     fun uploadUserPhoto(uri: Uri) {
+        val max = 40L * 1024 * 1024
         viewModelScope.launch {
+            val size = withContext(Dispatchers.IO) { uriSize(appContext, uri) }
+            if (size > max) { notify(appText("app.off.fileTooLarge", 40, size / 1024 / 1024)); return@launch }
             val raw = withContext(Dispatchers.IO) {
                 try {
-                    appContext.contentResolver.openInputStream(uri)?.use { readCapped(it, 40L * 1024 * 1024) }
-                } catch (_: Exception) { null }
+                    appContext.contentResolver.openInputStream(uri)?.use { readCapped(it, max) }
+                } catch (_: Exception) { null } catch (_: OutOfMemoryError) { null }
             }
             if (raw == null) notify(appText("app.off.fileReadError")) else uploadUserPhoto(raw)
         }
@@ -1855,7 +1858,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun uploadUserPhoto(bytes: ByteArray) {
         val c = _conn.value
         changeUserPhoto(c) {
-            val (body, type) = photoForUpload(bytes) ?: throw ApiException(appText("app.prefs.userPhotoBad"))
+            // Una foto enorme pot no cabre a la memòria en descodificar-la: es diu, no es tanca l'app.
+            val ready = try { photoForUpload(bytes) } catch (_: OutOfMemoryError) { null }
+            val (body, type) = ready ?: throw ApiException(appText("app.prefs.userPhotoBad"))
             c.api().uploadProfilePhoto(body, type)
         }
     }

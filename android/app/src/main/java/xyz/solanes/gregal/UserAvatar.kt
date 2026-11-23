@@ -103,6 +103,7 @@ internal fun photoForUpload(bytes: ByteArray): Pair<ByteArray, String>? {
     val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample }) ?: return null
     val out = ByteArrayOutputStream()
     bmp.compress(Bitmap.CompressFormat.JPEG, 85, out)
+    bmp.recycle()
     return out.toByteArray() to "image/jpeg"
 }
 
