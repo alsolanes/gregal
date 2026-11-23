@@ -221,9 +221,9 @@ html body #side #navRail .nav-item.active .nav-icon { color:var(--accent-hi); }
 }
 
 /* ---------- Peu del compositor: mateixa mida, mateix radi, mateixa fletxa ---------- */
-#composer :is(#modelPill, #thinkPill, #permBtn, #modePicker) { font-size:12px; font-weight:500; border-radius:var(--r-sm); min-height:30px; }
+#composer :is(#modelPill, #thinkPill, #permBtn, #modePicker) { font-size:12px; font-weight:400; border-radius:var(--r-sm); min-height:30px; }
 #composer :is(#modelPill, #thinkPill) { color:var(--muted); padding:4px 8px; }
-#composer :is(#modelPill, #thinkPill) b { font-size:12px; font-weight:500; color:var(--text); }
+#composer :is(#modelPill, #thinkPill) b { font-size:12px; font-weight:400; color:inherit; }
 #composer :is(#modelPill, #thinkPill):hover { background:var(--hover); color:var(--ink); }
 #composer :is(#modelPill, #thinkPill):hover b { color:var(--ink); }
 #composer .think-pill { margin-left:0; display:inline-flex; align-items:center; white-space:nowrap; flex:none; }
@@ -232,7 +232,7 @@ html body #side #navRail .nav-item.active .nav-icon { color:var(--accent-hi); }
   border:solid currentColor; border-width:0 1.5px 1.5px 0; transform:rotate(45deg); color:var(--faint);
 }
 /* «Planifica primer»: un interruptor a la mateixa mida que les altres pastilles; encès, amb l'accent. */
-#composer .plan-first { display:inline-flex; align-items:center; gap:6px; min-height:30px; padding:4px 9px; border:1px solid transparent; border-radius:var(--r-sm); background:transparent; color:var(--muted); font:inherit; font-size:12px; font-weight:500; white-space:nowrap; cursor:pointer; }
+#composer .plan-first { display:inline-flex; align-items:center; gap:6px; min-height:30px; padding:4px 9px; border:1px solid transparent; border-radius:var(--r-sm); background:transparent; color:var(--muted); font:inherit; font-size:12px; font-weight:400; white-space:nowrap; cursor:pointer; }
 #composer .plan-first:hover { background:var(--hover); color:var(--ink); }
 #composer .plan-first[aria-pressed="true"] { border-color:color-mix(in srgb, var(--accent) 50%, var(--line)); background:var(--accent-soft); color:var(--ink); }
 #composer .plan-first[aria-pressed="true"] svg { color:var(--accent-hi); }
