@@ -73,6 +73,10 @@ test('doc_changed opens a closed document and only brings forward the one alread
   assert.equal(onDocChanged({ id: 'd1', visible: false }, { id: 'd1' }), 'open');
   assert.equal(onDocChanged({ id: 'd2', visible: true }, { id: 'd1' }), 'open');
   assert.equal(onDocChanged({ id: 'd1', visible: true }, { id: 'd1' }), 'front');
+  // Un document d'un vent és d'una altra carpeta: el mateix id no és el mateix document.
+  assert.equal(onDocChanged({ id: 'd1', visible: true, scope: '' }, { id: 'd1', scope: 'mine' }), 'open');
+  assert.equal(onDocChanged({ id: 'd1', visible: true, scope: 'mine' }, { id: 'd1' }), 'open');
+  assert.equal(onDocChanged({ id: 'd1', visible: true, scope: 'mine' }, { id: 'd1', scope: 'mine' }), 'front');
 });
 
 test('the panel has its strings in Catalan and English and downloads through the export route', () => {

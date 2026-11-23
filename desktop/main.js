@@ -493,7 +493,7 @@ function wireIPC(getWin = () => mainWin) {
     // Extensió de Chrome: la deixa a punt en una carpeta fixa, obre la pàgina
     // d'extensions del navegador i ensenya la carpeta (instal·lar-la és cosa
     // de l'usuari: Chrome no deixa fer-ho a cap programa).
-    ipcMain.handle('gregal:open-doc', (event, id, session) => trusted(event) && docWindowsController().open(id, session));
+    ipcMain.handle('gregal:open-doc', (event, id, session, scope) => trusted(event) && docWindowsController().open(id, session, scope));
     ipcMain.handle('gregal:chrome-extension', async event => {
         if (!trusted(event)) return null;
         const dir = prepareChromeExtension();

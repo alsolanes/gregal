@@ -221,6 +221,21 @@ test('while a wind is answering, the start page opens the running conversation a
   await first;
 });
 
+test('a wind that writes a live document opens it in the side panel, as one of my documents', async () => {
+  const frames = 'event: doc_changed\ndata: {"id":"w1","title":"Carta","scope":"mine"}\n\n' +
+    'event: done\ndata: ' + JSON.stringify({ history: [{ from: 'assistant', text: 'Fet' }] }) + '\n\n';
+  const bytes = new TextEncoder().encode(frames);
+  let sent = false;
+  const f = await boot({ api: r => r.url === '/api/winds/chat/stream' ? { ok: true, status: 200, body: { getReader: () => ({ read: async () => { if (sent) return { done: true }; sent = true; return { done: false, value: bytes }; }, cancel: async () => {}, releaseLock() {} }) } } : null });
+  const changed = [];
+  f.window.gregalDocs = { changed: d => changed.push({ ...d }) };
+  f.page.querySelector('textarea').value = 'Fes-me una carta';
+  await f.page.querySelector('.vw-composer').requestSubmit();
+  await settle();
+  assert.deepEqual(changed, [{ id: 'w1', title: 'Carta', scope: 'mine' }]);
+  assert.match(f.page.querySelector('.vw-messages').textContent, /Fet/, 'the reply still arrives');
+});
+
 test('the Vents page hands the account avatar theme from /api/winds to the face drawer', async () => {
   const f = await boot({ api: r => r.url === '/api/winds' ? { ok: true, status: 200, json: async () => ({ winds, avatarTheme: 'esperit' }) } : null });
   assert.equal(f.window.gregalWinds.theme, 'esperit');

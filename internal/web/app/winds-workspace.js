@@ -415,6 +415,8 @@
     // Un vent espera una resposta (aprovació o pregunta): el torn està aturat fins que contestes.
     if(kind==='approve_request'||kind==='question_request'){state.asks=state.asks.filter(x=>x.key!==data.key).concat(data);paintAsks();continue;}
     if(kind==='ask_resolved'){state.asks=state.asks.filter(x=>x.key!==data.key);paintAsks();continue;}
+    // El vent ha escrit un document viu (scope «mine»): s'obre al panell lateral (docs-panel.js).
+    if(kind==='doc_changed'){root.gregalDocs?.changed(data);continue;}
     // A group voice finished and is already saved: show it in place before the next voice starts.
     if(kind==='reply'){if(Array.isArray(data.history)){progress.history=data.history;if(state.pending?.thread===destination.id)state.pending.text='';if(state.view==='chat'&&state.active?.id===destination.id){state.history=data.history;paintHistory();}}continue;}
     const pending=state.pending;if(!pending||pending.thread!==destination.id)continue;

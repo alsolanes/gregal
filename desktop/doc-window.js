@@ -8,8 +8,10 @@ const SESSION = /^[A-Za-z0-9_-]{1,64}$/;
 function createDocWindows({ BrowserWindow, base, preloadPath, openExternal }) {
     const open = new Map();
     return {
-        open(id, session) {
+        // scope 'mine': un document de «Els meus documents» (els dels vents), no del projecte.
+        open(id, session, scope = '') {
             if (typeof id !== 'string' || !DOC_ID.test(id) || typeof session !== 'string' || !SESSION.test(session)) return false;
+            if (scope !== '' && scope !== 'mine') return false;
             const old = open.get(id);
             if (old && !old.isDestroyed()) {
                 if (old.isMinimized()) old.restore();
@@ -27,7 +29,7 @@ function createDocWindows({ BrowserWindow, base, preloadPath, openExternal }) {
             // Els enllaços del document, al navegador; la finestra no surt mai de la pàgina.
             win.webContents.setWindowOpenHandler(({ url }) => { openExternal(url); return { action: 'deny' }; });
             win.webContents.on('will-navigate', (event, url) => { event.preventDefault(); openExternal(url); });
-            win.loadURL(base() + '/app/doc/' + id + '?session=' + session).catch(() => {});
+            win.loadURL(base() + '/app/doc/' + id + '?session=' + session + (scope ? '&scope=' + scope : '')).catch(() => {});
             return true;
         },
         // Amb la finestra principal tancada, l'app ha de poder sortir.

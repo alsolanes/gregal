@@ -38,14 +38,14 @@ $('docsList').onchange = e => open(e.target.value, state.scope);
 // Una finestra pròpia per al document (/app/doc/{id}), i el panell es tanca.
 // A l'escriptori la crea el procés principal, una per document; al
 // navegador, el nom de la finestra fa el mateix.
+const withScope = (url, scope) => (scope ? url + (url.includes('?') ? '&' : '?') + 'scope=' + scope : url);
+
 $('docsWindow').onclick = () => {
   const s = window.gregalSession || 'default';
-  if (window.gregalDesktop?.openDocWindow) window.gregalDesktop.openDocWindow(state.id, s);
-  else window.open('/app/doc/' + encodeURIComponent(state.id) + '?session=' + encodeURIComponent(s), 'gregal-doc-' + state.id);
+  if (window.gregalDesktop?.openDocWindow) window.gregalDesktop.openDocWindow(state.id, s, state.scope);
+  else window.open(withScope('/app/doc/' + encodeURIComponent(state.id) + '?session=' + encodeURIComponent(s), state.scope), 'gregal-doc-' + state.id);
   $('docsClose').click();
 };
-
-const withScope = (url, scope) => (scope ? url + (url.includes('?') ? '&' : '?') + 'scope=' + scope : url);
 
 async function list() {
   const r = await G().api(withScope('/api/docs', state.scope));
@@ -107,9 +107,7 @@ function open(id, scope = '', write = false) {
   const my = ctrl = new AbortController();
   Object.assign(state, { id, visible: true, scope });
   show(false);
-  // La finestra pròpia (/app/doc/{id}) encara no sap obrir «Els meus documents».
-  $('docsWindow').hidden = !!scope;
-  $('docsList').setAttribute('aria-label', tx('Documents del projecte', 'Project documents'));
+  $('docsList').setAttribute('aria-label', scope ? tx('Els meus documents', 'My documents') : tx('Documents del projecte', 'Project documents'));
   $('docsDownload').textContent = tx('Descarrega en Word', 'Download as Word');
   $('docsWindow').textContent = tx('Obre en una finestra', 'Open in a window');
   $('docsClose').setAttribute('aria-label', tx('Tanca el document', 'Close the document'));
@@ -153,7 +151,7 @@ $('docsHomeBtn')?.addEventListener('click', home);
 window.gregalDocs = {
   open,
   changed(d) {
-    if (window.gregalDocView.onDocChanged(state, d) === 'open') open(d.id);
+    if (window.gregalDocView.onDocChanged(state, d) === 'open') open(d.id, d.scope || '');
     else list();
     // Al final del banc de treball queda al davant dels altres panells.
     $('workbench').append(pane);

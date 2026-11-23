@@ -12,9 +12,9 @@
   'use strict';
 
   // Què fa el panell amb un doc_changed: obrir el document, o només portar-lo
-  // al davant si ja és el que s'hi veu.
+  // al davant si ja és el que s'hi veu (mateix id i mateixa carpeta, scope).
   function onDocChanged(state, ev) {
-    return state.visible && state.id === ev.id ? 'front' : 'open';
+    return state.visible && state.id === ev.id && (state.scope || '') === (ev.scope || '') ? 'front' : 'open';
   }
 
   // Què vol dir una tecla dins l'editor d'un bloc. Enter amb el cursor al

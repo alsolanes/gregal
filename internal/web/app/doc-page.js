@@ -2,7 +2,10 @@
 // documents a pàgina sencera, amb la mateixa vista, el mateix stream i la
 // mateixa edició. Aquí no hi ha index.html: window.gregal és el mínim que
 // docs-panel.js en fa servir.
-const session = new URLSearchParams(location.search).get('session') || 'default';
+const query = new URLSearchParams(location.search);
+const session = query.get('session') || 'default';
+// scope=mine: un document de «Els meus documents» (els dels vents), no del projecte.
+const scope = query.get('scope') === 'mine' ? 'mine' : '';
 const id = decodeURIComponent(location.pathname.split('/').pop());
 let token = window.gregalDesktop?.apiToken;
 if (typeof token !== 'string') {
@@ -16,6 +19,6 @@ window.gregal = {
   sys: m => { status.textContent = m; document.body.prepend(status); },
 };
 await import('./docs-panel.js');
-window.gregalDocs.open(id);
-const r = await window.gregal.api('/api/docs/' + encodeURIComponent(id));
+window.gregalDocs.open(id, scope);
+const r = await window.gregal.api('/api/docs/' + encodeURIComponent(id) + (scope ? '?scope=' + scope : ''));
 if (r.ok) document.title = (await r.json()).title + ' · Gregal';
