@@ -117,6 +117,10 @@ val STR_CA: Map<String, String> = mapOf(
     "docs.empty" to "Aquest projecte encara no té documents.",
     "docs.loading" to "Obrint el document…",
     "docs.error" to "No s’ha pogut obrir el document: %s",
+    "docs.save" to "Desa",
+    "docs.addBlock" to "Afegeix un bloc",
+    "docs.conflict" to "L’agent ha canviat aquest bloc",
+    "docs.saveError" to "No s’ha pogut desar el bloc: %s",
 )
 
 val STR_EN: Map<String, String> = mapOf(
@@ -234,4 +238,8 @@ val STR_EN: Map<String, String> = mapOf(
     "docs.empty" to "This project has no documents yet.",
     "docs.loading" to "Opening the document…",
     "docs.error" to "Could not open the document: %s",
+    "docs.save" to "Save",
+    "docs.addBlock" to "Add a block",
+    "docs.conflict" to "The agent changed this block",
+    "docs.saveError" to "Could not save the block: %s",
 )

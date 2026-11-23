@@ -13,8 +13,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -54,7 +56,12 @@ fun DocScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         Text(tr(lang, "docs.download"))
                     }
                 }
-                items(open.blocks, key = { "b:" + it.id }) { b -> AssistantResponse(b.md, lang) }
+                val e = open.edit
+                items(open.blocks, key = { "b:" + it.id }) { b ->
+                    if (e?.id == b.id) BlockEditor(vm, e, lang)
+                    else Column(Modifier.fillMaxWidth().clickable { vm.editDocBlock(b.id) }) { AssistantResponse(b.md, lang) }
+                    if (e != null && e.id.isEmpty() && e.after == b.id) BlockEditor(vm, e, lang)
+                }
             } else if (id.isNotEmpty()) {
                 item(key = "loading") { Text(tr(lang, "docs.loading"), color = Muted, modifier = Modifier.padding(vertical = 12.dp)) }
             }
@@ -66,6 +73,24 @@ fun DocScreen(vm: GregalViewModel, onMenu: () -> Unit) {
             items(docs, key = { "d:" + it.id }) { d ->
                 Text(d.title, color = if (d.id == id) Sea else Ink, fontSize = 15.sp,
                     modifier = Modifier.fillMaxWidth().clickable { vm.openDoc(d.id) }.padding(vertical = 10.dp))
+            }
+        }
+    }
+}
+
+/** L'editor d'un bloc: el markdown al seu lloc; després d'un 409, a sobre el text d'ara. */
+@Composable
+private fun BlockEditor(vm: GregalViewModel, e: DocEdit, lang: String) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp).testTag("doc-block-editor")) {
+        e.conflict?.let { b ->
+            Text(tr(lang, "docs.conflict"), color = Sea, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            AssistantResponse(b.md, lang)
+        }
+        OutlinedTextField(e.text, vm::typeDocBlock, Modifier.fillMaxWidth(), enabled = !e.saving)
+        Row(Modifier.padding(top = 6.dp)) {
+            Button(onClick = { vm.saveDocBlock(false) }, enabled = !e.saving) { Text(tr(lang, "docs.save")) }
+            OutlinedButton(onClick = { vm.saveDocBlock(true) }, enabled = !e.saving, modifier = Modifier.padding(start = 8.dp)) {
+                Text(tr(lang, "docs.addBlock"))
             }
         }
     }

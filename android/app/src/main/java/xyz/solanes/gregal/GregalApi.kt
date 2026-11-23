@@ -233,6 +233,13 @@ class GregalApi(val base: String, val token: String) {
     /** GET que torna un objecte JSON (el Racó dels vents, entre d'altres). */
     fun get(path: String): JSONObject = JSONObject(read(path))
 
+    /** Una ruta de blocs d'un document: torna el codi i el cos, perquè el 409 du el bloc d'ara. */
+    fun sendDoc(req: DocRequest): Pair<Int, String> {
+        val r = exec(req.path, req.method, req.body)
+        if (r.code == 401) read(r)
+        return r.use { it.code to bodyText(it) }
+    }
+
     /** DELETE /api/shares/{id}: revoca un enllaç o despublica una web. */
     fun deleteShare(id: String) { read("/api/shares/" + URLEncoder.encode(id, "UTF-8"), "DELETE") }
 

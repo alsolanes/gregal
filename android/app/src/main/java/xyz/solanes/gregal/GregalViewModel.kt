@@ -6617,6 +6617,39 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun editDocBlock(id: String) = _doc.update { if (it?.edit == null) it?.open(id) else it }
+
+    fun typeDocBlock(text: String) = _doc.update { it?.typed(text) }
+
+    /** Desa l'editor obert (doc-view.js); amb [addBelow], si es desa, n'obre un de nou a sota. */
+    fun saveDocBlock(addBelow: Boolean) {
+        val d = _doc.value ?: return
+        if (d.edit?.saving != false) return
+        val req = d.saveRequest()
+        viewModelScope.launch {
+            var out: DocSaved? = null
+            if (req == null) {
+                _doc.update { cur -> if (cur?.id == d.id) cur.skipped().also { out = it }.doc else cur }
+            } else {
+                _doc.update { cur -> if (cur?.id == d.id) cur.copy(edit = cur.edit?.copy(saving = true)) else cur }
+                try {
+                    val (code, body) = withContext(Dispatchers.IO) { _conn.value.api().sendDoc(req) }
+                    _doc.update { cur -> if (cur?.id == d.id) cur.saved(code, body).also { out = it }.doc else cur }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // El text es queda a l'editor per tornar-ho a provar.
+                    _doc.update { cur -> if (cur?.id == d.id) cur.copy(edit = cur.edit?.copy(saving = false)) else cur }
+                    notify(appText("docs.saveError", e.message.orEmpty()))
+                }
+            }
+            val s = out ?: return@launch
+            s.error?.let { notify(appText("docs.saveError", it)) }
+            val at = s.at
+            if (addBelow && at != null) _doc.update { cur -> if (cur?.id == d.id && cur.edit == null) cur.openNew(at) else cur }
+        }
+    }
+
     // --- jobs programats ---
 
     fun loadJobs() {
