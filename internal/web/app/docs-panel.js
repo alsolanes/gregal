@@ -27,6 +27,8 @@ style.textContent = '#docsPanel[hidden]{display:none}#docsPanel{flex:0 0 460px;w
   // Editor de text (doc-view.js): la barra d'eines queda a dalt en fer scroll.
   '#docsBody .doc-toolbar{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;gap:2px;margin:0 -16px 16px;padding:6px 16px;border-bottom:1px solid var(--line);background:var(--panel)}' +
   '#docsBody .doc-toolbar button{min-width:28px;border:0;border-radius:4px;background:transparent;color:var(--ink);cursor:pointer;padding:4px 6px;font-size:13px}#docsBody .doc-toolbar button:hover{background:var(--surface)}' +
+  '#docsBody .doc-style{display:flex;flex-wrap:wrap;gap:4px;padding-left:6px;border-left:1px solid var(--line)}' +
+  '#docsBody .doc-style select{max-width:9em;border:1px solid var(--line-hi);border-radius:4px;background:var(--bg);color:var(--ink);padding:3px 4px;font-size:12px}' +
   '#docsBody .ProseMirror{outline:none;min-height:50vh;white-space:pre-wrap}#docsBody .doc-empty::before{content:attr(data-placeholder);position:absolute;color:var(--muted);pointer-events:none}' +
   '.docs-home h2{margin:0 0 12px;font-size:18px}.docs-home h3{margin:20px 0 6px;font-size:13px;color:var(--muted)}.docs-home-new{display:flex;gap:6px}' +
   '.docs-home-new input{flex:1;min-width:0;border:1px solid var(--line-hi);border-radius:4px;background:var(--bg);color:var(--ink);padding:6px}' +

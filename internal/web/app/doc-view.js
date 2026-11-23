@@ -19,24 +19,117 @@
   }
 
   // L'esquema de prosemirror-markdown amb l'id del bloc als nodes que poden
-  // anar a primer nivell, i el subratllat (++u++, 078) i el ratllat (~~s~~).
+  // anar a primer nivell, l'alineació dels paràgrafs i títols, el subratllat
+  // (++u++, 078), el ratllat (~~s~~) i l'estil [text]{color=… bg=… font="…" size=N} (078).
   let nodes = pm.markdownSchema.spec.nodes;
   for (const n of ['paragraph', 'blockquote', 'horizontal_rule', 'heading', 'code_block', 'ordered_list', 'bullet_list']) {
     const s = nodes.get(n);
     nodes = nodes.update(n, { ...s, attrs: { ...s.attrs, id: { default: null } } });
   }
+  for (const n of ['paragraph', 'heading']) {
+    const s = nodes.get(n);
+    nodes = nodes.update(n, {
+      ...s, attrs: { ...s.attrs, align: { default: null } },
+      toDOM: node => { const d = s.toDOM(node); return node.attrs.align ? [d[0], { style: 'text-align:' + node.attrs.align }, ...d.slice(1)] : d; },
+    });
+  }
+  const SPAN = 'color bg font size'.split(' ');
+  const CSS = { color: v => 'color:' + v, bg: v => 'background-color:' + v, font: v => 'font-family:"' + v + '"', size: v => 'font-size:' + v + 'pt' };
   const schema = new pm.Schema({
     nodes,
     marks: pm.markdownSchema.spec.marks
+      // Primer, perquè l'estil quedi per fora de la negreta, la cursiva o l'enllaç.
+      .addToStart('span', {
+        attrs: { color: { default: null }, bg: { default: null }, font: { default: null }, size: { default: null } },
+        toDOM: m => ['span', { style: SPAN.filter(k => m.attrs[k]).map(k => CSS[k](m.attrs[k])).join(';') }, 0],
+      })
       .addToEnd('underline', { parseDOM: [{ tag: 'u' }], toDOM: () => ['u', 0] })
       .addToEnd('strike', { parseDOM: [{ tag: 's' }, { tag: 'del' }], toDOM: () => ['s', 0] }),
   });
-  const parser = new pm.MarkdownParser(schema, pm.MarkdownIt('commonmark', { html: false }).enable('strikethrough').use(pm.ins),
-    { ...pm.defaultMarkdownParser.tokens, s: { mark: 'strike' }, ins: { mark: 'underline' } });
+
+  // spanAttrs llegeix els atributs d'un [text]{…} amb les mateixes regles que
+  // internal/ooxml: cada clau un cop, i res que no sigui vàlid.
+  const ATTR = /^([a-z]+)=("[^"\n]*"|[^\s"]*)(\s+|$)/;
+  function spanAttrs(s) {
+    s = s.trim();
+    if (!s) return null;
+    const a = {};
+    for (let m; s; s = s.slice(m[0].length)) {
+      m = ATTR.exec(s);
+      if (!m || m[1] in a) return null;
+      const [, k, v] = m;
+      if ((k === 'color' || k === 'bg') && /^#[0-9a-fA-F]{6}$/.test(v)) a[k] = v;
+      else if (k === 'font' && v.length > 2 && v[0] === '"') a[k] = v.slice(1, -1);
+      else if (k === 'size' && /^\d+(\.\d+)?$/.test(v) && +v > 0 && +v <= 1638) a[k] = +v;
+      else return null;
+    }
+    return a;
+  }
+  // extended afegeix a markdown-it els [text]{…} i la línia {align=…} just
+  // després d'un paràgraf o d'un títol de primer nivell.
+  const ALIGN = /^\{align=(left|center|right|justify)\}$/;
+  function extended(md) {
+    md.inline.ruler.before('link', 'span', (state, silent) => {
+      if (state.src.charCodeAt(state.pos) !== 0x5B) return false;
+      const end = state.md.helpers.parseLinkLabel(state, state.pos, false);
+      const m = end >= 0 && /^\]\{([^{}\n]*)\}/.exec(state.src.slice(end));
+      const own = m && spanAttrs(m[1]);
+      if (!own) return false;
+      if (!silent) {
+        // Un span dins d'un altre en pren el que no diu, com fa l'exportació.
+        const outer = state.env.spans || (state.env.spans = []), attrs = { ...outer[outer.length - 1], ...own };
+        state.push('span_open', 'span', 1).meta = attrs;
+        outer.push(attrs);
+        const max = state.posMax;
+        state.pos++;
+        state.posMax = end;
+        state.md.inline.tokenize(state);
+        state.posMax = max;
+        outer.pop();
+        state.push('span_close', 'span', -1);
+        if (outer.length) state.push('span_open', 'span', 1).meta = outer[outer.length - 1];
+      }
+      state.pos = end + m[0].length;
+      return true;
+    });
+    md.core.ruler.before('inline', 'align', state => {
+      const lines = state.src.split('\n'), t = state.tokens;
+      for (let i = 0; i < t.length; i++) {
+        const o = t[i];
+        if (o.level !== 0) continue;
+        if (o.type === 'paragraph_open' && o.map[1] - o.map[0] > 1) {
+          const m = ALIGN.exec(lines[o.map[1] - 1]);
+          if (m) { o.attrSet('align', m[1]); t[i + 1].content = t[i + 1].content.replace(/\n[^\n]*$/, ''); }
+        } else if (o.type === 'heading_open' && t[i + 3]?.type === 'paragraph_open' && t[i + 3].map[0] === o.map[1] && t[i + 3].map[1] === o.map[1] + 1) {
+          const m = ALIGN.exec(lines[o.map[1]]);
+          if (m) { o.attrSet('align', m[1]); t.splice(i + 3, 3); }
+        }
+      }
+    });
+  }
+
+  const parser = new pm.MarkdownParser(schema, pm.MarkdownIt('commonmark', { html: false }).enable('strikethrough').use(pm.ins).use(extended), {
+    ...pm.defaultMarkdownParser.tokens, s: { mark: 'strike' }, ins: { mark: 'underline' },
+    paragraph: { block: 'paragraph', getAttrs: t => ({ align: t.attrGet('align') }) },
+    heading: { block: 'heading', getAttrs: t => ({ level: +t.tag.slice(1), align: t.attrGet('align') }) },
+    span: { mark: 'span', getAttrs: t => t.meta },
+  });
   const D = pm.defaultMarkdownSerializer;
   const wrap = m => ({ open: m, close: m, mixable: true, expelEnclosingWhitespace: true });
-  const serializer = new pm.MarkdownSerializer({ ...D.nodes, bullet_list: (s, n) => s.renderList(n, '  ', () => '- ') },
-    { ...D.marks, underline: wrap('++'), strike: wrap('~~') });
+  // La línia {align=…} només a primer nivell: dins d'una llista o d'una cita
+  // aniria sagnada i l'exportació no la llegiria.
+  const alignLine = (s, n) => { if (n.attrs.align && !s.delim) { s.ensureNewLine(); s.write('{align=' + n.attrs.align + '}'); } };
+  const serializer = new pm.MarkdownSerializer({
+    ...D.nodes, bullet_list: (s, n) => s.renderList(n, '  ', () => '- '),
+    paragraph: (s, n) => { s.renderInline(n); alignLine(s, n); s.closeBlock(n); },
+    heading: (s, n) => { s.write('#'.repeat(n.attrs.level) + ' '); s.renderInline(n, false); alignLine(s, n); s.closeBlock(n); },
+  }, {
+    ...D.marks, underline: wrap('++'), strike: wrap('~~'),
+    span: {
+      open: '[', mixable: true, expelEnclosingWhitespace: true,
+      close: (s, m) => ']{' + SPAN.filter(k => m.attrs[k]).map(k => k + '=' + (k === 'font' ? '"' + m.attrs.font + '"' : m.attrs[k])).join(' ') + '}',
+    },
+  });
 
   const fromMd = (md, id) => parser.parse(md).content.content.map(n => n.type.create({ ...n.attrs, id }, n.content, n.marks));
   const toMd = list => serializer.serialize(schema.topNodeType.create(null, list)).trim();
@@ -73,6 +166,55 @@
     redo: pm.redo,
   };
   const link = href => pm.toggleMark(M.link, { href });
+  // style posa (o treu, amb un valor buit) una clau de l'estil a la selecció
+  // i deixa les altres claus de cada tros com eren.
+  const style = (key, value) => (st, d) => {
+    const merge = m => {
+      const a = { ...m?.attrs, [key]: value || null };
+      return SPAN.some(k => a[k]) ? M.span.create(a) : null;
+    };
+    const { from, to, empty, $from } = st.selection;
+    if (!d) return true;
+    if (empty) {
+      const marks = st.storedMarks || $from.marks(), m = merge(M.span.isInSet(marks)), rest = M.span.removeFromSet(marks);
+      d(st.tr.setStoredMarks(m ? m.addToSet(rest) : rest));
+      return true;
+    }
+    const tr = st.tr;
+    st.doc.nodesBetween(from, to, (n, pos) => {
+      if (!n.isText) return;
+      const a = Math.max(pos, from), b = Math.min(pos + n.nodeSize, to), m = merge(M.span.isInSet(n.marks));
+      tr.removeMark(a, b, M.span);
+      if (m) tr.addMark(a, b, m);
+    });
+    d(tr);
+    return true;
+  };
+  // align alinea els paràgrafs i títols de primer nivell de la selecció;
+  // a l'esquerra és el valor per defecte i no escriu cap línia.
+  const align = value => (st, d) => {
+    const tr = st.tr, { from, to } = st.selection;
+    st.doc.nodesBetween(from, to, (n, pos) => {
+      if (n.type.spec.attrs?.align) tr.setNodeAttribute(pos, 'align', value === 'left' ? null : value);
+      return false;
+    });
+    if (!tr.docChanged) return false;
+    if (d) d(tr);
+    return true;
+  };
+  // current diu l'estil de la selecció per a la barra: el valor si tota la
+  // selecció el comparteix, o '' si no en té o en barreja.
+  function current(st) {
+    const { from, to, empty, $from } = st.selection, spans = [];
+    if (empty) spans.push(M.span.isInSet(st.storedMarks || $from.marks()));
+    else st.doc.nodesBetween(from, to, n => { if (n.isText) spans.push(M.span.isInSet(n.marks)); });
+    const out = { align: st.doc.maybeChild($from.index(0))?.attrs.align || 'left' };
+    for (const k of SPAN) {
+      const vs = new Set(spans.map(m => String(m?.attrs[k] || '')));
+      out[k] = vs.size === 1 ? [...vs][0] : '';
+    }
+    return out;
+  }
   // Enter al mig d'un bloc el parteix en dos: la part nova és un bloc nou, sense id.
   const split = pm.splitBlockAs((n, atEnd) => (atEnd ? null : { type: n.type, attrs: { ...n.attrs, id: null } }));
   const keys = {
@@ -260,6 +402,23 @@
     ['quote', '❝', 'Cita', 'Quote'], ['link', '🔗', 'Enllaç', 'Link'], ['code', '</>', 'Codi', 'Code'],
     ['rule', '—', 'Línia horitzontal', 'Horizontal line'], ['undo', '↶', 'Desfés', 'Undo'], ['redo', '↷', 'Refés', 'Redo'],
   ];
+  // Els desplegables d'estil (082): [clau, títol ca, en, opcions [valor, ca, en]].
+  // Les fonts són de les que porta el Word tant a Windows com a macOS.
+  const CUSTOM = ['custom', 'Color personalitzat…', 'Custom colour…'];
+  const STYLES = [
+    ['color', 'Color del text', 'Text colour', [['', 'Color automàtic', 'Automatic colour'],
+      ['#000000', 'Negre', 'Black'], ['#7f7f7f', 'Gris', 'Grey'], ['#c0392b', 'Vermell', 'Red'], ['#e67e22', 'Taronja', 'Orange'],
+      ['#27ae60', 'Verd', 'Green'], ['#2e75b6', 'Blau', 'Blue'], ['#8e44ad', 'Lila', 'Purple'], CUSTOM]],
+    ['bg', 'Ressaltat', 'Highlight', [['', 'Sense ressaltat', 'No highlight'],
+      ['#fff3a3', 'Groc', 'Yellow'], ['#c6efce', 'Verd', 'Green'], ['#cfe2f3', 'Blau', 'Blue'], ['#f4cccc', 'Rosa', 'Pink'],
+      ['#e7e6e6', 'Gris', 'Grey'], CUSTOM]],
+    ['font', 'Tipus de lletra', 'Font', [['', 'Lletra per defecte', 'Default font'],
+      ...['Arial', 'Calibri', 'Cambria', 'Courier New', 'Georgia', 'Times New Roman', 'Verdana'].map(f => [f, f, f])]],
+    ['size', 'Mida (pt)', 'Size (pt)', [['', 'Mida per defecte', 'Default size'],
+      ...[8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48, 72].map(n => [String(n), String(n), String(n)])]],
+    ['align', 'Alineació', 'Alignment', [['left', "Alinea a l'esquerra", 'Align left'], ['center', 'Centra', 'Centre'],
+      ['right', 'Alinea a la dreta', 'Align right'], ['justify', 'Justifica', 'Justify']]],
+  ];
 
   // view pinta doc dins box amb la barra d'eines; render passa markdown a
   // HTML (gregalMD.render) per a l'avís d'un 409. A més d'editor(), edit té
@@ -287,6 +446,39 @@
         else if (href) ed.run(link(href));
       }));
     }
+    // L'estil va en un grup propi de la barra: cada desplegable ensenya el
+    // valor de la selecció, i un valor que no és a la llista (un color
+    // personalitzat, una mida de l'agent) hi surt com a opció de més.
+    const group = Doc.createElement('div'), pickers = [];
+    group.className = 'doc-style';
+    group.setAttribute('role', 'group');
+    group.setAttribute('aria-label', edit.tx('Estil del text', 'Text style'));
+    for (const [key, ca, en, opts] of STYLES) {
+      const sel = Doc.createElement('select'), extra = Doc.createElement('option');
+      sel.title = edit.tx(ca, en);
+      sel.setAttribute('aria-label', sel.title);
+      for (const [v, oca, oen] of opts) sel.append(Object.assign(Doc.createElement('option'), { value: v, textContent: edit.tx(oca, oen) }));
+      extra.hidden = true;
+      sel.append(extra);
+      const pick = Doc.createElement('input');
+      Object.assign(pick, { type: 'color', hidden: true });
+      const set = v => { pv.focus(); ed.run(key === 'align' ? align(v) : style(key, v)); };
+      pick.onchange = () => set(pick.value);
+      sel.onchange = () => {
+        if (sel.value !== 'custom') return set(sel.value);
+        show(ed.state);
+        pick.value = /^#/.test(sel.value) ? sel.value : '#000000';
+        pick.click();
+      };
+      pickers.push(v => {
+        const known = opts.some(o => o[0] === v);
+        Object.assign(extra, { value: v, textContent: v, hidden: known });
+        sel.value = v;
+      });
+      group.append(sel, pick);
+    }
+    const show = st => { const c = current(st); STYLES.forEach(([key], i) => pickers[i](c[key])); };
+    bar.append(group);
     box.replaceChildren(bar, notes, page);
     const empty = st => {
       const first = st.doc.firstChild;
@@ -297,7 +489,8 @@
       state: ed.state, dispatchTransaction: tr => ed.dispatch(tr), decorations: empty,
       handleDOMEvents: { focus: () => { ed.focused = true; }, blur: () => { ed.focused = false; } },
     });
-    ed.onChange = st => pv.updateState(st);
+    ed.onChange = st => { pv.updateState(st); show(st); };
+    show(ed.state);
     ed.onConflict = () => notes.replaceChildren(...[...ed.conflicts].map(([id, b]) => {
       const el = Doc.createElement('div');
       el.className = 'doc-conflict';
@@ -309,5 +502,5 @@
     return { apply: ed.apply, focus: () => pv.focus(), get version() { return ed.version; } };
   }
 
-  return { view, editor, onDocChanged, commands, keys, link, toDoc, toMd };
+  return { view, editor, onDocChanged, commands, keys, link, style, align, current, toDoc, toMd };
 });

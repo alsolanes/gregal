@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const pm = require('./vendor/prosemirror.min.js');
-const { editor, commands, keys, link, toDoc, toMd, onDocChanged } = require('./doc-view.js');
+const { editor, commands, keys, link, style, align, current, toDoc, toMd, onDocChanged } = require('./doc-view.js');
 
 const DOC = {
   id: 'd1', version: 3,
@@ -100,6 +100,117 @@ test('undo and redo', () => {
   assert.equal(md(ed), 'hola món');
   ed.run(commands.redo);
   assert.equal(md(ed), '**hola** món');
+});
+
+const STYLE_ACTIONS = [
+  ['color', '#c0392b', '[hola]{color=#c0392b} món'], ['bg', '#fff3a3', '[hola]{bg=#fff3a3} món'],
+  ['font', 'Times New Roman', '[hola]{font="Times New Roman"} món'], ['size', '14', '[hola]{size=14} món'],
+];
+for (const [key, value, want] of STYLE_ACTIONS) {
+  test('toolbar style ' + key + ' writes ' + JSON.stringify(want) + ' and shows its value', () => {
+    const ed = editor(block('hola món'), fakeEdit());
+    select(ed, pos(ed, 'hola'), pos(ed, 'hola', true));
+    assert.equal(current(ed.state)[key], '');
+    ed.run(style(key, value));
+    assert.equal(md(ed), want);
+    assert.equal(current(ed.state)[key], value);
+    select(ed, pos(ed, 'món'), pos(ed, 'món', true));
+    assert.equal(current(ed.state)[key], '', 'unstyled text shows the default');
+  });
+}
+
+test('styles add up on the same text, and an empty value takes one off', () => {
+  const ed = editor(block('hola **món**'), fakeEdit());
+  select(ed, pos(ed, 'hola'), pos(ed, 'món', true));
+  ed.run(style('size', '9'));
+  ed.run(style('color', '#2e75b6'));
+  assert.equal(md(ed), '[hola **món**]{color=#2e75b6 size=9}');
+  select(ed, pos(ed, 'món'), pos(ed, 'món', true));
+  ed.run(style('size', ''));
+  assert.equal(md(ed), '[hola]{color=#2e75b6 size=9} [**món**]{color=#2e75b6}');
+  assert.deepEqual(current(ed.state), { align: 'left', color: '#2e75b6', bg: '', font: '', size: '' });
+  ed.run(style('color', ''));
+  assert.equal(md(ed), '[hola]{color=#2e75b6 size=9} **món**');
+});
+
+test('a style picked with nothing selected applies to what is typed next', () => {
+  const ed = editor(block('hola'), fakeEdit());
+  select(ed, pos(ed, 'hola', true));
+  ed.run(style('color', '#27ae60'));
+  assert.equal(current(ed.state).color, '#27ae60');
+  ed.dispatch(ed.state.tr.insertText(' món'));
+  assert.equal(md(ed), 'hola [món]{color=#27ae60}');
+});
+
+for (const [value, want] of [['center', '# hola\n{align=center}'], ['right', '# hola\n{align=right}'], ['justify', '# hola\n{align=justify}']]) {
+  test('toolbar alignment ' + value + ' writes the 078 line after the heading and shows it', () => {
+    const ed = editor(block('# hola'), fakeEdit());
+    assert.equal(current(ed.state).align, 'left');
+    ed.run(align(value));
+    assert.equal(md(ed), want);
+    assert.equal(current(ed.state).align, value);
+  });
+}
+
+test('toolbar alignment left takes the line off a paragraph, and a list cannot be aligned', () => {
+  const ed = editor(block('hola món\n{align=center}'), fakeEdit());
+  assert.equal(current(ed.state).align, 'center');
+  ed.run(align('left'));
+  assert.equal(md(ed), 'hola món');
+  const list = editor(block('- hola'), fakeEdit());
+  assert.equal(list.run(align('center')), false);
+  assert.equal(md(list), '- hola');
+});
+
+test('a styled document goes editor → markdown → editor unchanged', () => {
+  const blocks = [
+    { id: 'h', md: '# Títol\n{align=center}' },
+    { id: 'p', md: 'Un [vermell]{color=#c0392b}, [**ressaltat**]{bg=#fff3a3} i [gran]{color=#2e75b6 bg=#cfe2f3 font="Georgia" size=10.5}.\n{align=justify}' },
+    { id: 'q', md: '> [*cita*]{font="Courier New" size=9}' },
+    { id: 'r', md: 'A la dreta\n{align=right}' },
+  ];
+  const doc = toDoc(blocks);
+  assert.equal(doc.childCount, blocks.length);
+  const back = [];
+  doc.forEach(n => back.push({ id: n.attrs.id, md: toMd([n]) }));
+  assert.deepEqual(back, blocks);
+  assert.ok(toDoc(back).eq(doc));
+});
+
+test('styling with the toolbar writes the blocks that the Word export test reads', () => {
+  // Les mateixes cadenes que TestDocxExportaElsEstilsDeLEditor (internal/ooxml).
+  const ed = editor({ version: 1, blocks: [{ id: 'a', md: '# Títol', version: 1 }, { id: 'b', md: 'Text en vermell i gran.', version: 1 }] }, fakeEdit());
+  select(ed, pos(ed, 'Títol'), pos(ed, 'Títol', true));
+  ed.run(align('center'));
+  ed.run(style('font', 'Georgia'));
+  select(ed, pos(ed, 'vermell'), pos(ed, 'vermell', true));
+  ed.run(style('color', '#c0392b'));
+  ed.run(style('bg', '#fff3a3'));
+  select(ed, pos(ed, 'gran'), pos(ed, 'gran', true));
+  ed.run(style('size', '14'));
+  ed.run(style('font', 'Times New Roman'));
+  ed.run(align('justify'));
+  const out = [];
+  ed.state.doc.forEach(n => out.push(toMd([n])));
+  assert.deepEqual(out, ['# [Títol]{font="Georgia"}\n{align=center}', 'Text en [vermell]{color=#c0392b bg=#fff3a3} i [gran]{font="Times New Roman" size=14}.\n{align=justify}']);
+});
+
+test('the style controls have their strings in Catalan and English', () => {
+  const view = fs.readFileSync(path.join(__dirname, 'doc-view.js'), 'utf8');
+  const styles = view.slice(view.indexOf('const STYLES'), view.indexOf('function view('));
+  const labels = [...styles.matchAll(/\['([\w#]*)', ('[^']+'|"[^"]+"), ('[^']+'|"[^"]+")/g)];
+  assert.ok(labels.length >= 20);
+  for (const m of labels) assert.notEqual(m[2], m[3], (m[1] || 'default') + ' has its own Catalan and English label');
+  assert.match(view, /edit\.tx\('Estil del text', 'Text style'\)/);
+});
+
+test('markdown the export would not style stays text in the editor', () => {
+  for (const s of ['[a]{size=big}', '[a]{font=Georgia}', '[a]{size=9 size=10}', 'hola\n\n{align=center}']) {
+    const doc = toDoc([{ id: 'x', md: s }]);
+    let styled = false;
+    doc.descendants(n => { if (n.marks?.some(m => m.type.name === 'span') || n.attrs.align) styled = true; });
+    assert.equal(styled, false, s);
+  }
 });
 
 test('the usual shortcuts run the same commands as the toolbar', () => {

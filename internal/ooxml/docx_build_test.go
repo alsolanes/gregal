@@ -89,6 +89,51 @@ func TestDocxFromTemplateMapsStyles(t *testing.T) {
 	}
 }
 
+// Els blocs tal com els escriu l'editor del web (doc-view.test.cjs, «styling
+// with the toolbar writes the blocks that the Word export test reads»).
+func TestDocxExportaElsEstilsDeLEditor(t *testing.T) {
+	d := NewDocx(DocxOptions{Theme: GetTheme("default")})
+	d.AppendMarkdown("# [Títol]{font=\"Georgia\"}\n{align=center}\n\nText en [vermell]{color=#c0392b bg=#fff3a3} i [gran]{font=\"Times New Roman\" size=14}.\n{align=justify}")
+	data, err := d.Pkg.Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pk, err := OpenBytes(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if iss := Validate(pk); len(iss) > 0 {
+		t.Fatalf("problemes: %v", iss)
+	}
+	doc, _ := pk.XML("word/document.xml")
+	jc := map[string]string{}
+	runs := map[string]string{}
+	for _, p := range Paragraphs(doc) {
+		if j := p.Path("w:pPr", "w:jc"); j != nil {
+			jc[ParaText(p)] = j.Get("w:val")
+		}
+		for _, r := range p.Elems("w:r") {
+			if tx, rpr := r.Child("w:t"), r.Child("w:rPr"); tx != nil && rpr != nil {
+				runs[tx.InnerText()] = rpr.String()
+			}
+		}
+	}
+	if want := map[string]string{"Títol": "center", "Text en vermell i gran.": "both"}; !reflect.DeepEqual(jc, want) {
+		t.Fatalf("alineacions: %v", jc)
+	}
+	for text, wants := range map[string][]string{
+		"Títol":   {`w:ascii="Georgia"`},
+		"vermell": {`<w:color w:val="C0392B"/>`, `w:fill="FFF3A3"`},
+		"gran":    {`w:ascii="Times New Roman"`, `<w:sz w:val="28"/>`},
+	} {
+		for _, want := range wants {
+			if !strings.Contains(runs[text], want) {
+				t.Errorf("run %q sense %s: %s", text, want, runs[text])
+			}
+		}
+	}
+}
+
 func TestDocxPortaElFormatAmpliat(t *testing.T) {
 	d := NewDocx(DocxOptions{Theme: GetTheme("default")})
 	d.AppendMarkdown("## Head\n{align=center}\n\nA [red]{color=#c0392b bg=#fff3a3 font=\"Georgia\" size=14} and ++under++.\n{align=justify}\n\nRight\n{align=right}")
