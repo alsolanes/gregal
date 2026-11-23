@@ -52,95 +52,120 @@ func docExec(dir, session, argsJSON string) (string, error) {
 	return DocExecIn(s, session, argsJSON)
 }
 
+// docArgs són els arguments de l'eina doc.
+type docArgs struct {
+	Action, ID, Title, Kind, MD, After, Block, Sheet, Range string
+	Slide                                                   *ooxml.SlideSpec
+	Cells                                                   map[string]string
+}
+
 // DocExecIn fa l'acció de doc sobre un magatzem ja obert (els vents hi
 // passen el de la carpeta personal).
 func DocExecIn(s *gdocs.Store, session, argsJSON string) (string, error) {
-	var a struct {
-		Action, ID, Title, Kind, MD, After, Block, Sheet, Range string
-		Slide                                                   *ooxml.SlideSpec
-		Cells                                                   map[string]string
-	}
+	var a docArgs
 	if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 		return "", err
 	}
-	var d gdocs.Doc
-	var err error
 	switch strings.ToLower(strings.TrimSpace(a.Action)) {
 	case "create":
-		if a.Kind == gdocs.KindDeck {
-			if strings.TrimSpace(a.MD) != "" {
-				return "", fmt.Errorf("a deck starts empty: create it without md, then insert its slides one by one")
-			}
-			if d, err = s.CreateDeck(a.Title); err != nil {
-				return "", err
-			}
-			marcaVist(s, session, d)
-			return fmt.Sprintf("Created document %s (an empty deck): insert its slides one by one. Give the person this link to download it as PowerPoint: [%s](/api/docs/%s/export?format=pptx)",
-				d.ID, d.Title, d.ID), nil
+		return docCreate(s, session, a)
+	case "list":
+		return docList(s)
+	}
+	d, err := docChange(s, session, a)
+	if err != nil {
+		return "", err
+	}
+	marcaVist(s, session, d)
+	return docRender(d, a.Range)
+}
+
+// docCreate crea un document del tipus demanat i torna l'enllaç de baixada.
+func docCreate(s *gdocs.Store, session string, a docArgs) (string, error) {
+	switch a.Kind {
+	case gdocs.KindDeck:
+		if strings.TrimSpace(a.MD) != "" {
+			return "", fmt.Errorf("a deck starts empty: create it without md, then insert its slides one by one")
 		}
-		if a.Kind == gdocs.KindSheet {
-			if d, err = s.CreateSheet(a.Title, a.Sheet, gdocs.AuthorAgent); err != nil {
-				return "", err
-			}
-			marcaVist(s, session, d)
-			return fmt.Sprintf("Created document %s (a spreadsheet: sheet %s is block %s): fill it with set_cells. Give the person this link to download it as Excel: [%s](/api/docs/%s/export?format=xlsx)",
-				d.ID, d.Blocks[0].Name, d.Blocks[0].ID, d.Title, d.ID), nil
+		d, err := s.CreateDeck(a.Title)
+		if err != nil {
+			return "", err
 		}
-		if a.Kind != "" && a.Kind != gdocs.KindDoc {
-			return "", fmt.Errorf("unknown kind %q: doc, deck or sheet", a.Kind)
+		marcaVist(s, session, d)
+		return fmt.Sprintf("Created document %s (an empty deck): insert its slides one by one. Give the person this link to download it as PowerPoint: [%s](/api/docs/%s/export?format=pptx)",
+			d.ID, d.Title, d.ID), nil
+	case gdocs.KindSheet:
+		d, err := s.CreateSheet(a.Title, a.Sheet, gdocs.AuthorAgent)
+		if err != nil {
+			return "", err
 		}
-		if d, err = s.Create(a.Title, a.MD, gdocs.AuthorAgent); err != nil {
+		marcaVist(s, session, d)
+		return fmt.Sprintf("Created document %s (a spreadsheet: sheet %s is block %s): fill it with set_cells. Give the person this link to download it as Excel: [%s](/api/docs/%s/export?format=xlsx)",
+			d.ID, d.Blocks[0].Name, d.Blocks[0].ID, d.Title, d.ID), nil
+	case "", gdocs.KindDoc:
+		d, err := s.Create(a.Title, a.MD, gdocs.AuthorAgent)
+		if err != nil {
 			return "", err
 		}
 		marcaVist(s, session, d)
 		return fmt.Sprintf("Created document %s with %d blocks. Give the person this link to download it as Word: [%s](/api/docs/%s/export?format=docx)",
 			d.ID, len(d.Blocks), d.Title, d.ID), nil
-	case "list":
-		docs, err := s.List()
-		if err != nil || len(docs) == 0 {
-			return "No documents in this project.", err
-		}
-		var b strings.Builder
-		for _, d := range docs {
-			fmt.Fprintf(&b, "%s · %s · %d blocks · v%d\n", d.ID, d.Title, len(d.Blocks), d.Version)
-		}
-		return b.String(), nil
+	}
+	return "", fmt.Errorf("unknown kind %q: doc, deck or sheet", a.Kind)
+}
+
+func docList(s *gdocs.Store) (string, error) {
+	docs, err := s.List()
+	if err != nil || len(docs) == 0 {
+		return "No documents in this project.", err
+	}
+	var b strings.Builder
+	for _, d := range docs {
+		fmt.Fprintf(&b, "%s · %s · %d blocks · v%d\n", d.ID, d.Title, len(d.Blocks), d.Version)
+	}
+	return b.String(), nil
+}
+
+// docChange fa read o una acció que canvia blocs, segons el tipus de bloc
+// que porten els arguments.
+func docChange(s *gdocs.Store, session string, a docArgs) (gdocs.Doc, error) {
+	switch strings.ToLower(strings.TrimSpace(a.Action)) {
 	case "read":
-		d, err = s.Get(a.ID)
+		return s.Get(a.ID)
 	case "insert":
 		if a.Slide != nil {
-			d, err = s.InsertSlide(a.ID, a.After, *a.Slide, gdocs.AuthorAgent)
-		} else if a.Sheet != "" {
-			d, err = s.InsertSheet(a.ID, a.After, a.Sheet, gdocs.AuthorAgent)
-		} else {
-			d, err = s.Insert(a.ID, a.After, a.MD, gdocs.AuthorAgent)
+			return s.InsertSlide(a.ID, a.After, *a.Slide, gdocs.AuthorAgent)
 		}
+		if a.Sheet != "" {
+			return s.InsertSheet(a.ID, a.After, a.Sheet, gdocs.AuthorAgent)
+		}
+		return s.Insert(a.ID, a.After, a.MD, gdocs.AuthorAgent)
 	case "replace":
 		if a.Slide != nil {
-			d, err = s.ReplaceSlide(a.ID, a.Block, *a.Slide, gdocs.AuthorAgent, vist(s, session, a.ID))
-		} else {
-			d, err = s.Replace(a.ID, a.Block, a.MD, gdocs.AuthorAgent, vist(s, session, a.ID))
+			return s.ReplaceSlide(a.ID, a.Block, *a.Slide, gdocs.AuthorAgent, vist(s, session, a.ID))
 		}
+		return s.Replace(a.ID, a.Block, a.MD, gdocs.AuthorAgent, vist(s, session, a.ID))
 	case "set_cells":
-		d, err = s.SetCells(a.ID, a.Block, a.Cells, gdocs.AuthorAgent, vist(s, session, a.ID))
+		return s.SetCells(a.ID, a.Block, a.Cells, gdocs.AuthorAgent, vist(s, session, a.ID))
 	case "delete":
-		d, err = s.Delete(a.ID, a.Block, gdocs.AuthorAgent, vist(s, session, a.ID))
-	default:
-		return "", fmt.Errorf("unknown action %q: create, list, read, insert, replace, set_cells or delete", a.Action)
+		return s.Delete(a.ID, a.Block, gdocs.AuthorAgent, vist(s, session, a.ID))
 	}
-	if err != nil {
-		return "", err
-	}
-	marcaVist(s, session, d)
+	return gdocs.Doc{}, fmt.Errorf("unknown action %q: create, list, read, insert, replace, set_cells or delete", a.Action)
+}
+
+// docRender és el document tal com el llegeix l'agent: cada bloc amb el seu
+// id, versió i autor; d'un full, les cel·les de rng.
+func docRender(d gdocs.Doc, rng string) (string, error) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Document %s · %s · v%d\n", d.ID, d.Title, d.Version)
 	for _, blk := range d.Blocks {
 		text := blk.MD
 		if d.Kind == gdocs.KindSheet {
-			if text, err = cellesFull(blk, a.Range); err != nil {
+			cells, err := cellesFull(blk, rng)
+			if err != nil {
 				return "", err
 			}
-			fmt.Fprintf(&b, "\n[%s v%d] (%s) sheet %s\n%s", blk.ID, blk.Version, blk.Author, blk.Name, text)
+			fmt.Fprintf(&b, "\n[%s v%d] (%s) sheet %s\n%s", blk.ID, blk.Version, blk.Author, blk.Name, cells)
 			continue
 		}
 		if blk.Slide != nil {
