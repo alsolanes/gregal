@@ -442,7 +442,7 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 				}
 				emit("tool_result", ev)
 				if o.Call.Function.Name == "doc" {
-					s.emitDocChanged(emit, o.Call.Function.Arguments, o.Sortida)
+					s.emitDocChanged(emit, s.sessionCwd(), "", o.Call.Function.Arguments, o.Sortida)
 				}
 			}
 			if done, ok := s.endLane(generation, lane.Seq, laneResult(laneInfo, outs)); ok {

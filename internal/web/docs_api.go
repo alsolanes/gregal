@@ -47,10 +47,15 @@ func (s *Server) handleDocExport(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data)
 }
 
-// docStore obre els documents del projecte de la sessió; si no pot, ja ha
+// docStore obre els documents del projecte de la sessió, o amb ?scope=mine
+// els de la carpeta de documents dels vents de qui crida; si no pot, ja ha
 // respost.
-func (s *Server) docStore(w http.ResponseWriter) (*gdocs.Store, bool) {
-	st, err := gdocs.Open(s.sessionCwd())
+func (s *Server) docStore(w http.ResponseWriter, r *http.Request) (*gdocs.Store, bool) {
+	root := s.sessionCwd()
+	if r.URL.Query().Get("scope") == "mine" {
+		root = s.windDocsDir()
+	}
+	st, err := gdocs.Open(root)
 	if err != nil {
 		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return nil, false
@@ -65,7 +70,7 @@ func (s *Server) sessionDoc(w http.ResponseWriter, r *http.Request) (*gdocs.Stor
 		http.Error(w, "GET required", http.StatusMethodNotAllowed)
 		return nil, gdocs.Doc{}, false
 	}
-	st, ok := s.docStore(w)
+	st, ok := s.docStore(w, r)
 	if !ok {
 		return nil, gdocs.Doc{}, false
 	}
@@ -90,7 +95,7 @@ func (s *Server) handleDocs(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "GET required", http.StatusMethodNotAllowed)
 		return
 	}
-	st, ok := s.docStore(w)
+	st, ok := s.docStore(w, r)
 	if !ok {
 		return
 	}
@@ -185,7 +190,7 @@ func (s *Server) handleDocBlocks(w http.ResponseWriter, r *http.Request) {
 		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "md required"})
 		return
 	}
-	st, ok := s.docStore(w)
+	st, ok := s.docStore(w, r)
 	if !ok {
 		return
 	}
@@ -229,7 +234,7 @@ func (s *Server) handleDocBlock(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "PUT or DELETE", http.StatusMethodNotAllowed)
 		return
 	}
-	st, ok := s.docStore(w)
+	st, ok := s.docStore(w, r)
 	if !ok {
 		return
 	}
@@ -273,8 +278,10 @@ func docWriteErr(w http.ResponseWriter, err error) bool {
 var docToolOut = regexp.MustCompile(`^(?:Created document|Document) ([a-z0-9]+) `)
 
 // emitDocChanged avisa la sessió que l'agent ha creat o canviat un
-// document, perquè la web l'obri al panell lateral.
-func (s *Server) emitDocChanged(emit func(string, any), argsJSON, out string) {
+// document de root, perquè la web l'obri al panell lateral. scope, si no
+// és buit, és el que el client ha de passar a les rutes (mine: els dels
+// vents).
+func (s *Server) emitDocChanged(emit func(string, any), root, scope, argsJSON, out string) {
 	var a struct{ Action string }
 	if json.Unmarshal([]byte(argsJSON), &a) != nil {
 		return
@@ -288,11 +295,15 @@ func (s *Server) emitDocChanged(emit func(string, any), argsJSON, out string) {
 	if m == nil {
 		return
 	}
-	st, err := gdocs.Open(s.sessionCwd())
+	st, err := gdocs.Open(root)
 	if err != nil {
 		return
 	}
 	if d, err := st.Get(m[1]); err == nil {
-		emit("doc_changed", map[string]string{"id": d.ID, "title": d.Title})
+		ev := map[string]string{"id": d.ID, "title": d.Title}
+		if scope != "" {
+			ev["scope"] = scope
+		}
+		emit("doc_changed", ev)
 	}
 }

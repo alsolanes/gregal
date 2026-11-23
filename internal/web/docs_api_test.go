@@ -269,10 +269,10 @@ func TestDocChangedWhenTheAgentWrites(t *testing.T) {
 			got = append(got, v.(map[string]string))
 		}
 	}
-	s.emitDocChanged(emit, `{"action":"create","title":"Pla"}`, "Created document "+d.ID+" with 1 blocks.")
-	s.emitDocChanged(emit, `{"action":"insert","id":"`+d.ID+`","md":"Dos"}`, "Document "+d.ID+" · Pla · v2\n")
-	s.emitDocChanged(emit, `{"action":"read","id":"`+d.ID+`"}`, "Document "+d.ID+" · Pla · v2\n")
-	s.emitDocChanged(emit, `{"action":"replace","id":"`+d.ID+`"}`, "ERROR: there is no block with that id")
+	s.emitDocChanged(emit, s.cwd, "", `{"action":"create","title":"Pla"}`, "Created document "+d.ID+" with 1 blocks.")
+	s.emitDocChanged(emit, s.cwd, "", `{"action":"insert","id":"`+d.ID+`","md":"Dos"}`, "Document "+d.ID+" · Pla · v2\n")
+	s.emitDocChanged(emit, s.cwd, "", `{"action":"read","id":"`+d.ID+`"}`, "Document "+d.ID+" · Pla · v2\n")
+	s.emitDocChanged(emit, s.cwd, "", `{"action":"replace","id":"`+d.ID+`"}`, "ERROR: there is no block with that id")
 	if len(got) != 2 || got[0]["id"] != d.ID || got[0]["title"] != "Pla" || got[1]["id"] != d.ID {
 		t.Fatalf("%v", got)
 	}

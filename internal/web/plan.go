@@ -314,6 +314,9 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			}
 			dirs := append([]string{}, agent.SkillsDirsOf(ctx)...)
 			dirs = append(dirs, s.userSkillsDirs()...)
+			if d := windDocsOf(ctx); d != "" && name == "doc" {
+				return s.windDocExec(ctx, d, argsJSON, emit)
+			}
 			cwd := scope.workspace
 			// Un vent crea els documents a la seva carpeta (winds_docs.go).
 			if d := windDocsOf(ctx); d != "" && windDocTool(name) {
@@ -461,6 +464,12 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 					return decision, reason
 				}
 				return "allow", "eina del vent"
+			}
+			// Els documents vius del vent són a la seva carpeta, com els altres
+			// documents del vent, i passen sols fins i tot en mode de lectura:
+			// la persona els veu en directe i queden versionats per bloc.
+			if windDocsOf(ctx) != "" && name == "doc" {
+				return "allow", "document viu del vent"
 			}
 			pol := scope.policy
 			// Keep the existing documents scope, but interactive turns must

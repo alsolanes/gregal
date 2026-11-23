@@ -402,7 +402,7 @@ workspace roots.
 | `/api/sessions/pin` | POST | `{name,pinned}` updates the navigation pin without cloning the conversation and returns `{name,pinned}`. |
 | `/api/goal` | GET | Compatibility view of the backlog for older clients: the open items as `{goals:[{id,title,body,status,project}]}` (`id` is the item number). Goal mode saves each ```goal block as a backlog item and emits `backlog_item` `{item, created, note}`; goals saved before are migrated to the backlog the first time. |
 | `/api/backlog` | GET | The work items of the session's project (resolved to the main checkout from a worktree): `{root, project, storage: app\|repo, items:[{id,type,title,status,priority,size,parent,depends_on,why,criteria:[{text,done,evidence}],out_of_scope,reason,workdir,base,review?:{status: running|met|not_met|error, at, summary, criteria:[{text,status: MET|NOT MET|UNVERIFIED,evidence}], checks:[{command,passed}]},log:[{at,who,text}],created,updated}], types, statuses, priorities, sizes}`. `storage: repo` means the items are `.gregal/backlog/<id>.md` in the project. |
-| `/api/docs` | GET | The live documents of the session's project, last changed first: `{items:[{id,title,kind,version,updated}]}`. |
+| `/api/docs` | GET | The live documents of the session's project, last changed first: `{items:[{id,title,kind,version,updated}]}`. Every `/api/docs` route (list, document, `stream`, `export` and the block routes) takes `?scope=mine` to use the caller's wind documents (per user with accounts, the same folder as `/api/winds/doc`) instead of the session's project; a wind document without `scope=mine`, 404. |
 | `/api/docs/{id}` | GET | The whole document: `{id,title,kind,version,created,updated,blocks:[{id,md,version,author,updated}]}`. A block's `version` is the document version at which it last changed. An id from another project, or that does not exist, returns 404. |
 | `/api/docs/{id}/stream` | GET | SSE. One `block` event per block changed after the stream opens: `{op: insert\|replace\|delete, block, after?, version, author}`. `insert` puts `block` after the block `after` (none = at the start); `replace` carries the whole new block; `delete` carries only `block.id`; its `author` comes from the block's tombstone. `version` is the document version after the change. The headers are sent once the stream is subscribed, so a client that reads `/api/docs/{id}` after they arrive misses nothing: it drops events with a `version` it already has. `ping` every 15 s. If the client falls too far behind the server ends the stream; read the document again. Another project's id, 404. |
 | `/api/docs/{id}/export` | GET | `?format=docx` (the only format, and the default) downloads a live document of the session's project as Word: its blocks joined as markdown, with the active brand's theme, named after the title (`Content-Disposition: attachment`). The agent's `doc` tool creates and edits these documents block by block, every change bumping the block and document `version` and recording `author` (`agent` or `user`); after `create` it gives the person the link `[title](/api/docs/{id}/export?format=docx)`. An id from another project, or that does not exist, returns 404; another format, 400. |
@@ -497,7 +497,11 @@ moves between roles: activity `handoffs` fields plus `text`) · `delegate`
 `doc_changed` (`{id, title}`: the agent's `doc` tool created or edited a live
 document of the project; the web opens it in its side panel, or brings it to
 front, and follows it with `/api/docs/{id}/stream`; in the durable log the
-kind is `doc_changed` with that payload) ·
+kind is `doc_changed` with that payload). The wind chat streams
+(`/api/winds/chat/stream`, `/api/winds/rotllana/stream`) send it too, as
+`{id, title, scope:"mine"}`, when a wind's `doc` call creates or edits one
+of the person's wind documents: the client passes `scope=mine` to the docs
+routes, and the export link the wind gives already carries it ·
 `verify_start` · `verify` · `done` · `error`.
 `/api/chat` emits a subset (`token`, `done`, `verify`, `error`).
 

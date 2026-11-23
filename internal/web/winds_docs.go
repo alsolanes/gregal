@@ -123,9 +123,28 @@ func windDocDecide(dir, name, argsJSON string) (string, string) {
 	return "allow", "document del vent"
 }
 
+// windDocExec fa una crida a doc amb els documents vius de la carpeta del
+// vent. L'enllaç de baixada porta scope=mine, sense el qual les rutes el
+// buscarien al projecte de la sessió, i el client rep doc_changed com en
+// un torn de Codi.
+func (s *Server) windDocExec(ctx context.Context, dir, argsJSON string, emit func(kind, text string)) (string, []string, error) {
+	out, imgs, err := windToolExec(ctx, s.id, dir, "doc", argsJSON)
+	if err != nil {
+		return out, imgs, err
+	}
+	out = strings.ReplaceAll(out, "/export?format=", "/export?scope=mine&format=")
+	s.emitDocChanged(func(ev string, v any) {
+		b, err := json.Marshal(v)
+		if err == nil {
+			emit(ev, string(b))
+		}
+	}, dir, "mine", argsJSON, out)
+	return out, imgs, nil
+}
+
 // windDocsBrief és la consigna dels documents per al prompt del vent.
 const windDocsBrief = "\n\n" + agent.ReviewDeliveryRules + " " + agent.VerifiedDeliveryRules +
-	"\nDOCUMENTS: create PDF, Word, Excel or PowerPoint when the user requests that format or asks to fill or edit an existing document. Use pdf_create, pdf_edit or the office tools. Use a plain file name: it is saved in your documents folder and the app adds a download link to your reply. Read attached documents with pdf_read or office_read. " + agent.OfficeDeliveryRules
+	"\nDOCUMENTS: a new text document (a report, a letter, notes, «a Word») is a live document with the doc tool: create it with doc and give the Word export link it returns in your reply. Use office_create only for templates, presentations, spreadsheets and documents the person attached, and pdf_create or pdf_edit for PDF. With those tools use a plain file name: it is saved in your documents folder and the app adds a download link to your reply. Read attached documents with pdf_read or office_read. " + agent.OfficeDeliveryRules
 
 // windDocLinks són els enllaços de baixada dels documents creats o
 // editats des de since: els de la carpeta del vent i els adjunts editats.
