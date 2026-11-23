@@ -32,6 +32,10 @@ internal class FakeGregal(private val status: Int = 200, private val reply: (Str
     private val socket = ServerSocket(0)
     val port get() = socket.localPort.toString()
     val requests = CopyOnWriteArrayList<String>()
+    /** The raw request bodies, in the order of [requests], for binary uploads. */
+    val bodies = CopyOnWriteArrayList<ByteArray>()
+    /** A binary answer for a path (a photo); null = the text of [reply]. */
+    var bytes: (String) -> ByteArray? = { null }
 
     init {
         thread(isDaemon = true) {
@@ -39,19 +43,21 @@ internal class FakeGregal(private val status: Int = 200, private val reply: (Str
                 // close() at the end of the test ends the loop.
                 val client = try { socket.accept() } catch (_: SocketException) { break }
                 client.use { c ->
-                    val input = c.getInputStream().bufferedReader()
-                    val (method, path) = input.readLine().split(" ")
+                    // Bytes, not a reader: a photo body is not text and its length is in bytes.
+                    val input = c.getInputStream().buffered()
+                    fun line() = generateSequence { input.read().takeIf { it >= 0 } }.takeWhile { it != '\n'.code }
+                        .map { it.toByte() }.toList().toByteArray().toString(Charsets.UTF_8).trimEnd('\r')
+                    val (method, path) = line().split(" ")
                     var length = 0
                     while (true) {
-                        val header = input.readLine()
-                        if (header.isNullOrEmpty()) break
+                        val header = line()
+                        if (header.isEmpty()) break
                         if (header.startsWith("Content-Length:", ignoreCase = true)) length = header.substringAfter(':').trim().toInt()
                     }
-                    val body = CharArray(length)
-                    var read = 0
-                    while (read < length) read += input.read(body, read, length - read)
-                    requests += "$method $path ${String(body)}".trim()
-                    val out = reply(path).toByteArray()
+                    val body = input.readNBytes(length)
+                    bodies += body
+                    requests += "$method $path ${String(body, Charsets.UTF_8)}".trim()
+                    val out = bytes(path) ?: reply(path).toByteArray()
                     c.getOutputStream().apply {
                         write("HTTP/1.1 $status X\r\nContent-Type: application/json\r\nContent-Length: ${out.size}\r\nConnection: close\r\n\r\n".toByteArray())
                         write(out); flush()

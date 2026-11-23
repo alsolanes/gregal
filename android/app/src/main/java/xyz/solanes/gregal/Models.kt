@@ -690,6 +690,8 @@ data class MeInfo(
     val roots: List<String> = emptyList(),
     /** Servidor sense comptes: no hi ha nom de compte. */
     val local: Boolean = false,
+    /** La foto de l'avatar (/api/profile/photo?v=…), o buit sense foto. */
+    val photo: String = "",
 )
 
 /**

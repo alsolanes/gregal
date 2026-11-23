@@ -1,5 +1,11 @@
 package xyz.solanes.gregal
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,6 +24,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,11 +37,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
+import java.io.ByteArrayOutputStream
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -67,12 +77,42 @@ internal fun userInitials(name: String): String {
     return if (words.size == 1) first(words[0]) else first(words.first()) + first(words.last())
 }
 
-/** La fila del peu del calaix: les inicials sobre el teu color i el teu nom. */
+// El que accepta POST /api/profile/photo (profile.go).
+private const val PHOTO_MAX_BYTES = 5 * 1024 * 1024
+
+/** El tipus d'una imatge que el servidor llegeix, pels primers bytes; null si no ho és. */
+private fun photoType(b: ByteArray): String? = when {
+    b.size >= 3 && b[0] == 0xFF.toByte() && b[1] == 0xD8.toByte() && b[2] == 0xFF.toByte() -> "image/jpeg"
+    b.size >= 8 && b[0] == 0x89.toByte() && String(b, 1, 3, Charsets.US_ASCII) == "PNG" -> "image/png"
+    b.size >= 12 && String(b, 0, 4, Charsets.US_ASCII) == "RIFF" && String(b, 8, 4, Charsets.US_ASCII) == "WEBP" -> "image/webp"
+    else -> null
+}
+
+/**
+ * La foto triada tal com la vol el servidor: un JPEG, PNG o WebP de fins a 5 MB
+ * hi va tal qual; una HEIC o una de massa gran es fa JPEG al mòbil (el servidor
+ * la deixa a 256 px igualment). null si el mòbil tampoc la sap llegir.
+ */
+internal fun photoForUpload(bytes: ByteArray): Pair<ByteArray, String>? {
+    photoType(bytes)?.let { if (bytes.size <= PHOTO_MAX_BYTES) return bytes to it }
+    val probe = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, probe)
+    if (probe.outWidth <= 0 || probe.outHeight <= 0) return null
+    var sample = 1
+    while (maxOf(probe.outWidth, probe.outHeight) / sample > 1024) sample *= 2
+    val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample }) ?: return null
+    val out = ByteArrayOutputStream()
+    bmp.compress(Bitmap.CompressFormat.JPEG, 85, out)
+    return out.toByteArray() to "image/jpeg"
+}
+
+/** La fila del peu del calaix: la teva foto, o les inicials sobre el teu color, i el teu nom. */
 @Composable
 internal fun UserAvatarRow(vm: GregalViewModel, lang: String, onClick: () -> Unit) {
     val saved by vm.userName.collectAsState()
     val color by vm.userColor.collectAsState()
     val me by vm.me.collectAsState()
+    val photo by vm.userPhoto.collectAsState()
     val name = userDisplayName(saved, me.user, me.local, lang)
     val fill = hexColor(color, hexColor(USER_DEFAULT_COLOR, Color.Gray))
     Row(
@@ -80,9 +120,16 @@ internal fun UserAvatarRow(vm: GregalViewModel, lang: String, onClick: () -> Uni
             .heightIn(min = 52.dp).padding(horizontal = 12.dp).testTag("user-avatar"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // El nom ja es llegeix al costat: les inicials només es veuen.
-        Box(Modifier.size(30.dp).background(fill, CircleShape).clearAndSetSemantics {}, contentAlignment = Alignment.Center) {
-            Text(userInitials(name), color = windInk(fill), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        // El nom ja es llegeix al costat: la foto i les inicials només es veuen.
+        val shown = photo
+        if (shown != null) {
+            Image(shown, null, contentScale = ContentScale.Crop,
+                modifier = Modifier.size(30.dp).clip(CircleShape).clearAndSetSemantics { testTag = "user-avatar-photo" })
+        } else {
+            Box(Modifier.size(30.dp).background(fill, CircleShape).clearAndSetSemantics { testTag = "user-avatar-initials" },
+                contentAlignment = Alignment.Center) {
+                Text(userInitials(name), color = windInk(fill), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            }
         }
         Spacer(Modifier.width(12.dp))
         Text(name, color = Tinta, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
@@ -122,6 +169,17 @@ internal fun UserProfileFields(vm: GregalViewModel, lang: String) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { vm.saveUserProfile(name, color) { done = true } }) { Text(tr(lang, "app.prefs.userSave")) }
             if (done) Text(tr(lang, "app.prefs.userSaved"), color = Sea, fontSize = 12.5.sp)
+        }
+        Text(tr(lang, "app.prefs.userPhoto"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Text(tr(lang, "app.prefs.userPhotoHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+        val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            if (uri != null) vm.uploadUserPhoto(uri)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) {
+                Text(tr(lang, "app.prefs.userPhotoUpload"))
+            }
+            if (me.photo.isNotEmpty()) OutlinedButton(onClick = { vm.removeUserPhoto() }) { Text(tr(lang, "app.prefs.userPhotoRemove")) }
         }
     }
 }

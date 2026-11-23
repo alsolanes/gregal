@@ -32,12 +32,14 @@ class UserAvatarTest {
     }
 
     /** A server whose POST /api/profile answers the saved keys merged into `profile`, as profile.go does. */
-    private fun server(profile: String = """{"prefs":{},"keys":[]}"""): FakeGregal {
+    private fun server(profile: String = """{"prefs":{},"keys":[]}""", photo: String = ""): FakeGregal {
         val stored = JSONObject(profile).getJSONObject("prefs")
         lateinit var fake: FakeGregal
         fake = FakeGregal { path ->
             when {
-                path.startsWith("/api/me") -> """{"user":"alice","admin":true,"local":false}"""
+                path.startsWith("/api/me") -> """{"user":"alice","admin":true,"local":false,"photo":"$photo"}"""
+                path.startsWith("/api/profile/photo") ->
+                    if (fake.requests.last().startsWith("DELETE ")) """{"photo":""}""" else """{"photo":"/api/profile/photo?v=2"}"""
                 path.startsWith("/api/profile") -> {
                     val last = fake.requests.last()
                     if (last.startsWith("POST ")) JSONObject(last.substringAfter("/api/profile ")).getJSONObject("prefs").let { sent ->
@@ -154,6 +156,86 @@ class UserAvatarTest {
             repeat(20) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(20)); Thread.sleep(5) }
             ui.onNodeWithText(tr(lang, "app.prefs.userSaved")).assertDoesNotExist()
             assertEquals("", vm.userName.value)
+        }
+    }
+
+    private fun png(): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        android.graphics.Bitmap.createBitmap(8, 8, android.graphics.Bitmap.Config.ARGB_8888).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+        return out.toByteArray()
+    }
+
+    @Test fun `a chosen photo is posted raw to the profile and the drawer shows it`() {
+        server().use { server ->
+            server.bytes = { path -> if (path.startsWith("/api/profile/photo") && server.requests.last().startsWith("GET ")) png() else null }
+            val vm = connected(server, false)
+            drawer(vm)
+            val photo = png()
+            vm.uploadUserPhoto(photo)
+            idleUntil { vm.me.value.photo.isNotEmpty() }
+            val i = server.requests.indexOfFirst { it.startsWith("POST /api/profile/photo") }
+            assertArrayEquals(photo, server.bodies[i])
+            assertEquals("/api/profile/photo?v=2", vm.me.value.photo)
+            idleUntil { ui.onAllNodesWithTag("user-avatar-photo", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+            ui.onNodeWithTag("user-avatar-photo", useUnmergedTree = true).assertExists()
+        }
+    }
+
+    @Test fun `Treu la foto sends DELETE and the initials come back`() {
+        server(photo = "/api/profile/photo?v=1").use { server ->
+            server.bytes = { path -> if (path.startsWith("/api/profile/photo") && server.requests.last().startsWith("GET ")) png() else null }
+            val vm = connected(server, false)
+            idleUntil { vm.userPhoto.value != null }
+            prefsScreen(vm)
+            val lang = vm.idioma.value
+            ui.onNodeWithText(tr(lang, "app.prefs.userPhotoUpload")).assertExists()
+            ui.onNodeWithText(tr(lang, "app.prefs.userPhotoRemove")).performScrollTo().performClick()
+            idleUntil { server.requests.any { it.startsWith("DELETE /api/profile/photo") } && vm.me.value.photo.isEmpty() }
+            assertTrue(server.requests.any { it.startsWith("DELETE /api/profile/photo") })
+            assertNull(vm.userPhoto.value)
+        }
+    }
+
+    /** A 2×2 BMP: an image the phone decodes and the server does not take, like HEIC. */
+    private fun bmp(): ByteArray {
+        val b = java.nio.ByteBuffer.allocate(54 + 16).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        b.put('B'.code.toByte()).put('M'.code.toByte()).putInt(70).putInt(0).putInt(54)
+        b.putInt(40).putInt(2).putInt(2).putShort(1).putShort(24).putInt(0).putInt(16).putInt(2835).putInt(2835).putInt(0).putInt(0)
+        repeat(2) { b.put(ByteArray(6) { 0x7f }).put(ByteArray(2)) }
+        return b.array()
+    }
+
+    @Test fun `a photo in a format the server does not take is sent as a JPEG and a JPEG goes as it is`() {
+        val (jpeg, type) = requireNotNull(photoForUpload(bmp()))
+        assertEquals("image/jpeg", type)
+        assertEquals(listOf(0xFF, 0xD8, 0xFF), jpeg.take(3).map { it.toInt() and 0xFF })
+        assertEquals("image/jpeg", photoForUpload(jpeg)?.second)
+        assertSame(jpeg, photoForUpload(jpeg)?.first)
+        assertEquals("image/png", photoForUpload(png())?.second)
+        assertNull(photoForUpload("not an image".toByteArray()))
+    }
+
+    @Test fun `the drawer shows the photo from api me round instead of the initials`() {
+        server(photo = "/api/profile/photo?v=1").use { server ->
+            server.bytes = { path -> if (path.startsWith("/api/profile/photo") && server.requests.last().startsWith("GET ")) png() else null }
+            val vm = connected(server, true)
+            drawer(vm)
+            idleUntil { ui.onAllNodesWithTag("user-avatar-photo", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+            ui.onNodeWithTag("user-avatar-photo", useUnmergedTree = true).assertExists()
+            ui.onNodeWithTag("user-avatar-initials", useUnmergedTree = true).assertDoesNotExist()
+        }
+    }
+
+    @Test fun `a photo that does not load leaves the initials`() {
+        server(photo = "/api/profile/photo?v=1").use { server ->
+            server.bytes = { path -> if (path.startsWith("/api/profile/photo") && server.requests.last().startsWith("GET ")) "not an image".toByteArray() else null }
+            val vm = connected(server, true)
+            drawer(vm)
+            idleUntil { server.requests.any { it.startsWith("GET /api/profile/photo") } }
+            repeat(20) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(20)); Thread.sleep(5) }
+            assertEquals("/api/profile/photo?v=1", vm.me.value.photo)
+            ui.onNodeWithTag("user-avatar-photo", useUnmergedTree = true).assertDoesNotExist()
+            ui.onNodeWithTag("user-avatar-initials", useUnmergedTree = true).assertExists()
         }
     }
 

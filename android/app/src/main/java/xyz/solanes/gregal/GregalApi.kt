@@ -17,6 +17,7 @@ import kotlinx.serialization.json.longOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.asResponseBody
@@ -85,16 +86,21 @@ var sessioApp: String = "mobil"
 class GregalApi(val base: String, val token: String) {
 
     private fun request(path: String, method: String, body: String? = null): Request {
-        val b = Request.Builder().url(base + path)
-        if (token.isNotBlank()) b.header("Authorization", "Bearer $token")
-        // Cada dispositiu, la seva conversa.
-        if (sessioApp.isNotBlank()) b.header("X-Gregal-Session", sessioApp)
         val rb = when {
             body != null -> body.toByteArray(StandardCharsets.UTF_8).toRequestBody(JSON_TYPE)
             method == "POST" || method == "PUT" -> ByteArray(0).toRequestBody(JSON_TYPE)
             else -> null
         }
-        if (rb != null) b.header("Content-Type", "application/json")
+        return request(path, method, rb)
+    }
+
+    /** El Content-Type surt del cos: JSON, o el de les dades crues (una foto). */
+    private fun request(path: String, method: String, rb: RequestBody?): Request {
+        val b = Request.Builder().url(base + path)
+        if (token.isNotBlank()) b.header("Authorization", "Bearer $token")
+        // Cada dispositiu, la seva conversa.
+        if (sessioApp.isNotBlank()) b.header("X-Gregal-Session", sessioApp)
+        if (rb != null) b.header("Content-Type", rb.contentType().toString())
         return b.method(method, rb).build()
     }
 
@@ -292,7 +298,7 @@ class GregalApi(val base: String, val token: String) {
     /** Qui soc (GET /api/me): nom, arrels, carpeta de treball i si es admin. */
     fun me(): MeInfo {
         val o = getAs<MeDto>("/api/me")
-        return MeInfo(user = o.user, home = o.home, admin = o.admin, roots = o.roots, local = o.local)
+        return MeInfo(user = o.user, home = o.home, admin = o.admin, roots = o.roots, local = o.local, photo = o.photo)
     }
 
     /** GET /api/profile: les claus del perfil que tenen valor (les esborrades no hi són). */
@@ -306,6 +312,21 @@ class GregalApi(val base: String, val token: String) {
         val prefs = JSONObject()
         changes.forEach { (k, v) -> prefs.put(k, JSONObject().put("v", if (v.isEmpty()) JSONObject.NULL else v).put("t", at)) }
         return profilePrefs(post("/api/profile", JSONObject().put("prefs", prefs)))
+    }
+
+    /** POST /api/profile/photo amb la imatge crua (JPEG, PNG o WebP) → la ruta nova de la foto. */
+    fun uploadProfilePhoto(bytes: ByteArray, type: String): String {
+        val r = http.newCall(request("/api/profile/photo", "POST", bytes.toRequestBody(type.toMediaType()))).execute()
+        return JSONObject(read(r)).optString("photo")
+    }
+
+    /** DELETE /api/profile/photo: torna la ruta buida. */
+    fun deleteProfilePhoto(): String = JSONObject(read("/api/profile/photo", "DELETE")).optString("photo")
+
+    /** La foto de l'avatar (la ruta de /api/me), amb la clau: només la veu el seu compte. */
+    fun profilePhoto(path: String): ByteArray {
+        if (!path.startsWith("/api/profile/photo")) throw ApiException("not a profile photo link")
+        return download(path)
     }
 
     private fun profilePrefs(o: JSONObject): Map<String, String> {
@@ -1638,7 +1659,7 @@ internal class ServerPowersDto(
 )
 
 @Serializable
-internal class MeDto(val user: String = "", val home: String = "", val admin: Boolean = false, val roots: List<String> = emptyList(), val local: Boolean = false)
+internal class MeDto(val user: String = "", val home: String = "", val admin: Boolean = false, val roots: List<String> = emptyList(), val local: Boolean = false, val photo: String = "")
 
 @Serializable internal class PreviewWebDto(val path: String = "", val name: String = "", val size: Long = 0L, val mtime: String = "")
 

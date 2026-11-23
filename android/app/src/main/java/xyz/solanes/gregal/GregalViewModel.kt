@@ -17,6 +17,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import android.net.Uri
+import androidx.compose.ui.graphics.ImageBitmap
 import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONObject
@@ -722,6 +723,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _me.value = MeInfo()
         _userName.value = ""
         _userColor.value = USER_DEFAULT_COLOR
+        _userPhoto.value = null
         _offline.value = false
         probeJob?.cancel()
         probeJob = null
@@ -1676,6 +1678,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     // No bloquegen la portada: els vents es carreguen ja.
                     launch { syncCollective() }
                     launch { syncProfile() }
+                    launch { syncUserPhoto() }
                     launch { syncJobAlarms() }
                     _offline.value = false
                     withContext(Dispatchers.IO) { reloadOutbox() }
@@ -1816,6 +1819,63 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 notify(appText("app.prefs.userSaveFailed", e.message.orEmpty().take(120)))
+            }
+        }
+    }
+
+    private val _userPhoto = MutableStateFlow<ImageBitmap?>(null)
+    /** La foto de l'avatar ja baixada; null = les inicials (sense foto, o no ha carregat). */
+    val userPhoto: StateFlow<ImageBitmap?> = _userPhoto
+
+    /** Baixa la foto de /api/me amb la clau; si no carrega, es queden les inicials. */
+    private suspend fun syncUserPhoto() {
+        val c = _conn.value
+        val path = _me.value.photo
+        val img = if (path.isEmpty()) null else try {
+            withContext(Dispatchers.IO) { decodeChatBytes(c.api().profilePhoto(path)) }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            null
+        }
+        if (_conn.value == c && _me.value.photo == path) _userPhoto.value = img
+    }
+
+    /** «Puja una foto»: els bytes de la imatge triada al selector de fotos. */
+    fun uploadUserPhoto(uri: Uri) {
+        viewModelScope.launch {
+            val raw = withContext(Dispatchers.IO) {
+                try {
+                    appContext.contentResolver.openInputStream(uri)?.use { readCapped(it, 40L * 1024 * 1024) }
+                } catch (_: Exception) { null }
+            }
+            if (raw == null) notify(appText("app.off.fileReadError")) else uploadUserPhoto(raw)
+        }
+    }
+
+    fun uploadUserPhoto(bytes: ByteArray) {
+        val c = _conn.value
+        changeUserPhoto(c) {
+            val (body, type) = photoForUpload(bytes) ?: throw ApiException(appText("app.prefs.userPhotoBad"))
+            c.api().uploadProfilePhoto(body, type)
+        }
+    }
+
+    /** «Treu la foto»: tornen les inicials. */
+    fun removeUserPhoto() {
+        val c = _conn.value
+        changeUserPhoto(c) { c.api().deleteProfilePhoto() }
+    }
+
+    private fun changeUserPhoto(c: Conn, call: () -> String) {
+        viewModelScope.launch {
+            try {
+                val path = withContext(Dispatchers.IO) { call() }
+                if (_conn.value != c) return@launch
+                _me.value = _me.value.copy(photo = path)
+                syncUserPhoto()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                notify(appText("app.prefs.userPhotoFailed", e.message.orEmpty().take(120)))
             }
         }
     }
