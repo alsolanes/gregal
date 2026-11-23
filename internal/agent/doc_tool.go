@@ -21,7 +21,8 @@ func docToolSpec() llm.ToolSpec {
 	str := map[string]any{"type": "string"}
 	return llm.ToolSpec{Name: "doc", Description: "Live project documents the person can see and download: a text document made of markdown blocks (Word), " +
 		"or a presentation with kind \"deck\" whose blocks are slides (PowerPoint). " +
-		"Prefer it over office_create when the person wants a document or a new presentation to work on with you. Actions: " +
+		"A new text document (a report, a letter, notes, «a Word») is created here, not with office_create, and your reply gives the Word link create returns. " +
+		"Prefer it over office_create for a new presentation too. Actions: " +
 		"create (title, kind doc or deck, optional md for a doc: split into blocks at headings and blank lines; a deck starts empty; returns the download link to give the person); list; " +
 		"read (id; every block with its id and version); insert (id, md or for a deck slide, after = block id, or omitted for the start); " +
 		"replace (id, block, md or slide); delete (id, block). A slide is {layout: title|section|content|two_columns|comparison|big_number|image|title_only|blank|closing, " +

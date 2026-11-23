@@ -237,3 +237,20 @@ func TestLesPresentacionsNovesVanADoc(t *testing.T) {
 		}
 	}
 }
+
+func TestElsDocumentsDeTextNousVanADoc(t *testing.T) {
+	desc := map[string]string{}
+	for _, s := range SpecsAll() {
+		desc[s.Name] = s.Description
+	}
+	regla := "new text document (a report, a letter, notes, «a Word»)"
+	if d := desc["doc"]; !strings.Contains(d, regla) || !strings.Contains(d, "Word link") {
+		t.Fatalf("doc no diu que els documents de text nous hi van: %s", d)
+	}
+	o := desc["office_create"]
+	for _, want := range []string{regla, "goes to the doc tool", ".dotx/.docx template", "document the person attached"} {
+		if !strings.Contains(o, want) {
+			t.Fatalf("falta %q a office_create: %s", want, o)
+		}
+	}
+}
