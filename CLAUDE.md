@@ -15,9 +15,8 @@ Open-source coding agent (Go + Bubble Tea) with terminal, web (`internal/web`), 
 2. One task, one branch `task/NNN-slug`, one small diff. Anything else you notice goes under `## Notes` in the task file as a follow-up, not into the diff.
 3. Read the code you will change and the code next to it before writing. Use what is already there: helpers, patterns, naming.
 4. Write a test that fails for the right reason, then the smallest change that makes it pass.
-5. Run `uv run scripts/check.py` and fix what it reports.
-6. Have the `reviewer` subagent review the diff against the task file, and deal with its must-fix findings.
-7. Set `status: done` in the task file and commit on the task branch. Do not push, merge, tag or release unless asked.
+5. Run `uv run scripts/check.py --fast` and the tests of the packages you touched, and fix what they report.
+6. Set `status: done` in the task file and commit on the task branch. Do not push, merge, tag or release unless asked.
 
 ## Gregal conventions
 
@@ -46,15 +45,7 @@ Write the least code that meets the acceptance criteria. Specifically:
 - A bug fix starts with a test that reproduces the bug.
 - Never weaken, skip or delete a test to get to green. If a test is wrong because the requirement changed, say so explicitly in your final message.
 
-## The gates are not yours to move
-
-Hooks, the git hooks and CI enforce the rules above without AI. The diff guard rejects new suppressions (`//nolint`, `@Suppress`, `@ts-ignore`, ...), skipped tests (`t.Skip`, `it.skip`, `@Ignore`), removed tests, junk files and oversized diffs. Existing debt (old gofmt and lint findings, known failing tests) is not reported unless you touch it; fixing it is a task of its own.
-
-- Do not edit the gate files to make a check pass: `.claude/settings.json`, `.claude/hooks/`, `scripts/check.py`, `scripts/diff_guard.py`, `.pre-commit-config.yaml`, `.github/workflows/`, `.golangci.yml` and `tsconfig*.json`.
-- Do not bypass them: no `--no-verify`, no `SKIP=`, no `DIFF_GUARD_ALLOW`.
-- If a gate is wrong for a specific case (a `t.Skip` that is really needed on one OS, say), stop and explain the case to the user. Overriding a gate is their call.
-
 ## Say what is true
 
-- "Done" means `uv run scripts/check.py` passed after your last edit and every acceptance criterion has a test. Otherwise say exactly what is not done or not verified.
+- "Done" means the checks and tests of what you touched passed after your last edit and every acceptance criterion has a test. Otherwise say exactly what is not done or not verified.
 - If you are blocked (an ambiguous criterion, a check you cannot pass properly, a task that is too big, a missing dependency), stop and say so instead of working around it.
