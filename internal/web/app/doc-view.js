@@ -65,7 +65,7 @@
       const ta = D.createElement('textarea');
       ta.value = id ? blocks.get(id).md : '';
       ta.rows = ta.value.split('\n').length + 1;
-      const me = { id, after, el, ta, base: id ? blocks.get(id).version : 0, conflict: false, saving: false };
+      const me = { id, after, el, ta, opened: ta.value.trim(), base: id ? blocks.get(id).version : 0, conflict: false, saving: false };
       ta.onkeydown = e => {
         const a = keyAction(e, ta);
         if (!a) return;
@@ -96,13 +96,18 @@
       if (me.saving) return null;
       const md = me.ta.value.trim();
       if (!me.id && !md) { close(me); return null; }
-      if (me.id && !me.conflict && md === blocks.get(me.id)?.md) { close(me); return me.id; }
+      // Sense tocar no es desa: el text obert pot ser més vell que el de l'agent.
+      if (me.id && !me.conflict && md === me.opened) { close(me); return me.id; }
       me.saving = true;
       let r;
       try {
         if (!me.id) r = await edit.post(me.after, md);
         else if (md) r = await edit.put(me.id, md, me.base);
         else r = await edit.del(me.id, me.base);
+      } catch (e) {
+        // El text es queda a l'editor per tornar-ho a provar.
+        edit.error(e.message || String(e));
+        return null;
       } finally {
         me.saving = false;
       }

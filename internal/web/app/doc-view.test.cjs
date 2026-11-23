@@ -159,6 +159,41 @@ test('Enter at the end of a block opens a new block below, saved with the id the
   assert.deepEqual(box.children.map(e => e.dataset.id), ['a', 'n', 'b', 'c']);
 });
 
+test('leaving a block or Ctrl+Enter saves it; leaving an untouched block sends nothing', async () => {
+  const box = new Node(fakeDocument), ed = fakeEdit();
+  const v = view(box, DOC, window.gregalMD.render, ed);
+  v.open('b');
+  v.editing.ta.value = 'En sortir';
+  v.editing.ta.onblur();
+  await tick();
+  assert.deepEqual(ed.calls, [['put', 'b', 'En sortir', 2]]);
+  assert.equal(box.children[1].text, 'En sortir');
+
+  v.open('c');
+  v.editing.ta.value = 'Amb Ctrl+Enter';
+  key(v.editing.ta, 'Enter', { ctrlKey: true });
+  await tick();
+  assert.deepEqual(ed.calls.at(-1), ['put', 'c', 'Amb Ctrl+Enter', 3]);
+
+  v.open('a');
+  const ta = v.editing.ta;
+  v.apply({ op: 'replace', block: { id: 'a', md: 'Ho canvia l\'agent', version: 10 }, version: 10, author: 'agent' });
+  ta.onblur();
+  await tick();
+  assert.equal(ed.calls.length, 2, 'an untouched block is not saved over the agent\'s change');
+});
+
+test('a save that fails on the network is reported and keeps the text', async () => {
+  const box = new Node(fakeDocument), ed = fakeEdit();
+  ed.put = async () => { throw new Error('offline'); };
+  const v = view(box, DOC, window.gregalMD.render, ed);
+  v.open('b');
+  v.editing.ta.value = 'No arriba';
+  await v.save();
+  assert.deepEqual(ed.errors, ['offline']);
+  assert.equal(v.editing.ta.value, 'No arriba');
+});
+
 test('a 409 shows the current text and a notice, and keeps the person\'s text', async () => {
   const box = new Node(fakeDocument), ed = fakeEdit();
   const v = view(box, DOC, window.gregalMD.render, ed);

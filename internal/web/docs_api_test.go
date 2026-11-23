@@ -168,43 +168,57 @@ func docWrite(t *testing.T, s *Server, method, target, body string, path ...stri
 	return rec.Code, out
 }
 
-func TestDocBlockWritesAsTheUser(t *testing.T) {
+// docBlocksFixture crea un document de tres blocs i hi obre dos streams.
+func docBlocksFixture(t *testing.T) (*Server, *gdocs.Store, gdocs.Doc, []*bufio.Scanner) {
+	t.Helper()
 	s := backlogServer(t)
 	st, _ := gdocs.Open(s.cwd)
 	d, err := st.Create("Pla", "# Objectius\n\nPrimer paràgraf\n\nSegon paràgraf", gdocs.AuthorAgent)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b1, b2 := d.Blocks[1].ID, d.Blocks[2].ID
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.SetPathValue("id", d.ID)
 		s.handleDocStream(w, r)
 	}))
-	defer srv.Close()
+	t.Cleanup(srv.Close)
 	var streams []*bufio.Scanner
 	for range 2 {
 		resp, err := http.Get(srv.URL)
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer func() {
+		t.Cleanup(func() {
 			if err := resp.Body.Close(); err != nil {
 				t.Error(err)
 			}
-		}()
+		})
 		streams = append(streams, bufio.NewScanner(resp.Body))
 	}
+	return s, st, d, streams
+}
 
+// expectEvent comprova que cada stream rep un event que compleix ok.
+func expectEvent(t *testing.T, streams []*bufio.Scanner, what string, ok func(gdocs.Change) bool) {
+	t.Helper()
+	for _, r := range streams {
+		if c := nextBlockEvent(t, r); !ok(c) {
+			t.Fatalf("event %s: %+v", what, c)
+		}
+	}
+}
+
+func TestDocBlockPutAndConflict(t *testing.T) {
+	s, _, d, streams := docBlocksFixture(t)
+	b1 := d.Blocks[1].ID
 	code, out := docWrite(t, s, http.MethodPut, "/", `{"md":"Primer, a mà","base_version":1}`, d.ID, b1)
 	blk, _ := out["block"].(map[string]any)
 	if code != 200 || out["version"] != 2.0 || blk["md"] != "Primer, a mà" || blk["author"] != gdocs.AuthorUser || blk["version"] != 2.0 {
 		t.Fatalf("put: %d %v", code, out)
 	}
-	for _, r := range streams {
-		if c := nextBlockEvent(t, r); c.Op != "replace" || c.Block.ID != b1 || c.Author != gdocs.AuthorUser || c.Version != 2 {
-			t.Fatalf("event put: %+v", c)
-		}
-	}
+	expectEvent(t, streams, "put", func(c gdocs.Change) bool {
+		return c.Op == "replace" && c.Block.ID == b1 && c.Author == gdocs.AuthorUser && c.Version == 2
+	})
 
 	// Algú altre l'ha canviat després de la versió 1: 409 amb el bloc d'ara.
 	code, out = docWrite(t, s, http.MethodPut, "/", `{"md":"Una altra","base_version":1}`, d.ID, b1)
@@ -215,35 +229,33 @@ func TestDocBlockWritesAsTheUser(t *testing.T) {
 	if code, out = docWrite(t, s, http.MethodDelete, "/?base_version=1", "", d.ID, b1); code != http.StatusConflict {
 		t.Fatalf("conflicte delete: %d %v", code, out)
 	}
-
-	code, out = docWrite(t, s, http.MethodPost, "/", `{"after":"`+b1+`","md":"Nou u\n\nNou dos"}`, d.ID)
-	nous, _ := out["blocks"].([]any)
-	if code != 200 || out["version"] != 3.0 || len(nous) != 2 || nous[0].(map[string]any)["md"] != "Nou u" {
-		t.Fatalf("post: %d %v", code, out)
-	}
-	for _, r := range streams {
-		if c := nextBlockEvent(t, r); c.Op != "insert" || c.After != b1 || c.Block.MD != "Nou u" || c.Author != gdocs.AuthorUser {
-			t.Fatalf("event post: %+v", c)
-		}
-		if c := nextBlockEvent(t, r); c.Op != "insert" || c.Block.MD != "Nou dos" {
-			t.Fatalf("event post 2: %+v", c)
-		}
-	}
-
-	if code, out = docWrite(t, s, http.MethodDelete, "/?base_version=1", "", d.ID, b2); code != 200 || out["version"] != 4.0 {
-		t.Fatalf("delete: %d %v", code, out)
-	}
-	for _, r := range streams {
-		if c := nextBlockEvent(t, r); c.Op != "delete" || c.Block.ID != b2 || c.Author != gdocs.AuthorUser {
-			t.Fatalf("event delete: %+v", c)
-		}
-	}
-	got, _ := st.Get(d.ID)
-	if got.Markdown() != "# Objectius\n\nPrimer, a mà\n\nNou u\n\nNou dos" {
-		t.Fatalf("document:\n%s", got.Markdown())
-	}
 	if code, _ := docWrite(t, s, http.MethodPut, "/", `{"md":"x","base_version":9}`, d.ID, "noexist"); code != http.StatusNotFound {
 		t.Fatalf("bloc que no hi és: %d", code)
+	}
+}
+
+func TestDocBlockPostAndDelete(t *testing.T) {
+	s, st, d, streams := docBlocksFixture(t)
+	b1, b2 := d.Blocks[1].ID, d.Blocks[2].ID
+	code, out := docWrite(t, s, http.MethodPost, "/", `{"after":"`+b1+`","md":"Nou u\n\nNou dos"}`, d.ID)
+	nous, _ := out["blocks"].([]any)
+	if code != 200 || out["version"] != 2.0 || len(nous) != 2 || nous[0].(map[string]any)["md"] != "Nou u" {
+		t.Fatalf("post: %d %v", code, out)
+	}
+	expectEvent(t, streams, "post", func(c gdocs.Change) bool {
+		return c.Op == "insert" && c.After == b1 && c.Block.MD == "Nou u" && c.Author == gdocs.AuthorUser
+	})
+	expectEvent(t, streams, "post 2", func(c gdocs.Change) bool { return c.Op == "insert" && c.Block.MD == "Nou dos" })
+
+	if code, out = docWrite(t, s, http.MethodDelete, "/?base_version=1", "", d.ID, b2); code != 200 || out["version"] != 3.0 {
+		t.Fatalf("delete: %d %v", code, out)
+	}
+	expectEvent(t, streams, "delete", func(c gdocs.Change) bool {
+		return c.Op == "delete" && c.Block.ID == b2 && c.Author == gdocs.AuthorUser
+	})
+	got, _ := st.Get(d.ID)
+	if got.Markdown() != "# Objectius\n\nPrimer paràgraf\n\nNou u\n\nNou dos" {
+		t.Fatalf("document:\n%s", got.Markdown())
 	}
 }
 
