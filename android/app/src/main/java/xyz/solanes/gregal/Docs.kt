@@ -1,5 +1,6 @@
 package xyz.solanes.gregal
 
+import android.webkit.JavascriptInterface
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlinx.serialization.json.JsonArray
@@ -155,6 +156,9 @@ data class LiveDoc(
     /** Sense blocs ni editor: es veu un bloc buit on escriure, com a la web (no en una presentació). */
     val blank: Boolean get() = kind == "doc" && blocks.isEmpty() && edit == null
 
+    /** Un document de text s'edita amb l'editor de la web; les presentacions i els fulls, amb les seves pantalles. */
+    val inWebEditor: Boolean get() = kind == "doc"
+
     fun apply(c: DocChange): LiveDoc {
         // Un insert de diversos blocs envia un event per bloc amb la mateixa
         // versió: per això es compara amb la base i no amb l'última versió.
@@ -307,6 +311,22 @@ data class LiveDoc(
 fun docExportPath(d: DocRef): String = when (d.kind) { "sheet" -> "xlsx"; "deck" -> "pptx"; else -> "docx" }.let { f ->
     docPath(d, "/export?format=$f&name=" + URLEncoder.encode(d.title + "." + f, "UTF-8"))
 }
+
+/** La pàgina del document de la web (/app/doc/{id}, doc-page.js), amb la sessió de l'app i el scope: l'editor, la barra i la pàgina de la web. */
+fun docPageUrl(base: String, d: DocRef, session: String): String =
+    base + scoped("/app/doc/" + URLEncoder.encode(d.id, "UTF-8").replace("+", "%20") + "?session=" + URLEncoder.encode(session, "UTF-8"), d.scope)
+
+/** La clau per carregar la pàgina: en una capçalera, mai a la URL. */
+fun docPageHeaders(token: String): Map<String, String> = if (token.isBlank()) emptyMap() else mapOf("Authorization" to "Bearer $token")
+
+/** Les crides de la pàgina: doc-page.js llegeix la clau d'aquest pont (window.GregalAndroid), com a l'escriptori de window.gregalDesktop. */
+class DocPageBridge(private val token: String) {
+    @JavascriptInterface
+    fun token(): String = token
+}
+
+/** Només la pàgina mateixa es carrega al WebView (la pàgina, amb el pont i la clau, no navega enlloc més). */
+fun docPageKeeps(url: String, page: String): Boolean = url == page
 
 @Serializable
 private class DocListDto(val items: List<DocRef> = emptyList())

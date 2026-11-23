@@ -1,5 +1,17 @@
 package xyz.solanes.gregal
 
+import android.annotation.SuppressLint
+import android.content.Intent
+import android.net.Uri
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
@@ -61,8 +73,8 @@ import kotlinx.serialization.json.JsonObject
 // Gregal Docs a pantalla completa (al mòbil no hi ha lloc per al panell
 // lateral de la web). Sense document obert és l'inici (doc-home.js):
 // «Document nou», «Els meus documents» i, a Codi amb projecte, «Aquest
-// projecte». Amb un document obert, els blocs amb el markdown del xat (o
-// les diapositives d'una presentació, o la graella d'un full), al dia
+// projecte». Un document de text s'obre amb l'editor de la web (DocWebPage);
+// una presentació o un full, amb les diapositives o la graella, al dia
 // mentre l'agent l'escriu, i a sota les mateixes llistes.
 
 @Composable
@@ -73,6 +85,7 @@ fun DocScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val mine by vm.myDocs.collectAsState()
     val docs by vm.docs.collectAsState()
     val st by vm.state.collectAsState()
+    val conn by vm.conn.collectAsState()
     val vents by vm.simpleVents.collectAsState()
     val project = docsProjectName(st.cwd, st.project, vents)
     // Torna a llegir les llistes en obrir un document: el que s'acaba de crear hi surt.
@@ -84,6 +97,16 @@ fun DocScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     Scaffold(containerColor = Color.Transparent, topBar = {
         GregalTopBar(open?.title ?: tr(lang, "docs.home"), lang, onMenu = onMenu)
     }) { pad ->
+        if (open != null && open.inWebEditor) {
+            Column(Modifier.fillMaxSize().padding(pad).imePadding().testTag("doc-screen")) {
+                OutlinedButton(onClick = { vm.downloadServerDoc(docExportPath(DocRef(open.id, open.title, scope = open.scope)), open.title + ".docx") },
+                    modifier = Modifier.padding(horizontal = 16.dp)) {
+                    Text(tr(lang, "docs.download"))
+                }
+                DocWebPage(open, conn.api())
+            }
+            return@Scaffold
+        }
         LazyColumn(Modifier.fillMaxSize().padding(pad).testTag("doc-screen"),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 110.dp)) {
             if (open != null && open.kind == "sheet") {
@@ -100,24 +123,6 @@ fun DocScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     }
                 }
                 deckView(vm, lang, open)
-            } else if (open != null) {
-                item(key = "download") {
-                    OutlinedButton(onClick = { vm.downloadServerDoc(docExportPath(DocRef(open.id, open.title, scope = open.scope)), open.title + ".docx") }) {
-                        Text(tr(lang, "docs.download"))
-                    }
-                }
-                if (open.blank) item(key = "empty") {
-                    Text(tr(lang, "docs.write"), color = Muted, fontSize = 15.sp,
-                        modifier = Modifier.fillMaxWidth().clickable { vm.writeEmptyDoc() }.padding(vertical = 12.dp).testTag("doc-empty"))
-                }
-                val e = open.edit
-                // Un bloc nou al principi: el d'un document buit, o un que penjava del primer, esborrat.
-                if (e != null && e.id.isEmpty() && e.after.isEmpty()) item(key = "new-top") { BlockEditor(vm, e, lang) }
-                items(open.blocks, key = { "b:" + it.id }) { b ->
-                    if (e?.id == b.id) BlockEditor(vm, e, lang)
-                    else Column(Modifier.fillMaxWidth().clickable { vm.editDocBlock(b.id) }) { AssistantResponse(b.md, lang) }
-                    if (e != null && e.id.isEmpty() && e.after == b.id) BlockEditor(vm, e, lang)
-                }
             } else if (ref != null) {
                 item(key = "loading") { Text(tr(lang, "docs.loading"), color = Muted, modifier = Modifier.padding(vertical = 12.dp)) }
             } else {
@@ -338,25 +343,42 @@ private fun LazyListScope.docSection(vm: GregalViewModel, lang: String, key: Str
     }
 }
 
-/** L'editor d'un bloc: el markdown al seu lloc; després d'un 409, a sobre el text d'ara. */
+/**
+ * Un document de text: la pàgina del document de la web (doc-page.js) en un WebView, amb el mateix editor,
+ * la mateixa barra i la mateixa pàgina. La clau va a la capçalera de la càrrega i al pont GregalAndroid,
+ * mai a la URL; per això la pàgina no navega enlloc més i els enllaços s'obren fora.
+ */
+@SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
 @Composable
-private fun BlockEditor(vm: GregalViewModel, e: DocEdit, lang: String) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp).testTag("doc-block-editor")) {
-        e.conflict?.let { b ->
-            Text(tr(lang, "docs.conflict"), color = Sea, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-            AssistantResponse(b.md, lang)
-        }
-        // Un bloc nou (també el d'un document buit) s'obre amb el cursor a dins, com a la web.
-        val focus = remember { FocusRequester() }
-        if (e.id.isEmpty()) LaunchedEffect(Unit) { focus.requestFocus() }
-        OutlinedTextField(e.text, vm::typeDocBlock, Modifier.fillMaxWidth().focusRequester(focus), enabled = !e.saving)
-        Row(Modifier.padding(top = 6.dp)) {
-            Button(onClick = { vm.saveDocBlock(false) }, enabled = !e.saving) { Text(tr(lang, "docs.save")) }
-            OutlinedButton(onClick = { vm.saveDocBlock(true) }, enabled = !e.saving, modifier = Modifier.padding(start = 8.dp)) {
-                Text(tr(lang, "docs.addBlock"))
+private fun ColumnScope.DocWebPage(d: LiveDoc, api: GregalApi) {
+    val page = docPageUrl(api.base, DocRef(d.id, d.title, d.kind, d.scope), sessioApp)
+    val ctx = LocalContext.current
+    var web by remember { mutableStateOf<WebView?>(null) }
+    DisposableEffect(Unit) { onDispose { web?.stopLoading(); web?.destroy() } }
+    AndroidView(modifier = Modifier.fillMaxWidth().weight(1f), factory = { c ->
+        WebView(c).apply {
+            settings.javaScriptEnabled = true
+            // doc-page.js hi llegeix el tema de l'app.
+            settings.domStorageEnabled = true
+            settings.allowFileAccess = false
+            settings.allowContentAccess = false
+            webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                    val url = request?.url?.toString().orEmpty()
+                    if (docPageKeeps(url, page)) return false
+                    runCatching { ContextCompat.startActivity(ctx, Intent(Intent.ACTION_VIEW, Uri.parse(url)), null) }
+                    return true
+                }
             }
+            addJavascriptInterface(DocPageBridge(api.token), "GregalAndroid")
+            web = this
         }
-    }
+    }, update = { view ->
+        if (view.tag != page) {
+            view.tag = page
+            view.loadUrl(page, docPageHeaders(api.token))
+        }
+    })
 }
 
 /** La targeta del xat quan l'agent escriu un document: l'obre a DocScreen. */

@@ -7,7 +7,8 @@ const session = query.get('session') || 'default';
 // scope=mine: un document de «Els meus documents» (els dels vents), no del projecte.
 const scope = query.get('scope') === 'mine' ? 'mine' : '';
 const id = decodeURIComponent(location.pathname.split('/').pop());
-let token = window.gregalDesktop?.apiToken;
+// L'app d'Android dona la clau pel pont GregalAndroid (DocScreen.kt), mai a la URL.
+let token = window.gregalDesktop?.apiToken ?? window.GregalAndroid?.token();
 if (typeof token !== 'string') {
   try { token = localStorage.getItem('gregal_token') || ''; } catch (e) { token = ''; }
 }

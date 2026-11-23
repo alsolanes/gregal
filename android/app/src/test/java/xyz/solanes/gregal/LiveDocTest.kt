@@ -474,4 +474,35 @@ class LiveDocTest {
         assertEquals("Pitch 2027.pptx", serverDocName(url))
         assertEquals(req("POST", "/api/docs?scope=mine", """{"title":"Pitch","kind":"deck"}"""), docCreateRequest("Pitch", "deck"))
     }
+
+    // --- l'editor de la web en un WebView (083) ---
+
+    @Test
+    fun aTextDocumentOpensTheWebPageWithTheKeyOutsideTheUrl() {
+        val mine = DocRef("m1", "Carta", "doc", "mine")
+        val page = docPageUrl("https://gregal.example:8080", mine, "mobil")
+        assertEquals("https://gregal.example:8080/app/doc/m1?session=mobil&scope=mine", page)
+        // Un document del projecte no du scope; l'id va codificat com un tros de ruta.
+        assertEquals("https://gregal.example:8080/app/doc/p%201?session=mobil", docPageUrl("https://gregal.example:8080", DocRef("p 1", "Informe"), "mobil"))
+        // La clau va a la capçalera de la càrrega i al pont que llegeix doc-page.js, mai a la URL.
+        assertFalse("clau-secreta" in page)
+        assertEquals(mapOf("Authorization" to "Bearer clau-secreta"), docPageHeaders("clau-secreta"))
+        assertEquals(emptyMap<String, String>(), docPageHeaders(""))
+        assertEquals("clau-secreta", DocPageBridge("clau-secreta").token())
+        // Només els documents de text; les presentacions i els fulls tenen la seva pantalla.
+        assertTrue(doc.inWebEditor)
+        assertFalse(deck.inWebEditor)
+        assertFalse(DocsJson.doc("""{"id":"s1","title":"Pressupost","kind":"sheet","blocks":[]}""").inWebEditor)
+    }
+
+    @Test
+    fun theWebEditorKeepsWordDownloadAndNeverNavigatesAway() {
+        val mine = DocRef("m1", "Carta", "doc", "mine")
+        assertEquals("/api/docs/m1/export?format=docx&name=Carta.docx&scope=mine", docExportPath(mine))
+        val page = docPageUrl("http://10.0.0.2:8080", mine, "mobil")
+        // Només la pàgina mateixa es carrega al WebView: un enllaç s'obre fora, i Enrere surt del document com a les altres pantalles.
+        assertTrue(docPageKeeps(page, page))
+        assertFalse(docPageKeeps("https://example.com/", page))
+        assertFalse(docPageKeeps("http://10.0.0.2:8080/app/", page))
+    }
 }

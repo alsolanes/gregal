@@ -6584,8 +6584,6 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     val docOpen: StateFlow<DocRef?> = _docOpen
     private val _doc = MutableStateFlow<LiveDoc?>(null)
     val doc: StateFlow<LiveDoc?> = _doc
-    // «Document nou»: quan es llegeixi, s'hi obre l'editor per escriure.
-    private var docWrite = false
 
     /** L'inici de Gregal Docs, sense cap document obert. */
     fun openDocsHome() {
@@ -6620,16 +6618,12 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     return@launch
                 }
                 val d = DocsJson.doc(body)
-                docWrite = true
                 openDoc(DocRef(d.id, d.title, d.kind, "mine"))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) { notify(appText("docs.createError", e.message.orEmpty())) }
         }
     }
-
-    /** El bloc buit d'un document sense blocs: obre un editor al principi. */
-    fun writeEmptyDoc() = _doc.update { if (it?.blank == true) it.openNew("") else it }
 
     /**
      * Segueix el document mentre la pantalla el mira: obre el stream, llegeix
@@ -6639,8 +6633,6 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun followDoc(ref: DocRef) {
         val job = currentCoroutineContext().job
         val id = ref.id
-        var write = docWrite
-        docWrite = false
         _doc.value = null
         while (true) {
             try {
@@ -6649,8 +6641,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     val read = {
                         val d = DocsJson.doc(api.get(docPath(ref)).toString()).copy(scope = ref.scope)
                         job.ensureActive()
-                        _doc.value = if (write && d.blank) d.openNew("") else d
-                        write = false
+                        _doc.value = d
                     }
                     api.streamGet(docPath(ref, "/stream"), onOpen = read) { ev ->
                         // El ping de cada 15 s deixa plegar el fil quan es tanca la pantalla.
