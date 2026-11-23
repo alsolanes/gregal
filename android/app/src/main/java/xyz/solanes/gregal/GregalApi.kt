@@ -1001,6 +1001,8 @@ class GregalApi(val base: String, val token: String) {
         data class AskResolved(val key: String) : WindStreamEvent
         /** El que has escrit mentre treballava i ja no ha arribat a llegir: s'envia després. */
         data class SteerUnread(val texts: List<String>) : WindStreamEvent
+        /** El vent ha escrit un document (066): du el seu scope ("mine"). */
+        data class DocChanged(val doc: DocRef) : WindStreamEvent
     }
 
     /** Una aprovació («approve») o una pregunta amb opcions («question») d'un vent. */
@@ -1135,6 +1137,7 @@ class GregalApi(val base: String, val token: String) {
             "steer_unread" -> (o["texts"] as? kotlinx.serialization.json.JsonArray)
                 ?.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.content?.trim()?.takeIf(String::isNotEmpty) }
                 ?.takeIf { it.isNotEmpty() }?.let { WindStreamEvent.SteerUnread(it) }
+            "doc_changed" -> DocsJson.changed(data)?.let { WindStreamEvent.DocChanged(it) }
             else -> null
         }
     }

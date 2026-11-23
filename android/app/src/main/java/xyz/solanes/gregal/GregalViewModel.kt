@@ -923,6 +923,14 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             }
             is GregalApi.WindStreamEvent.Ask -> _windAsks.value = _windAsks.value.filter { it.key != e.ask.key } + e.ask
             is GregalApi.WindStreamEvent.AskResolved -> _windAsks.value = _windAsks.value.filter { it.key != e.key }
+            // Una targeta per document, com a Codi; la bombolla en directe ha de quedar l'última.
+            is GregalApi.WindStreamEvent.DocChanged -> if (!rotllana) _windChat.update { chats ->
+                val cur = chats[threadId].orEmpty()
+                if (cur.any { it.doc?.id == e.doc.id }) chats else {
+                    val at = if (cur.lastOrNull()?.streaming == true) cur.lastIndex else cur.size
+                    chats + (threadId to cur.toMutableList().apply { add(at, PetMsg("pet", e.doc.title, kind = "doc", doc = e.doc)) })
+                }
+            }
             is GregalApi.WindStreamEvent.DoneRotllana -> if (e.failed.isNotEmpty()) {
                 notify(appText("wind.turn.incomplete", e.failed.joinToString(", ")))
             }
@@ -6220,7 +6228,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         dropStreamingBubble(windId)
                         // La parcial es fusiona amb l'anterior: un sol missatge.
                         val cur = _windChat.value[windId].orEmpty()
-                        val idx = cur.indexOfLast { it.from == "pet" && !it.streaming }
+                        val idx = cur.indexOfLast { it.from == "pet" && !it.streaming && it.kind != "doc" }
                         val merged = if (idx >= 0) {
                             cur.toMutableList().also { it[idx] = it[idx].copy(text = it[idx].text + r.text, parcial = r.parcial) }
                         } else cur + PetMsg("pet", r.text, parcial = r.parcial)
@@ -6245,7 +6253,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     val r = withContext(Dispatchers.IO) { source.api().windChat(windId, "", cont = true, session = thread) }
                     if (isCompanionOrigin(source, epoch)) {
                         val cur = _windChat.value[windId].orEmpty()
-                        val idx = cur.indexOfLast { it.from == "pet" && !it.streaming }
+                        val idx = cur.indexOfLast { it.from == "pet" && !it.streaming && it.kind != "doc" }
                         val merged = if (idx >= 0) {
                             cur.toMutableList().also { it[idx] = it[idx].copy(text = it[idx].text + r.text, parcial = r.parcial) }
                         } else cur + PetMsg("pet", r.text, parcial = r.parcial)
@@ -6479,7 +6487,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                       val relatedRunId: Long = 0L,
                       val resultRefs: List<String> = emptyList(),
                       /** Captures del que ha fet a l'ordinador en aquest torn («Ho he fet així»). */
-                      val shots: List<MsgShot> = emptyList()) {
+                      val shots: List<MsgShot> = emptyList(),
+                      /** kind "doc": el document que el vent ha escrit, per a la targeta. */
+                      val doc: DocRef? = null) {
         val proactive: Boolean get() = from != "user" && id.isNotBlank() && (relatedRunId > 0 || resultRefs.isNotEmpty())
     }
 

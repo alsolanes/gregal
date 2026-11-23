@@ -218,6 +218,31 @@ class LiveDocTest {
     }
 
     @Test
+    fun aWindDocumentUsesMyScopeAndACodiDocumentNever() {
+        // El doc_changed del flux d'un vent (WindDocCardTest) i el d'un xat de Codi.
+        val wind = DocsJson.changed("""{"id":"w1","title":"Carta","scope":"mine"}""")!!
+        val codi = DocsJson.changed("""{"id":"w1","title":"Carta"}""")!!
+        // La llista on es marca el document obert (DocScreen compara id i scope).
+        assertTrue(wind in DocsJson.list("""{"items":[{"id":"w1","title":"Carta","kind":"doc"}]}""", "mine"))
+        assertTrue(codi in DocsJson.list("""{"items":[{"id":"w1","title":"Carta","kind":"doc"}]}"""))
+        assertEquals("/api/docs/w1?scope=mine", docPath(wind))
+        assertEquals("/api/docs/w1/stream?scope=mine", docPath(wind, "/stream"))
+        assertEquals("/api/docs/w1/export?format=docx&name=Carta.docx&scope=mine", docExportPath(wind))
+        assertEquals("/api/docs/w1", docPath(codi))
+        assertEquals("/api/docs/w1/stream", docPath(codi, "/stream"))
+        assertEquals("/api/docs/w1/export?format=docx&name=Carta.docx", docExportPath(codi))
+        // followDoc copia el scope del ref al document llegit; les edicions el porten.
+        val windDoc = doc.copy(scope = wind.scope)
+        val codiDoc = doc.copy(scope = codi.scope)
+        assertEquals(req("PUT", "/api/docs/d1/blocks/b2?scope=mine", """{"md":"X","base_version":2}"""), windDoc.open("b2").typed("X").saveRequest())
+        assertEquals(req("DELETE", "/api/docs/d1/blocks/b1?base_version=1&scope=mine"), windDoc.open("b1").typed("").saveRequest())
+        assertEquals(req("POST", "/api/docs/d1/blocks?scope=mine", """{"after":"b2","md":"Nou"}"""), windDoc.openNew("b2").typed("Nou").saveRequest())
+        assertEquals(req("PUT", "/api/docs/d1/blocks/b2", """{"md":"X","base_version":2}"""), codiDoc.open("b2").typed("X").saveRequest())
+        assertEquals(req("DELETE", "/api/docs/d1/blocks/b1?base_version=1"), codiDoc.open("b1").typed("").saveRequest())
+        assertEquals(req("POST", "/api/docs/d1/blocks", """{"after":"b2","md":"Nou"}"""), codiDoc.openNew("b2").typed("Nou").saveRequest())
+    }
+
+    @Test
     fun theProjectSectionNeedsACodiChatWithAProject() {
         assertEquals("gregal", docsProjectName(cwd = "/src/gregal", project = "gregal", vents = false))
         assertEquals("/src/gregal", docsProjectName(cwd = "/src/gregal", project = "", vents = false))

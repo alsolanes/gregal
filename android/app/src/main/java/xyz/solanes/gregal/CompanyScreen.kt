@@ -1283,6 +1283,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                 if (m.kind == "memory") {
                     val facts = remember(m.text) { m.text.lines().map { it.trim() }.filter { it.isNotEmpty() } }
                     MemoryNotice(lang, facts) { vm.forgetLearned(wind.id, facts) }
+                } else if (m.kind == "doc" && m.doc != null) {
+                    DocCard(m.doc, lang) { vm.openDoc(m.doc) }
                 } else Column(Modifier.padding(top = gap)) {
                     if (idx == newFrom) ThreadDivider(threadCopy(lang, "new"), accent = true)
                     if (m.kind == "guest" && m.speakerName.isNotBlank()) GuestJoinsLine(lang, m.speakerName)
