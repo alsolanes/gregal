@@ -2,10 +2,15 @@ package web
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"image"
+	"image/color"
+	"image/gif"
 	"image/jpeg"
+	"image/png"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -258,5 +263,27 @@ func TestProfilePhotoIsPerAccountSquareAndRemovable(t *testing.T) {
 	photoCall(t, s, tokens["anna"], http.MethodGet, nil, 404)
 	if got := mePhoto(t, s, tokens["anna"]); got != "" {
 		t.Fatalf("/api/me encara en dona: %q", got)
+	}
+}
+
+func TestProfilePhotoTakesOnlyJPEGPNGWebPAndNoHugeImages(t *testing.T) {
+	var gifBuf bytes.Buffer
+	if err := gif.Encode(&gifBuf, image.NewPaletted(image.Rect(0, 0, 4, 4), color.Palette{color.Black, color.White}), nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := squarePhoto(gifBuf.Bytes()); err == nil {
+		t.Fatal("a GIF must be refused: the photo takes JPEG, PNG or WebP")
+	}
+	// A tiny PNG whose header claims 10000×10000: refused before decoding.
+	var pngBuf bytes.Buffer
+	if err := png.Encode(&pngBuf, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
+		t.Fatal(err)
+	}
+	raw := pngBuf.Bytes()
+	binary.BigEndian.PutUint32(raw[16:], 10000)
+	binary.BigEndian.PutUint32(raw[20:], 10000)
+	binary.BigEndian.PutUint32(raw[29:], crc32.ChecksumIEEE(raw[12:29]))
+	if _, err := squarePhoto(raw); err == nil || !strings.Contains(err.Error(), "pixels") {
+		t.Fatalf("a 100-megapixel header must be refused: %v", err)
 	}
 }

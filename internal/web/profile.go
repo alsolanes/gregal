@@ -191,9 +191,13 @@ func (s *Server) profilePhotoURL() string {
 // squarePhoto descodifica un JPEG, PNG o WebP, en retalla el quadrat del mig
 // i el redueix a profilePhotoSide com a molt.
 func squarePhoto(raw []byte) (image.Image, error) {
-	cfg, _, err := image.DecodeConfig(bytes.NewReader(raw))
+	cfg, format, err := image.DecodeConfig(bytes.NewReader(raw))
 	if err != nil {
 		return nil, err
+	}
+	// Other formats register decoders elsewhere in the binary (GIF, via ooxml).
+	if format != "jpeg" && format != "png" && format != "webp" {
+		return nil, errors.New("not a JPEG, PNG or WebP image")
 	}
 	if cfg.Width*cfg.Height > profilePhotoMaxPixels {
 		return nil, errors.New("too many pixels")

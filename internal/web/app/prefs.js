@@ -86,7 +86,7 @@ function perfilHTML() {
     '<div class="pf-row"><div class="pf-lab"><b>' + esc(L('Foto de l’avatar', 'Avatar photo')) + '</b><span>' +
     esc(L('JPEG, PNG o WebP fins a 5 MB; en fem un quadrat pel mig. Sense foto, les inicials.', 'JPEG, PNG or WebP up to 5 MB, cropped square from the centre. Without one, your initials.')) +
     '</span><span class="pf-skills-status" id="prefsPhotoStatus" role="status"></span></div>' +
-    '<div class="pf-btns"><input type="file" id="prefsPhotoFile" accept="image/*" hidden>' +
+    '<div class="pf-btns"><input type="file" id="prefsPhotoFile" accept="image/jpeg,image/png,image/webp" hidden>' +
     '<button type="button" class="pf-open" id="prefsPhotoUpload">' + esc(L('Puja una foto', 'Upload a photo')) + '</button>' +
     '<button type="button" class="pf-open pf-danger" id="prefsPhotoRemove"' + (av.hasPhoto() ? '' : ' hidden') + '>' +
     esc(L('Treu la foto', 'Remove photo')) + '</button></div></div>';
