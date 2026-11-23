@@ -21,7 +21,9 @@ style.textContent = '#docsPanel[hidden]{display:none}#docsPanel{flex:0 0 460px;w
   '#docsPanel header{display:flex;gap:6px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)}' +
   '#docsList{flex:1;min-width:0;border:1px solid var(--line-hi);border-radius:4px;background:var(--bg);color:var(--ink);padding:6px}' +
   '#docsDownload,#docsClose{border:1px solid var(--line-hi);border-radius:4px;background:var(--bg);color:var(--ink);cursor:pointer;padding:6px 9px;font-size:12px;text-decoration:none;white-space:nowrap}' +
-  '#docsBody{flex:1;overflow:auto;padding:16px 20px}' +
+  '#docsBody{flex:1;overflow:auto;padding:16px 20px}#docsBody .doc-block{cursor:text}' +
+  '#docsBody .doc-block textarea{display:block;width:100%;box-sizing:border-box;margin:6px 0;padding:6px 8px;border:1px solid var(--line-hi);border-radius:4px;background:var(--bg);color:var(--ink);font:13px/1.5 ui-monospace,monospace;resize:vertical}' +
+  '#docsBody .doc-conflict{margin:6px 0;padding:4px 10px;border-left:3px solid var(--line-hi);color:var(--ink)}#docsBody .doc-conflict p:first-child{font-weight:600}' +
   '@media(max-width:1000px){#docsPanel{position:fixed;inset:92px 0 0 auto;width:min(100%,560px);z-index:30;box-shadow:-4px 0 16px #0003}}';
 document.head.append(style);
 $('docsClose').onclick = () => { ctrl?.abort(); state.visible = false; pane.hidden = true; };
@@ -34,13 +36,29 @@ async function list() {
   $('docsList').replaceChildren(...items.map(d => new Option(d.title, d.id, false, d.id === state.id)));
 }
 
+// blockEdits desa a /api/docs/{id}/blocks el que la persona edita a la vista.
+function blockEdits(id) {
+  const url = '/api/docs/' + encodeURIComponent(id) + '/blocks';
+  const send = async (path, method, body) => {
+    const r = await G().api(url + path, { method, headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) });
+    return { status: r.status, body: await r.json().catch(() => ({ error: r.statusText })) };
+  };
+  return {
+    put: (block, md, base) => send('/' + encodeURIComponent(block), 'PUT', { md, base_version: base }),
+    post: (after, md) => send('', 'POST', { after, md }),
+    del: (block, base) => send('/' + encodeURIComponent(block) + '?base_version=' + base, 'DELETE'),
+    notice: () => tx("L'agent ha canviat aquest bloc", 'The agent changed this block'),
+    error: m => G().sys(m),
+  };
+}
+
 async function follow(id, my) {
   const r = await G().api('/api/docs/' + encodeURIComponent(id) + '/stream', { signal: my.signal });
   if (!r.ok) throw new Error(await r.text());
   // El stream ja és subscrit: el document que es llegeix ara no perd cap canvi.
   const doc = await (await G().api('/api/docs/' + encodeURIComponent(id), { signal: my.signal })).json();
   $('docsDownload').href = '/api/docs/' + encodeURIComponent(id) + '/export?format=docx&name=' + encodeURIComponent(doc.title + '.docx');
-  const v = window.gregalDocView.view($('docsBody'), doc, window.gregalMD.render);
+  const v = window.gregalDocView.view($('docsBody'), doc, window.gregalMD.render, blockEdits(id));
   const rd = r.body.getReader(), dec = new TextDecoder();
   let buf = '';
   for (;;) {

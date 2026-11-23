@@ -39,7 +39,7 @@ func TestReplaceVersionaIAutor(t *testing.T) {
 	s := obre(t)
 	d, _ := s.Create("Plan", "# Plan\n\nFirst.", AuthorAgent)
 	blk := d.Blocks[1]
-	d2, err := s.Replace(d.ID, blk.ID, "Second.", AuthorUser)
+	d2, err := s.Replace(d.ID, blk.ID, "Second.", AuthorUser, d.Version)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestReplacesConcurrents(t *testing.T) {
 			defer wg.Done()
 			// Cada escriptor obre el seu Store, com el web i l'eina.
 			s2 := &Store{Root: s.Root, Dir: s.Dir}
-			if _, err := s2.Replace(d.ID, blk.ID, fmt.Sprint("nou ", i), AuthorAgent); err != nil {
+			if _, err := s2.Replace(d.ID, blk.ID, fmt.Sprint("nou ", i), AuthorAgent, d.Version); err != nil {
 				t.Error(err)
 			}
 		}()
@@ -92,7 +92,7 @@ func TestDeleteDeixaLapida(t *testing.T) {
 	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	s := obre(t)
 	d, _ := s.Create("Plan", "a\n\nb", AuthorAgent)
-	d2, err := s.Delete(d.ID, d.Blocks[1].ID, AuthorUser)
+	d2, err := s.Delete(d.ID, d.Blocks[1].ID, AuthorUser, d.Version)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestWatchDeletePortaAutor(t *testing.T) {
 	d, _ := s.Create("Plan", "a\n\nb", AuthorAgent)
 	ch, stop := s.Watch(d.ID)
 	defer stop()
-	if _, err := s.Delete(d.ID, d.Blocks[1].ID, AuthorUser); err != nil {
+	if _, err := s.Delete(d.ID, d.Blocks[1].ID, AuthorUser, d.Version); err != nil {
 		t.Fatal(err)
 	}
 	c := <-ch
@@ -135,7 +135,7 @@ func TestWatchInsertIDeleteAlMig(t *testing.T) {
 		c2.Op != "insert" || c2.Block.ID != y.ID || c2.After != x.ID || c2.Version != d2.Version {
 		t.Fatalf("insercions %+v %+v", c1, c2)
 	}
-	if _, err := s.Delete(d.ID, x.ID, AuthorUser); err != nil {
+	if _, err := s.Delete(d.ID, x.ID, AuthorUser, d2.Version); err != nil {
 		t.Fatal(err)
 	}
 	c := <-ch

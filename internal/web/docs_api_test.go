@@ -3,7 +3,6 @@ package web
 import (
 	"bufio"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -120,19 +119,18 @@ func TestDocStream(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	if _, err := st.Replace(d.ID, d.Blocks[1].ID, "Segon paràgraf", gdocs.AuthorUser); err != nil {
+	if _, err := st.Replace(d.ID, d.Blocks[1].ID, "Segon paràgraf", gdocs.AuthorUser, d.Version); err != nil {
 		t.Fatal(err)
 	}
-	c := firstBlockEvent(t, resp.Body)
+	c := nextBlockEvent(t, bufio.NewScanner(resp.Body))
 	if c.Op != "replace" || c.Version != 2 || c.Block.ID != d.Blocks[1].ID || c.Block.MD != "Segon paràgraf" || c.Author != gdocs.AuthorUser {
 		t.Fatalf("event: %+v", c)
 	}
 }
 
-// firstBlockEvent llegeix l'SSE fins al primer event block.
-func firstBlockEvent(t *testing.T, r io.Reader) gdocs.Change {
+// nextBlockEvent llegeix l'SSE fins al següent event block.
+func nextBlockEvent(t *testing.T, sc *bufio.Scanner) gdocs.Change {
 	t.Helper()
-	sc := bufio.NewScanner(r)
 	event := ""
 	for sc.Scan() {
 		line := sc.Text()
@@ -149,6 +147,104 @@ func firstBlockEvent(t *testing.T, r io.Reader) gdocs.Change {
 	}
 	t.Fatalf("cap event block: %v", sc.Err())
 	return gdocs.Change{}
+}
+
+// docWrite crida una ruta d'escriptura de blocs i en torna el codi i el cos.
+func docWrite(t *testing.T, s *Server, method, target, body string, path ...string) (int, map[string]any) {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(method, target, strings.NewReader(body))
+	req.SetPathValue("id", path[0])
+	if len(path) > 1 {
+		req.SetPathValue("block", path[1])
+		s.handleDocBlock(rec, req)
+	} else {
+		s.handleDocBlocks(rec, req)
+	}
+	var out map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+	return rec.Code, out
+}
+
+func TestDocBlockWritesAsTheUser(t *testing.T) {
+	s := backlogServer(t)
+	st, _ := gdocs.Open(s.cwd)
+	d, err := st.Create("Pla", "# Objectius\n\nPrimer paràgraf\n\nSegon paràgraf", gdocs.AuthorAgent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b1, b2 := d.Blocks[1].ID, d.Blocks[2].ID
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.SetPathValue("id", d.ID)
+		s.handleDocStream(w, r)
+	}))
+	defer srv.Close()
+	var streams []*bufio.Scanner
+	for range 2 {
+		resp, err := http.Get(srv.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
+		streams = append(streams, bufio.NewScanner(resp.Body))
+	}
+
+	code, out := docWrite(t, s, http.MethodPut, "/", `{"md":"Primer, a mà","base_version":1}`, d.ID, b1)
+	blk, _ := out["block"].(map[string]any)
+	if code != 200 || out["version"] != 2.0 || blk["md"] != "Primer, a mà" || blk["author"] != gdocs.AuthorUser || blk["version"] != 2.0 {
+		t.Fatalf("put: %d %v", code, out)
+	}
+	for _, r := range streams {
+		if c := nextBlockEvent(t, r); c.Op != "replace" || c.Block.ID != b1 || c.Author != gdocs.AuthorUser || c.Version != 2 {
+			t.Fatalf("event put: %+v", c)
+		}
+	}
+
+	// Algú altre l'ha canviat després de la versió 1: 409 amb el bloc d'ara.
+	code, out = docWrite(t, s, http.MethodPut, "/", `{"md":"Una altra","base_version":1}`, d.ID, b1)
+	blk, _ = out["block"].(map[string]any)
+	if code != http.StatusConflict || blk["md"] != "Primer, a mà" || blk["version"] != 2.0 {
+		t.Fatalf("conflicte: %d %v", code, out)
+	}
+	if code, out = docWrite(t, s, http.MethodDelete, "/?base_version=1", "", d.ID, b1); code != http.StatusConflict {
+		t.Fatalf("conflicte delete: %d %v", code, out)
+	}
+
+	code, out = docWrite(t, s, http.MethodPost, "/", `{"after":"`+b1+`","md":"Nou u\n\nNou dos"}`, d.ID)
+	nous, _ := out["blocks"].([]any)
+	if code != 200 || out["version"] != 3.0 || len(nous) != 2 || nous[0].(map[string]any)["md"] != "Nou u" {
+		t.Fatalf("post: %d %v", code, out)
+	}
+	for _, r := range streams {
+		if c := nextBlockEvent(t, r); c.Op != "insert" || c.After != b1 || c.Block.MD != "Nou u" || c.Author != gdocs.AuthorUser {
+			t.Fatalf("event post: %+v", c)
+		}
+		if c := nextBlockEvent(t, r); c.Op != "insert" || c.Block.MD != "Nou dos" {
+			t.Fatalf("event post 2: %+v", c)
+		}
+	}
+
+	if code, out = docWrite(t, s, http.MethodDelete, "/?base_version=1", "", d.ID, b2); code != 200 || out["version"] != 4.0 {
+		t.Fatalf("delete: %d %v", code, out)
+	}
+	for _, r := range streams {
+		if c := nextBlockEvent(t, r); c.Op != "delete" || c.Block.ID != b2 || c.Author != gdocs.AuthorUser {
+			t.Fatalf("event delete: %+v", c)
+		}
+	}
+	got, _ := st.Get(d.ID)
+	if got.Markdown() != "# Objectius\n\nPrimer, a mà\n\nNou u\n\nNou dos" {
+		t.Fatalf("document:\n%s", got.Markdown())
+	}
+	if code, _ := docWrite(t, s, http.MethodPut, "/", `{"md":"x","base_version":9}`, d.ID, "noexist"); code != http.StatusNotFound {
+		t.Fatalf("bloc que no hi és: %d", code)
+	}
 }
 
 func TestDocChangedWhenTheAgentWrites(t *testing.T) {

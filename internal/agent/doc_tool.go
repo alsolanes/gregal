@@ -66,9 +66,9 @@ func docExec(dir, session, argsJSON string) (string, error) {
 	case "insert":
 		d, err = s.Insert(a.ID, a.After, a.MD, gdocs.AuthorAgent)
 	case "replace":
-		d, err = s.Replace(a.ID, a.Block, a.MD, gdocs.AuthorAgent)
+		d, err = s.Replace(a.ID, a.Block, a.MD, gdocs.AuthorAgent, vist(s, session, a.ID))
 	case "delete":
-		d, err = s.Delete(a.ID, a.Block, gdocs.AuthorAgent)
+		d, err = s.Delete(a.ID, a.Block, gdocs.AuthorAgent, vist(s, session, a.ID))
 	default:
 		return "", fmt.Errorf("unknown action %q: create, list, read, insert, replace or delete", a.Action)
 	}
@@ -82,6 +82,18 @@ func docExec(dir, session, argsJSON string) (string, error) {
 		fmt.Fprintf(&b, "\n[%s v%d] (%s)\n%s\n", blk.ID, blk.Version, blk.Author, blk.MD)
 	}
 	return b.String(), nil
+}
+
+// vist és l'última versió del document id que l'agent de la sessió ha vist:
+// un bloc que la persona ha canviat després no es pot trepitjar sense
+// tornar-lo a llegir. Si el registre no es pot llegir, 0 vol dir que
+// qualsevol canvi de la persona xoca, que és el costat segur.
+func vist(s *gdocs.Store, session, id string) int {
+	vistos, err := s.Seen(session)
+	if err != nil {
+		log.Printf("doc: versions vistes de la sessió: %v", err)
+	}
+	return vistos[id]
 }
 
 // marcaVist apunta la versió que l'agent acaba de veure. Si no es pot

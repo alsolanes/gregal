@@ -56,10 +56,10 @@ func TestTornPortaElsCanvisDeLaPersona(t *testing.T) {
 	}
 	s, _ := gdocs.Open(dir)
 	edit, esborrat := d.Blocks[1].ID, d.Blocks[2].ID
-	if _, err := s.Replace(d.ID, edit, "New intro.", gdocs.AuthorUser); err != nil {
+	if _, err := s.Replace(d.ID, edit, "New intro.", gdocs.AuthorUser, d.Version); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Delete(d.ID, esborrat, gdocs.AuthorUser); err != nil {
+	if _, err := s.Delete(d.ID, esborrat, gdocs.AuthorUser, d.Version+1); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.Insert(d.ID, edit, "Added by hand.", gdocs.AuthorUser); err != nil {
@@ -86,7 +86,7 @@ func TestTornNoReportaDocumentsQueLaSessioNoHaTocat(t *testing.T) {
 	dir := t.TempDir()
 	d := creaDoc(t, dir, "s1", "Intro.")
 	s, _ := gdocs.Open(dir)
-	if _, err := s.Replace(d.ID, d.Blocks[0].ID, "New intro.", gdocs.AuthorUser); err != nil {
+	if _, err := s.Replace(d.ID, d.Blocks[0].ID, "New intro.", gdocs.AuthorUser, d.Version); err != nil {
 		t.Fatal(err)
 	}
 	if model, _ := tornDocs(t, "s2", dir); strings.Contains(model, MarcaDocs) {
@@ -140,6 +140,40 @@ func TestEinaDoc(t *testing.T) {
 	}
 	if !tools.EsNativa("doc") {
 		t.Fatal("doc no és al registre d'eines")
+	}
+}
+
+func TestEinaDocNoTrepitjaLaPersona(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	dir := t.TempDir()
+	d := creaDoc(t, dir, "s1", "One.\n\nTwo.\n\nThree.")
+	b2, b3 := d.Blocks[1].ID, d.Blocks[2].ID
+	call := func(args map[string]any) (string, error) {
+		args["id"] = d.ID
+		raw, _ := json.Marshal(args)
+		return docExec(dir, "s1", string(raw))
+	}
+	if _, err := call(map[string]any{"action": "read"}); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := gdocs.Open(dir)
+	if _, err := s.Replace(d.ID, b2, "Two, by hand.", gdocs.AuthorUser, d.Version); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range []map[string]any{{"action": "replace", "block": b2, "md": "Two, by the agent."}, {"action": "delete", "block": b2}} {
+		if _, err := call(args); err == nil || !strings.Contains(err.Error(), "read the document again") {
+			t.Fatalf("%v: %v", args, err)
+		}
+	}
+	if _, err := call(map[string]any{"action": "replace", "block": b3, "md": "Three, by the agent."}); err != nil {
+		t.Fatalf("un bloc que la persona no ha tocat: %v", err)
+	}
+	if _, err := call(map[string]any{"action": "read"}); err != nil {
+		t.Fatal(err)
+	}
+	out, err := call(map[string]any{"action": "replace", "block": b2, "md": "Two, after reading."})
+	if err != nil || !strings.Contains(out, "Two, after reading.") {
+		t.Fatalf("després de llegir: %v\n%s", err, out)
 	}
 }
 

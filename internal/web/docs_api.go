@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -46,11 +47,7 @@ func (s *Server) handleDocExport(w http.ResponseWriter, r *http.Request) {
 
 // docStore obre els documents del projecte de la sessió; si no pot, ja ha
 // respost.
-func (s *Server) docStore(w http.ResponseWriter, r *http.Request) (*gdocs.Store, bool) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "GET required", http.StatusMethodNotAllowed)
-		return nil, false
-	}
+func (s *Server) docStore(w http.ResponseWriter) (*gdocs.Store, bool) {
 	st, err := gdocs.Open(s.sessionCwd())
 	if err != nil {
 		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
@@ -62,7 +59,11 @@ func (s *Server) docStore(w http.ResponseWriter, r *http.Request) (*gdocs.Store,
 // sessionDoc llegeix el document {id} del projecte de la sessió; si no pot,
 // ja ha respost (404 si és d'un altre projecte o no existeix).
 func (s *Server) sessionDoc(w http.ResponseWriter, r *http.Request) (*gdocs.Store, gdocs.Doc, bool) {
-	st, ok := s.docStore(w, r)
+	if r.Method != http.MethodGet {
+		http.Error(w, "GET required", http.StatusMethodNotAllowed)
+		return nil, gdocs.Doc{}, false
+	}
+	st, ok := s.docStore(w)
 	if !ok {
 		return nil, gdocs.Doc{}, false
 	}
@@ -83,7 +84,11 @@ func (s *Server) sessionDoc(w http.ResponseWriter, r *http.Request) (*gdocs.Stor
 //
 //	GET /api/docs
 func (s *Server) handleDocs(w http.ResponseWriter, r *http.Request) {
-	st, ok := s.docStore(w, r)
+	if r.Method != http.MethodGet {
+		http.Error(w, "GET required", http.StatusMethodNotAllowed)
+		return
+	}
+	st, ok := s.docStore(w)
 	if !ok {
 		return
 	}
@@ -137,6 +142,103 @@ func (s *Server) handleDocStream(w http.ResponseWriter, r *http.Request) {
 			emit("block", c)
 		}
 	}
+}
+
+// handleDocBlocks insereix blocs que escriu la persona: md es parteix com
+// fa l'eina, i la resposta porta els blocs nous en ordre.
+//
+//	POST /api/docs/{id}/blocks {after, md}
+func (s *Server) handleDocBlocks(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", http.StatusMethodNotAllowed)
+		return
+	}
+	var q struct{ After, MD string }
+	if json.NewDecoder(r.Body).Decode(&q) != nil || strings.TrimSpace(q.MD) == "" {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "md required"})
+		return
+	}
+	st, ok := s.docStore(w)
+	if !ok {
+		return
+	}
+	d, err := st.Insert(r.PathValue("id"), q.After, q.MD, gdocs.AuthorUser)
+	if docWriteErr(w, err) {
+		return
+	}
+	nous := []gdocs.Block{}
+	for _, b := range d.Blocks {
+		if b.Since == d.Version {
+			nous = append(nous, b)
+		}
+	}
+	writeJSON(w, map[string]any{"version": d.Version, "blocks": nous})
+}
+
+// handleDocBlock canvia o esborra un bloc com a persona. base_version és
+// la versió del bloc que la persona tenia: si algú l'ha canviat després,
+// 409 amb el bloc d'ara, i no es toca res.
+//
+//	PUT /api/docs/{id}/blocks/{block} {md, base_version}
+//	DELETE /api/docs/{id}/blocks/{block}?base_version=N
+func (s *Server) handleDocBlock(w http.ResponseWriter, r *http.Request) {
+	var q struct {
+		MD   string `json:"md"`
+		Base int    `json:"base_version"`
+	}
+	switch r.Method {
+	case http.MethodPut:
+		if json.NewDecoder(r.Body).Decode(&q) != nil {
+			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
+			return
+		}
+	case http.MethodDelete:
+		var err error
+		if q.Base, err = strconv.Atoi(r.URL.Query().Get("base_version")); err != nil {
+			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "base_version required"})
+			return
+		}
+	default:
+		http.Error(w, "PUT or DELETE", http.StatusMethodNotAllowed)
+		return
+	}
+	st, ok := s.docStore(w)
+	if !ok {
+		return
+	}
+	id, block := r.PathValue("id"), r.PathValue("block")
+	if r.Method == http.MethodDelete {
+		d, err := st.Delete(id, block, gdocs.AuthorUser, q.Base)
+		if !docWriteErr(w, err) {
+			writeJSON(w, map[string]any{"version": d.Version})
+		}
+		return
+	}
+	d, err := st.Replace(id, block, q.MD, gdocs.AuthorUser, q.Base)
+	if docWriteErr(w, err) {
+		return
+	}
+	for _, b := range d.Blocks {
+		if b.ID == block {
+			writeJSON(w, map[string]any{"version": d.Version, "block": b})
+		}
+	}
+}
+
+// docWriteErr respon l'error d'una escriptura, si n'hi ha.
+func docWriteErr(w http.ResponseWriter, err error) bool {
+	var c *gdocs.ConflictError
+	switch {
+	case err == nil:
+		return false
+	case errors.As(err, &c):
+		writeJSONStatus(w, http.StatusConflict, map[string]any{"error": err.Error(), "block": c.Block})
+	case errors.Is(err, gdocs.ErrNotFound), errors.Is(err, gdocs.ErrBlockNotFound):
+		writeJSONStatus(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+	default:
+		writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	return true
 }
 
 // Les sortides de l'eina doc que han escrit: «Created document <id>» i

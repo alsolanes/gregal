@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -67,6 +68,25 @@ var (
 	ErrNotFound      = errors.New("there is no document with that id in this project")
 	ErrBlockNotFound = errors.New("there is no block with that id in the document (read the document for the ids)")
 )
+
+// ConflictError és una edició d'un bloc que ha canviat després de la
+// versió base de qui l'edita; Block és el bloc d'ara.
+type ConflictError struct{ Block Block }
+
+func (e *ConflictError) Error() string {
+	return fmt.Sprintf("block %s changed after you last read it (now v%d by %s): read the document again before editing this block",
+		e.Block.ID, e.Block.Version, e.Block.Author)
+}
+
+// conflict fa que ningú no trepitgi un canvi de la persona sense haver-lo
+// llegit: una edició de la persona xoca amb qualsevol canvi del bloc
+// posterior a base, una de l'agent només amb els de la persona.
+func conflict(b Block, author string, base int) error {
+	if b.Version > base && (author == AuthorUser || b.Author == AuthorUser) {
+		return &ConflictError{Block: b}
+	}
+	return nil
+}
 
 // Store són els documents d'un projecte.
 type Store struct {
@@ -332,24 +352,31 @@ func (s *Store) Insert(id, after, md, author string) (Doc, error) {
 	})
 }
 
-// Replace canvia el markdown d'un bloc.
-func (s *Store) Replace(id, block, md, author string) (Doc, error) {
+// Replace canvia el markdown d'un bloc; base és la versió del document
+// que l'autor ha llegit (vegeu conflict).
+func (s *Store) Replace(id, block, md, author string, base int) (Doc, error) {
 	return s.change(id, func(d *Doc, v int, at time.Time) error {
 		i := find(d, block)
 		if i < 0 {
 			return ErrBlockNotFound
+		}
+		if err := conflict(d.Blocks[i], author, base); err != nil {
+			return err
 		}
 		d.Blocks[i] = Block{ID: block, MD: strings.TrimSpace(md), Version: v, Since: d.Blocks[i].Since, Author: author, Updated: at}
 		return nil
 	})
 }
 
-// Delete treu un bloc i en deixa la làpida.
-func (s *Store) Delete(id, block, author string) (Doc, error) {
+// Delete treu un bloc i en deixa la làpida; base com a Replace.
+func (s *Store) Delete(id, block, author string, base int) (Doc, error) {
 	return s.change(id, func(d *Doc, v int, at time.Time) error {
 		i := find(d, block)
 		if i < 0 {
 			return ErrBlockNotFound
+		}
+		if err := conflict(d.Blocks[i], author, base); err != nil {
+			return err
 		}
 		l := d.Blocks[i]
 		l.Version, l.Author, l.Updated = v, author, at
