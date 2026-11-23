@@ -82,7 +82,14 @@ function perfilHTML() {
     esc(L('Els colors dels vents.', 'The colours of the winds.')) + '</span></div>' +
     '<div class="pf-swatches" id="prefsUserColor" role="group" aria-label="' + esc(L('Color de l’avatar', 'Avatar colour')) + '">' +
     av.palette().map(p => '<button type="button" class="pf-swatch" data-color="' + esc(p.color) + '" style="background:' + esc(p.color) +
-      '" aria-pressed="' + (p.color === ara) + '" aria-label="' + esc(p.name) + '" title="' + esc(p.name) + '"></button>').join('') + '</div></div>';
+      '" aria-pressed="' + (p.color === ara) + '" aria-label="' + esc(p.name) + '" title="' + esc(p.name) + '"></button>').join('') + '</div></div>' +
+    '<div class="pf-row"><div class="pf-lab"><b>' + esc(L('Foto de l’avatar', 'Avatar photo')) + '</b><span>' +
+    esc(L('JPEG, PNG o WebP fins a 5 MB; en fem un quadrat pel mig. Sense foto, les inicials.', 'JPEG, PNG or WebP up to 5 MB, cropped square from the centre. Without one, your initials.')) +
+    '</span><span class="pf-skills-status" id="prefsPhotoStatus" role="status"></span></div>' +
+    '<div class="pf-btns"><input type="file" id="prefsPhotoFile" accept="image/*" hidden>' +
+    '<button type="button" class="pf-open" id="prefsPhotoUpload">' + esc(L('Puja una foto', 'Upload a photo')) + '</button>' +
+    '<button type="button" class="pf-open pf-danger" id="prefsPhotoRemove"' + (av.hasPhoto() ? '' : ' hidden') + '>' +
+    esc(L('Treu la foto', 'Remove photo')) + '</button></div></div>';
 }
 function lligaPerfil(cos) {
   const av = window.gregalUserAvatar, nom = cos.querySelector('#prefsUserName');
@@ -95,6 +102,20 @@ function lligaPerfil(cos) {
       desaPerfil(av.COLOR, b.dataset.color);
     };
   });
+  const fitxer = cos.querySelector('#prefsPhotoFile'), treu = cos.querySelector('#prefsPhotoRemove'), msg = cos.querySelector('#prefsPhotoStatus');
+  const foto = async opts => {
+    diu(msg, '');
+    try {
+      const r = await G().api('/api/profile/photo', opts);
+      if (r.status === 400) throw new Error(L('Ha de ser una imatge JPEG, PNG o WebP de fins a 5 MB.', 'It must be a JPEG, PNG or WebP image of up to 5 MB.'));
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      await av.setPhoto((await r.json()).photo);
+      treu.hidden = !av.hasPhoto();
+    } catch (e) { diu(msg, String(e.message || e), true); }
+  };
+  cos.querySelector('#prefsPhotoUpload').onclick = () => fitxer.click();
+  fitxer.onchange = () => { const f = fitxer.files[0]; fitxer.value = ''; if (f) foto({ method: 'POST', body: f }); };
+  treu.onclick = () => foto({ method: 'DELETE' });
 }
 
 // Icones dels plugins (el servidor en dona un emoji; aquí, el joc de l'app).

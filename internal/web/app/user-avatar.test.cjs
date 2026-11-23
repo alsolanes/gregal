@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { initials, displayName, label } = require('./user-avatar.js');
+const { initials, displayName, label, face } = require('./user-avatar.js');
 
 test('the avatar shows up to two initials of the name', () => {
   assert.equal(initials('Aleix Solanes'), 'AS');
@@ -23,6 +23,19 @@ test('an empty name falls back to the account, or to «Tu»/«You» in local mod
 test('the avatar button tells screen readers about a missing API key, since the dot inside it is hidden', () => {
   assert.equal(label('Anna', '', 'ca'), 'El teu perfil: Anna');
   assert.equal(label('Anna', 'No API key for zen', 'en'), 'Your profile: Anna · No API key for zen');
+});
+
+test('the avatar draws the photo when there is one, and the initials without one or when it fails to load', () => {
+  assert.equal(face({ src: 'blob:x', failed: false }), 'photo');
+  assert.equal(face({ src: '', failed: false }), 'initials');
+  assert.equal(face({ src: null, failed: false }), 'initials');
+  assert.equal(face({ src: 'blob:x', failed: true }), 'initials');
+});
+
+test('the status dot stays on top of the photo, inside the avatar', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.match(html, /\.side-me #statusDot \{[^}]*z-index:/);
+  assert.match(html, /\.side-me-avatar img \{[^}]*border-radius:50%/);
 });
 
 test('the sidebar foot holds the person, not the model name', () => {

@@ -123,6 +123,7 @@ func (h *Hub) extraRoutes(handle func(string, http.HandlerFunc)) {
 	handle("/api/winds/collective", h.route((*Server).handleWindsCollective))
 	handle("/api/winds/names", h.route((*Server).handleWindsNames))
 	handle("/api/profile", h.route((*Server).handleProfile))
+	handle("/api/profile/photo", h.route((*Server).handleProfilePhoto))
 	handle("/api/think", h.route((*Server).handleThink))
 	handle("/api/image/normalize", h.route((*Server).handleImageNormalize))
 	handle("/api/winds/pending", h.route((*Server).handleWindsPending))

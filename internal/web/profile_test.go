@@ -1,8 +1,11 @@
 package web
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/jpeg"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -164,5 +167,96 @@ func TestProfileNeverCarriesSecretsOrDeviceState(t *testing.T) {
 		if profileKeys[k] {
 			t.Fatalf("%s no ha de viatjar amb el perfil", k)
 		}
+	}
+}
+
+func photoCall(t *testing.T, s *Server, token, method string, body []byte, want int) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(method, "/api/profile/photo", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	s.Handler().ServeHTTP(w, req)
+	if w.Code != want {
+		t.Fatalf("%s /api/profile/photo: %d %s, vol %d", method, w.Code, w.Body.String(), want)
+	}
+	return w
+}
+
+func mePhoto(t *testing.T, s *Server, token string) string {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/api/me", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	s.Handler().ServeHTTP(w, req)
+	var me struct {
+		Photo string `json:"photo"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &me); err != nil {
+		t.Fatalf("/api/me: %d %s", w.Code, w.Body.String())
+	}
+	return me.Photo
+}
+
+func TestProfilePhotoIsPerAccountSquareAndRemovable(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	t.Setenv("GREGAL_ACCOUNTS_DIR", t.TempDir()+"/accounts")
+	h := testHubWithUsers(t)
+	s := h.def
+	s.SetToken("admin-secret")
+	tokens := map[string]string{}
+	for _, name := range []string{"anna", "biel"} {
+		if w := accountsPost(t, s, `{"name":"`+name+`","password":"12345678"}`); w.Code != 200 {
+			t.Fatalf("create %s: %d", name, w.Code)
+		}
+		tok, _, err := s.users.Login(name, "12345678")
+		if err != nil {
+			t.Fatal(err)
+		}
+		tokens[name] = tok
+	}
+
+	// Una foto apaïsada de 600×300: el servidor en fa un quadrat de 256.
+	var raw bytes.Buffer
+	if err := jpeg.Encode(&raw, image.NewRGBA(image.Rect(0, 0, 600, 300)), nil); err != nil {
+		t.Fatal(err)
+	}
+	w := photoCall(t, s, tokens["anna"], http.MethodPost, raw.Bytes(), 200)
+	var up struct {
+		Photo string `json:"photo"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &up); err != nil || !strings.HasPrefix(up.Photo, "/api/profile/photo?v=") {
+		t.Fatalf("resposta: %s", w.Body.String())
+	}
+	// Un altre navegador de l'Anna la veu: /api/me en dona l'adreça.
+	if got := mePhoto(t, s, tokens["anna"]); got != up.Photo {
+		t.Fatalf("/api/me photo = %q, vol %q", got, up.Photo)
+	}
+
+	w = photoCall(t, s, tokens["anna"], http.MethodGet, nil, 200)
+	img, _, err := image.Decode(w.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b := img.Bounds(); b.Dx() != 256 || b.Dy() != 256 {
+		t.Fatalf("mida %v, vol 256×256", b)
+	}
+
+	// La foto de l'Anna no és d'en Biel.
+	photoCall(t, s, tokens["biel"], http.MethodGet, nil, 404)
+	if got := mePhoto(t, s, tokens["biel"]); got != "" {
+		t.Fatalf("en Biel no té foto: %q", got)
+	}
+
+	// Ni un fitxer que no és una imatge ni un de més de 5 MB; la foto que hi
+	// havia es queda.
+	photoCall(t, s, tokens["anna"], http.MethodPost, []byte("no soc una foto"), 400)
+	big := append(append([]byte{}, raw.Bytes()...), make([]byte, profilePhotoMaxBytes)...)
+	photoCall(t, s, tokens["anna"], http.MethodPost, big, 400)
+	photoCall(t, s, tokens["anna"], http.MethodGet, nil, 200)
+
+	photoCall(t, s, tokens["anna"], http.MethodDelete, nil, 200)
+	photoCall(t, s, tokens["anna"], http.MethodGet, nil, 404)
+	if got := mePhoto(t, s, tokens["anna"]); got != "" {
+		t.Fatalf("/api/me encara en dona: %q", got)
 	}
 }

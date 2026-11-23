@@ -957,7 +957,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	u := userFrom(r)
 	if u == nil {
-		writeJSON(w, map[string]any{"local": true, "user": "", "roots": []string{}, "admin": true})
+		writeJSON(w, map[string]any{"local": true, "user": "", "roots": []string{}, "admin": true, "photo": s.profilePhotoURL()})
 		return
 	}
 	quants := 0
@@ -966,7 +966,7 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, map[string]any{
 		"user": u.Name, "roots": u.Arrels(), "admin": u.Admin,
-		"home": u.Home, "usuaris": quants, "local": false,
+		"home": u.Home, "usuaris": quants, "local": false, "photo": s.profilePhotoURL(),
 	})
 }
 

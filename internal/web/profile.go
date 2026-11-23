@@ -1,13 +1,23 @@
 package web
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
+	"image"
+	_ "image/jpeg" // descodificadors de la foto de l'avatar
+	"image/png"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
+
+	"golang.org/x/image/draw"
+	_ "golang.org/x/image/webp"
 )
 
 // El perfil de cada persona: les preferències de la interfície (tema, idioma,
@@ -152,6 +162,112 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, profileReply(d))
 	default:
 		http.Error(w, "GET or POST only", http.StatusMethodNotAllowed)
+	}
+}
+
+// La foto de l'avatar viu al costat de profile.json: és del compte, no del
+// navegador, i un altre dispositiu la troba a /api/me.
+const (
+	profilePhotoMaxBytes = 5 << 20
+	profilePhotoSide     = 256
+	// Un PNG petit pot dir que fa 30000×30000: no se'l descodifica.
+	profilePhotoMaxPixels = 50_000_000
+)
+
+func (s *Server) profilePhotoPath() string {
+	return filepath.Join(filepath.Dir(s.profilePath()), "profile-photo.png")
+}
+
+// profilePhotoURL: l'adreça de la foto amb la seva hora (així un navegador
+// que n'ha vist una d'anterior la torna a baixar), o "" si no n'hi ha.
+func (s *Server) profilePhotoURL() string {
+	st, err := os.Stat(s.profilePhotoPath())
+	if err != nil {
+		return ""
+	}
+	return "/api/profile/photo?v=" + strconv.FormatInt(st.ModTime().UnixMilli(), 10)
+}
+
+// squarePhoto descodifica un JPEG, PNG o WebP, en retalla el quadrat del mig
+// i el redueix a profilePhotoSide com a molt.
+func squarePhoto(raw []byte) (image.Image, error) {
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(raw))
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Width*cfg.Height > profilePhotoMaxPixels {
+		return nil, errors.New("too many pixels")
+	}
+	img, _, err := image.Decode(bytes.NewReader(raw))
+	if err != nil {
+		return nil, err
+	}
+	b := img.Bounds()
+	side := min(b.Dx(), b.Dy())
+	x, y := b.Min.X+(b.Dx()-side)/2, b.Min.Y+(b.Dy()-side)/2
+	out := min(side, profilePhotoSide)
+	dst := image.NewRGBA(image.Rect(0, 0, out, out))
+	draw.CatmullRom.Scale(dst, dst.Bounds(), img, image.Rect(x, y, x+side, y+side), draw.Src, nil)
+	return dst, nil
+}
+
+// handleProfilePhoto: POST el cos és la imatge → {photo}; GET la serveix;
+// DELETE la treu. Cada compte només veu la seva.
+func (s *Server) handleProfilePhoto(w http.ResponseWriter, r *http.Request) {
+	path := s.profilePhotoPath()
+	switch r.Method {
+	case http.MethodGet:
+		if _, err := os.Stat(path); err != nil {
+			http.Error(w, "no photo", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Cache-Control", "private, no-cache")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		http.ServeFile(w, r, path)
+	case http.MethodPost:
+		raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, profilePhotoMaxBytes))
+		if err != nil {
+			http.Error(w, "photo too large (5 MB at most)", http.StatusBadRequest)
+			return
+		}
+		img, err := squarePhoto(raw)
+		if err != nil {
+			http.Error(w, "not a JPEG, PNG or WebP image", http.StatusBadRequest)
+			return
+		}
+		var out bytes.Buffer
+		if err := png.Encode(&out, img); err != nil {
+			http.Error(w, "cannot save photo", http.StatusInternalServerError)
+			return
+		}
+		profileMu.Lock()
+		defer profileMu.Unlock()
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			http.Error(w, "cannot save photo", http.StatusInternalServerError)
+			return
+		}
+		tmp := path + ".tmp"
+		if err := os.WriteFile(tmp, out.Bytes(), 0o600); err != nil {
+			http.Error(w, "cannot save photo", http.StatusInternalServerError)
+			return
+		}
+		if err := os.Rename(tmp, path); err != nil {
+			_ = os.Remove(tmp)
+			http.Error(w, "cannot save photo", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, map[string]any{"photo": s.profilePhotoURL()})
+	case http.MethodDelete:
+		profileMu.Lock()
+		defer profileMu.Unlock()
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			http.Error(w, "cannot remove photo", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, map[string]any{"photo": ""})
+	default:
+		http.Error(w, "GET, POST or DELETE only", http.StatusMethodNotAllowed)
 	}
 }
 

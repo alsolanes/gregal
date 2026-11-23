@@ -42,7 +42,12 @@
     return (lang === 'en' ? 'Your profile: ' : 'El teu perfil: ') + name + (warning ? ' · ' + warning : '');
   }
 
+  // La foto del compte (/api/profile/photo) quan n'hi ha i s'ha pogut
+  // carregar; sense foto, o si falla, les inicials.
+  function face({ src, failed }) { return src && !failed ? 'photo' : 'initials'; }
+
   let me = { account: '', local: true };
+  let photo = { url: '', src: '', failed: false };
   const lang = () => root.document.documentElement.lang === 'en' ? 'en' : 'ca';
   // El que es veu sense nom propi: el camp del nom el mostra de suggeriment.
   const fallbackName = () => displayName({ saved: '', ...me }, lang());
@@ -53,18 +58,50 @@
     const avatar = doc.getElementById('sideMeAvatar');
     avatar.style.background = fill;
     avatar.style.color = root.gregalWinds?.inkOn ? root.gregalWinds.inkOn(fill) : '#202127';
-    doc.getElementById('sideMeInitials').textContent = initials(name);
+    const initialsEl = doc.getElementById('sideMeInitials'), shown = face(photo) === 'photo';
+    initialsEl.textContent = initials(name);
+    initialsEl.hidden = shown;
+    let img = avatar.querySelector('img');
+    if (shown && !img) {
+      img = doc.createElement('img');
+      img.alt = '';
+      img.onerror = () => { photo.failed = true; paint(); };
+      avatar.prepend(img);
+    }
+    if (img && !shown) img.remove();
+    else if (img && img.getAttribute('src') !== photo.src) img.src = photo.src;
     doc.getElementById('sideMeName').textContent = name;
     button.title = label(name, '', lang());
     button.setAttribute('aria-label', label(name, doc.getElementById('statusDot')?.title, lang()));
   }
 
+  // La foto vol la clau, així que es baixa amb api() i va com a blob.
+  async function setPhoto(url) {
+    url = url || '';
+    if (url === photo.url) return;
+    if (photo.src) root.URL.revokeObjectURL(photo.src);
+    const cur = photo = { url, src: '', failed: false };
+    if (url) {
+      try {
+        const r = await root.api(url);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        cur.src = root.URL.createObjectURL(await r.blob());
+      } catch (e) { cur.failed = true; }
+      // Mentrestant n'ha arribat una altra.
+      if (cur !== photo) { if (cur.src) root.URL.revokeObjectURL(cur.src); return; }
+    }
+    paint();
+  }
+  const hasPhoto = () => !!photo.url;
+
   async function load() {
+    let url = '';
     try {
       const r = await root.api('/api/me');
-      if (r.ok) { const d = await r.json(); me = { account: d.user || '', local: !!d.local }; }
+      if (r.ok) { const d = await r.json(); me = { account: d.user || '', local: !!d.local }; url = d.photo || ''; }
     } catch (e) { /* sense servidor: es queda «Tu» fins al pròxim inici */ }
     paint();
+    setPhoto(url);
   }
 
   if (root.document) {
@@ -82,5 +119,5 @@
     else boot();
   }
 
-  return { initials, displayName, label, fallbackName, paint, palette, color, NAME, COLOR };
+  return { initials, displayName, label, face, fallbackName, paint, setPhoto, hasPhoto, palette, color, NAME, COLOR };
 });
