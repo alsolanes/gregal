@@ -35,6 +35,16 @@
   }
   const SPAN = 'color bg font size'.split(' ');
   const CSS = { color: v => 'color:' + v, bg: v => 'background-color:' + v, font: v => 'font-family:"' + v + '"', size: v => 'font-size:' + v + 'pt' };
+  // Una taula de markdown (081): la primera fila és la capçalera, i les
+  // cel·les només tenen text, com a markdown.
+  const cellAlign = el => ({ align: el.style?.textAlign || null });
+  nodes = nodes
+    .addToEnd('table', { content: 'table_row+', group: 'block', isolating: true, attrs: { id: { default: null } },
+      parseDOM: [{ tag: 'table' }], toDOM: () => ['table', ['tbody', 0]] })
+    .addToEnd('table_row', { content: 'table_cell+', parseDOM: [{ tag: 'tr' }], toDOM: () => ['tr', 0] })
+    .addToEnd('table_cell', { content: 'inline*', isolating: true, attrs: { align: { default: null } },
+      parseDOM: [{ tag: 'td', getAttrs: cellAlign }, { tag: 'th', getAttrs: cellAlign }],
+      toDOM: n => ['td', n.attrs.align ? { style: 'text-align:' + n.attrs.align } : {}, 0] });
   const schema = new pm.Schema({
     nodes,
     marks: pm.markdownSchema.spec.marks
@@ -108,19 +118,32 @@
     });
   }
 
-  const parser = new pm.MarkdownParser(schema, pm.MarkdownIt('commonmark', { html: false }).enable('strikethrough').use(pm.ins).use(extended), {
+  const cell = { block: 'table_cell', getAttrs: t => ({ align: /text-align:(\w+)/.exec(t.attrGet('style') || '')?.[1] || null }) };
+  const parser = new pm.MarkdownParser(schema, pm.MarkdownIt('commonmark', { html: false }).enable(['strikethrough', 'table']).use(pm.ins).use(extended), {
     ...pm.defaultMarkdownParser.tokens, s: { mark: 'strike' }, ins: { mark: 'underline' },
     paragraph: { block: 'paragraph', getAttrs: t => ({ align: t.attrGet('align') }) },
     heading: { block: 'heading', getAttrs: t => ({ level: +t.tag.slice(1), align: t.attrGet('align') }) },
     span: { mark: 'span', getAttrs: t => t.meta },
+    table: { block: 'table' }, thead: { ignore: true }, tbody: { ignore: true }, tr: { block: 'table_row' }, th: cell, td: cell,
   });
   const D = pm.defaultMarkdownSerializer;
   const wrap = m => ({ open: m, close: m, mixable: true, expelEnclosingWhitespace: true });
+  const DELIM = { left: ':---', center: ':---:', right: '---:' };
+  // Una cel·la s'escriu com un paràgraf d'una sola línia, amb les | escapades.
+  const cellMd = c => toMd([schema.nodes.paragraph.create(null, c.content)]).replace(/\|/g, '\\|').replace(/\n/g, ' ');
+  function tableMd(s, n) {
+    const rows = [];
+    n.forEach(r => { const cells = []; r.forEach(c => cells.push(cellMd(c))); rows.push(cells); });
+    const delim = [];
+    n.firstChild.forEach(c => delim.push(DELIM[c.attrs.align] || '---'));
+    for (const cells of [rows[0], delim, ...rows.slice(1)]) { s.write('| ' + cells.join(' | ') + ' |'); s.ensureNewLine(); }
+    s.closeBlock(n);
+  }
   // La línia {align=…} només a primer nivell: dins d'una llista o d'una cita
   // aniria sagnada i l'exportació no la llegiria.
   const alignLine = (s, n) => { if (n.attrs.align && !s.delim) { s.ensureNewLine(); s.write('{align=' + n.attrs.align + '}'); } };
   const serializer = new pm.MarkdownSerializer({
-    ...D.nodes, bullet_list: (s, n) => s.renderList(n, '  ', () => '- '),
+    ...D.nodes, bullet_list: (s, n) => s.renderList(n, '  ', () => '- '), table: tableMd,
     paragraph: (s, n) => { s.renderInline(n); alignLine(s, n); s.closeBlock(n); },
     heading: (s, n) => { s.write('#'.repeat(n.attrs.level) + ' '); s.renderInline(n, false); alignLine(s, n); s.closeBlock(n); },
   }, {
@@ -215,15 +238,105 @@
     }
     return out;
   }
+
+  // inTable diu on és el cursor dins d'una taula: la taula, on comença, la fila i la columna.
+  function inTable(st) {
+    const $h = st.selection.$head, d = $h.depth - 2;
+    if ($h.parent.type !== S.table_cell) return null;
+    return { table: $h.node(d), pos: $h.before(d), r: $h.index(d), c: $h.index(d + 1) };
+  }
+  // cellPos és la posició de l'inici del text de la cel·la r, c d'una taula que comença a pos.
+  function cellPos(table, pos, r, c) {
+    let at = pos + 1;
+    for (let i = 0; i < r; i++) at += table.child(i).nodeSize;
+    at += 1;
+    for (let j = 0; j < c; j++) at += table.child(r).child(j).nodeSize;
+    return at + 1;
+  }
+  // reshape refà la taula del cursor amb fn(files de cel·les, r, c), que
+  // torna la cel·la on va el cursor. Sense files o columnes, la taula se'n va.
+  const reshape = fn => (st, d) => {
+    const at = inTable(st);
+    if (!at) return false;
+    if (!d) return true;
+    const rows = [];
+    at.table.forEach(row => { const cells = []; row.forEach(c => cells.push(c)); rows.push(cells); });
+    const [r, c] = fn(rows, at.r, at.c);
+    const tr = st.tr, end = at.pos + at.table.nodeSize;
+    if (!rows.length || !rows[0].length) tr.delete(at.pos, end);
+    else {
+      const t = S.table.create(at.table.attrs, rows.map(cells => S.table_row.create(null, cells)));
+      tr.replaceWith(at.pos, end, t).setSelection(pm.TextSelection.create(tr.doc, cellPos(t, at.pos, r, c)));
+    }
+    d(tr.scrollIntoView());
+    return true;
+  };
+  const newRow = n => Array.from({ length: n }, () => S.table_cell.create());
+  Object.assign(commands, {
+    rowAdd: reshape((rows, r, c) => { rows.splice(r + 1, 0, newRow(rows[0].length)); return [r + 1, c]; }),
+    rowDelete: reshape((rows, r, c) => { rows.splice(r, 1); return [Math.min(r, rows.length - 1), c]; }),
+    colAdd: reshape((rows, r, c) => { for (const cells of rows) cells.splice(c + 1, 0, S.table_cell.create()); return [r, c + 1]; }),
+    colDelete: reshape((rows, r, c) => { for (const cells of rows) cells.splice(c, 1); return [r, Math.min(c, rows[0].length - 1)]; }),
+  });
+  // Tab passa a la cel·la següent (i, després de l'última, fa una fila nova); Shift-Tab, a l'anterior.
+  const rowAtEnd = reshape(rows => { rows.push(newRow(rows[0].length)); return [rows.length - 1, 0]; });
+  const nextCell = dir => (st, d) => {
+    const at = inTable(st);
+    if (!at) return false;
+    const cols = at.table.child(at.r).childCount, i = at.r * cols + at.c + dir;
+    if (i >= at.table.childCount * cols) return rowAtEnd(st, d);
+    if (d && i >= 0) d(st.tr.setSelection(pm.TextSelection.create(st.doc, cellPos(at.table, at.pos, Math.floor(i / cols), i % cols))));
+    return true;
+  };
+  // Dins d'una cel·la, Enter no fa res, i esborrar a la vora no l'ajunta amb la del costat.
+  const inCell = st => st.selection.$head.parent.type === S.table_cell;
+  const cellEdge = back => st => {
+    const { empty, $head } = st.selection;
+    return empty && inCell(st) && $head.parentOffset === (back ? 0 : $head.parent.content.size);
+  };
+
+  // insertAfter posa node darrere del bloc del cursor, i el cursor a dins.
+  const insertAfter = (node, inside) => (st, d) => {
+    if (d) {
+      const head = st.selection.$head.pos, at = runs(st.doc).find(r => head <= r.to)?.to ?? st.doc.content.size;
+      const tr = st.tr.insert(at, node);
+      d(tr.setSelection(pm.TextSelection.near(tr.doc.resolve(at + inside))).scrollIntoView());
+    }
+    return true;
+  };
+  const table = (rows, cols) => insertAfter(S.table.create(null, Array.from({ length: rows }, () => S.table_row.create(null, newRow(cols)))), 3);
+  const image = (src, alt) => insertAfter(S.paragraph.create(null, S.image.create({ src, alt })), 1);
+  // imageName torna el nom d'una imatge de la carpeta del document
+  // (images/<nom>), o null: cap altra ruta no es mostra.
+  const imageName = src => /^images\/([^/\\:]+)$/.exec(src)?.[1].replace(/^\.\.?$/, '') || null;
   // Enter al mig d'un bloc el parteix en dos: la part nova és un bloc nou, sense id.
   const split = pm.splitBlockAs((n, atEnd) => (atEnd ? null : { type: n.type, attrs: { ...n.attrs, id: null } }));
   const keys = {
     'Mod-b': commands.bold, 'Mod-i': commands.italic, 'Mod-u': commands.underline, 'Mod-`': commands.code,
     'Mod-Alt-0': commands.paragraph, 'Mod-Alt-1': commands.h1, 'Mod-Alt-2': commands.h2, 'Mod-Alt-3': commands.h3,
     'Mod-z': pm.undo, 'Mod-y': pm.redo, 'Shift-Mod-z': pm.redo,
-    Enter: pm.chainCommands(pm.newlineInCode, pm.splitListItem(S.list_item), pm.createParagraphNear, pm.liftEmptyBlock, split),
-    Tab: pm.sinkListItem(S.list_item), 'Shift-Tab': pm.liftListItem(S.list_item),
+    Enter: pm.chainCommands(inCell, pm.newlineInCode, pm.splitListItem(S.list_item), pm.createParagraphNear, pm.liftEmptyBlock, split),
+    Tab: pm.chainCommands(nextCell(1), pm.sinkListItem(S.list_item)), 'Shift-Tab': pm.chainCommands(nextCell(-1), pm.liftListItem(S.list_item)),
+    Backspace: cellEdge(true), Delete: cellEdge(false),
   };
+  // Esborrar una selecció que va d'una cel·la a una altra les ajunta: les
+  // files que queden curtes es tornen a omplir fins a l'amplada de la taula.
+  const fillRows = new pm.Plugin({
+    appendTransaction(trs, old, st) {
+      if (!trs.some(t => t.docChanged)) return null;
+      let tr = null;
+      st.doc.descendants((n, pos) => {
+        if (n.type !== S.table) return n.isBlock && !n.isTextblock;
+        let width = 0;
+        n.forEach(r => { width = Math.max(width, r.childCount); });
+        n.forEach((r, off) => {
+          if (r.childCount < width) { tr ||= st.tr; tr.insert(tr.mapping.map(pos + off + r.nodeSize), newRow(width - r.childCount)); }
+        });
+        return false;
+      });
+      return tr;
+    },
+  });
 
   const REMOTE = 'gregal-remote';
   // Un node que una ordre ha refet (paràgraf → títol, dins d'una llista o
@@ -253,7 +366,7 @@
     const waiting = []; // events que esperen: un desament en curs o el bloc que s'edita
     const base = doc.version;
     let version = doc.version, timer = null, busy = false, temp = 0, focused = false;
-    let state = pm.EditorState.create({ schema, doc: toDoc(doc.blocks), plugins: [pm.history(), pm.keymap(keys), pm.keymap(pm.baseKeymap), keepIds] });
+    let state = pm.EditorState.create({ schema, doc: toDoc(doc.blocks), plugins: [pm.history(), pm.keymap(keys), pm.keymap(pm.baseKeymap), keepIds, fillRows] });
 
     // S'edita el bloc on és el cursor mentre l'editor té el focus.
     const editingId = () => focused && state.doc.maybeChild(state.selection.$head.index(0))?.attrs.id;
@@ -419,10 +532,18 @@
     ['align', 'Alineació', 'Alignment', [['left', "Alinea a l'esquerra", 'Align left'], ['center', 'Centra', 'Centre'],
       ['right', 'Alinea a la dreta', 'Align right'], ['justify', 'Justifica', 'Justify']]],
   ];
+  // El grup de taules i imatges de la barra (081).
+  const INSERT = [
+    ['table', '▦', 'Insereix una taula', 'Insert a table'], ['rowAdd', '+⇣', 'Afegeix una fila', 'Add a row'],
+    ['rowDelete', '−⇣', 'Treu la fila', 'Remove the row'], ['colAdd', '+⇢', 'Afegeix una columna', 'Add a column'],
+    ['colDelete', '−⇢', 'Treu la columna', 'Remove the column'], ['image', '🖼', 'Insereix una imatge', 'Insert an image'],
+  ];
 
   // view pinta doc dins box amb la barra d'eines; render passa markdown a
   // HTML (gregalMD.render) per a l'avís d'un 409. A més d'editor(), edit té
-  // notice() (l'avís), empty() (el text d'un document buit) i tx(ca, en).
+  // notice() (l'avís), empty() (el text d'un document buit), tx(ca, en),
+  // upload(file) (puja una imatge: {status, body: {path}}) i image(nom) (la
+  // promesa de l'URL d'una imatge de la carpeta del document).
   // La pàgina que embolcalla el text és .doc-editor.
   function view(box, doc, render, edit) {
     const Doc = box.ownerDocument, ed = editor(doc, edit);
@@ -478,7 +599,35 @@
       group.append(sel, pick);
     }
     const show = st => { const c = current(st); STYLES.forEach(([key], i) => pickers[i](c[key])); };
-    bar.append(group);
+    const insertGroup = Doc.createElement('span'), file = Doc.createElement('input');
+    insertGroup.className = 'doc-toolbar-group';
+    insertGroup.setAttribute('role', 'group');
+    insertGroup.setAttribute('aria-label', edit.tx('Taules i imatges', 'Tables and images'));
+    Object.assign(file, { type: 'file', accept: 'image/png,image/jpeg,image/gif', hidden: true });
+    file.onchange = async () => {
+      const f = file.files[0];
+      file.value = '';
+      const caption = f && prompt(edit.tx('Peu de la imatge', 'Image caption'), f.name.replace(/\.\w+$/, ''));
+      if (caption == null) return;
+      const r = await edit.upload(f);
+      if (r.status !== 200) return edit.error(r.body.error || String(r.status));
+      pv.focus();
+      ed.run(image(r.body.path, caption));
+    };
+    const cellTools = [];
+    for (const [name, label, ca, en] of INSERT) {
+      const b = button(label, edit.tx(ca, en), () => {
+        if (name === 'image') return file.click();
+        const size = name === 'table' && /(\d+)\D+(\d+)/.exec(prompt(edit.tx('Files × columnes', 'Rows × columns'), '3 × 3') || '');
+        pv.focus();
+        if (name !== 'table') ed.run(commands[name]);
+        else if (size) ed.run(table(Math.min(+size[1] || 1, 50), Math.min(+size[2] || 1, 20)));
+      });
+      if (commands[name]) cellTools.push([b, commands[name]]);
+      insertGroup.append(b);
+    }
+    insertGroup.append(file);
+    bar.append(group, insertGroup);
     box.replaceChildren(bar, notes, page);
     const empty = st => {
       const first = st.doc.firstChild;
@@ -488,9 +637,20 @@
     const pv = new pm.EditorView(page, {
       state: ed.state, dispatchTransaction: tr => ed.dispatch(tr), decorations: empty,
       handleDOMEvents: { focus: () => { ed.focused = true; }, blur: () => { ed.focused = false; } },
+      // Una imatge només es carrega de la carpeta del document; qualsevol altra ruta es queda en el peu.
+      nodeViews: {
+        image: n => {
+          const img = Doc.createElement('img'), name = imageName(n.attrs.src);
+          Object.assign(img, { alt: n.attrs.alt || '', title: n.attrs.alt || '' });
+          if (name) edit.image(name).then(url => { img.src = url; }, e => edit.error(e.message || String(e)));
+          return { dom: img };
+        },
+      },
     });
-    ed.onChange = st => { pv.updateState(st); show(st); };
+    const tools = st => { for (const [b, cmd] of cellTools) b.disabled = !cmd(st); };
+    ed.onChange = st => { pv.updateState(st); show(st); tools(st); };
     show(ed.state);
+    tools(ed.state);
     ed.onConflict = () => notes.replaceChildren(...[...ed.conflicts].map(([id, b]) => {
       const el = Doc.createElement('div');
       el.className = 'doc-conflict';
@@ -502,5 +662,5 @@
     return { apply: ed.apply, focus: () => pv.focus(), get version() { return ed.version; } };
   }
 
-  return { view, editor, onDocChanged, commands, keys, link, style, align, current, toDoc, toMd };
+  return { view, editor, onDocChanged, commands, keys, link, style, align, current, table, image, imageName, toDoc, toMd };
 });

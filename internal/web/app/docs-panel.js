@@ -30,6 +30,10 @@ style.textContent = '#docsPanel[hidden]{display:none}#docsPanel{flex:0 0 460px;w
   '#docsBody .doc-style{display:flex;flex-wrap:wrap;gap:4px;padding-left:6px;border-left:1px solid var(--line)}' +
   '#docsBody .doc-style select{max-width:9em;border:1px solid var(--line-hi);border-radius:4px;background:var(--bg);color:var(--ink);padding:3px 4px;font-size:12px}' +
   '#docsBody .ProseMirror{outline:none;min-height:50vh;white-space:pre-wrap}#docsBody .doc-empty::before{content:attr(data-placeholder);position:absolute;color:var(--muted);pointer-events:none}' +
+  // Taules i imatges (081): la primera fila és la capçalera.
+  '#docsBody .doc-toolbar-group{display:flex;gap:2px;padding-left:6px;margin-left:4px;border-left:1px solid var(--line)}#docsBody .doc-toolbar button:disabled{opacity:.4;cursor:default}' +
+  '#docsBody .ProseMirror table{border-collapse:collapse;margin:8px 0}#docsBody .ProseMirror td{border:1px solid var(--line-hi);padding:4px 8px;min-width:48px;vertical-align:top}' +
+  '#docsBody .ProseMirror tr:first-child td{font-weight:600;background:var(--surface)}#docsBody .ProseMirror img{max-width:100%}' +
   '.docs-home h2{margin:0 0 12px;font-size:18px}.docs-home h3{margin:20px 0 6px;font-size:13px;color:var(--muted)}.docs-home-new{display:flex;gap:6px}' +
   '.docs-home-new input{flex:1;min-width:0;border:1px solid var(--line-hi);border-radius:4px;background:var(--bg);color:var(--ink);padding:6px}' +
   '.docs-home-new button{border:1px solid var(--line-hi);border-radius:4px;background:var(--bg);color:var(--ink);cursor:pointer;padding:6px 9px}' +
@@ -119,6 +123,7 @@ function blockEdits(id, scope, kind) {
     return { status: r.status, body: await r.json().catch(() => ({ error: r.statusText })) };
   };
   const body = v => (typeof v === 'string' ? { md: v } : kind === 'sheet' ? v : { slide: v });
+  const images = new Map(); // nom → la promesa de l'URL de la imatge
   return {
     put: (block, v, base) => send('/' + encodeURIComponent(block), 'PUT', { ...body(v), base_version: base }),
     post: (after, v) => send('', 'POST', { after, ...body(v) }),
@@ -127,6 +132,18 @@ function blockEdits(id, scope, kind) {
     empty: () => tx('Escriu aquí…', 'Write here…'),
     error: m => G().sys(m),
     tx,
+    upload: async file => {
+      const r = await G().api(withScope('/api/docs/' + encodeURIComponent(id) + '/images', scope), { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
+      return { status: r.status, body: await r.json().catch(() => ({ error: r.statusText })) };
+    },
+    // Les imatges es demanen amb G().api, que porta la sessió i el token que un <img> no porta.
+    image: name => {
+      if (!images.has(name)) {
+        images.set(name, G().api(withScope('/api/docs/' + encodeURIComponent(id) + '/images/' + encodeURIComponent(name), scope))
+          .then(async r => { if (!r.ok) throw new Error(await r.text()); return URL.createObjectURL(await r.blob()); }));
+      }
+      return images.get(name);
+    },
   };
 }
 

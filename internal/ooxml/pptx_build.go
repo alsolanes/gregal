@@ -18,6 +18,8 @@ type Pptx struct {
 	Pres    *Node
 	Theme   Theme
 	BaseDir string
+	// ResolveImage, si hi és, és l'única manera de trobar una imatge (com a Docx).
+	ResolveImage func(src string) (string, error)
 }
 
 // OpenPptx obre una presentació existent.
@@ -784,7 +786,12 @@ func (p *Pptx) AddTextBox(slide string, b Box, md string, o TextOpts) (*Node, er
 // AddPicture posa una imatge encaixada (sense deformar) dins del box.
 func (p *Pptx) AddPicture(slide, src string, b Box) error {
 	path := src
-	if !filepath.IsAbs(path) && p.BaseDir != "" {
+	if p.ResolveImage != nil {
+		var err error
+		if path, err = p.ResolveImage(src); err != nil {
+			return err
+		}
+	} else if !filepath.IsAbs(path) && p.BaseDir != "" {
 		if _, err := os.Stat(filepath.Join(p.BaseDir, path)); err == nil {
 			path = filepath.Join(p.BaseDir, path)
 		}

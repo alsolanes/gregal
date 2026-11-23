@@ -641,6 +641,8 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/docs/{id}/export", h.route((*Server).handleDocExport))
 	handle("/api/docs/{id}/blocks", h.route((*Server).handleDocBlocks))
 	handle("/api/docs/{id}/blocks/{block}", h.route((*Server).handleDocBlock))
+	handle("/api/docs/{id}/images", h.route((*Server).handleDocImages))
+	handle("/api/docs/{id}/images/{name}", h.route((*Server).handleDocImage))
 	handle("/app/doc/{id}", h.handleDocPage)
 	handle("/api/verify", h.route((*Server).handleVerify))
 	handle("/api/lang", h.global((*Server).handleLang))

@@ -34,6 +34,8 @@ func (s *Server) handleDocExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Sense tema, NewDocx i NewPptx fan servir el per defecte, que és la marca activa.
+	// Les imatges només surten de la carpeta del document.
+	images := func(src string) (string, error) { return st.ImagePath(d.ID, src) }
 	var pkg *ooxml.Package
 	var data []byte
 	var err error
@@ -48,7 +50,7 @@ func (s *Server) handleDocExport(w http.ResponseWriter, r *http.Request) {
 			spec.Slides = append(spec.Slides, *b.Slide)
 		}
 		p := ooxml.NewPptx(ooxml.Theme{}, d.Title)
-		p.BaseDir = st.Root
+		p.ResolveImage = images
 		warns, err := p.BuildSlides(spec)
 		if err != nil {
 			writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -62,6 +64,7 @@ func (s *Server) handleDocExport(w http.ResponseWriter, r *http.Request) {
 		ctype = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 	default:
 		x := ooxml.NewDocx(ooxml.DocxOptions{Title: d.Title, PageNumbers: true})
+		x.ResolveImage = images
 		x.AppendMarkdown(d.Markdown())
 		pkg = x.Pkg
 	}
@@ -248,6 +251,56 @@ func (s *Server) handleDocStream(w http.ResponseWriter, r *http.Request) {
 			emit("block", c)
 		}
 	}
+}
+
+// maxDocImage és la mida més gran d'una imatge que la persona posa en un document.
+const maxDocImage = 10 << 20
+
+// handleDocImages desa a la carpeta del document una imatge que la persona
+// hi posa. El cos és la imatge (PNG, JPEG o GIF); la resposta, la ruta que
+// va al markdown, ![peu](images/<nom>).
+//
+//	POST /api/docs/{id}/images → {path}
+func (s *Server) handleDocImages(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", http.StatusMethodNotAllowed)
+		return
+	}
+	st, ok := s.docStore(w, r)
+	if !ok {
+		return
+	}
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxDocImage))
+	var big *http.MaxBytesError
+	if errors.As(err, &big) {
+		writeJSONStatus(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "image: 10 MB at most"})
+		return
+	}
+	if err != nil {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	path, err := st.AddImage(r.PathValue("id"), data)
+	if !docWriteErr(w, err) {
+		writeJSON(w, map[string]string{"path": path})
+	}
+}
+
+// handleDocImage serveix una imatge de la carpeta del document; cap altra.
+//
+//	GET /api/docs/{id}/images/{name}
+func (s *Server) handleDocImage(w http.ResponseWriter, r *http.Request) {
+	st, d, ok := s.sessionDoc(w, r)
+	if !ok {
+		return
+	}
+	p, err := st.ImagePath(d.ID, "images/"+r.PathValue("name"))
+	if err != nil {
+		writeJSONStatus(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+		return
+	}
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	http.ServeFile(w, r, p)
 }
 
 // handleDocPage serveix un document a pàgina sencera, la finestra pròpia

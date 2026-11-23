@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const pm = require('./vendor/prosemirror.min.js');
-const { editor, commands, keys, link, style, align, current, toDoc, toMd, onDocChanged } = require('./doc-view.js');
+const { editor, commands, keys, link, style, align, current, table, image, imageName, toDoc, toMd, onDocChanged } = require('./doc-view.js');
 
 const DOC = {
   id: 'd1', version: 3,
@@ -386,10 +386,78 @@ test('the panel and the toolbar have their strings in Catalan and English, and t
   assert.match(src, /tx\("L'agent ha canviat aquest bloc", 'The agent changed this block'\)/);
   const view = fs.readFileSync(path.join(__dirname, 'doc-view.js'), 'utf8');
   const tools = [...view.matchAll(/\['(\w+)', '[^']+', '([^']+)', '([^']+)'\]/g)];
-  assert.deepEqual(tools.map(m => m[1]).sort(), [...Object.keys(commands), 'link'].sort(), 'every command has a button');
+  assert.deepEqual(tools.map(m => m[1]).sort(), [...Object.keys(commands), 'link', 'table', 'image'].sort(), 'every command has a button');
   for (const m of tools) assert.notEqual(m[2], m[3], m[1] + ' has its own Catalan and English label');
-  for (const s of [/'Desa el meu text', 'Keep my text'/, /"Adreça de l'enllaç", 'Link address'/]) assert.match(view, s);
+  for (const s of [/'Desa el meu text', 'Keep my text'/, /"Adreça de l'enllaç", 'Link address'/, /'Files × columnes', 'Rows × columns'/, /'Peu de la imatge', 'Image caption'/]) assert.match(view, s);
+  assert.match(src, /'\/images'/);
   const index = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   const page = fs.readFileSync(path.join(__dirname, '..', 'docs_api.go'), 'utf8');
   for (const html of [index, page]) assert.ok(html.indexOf('/app/vendor/prosemirror.min.js') >= 0 && html.indexOf('/app/vendor/prosemirror.min.js') < html.indexOf('/app/doc-view.js'));
+});
+
+const TABLE = '| Fase | Data |\n| --- | :---: |\n| Beta | Març |';
+
+test('a markdown table is one block and one node, and comes back to the same markdown', () => {
+  const doc = toDoc([{ id: 't', md: TABLE }]);
+  assert.equal(doc.childCount, 1);
+  assert.equal(doc.firstChild.type.name, 'table');
+  assert.equal(doc.firstChild.attrs.id, 't');
+  assert.equal(toMd([doc.firstChild]), TABLE);
+  const tricky = '| a\\|b | `c` |\n| --- | --- |\n|  | **d** |';
+  assert.equal(toMd(toDoc([{ id: 't', md: tricky }]).content.content), tricky);
+});
+
+test('the toolbar inserts a table of the rows and columns chosen after the block, and typing in it POSTs it', async () => {
+  const ed = fakeEdit(), e = editor(block('hola món'), ed);
+  select(e, pos(e, 'hola'));
+  assert.equal(e.run(table(2, 3)), true);
+  e.dispatch(e.state.tr.insertText('Nom'));
+  assert.equal(md(e), 'hola món\n\n| Nom |  |  |\n| --- | --- | --- |\n|  |  |  |');
+  await e.flush();
+  assert.deepEqual(ed.calls, [['post', 'a', '| Nom |  |  |\n| --- | --- | --- |\n|  |  |  |']]);
+});
+
+test('inside a table, rows and columns are added and removed and the block is PUT as a markdown table', async () => {
+  const ed = fakeEdit(), e = editor(block(TABLE, 't'), ed);
+  const text = editor(block('hola'), fakeEdit());
+  for (const c of ['rowAdd', 'rowDelete', 'colAdd', 'colDelete']) assert.equal(text.run(commands[c]), false, c + ' does nothing outside a table');
+  select(e, pos(e, 'Beta', true));
+  e.run(commands.rowAdd);
+  e.dispatch(e.state.tr.insertText('GA'));
+  assert.equal(md(e), '| Fase | Data |\n| --- | :---: |\n| Beta | Març |\n| GA |  |');
+  e.run(commands.colAdd);
+  e.dispatch(e.state.tr.insertText('Juny'));
+  assert.equal(md(e), '| Fase |  | Data |\n| --- | --- | :---: |\n| Beta |  | Març |\n| GA | Juny |  |', 'the column goes after the cursor\'s');
+  select(e, pos(e, 'Març'));
+  e.run(commands.colDelete);
+  e.run(commands.rowDelete);
+  assert.equal(md(e), '| Fase |  |\n| --- | --- |\n| GA | Juny |');
+  await e.flush();
+  assert.deepEqual(ed.calls, [['put', 't', '| Fase |  |\n| --- | --- |\n| GA | Juny |', 1]]);
+});
+
+test('Tab moves to the next cell and adds a row after the last one; Enter and Backspace do not break cells', () => {
+  const e = editor(block('| a | b |\n| --- | --- |\n| c | d |', 't'), fakeEdit());
+  select(e, pos(e, 'a', true));
+  e.run(keys.Tab);
+  e.dispatch(e.state.tr.insertText('1'));
+  select(e, pos(e, 'd', true));
+  e.run(keys.Tab);
+  e.dispatch(e.state.tr.insertText('2'));
+  select(e, pos(e, 'c'));
+  assert.equal(e.run(keys.Backspace), true);
+  assert.equal(e.run(keys.Enter), true);
+  assert.equal(md(e), '| a | 1b |\n| --- | --- |\n| c | d |\n| 2 |  |');
+});
+
+test('an image goes in its own block as ![caption](images/<name>), and only names in the images folder are shown', async () => {
+  const ed = fakeEdit(), e = editor(block('hola món'), ed);
+  select(e, pos(e, 'hola'));
+  assert.equal(e.run(image('images/ab12.png', 'La foto')), true);
+  assert.equal(md(e), 'hola món\n\n![La foto](images/ab12.png)');
+  await e.flush();
+  assert.deepEqual(ed.calls, [['post', 'a', '![La foto](images/ab12.png)']]);
+  assert.equal(imageName('images/ab12.png'), 'ab12.png');
+  for (const bad of ['/etc/x.png', '../x.png', 'images/../x.png', 'images/..', 'images/a/b.png', 'images\\..\\x.png', 'C:\\x.png', 'https://exemple.cat/x.png', 'x.png'])
+    assert.equal(imageName(bad), null, bad);
 });

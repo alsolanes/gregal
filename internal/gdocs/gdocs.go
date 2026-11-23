@@ -5,12 +5,17 @@
 package gdocs
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"log"
 	"maps"
 	"os"
@@ -194,6 +199,36 @@ func (s *Store) write(d Doc) error {
 func (s *Store) Get(id string) (Doc, error) {
 	defer s.lock()()
 	return s.read(id)
+}
+
+// AddImage desa una imatge a la carpeta del document id i en torna la ruta
+// que va al markdown, images/<nom>. Només PNG, JPEG o GIF: les que el Word i
+// el PowerPoint saben posar.
+func (s *Store) AddImage(id string, data []byte) (string, error) {
+	_, format, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return "", invalid{errors.New("image: only PNG, JPEG or GIF images")}
+	}
+	if _, err := s.Get(id); err != nil {
+		return "", err
+	}
+	dir := filepath.Join(s.Dir, id, "images")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	name := newID(16) + "." + format
+	return "images/" + name, os.WriteFile(filepath.Join(dir, name), data, 0o600)
+}
+
+// ImagePath és on és al disc la imatge src (images/<nom>) del document id.
+// Una imatge d'un document només pot ser de la seva carpeta: una ruta
+// absoluta, amb .. o fora d'images és ErrInvalid.
+func (s *Store) ImagePath(id, src string) (string, error) {
+	name, ok := strings.CutPrefix(src, "images/")
+	if _, err := s.path(id); err != nil || !ok || strings.ContainsAny(name, `/\:`) || !filepath.IsLocal(name) {
+		return "", invalid{fmt.Errorf("image %q: a document's images are images/<name> in its own folder", src)}
+	}
+	return filepath.Join(s.Dir, id, "images", name), nil
 }
 
 // List torna els documents del projecte, l'últim canviat primer.

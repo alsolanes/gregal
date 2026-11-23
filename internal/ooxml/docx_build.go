@@ -56,6 +56,9 @@ type Docx struct {
 	Body    *Node
 	Theme   Theme
 	BaseDir string
+	// ResolveImage, si hi és, és l'única manera de trobar una imatge: els
+	// documents vius (internal/gdocs) només en tenen a la seva carpeta.
+	ResolveImage func(src string) (string, error)
 
 	styles    map[string]string // rol → styleId
 	numAbs    map[string]int    // "bullet"/"decimal" → abstractNumId
@@ -918,7 +921,12 @@ func headerLogo(pk *Package, t Theme) string {
 
 func (d *Docx) imagePara(src, alt string) (*Node, error) {
 	path := src
-	if !filepath.IsAbs(path) && d.BaseDir != "" {
+	if d.ResolveImage != nil {
+		var err error
+		if path, err = d.ResolveImage(src); err != nil {
+			return nil, err
+		}
+	} else if !filepath.IsAbs(path) && d.BaseDir != "" {
 		if _, err := os.Stat(filepath.Join(d.BaseDir, path)); err == nil {
 			path = filepath.Join(d.BaseDir, path)
 		}
