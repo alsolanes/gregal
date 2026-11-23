@@ -9,9 +9,10 @@ class Node {
   append(...els) { this.children.push(...els); }
   setAttribute(k, v) { this[k] = v; }
   focus() { this.ownerDocument.activeElement = this; }
+  scrollIntoView(opts) { this.ownerDocument.scrolled.push([this.dataset.cell, opts]); }
   all(tag) { return [...(this.tag === tag ? [this] : []), ...this.children.flatMap(c => c.all(tag))]; }
 }
-const fakeDocument = { createElement: tag => new Node(fakeDocument, tag) };
+const fakeDocument = { scrolled: [], createElement: tag => new Node(fakeDocument, tag) };
 
 const SHEET = {
   id: 'f1', kind: 'sheet', version: 3,
@@ -175,4 +176,68 @@ test('a sheet with many rows draws only the rows in view', () => {
   assert.ok(!rows().some(r => r.children[0].textContent === '1'));
   const spacers = box.all('tbody')[0].children.filter(r => r.className === 'sheet-spacer');
   assert.equal(spacers.length, 2, 'spacers keep the scroll height');
+});
+
+test('switching tab while a cell is saving keeps the saved cells on their own sheet', async () => {
+  const box = new Node(fakeDocument), ed = fakeEdit();
+  let resolve;
+  ed.put = (id, body, base) => { ed.calls.push(['put', id, body, base]); return new Promise(r => { resolve = r; }); };
+  const v = view(box, SHEET, null, ed);
+  cell(box, 'B2').onclick();
+  v.bar.value = 'Meu';
+  v.bar.oninput();
+  const saving = key(v.bar, 'Enter');
+  box.children[0].children[1].onclick();
+  resolve({ status: 200, body: { version: 9, block: { ...SHEET.blocks[0], cells: { ...SHEET.blocks[0].cells, B2: 'Meu' }, values: { ...SHEET.blocks[0].values, B2: 'Meu' }, version: 9 } } });
+  await saving;
+  assert.deepEqual(tabs(box), ['Vendes', 'Costos', 'New sheet']);
+  assert.equal(v.sheet, 's2');
+  assert.equal(v.selected, 'A1', 'the selection on the other sheet does not move');
+  assert.equal(cell(box, 'A1').textContent, '60', 'the other sheet is untouched');
+  box.children[0].children[0].onclick();
+  assert.equal(cell(box, 'B2').textContent, 'Meu', 'the saved sheet has the cell');
+});
+
+test('a 409 that arrives after switching tab does not land on the other sheet', async () => {
+  const box = new Node(fakeDocument), ed = fakeEdit();
+  let resolve;
+  ed.put = () => new Promise(r => { resolve = r; });
+  const v = view(box, SHEET, null, ed);
+  cell(box, 'A1').onclick();
+  v.bar.value = '12';
+  v.bar.oninput();
+  const saving = key(v.bar, 'Enter');
+  box.children[0].children[1].onclick();
+  resolve({ status: 409, body: { error: 'changed', block: { ...SHEET.blocks[0], cells: { ...SHEET.blocks[0].cells, A1: '11' }, values: { ...SHEET.blocks[0].values, A1: '11' }, version: 7 } } });
+  await saving;
+  assert.deepEqual(tabs(box), ['Vendes', 'Costos', 'New sheet']);
+  assert.equal(cell(box, 'A1').textContent, '60');
+  assert.equal(box.children[2].hidden, true);
+  box.children[0].children[0].onclick();
+  assert.equal(cell(box, 'A1').textContent, '11', 'the first sheet is now as the server has it');
+});
+
+test('moving the selection scrolls it into view under the sticky header, sideways too', () => {
+  const box = new Node(fakeDocument);
+  const v = view(box, SHEET, null, fakeEdit());
+  v.wrap.clientHeight = 240; // the header and nine rows
+  for (let i = 0; i < 8; i++) key(v.wrap, 'ArrowDown');
+  assert.equal(v.selected, 'A9');
+  assert.equal(v.wrap.scrollTop, 0, 'row 9 is still in view');
+  key(v.wrap, 'ArrowDown');
+  assert.equal(v.wrap.scrollTop, 24, 'row 10 is not left under the bottom edge');
+  fakeDocument.scrolled.length = 0;
+  key(v.wrap, 'ArrowRight');
+  assert.deepEqual(fakeDocument.scrolled, [['B10', { block: 'nearest', inline: 'nearest' }]]);
+});
+
+test('an event while the person types keeps the base, so Enter gets a 409 instead of overwriting', async () => {
+  const box = new Node(fakeDocument), ed = fakeEdit();
+  const v = view(box, SHEET, null, ed);
+  cell(box, 'A1').onclick();
+  v.bar.value = '12';
+  v.bar.oninput();
+  v.apply({ op: 'replace', block: { ...SHEET.blocks[0], cells: { ...SHEET.blocks[0].cells, A1: '11' }, version: 4 }, version: 4, author: 'agent' });
+  await key(v.bar, 'Enter');
+  assert.deepEqual(ed.calls, [['put', 's1', { cells: { A1: '12' } }, 3]]);
 });

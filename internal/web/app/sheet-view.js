@@ -43,7 +43,7 @@
     let version = doc.version, current = order[0] || '';
     // sel és la cel·la triada; base, la versió del full que es veia en
     // triar-la; typed, si la persona ja hi ha escrit.
-    let sel = { c: 0, r: 1 }, base = 0, typed = false, saving = false, big = false;
+    let sel = { c: 0, r: 1 }, base = 0, typed = false, saving = false, big = false, selTd = null;
 
     const tabs = el('div', 'sheet-tabs');
     const ref = el('span', 'sheet-ref');
@@ -96,6 +96,7 @@
       const top = [el('th')];
       for (let c = 0; c < cols; c++) top.push(el('th', '', column(c)));
       const body = [];
+      selTd = null;
       if (first > 1) body.push(spacer(first - 1));
       for (let r = first; r <= last; r++) {
         const row = [el('th', '', String(r))];
@@ -103,6 +104,7 @@
           const k = column(c) + r, v = s.values?.[k] ?? s.cells?.[k] ?? '';
           const td = el('td', (r === sel.r && c === sel.c ? 'sel' : '') + (v !== '' && !isNaN(v) ? ' num' : ''), v);
           td.dataset.cell = k;
+          if (r === sel.r && c === sel.c) selTd = td;
           td.onclick = () => select({ c, r });
           td.ondblclick = () => bar.focus();
           row.push(td);
@@ -125,11 +127,14 @@
       base = sheet().version;
       typed = false;
       notice.hidden = true;
-      // Una fila que no es veu en una graella llarga: s'hi va.
-      const top = (sel.r - 1) * ROW_H, h = wrap.clientHeight || 600;
+      // La fila triada ha de quedar sota la capçalera fixa: en una graella
+      // llarga, perquè es pinti; la columna la posa el navegador
+      // (scroll-padding al CSS del panell, per la columna dels números).
+      const top = (sel.r - 1) * ROW_H, h = (wrap.clientHeight || 600) - ROW_H;
       if (top < wrap.scrollTop) wrap.scrollTop = top;
       else if (top + ROW_H > wrap.scrollTop + h) wrap.scrollTop = top + ROW_H - h;
       paint();
+      selTd?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }
 
     function show(id) {
@@ -140,13 +145,16 @@
 
     // commit desa la cel·la si ha canviat i, si s'ha desat, es mou (dc, dr).
     async function commit(dc, dr) {
-      const p = sel, input = bar.value;
+      // Mentre es desa la persona pot canviar de full o de cel·la: la
+      // resposta és del full id, i només es mou si encara és on era.
+      const p = sel, id = current, input = bar.value;
+      const here = () => current === id && sel === p;
       if (typed && (input !== raw() || !notice.hidden)) {
         if (saving) return;
         saving = true;
         let r;
         try {
-          r = await edit.put(current, { cells: { [name(p)]: input } }, base);
+          r = await edit.put(id, { cells: { [name(p)]: input } }, base);
         } catch (err) {
           // El que ha escrit es queda a la barra per tornar-ho a provar.
           edit.error(err.message || String(err));
@@ -156,7 +164,8 @@
         }
         if (r.status === 409) {
           // Ara es veu el full d'avui; el pròxim Enter el trepitja.
-          sheets.set(current, r.body.block);
+          sheets.set(id, r.body.block);
+          if (!here()) return;
           base = r.body.block.version;
           notice.hidden = false;
           notice.textContent = tx("L'agent ha canviat aquest full", 'The agent changed this sheet') + ' · ' + name(p) + ': ' + (raw() || '—');
@@ -164,7 +173,8 @@
           return;
         }
         if (r.status !== 200) { edit.error(r.body.error || String(r.status)); return; }
-        sheets.set(current, r.body.block);
+        sheets.set(id, r.body.block);
+        if (!here()) return;
       }
       select({ c: p.c + dc, r: p.r + dr });
       wrap.focus();
