@@ -104,6 +104,51 @@ func TestDeleteDeixaLapida(t *testing.T) {
 	}
 }
 
+func TestWatchDeletePortaAutor(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d, _ := s.Create("Plan", "a\n\nb", AuthorAgent)
+	ch, stop := s.Watch(d.ID)
+	defer stop()
+	if _, err := s.Delete(d.ID, d.Blocks[1].ID, AuthorUser); err != nil {
+		t.Fatal(err)
+	}
+	c := <-ch
+	if c.Op != "delete" || c.Block.ID != d.Blocks[1].ID || c.Author != AuthorUser {
+		t.Fatalf("canvi %+v", c)
+	}
+}
+
+func TestWatchInsertIDeleteAlMig(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d, _ := s.Create("Plan", "a\n\nb\n\nc", AuthorAgent)
+	ch, stop := s.Watch(d.ID)
+	defer stop()
+	d2, err := s.Insert(d.ID, d.Blocks[0].ID, "x\n\ny", AuthorUser)
+	if err != nil {
+		t.Fatal(err)
+	}
+	x, y := d2.Blocks[1], d2.Blocks[2]
+	c1, c2 := <-ch, <-ch
+	if c1.Op != "insert" || c1.Block.ID != x.ID || c1.After != d.Blocks[0].ID || c1.Version != d2.Version ||
+		c2.Op != "insert" || c2.Block.ID != y.ID || c2.After != x.ID || c2.Version != d2.Version {
+		t.Fatalf("insercions %+v %+v", c1, c2)
+	}
+	if _, err := s.Delete(d.ID, x.ID, AuthorUser); err != nil {
+		t.Fatal(err)
+	}
+	c := <-ch
+	if c.Op != "delete" || c.Block.ID != x.ID {
+		t.Fatalf("esborrat %+v", c)
+	}
+	select {
+	case extra := <-ch:
+		t.Fatalf("canvi de més: %+v", extra)
+	default:
+	}
+}
+
 func TestSeenPerSessio(t *testing.T) {
 	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	s := obre(t)

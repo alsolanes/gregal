@@ -205,13 +205,23 @@ func (s *Store) change(id string, fn func(d *Doc, v int, at time.Time) error) (D
 }
 
 // Change és el canvi d'un bloc tal com el reben els que miren el document.
-// Un bloc esborrat només porta l'id, i l'autor buit: Delete no en desa cap.
+// Un bloc esborrat només porta l'id; l'autor surt de la seva làpida.
 type Change struct {
 	Op      string `json:"op"` // insert, replace o delete
 	Block   Block  `json:"block"`
 	After   string `json:"after,omitempty"`
 	Version int    `json:"version"`
 	Author  string `json:"author"`
+}
+
+// deletedBy és l'autor de l'última làpida del bloc.
+func deletedBy(d Doc, block string) string {
+	for i := len(d.Deleted) - 1; i >= 0; i-- {
+		if d.Deleted[i].ID == block {
+			return d.Deleted[i].Author
+		}
+	}
+	return ""
 }
 
 // changes compara els blocs d'abans del canvi amb el document d'ara.
@@ -234,7 +244,7 @@ func changes(before []Block, d Doc) []Change {
 	}
 	for _, b := range before {
 		if !now[b.ID] {
-			out = append(out, Change{Op: "delete", Block: Block{ID: b.ID}, Version: d.Version})
+			out = append(out, Change{Op: "delete", Block: Block{ID: b.ID}, Version: d.Version, Author: deletedBy(d, b.ID)})
 		}
 	}
 	return out

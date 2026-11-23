@@ -26,7 +26,7 @@ The point of Gregal Docs is watching the document take shape next to the chat. W
 - An in-memory hub per document id that the store notifies on every change; streams subscribe to it.
 - Android does not get this yet: 062 covers it (named here per the parity rule).
 - Done: the hub lives in `internal/gdocs` (`Store.Watch(id)` → channel + stop). `change` copies the blocks before the edit, diffs them with the result after writing and notifies inside the per-root lock, so events arrive in version order; Insert/Replace/Delete were not touched. A multi-block insert sends one `insert` per block, chained by `after`, all with the same version. A watcher that falls 64 events behind has its channel closed; the stream ends and the panel reads the document again.
-- Delete records no author (057), so a `delete` event has `author: ""`; 059/060 can fill it once Delete gets an author.
+- After rebasing on 060, a `delete` event takes its author from the block's tombstone (`deletedBy`).
 - The stream flushes its headers once subscribed; the client opens the stream first, then GETs the document and drops events with `version <= doc.version` (`doc-view.js`). 061 and 059 can reuse `window.gregalDocView.view(box, doc, render)` and `onDocChanged`; the panel shell is `docs-panel.js` (aside in `#workbench`, like `preview.js`).
 - `doc_changed` is emitted by the web turn (`motor_web.go`) after a `doc` tool result whose output starts `Created document <id>` / `Document <id>` for create/insert/replace/delete; it goes through the durable log with payload `{id, title}`. Replayed events do not reopen the panel.
 - Download uses the existing `a[data-gregal-doc]` handler of `attach.js` with `&name=<title>.docx` for the file name (the server ignores `name`).

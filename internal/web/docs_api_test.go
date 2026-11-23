@@ -3,6 +3,7 @@ package web
 import (
 	"bufio"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -64,14 +65,13 @@ func docGet(s *Server, h func(*Server, http.ResponseWriter, *http.Request), id s
 	return rec
 }
 
-func TestDocsListGetAndStream(t *testing.T) {
+func TestDocsListAndGet(t *testing.T) {
 	s := backlogServer(t)
 	st, _ := gdocs.Open(s.cwd)
 	d, err := st.Create("Pla", "# Objectius\n\nPrimer paràgraf", gdocs.AuthorAgent)
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	var list struct {
 		Items []map[string]any `json:"items"`
 	}
@@ -90,6 +90,22 @@ func TestDocsListGetAndStream(t *testing.T) {
 		t.Fatalf("document: %d %s", rec.Code, rec.Body.String())
 	}
 
+	// Un id d'un altre projecte no es troba des d'aquest.
+	s.cwd = t.TempDir()
+	for _, h := range []func(*Server, http.ResponseWriter, *http.Request){(*Server).handleDoc, (*Server).handleDocStream} {
+		if rec := docGet(s, h, d.ID); rec.Code != http.StatusNotFound {
+			t.Fatalf("un altre projecte: %d", rec.Code)
+		}
+	}
+}
+
+func TestDocStream(t *testing.T) {
+	s := backlogServer(t)
+	st, _ := gdocs.Open(s.cwd)
+	d, err := st.Create("Pla", "# Objectius\n\nPrimer paràgraf", gdocs.AuthorAgent)
+	if err != nil {
+		t.Fatal(err)
+	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.SetPathValue("id", d.ID)
 		s.handleDocStream(w, r)
@@ -99,13 +115,26 @@ func TestDocsListGetAndStream(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
 	if _, err := st.Replace(d.ID, d.Blocks[1].ID, "Segon paràgraf", gdocs.AuthorUser); err != nil {
 		t.Fatal(err)
 	}
-	sc := bufio.NewScanner(resp.Body)
-	event, seen := "", false
-	for !seen && sc.Scan() {
+	c := firstBlockEvent(t, resp.Body)
+	if c.Op != "replace" || c.Version != 2 || c.Block.ID != d.Blocks[1].ID || c.Block.MD != "Segon paràgraf" || c.Author != gdocs.AuthorUser {
+		t.Fatalf("event: %+v", c)
+	}
+}
+
+// firstBlockEvent llegeix l'SSE fins al primer event block.
+func firstBlockEvent(t *testing.T, r io.Reader) gdocs.Change {
+	t.Helper()
+	sc := bufio.NewScanner(r)
+	event := ""
+	for sc.Scan() {
 		line := sc.Text()
 		if strings.HasPrefix(line, "event: ") {
 			event = strings.TrimPrefix(line, "event: ")
@@ -115,25 +144,11 @@ func TestDocsListGetAndStream(t *testing.T) {
 			if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &c); err != nil {
 				t.Fatal(err)
 			}
-			if c.Op != "replace" || c.Version != 2 || c.Block.ID != d.Blocks[1].ID || c.Block.MD != "Segon paràgraf" || c.Author != gdocs.AuthorUser {
-				t.Fatalf("event: %+v", c)
-			}
-			seen = true
+			return c
 		}
 	}
-	if !seen {
-		t.Fatalf("cap event block: %v", sc.Err())
-	}
-	resp.Body.Close()
-	srv.Close()
-
-	// Un id d'un altre projecte no es troba des d'aquest.
-	s.cwd = t.TempDir()
-	for _, h := range []func(*Server, http.ResponseWriter, *http.Request){(*Server).handleDoc, (*Server).handleDocStream} {
-		if rec := docGet(s, h, d.ID); rec.Code != http.StatusNotFound {
-			t.Fatalf("un altre projecte: %d", rec.Code)
-		}
-	}
+	t.Fatalf("cap event block: %v", sc.Err())
+	return gdocs.Change{}
 }
 
 func TestDocChangedWhenTheAgentWrites(t *testing.T) {
