@@ -344,6 +344,11 @@ type Torn struct {
 
 	// caps: debug gate, apostes i crític del pla (motor_caps.go).
 	caps capsTorn
+
+	// notaDocs és el que la persona ha canviat als documents de la sessió
+	// (notaDocs a doc_tool.go). Va al model a cada pas però no a Hist, que
+	// és el que es desa i es pinta.
+	notaDocs string
 }
 
 // NouTorn arrenca un torn.
@@ -403,6 +408,9 @@ func (t *Torn) histAmbSys() []llm.Message {
 	if t.o.SysPrompt != nil {
 		sys = t.o.SysPrompt()
 	}
+	if t.notaDocs != "" {
+		sys = strings.TrimSpace(sys + "\n\n" + t.notaDocs)
+	}
 	// Les imatges d'eines que el model ja ha vist no es tornen a enviar:
 	// amb models locals el seu prefill a cada pas acabava en HTTP 524.
 	base := DropSeenToolImages(llm.SanitizeHist(t.Hist))
@@ -432,6 +440,9 @@ func (t *Torn) Seguent() Pas {
 		t.hooksIniciats = true
 		t.hooksInici()
 		t.capsInici()
+		if dir := t.dirTorn(); dir != "" {
+			t.notaDocs = notaDocs(dir, firstOf(t.o.Sessio, procSession))
+		}
 	}
 	if t.acabat {
 		if t.fallit {

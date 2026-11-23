@@ -87,3 +87,39 @@ func TestSplit(t *testing.T) {
 		t.Fatalf("%q", got)
 	}
 }
+
+func TestDeleteDeixaLapida(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d, _ := s.Create("Plan", "a\n\nb", AuthorAgent)
+	d2, err := s.Delete(d.ID, d.Blocks[1].ID, AuthorUser)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d2.Deleted) != 1 {
+		t.Fatalf("sense làpida: %+v", d2)
+	}
+	if l := d2.Deleted[0]; l.ID != d.Blocks[1].ID || l.Author != AuthorUser || l.Version != d2.Version || l.Since != d.Version {
+		t.Fatalf("làpida %+v", l)
+	}
+}
+
+func TestSeenPerSessio(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	if err := s.MarkSeen("s1", "doc1", 3); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MarkSeen("s1", "doc1", 2); err != nil {
+		t.Fatal(err)
+	}
+	if m, err := s.Seen("s1"); err != nil || m["doc1"] != 3 {
+		t.Fatalf("%v %v", m, err)
+	}
+	if m, _ := s.Seen("s2"); len(m) != 0 {
+		t.Fatalf("una altra sessió ho veu: %v", m)
+	}
+	if l, _ := s.List(); len(l) != 0 {
+		t.Fatalf("el registre surt com a document: %+v", l)
+	}
+}

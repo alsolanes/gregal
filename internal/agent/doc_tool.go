@@ -3,6 +3,8 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"log"
+	"sort"
 	"strings"
 
 	"gregal/internal/gdocs"
@@ -27,7 +29,9 @@ func docToolSpec() llm.ToolSpec {
 		}, "required": []string{"action"}}}
 }
 
-func docExec(dir, argsJSON string) (string, error) {
+// docExec fa l'acció i apunta a la sessió la versió que l'agent ha vist,
+// perquè el torn següent li digui només el que la persona ha canviat després.
+func docExec(dir, session, argsJSON string) (string, error) {
 	var a struct {
 		Action, ID, Title, MD, After, Block string
 	}
@@ -44,6 +48,7 @@ func docExec(dir, argsJSON string) (string, error) {
 		if d, err = s.Create(a.Title, a.MD, gdocs.AuthorAgent); err != nil {
 			return "", err
 		}
+		marcaVist(s, session, d)
 		return fmt.Sprintf("Created document %s with %d blocks. Give the person this link to download it as Word: [%s](/api/docs/%s/export?format=docx)",
 			d.ID, len(d.Blocks), d.Title, d.ID), nil
 	case "list":
@@ -63,17 +68,95 @@ func docExec(dir, argsJSON string) (string, error) {
 	case "replace":
 		d, err = s.Replace(a.ID, a.Block, a.MD, gdocs.AuthorAgent)
 	case "delete":
-		d, err = s.Delete(a.ID, a.Block)
+		d, err = s.Delete(a.ID, a.Block, gdocs.AuthorAgent)
 	default:
 		return "", fmt.Errorf("unknown action %q: create, list, read, insert, replace or delete", a.Action)
 	}
 	if err != nil {
 		return "", err
 	}
+	marcaVist(s, session, d)
 	var b strings.Builder
 	fmt.Fprintf(&b, "Document %s · %s · v%d\n", d.ID, d.Title, d.Version)
 	for _, blk := range d.Blocks {
 		fmt.Fprintf(&b, "\n[%s v%d] (%s)\n%s\n", blk.ID, blk.Version, blk.Author, blk.MD)
 	}
 	return b.String(), nil
+}
+
+// marcaVist apunta la versió que l'agent acaba de veure. Si no es pot
+// desar, el pitjor és que el torn següent li repeteixi canvis: no val la
+// pena fer fallar l'acció, que ja s'ha fet.
+func marcaVist(s *gdocs.Store, session string, d gdocs.Doc) {
+	if err := s.MarkSeen(session, d.ID, d.Version); err != nil {
+		log.Printf("doc: no s'ha pogut apuntar la versió vista de %s: %v", d.ID, err)
+	}
+}
+
+// MarcaDocs encapçala la nota del torn amb els blocs que la persona ha
+// canviat als documents que l'agent de la sessió ha llegit o escrit.
+const MarcaDocs = "[documents the person changed since you last read or wrote them"
+
+// maxNotaBloc és el que la nota ensenya del text nou de cada bloc.
+const maxNotaBloc = 300
+
+// canvisPersona són les línies de la nota per als blocs que la persona ha
+// canviat a d després de la versió v.
+func canvisPersona(d gdocs.Doc, v int) []string {
+	var linies []string
+	for _, blk := range d.Blocks {
+		if blk.Version <= v || blk.Author != gdocs.AuthorUser {
+			continue
+		}
+		que := "edited"
+		if blk.Since > v {
+			que = "inserted"
+		}
+		linies = append(linies, fmt.Sprintf("- %s %s: %s", que, blk.ID, retallaText(blk.MD, maxNotaBloc)))
+	}
+	for _, blk := range d.Deleted {
+		// Un bloc que l'agent no havia vist mai no cal dir-li que ja no hi és.
+		if blk.Version > v && blk.Author == gdocs.AuthorUser && blk.Since <= v {
+			linies = append(linies, "- deleted "+blk.ID)
+		}
+	}
+	return linies
+}
+
+// notaDocs fa la nota del torn i apunta els documents com a vistos, perquè
+// els mateixos canvis no tornin a sortir. "" si no hi ha res a dir.
+func notaDocs(dir, session string) string {
+	s, err := gdocs.Open(procDirOr(dir))
+	if err != nil {
+		return ""
+	}
+	vistos, err := s.Seen(session)
+	if err != nil {
+		log.Printf("doc: versions vistes de la sessió: %v", err)
+		return ""
+	}
+	ids := make([]string, 0, len(vistos))
+	for id := range vistos {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	var b strings.Builder
+	for _, id := range ids {
+		v := vistos[id]
+		d, err := s.Get(id)
+		if err != nil {
+			log.Printf("doc: %s: %v", id, err)
+			continue
+		}
+		linies := canvisPersona(d, v)
+		if len(linies) == 0 {
+			continue
+		}
+		fmt.Fprintf(&b, "%s (%s, now v%d):\n%s\n", d.Title, d.ID, d.Version, strings.Join(linies, "\n"))
+		marcaVist(s, session, d)
+	}
+	if b.Len() == 0 {
+		return ""
+	}
+	return MarcaDocs + "; read a document again before editing blocks near these]\n" + b.String()
 }

@@ -28,21 +28,26 @@ const (
 )
 
 // Block és un tros de markdown amb la versió del document en què va
-// canviar per últim cop.
+// canviar per últim cop. Since és la versió en què es va crear: distingeix
+// un bloc editat d'un d'inserit des de l'última versió que algú ha vist.
 type Block struct {
 	ID      string    `json:"id"`
 	MD      string    `json:"md"`
 	Version int       `json:"version"`
+	Since   int       `json:"since,omitempty"`
 	Author  string    `json:"author"`
 	Updated time.Time `json:"updated"`
 }
 
 // Doc és un document viu.
 type Doc struct {
-	ID      string    `json:"id"`
-	Title   string    `json:"title"`
-	Kind    string    `json:"kind"`
-	Blocks  []Block   `json:"blocks"`
+	ID     string  `json:"id"`
+	Title  string  `json:"title"`
+	Kind   string  `json:"kind"`
+	Blocks []Block `json:"blocks"`
+	// Deleted són les làpides dels blocs esborrats: la versió i l'autor
+	// de l'esborrat, perquè l'agent sàpiga que la persona n'ha tret un.
+	Deleted []Block   `json:"deleted,omitempty"`
 	Version int       `json:"version"`
 	Created time.Time `json:"created"`
 	Updated time.Time `json:"updated"`
@@ -158,7 +163,7 @@ func (s *Store) List() ([]Doc, error) {
 func blocks(md, author string, v int, at time.Time) []Block {
 	out := []Block{}
 	for _, part := range Split(md) {
-		out = append(out, Block{ID: newID(8), MD: part, Version: v, Author: author, Updated: at})
+		out = append(out, Block{ID: newID(8), MD: part, Version: v, Since: v, Author: author, Updated: at})
 	}
 	return out
 }
@@ -226,21 +231,78 @@ func (s *Store) Replace(id, block, md, author string) (Doc, error) {
 		if i < 0 {
 			return ErrBlockNotFound
 		}
-		d.Blocks[i] = Block{ID: block, MD: strings.TrimSpace(md), Version: v, Author: author, Updated: at}
+		d.Blocks[i] = Block{ID: block, MD: strings.TrimSpace(md), Version: v, Since: d.Blocks[i].Since, Author: author, Updated: at}
 		return nil
 	})
 }
 
-// Delete treu un bloc.
-func (s *Store) Delete(id, block string) (Doc, error) {
-	return s.change(id, func(d *Doc, _ int, _ time.Time) error {
+// Delete treu un bloc i en deixa la làpida.
+func (s *Store) Delete(id, block, author string) (Doc, error) {
+	return s.change(id, func(d *Doc, v int, at time.Time) error {
 		i := find(d, block)
 		if i < 0 {
 			return ErrBlockNotFound
 		}
+		l := d.Blocks[i]
+		l.Version, l.Author, l.Updated = v, author, at
+		d.Deleted = append(d.Deleted, l)
 		d.Blocks = append(d.Blocks[:i], d.Blocks[i+1:]...)
 		return nil
 	})
+}
+
+// seenPath és el registre d'una sessió: quina versió de cada document ha
+// vist el seu agent. Va en un subdirectori perquè List no el prengui per
+// un document.
+func (s *Store) seenPath(session string) string {
+	h := sha256.Sum256([]byte(session))
+	return filepath.Join(s.Dir, "seen", hex.EncodeToString(h[:6])+".json")
+}
+
+func (s *Store) seen(session string) (map[string]int, error) {
+	m := map[string]int{}
+	raw, err := os.ReadFile(s.seenPath(session))
+	if os.IsNotExist(err) {
+		return m, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return m, json.Unmarshal(raw, &m)
+}
+
+// Seen torna, per id de document, l'última versió que l'agent de la sessió
+// ha llegit o escrit. Un document que no hi és, la sessió no l'ha tocat.
+func (s *Store) Seen(session string) (map[string]int, error) {
+	defer s.lock()()
+	return s.seen(session)
+}
+
+// MarkSeen apunta que l'agent de la sessió ha vist el document a la versió
+// v. Mai no tira enrere: una lectura vella que arriba tard no torna a fer
+// veure canvis ja vistos.
+func (s *Store) MarkSeen(session, id string, v int) error {
+	defer s.lock()()
+	m, err := s.seen(session)
+	if err != nil {
+		return err
+	}
+	if m[id] >= v {
+		return nil
+	}
+	m[id] = v
+	raw, err := json.Marshal(m)
+	if err != nil {
+		return err
+	}
+	p := s.seenPath(session)
+	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+		return err
+	}
+	if err := os.WriteFile(p+".tmp", raw, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(p+".tmp", p)
 }
 
 // Split parteix markdown en blocs: a cada línia en blanc i a cada títol

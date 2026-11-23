@@ -1361,7 +1361,7 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		out, err := backlogExec(dir, session, argsJSON)
 		return out, nil, err
 	case "doc":
-		out, err := docExec(dir, argsJSON)
+		out, err := docExec(dir, session, argsJSON)
 		return out, nil, err
 	case "knowledge_note":
 		out, err := knowledge.NoteTool(knowledge.Where{Project: procDirOr(dir), Session: session}, argsJSON)
