@@ -81,3 +81,52 @@ test('native IPC and credentials reject foreign pages and subframes', async () =
   frame.url = require('node:url').pathToFileURL(path.join(__dirname, 'loading.html')).href;
   assert.equal(await handlers.get('gregal:startup-error')(trusted), null);
 });
+
+test('a document window opens only for the app page, and gets the token', async () => {
+  const handlers = new Map();
+  const listeners = new Map();
+  const created = [];
+  class BrowserWindow {
+    constructor() {
+      this.webContents = { mainFrame: { url: '' }, on() {}, setWindowOpenHandler() {} };
+      created.push(this);
+    }
+    once() {}
+    loadURL(url) { this.webContents.mainFrame.url = url; return Promise.resolve(); }
+    isDestroyed() { return false; }
+    isMinimized() { return false; }
+    focus() { this.focused = true; }
+  }
+  const electron = {
+    app: { getPath: () => path.join(require('node:os').tmpdir(), 'gregal-ipc-test-no-profile'), whenReady: () => ({ then() {} }), on() {} },
+    ipcMain: { on: (name, fn) => listeners.set(name, fn), handle: (name, fn) => handlers.set(name, fn) },
+    nativeTheme: { shouldUseDarkColors: false },
+    BrowserWindow,
+  };
+  const localRequire = createRequire(path.join(__dirname, 'main.js'));
+  const context = {
+    require: name => name === 'electron' ? electron : localRequire(name),
+    process: { env: { GREGAL_TOKEN: 'doc-test-token' }, platform: process.platform },
+    __dirname, URL, console, setTimeout, clearTimeout,
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8') + '\nthis.testWire = wireIPC;', context);
+  const frame = { url: 'http://127.0.0.1:8097/' };
+  const webContents = { mainFrame: frame };
+  context.testWire(() => ({ webContents }));
+  const open = handlers.get('gregal:open-doc');
+  for (const event of [{ sender: {}, senderFrame: frame }, { sender: webContents, senderFrame: { url: frame.url } }]) {
+    assert.equal(await open(event, 'abc123', 'default'), false);
+  }
+  assert.equal(created.length, 0);
+  const trusted = { sender: webContents, senderFrame: frame };
+  assert.equal(await open(trusted, 'abc123', 'default'), true);
+  assert.equal(await open(trusted, 'abc123', 'default'), true);
+  assert.equal(created.length, 1);
+  assert.equal(created[0].focused, true);
+  const doc = created[0].webContents;
+  const fromDoc = { sender: doc, senderFrame: doc.mainFrame };
+  listeners.get('gregal:connection')(fromDoc);
+  assert.equal(fromDoc.returnValue.token, 'doc-test-token');
+  // La finestra del document no pot obrir-ne d'altres.
+  assert.equal(await open(fromDoc, 'zzz', 'default'), false);
+});

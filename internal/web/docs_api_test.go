@@ -277,3 +277,42 @@ func TestDocChangedWhenTheAgentWrites(t *testing.T) {
 		t.Fatalf("%v", got)
 	}
 }
+
+func TestDocPageServesTheEditorOfAnExistingDoc(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := hubTestServer(t)
+	s.mu.Lock()
+	s.cwd = t.TempDir()
+	s.mu.Unlock()
+	st, _ := gdocs.Open(s.cwd)
+	d, err := st.Create("Pla", "# Objectius", gdocs.AuthorAgent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := s.Hub().mux()
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/app/doc/"+d.ID, nil))
+	if rec.Code != 200 || !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/html") || !strings.Contains(rec.Body.String(), "/app/doc-page.js") {
+		t.Fatalf("pàgina: %d %v %s", rec.Code, rec.Header(), rec.Body.String())
+	}
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/app/doc/zzzzzzzzzzzz", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("id desconegut: %d %s", rec.Code, rec.Body.String())
+	}
+
+	// Amb token, la pàgina surt sense mirar res i no crea cap sessió.
+	s.Token = "secret"
+	h := s.Hub()
+	h.mu.RLock()
+	before := len(h.sess)
+	h.mu.RUnlock()
+	rec = httptest.NewRecorder()
+	h.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/app/doc/zzzzzzzzzzzz?session=anonima", nil))
+	h.mu.RLock()
+	after := len(h.sess)
+	h.mu.RUnlock()
+	if rec.Code != 200 || after != before {
+		t.Fatalf("amb token: %d, sessions %d → %d", rec.Code, before, after)
+	}
+}

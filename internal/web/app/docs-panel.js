@@ -14,13 +14,13 @@ const pane = document.createElement('aside');
 pane.id = 'docsPanel';
 pane.hidden = true;
 pane.innerHTML = '<header><select id="docsList"></select><a id="docsDownload" data-gregal-doc="1"></a>' +
-  '<button id="docsClose" type="button">×</button></header><div id="docsBody" class="body"></div>';
+  '<button id="docsWindow" type="button"></button><button id="docsClose" type="button">×</button></header><div id="docsBody" class="body"></div>';
 $('workbench').append(pane);
 const style = document.createElement('style');
 style.textContent = '#docsPanel[hidden]{display:none}#docsPanel{flex:0 0 460px;width:460px;min-width:0;border-left:1px solid var(--line);display:flex;flex-direction:column;background:var(--panel);color:var(--ink);overflow:hidden}' +
   '#docsPanel header{display:flex;gap:6px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)}' +
   '#docsList{flex:1;min-width:0;border:1px solid var(--line-hi);border-radius:4px;background:var(--bg);color:var(--ink);padding:6px}' +
-  '#docsDownload,#docsClose{border:1px solid var(--line-hi);border-radius:4px;background:var(--bg);color:var(--ink);cursor:pointer;padding:6px 9px;font-size:12px;text-decoration:none;white-space:nowrap}' +
+  '#docsDownload,#docsWindow,#docsClose{border:1px solid var(--line-hi);border-radius:4px;background:var(--bg);color:var(--ink);cursor:pointer;padding:6px 9px;font-size:12px;text-decoration:none;white-space:nowrap}' +
   '#docsBody{flex:1;overflow:auto;padding:16px 20px}#docsBody .doc-block{cursor:text}' +
   '#docsBody .doc-block textarea{display:block;width:100%;box-sizing:border-box;margin:6px 0;padding:6px 8px;border:1px solid var(--line-hi);border-radius:4px;background:var(--bg);color:var(--ink);font:13px/1.5 ui-monospace,monospace;resize:vertical}' +
   '#docsBody .doc-conflict{margin:6px 0;padding:4px 10px;border-left:3px solid var(--line-hi);color:var(--ink)}#docsBody .doc-conflict p:first-child{font-weight:600}' +
@@ -28,6 +28,15 @@ style.textContent = '#docsPanel[hidden]{display:none}#docsPanel{flex:0 0 460px;w
 document.head.append(style);
 $('docsClose').onclick = () => { ctrl?.abort(); state.visible = false; pane.hidden = true; };
 $('docsList').onchange = e => open(e.target.value);
+// Una finestra pròpia per al document (/app/doc/{id}), i el panell es tanca.
+// A l'escriptori la crea el procés principal, una per document; al
+// navegador, el nom de la finestra fa el mateix.
+$('docsWindow').onclick = () => {
+  const s = window.gregalSession || 'default';
+  if (window.gregalDesktop?.openDocWindow) window.gregalDesktop.openDocWindow(state.id, s);
+  else window.open('/app/doc/' + encodeURIComponent(state.id) + '?session=' + encodeURIComponent(s), 'gregal-doc-' + state.id);
+  $('docsClose').click();
+};
 
 async function list() {
   const r = await G().api('/api/docs');
@@ -81,6 +90,7 @@ function open(id) {
   pane.hidden = false;
   $('docsList').setAttribute('aria-label', tx('Documents del projecte', 'Project documents'));
   $('docsDownload').textContent = tx('Descarrega en Word', 'Download as Word');
+  $('docsWindow').textContent = tx('Obre en una finestra', 'Open in a window');
   $('docsClose').setAttribute('aria-label', tx('Tanca el document', 'Close the document'));
   list();
   // Si el stream es talla (xarxa, o el servidor l'ha tancat perquè anàvem

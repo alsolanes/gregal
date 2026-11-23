@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -12,6 +13,7 @@ import (
 
 	"gregal/internal/gdocs"
 	"gregal/internal/ooxml"
+	"gregal/internal/tema"
 )
 
 // handleDocExport baixa un document viu del projecte de la sessió com a
@@ -142,6 +144,31 @@ func (s *Server) handleDocStream(w http.ResponseWriter, r *http.Request) {
 			emit("block", c)
 		}
 	}
+}
+
+// handleDocPage serveix un document a pàgina sencera, la finestra pròpia
+// que s'obre des del panell: el mateix panell (docs-panel.js) sense la
+// resta de l'app. Sense comptes, un id que no és del projecte de la sessió
+// (?session=) és un 404. Amb comptes la navegació no porta el token i no
+// se sap de qui és la sessió (ni se'n crea cap): ho diu la pàgina en llegir
+// /api/docs/{id}.
+//
+//	GET /app/doc/{id}?session=
+func (h *Hub) handleDocPage(w http.ResponseWriter, r *http.Request) {
+	if d := h.def; d.Token == "" && (d.users == nil || !d.users.Actiu()) {
+		if _, _, ok := h.resolve(r).sessionDoc(w, r); !ok {
+			return
+		}
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
+	_, _ = io.WriteString(w, `<!doctype html><html lang="ca"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gregal</title><style>`+tema.CSSRoot()+
+		`html,body{margin:0;height:100%;background:var(--panel);color:var(--ink);font:14px/1.55 system-ui,sans-serif}#workbench{display:flex;height:100%}`+
+		`body #docsPanel{position:static;flex:1;width:auto;border:0;box-shadow:none}body #docsPanel header{display:none}</style>`+
+		`<script>(()=>{let t='';try{t=(JSON.parse(localStorage.getItem('gregal_brand_cache')||'null')||{}).theme||localStorage.getItem('gregal_tema')||''}catch(e){}`+
+		`if(!t||t==='sistema')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)})()</script>`+
+		`</head><body><div id="workbench"></div><script src="/app/md.js"></script><script src="/app/doc-view.js"></script>`+
+		`<script type="module" src="/app/doc-page.js"></script></body></html>`)
 }
 
 // handleDocBlocks insereix blocs que escriu la persona: md es parteix com

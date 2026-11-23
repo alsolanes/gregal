@@ -69,6 +69,8 @@ contextBridge.exposeInMainWorld("gregalDesktop", {
         ipcRenderer.on('gregal:preference-changed', listener);
         return () => ipcRenderer.removeListener('gregal:preference-changed', listener);
     },
+    // Obre un document viu en una finestra pròpia (doc-window.js), una per document.
+    openDocWindow: (id, session) => ipcRenderer.invoke('gregal:open-doc', String(id).slice(0, 64), String(session || 'default').slice(0, 64)),
     // Obre la carpeta del projecte de la sessió a l'explorador del sistema.
     // Només s'envia l'id de sessió: la ruta la resol el procés principal.
     openWorkspaceFolder: session => ipcRenderer.invoke('gregal:open-workspace', String(session || 'default').slice(0, 64)),

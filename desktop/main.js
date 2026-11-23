@@ -21,6 +21,7 @@ const { sameOrigin, externalURL, backendURLError, localServiceURL, trustedPage }
 const { createUpdater } = require('./updater');
 const { createBrowserBridge, validGuest, guestWindowOpen, AGENT_BROWSER_PARTITION } = require('./browser-bridge');
 const { createMascotWindow, PREF_KEY: MASCOT_PREF } = require('./mascot-window');
+const { createDocWindows } = require('./doc-window');
 const chromeExtension = require('./chrome-extension');
 const wordAddin = require('./word-addin');
 const { loadStartupTheme, saveStartupTheme, themeKey, pageQuery, waitFor } = require('./startup');
@@ -47,6 +48,8 @@ let browserBridge = null;
 let mainWin = null;
 // Mascota flotant (mascot-window.js): només amb la preferència activada.
 let mascot = null;
+// Finestres pròpies dels documents vius (doc-window.js).
+let docWindows = null;
 // Preferències de la UI desades a userData (preferences.js). El tema i
 // l'idioma fan falta abans que hi hagi cap pàgina carregada.
 let preferences = null;
@@ -88,6 +91,16 @@ function mascotController() {
         lang: idiomaApp,
     });
     return mascot;
+}
+
+function docWindowsController() {
+    if (!docWindows) docWindows = createDocWindows({
+        BrowserWindow,
+        base: () => BASE,
+        preloadPath: path.join(__dirname, 'preload.js'),
+        openExternal: url => { if (externalURL(url) && !sameOrigin(url, BASE)) shell.openExternal(url).catch(() => {}); },
+    });
+    return docWindows;
 }
 
 function notifyAgentBrowser(state, extra) {
@@ -403,7 +416,9 @@ function wireIPC(getWin = () => mainWin) {
         event.returnValue = trusted(event) ? { values: preferences, keys: preferenceKeys } : { values: {}, keys: [] };
     });
     ipcMain.on('gregal:connection', event => {
-        event.returnValue = trusted(event) ? { token: TOKEN, edition: EDITION } : { token: '', edition: EDITION };
+        // Les finestres dels documents també parlen amb el backend.
+        const doc = docWindows?.isSender(event) && sameOrigin(event.senderFrame.url, BASE);
+        event.returnValue = trusted(event) || doc ? { token: TOKEN, edition: EDITION } : { token: '', edition: EDITION };
     });
     // La pàgina avisa que el webview de l'agent és a punt. Només s'accepta
     // un guest webview d'aquesta finestra i de la partició pròpia.
@@ -478,6 +493,7 @@ function wireIPC(getWin = () => mainWin) {
     // Extensió de Chrome: la deixa a punt en una carpeta fixa, obre la pàgina
     // d'extensions del navegador i ensenya la carpeta (instal·lar-la és cosa
     // de l'usuari: Chrome no deixa fer-ho a cap programa).
+    ipcMain.handle('gregal:open-doc', (event, id, session) => trusted(event) && docWindowsController().open(id, session));
     ipcMain.handle('gregal:chrome-extension', async event => {
         if (!trusted(event)) return null;
         const dir = prepareChromeExtension();
@@ -661,7 +677,7 @@ async function createWindow() {
         },
     });
     mainWin = win;
-    win.once('closed', () => { if (mainWin === win) mainWin = null; browserBridge?.clearTarget(); mascot?.close(); });
+    win.once('closed', () => { if (mainWin === win) mainWin = null; browserBridge?.clearTarget(); mascot?.close(); docWindows?.closeAll(); });
     wireIPC();
     win.webContents.on('will-attach-webview', (event, preferences, params) => {
         if (params.src && !externalURL(params.src) && params.src !== 'about:blank') {
