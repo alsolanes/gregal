@@ -188,13 +188,111 @@ func (s *Store) change(id string, fn func(d *Doc, v int, at time.Time) error) (D
 	if err != nil {
 		return d, err
 	}
+	// Còpia: Insert i Replace escriuen a l'array de blocs que d comparteix.
+	before := append([]Block(nil), d.Blocks...)
 	at := time.Now().UTC()
 	if err := fn(&d, d.Version+1, at); err != nil {
 		return Doc{}, err
 	}
 	d.Version++
 	d.Updated = at
-	return d, s.write(d)
+	if err := s.write(d); err != nil {
+		return d, err
+	}
+	// Dins el bloqueig, perquè els que miren rebin els canvis en ordre de versió.
+	s.notify(id, changes(before, d))
+	return d, nil
+}
+
+// Change és el canvi d'un bloc tal com el reben els que miren el document.
+// Un bloc esborrat només porta l'id, i l'autor buit: Delete no en desa cap.
+type Change struct {
+	Op      string `json:"op"` // insert, replace o delete
+	Block   Block  `json:"block"`
+	After   string `json:"after,omitempty"`
+	Version int    `json:"version"`
+	Author  string `json:"author"`
+}
+
+// changes compara els blocs d'abans del canvi amb el document d'ara.
+func changes(before []Block, d Doc) []Change {
+	var out []Change
+	old, now := map[string]bool{}, map[string]bool{}
+	for _, b := range before {
+		old[b.ID] = true
+	}
+	prev := ""
+	for _, b := range d.Blocks {
+		now[b.ID] = true
+		switch {
+		case !old[b.ID]:
+			out = append(out, Change{Op: "insert", Block: b, After: prev, Version: d.Version, Author: b.Author})
+		case b.Version == d.Version:
+			out = append(out, Change{Op: "replace", Block: b, Version: d.Version, Author: b.Author})
+		}
+		prev = b.ID
+	}
+	for _, b := range before {
+		if !now[b.ID] {
+			out = append(out, Change{Op: "delete", Block: Block{ID: b.ID}, Version: d.Version})
+		}
+	}
+	return out
+}
+
+// Els que miren cada document, per carpeta del projecte i id.
+var (
+	watchMu  sync.Mutex
+	watchers = map[string]map[chan Change]bool{}
+)
+
+// Watch rep els canvis del document id d'ara endavant, fins que es crida
+// stop. Si qui mira no buida el canal a temps, se li tanca: ha de tornar a
+// llegir el document sencer.
+func (s *Store) Watch(id string) (<-chan Change, func()) {
+	k := filepath.Join(s.Dir, id)
+	ch := make(chan Change, 64)
+	watchMu.Lock()
+	if watchers[k] == nil {
+		watchers[k] = map[chan Change]bool{}
+	}
+	watchers[k][ch] = true
+	watchMu.Unlock()
+	return ch, func() {
+		watchMu.Lock()
+		defer watchMu.Unlock()
+		if watchers[k][ch] {
+			delete(watchers[k], ch)
+			close(ch)
+		}
+		if len(watchers[k]) == 0 {
+			delete(watchers, k)
+		}
+	}
+}
+
+func (s *Store) notify(id string, cs []Change) {
+	k := filepath.Join(s.Dir, id)
+	watchMu.Lock()
+	defer watchMu.Unlock()
+	for ch := range watchers[k] {
+		if !send(ch, cs) {
+			delete(watchers[k], ch)
+			close(ch)
+		}
+	}
+}
+
+// send no espera mai: un client lent no pot aturar els que escriuen.
+func send(ch chan Change, cs []Change) bool {
+	for _, c := range cs {
+		select {
+		case ch <- c:
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func find(d *Doc, block string) int {

@@ -441,6 +441,9 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 					ev["image"] = img
 				}
 				emit("tool_result", ev)
+				if o.Call.Function.Name == "doc" {
+					s.emitDocChanged(emit, o.Call.Function.Arguments, o.Sortida)
+				}
 			}
 			if done, ok := s.endLane(generation, lane.Seq, laneResult(laneInfo, outs)); ok {
 				emit("lane", lanePayload(done))

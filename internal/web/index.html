@@ -2201,6 +2201,8 @@ body.sense-inspector #inspector { display:none; }
 <script defer src="/app/notes-quick.js"></script>
 <script type="module" src="/app/profile-sync.js"></script>
 <script type="module" src="/app/preview.js"></script>
+<script defer src="/app/doc-view.js"></script>
+<script type="module" src="/app/docs-panel.js"></script>
 <script type="module" src="/app/agent-browser.js"></script>
 <script type="module" src="/app/corner.js"></script>
 <!--product:modules-->
@@ -4152,6 +4154,7 @@ async function doAgent(task, resumed) {
       else if(ev==='token'){turnPhase='working';acc+=d.text; if(turnNote){turnNote=''; pintaTurnBar();} if(!turnActivity||turnActivity.key!=='writing') setActivity('writing', gregalT('act.now.writing')); paintLive();}
       else if(ev==='assistant' && d.text.trim()){turnPhase='working';turnNote=''; lastAssistantText=d.text.trim(); const bombolla=settleLiveEl(md(d.text)) || add('a','',md(d.text)); mdBo(d.text,bombolla);}
       else if(ev==='backlog_item')backlogChatCard(d);
+      else if(ev==='doc_changed'){ if(!replayingEvents) window.gregalDocs?.changed(d); }
       else if(ev==='tool_call'){
         paintThinkTail('');
         turnPhase='working'; turnNote=d.name || ''; pintaTurnBar(); paintLiveNow(); if(live){ live.classList.add('working'); intoWorkGroup(live); } live=null; acc=''; steps++; tools++; // el text de treball d'aquest pas ja és a la seva bombolla

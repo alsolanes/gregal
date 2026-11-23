@@ -634,6 +634,9 @@ func (h *Hub) mux() *http.ServeMux {
 	// Llista de feina del projecte (backlog_api.go, internal/backlog).
 	handle("/api/backlog", h.route((*Server).handleBacklog))
 	// Documents vius del projecte (docs_api.go, internal/gdocs).
+	handle("/api/docs", h.route((*Server).handleDocs))
+	handle("/api/docs/{id}", h.route((*Server).handleDoc))
+	handle("/api/docs/{id}/stream", h.route((*Server).handleDocStream))
 	handle("/api/docs/{id}/export", h.route((*Server).handleDocExport))
 	handle("/api/verify", h.route((*Server).handleVerify))
 	handle("/api/lang", h.global((*Server).handleLang))
@@ -1921,6 +1924,8 @@ func interactiveEventPayload(event string, value any) json.RawMessage {
 		allowed = []string{"seq", "step", "from", "to", "kind", "n", "target", "files", "at"}
 	case "backlog_item": // el mode objectiu ha desat una tasca (goal.go)
 		allowed = []string{"item", "created", "note"}
+	case "doc_changed": // l'agent ha escrit un document viu (docs_api.go)
+		allowed = []string{"id", "title"}
 	case "retro_message": // #retro (retro.go)
 		allowed = []string{"key", "message"}
 	case "retro_reaction":
