@@ -196,6 +196,27 @@ private fun DrawScope.drawBreath(size: Int, accent: Color, blow: Float) {
     for ((d, width) in windBreathLines(size)) drawPath(windBreathPaths.getValue(d), brush, style = Stroke(width, cap = StrokeCap.Round, pathEffect = dash))
 }
 
+/**
+ * Quan parpelleja (s dins el rellotge de 12 s): cada 2–4,5 s, a l'atzar però
+ * sempre igual per al mateix vent. Un metrònom es nota; això sembla viu.
+ */
+internal fun windBlinkTimes(seed: Int): List<Float> {
+    val rnd = kotlin.random.Random(seed)
+    return generateSequence(.4f + rnd.nextFloat()) { it + 2f + rnd.nextFloat() * 2.5f }.takeWhile { it < 11.6f }.toList()
+}
+
+/** Dues mirades de reüll per volta: quan (s) i cap on, a l'atzar per vent. */
+internal fun windGlances(seed: Int): List<Pair<Float, Offset>> {
+    val rnd = kotlin.random.Random(seed xor 0x5eed)
+    return listOf(1.5f, 7.5f).map { from ->
+        from + rnd.nextFloat() * 3f to Offset(if (rnd.nextBoolean()) .75f else -.75f, if (rnd.nextInt(3) == 0) -.8f else .1f)
+    }
+}
+
+/** On mira al temps [t]: davant, tret del segon llarg de cada mirada. */
+internal fun windGlanceAt(t: Float, glances: List<Pair<Float, Offset>>): Offset =
+    glances.firstOrNull { t - it.first in 0f..1.1f }?.second ?: Offset.Zero
+
 /** Gir (graus) i batec (escala) de l'aura al temps `t` del rellotge de 12 s; sense moviment `t` és 0 i queda quieta. */
 internal fun windAuraSway(t: Float): Pair<Float, Float> = t % 6f / 6f * 360f to 1f + sin(PI.toFloat() * t) * .06f
 
@@ -213,11 +234,13 @@ fun WindFace(
     val compact = size < 64
     val motionAllowed = windMotionEnabled()
     val motion = (!compact || tappable) && motionAllowed
+    // Celebrar o arronsar-se és un sol gest en acabar el torn: també als avatars petits.
+    val cued = modifier.then(windTurnCue(mood, accent))
     when (windPack(LocalAvatarTheme.current, style)) {
-        "esperit" -> return EsperitFace(size, mood, accent, style.bearing, motion, modifier)
-        "cap" -> return CapFace(size, mood, accent, style.bearing, motion, modifier)
-        "rosa" -> return RosaFace(size, mood, accent, style.bearing, motion, modifier)
-        "mapa" -> return MapFace(size, mood, accent, style, motion, modifier)
+        "esperit" -> return EsperitFace(size, mood, accent, style.bearing, motion, cued)
+        "cap" -> return CapFace(size, mood, accent, style.bearing, motion, cued)
+        "rosa" -> return RosaFace(size, mood, accent, style.bearing, motion, cued)
+        "mapa" -> return MapFace(size, mood, accent, style, motion, cued)
     }
     // La forma reacciona quan el dit toca la cara i torna amb molla en deixar-la.
     val touch = if (tappable && motion) remember { MutableInteractionSource() } else null
@@ -254,6 +277,8 @@ fun WindFace(
             animationSpec = infiniteRepeatable(tween(750, easing = LinearEasing)), label = "blow")
     } else null
     val seed = remember(accent, style) { ((accent.hashCode() * 31 + style.hashCode()) and 0xffff) / 65535f * 12f }
+    val blinks = remember(seed) { windBlinkTimes(seed.toBits()) }
+    val glances = remember(seed) { windGlances(seed.toBits()) }
     fun time() = loop?.let { (it.value + seed) % 12f } ?: 0f
     fun wave(time: Float, period: Float) = sin(2f * PI.toFloat() * (time % period) / period)
     val doneHop = if (motion && mood == WindMood.DONE) {
@@ -285,19 +310,21 @@ fun WindFace(
         translationY = lift / 80f * size.dp.toPx()
         scaleX = (1f + (1f - scale) * .5f) * (1f - breath * 0.008f)
         scaleY = scale * (1f + breath * 0.015f)
-        rotationZ = when (mood) {
+        // En tocar-la, un bellugueig curt que s'apaga: «sí, sóc aquí».
+        val c = cheer?.value ?: 0f
+        rotationZ = sin((1f - c) * 3f * PI.toFloat()) * c * 9f + when (mood) {
             WindMood.THINKING -> wave(t, 6f) * 5f
             WindMood.DISCUSSING -> wave(t, 3f) * 4f
             else -> 0f
         }
     } else Modifier
     val tap = if (touch != null) Modifier.clickable(interactionSource = touch, indication = null) { punch++ } else Modifier
-    Canvas(modifier.then(tap).then(motionLayer).size(size.dp)) {
+    Canvas(cued.then(tap).then(motionLayer).size(size.dp)) {
         val t = time()
         fun phase(period: Float) = t % period / period
         val talkOpen = motion && mood == WindMood.TALKING && phase(.4f) < .5f
         val twinkle = if (motion && (mood == WindMood.HAPPY || mood == WindMood.TALKING)) (wave(t, 2f) + 1f) / 2f else 0f
-        val blinking = motion && phase(6f) in .955f..0.975f
+        val blinking = motion && blinks.any { t - it in 0f..0.14f }
         val squint = motion && mood == WindMood.HAPPY && phase(6f) in .30f..0.44f
         val look = when (mood) {
             WindMood.THINKING, WindMood.NEWS -> Offset(.8f, -.9f)
@@ -308,11 +335,7 @@ fun WindFace(
             }
             WindMood.WRITING -> Offset(0f, 1f)
             WindMood.DISCUSSING -> Offset(wave(t, 3f), 0f)
-            WindMood.IDLE, WindMood.HAPPY -> when (phase(12f)) {
-                in .30f..0.40f -> Offset(-.7f, .1f)
-                in .62f..0.70f -> Offset(.7f, .1f)
-                else -> Offset.Zero
-            }
+            WindMood.IDLE, WindMood.HAPPY -> windGlanceAt(t, glances)
             else -> Offset.Zero
         }
         val w = this.size.width

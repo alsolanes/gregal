@@ -1,6 +1,8 @@
 package xyz.solanes.gregal
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -15,14 +17,30 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.rotate
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlinx.coroutines.launch
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -64,6 +82,76 @@ fun WindHalo(
             }
         }
         // `online` stays source-compatible; a decorative avatar is not proof of presence.
+    }
+}
+
+/**
+ * El gest d'un vent en acabar un torn: confeti del seu color quan ha anat bé
+ * (DONE), una arronsada d'espatlles trista quan ha fallat (FAILED). Només en
+ * el canvi d'humor, mai per a una cara que ja es mostra feta, i res amb el
+ * moviment apagat. Tot es llegeix al dibuixat i a la capa: cap fotograma
+ * recompon la cara ni la llista on viu.
+ */
+@Composable
+internal fun windTurnCue(mood: WindMood, accent: Color): Modifier {
+    if (!windMotionEnabled()) return Modifier
+    // 1 = acabat: res a dibuixar.
+    val burst = remember { Animatable(1f) }
+    val shrug = remember { Animatable(1f) }
+    var last by remember { mutableStateOf(mood) }
+    // Fora de l'efecte: si l'humor torna a canviar a mig gest, el gest acaba igualment i no queda glaçat.
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(mood) {
+        val before = last
+        last = mood
+        if (before == mood) return@LaunchedEffect
+        when (mood) {
+            WindMood.DONE -> scope.launch { burst.snapTo(0f); burst.animateTo(1f, tween(950, easing = LinearEasing)) }
+            WindMood.FAILED -> scope.launch { shrug.snapTo(0f); shrug.animateTo(1f, tween(900, easing = LinearEasing)) }
+            else -> {}
+        }
+    }
+    val tones = remember(accent) { listOf(accent, windLight(accent), windDeep(accent)) }
+    return Modifier.graphicsLayer {
+        val f = shrug.value
+        if (f >= 1f) return@graphicsLayer
+        // Puja les espatlles un moment i es deixa caure, decantat, abans de refer-se.
+        val up = if (f < .22f) sin(PI.toFloat() * f / .22f) else 0f
+        val down = if (f >= .22f) sin(PI.toFloat() * (f - .22f) / .78f) else 0f
+        transformOrigin = TransformOrigin(.5f, 1f)
+        translationY = (-.05f * up + .06f * down) * size.height
+        scaleY = 1f + .05f * up - .06f * down
+        scaleX = 1f + .04f * down
+        rotationZ = -8f * down
+    }.drawWithContent {
+        drawContent()
+        val f = burst.value
+        if (f >= 1f) return@drawWithContent
+        val side = size.minDimension
+        val c = center
+        val out = 1f - (1f - f) * (1f - f) * (1f - f)
+        val fade = if (f < .55f) 1f else (1f - f) / .45f
+        for (i in 0 until 14) {
+            // Desordre fix per partícula: el mateix esclat cada cop, però no una roda.
+            val j = sin(i * 12.9898f) * 43758.547f % 1f
+            val a = (i * 360f / 14f + j * 18f) * PI.toFloat() / 180f
+            val reach = side * (.5f + (.3f + .14f * kotlin.math.abs(j)) * out)
+            val p = Offset(c.x + cos(a) * reach, c.y + sin(a) * reach + side * .16f * f * f)
+            val tone = tones[i % 3].copy(alpha = fade)
+            val bit = side * .05f * (1f - .4f * f)
+            when (i % 3) {
+                // Una espurna de quatre puntes.
+                0 -> {
+                    drawLine(tone, Offset(p.x - bit, p.y), Offset(p.x + bit, p.y), bit * .45f, StrokeCap.Round)
+                    drawLine(tone, Offset(p.x, p.y - bit), Offset(p.x, p.y + bit), bit * .45f, StrokeCap.Round)
+                }
+                // Un paperet que gira mentre vola.
+                1 -> rotate(f * 540f * (if (j > 0) 1f else -1f) + i * 40f, p) {
+                    drawRoundRect(tone, Offset(p.x - bit * .9f, p.y - bit * .4f), Size(bit * 1.8f, bit * .8f), CornerRadius(bit * .3f))
+                }
+                else -> drawCircle(tone, bit * .5f, p)
+            }
+        }
     }
 }
 
