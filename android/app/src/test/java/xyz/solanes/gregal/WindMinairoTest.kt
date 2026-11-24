@@ -104,13 +104,60 @@ class WindMinairoTest {
         }
     }
 
+    /** A minairó as winds.js sees a saved wind: its id, the bearing it blows from and its style code. */
+    private fun styleOf(id: String, code: String = "pso") = windStyleOf(code).copy(windId = id, bearing = windDirection(id, id))
+
     @Test fun `each wind gets its own minairo, the same one every time`() {
         val names = listOf("tramuntana", "gregal", "llevant", "xaloc", "migjorn", "garbi", "ponent", "mestral", "bit", "lupa", "boira", "pessic")
-        val looks = names.map { minairoLook(it) }
-        assertEquals(looks, names.map { minairoLook(it) })
+        val mouths = listOf("s", "o", "n", "t")
+        val styles = names.mapIndexed { i, id -> styleOf(id, "p" + mouths[i % 4] + "o") }
+        val body = Color(0xFFA8CDE2)
+        val looks = styles.map { minairoLook(it, body) }
+        assertEquals(looks, styles.map { minairoLook(it, body) })
         assertEquals("both fold sides", setOf(-1, 1), looks.map { it.fold }.toSet())
-        assertEquals("three beard lengths", 3, looks.map { it.beard }.toSet().size)
+        assertEquals("a beard length per mouth", 4, looks.map { it.beard }.toSet().size)
         assertEquals("needle case, St John's wort and pebble", 3, looks.map { it.gear }.toSet().size)
+    }
+
+    private data class Pick(val id: String, val seed: Int, val onBlue: Color, val onPink: Color, val brows: String, val moustache: String, val glasses: Boolean)
+
+    // 120's notes: the barretina from the id hash and the body hue, the traits from the face seed.
+    @Test fun `each minairo wears the barretina and traits the web gives the same wind`() {
+        val v = Color(0xFFC9342C); val m = Color(0xFF6E2F6B); val f = Color(0xFF2E6B3F)
+        val o = Color(0xFFC8962E); val b = Color(0xFF26406E); val g = Color(0xFF7D1F33)
+        val picks = listOf(
+            Pick("llevant", 293, v, m, "straight", "walrus", false), Pick("xaloc", 61, m, m, "bushy", "lobes", false),
+            Pick("migjorn", 251, v, m, "straight", "lobes", false), Pick("garbi", 347, m, m, "arched", "lobes", false),
+            Pick("ponent", 300, v, m, "straight", "lobes", false), Pick("mestral", 828, f, f, "bushy", "lobes", false),
+            Pick("tramuntana", 83, o, b, "straight", "lobes", true), Pick("gregal", 118, f, f, "straight", "handlebar", false),
+            Pick("minairo-1", 302, g, m, "arched", "handlebar", false), Pick("minairo-2", 303, v, m, "bushy", "lobes", false))
+        for (p in picks) {
+            val look = minairoLook(styleOf(p.id), Color(0xFFA8CDE2))
+            assertEquals("${p.id} on blue", p.onBlue, look.cap)
+            assertEquals("${p.id} on pink", p.onPink, minairoLook(styleOf(p.id), Color(0xFFEFA68F)).cap)
+            assertEquals(p.id, listOf(p.brows, p.moustache, p.glasses, p.seed % 3), listOf(look.brows, look.moustache, look.glasses, look.gear))
+        }
+        // East winds fold to the left, west ones to the right; north and south by the seed (both odd here).
+        assertEquals(listOf(-1, -1, -1, 1, 1, 1, 1, 1), listOf("gregal", "llevant", "xaloc", "garbi", "ponent", "mestral", "tramuntana", "migjorn")
+            .map { minairoLook(styleOf(it), Color(0xFFA8CDE2)).fold })
+        assertEquals(listOf(63.5f, 67.5f, 71f, 74.5f), listOf("n", "s", "o", "t").map { minairoLook(styleOf("xaloc", "p${it}o"), Color(0xFFA8CDE2)).beard })
+    }
+
+    @Test fun `the fourth letter of the style is the barretina the person picked`() {
+        val palette = listOf("v" to 0xFFC9342C, "m" to 0xFF6E2F6B, "f" to 0xFF2E6B3F, "o" to 0xFFC8962E, "b" to 0xFF26406E, "g" to 0xFF7D1F33)
+        // No hue check on a choice: a red barretina over a pink body is the person's call.
+        for ((letter, hex) in palette) {
+            val style = styleOf("llevant", "pso$letter")
+            assertEquals(letter, style.barretina)
+            assertEquals("pso$letter", style.encode())
+            assertEquals(Color(hex), minairoLook(style, Color(0xFFEFA68F)).cap)
+        }
+        assertEquals("an unknown letter is automatic", "pso", windStyleOf("psox").encode())
+        assertEquals(minairoLook(styleOf("llevant"), Color(0xFFA8CDE2)), minairoLook(styleOf("llevant", "psox"), Color(0xFFA8CDE2)))
+        assertEquals(listOf("Automàtica", "Vermella", "Morada", "Verd fosc", "Mostassa", "Blau marí", "Granat"),
+            (listOf("") + palette.map { it.first }).map { tr("ca", barretinaLabelKey(it)) })
+        assertEquals(listOf("Automatic", "Red", "Purple", "Dark green", "Mustard", "Navy blue", "Garnet"),
+            (listOf("") + palette.map { it.first }).map { tr("en", barretinaLabelKey(it)) })
     }
 
     private fun diff(a: Bitmap, b: Bitmap) =
@@ -167,7 +214,15 @@ class WindMinairoTest {
     private fun count(b: Bitmap, from: Float, to: Float, test: (Int) -> Boolean) =
         ((b.height * from).toInt() until (b.height * to).toInt()).sumOf { y -> (0 until b.width).count { x -> test(b.getPixel(x, y)) } }
 
-    private fun red(p: Int) = android.graphics.Color.red(p) > 150 && android.graphics.Color.green(p) < 90 && android.graphics.Color.blue(p) < 90
+    /** A pixel in the barretina's own colour: its hue, and neither the dark ground nor a washed-out tint. */
+    private fun capLike(cap: Color): (Int) -> Boolean {
+        val hsv = FloatArray(3).also { android.graphics.Color.colorToHSV(android.graphics.Color.rgb((cap.red * 255).toInt(), (cap.green * 255).toInt(), (cap.blue * 255).toInt()), it) }
+        return { p ->
+            val q = FloatArray(3).also { android.graphics.Color.colorToHSV(p, it) }
+            val d = Math.abs(q[0] - hsv[0]).let { minOf(it, 360f - it) }
+            d < 15f && q[1] > .35f && q[2] > .25f
+        }
+    }
     private fun white(p: Int) = android.graphics.Color.red(p) > 215 && android.graphics.Color.green(p) > 210 && android.graphics.Color.blue(p) > 200
 
     @Test fun `at 24 dp it still reads as a barretina over a beard`() {
@@ -183,11 +238,12 @@ class WindMinairoTest {
         for (w in six) {
             val face = shot(w.id)
             val area = face.width * face.height
-            // A 24 dp face is 72 px square here: the cap is a red mass on top and the beard a white one below.
-            val cap = count(face, 0f, .42f, ::red)
+            // A 24 dp face is 72 px square here: the cap is a mass of its colour on top and the beard a white one below.
+            val inCap = capLike(minairoLook(w.faceStyle, Color(w.argb)).cap)
+            val cap = count(face, 0f, .42f, inCap)
             val beard = count(face, .55f, 1f, ::white)
-            assertTrue("${w.name}: red cap on top ($cap of $area)", cap > area * 6 / 100)
-            assertTrue("${w.name}: no red below", count(face, .6f, 1f, ::red) < cap / 10)
+            assertTrue("${w.name}: cap on top ($cap of $area)", cap > area * 6 / 100)
+            assertTrue("${w.name}: no cap colour below", count(face, .6f, 1f, inCap) < cap / 10)
             assertTrue("${w.name}: white beard below ($beard of $area)", beard > area * 6 / 100)
         }
     }
@@ -217,26 +273,33 @@ class WindMinairoTest {
         ui.onNode(SemanticsMatcher.expectValue(WindClayKey, "pebble/idle"), useUnmergedTree = true).assertExists()
     }
 
+    // The eight winds of the web review sheet (120), to set side by side with it.
+    private val rose = listOf(
+        "tramuntana" to "#A8CDE2" to "pso", "xaloc" to "#EFA68F" to "eto", "llevant" to "#E8AEC2" to "pto", "mestral" to "#BFCFA4" to "esn",
+        "gregal" to "#C1B4DE" to "mso", "ponent" to "#EACF87" to "mon", "migjorn" to "#9ED3C5" to "bss", "garbi" to "#F5B45D" to "pso",
+    ).map { (ic, code) -> Wind(ic.first, ic.first.replaceFirstChar { it.uppercase() }, ic.second, "r", style = code, avatar = "minairo") }
+
     @Composable private fun sheet(bg: Color, tag: String) {
         Column(Modifier.testTag(tag).background(bg).padding(8.dp)) {
-            for (size in listOf(24, 28, 40, 96)) Row(verticalAlignment = Alignment.CenterVertically) {
-                for (w in six) Box(Modifier.size((size + 16).dp), contentAlignment = Alignment.Center) {
+            // Four to a row at 120 dp, so the sheet fits the test screen.
+            for (size in listOf(24, 48, 120)) for (row in rose.chunked(if (size > 100) 4 else 8)) Row(verticalAlignment = Alignment.CenterVertically) {
+                for (w in row) Box(Modifier.size((size + 16).dp), contentAlignment = Alignment.Center) {
                     WindFace(size = size, accent = Color(w.argb), style = w.faceStyle)
                 }
             }
         }
     }
 
-    @Test fun `six minairons small and large on light and dark`() {
+    @Test fun `the eight rose minairons small and large on dark and light`() {
         ui.mainClock.autoAdvance = false
         ui.setContent {
             CompositionLocalProvider(LocalWindMotion provides false, LocalAvatarTheme provides "minairo") {
-                Column { sheet(light, "light"); sheet(dark, "dark") }
+                Column { sheet(Color(0xFF17161C), "dark"); sheet(Color(0xFFFAF8F4), "light") }
             }
         }
         ui.mainClock.advanceTimeBy(100)
-        keep("sheet-light", shot("light"))
-        keep("sheet-dark", shot("dark"))
+        keep("sizes-dark", shot("dark"))
+        keep("sizes-light", shot("light"))
     }
 
     @Test fun `every mood filmstrip`() {
