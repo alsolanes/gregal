@@ -924,12 +924,15 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             is GregalApi.WindStreamEvent.Ask -> _windAsks.value = _windAsks.value.filter { it.key != e.ask.key } + e.ask
             is GregalApi.WindStreamEvent.AskResolved -> _windAsks.value = _windAsks.value.filter { it.key != e.key }
             // Una targeta per document, com a Codi; la bombolla en directe ha de quedar l'última.
-            is GregalApi.WindStreamEvent.DocChanged -> if (!rotllana) _windChat.update { chats ->
-                val cur = chats[threadId].orEmpty()
-                if (cur.any { it.doc?.id == e.doc.id }) chats else {
-                    val at = if (cur.lastOrNull()?.streaming == true) cur.lastIndex else cur.size
-                    chats + (threadId to cur.toMutableList().apply { add(at, PetMsg("pet", e.doc.title, kind = "doc", doc = e.doc)) })
+            is GregalApi.WindStreamEvent.DocChanged -> if (!rotllana) {
+                _windChat.update { chats ->
+                    val cur = chats[threadId].orEmpty()
+                    if (cur.any { it.doc?.id == e.doc.id }) chats else {
+                        val at = if (cur.lastOrNull()?.streaming == true) cur.lastIndex else cur.size
+                        chats + (threadId to cur.toMutableList().apply { add(at, PetMsg("pet", e.doc.title, kind = "doc", doc = e.doc)) })
+                    }
                 }
+                docsChanged()
             }
             is GregalApi.WindStreamEvent.DoneRotllana -> if (e.failed.isNotEmpty()) {
                 notify(appText("wind.turn.incomplete", e.failed.joinToString(", ")))
@@ -2610,6 +2613,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             // Una targeta per document: les edicions següents ja es veuen a la pantalla.
             "doc_changed" -> DocsJson.changed(o.toString())?.let { d ->
                 if (_msgs.value.none { it.doc?.id == d.id }) push(ChatMsg("assistant", d.title, "doc", doc = d))
+                docsChanged()
             }
             "goal" -> push(ChatMsg("assistant", "◆ ${f("title")} (${f("id")})", "goal"))
             // El mode objectiu desa la tasca al backlog: el número queda al fil.
@@ -5830,8 +5834,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     !_windBusy.value.contains(windId)) {
                     if (thread.isNotEmpty()) selectedWindThreads[windId] = thread
                     windNew.fromServer(windId, history.size)
-                    _windChat.value = _windChat.value + (windId to OfflineLogic.withQueued(
-                        ventsRecency.restore(source, "wind", windId, history), _outbox.value, windId))
+                    _windChat.value = _windChat.value + (windId to OfflineLogic.withQueued(OfflineLogic.withDocCards(
+                        _windChat.value[windId].orEmpty(), ventsRecency.restore(source, "wind", windId, history)), _outbox.value, windId))
                     cacheChat(source, windId)
                 }
             } catch (e: Exception) {
@@ -6598,6 +6602,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     /** «Els meus documents» i, si [project], els del projecte de la sessió. */
     fun loadDocs(project: Boolean) {
+        docsProject = project
         viewModelScope.launch {
             try {
                 val api = _conn.value.api()
@@ -6605,6 +6610,13 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 _docs.value = if (!project) emptyList() else withContext(Dispatchers.IO) { DocsJson.list(api.get("/api/docs").toString()) }
             } catch (e: Exception) { notify(appText("docs.error", e.message.orEmpty())) }
         }
+    }
+
+    private var docsProject = false
+
+    /** Un `doc_changed` mentre es mira Gregal Docs: la llista es torna a llegir, i el document nou hi surt. */
+    private fun docsChanged() {
+        if (_screen.value == Screen.Docs) loadDocs(docsProject)
     }
 
     /** «Document nou» (o, amb [kind] "sheet" o "deck", «Full de càlcul nou» o «Presentació nova») a «Els meus documents», obert per escriure-hi. */
@@ -6628,7 +6640,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     /**
      * Segueix el document mentre la pantalla el mira: obre el stream, llegeix
      * el document amb les capçaleres ja rebudes (com doc-view.js) i hi aplica
-     * els events. Si el stream cau o el servidor el tanca, torna a començar.
+     * els events. Si el stream cau, el servidor el tanca o respon un 5xx mentre
+     * es reinicia, torna a començar, i el que es mirava (pestanya, editor) es queda.
+     * Un document de text el segueix la pàgina de la web amb el seu stream: aquí només es llegeix.
      */
     suspend fun followDoc(ref: DocRef) {
         val job = currentCoroutineContext().job
@@ -6636,23 +6650,33 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _doc.value = null
         while (true) {
             try {
-                withContext(Dispatchers.IO) {
+                val web = withContext(Dispatchers.IO) {
                     val api = _conn.value.api()
                     val read = {
                         val d = DocsJson.doc(api.get(docPath(ref)).toString()).copy(scope = ref.scope)
                         job.ensureActive()
-                        _doc.value = d
+                        _doc.update { it?.kept(d) ?: d }
                     }
+                    // La targeta d'un doc_changed no diu el tipus: cal llegir-lo abans d'obrir el stream.
+                    if (_doc.value?.id != id) read()
+                    if (_doc.value?.inWebEditor == true) return@withContext true
                     api.streamGet(docPath(ref, "/stream"), onOpen = read) { ev ->
-                        // El ping de cada 15 s deixa plegar el fil quan es tanca la pantalla.
                         job.ensureActive()
                         if (ev.name == "block") DocsJson.change(ev.data)?.let { c -> _doc.update { if (it?.id == id) it.apply(c) else it } }
                     }
+                    false
                 }
+                if (web) return
             } catch (e: CancellationException) {
                 throw e
             } catch (_: java.io.IOException) {
                 // La xarxa ha caigut: es torna a connectar.
+            } catch (e: ApiException) {
+                // Un 502/503 és el servidor que es reinicia: es torna a provar. La resta no es resoldrà sola.
+                if (!e.message.orEmpty().startsWith("HTTP 5")) {
+                    notify(appText("docs.error", e.message.orEmpty()))
+                    return
+                }
             } catch (e: Exception) {
                 notify(appText("docs.error", e.message.orEmpty()))
                 return
@@ -6661,22 +6685,47 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun editDocBlock(id: String) = _doc.update { if (it?.edit == null) it?.open(id) else it }
+    fun editDocBlock(id: String) = leaveEdit { it.open(id) }
 
     fun typeDocBlock(text: String) = _doc.update { it?.typed(text) }
 
-    fun showSheet(id: String) = _doc.update { it?.showSheet(id) }
+    fun showSheet(id: String) = leaveEdit { it.showSheet(id) }
 
-    /** Una altra cel·la només si la que s'edita no té res per desar; es tanca com amb «Desa» (un full esborrat se'n va). */
-    fun editCell(sheet: String, cell: String) = _doc.update {
+    fun editCell(sheet: String, cell: String) = leaveEdit { it.openCell(sheet, cell) }
+
+    /**
+     * Una altra diapositiva, cel·la o pestanya: el que s'editava es desa abans (sense canvis, només es tanca)
+     * i després es va on s'ha tocat. Amb un conflicte a la vista o mentre es desa, no es mou res.
+     */
+    private fun leaveEdit(next: (LiveDoc) -> LiveDoc) {
+        val d = _doc.value ?: return
+        val e = d.edit
         when {
-            it?.edit == null -> it?.openCell(sheet, cell)
-            it.saveRequest() == null -> it.skipped().doc.openCell(sheet, cell)
-            else -> it
+            e == null -> _doc.update { cur -> if (cur?.id == d.id && cur.edit == null) next(cur) else cur }
+            e.saving || e.conflict != null -> {}
+            d.saveRequest() == null -> _doc.update { cur -> if (cur?.id == d.id && cur.edit == e) next(cur.skipped().doc) else cur }
+            else -> sendDocEdit({ cur, _ -> next(cur) }) { it.saveRequest() }
         }
     }
 
     fun typeSlideField(key: String, value: String) = _doc.update { it?.typedField(key, value) }
+
+    fun chooseSlideLayout(layout: String) = _doc.update { it?.chooseLayout(layout) }
+
+    /** «Full nou» al final del full de càlcul obert. */
+    fun addSheet() {
+        val d = _doc.value ?: return
+        viewModelScope.launch {
+            try {
+                val (code, body) = withContext(Dispatchers.IO) { _conn.value.api().sendDoc(d.addSheetRequest(appText("docs.sheetName"))) }
+                var out: DocSaved? = null
+                _doc.update { cur -> if (cur?.id == d.id) cur.sheetAdded(code, body).also { out = it }.doc else cur }
+                out?.error?.let { notify(appText("docs.sheetError", it)) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) { notify(appText("docs.sheetError", e.message.orEmpty())) }
+        }
+    }
 
     /** Cancel·la el formulari d'una diapositiva sense desar-lo. */
     fun cancelDocEdit() = _doc.update { if (it?.edit?.saving == false) it.skipped().doc else it }
@@ -6699,12 +6748,13 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** «Esborra la diapositiva» oberta, amb el mateix 409 que en desar. */
-    fun deleteSlide() = sendDocEdit(false) { it.deleteRequest() }
+    fun deleteSlide() = sendDocEdit(null) { it.deleteRequest() }
 
     /** Desa l'editor obert (doc-view.js); amb [addBelow], si es desa, n'obre un de nou a sota. */
-    fun saveDocBlock(addBelow: Boolean) = sendDocEdit(addBelow) { it.saveRequest() }
+    fun saveDocBlock(addBelow: Boolean) = sendDocEdit(if (addBelow) { cur, at -> cur.openNew(at) } else null) { it.saveRequest() }
 
-    private fun sendDocEdit(addBelow: Boolean, request: (LiveDoc) -> DocRequest?) {
+    /** Envia [request]; si es desa, [then] rep el document amb l'editor tancat i el bloc desat. */
+    private fun sendDocEdit(then: ((LiveDoc, String) -> LiveDoc)?, request: (LiveDoc) -> DocRequest?) {
         val d = _doc.value ?: return
         if (d.edit?.saving != false) return
         val req = request(d)
@@ -6733,7 +6783,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             val s = out ?: return@launch
             s.error?.let { notify(appText(failed, it)) }
             val at = s.at
-            if (addBelow && at != null) _doc.update { cur -> if (cur?.id == d.id && cur.edit == null) cur.openNew(at) else cur }
+            if (then != null && at != null) _doc.update { cur -> if (cur?.id == d.id && cur.edit == null) then(cur, at) else cur }
         }
     }
 

@@ -1,5 +1,9 @@
 package xyz.solanes.gregal
 
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.decodeFromString
@@ -1432,9 +1436,13 @@ class GregalApi(val base: String, val token: String) {
     }
 
     /** SSE per GET (execució de grafs, documents): mateix Bearer, mateix
-     *  parser. [onOpen] corre amb les capçaleres ja rebudes, abans del primer event. */
-    fun streamGet(path: String, onOpen: () -> Unit = {}, onEvent: (SseEvent) -> Unit) {
-        streamRead(exec(path, "GET"), onEvent, onOpen)
+     *  parser. [onOpen] corre amb les capçaleres ja rebudes, abans del primer event.
+     *  Si qui escolta es cancel·la (s'ha sortit de la pantalla), la crida es talla de seguida, no al ping següent:
+     *  la vigila una corutina germana, i per això s'ha de cridar des d'un dispatcher amb més d'un fil (IO). */
+    suspend fun streamGet(path: String, onOpen: () -> Unit = {}, onEvent: (SseEvent) -> Unit) = coroutineScope {
+        val call = http.newCall(request(path, "GET"))
+        val cut = launch(start = CoroutineStart.UNDISPATCHED) { try { awaitCancellation() } finally { call.cancel() } }
+        try { streamRead(call.execute(), onEvent, onOpen) } finally { cut.cancel() }
     }
 
     private fun streamRead(r: Response, onEvent: (SseEvent) -> Unit, onOpen: () -> Unit = {}) = r.use {

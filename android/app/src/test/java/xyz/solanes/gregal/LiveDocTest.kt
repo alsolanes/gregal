@@ -488,7 +488,7 @@ class LiveDocTest {
         assertFalse("clau-secreta" in page)
         assertEquals(mapOf("Authorization" to "Bearer clau-secreta"), docPageHeaders("clau-secreta"))
         assertEquals(emptyMap<String, String>(), docPageHeaders(""))
-        assertEquals("clau-secreta", DocPageBridge("clau-secreta").token())
+        assertEquals("clau-secreta", DocPageBridge { "clau-secreta" }.token())
         // Només els documents de text; les presentacions i els fulls tenen la seva pantalla.
         assertTrue(doc.inWebEditor)
         assertFalse(deck.inWebEditor)
@@ -504,5 +504,76 @@ class LiveDocTest {
         assertTrue(docPageKeeps(page, page))
         assertFalse(docPageKeeps("https://example.com/", page))
         assertFalse(docPageKeeps("http://10.0.0.2:8080/app/", page))
+    }
+
+    @Test
+    fun theBridgeGivesTheCurrentKeyAfterTheConnectionChangesIt() {
+        var key = "clau-vella"
+        val bridge = DocPageBridge { key }
+        key = "clau-nova"
+        assertEquals("clau-nova", bridge.token())
+    }
+
+    // --- el que faltava a Android (notes de 063-083) ---
+
+    private val sheets = DocsJson.doc("""{"id":"f1","title":"Pressupost","kind":"sheet","version":4,
+        "blocks":[{"id":"h1","name":"Full1","cells":{"A1":"1"},"version":2},{"id":"h2","name":"Full2","cells":{},"version":3}]}""")
+
+    @Test
+    fun aHugeCellAddressDoesNotMakeAHugeGrid() {
+        val (cols, rows) = sheetSize(DocBlock("h1", cells = mapOf("ZZZ999999" to "x")))
+        assertEquals(100, cols)
+        assertEquals(10_000, rows)
+        assertEquals(6 to 20, sheetSize(DocBlock("h1", cells = mapOf("A1" to "1"))))
+    }
+
+    @Test
+    fun aReconnectKeepsTheTabTheSlideAndTheOpenEditor() {
+        val seen = sheets.showSheet("h2").openCell("h2", "B2").typed("42")
+        val reread = seen.kept(sheets.copy(version = 6))
+        assertEquals("h2", reread.shownSheet()?.id)
+        assertEquals("42", reread.edit?.text)
+        assertEquals(6, reread.version)
+        // Si el full de l'editor ja no hi és, l'editor no es queda penjant.
+        assertNull(seen.kept(sheets.copy(blocks = sheets.blocks.take(1))).edit)
+        assertEquals("s2", deck.open("s2").kept(deck).current)
+        // Un altre document no hereta res.
+        assertEquals("", seen.kept(deck).sheet)
+    }
+
+    @Test
+    fun anEmptySpreadsheetCanAddASheetWithTheFirstFreeName() {
+        val empty = sheets.copy(blocks = emptyList(), scope = "mine")
+        assertEquals(req("POST", "/api/docs/f1/blocks?scope=mine", """{"after":"","name":"Full1"}"""), empty.addSheetRequest("Full"))
+        assertEquals(req("POST", "/api/docs/f1/blocks", """{"after":"h2","name":"Full3"}"""), sheets.addSheetRequest("Full"))
+        // El nom no es repeteix encara que un altre full es digui igual en minúscules.
+        assertEquals(req("POST", "/api/docs/f1/blocks", """{"after":"h3","name":"Full4"}"""),
+            sheets.copy(blocks = sheets.blocks + DocBlock("h3", name = "full3")).addSheetRequest("Full"))
+        val added = sheets.sheetAdded(200, """{"version":5,"blocks":[{"id":"h9","name":"Full3","cells":{},"version":5}]}""")
+        assertEquals(listOf("h1", "h2", "h9"), added.doc.blocks.map { it.id })
+        assertEquals("h9", added.doc.shownSheet()?.id)
+        assertEquals("bad name", sheets.sheetAdded(400, """{"error":"bad name"}""").error)
+    }
+
+    @Test
+    fun theLayoutOfAnOpenSlideCanBeChanged() {
+        val open = deck.open("s2").chooseLayout("two_columns")
+        // El títol escrit es queda; els camps són els del layout nou.
+        assertEquals(listOf("title", "left_title", "left", "right_title", "right", "notes"), open.edit?.fields?.keys?.toList())
+        assertEquals("Objectius", open.edit?.fields?.get("title"))
+        val sent = open.typedField("left", "Ara").saveRequest()!!
+        assertTrue(""""layout":"two_columns"""" in sent.body!!)
+        assertTrue(""""left":"Ara"""" in sent.body!!)
+        // Triar un altre layout ja és un canvi per desar.
+        assertTrue(deck.open("s2").chooseLayout("title_only").saveRequest() != null)
+    }
+
+    @Test
+    fun aWebImageOfASlideIsShownAndAProjectPathIsNot() {
+        fun slide(image: String) = DocsJson.doc("""{"id":"k","kind":"deck","blocks":[{"id":"s","slide":{"layout":"image","image":"$image"}}]}""").blocks[0].slide
+        assertEquals("https://example.com/a.png", slideImageUrl(slide(" https://example.com/a.png")))
+        assertEquals("http://example.com/a.png", slideImageUrl(slide("http://example.com/a.png")))
+        assertNull(slideImageUrl(slide("imatges/a.png")))
+        assertNull(slideImageUrl(null))
     }
 }

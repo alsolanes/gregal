@@ -164,6 +164,11 @@ val STR_CA: Map<String, String> = mapOf(
     "docs.field.caption" to "Peu",
     "docs.field.image" to "URL de la imatge",
     "docs.field.notes" to "Notes del presentador",
+    "docs.addSheet" to "Full nou",
+    "docs.sheetName" to "Full",
+    "docs.sheetEmpty" to "Aquest full de càlcul encara no té cap full.",
+    "docs.sheetError" to "No s’ha pogut afegir el full: %s",
+    "docs.layout" to "Layout de la diapositiva",
 )
 
 val STR_EN: Map<String, String> = mapOf(
@@ -328,4 +333,9 @@ val STR_EN: Map<String, String> = mapOf(
     "docs.field.caption" to "Caption",
     "docs.field.image" to "Image URL",
     "docs.field.notes" to "Speaker notes",
+    "docs.addSheet" to "New sheet",
+    "docs.sheetName" to "Sheet",
+    "docs.sheetEmpty" to "This spreadsheet has no sheets yet.",
+    "docs.sheetError" to "Could not add the sheet: %s",
+    "docs.layout" to "Slide layout",
 )

@@ -13,6 +13,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -103,7 +105,7 @@ fun DocScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     modifier = Modifier.padding(horizontal = 16.dp)) {
                     Text(tr(lang, "docs.download"))
                 }
-                DocWebPage(open, conn.api())
+                DocWebPage(open, conn.api()) { vm.conn.value.token }
             }
             return@Scaffold
         }
@@ -215,10 +217,12 @@ private fun SlideCard(s: JsonObject?) {
                 Text(slideText(s, "number"), color = SlideAccent, fontSize = 40.sp, fontWeight = FontWeight.Bold)
                 Text(slideText(s, "caption"), color = ink, fontSize = 12.sp)
             }
-            // Una ruta del projecte no es pot carregar aquí: se'n diu el nom.
+            // Una adreça web es baixa com les imatges del xat; una ruta del projecte no es pot carregar aquí: se'n diu el nom.
             "image" -> Row {
                 Column(Modifier.weight(1f).padding(end = 10.dp)) { SlideBody(s) }
-                Text(slideText(s, "image"), color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                val bmp = slideImageUrl(s)?.let { rememberChatImage(it).first }
+                if (bmp != null) Image(bmp, slideText(s, "title"), Modifier.weight(1f), contentScale = ContentScale.Fit)
+                else Text(slideText(s, "image"), color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
             }
             else -> SlideBody(s)
         }
@@ -244,8 +248,17 @@ private fun SlideForm(vm: GregalViewModel, e: DocEdit, lang: String) {
             Text(tr(lang, "docs.slideConflict"), color = Sea, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
             Box(Modifier.padding(vertical = 6.dp)) { SlideCard(b.slide) }
         }
-        val layout = slideText(e.slide, "layout")
-        Text(tr(lang, "docs.layout.$layout").takeIf { layout in slideLayouts } ?: layout, color = Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        val layout = e.layout.ifEmpty { slideText(e.slide, "layout") }
+        var menu by remember { mutableStateOf(false) }
+        Box {
+            OutlinedButton(onClick = { menu = true }, enabled = !e.saving,
+                modifier = Modifier.semantics { contentDescription = tr(lang, "docs.layout") }.testTag("slide-layout")) {
+                Text(tr(lang, "docs.layout.$layout").takeIf { layout in slideLayouts } ?: layout)
+            }
+            DropdownMenu(menu, { menu = false }) {
+                for (k in slideLayouts) DropdownMenuItem(text = { Text(tr(lang, "docs.layout.$k")) }, onClick = { vm.chooseSlideLayout(k); menu = false })
+            }
+        }
         for ((k, v) in e.fields) {
             val long = k in setOf("body", "bullets", "left", "right", "notes")
             OutlinedTextField(v, { vm.typeSlideField(k, it) }, Modifier.fillMaxWidth().padding(top = 4.dp), enabled = !e.saving,
@@ -265,18 +278,23 @@ private val RowHeadWidth = 40.dp
 
 /** Un full de càlcul: les pestanyes, l'editor de la cel·la triada i la graella amb els valors calculats. */
 private fun LazyListScope.sheetView(vm: GregalViewModel, lang: String, d: LiveDoc, hs: ScrollState) {
-    val s = d.shownSheet() ?: return
+    val s = d.shownSheet()
     val e = d.edit?.takeIf { it.cell.isNotEmpty() }
     item(key = "sheet-tabs") {
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 8.dp)) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             for (b in d.blocks) {
-                val on = b.id == s.id
+                val on = b.id == s?.id
                 Surface(onClick = { vm.showSheet(b.id) }, shape = RoundedCornerShape(8.dp), color = if (on) SuperficieOpaca else Color.Transparent,
                     border = BorderStroke(1.dp, if (on) Sea else Line), modifier = Modifier.padding(end = 6.dp).testTag("sheet-tab")) {
                     Text(b.name, color = if (on) Sea else Ink, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
                 }
             }
+            OutlinedButton(onClick = { vm.addSheet() }, modifier = Modifier.testTag("sheet-add")) { Text(tr(lang, "docs.addSheet")) }
         }
+    }
+    if (s == null) {
+        item(key = "sheet-empty") { Text(tr(lang, "docs.sheetEmpty"), color = Muted, modifier = Modifier.padding(vertical = 12.dp)) }
+        return
     }
     if (e != null) item(key = "cell-editor") { CellEditor(vm, d, e, lang) }
     val (cols, rows) = sheetSize(s)
@@ -350,7 +368,7 @@ private fun LazyListScope.docSection(vm: GregalViewModel, lang: String, key: Str
  */
 @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
 @Composable
-private fun ColumnScope.DocWebPage(d: LiveDoc, api: GregalApi) {
+private fun ColumnScope.DocWebPage(d: LiveDoc, api: GregalApi, key: () -> String) {
     val page = docPageUrl(api.base, DocRef(d.id, d.title, d.kind, d.scope), sessioApp)
     val ctx = LocalContext.current
     var web by remember { mutableStateOf<WebView?>(null) }
@@ -370,7 +388,7 @@ private fun ColumnScope.DocWebPage(d: LiveDoc, api: GregalApi) {
                     return true
                 }
             }
-            addJavascriptInterface(DocPageBridge(api.token), "GregalAndroid")
+            addJavascriptInterface(DocPageBridge(key), "GregalAndroid")
             web = this
         }
     }, update = { view ->
