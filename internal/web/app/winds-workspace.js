@@ -110,7 +110,7 @@
   for(const th of state.solo||[])add(byId(th.wind));
   for(const c of state.chats||[])for(const id of c.members||[])add(byId(id));
   for(const w of crew())add(w);
-  for(const w of [gregal,...recent].filter(Boolean)){const n=btn('',()=>talkTo(w).catch(fail),'vw-nav-item vw-nav-channel');n.append(face(w,null,20),el('span','',w.name),...tag(w));const role=roleName(w);if(role)n.title=w.name+' · '+role;n.setAttribute('aria-current',state.view==='chat'&&state.active?.wind===w.id?'page':'false');nav.append(n);}
+  for(const w of [gregal,...recent].filter(Boolean)){const n=btn('',()=>talkTo(w).catch(fail),'vw-nav-item vw-nav-channel');n.append(face(w,null,20),el('span','',w.name),...tag(w));newsDot(n,w);const role=roleName(w);if(role)n.title=w.name+' · '+role;n.setAttribute('aria-current',state.view==='chat'&&state.active?.wind===w.id?'page':'false');nav.append(n);}
   if(state.winds.length>recent.length+1){const all=btn('',()=>route('crew'),'vw-nav-item vw-nav-icon vw-nav-more');all.append(navIcon('crew'),el('span','',t('Tots els vents','All winds')),el('small','vw-nav-count',String(state.winds.length)));all.setAttribute('aria-current',state.view==='crew'?'page':'false');nav.append(all);}
   section(t('Converses','Conversations'),iconOnly('plus',t('Nova conversa','New conversation'),newChat,'vw-small'));
   renderThreads(nav);
@@ -471,7 +471,7 @@
  function home(){
   content.classList.add('vw-home');
   const faces=el('div','vw-start-faces');faces.setAttribute('aria-label',t('Vents','Winds'));
-  for(const w of [...state.winds].sort((a,b)=>(b.id==='gregal')-(a.id==='gregal'))){const n=btn('',()=>startWith(w),'vw-start-face');n.append(face(w),el('span','',w.name),...tag(w));n.title=roleName(w)||w.name;faces.append(n);}
+  for(const w of [...state.winds].sort((a,b)=>(b.id==='gregal')-(a.id==='gregal'))){const n=btn('',()=>startWith(w),'vw-start-face');n.append(face(w),el('span','',w.name),...tag(w));newsDot(n,w);n.title=roleName(w)||w.name;faces.append(n);}
   content.append(faces);
   const hour=new Date().getHours(),greet=hour<6?t('Bona nit','Good night'):hour<13?t('Bon dia','Good morning'):hour<20?t('Bona tarda','Good afternoon'):t('Bon vespre','Good evening');
   const welcome=el('div','vw-welcome');welcome.append(el('h1','',greet+'.'),el('p','',t('Pregunta, encarrega o planifica. Els vents s’encarreguen de la resta.','Ask, delegate or plan. Your winds take care of the rest.')));content.append(welcome);
@@ -768,7 +768,40 @@
  // d'una de més vella el servidor diu 404 i el xat es queda obert al final.
  async function openNews(id){await call('/api/winds/novetats/read','POST',{ids:[id]});const n=await call('/api/winds/novetats?id='+encodeURIComponent(id)).catch(()=>null);const row=[...(messages?.querySelectorAll('.vw-message')||[])].find(r=>n?.novetat?.message_id&&r.dataset.messageId===n.novetat.message_id);if(!row)return;row.classList.add('vw-message-focus');row.scrollIntoView({block:'center'});}
  async function openActivity(it,kind){const w=state.winds.find(x=>x.id===it.wind);if(kind==='chat'){if(!w)return;await talkTo(w);if(it.kind==='news')await openNews(it.ref);return;}state.tasks=(await call('/api/winds/tasks')).tasks||[];const task=state.tasks.find(x=>x.id===it.ref);if(!task)throw new Error(t('aquesta feina ja no hi és.','this work is no longer there.'));state.events=task.events||[];state.snapshot=null;route('task',{...task,name:task.task});}
- 
+ // 099: una novetat que arriba ara (watchNews, winds.js) es nota al moment: la cara del vent rebota amb un punt
+ // a la barra i a la portada, les converses recents es refresquen, i surt un avís que obre el missatge; amb la
+ // pestanya amagada, una notificació del sistema (la nativa a l'escriptori) si n'hi ha permís.
+ const askKey='gregal.winds.notifyAsked';
+ function newsDot(n,w){n.dataset.wind=w.id;if(root.gregalWinds.hasNews?.(w.id))n.append(el('span','vw-news-dot'));}
+ const newsText=n=>clip(String(n.text||'').replace(/[#*_`>]+/g,' '),140);
+ const openNovetat=n=>{if(root.gregal?.viewActual?.()!=='vents')root.gregal?.setView?.('vents');return openActivity({wind:n.wind,kind:'news',ref:n.id},'chat');};
+ async function heardNews(list){
+  await refreshSolo();if(!mounted)return;renderNav();
+  if(state.view==='home'&&content){const old=content.querySelector('.vw-start-recent')||content.querySelector('.vw-prompts');if(old&&startRecent())old.replaceWith(content.lastChild);
+   for(const b of content.querySelectorAll('.vw-start-face'))if(!b.querySelector('.vw-news-dot')&&root.gregalWinds.hasNews?.(b.dataset.wind))b.append(el('span','vw-news-dot'));}
+  const winds=new Set(list.map(n=>n.wind));
+  for(const b of [...nav.querySelectorAll('.vw-nav-channel'),...(content?.querySelectorAll('.vw-start-face')||[])])if(winds.has(b.dataset.wind)){b.classList.add('vw-bounce');setTimeout(()=>b.classList.remove('vw-bounce'),1200);}
+  for(const n of list)alertNews(n);
+ }
+ function alertNews(n){
+  const name=state.winds.find(w=>w.id===n.wind)?.name||n.name||'';
+  // A l'escriptori, també amb la finestra visible però darrere d'una altra (com agent-browser.js).
+  if((document.hidden||document.hasFocus?.()===false)&&root.gregalDesktop?.notify){root.gregalDesktop.notify(name,newsText(n)).then(ok=>{if(!ok)toast(n,name);},()=>toast(n,name));return;}
+  if(document.hidden&&root.Notification?.permission==='granted'){const note=new root.Notification(name,{body:newsText(n),tag:n.id});note.onclick=()=>{root.focus?.();note.close();openNovetat(n).catch(fail);};return;}
+  toast(n,name);
+ }
+ function toast(n,name){
+  let box=document.body.querySelector('.vw-toasts');
+  if(!box){box=el('div','vw-toasts');box.setAttribute('role','status');document.body.append(box);}
+  const item=el('div','vw-toast'),w=state.winds.find(w=>w.id===n.wind),close=()=>item.remove();
+  const open=btn('',()=>{close();return openNovetat(n);},'vw-toast-open');if(w)open.append(face(w,null,28));open.append(el('span','',t(name+' t’ha escrit: ',name+' wrote to you: ')+newsText(n)));item.append(open);
+  // El permís del navegador es demana una sola vegada i només si la persona ho tria.
+  if(!root.gregalDesktop&&root.Notification?.permission==='default'&&!localStorage.getItem(askKey)){const ask=btn(t('Avisa’m quan no miri','Notify me when I’m away'),async()=>{localStorage.setItem(askKey,'1');ask.remove();await root.Notification.requestPermission();},'vw-toast-ask');item.append(ask);}
+  item.append(iconOnly('close',t('Tanca','Close'),close,'vw-toast-close'));
+  box.append(item);while(box.children.length>3)box.firstChild.remove();
+  setTimeout(close,12000);
+ }
+
 async function wikiView(){
   heading(t('Wiki dels vents','Winds wiki'),t('Resums que es queden: el que s\'ha parlat, en pàgines.','Summaries that stay: what was talked about, as pages.'));
   const data=await call('/api/winds/wiki');if(!content.isConnected)return;
@@ -1319,7 +1352,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   default:return [who,activityName(event.activity||event.type)];
  }}
  function activityName(value){return ({read:t('Llegint fitxers','Reading files'),write:t('Escrivint fitxers','Writing files'),edit:t('Editant fitxers','Editing files'),patch:t('Editant fitxers','Editing files'),glob:t('Buscant fitxers','Finding files'),grep:t('Cercant al codi','Searching the code'),lsp:t('Analitzant el codi','Analysing the code'),bash:t('Comprovant el projecte','Checking the project'),bash_background:t('Comprovant el projecte','Checking the project'),bash_output:t('Comprovant el projecte','Checking the project'),bash_kill:t('Aturant una comprovació','Stopping a check'),browser:t('Fent servir el navegador','Using the browser'),preview:t('Previsualitzant','Previewing'),read_image:t('Mirant una imatge','Viewing an image'),web_search:t('Cercant fonts','Searching sources'),web_fetch:t('Llegint fonts','Reading sources'),skill:t('Consultant un coneixement','Consulting knowledge'),knowledge_search:t('Consultant un coneixement','Consulting knowledge'),knowledge_note:t('Desant una nota','Saving a note'),notes:t('Fent servir les notes','Using the notes'),todowrite:t('Organitzant els passos','Organising the steps'),todoread:t('Organitzant els passos','Organising the steps'),office_create:t('Treballant en un document','Working on a document'),office_edit:t('Treballant en un document','Working on a document'),office_read:t('Llegint un document','Reading a document'),office_open:t('Obrint un document','Opening a document'),office_render:t('Previsualitzant un document','Previewing a document'),git_commit:t('Desant els canvis a git','Committing changes'),delegate:t('Delegant una part','Delegating a part'),question:t('Preparant una pregunta','Preparing a question'),draft:t('Preparant el lliurable','Preparing the deliverable'),analyze:t('Analitzant','Analysing'),plan:t('Planificant','Planning'),revision:t('Corregint','Revising'),reviewing:t('Revisant una acció','Reviewing an action'),review:t('Revisant el resultat','Reviewing the result'),tool_result:t('Comprovació acabada','Check complete'),working:t('Treballant','Working'),done:t('Enllestit','Complete'),completed:t('Pas completat','Step complete'),started:t('Començant','Starting')})[value]||(/^[\w.:-]+$/.test(value||'')?t('Fent servir una eina','Using a tool'):value);}
- async function load(){mount();root.gregalWinds.watchNews?.();const version=++loadVersion;try{const [winds,squads,chats,tasks,meta]=await Promise.all([call('/api/winds'),call('/api/winds/squads'),call('/api/winds/rotllanes'),call('/api/winds/tasks'),call('/api/winds/meta')]);if(version!==loadVersion)return;root.gregalWinds.setAvatarTheme?.(winds.avatarTheme);state.winds=winds.winds||[];state.squads=squads.squads||[];state.chats=chats.rotllanes||[];state.tasks=tasks.tasks||[];state.meta=meta.meta||{};await Promise.all([refreshProjects(),refreshSolo()]);
+ async function load(){mount();root.gregalWinds.watchNews?.(list=>heardNews(list).catch(fail));const version=++loadVersion;try{const [winds,squads,chats,tasks,meta]=await Promise.all([call('/api/winds'),call('/api/winds/squads'),call('/api/winds/rotllanes'),call('/api/winds/tasks'),call('/api/winds/meta')]);if(version!==loadVersion)return;root.gregalWinds.setAvatarTheme?.(winds.avatarTheme);state.winds=winds.winds||[];state.squads=squads.squads||[];state.chats=chats.rotllanes||[];state.tasks=tasks.tasks||[];state.meta=meta.meta||{};await Promise.all([refreshProjects(),refreshSolo()]);
   if(!state.restoredDraft&&!location.hash){
    state.restoredDraft=true;
    let saved;try{saved=JSON.parse(sessionStorage.getItem(draftKey));}catch{}

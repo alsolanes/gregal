@@ -96,7 +96,7 @@ async function boot({ lang = 'en', api, storage = {}, css = () => '', extra = {}
   const json = data => ({ ok: true, status: 200, json: async () => data, text: async () => JSON.stringify(data) });
   const window = {
     document: doc, gregalNotes: notes, addEventListener() {}, ...extra,
-    gregalWinds: { face: (w, large, mood, size) => { const n = new Element('svg', doc); n.dataset.wind = w?.name || ''; if (size) n.dataset.size = String(size); return n; }, moodOf: () => '', seen() {}, watchNews() {}, setAvatarTheme(theme) { this.theme = theme; },
+    gregalWinds: { face: (w, large, mood, size) => { const n = new Element('svg', doc); n.dataset.wind = w?.name || ''; if (size) n.dataset.size = String(size); return n; }, moodOf: () => '', seen() {}, watchNews(f) { this.onNews = f; }, news: [], hasNews(id) { return this.news.includes(id); }, setAvatarTheme(theme) { this.theme = theme; },
       // winds.js draws the real picker (winds.test.js); here only Free mode gets one.
       avatarField(parent, w) { if (this.theme !== 'free') return null; const s = new Element('select', doc); s.setAttribute('id', 'windAvatar'); s.value = w?.avatar || 'cares'; parent.append(s); return s; } },
     api: async (url, opts = {}) => {
@@ -596,4 +596,86 @@ test('new messages spring in, the waiting bubble breathes and side panes slide i
   }
   assert.match(motion, /\.vw-pending-copy[^{]*\{ animation:vw-bubble /);
   assert.match(motion, /\.vw-computer-pane[^{]*#docsPanel[^{]*\{ animation:vw-pane-in /);
+});
+
+// 099: una novetat que arriba amb Vents obert es nota al moment.
+const ponent = { id: 'n-9', wind: 'xaloc', name: 'Xaloc', text: '# Concerts\nHi ha **jazz** al Born dissabte', ts: 1, message_id: 'm2' };
+async function hear(f, list) { f.window.gregalWinds.news.push(...list.map(n => n.wind)); await f.window.gregalWinds.onNews(list); await settle(); }
+const toasts = f => f.doc.body.querySelectorAll('.vw-toast');
+
+test('a new novetat bounces and badges the wind’s face in the bar and on the start page, refreshes the recents and slides in a toast that opens the message', async () => {
+  let fresh = false;
+  const json = data => ({ ok: true, status: 200, json: async () => data });
+  const history = [{ id: 'm1', from: 'assistant', text: 'Bon dia' }, { id: 'm2', from: 'assistant', text: 'Hi ha jazz al Born dissabte' }];
+  const f = await boot({ api: r => r.url === '/api/winds/threads' && fresh ? json({ threads: [{ wind: 'xaloc', name: 'company-xaloc', title: 'Concerts', at: new Date().toISOString(), msgs: 1 }, ...threads] })
+    : r.url.startsWith('/api/winds/chat?') ? json({ session: 'company-xaloc', history })
+    : r.url === '/api/winds/novetats?id=n-9' ? json({ novetat: ponent }) : null });
+  assert.equal(typeof f.window.gregalWinds.onNews, 'function', 'the page listens to watchNews');
+  assert.equal(toasts(f).length, 0);
+  fresh = true;
+  await hear(f, [ponent]);
+  for (const box of [f.nav, f.page.querySelector('.vw-start-faces')]) {
+    const xaloc = box.querySelectorAll('button').find(b => b.dataset.wind === 'xaloc');
+    assert.ok(xaloc.querySelector('.vw-news-dot'), 'badge on Xaloc');
+    assert.ok(xaloc.classList.contains('vw-bounce'), 'Xaloc bounces');
+    assert.ok(!box.querySelectorAll('button').find(b => b.dataset.wind === 'gregal').querySelector('.vw-news-dot'), 'not on Gregal');
+  }
+  assert.match(f.page.querySelector('.vw-start-recent').textContent, /Concerts/, 'the recents list is fresh');
+  assert.ok(f.nav.querySelectorAll('.vw-thread-solo').some(b => /Concerts/.test(b.textContent)), 'and so is the bar');
+  assert.equal(toasts(f).length, 1);
+  assert.match(toasts(f)[0].textContent, /Xaloc wrote to you: Concerts Hi ha jazz al Born dissabte/);
+  await toasts(f)[0].querySelector('.vw-toast-open').click();
+  await settle();
+  assert.equal(f.page.querySelector('.vw-messages').dataset.thread, 'company-xaloc');
+  assert.match(f.page.querySelector('.vw-message-focus').textContent, /Hi ha jazz/);
+  assert.equal(toasts(f).length, 0, 'the toast goes once opened');
+});
+
+test('the toast speaks Catalan too', async () => {
+  const f = await boot({ lang: 'ca' });
+  await hear(f, [ponent]);
+  assert.match(toasts(f)[0].textContent, /Xaloc t’ha escrit: /);
+});
+
+test('with the tab hidden a novetat is a system notification, not a toast; visible, a toast', async () => {
+  const shown = [];
+  class Notification { constructor(title, opts) { shown.push([title, opts.body]); } close() {} }
+  Notification.permission = 'granted';
+  const f = await boot({ extra: { Notification, focus() {} } });
+  f.doc.hidden = true;
+  await hear(f, [ponent]);
+  assert.deepEqual(shown, [['Xaloc', 'Concerts Hi ha jazz al Born dissabte']]);
+  assert.equal(toasts(f).length, 0);
+  f.doc.hidden = false;
+  await hear(f, [{ ...ponent, id: 'n-10' }]);
+  assert.equal(shown.length, 1);
+  assert.equal(toasts(f).length, 1);
+});
+
+test('on desktop a hidden window uses the app’s native notification', async () => {
+  const sent = [];
+  const f = await boot({ extra: { gregalDesktop: { notify: (title, body) => { sent.push([title, body]); return Promise.resolve(true); } } } });
+  f.doc.hidden = true;
+  await hear(f, [ponent]);
+  assert.deepEqual(sent, [['Xaloc', 'Concerts Hi ha jazz al Born dissabte']]);
+  assert.equal(toasts(f).length, 0);
+});
+
+test('notification permission is asked once, from a button in the toast, never on load', async () => {
+  let asked = 0;
+  class Notification {}
+  Notification.permission = 'default';
+  Notification.requestPermission = async () => { asked++; return 'granted'; };
+  const storage = {};
+  const f = await boot({ storage, extra: { Notification } });
+  assert.equal(asked, 0, 'not on load');
+  await hear(f, [ponent]);
+  const allow = byText(toasts(f)[0], 'button', 'Notify me when I’m away');
+  assert.ok(allow);
+  await allow.click();
+  await settle();
+  assert.equal(asked, 1);
+  assert.ok(!byText(toasts(f)[0], 'button', 'Notify me when I’m away'), 'the button goes');
+  await hear(f, [{ ...ponent, id: 'n-11' }]);
+  assert.ok(!toasts(f).some(n => byText(n, 'button', 'Notify me when I’m away')), 'asked once');
 });

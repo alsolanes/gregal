@@ -255,7 +255,10 @@
   // not opened yet. Such a wind looks up with a speech bubble until its chat is
   // opened; nothing else changes and nothing is invented while it waits.
   const news = new Map(), newsKey = 'gregal.winds.newsSeen';
-  let newsTimer = 0;
+  // `heard` holds what the first poll found (it only shows on the faces) and what
+  // was announced since; `onNews` is the workspace's toast or notification.
+  const heard = new Set();
+  let newsTimer = 0, onNews = null, newsPolled = false;
   function newsSeen() { try { return JSON.parse(root.localStorage?.getItem(newsKey) || '{}'); } catch (_) { return {}; } }
   function saveSeen(seen) { try { root.localStorage?.setItem(newsKey, JSON.stringify(seen)); } catch (_) {} }
   function refreshNews() {
@@ -266,21 +269,29 @@
     }
   }
   async function pollNews() {
-    if (doc.hidden || typeof root.api !== 'function') return;
+    // A hidden tab keeps polling: that is when a system notification is worth it.
+    if (typeof root.api !== 'function') return;
     const seen = newsSeen();
     // First run: only the last day counts, so an old backlog does not wake everyone.
     if (!seen.since) { seen.since = Math.floor(Date.now() / 1000) - 86400; saveSeen(seen); }
     try {
       const response = await root.api('/api/winds/novetats?des_de=' + seen.since);
       if (!response.ok) return;
+      const fresh = [];
       for (const n of (await response.json()).novetats || []) {
         // Read elsewhere (opened on the phone, «Avui»): no bubble here either (B7).
-        if (n.wind && !n.read && n.ts > (seen[n.wind] || seen.since)) news.set(n.wind, Math.max(n.ts, news.get(n.wind) || 0));
+        if (!n.wind || n.read || n.ts <= (seen[n.wind] || seen.since)) continue;
+        news.set(n.wind, Math.max(n.ts, news.get(n.wind) || 0));
+        const key = n.id || n.wind + ':' + n.ts;
+        if (!heard.has(key)) { heard.add(key); fresh.push(n); }
       }
       refreshNews();
+      if (newsPolled && fresh.length) onNews?.(fresh);
+      newsPolled = true;
     } catch (_) {}
   }
-  function watchNews() {
+  function watchNews(listener) {
+    if (listener) onNews = listener;
     if (newsTimer) return;
     newsTimer = root.setInterval?.(pollNews, 60000) || 1;
     pollNews();
@@ -1177,6 +1188,6 @@
     return startingCrew;
   }};
   // The person's avatar in the sidebar foot (user-avatar.js) wears these too.
-  root.gregalWinds={palette:presetDefaults.map(p => ({name:p.name, color:p.color})), inkOn, face, create:windGallery, mood:setMood, moodOf, watchNews, seen:seenNews, messageFromHash, direction, mapStart, mapStep, setAvatarTheme, avatarTheme:() => theme, avatarField, avatarPrefs};
+  root.gregalWinds={palette:presetDefaults.map(p => ({name:p.name, color:p.color})), inkOn, face, create:windGallery, mood:setMood, moodOf, watchNews, hasNews:id => news.has(id), seen:seenNews, messageFromHash, direction, mapStart, mapStep, setAvatarTheme, avatarTheme:() => theme, avatarField, avatarPrefs};
   root.loadWindsPage = function () { bind(); return load(); };
 })(window);
