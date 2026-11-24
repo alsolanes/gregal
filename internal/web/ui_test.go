@@ -127,3 +127,27 @@ func TestLaFinestraTeHistorialDEntrada(t *testing.T) {
 		}
 	}
 }
+
+// La pàgina del navegador (el <webview> a l'escriptori, l'<iframe> a la web)
+// feia height:100% d'un marc sense alçada definida i es quedava als 300 px
+// del min-height: la resta del marc, buida. Ara s'hi enganxa per les quatre
+// vores, i el text d'abans de navegar queda per sobre.
+func TestLaPaginaDelNavegadorOmpleElMarc(t *testing.T) {
+	html := string(indexHTML)
+	regla := func(sel string) string {
+		i := strings.Index(html, "\n"+sel+" {")
+		if i < 0 {
+			t.Fatalf("no trobo la regla %s", sel)
+		}
+		return html[i : i+strings.Index(html[i:], "}")]
+	}
+	vista := regla("#browserView, #browserFrame")
+	for _, want := range []string{"position:absolute", "inset:0"} {
+		if !strings.Contains(vista, want) {
+			t.Errorf("#browserView, #browserFrame sense %s: %s", want, vista)
+		}
+	}
+	if !strings.Contains(regla(".browser-empty"), "z-index:") {
+		t.Error(".browser-empty ha de quedar per sobre de la pàgina")
+	}
+}
