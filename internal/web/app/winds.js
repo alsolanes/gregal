@@ -284,10 +284,11 @@
   function newsSeen() { try { return JSON.parse(root.localStorage?.getItem(newsKey) || '{}'); } catch (_) { return {}; } }
   function saveSeen(seen) { try { root.localStorage?.setItem(newsKey, JSON.stringify(seen)); } catch (_) {} }
   function refreshNews() {
-    for (const svg of doc.querySelectorAll?.('svg.winds-face[data-wind]') || []) {
-      const id = svg.getAttribute('data-wind'), mood = svg.getAttribute('data-mood');
-      if (news.has(id) && mood === 'idle') setMood(svg, 'news');
-      else if (!news.has(id) && mood === 'news') setMood(svg, 'idle');
+    // A clay face (characters.js) changes through its player.
+    for (const svg of doc.querySelectorAll?.('svg.winds-face[data-wind], canvas.winds-face[data-wind]') || []) {
+      const id = svg.getAttribute('data-wind'), mood = svg.getAttribute('data-mood'), change = svg.tagName === 'CANVAS' ? root.gregalCharacters.mood : setMood;
+      if (news.has(id) && mood === 'idle') change(svg, 'news');
+      else if (!news.has(id) && mood === 'news') change(svg, 'idle');
     }
   }
   async function pollNews() {

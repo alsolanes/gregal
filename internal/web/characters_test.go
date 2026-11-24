@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"io/fs"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -47,6 +49,29 @@ func TestCharactersManifestMatchesSheets(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// La web els demana a /app/: el reproductor (characters.js), el manifest i
+// els fulls, amb un tipus que el navegador accepti.
+func TestCharactersServedToTheWeb(t *testing.T) {
+	mux := goalTestServer(t).Hub().mux()
+	for path, contentType := range map[string]string{
+		"/app/characters.js":                  "text/javascript",
+		"/app/characters/manifest.json":       "application/json",
+		"/app/characters/pebble/idle.webp":    "image/webp",
+		"/app/characters/curl/done.mask.webp": "image/webp",
+	} {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		if rec.Code != http.StatusOK || !strings.HasPrefix(rec.Header().Get("Content-Type"), contentType) || rec.Body.Len() == 0 {
+			t.Errorf("%s: status=%d type=%q bytes=%d", path, rec.Code, rec.Header().Get("Content-Type"), rec.Body.Len())
+		}
+	}
+	page := httptest.NewRecorder()
+	mux.ServeHTTP(page, httptest.NewRequest(http.MethodGet, "/vents/", nil))
+	if !strings.Contains(page.Body.String(), `src="/app/characters.js?fgv=`) {
+		t.Error("la pàgina no carrega characters.js")
 	}
 }
 

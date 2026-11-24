@@ -151,6 +151,22 @@ test('a proactive voice marks its wind until its chat is opened', async () => {
   assert.ok(JSON.parse(store['gregal.winds.newsSeen']).marinada >= ts);
 });
 
+// 113: a clay face on the page (characters.js) follows the news like a drawn one.
+test('news reaches the clay faces already on the page, and leaves them when read', async () => {
+  const ts = Math.floor(Date.now() / 1000), store = {}, moods = [];
+  const api = async () => ({ ok:true, json:async () => ({ novetats:[{ ts, wind:'marinada', name:'Marinada', source:'remind', text:'Beu aigua' }] }) });
+  const clay = Object.assign(new El('canvas'), { tagName:'CANVAS' });
+  clay.setAttribute('class', 'winds-face winds-face-large winds-clay'); clay.setAttribute('data-wind', 'marinada'); clay.setAttribute('data-mood', 'idle');
+  const gregalCharacters = { mood(el, mood) { moods.push(mood); el.setAttribute('data-mood', mood); return el; } };
+  const document = { createElementNS:(_, tag) => new El(tag), createElement:tag => new El(tag), querySelectorAll:() => [clay] };
+  const { winds } = load({ api, gregalCharacters, document, localStorage:{ getItem:k => store[k] ?? null, setItem:(k, v) => { store[k] = v; } } });
+  winds.watchNews();
+  for (let i = 0; i < 5; i++) await new Promise(r => setImmediate(r));
+  assert.deepEqual(moods, ['news']);
+  winds.seen('marinada');
+  assert.deepEqual(moods, ['news', 'idle']);
+});
+
 // Esperit de vent: the face with two wind tails. Android's WindFace mirrors
 // the table and the hash, so these literal directions are the contract.
 test('the wind direction comes from the wind rose by name, or from a stable hash of the id', () => {
