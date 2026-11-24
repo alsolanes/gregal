@@ -658,6 +658,10 @@ a.saved-title:hover { text-decoration:underline; }
 .saved-img { width:100%; max-height:220px; object-fit:cover; border-radius:10px; display:block; }
 .saved-chart { grid-column:1/-1; }
 .saved-card.saved-chart { grid-column:1/-1; }
+/* Prestatge d'un vent (vents-shelf.js): les targetes entren una darrere l'altra. */
+.shelf-card { animation:shelf-in .32s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes shelf-in { from { opacity:0; transform:translateY(6px) scale(.98); } }
+@media (prefers-reduced-motion:reduce) { .shelf-card { animation:none; } }
 .vw-saved { margin-top:8px; }
 .auto-line { color:var(--ink); margin:4px 0; }
 .auto-status { min-height:1.2em; color:var(--muted); font-size:13px; }
@@ -5014,6 +5018,7 @@ refresh();
 </script>
 <script type="module" src="/app/plots.js"></script>
 <script type="module" src="/app/vents-automations.js"></script>
+<script type="module" src="/app/vents-shelf.js"></script>
 <script type="module" src="/app/vents-responsabilitats.js"></script>
 <!--product:end-->
 <script type="module" src="/app/gitflow.js"></script>

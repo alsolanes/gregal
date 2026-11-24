@@ -462,22 +462,31 @@ func docWriteErr(w http.ResponseWriter, err error) bool {
 // «Document <id> · …» (agent/doc_tool.go).
 var docToolOut = regexp.MustCompile(`^(?:Created document|Document) ([a-z0-9]+) `)
 
+// docChangedID és el document que una crida a doc ha creat o canviat, o ""
+// si la crida només l'ha llegit.
+func docChangedID(argsJSON, out string) string {
+	var a struct{ Action string }
+	if json.Unmarshal([]byte(argsJSON), &a) != nil {
+		return ""
+	}
+	switch strings.ToLower(strings.TrimSpace(a.Action)) {
+	case "create", "insert", "replace", "set_cells", "delete":
+	default:
+		return ""
+	}
+	if m := docToolOut.FindStringSubmatch(out); m != nil {
+		return m[1]
+	}
+	return ""
+}
+
 // emitDocChanged avisa la sessió que l'agent ha creat o canviat un
 // document de root, perquè la web l'obri al panell lateral. scope, si no
 // és buit, és el que el client ha de passar a les rutes (mine: els dels
 // vents).
 func (s *Server) emitDocChanged(emit func(string, any), root, scope, argsJSON, out string) {
-	var a struct{ Action string }
-	if json.Unmarshal([]byte(argsJSON), &a) != nil {
-		return
-	}
-	switch strings.ToLower(strings.TrimSpace(a.Action)) {
-	case "create", "insert", "replace", "set_cells", "delete":
-	default:
-		return
-	}
-	m := docToolOut.FindStringSubmatch(out)
-	if m == nil {
+	id := docChangedID(argsJSON, out)
+	if id == "" {
 		return
 	}
 	open := gdocs.Open
@@ -488,7 +497,7 @@ func (s *Server) emitDocChanged(emit func(string, any), root, scope, argsJSON, o
 	if err != nil {
 		return
 	}
-	if d, err := st.Get(m[1]); err == nil {
+	if d, err := st.Get(id); err == nil {
 		ev := map[string]string{"id": d.ID, "title": d.Title}
 		if scope != "" {
 			ev["scope"] = scope
