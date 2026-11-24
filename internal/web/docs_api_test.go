@@ -65,6 +65,20 @@ func TestDocExportPptx(t *testing.T) {
 	}
 }
 
+// Una presentació acabada de fer, sense cap diapositiva, també es baixa.
+func TestDocExportDeckBuit(t *testing.T) {
+	s := backlogServer(t)
+	st, _ := gdocs.Open(s.cwd)
+	d, _ := st.CreateDeck("Buida")
+	rec := docExportAs(s, d.ID, "pptx")
+	if rec.Code != 200 {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+	if _, err := ooxml.OpenBytes(rec.Body.Bytes()); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestDocExportNomesEnElFormatDelTipus(t *testing.T) {
 	s := backlogServer(t)
 	st, _ := gdocs.Open(s.cwd)
