@@ -21,3 +21,4 @@ Same as 132 on Android (Android has no pati: faces row only).
 
 - Files: Vents home screen, WindFace.kt.
 - Design review of 2026-11-24 (screenshots in output/ui-review/design-review/, not committed; principles: Dots - one named character, paced permissions, see its computer, recent activity; Claude Duet - polish, task cards that open in place, swipe cards, daily brief; Grok companions - the character reacts with its body; shared - the character is the protagonist, one colour per character, short motion tied to events). Person asked: «revisa que tot estigui amb sentit, i afegeix millores estètiques basades en els referents».
+- From 124's audit: each tap on a wind on the Android home opens a new empty session; tapping should resume the wind's latest thread (or the wind's main chat). Fix with a test.

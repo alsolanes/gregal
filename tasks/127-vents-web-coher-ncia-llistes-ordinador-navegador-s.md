@@ -24,3 +24,4 @@ Small things that make Vents feel unfinished or contradictory.
 
 - Files: winds-workspace.js/.css, vents-avui-glance.js, i18n.js (ca+en), index.html (no hard-coded hex: identitat test).
 - Design review of 2026-11-24 (screenshots in output/ui-review/design-review/, not committed; principles: Dots - one named character, paced permissions, see its computer, recent activity; Claude Duet - polish, task cards that open in place, swipe cards, daily brief; Grok companions - the character reacts with its body; shared - the character is the protagonist, one colour per character, short motion tied to events). Person asked: «revisa que tot estigui amb sentit, i afegeix millores estètiques basades en els referents».
+- Also from 126's notes: the computer pane still opens on its own after the person closed the pane in that chat, and switching chats leaves the pane open so the other chat's toggle shows pressed; fix both with a node test each.

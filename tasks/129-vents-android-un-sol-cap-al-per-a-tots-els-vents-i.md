@@ -22,3 +22,4 @@ Same as 128 on Android: one header for every wind, and the wind reacts with its 
 
 - Files: CompanyScreen.kt, VentsChatChrome.kt, WindFace.kt; strings in AppStrings.kt by hand.
 - Design review of 2026-11-24 (screenshots in output/ui-review/design-review/, not committed; principles: Dots - one named character, paced permissions, see its computer, recent activity; Claude Duet - polish, task cards that open in place, swipe cards, daily brief; Grok companions - the character reacts with its body; shared - the character is the protagonist, one colour per character, short motion tied to events). Person asked: «revisa que tot estigui amb sentit, i afegeix millores estètiques basades en els referents».
+- From 124's audit: the doc editor toolbar stays Catalan when the app is in English (doc-page.js + Android bridge); fix here or note.
