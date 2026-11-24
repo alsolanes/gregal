@@ -27,10 +27,10 @@ import (
 // m'interessa») i les hores tranquil·les guarden les veus per al matí en lloc
 // de fer sonar el mòbil.
 //
-//	GET  /api/winds/avui                     → {date, now, fyi, ahead, done, settings, held}
+//	GET  /api/winds/avui                     → {date, now, fyi, ahead, done, settings, held, glance}
 //	POST /api/winds/avui {id, action}        → done|later|dismiss|useful|notuseful|reopen|save
-//	GET  /api/winds/avui/settings            → {quiet_from, quiet_to, level, tune}
-//	POST /api/winds/avui/settings {…}        → desa i torna la configuració
+//	GET  /api/winds/avui/settings            → {quiet_from, quiet_to, level, tune, place, follows}
+//	POST /api/winds/avui/settings {…}        → desa i torna la configuració (follow, unfollow)
 
 const (
 	avuiFile         = "winds-avui.json"
@@ -81,14 +81,21 @@ type avuiSettings struct {
 	Level string `json:"level"`
 	// Tune: el que vols que el resum de demà (i els següents) tingui en compte.
 	Tune string `json:"tune,omitempty"`
+	// Place: la ciutat del temps d'«Avui» d'una ullada (winds_avui_glance.go).
+	Place string `json:"place"`
+	// Follows: el que la persona segueix (winds_avui_follows.go).
+	Follows []avuiFollow `json:"follows"`
 }
 
 // avuiSettingsReq: el que arriba per canviar-la (Tune nil = no el toquis).
 type avuiSettingsReq struct {
-	QuietFrom string  `json:"quiet_from"`
-	QuietTo   string  `json:"quiet_to"`
-	Level     string  `json:"level"`
-	Tune      *string `json:"tune"`
+	QuietFrom string      `json:"quiet_from"`
+	QuietTo   string      `json:"quiet_to"`
+	Level     string      `json:"level"`
+	Tune      *string     `json:"tune"`
+	Place     *string     `json:"place"`
+	Follow    *avuiFollow `json:"follow"`
+	Unfollow  string      `json:"unfollow"`
 }
 
 // avuiMu protegeix avui.json també entre processos (crosslock.go).
@@ -138,7 +145,19 @@ func (s *Server) avuiSettings() avuiSettings {
 	if st.Level != "calm" {
 		st.Level = "normal"
 	}
+	if st.Follows == nil {
+		st.Follows = []avuiFollow{}
+	}
 	return st
+}
+
+func (s *Server) saveAvuiSettings(st avuiSettings) error {
+	raw, err := json.Marshal(st)
+	if err != nil {
+		return err
+	}
+	_ = os.MkdirAll(filepath.Dir(avuiSettingsPath(s)), 0o700)
+	return os.WriteFile(avuiSettingsPath(s), raw, 0o600)
 }
 
 func avuiID() string {
@@ -443,7 +462,9 @@ func (s *Server) avuiView() map[string]any {
 func (s *Server) handleWindsAvui(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		writeJSON(w, s.avuiView())
+		v := s.avuiView()
+		v["glance"] = s.avuiGlance()
+		writeJSON(w, v)
 	case http.MethodPost:
 		var req struct {
 			ID     string `json:"id"`
@@ -538,9 +559,18 @@ func (s *Server) handleWindsAvuiSettings(w http.ResponseWriter, r *http.Request)
 		if req.Tune != nil {
 			st.Tune = oneLine(*req.Tune, 600)
 		}
-		raw, _ := json.Marshal(st)
-		_ = os.MkdirAll(filepath.Dir(avuiSettingsPath(s)), 0o700)
-		if err := os.WriteFile(avuiSettingsPath(s), raw, 0o600); err != nil {
+		if req.Place != nil {
+			st.Place = oneLine(*req.Place, 120)
+		}
+		if err := s.applyFollowReq(&st, req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := s.saveAvuiSettings(st); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := s.syncFollowJobs(st); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
