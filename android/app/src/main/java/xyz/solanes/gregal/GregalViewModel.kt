@@ -1132,6 +1132,35 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** On ets, per al temps de dalt d'«Avui». */
+    fun setAvuiPlace(place: String) = avuiGlanceChange({ it }) { it.avuiPlace(place.trim()) }
+
+    fun avuiFollow(kind: String, name: String) = avuiGlanceChange({ it }) { it.avuiFollow(kind, name.trim()) }
+
+    /** Deixa de seguir: la targeta marxa al moment i torna si el servidor no ho accepta. */
+    fun avuiUnfollow(id: String) = avuiGlanceChange({ v ->
+        v.copy(settings = v.settings.copy(follows = v.settings.follows.filterNot { it.id == id }),
+            glance = v.glance.copy(follows = v.glance.follows.filterNot { it.id == id }))
+    }) { it.avuiUnfollow(id) }
+
+    /** Desa el canvi i torna a llegir la safata: la ullada nova (el temps del lloc, el que segueixes) la fa el servidor. */
+    private fun avuiGlanceChange(optimistic: (AvuiView) -> AvuiView, call: (GregalApi) -> AvuiSettings) {
+        val c = _conn.value
+        val before = _avui.value
+        if (before != null) _avui.value = optimistic(before)
+        viewModelScope.launch {
+            try {
+                val saved = withContext(Dispatchers.IO) { call(c.api()) }
+                if (_conn.value != c) return@launch
+                _avui.value?.let { _avui.value = it.copy(settings = saved) }
+                loadAvui()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                if (_conn.value == c && before != null) _avui.value = before
+            }
+        }
+    }
+
     // --- «A prop teu» (VentsLocal.kt) ---
     private val _local = MutableStateFlow<LocalInfo?>(null)
     val local: StateFlow<LocalInfo?> = _local.asStateFlow()

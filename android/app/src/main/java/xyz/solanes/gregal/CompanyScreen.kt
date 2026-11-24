@@ -501,6 +501,9 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                         WeatherCard(lang, forecast, Color(ww.argb), compact = true) { vm.openVentsChat("wind:" + ww.id) }
                     }) else null,
                     local = { LocalInfoSection(vm, lang) },
+                    onFollow = { kind, name -> vm.avuiFollow(kind, name) },
+                    onUnfollow = { vm.avuiUnfollow(it) },
+                    onPlace = { vm.setAvuiPlace(it) },
                 )
             } else LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(bottom = 24.dp)) {
                 if (manage) {
