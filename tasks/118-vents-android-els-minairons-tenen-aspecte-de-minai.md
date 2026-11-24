@@ -1,6 +1,6 @@
 ---
 title: Vents Android: els minairons tenen aspecte de minairó
-status: blocked
+status: done
 depends_on: []
 ---
 
@@ -12,7 +12,7 @@ When the person calls their helpers «minairons», the helpers should look like 
 
 - [x] A new avatar pack «minairó»: a small round body in the wind's colour, a long soft white beard covering the lower face, a red barretina (Catalan cap: red tube folded to one side with a darker band), the same big expressive eyes and lids as the 110 redesign peeking above the beard, tiny feet; per-wind variety from the style/id (beard length, barretina fold side, a small accessory: a boxwood needle case, a sprig of yellow St John's wort, a tiny pebble). Readable at 24–28 px (barretina + beard silhouette), clay-like volume like 110. Android Canvas pack in `WindFace.kt` matching 117 (read its notes if it lands first); Robolectric frames small and large, dark and light, in `output/ui-review/118/`.
 - [x] Every mood works with the same extra character (barretina bobs, beard sways, jump on done). A unit test that each mood draws differently and motion off keeps it still.
-- [ ] Offered in the avatar picker (PrefsScreen, 096) and the default when the collective is minairons (`VentsCollective.kt`) unless another pack was chosen. A test.
+- [x] Offered in the avatar picker (PrefsScreen, 096) and the default when the collective is minairons (`VentsCollective.kt`) unless another pack was chosen. A test.
 - [x] Strings in Catalan and English.
 
 ## Out of scope
@@ -31,3 +31,4 @@ When the person calls their helpers «minairons», the helpers should look like 
 - Frames: GREGAL_UI_REVIEW=output/ui-review/118/rN with WindMinairoTest; r1 (cap looked like a baseball cap, beard strands looked like teeth), r2 (tube + hanging tip, wool beard; tip flew off while working and on the hop), r3 (tapered crown, crease, clamped tip, longer small beards).
 - 117 had no commits when this was done; match the web's look (colours, fold rule, `minairoLook` hash) when it lands.
 - Follow-up: comparing two faces drawn at different positions is unreliable on Robolectric NATIVE graphics (gradient dithering depends on device position); WindMinairoTest compares at one spot.
+- Unblocked on 2026-11-24 by task 117's server change: `minairo` is a valid pack and GET /api/winds returns it as the default for minairons when no theme was saved, so Android draws it by applying the server's theme. Follow-up: the Android design was made before 117 landed; align its fold rule (web: by wind direction) and proportions with the web.
