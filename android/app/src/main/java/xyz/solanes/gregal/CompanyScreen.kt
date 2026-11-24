@@ -1362,8 +1362,9 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                 )
             }
         }
-        // Mentre Gregal fa servir el seu ordinador, la miniatura en directe a sobre del camp.
-        if (wind.id == "gregal") GregalWorkStrip(chatConn, lang, accent, working = isBusy || resuming.contains(wind.id)) { computerOpen = true }
+        // Mentre el vent fa servir l'ordinador o escriu un document, la seva feina a sobre del camp.
+        GregalWorkStrip(chatConn, lang, accent, working = isBusy || resuming.contains(wind.id), doc = turnDoc(msgs),
+            onOpen = { computerOpen = true }, onDoc = { vm.openDoc(it) })
         // Conversa per veu: escolta, envia, llegeix la resposta i torna a escoltar.
         val lastReply = msgs.lastOrNull { it.from != "user" && it.kind != "memory" && !it.streaming }
         val replyKey = lastReply?.let { "${it.ts}:${it.text.hashCode()}" }.orEmpty()

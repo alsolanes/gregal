@@ -174,7 +174,7 @@ private fun kindTint(kind: String): Color {
 
 /** La icona del tipus dins d'un quadrat arrodonit del seu to. */
 @Composable
-private fun KindBadge(kind: String, size: Dp = 40.dp) {
+internal fun KindBadge(kind: String, size: Dp = 40.dp) {
     val tint = kindTint(kind)
     Box(Modifier.size(size).background(tint.copy(alpha = 0.16f), RoundedCornerShape(size * 0.3f)), contentAlignment = Alignment.Center) {
         Icon(kindIcon(kind), null, tint = tint, modifier = Modifier.size(size * 0.55f))
