@@ -375,7 +375,7 @@ func (s *Server) windDelegate(parent context.Context, wind companion.Wind, task 
 	reply += s.windDocLinks(start, reply)
 	reply += s.windWebCards(start, reply)
 	history = append(history,
-		llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()},
+		llm.Message{Role: "user", Content: handoffShown(s.cfg.Lang(), task), Ts: time.Now().Unix()},
 		llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix()})
 	hist.mu.Lock()
 	if hist.gen == gen {
@@ -396,4 +396,13 @@ func (s *Server) windDelegate(parent context.Context, wind companion.Wind, task 
 // agentSkills posa els coneixements del vent al context del torn.
 func agentSkills(ctx context.Context, s *Server, windID string) context.Context {
 	return agent.WithSkillsDirs(ctx, s.windSkillsDir(windID))
+}
+
+// handoffShown és l'encàrrec tal com es desa al xat del vent (i en fa el títol):
+// qui l'encarrega i què, sense l'etiqueta en anglès que només llegeix el model.
+func handoffShown(lang, task string) string {
+	if lang == "ca" {
+		return "Encàrrec de Gregal: " + task
+	}
+	return "Task from Gregal: " + task
 }

@@ -306,6 +306,13 @@ func TestWindToolAskTriaIDesa(t *testing.T) {
 	if n != 2 {
 		t.Fatalf("la conversa del vent ha de tenir l'encàrrec i la resposta: %d", n)
 	}
+	// El que es desa al xat (i en fa el títol) és llegible: qui l'encarrega i què, sense l'etiqueta per al model.
+	h.mu.Lock()
+	shown := h.messages[0].Content
+	h.mu.Unlock()
+	if strings.Contains(shown, "handed over") || !strings.Contains(shown, "Fes un joc web de la serp") || !strings.Contains(shown, "Gregal") {
+		t.Fatalf("l'encàrrec al xat del vent: %q", shown)
+	}
 	if _, err := s.runWindTool(context.Background(), `{"action":"ask","task":"calcula la integral de x"}`); err == nil {
 		t.Fatal("sense especialista ha de dir-ho, no triar-ne un a l'atzar")
 	}
