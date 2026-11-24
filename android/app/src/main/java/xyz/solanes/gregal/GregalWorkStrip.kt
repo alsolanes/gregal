@@ -1,5 +1,7 @@
 package xyz.solanes.gregal
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -63,8 +66,15 @@ internal fun GregalWorkStrip(conn: Conn, lang: String, accent: Color, working: B
 internal fun WindWorkCard(lang: String, accent: Color, shot: OrdinadorLive?, doc: DocRef?, onComputer: () -> Unit, onDoc: (DocRef) -> Unit) {
     val s = shot?.takeIf { it.live }
     if (s == null && doc == null) return
+    // Entra pujant des del camp, amb molla; la capa la mou sense tornar-la a mesurar.
+    val rise = if (windMotionEnabled()) remember { Animatable(0f) } else null
+    if (rise != null) LaunchedEffect(rise) { rise.animateTo(1f, spring(dampingRatio = .75f, stiffness = 500f)) }
     val shape = RoundedCornerShape(16.dp)
-    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp).clip(shape).background(Superficie)
+    Column(Modifier.fillMaxWidth().graphicsLayer {
+        val p = rise?.value ?: 1f
+        translationY = (1f - p) * 28.dp.toPx()
+        alpha = p.coerceIn(0f, 1f)
+    }.padding(horizontal = 12.dp, vertical = 4.dp).clip(shape).background(Superficie)
         .border(1.dp, Line, shape).testTag("wind-work-card")) {
         if (s != null) {
             val bmp = remember(s.image) { s.image?.let { runCatching { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() } }

@@ -1250,6 +1250,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     val chatState = windChatState(wind.id, busy, asks, done, failed = msgs.lastOrNull()?.kind == "error")
     // El vent present a la cantonada; amb el fil buit ja hi ha la cara gran de benvinguda.
     val present = msgs.isNotEmpty()
+    // Un torn que acaba malament: la cara s'arronsa (FAILED) en lloc de celebrar-ho (DONE).
+    val turnMood = if (done && msgs.lastOrNull()?.kind == "error") WindMood.FAILED else windPresenceMood(chatState, live[wind.id]?.mood)
     Box(Modifier.fillMaxSize().background(wash)) {
         Column(Modifier.fillMaxSize()) {
         // La capçalera diu qui és; «què està fent» es diu al final del fil.
@@ -1298,7 +1300,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     if (idx == newFrom) ThreadDivider(threadCopy(lang, "new"), accent = true)
                     if (m.kind == "guest" && m.speakerName.isNotBlank()) GuestJoinsLine(lang, m.speakerName)
                     val cap = rememberBubbleCapture()
-                    BubbleIn("dm#$idx", animate = idx >= liveFrom) {
+                    BubbleIn("dm#$idx", animate = idx >= liveFrom, mine = m.from == "user") {
                         Box(if (m.from != "user") cap.modifier else Modifier) {
                         WindBubble(m, accent, lang = lang, tint = wash,
                             onCopy = {
@@ -1355,8 +1357,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         }
         }
         // A l'esquerra, on parla el vent; la dreta és per a «Últims».
-        if (present) WindFace(size = WindPresenceSize, mood = windPresenceMood(chatState, live[wind.id]?.mood),
-            accent = accent, style = wind.faceStyle, showKit = true,
+        if (present) WindFace(size = WindPresenceSize, mood = turnMood,
+            accent = accent, style = wind.faceStyle, showKit = true, tappable = true,
             modifier = Modifier.align(Alignment.BottomStart).padding(start = 6.dp).testTag("wind-presence"))
         if (follow.behind) LatestPill(lang) {
             scope.launch { listState.scrollToLatest() }
@@ -1416,7 +1418,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         // La capçalera flota: el fil passa per sota de les pastilles.
         VentsChatHeader(lang, wind.name, chatState?.let { tr(lang, it) }.orEmpty(),
             accent, wind.faceStyle,
-            if (isBusy) live[wind.id]?.mood ?: WindMood.THINKING else WindMood.IDLE,
+            if (isBusy) live[wind.id]?.mood ?: WindMood.THINKING else turnMood.takeIf { it == WindMood.DONE || it == WindMood.FAILED } ?: WindMood.IDLE,
             onBack = onBack, onProfile = { profile = true },
             onWiki = onWiki,
             onSessions = { sessionsOpen = true; vm.loadWindSessions(wind.id) },
@@ -1909,17 +1911,18 @@ internal fun windStarters(lang: String, specialty: String): List<String> {
 }
 
 /**
- * Entrada d'una bombolla nova: només fos (sense lliscar), perquè l'ítem
- * ocupa l'alçada des del primer fotograma i l'auto-scroll no es desquadra.
+ * Entrada d'una bombolla nova: fos i una molla d'escala des de la cantonada
+ * de qui parla (sense lliscar), perquè l'ítem ocupa l'alçada des del primer
+ * fotograma i l'auto-scroll no es desquadra; l'escala és a la capa.
  * La clau és estable per posició (NO pel text): si no, cada token del
  * streaming la reiniciava i la bombolla parpellejava.
  */
 @Composable
-private fun BubbleIn(key: String, animate: Boolean = true, content: @Composable () -> Unit) {
+private fun BubbleIn(key: String, animate: Boolean = true, mine: Boolean = false, content: @Composable () -> Unit) {
     // Només anima els missatges nous en directe: en obrir el xat tot
     // apareix de cop (si no, cada bombolla fa fade una per una i es veu
     // lent i lleig mentre la llista es posiciona).
-    if (!LocalWindMotion.current || !animate) {
+    if (!windMotionEnabled() || !animate) {
         content()
         return
     }
@@ -1927,7 +1930,9 @@ private fun BubbleIn(key: String, animate: Boolean = true, content: @Composable 
     LaunchedEffect(key) { shown = true }
     AnimatedVisibility(
         visible = shown,
-        enter = fadeIn(animationSpec = tween(220)),
+        enter = fadeIn(animationSpec = tween(200)) + androidx.compose.animation.scaleIn(
+            androidx.compose.animation.core.spring(dampingRatio = .62f, stiffness = 900f), initialScale = .86f,
+            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(if (mine) 1f else 0f, 1f)),
     ) { content() }
 }
 @OptIn(ExperimentalFoundationApi::class)
