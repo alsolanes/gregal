@@ -646,7 +646,7 @@ internal fun windFaceBitmap(wind: Wind, theme: String, px: Int = 128): android.g
     CanvasDrawScope().draw(Density(1f), LayoutDirection.Ltr, androidx.compose.ui.graphics.Canvas(image), Size(px.toFloat(), px.toFloat())) {
         with(WindFigure) {
             draw(0f, 48, WindMood.IDLE, accent, style, minairo, false, false, { windPose(WindMood.IDLE, 0f) }, emptyList(), 0f, Offset.Zero,
-                null, null, null, minairoLook(style.windId), WindBodyPaint(if (minairo) WindShape.BALL else style.shape, accent))
+                null, null, null, minairoLook(style, accent), WindBodyPaint(if (minairo) WindShape.BALL else style.shape, accent))
         }
     }
     return image.asAndroidBitmap()
