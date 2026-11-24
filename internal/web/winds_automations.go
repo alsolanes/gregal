@@ -72,7 +72,7 @@ func automationWind(j jobs.Job) string {
 // una automatització d'un vent d'aquest compte.
 func (s *Server) automationOf(j jobs.Job, winds map[string]companion.Wind, allWinds bool, now time.Time) (AutomationItem, bool) {
 	wid := automationWind(j)
-	if wid == "" || (j.Wind != "" && !s.canSeeWindRoutine(j)) {
+	if wid == "" || !s.canSeeWindJob(j) {
 		return AutomationItem{}, false
 	}
 	w, ok := winds[wid]

@@ -184,3 +184,44 @@ func TestActivityLimitAndBadBefore(t *testing.T) {
 		}
 	}
 }
+
+// seedLegacyHeart deixa el cor wind-<id> com el desava l'app antiga: sense
+// Wind ni WindOwner, amb un batec fet. Amb dos comptes que tenen un vent amb
+// aquest id, no se sap de qui és.
+func seedLegacyHeart(t *testing.T, s *Server, windID string) {
+	t.Helper()
+	last, next := time.Now().Add(-time.Hour), time.Now().Add(time.Hour)
+	if _, err := s.jobs.Save(jobs.Job{ID: WindJobID(windID), Name: "Cor", Prompt: "vigila", Kind: "event", Enabled: true,
+		LastAt: &last, LastStatus: "ok", NextAt: &next}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.jobs.AddRun(jobs.Run{ID: "run-cor-antic", JobID: WindJobID(windID), Status: "ok", Output: "Ha nevat",
+		StartedAt: last.Add(-time.Minute), FinishedAt: last}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// sameWindTwoAccounts: la Carla també té un Mestral, amb el mateix id que el
+// de l'Aleix.
+func sameWindTwoAccounts(t *testing.T, rig *sharedRig) {
+	t.Helper()
+	w, err := rig.carla.winds.Save(companion.Wind{Name: "Mestral", Role: "mar"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.ID != rig.mestral.ID {
+		t.Fatalf("el test vol el mateix id als dos comptes: %s / %s", w.ID, rig.mestral.ID)
+	}
+}
+
+// Un cor sense amo no surt a l'activitat de cap compte.
+func TestActivityHidesOwnerlessHeartbeatWithAccounts(t *testing.T) {
+	rig := sharedTestRig(t)
+	sameWindTwoAccounts(t, rig)
+	seedLegacyHeart(t, rig.aleix, rig.mestral.ID)
+	for name, s := range map[string]*Server{"aleix": rig.aleix, "carla": rig.carla} {
+		if _, items := activityGet(t, s, ""); len(items) != 0 {
+			t.Fatalf("%s veu un cor sense amo: %s", name, activityKeys(items))
+		}
+	}
+}

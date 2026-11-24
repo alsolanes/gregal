@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"gregal/internal/jobs"
 )
 
 // La programació visible dels vents: què diran i quan (recordatoris), quin
@@ -64,7 +66,7 @@ func (s *Server) handleWindsProgramats(w http.ResponseWriter, r *http.Request) {
 	if s.jobs != nil {
 		list, _ := s.jobs.List()
 		for _, j := range list {
-			if !j.Enabled {
+			if !j.Enabled || !s.canSeeWindJob(j) {
 				continue
 			}
 			switch {
@@ -100,6 +102,9 @@ func (s *Server) handleWindsProgramats(w http.ResponseWriter, r *http.Request) {
 	if s.jobs != nil {
 		runs, _ := s.jobs.Runs("", 200)
 		for _, run := range runs {
+			if !s.canSeeWindJob(jobs.Job{Wind: run.Wind, WindOwner: run.WindOwner}) {
+				continue
+			}
 			wid := ""
 			spoke := false
 			if id, ok := windJobID(run.JobID); ok {
