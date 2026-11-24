@@ -1247,6 +1247,9 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     var wasBusy by remember(wind.id) { mutableStateOf(isBusy) }
     LaunchedEffect(wind.id, isBusy) { if (wasBusy && !isBusy) done = true; if (isBusy) done = false; wasBusy = isBusy }
     val wash = windWash(accent, Superficie)
+    val chatState = windChatState(wind.id, busy, asks, done)
+    // El vent present a la cantonada; amb el fil buit ja hi ha la cara gran de benvinguda.
+    val present = msgs.isNotEmpty()
     Box(Modifier.fillMaxSize().background(wash)) {
         Column(Modifier.fillMaxSize()) {
         // La capçalera diu qui és; «què està fent» es diu al final del fil.
@@ -1260,7 +1263,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         LazyColumn(
             Modifier.fillMaxSize().fadeUnderChatHeader(),
             state = listState,
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = ChatHeaderInset, bottom = 10.dp),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = ChatHeaderInset, bottom = if (present) (WindPresenceSize + 10).dp else 10.dp),
             verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             if (msgs.isEmpty()) {
@@ -1351,6 +1354,10 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             chatReserve(follow)
         }
         }
+        // A l'esquerra, on parla el vent; la dreta és per a «Últims».
+        if (present) WindFace(size = WindPresenceSize, mood = windPresenceMood(chatState, live[wind.id]?.mood),
+            accent = accent, style = wind.faceStyle,
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 6.dp).testTag("wind-presence"))
         if (follow.behind) LatestPill(lang) {
             scope.launch { listState.scrollToLatest() }
         }
@@ -1407,7 +1414,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         }
         }
         // La capçalera flota: el fil passa per sota de les pastilles.
-        VentsChatHeader(lang, wind.name, windChatState(wind.id, busy, asks, done)?.let { tr(lang, it) }.orEmpty(),
+        VentsChatHeader(lang, wind.name, chatState?.let { tr(lang, it) }.orEmpty(),
             accent, wind.faceStyle,
             if (isBusy) live[wind.id]?.mood ?: WindMood.THINKING else WindMood.IDLE,
             onBack = onBack, onProfile = { profile = true },
