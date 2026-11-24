@@ -262,6 +262,16 @@ class UserAvatarTest {
         assertEquals("MP", userInitials("Maria del Mar Puig"))
         assertEquals("À", userInitials("àlex"))
         assertEquals("", userInitials("  "))
+        assertEquals("MP", userInitials("Maria　del Puig"))
         assertEquals("MP", userInitials("Maria Puig"))
+    }
+
+    // Android compila les regex amb ICU, que no accepta (?U) ni UNICODE_CHARACTER_CLASS;
+    // la JVM dels tests sí, i l'app es tancava en obrir-se (UserAvatarRow).
+    @Test fun `no regex in the app uses flags that Android refuses`() {
+        val files = java.io.File("src/main/java").walk().filter { it.extension == "kt" }
+            .filter { f -> f.readLines().any { l -> !l.trimStart().startsWith("//") && ("(?U)" in l || "UNICODE_CHARACTER_CLASS" in l) } }
+            .map { it.name }.toList()
+        assertEquals(emptyList<String>(), files)
     }
 }
