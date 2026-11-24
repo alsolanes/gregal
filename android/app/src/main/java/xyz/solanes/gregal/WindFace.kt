@@ -535,8 +535,13 @@ private fun EsperitFace(size: Int, mood: WindMood, accent: Color, bearing: Int, 
     val seed = remember(accent, bearing) { ((accent.hashCode() * 31 + bearing) and 0xffff) / 65535f * 12f }
     val ink = remember(accent) { windInk(accent) }
     val tone = remember(accent) { lerp(accent, Color(0xFF1B1530), .8f) }
+    // The head is a Cares ball: the same volume, and the same tilt on large faces only.
+    val lean = rememberWindLean(motion && size >= 64)
+    val bodyPaint = remember(accent) { WindBodyPaint(WindShape.BALL, accent) }
     Canvas(modifier.size(size.dp)) {
         val t = loop?.let { (it.value + seed) % 12f } ?: 0f
+        val (tx, ty) = lean.value
+        val paint = if (tx == 0f && ty == 0f) bodyPaint else WindBodyPaint(WindShape.BALL, accent, tx, ty)
         val period = if (busy) .75f else 3f
         val turn = 2f * PI.toFloat() * (t % period) / period
         val sway = if (loop != null) sin(turn) * 5f else 0f
@@ -550,14 +555,14 @@ private fun EsperitFace(size: Int, mood: WindMood, accent: Color, bearing: Int, 
         val py = -1.6f * uy
         val k = min(this.size.width, this.size.height) / 100f
         withTransform({ scale(k, k, Offset.Zero); translate(px * drift, (py - 1.4f) * drift) }) {
+            withTransform({ translate(hx, hy); scale(28f, 28f, Offset.Zero) }) { drawWindShadow(paint) }
             withTransform({ translate(hx, hy); rotate(bearing - 90f + sway, Offset.Zero) }) {
                 val tail = Brush.horizontalGradient(0f to accent, .55f to accent.copy(alpha = .55f), 1f to accent.copy(alpha = 0f),
                     startX = 11.2f, endX = 53.2f)
                 drawPath(esperitTails, tail)
                 drawPath(esperitStreak, tail, style = Stroke(3.2f, cap = StrokeCap.Round))
             }
-            drawCircle(Brush.radialGradient(0f to lerp(accent, Color.White, .5f), .5f to accent, 1f to lerp(accent, Color(0xFF1B1530), .35f),
-                center = Offset(hx - 9f, hy - 11f), radius = 53.2f), 28f, Offset(hx, hy))
+            withTransform({ translate(hx, hy); scale(28f, 28f, Offset.Zero) }) { drawWindVolume(WindShape.BALL, paint) }
             for (side in listOf(-1f, 1f)) {
                 drawOval(Color(0xFFE4577A), Offset(hx + 14f * side - 4.6f, hy + 3.2f), Size(9.2f, 5.6f), alpha = .32f)
                 drawOval(ink, Offset(hx + 8f * side + px - 2.9f, hy - 5.7f + py), Size(5.8f, 7.4f))
@@ -593,8 +598,12 @@ private fun CapFace(size: Int, mood: WindMood, accent: Color, bearing: Int, moti
     val ink = remember(accent) { windInk(accent) }
     val tone = remember(accent) { lerp(accent, Color(0xFF1B1530), .8f) }
     val small = size < 28
+    val lean = rememberWindLean(motion && size >= 64)
+    val bodyPaint = remember(accent) { WindBodyPaint(WindShape.BALL, accent) }
     Canvas(modifier.size(size.dp)) {
         val t = loop?.let { (it.value + seed) % 12f } ?: 0f
+        val (tx, ty) = lean.value
+        val paint = if (tx == 0f && ty == 0f) bodyPaint else WindBodyPaint(WindShape.BALL, accent, tx, ty)
         val period = if (busy) .7f else 1.8f
         val rad = Math.toRadians(bearing.toDouble())
         val ux = sin(rad).toFloat()
@@ -608,8 +617,11 @@ private fun CapFace(size: Int, mood: WindMood, accent: Color, bearing: Int, moti
         // The web's face clips to its box, so the breath ends at the edge.
         clipRect {
             withTransform({ scale(k, k, Offset.Zero) }) {
-                drawOval(Brush.radialGradient(0f to lerp(accent, Color.White, .5f), .5f to accent, 1f to lerp(accent, Color(0xFF1B1530), .35f),
-                    center = Offset(hx - 9f, hy - 11f), radius = 1.9f * r), Offset(hx - r - 1.5f, hy - r), Size(2f * r + 3f, 2f * r))
+                // The head is a ball 1.5 wider than tall, with the volume of Cares.
+                withTransform({ translate(hx, hy); scale(r + 1.5f, r, Offset.Zero) }) {
+                    drawWindShadow(paint)
+                    drawWindVolume(WindShape.BALL, paint)
+                }
                 if (small) drawCircle(ink, 4f, Offset(mx, my)) else {
                     for (side in listOf(-1f, 1f)) drawCircle(Color(0xFFE4577A), 6.5f, Offset(hx + 13f * side, hy + 5f), alpha = .38f)
                     val eyes = Path().apply {
@@ -659,13 +671,22 @@ private fun RosaFace(size: Int, mood: WindMood, accent: Color, bearing: Int, mot
     val cream = Color(0xFFF3EAD8)
     val faint = lerp(cream, dark, .45f)
     val small = size < 28
+    val lean = rememberWindLean(motion && size >= 64)
+    val bodyPaint = remember(accent) { WindBodyPaint(WindShape.BALL, accent) }
+    val face = remember(accent) { lerp(accent, Color(0xFF1B1530), .3f) }
     Canvas(modifier.size(size.dp)) {
         val t = loop?.let { (it.value + seed) % 12f } ?: 0f
+        val (tx, ty) = lean.value
+        val paint = if (tx == 0f && ty == 0f) bodyPaint else WindBodyPaint(WindShape.BALL, accent, tx, ty)
         val period = if (busy) 1.4f else 4f
         val swing = if (loop != null) -cos(2f * PI.toFloat() * (t % period) / period) * (if (busy) 10f else 5f) else 0f
         val k = min(this.size.width, this.size.height) / 100f
         withTransform({ scale(k, k, Offset.Zero); translate(50f, 50f) }) {
-            drawCircle(Brush.radialGradient(0f to lerp(accent, Color(0xFF1B1530), .3f), 1f to dark, center = Offset(-10f, -16f), radius = 70f), 50f, Offset.Zero)
+            // The dial keeps its dark face, lit like a Cares ball: a bezel of light and a glint on the glass.
+            // It fills the box, so its contact shadow would fall outside: the needle's shadow on the dial gives the depth.
+            withTransform({ scale(50f, 50f, Offset.Zero) }) {
+                drawWindVolume(WindShape.BALL, paint, Brush.radialGradient(0f to face, 1f to dark, center = paint.light, radius = 1.4f))
+            }
             if (!small) {
                 drawCircle(cream, 44f, Offset.Zero, alpha = .3f, style = Stroke(1f))
                 if (size >= 80) for (i in 0 until 32) withTransform({ rotate(i * 11.25f, Offset.Zero) }) {
@@ -673,6 +694,10 @@ private fun RosaFace(size: Int, mood: WindMood, accent: Color, bearing: Int, mot
                 }
                 for (a in 0 until 360 step 90) withTransform({ rotate(a.toFloat(), Offset.Zero) }) { rosePoint(29f, 5.5f, cream, faint, .55f) }
                 for (a in 45 until 360 step 90) withTransform({ rotate(a.toFloat(), Offset.Zero) }) { rosePoint(20f, 4.5f, cream, faint, .32f) }
+            }
+            val shade = Color(0xFF0B0C14).copy(alpha = .5f)
+            withTransform({ translate(2f + 2f * tx, 2.5f + 2f * ty); rotate(bearing + swing, Offset.Zero) }) {
+                rosePoint(if (small) 40f else 43f, if (small) 12f else 8f, shade, shade)
             }
             withTransform({ rotate(bearing + swing, Offset.Zero) }) {
                 rosePoint(if (small) 40f else 43f, if (small) 12f else 8f, lerp(accent, Color.White, .55f), accent)
