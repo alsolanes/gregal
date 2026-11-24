@@ -14,7 +14,7 @@
 
   // home pinta l'inici dins box. lists = {mine, project}: mine són els
   // items de GET /api/docs?scope=mine; project, {name, items} del projecte
-  // obert, o null si no n'hi ha. act = {open(id, scope), create(title, kind), tx, lang}.
+  // obert, o null si no n'hi ha. Uns items null no s'han pogut llegir. act = {open(id, scope), create(title, kind), tx, lang}.
   function home(box, lists, act) {
     const D = box.ownerDocument, tx = act.tx;
     const el = (tag, cls, text) => {
@@ -27,15 +27,20 @@
     const section = (title, items, scope) => {
       const s = el('section', 'docs-home-section');
       s.append(el('h3', '', title));
+      if (!items) {
+        s.append(el('p', 'docs-home-empty', tx('No s’han pogut carregar aquests documents.', 'Couldn’t load these documents.')));
+        return s;
+      }
       if (!items.length) s.append(el('p', 'docs-home-empty', tx('Encara no hi ha cap document.', 'No documents yet.')));
       const newest = [...items].sort((a, b) => Date.parse(b.updated) - Date.parse(a.updated));
       for (const d of newest) {
         const b = el('button', 'docs-home-item');
         b.type = 'button';
         b.dataset.id = d.id;
-        const k = KINDS[d.kind];
+        // Un tipus desconegut s'obre amb l'editor de text (docs-panel.js): es llista com a document.
+        const kind = KINDS[d.kind] ? d.kind : 'doc', k = KINDS[kind];
         // La icona del tipus la pinta el CSS del panell (docs-panel.js).
-        b.append(el('span', 'docs-kind docs-kind-' + d.kind), el('span', 'docs-home-title', d.title), el('span', 'docs-home-meta', (k ? tx(k[0], k[1]) : d.kind) + ' · ' + when(d.updated)));
+        b.append(el('span', 'docs-kind docs-kind-' + kind), el('span', 'docs-home-title', d.title), el('span', 'docs-home-meta', tx(k[0], k[1]) + ' · ' + when(d.updated)));
         b.onclick = () => act.open(d.id, scope);
         s.append(b);
       }
