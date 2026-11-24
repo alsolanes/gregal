@@ -187,7 +187,8 @@ class WindCapRosaTest {
         assertTrue("cardinal point $big over bare dial $small", big > small + 40)
     }
 
-    @Test fun `motion off keeps both still while idle, and work moves them anyway`() {
+    // Amb el moviment apagat la cara és un fotograma quiet, també mentre treballa (com el web i el mapa).
+    @Test fun `motion off keeps both still, idle or working`() {
         // Bottom halves: Cap Tramuntana's breath and Rosa Migjorn's point, away from the mood badge.
         fun bottom(b: Bitmap) = Bitmap.createBitmap(b, 0, b.height / 2, b.width, b.height / 2)
         faces(false, face("cap", "Tramuntana", "cap", 96), face("rosa", "Migjorn", "rosa", 96),
@@ -196,8 +197,18 @@ class WindCapRosaTest {
         ui.mainClock.advanceTimeBy(300)
         assertTrue("idle Cap is still", before.getValue("cap").sameAs(bottom(image("cap"))))
         assertTrue("idle Rosa is still", before.getValue("rosa").sameAs(bottom(image("rosa"))))
-        assertFalse("working Cap blows", before.getValue("capWork").sameAs(bottom(image("capWork"))))
-        assertFalse("working Rosa swings", before.getValue("rosaWork").sameAs(bottom(image("rosaWork"))))
+        assertTrue("working Cap is still too", before.getValue("capWork").sameAs(bottom(image("capWork"))))
+        assertTrue("working Rosa is still too", before.getValue("rosaWork").sameAs(bottom(image("rosaWork"))))
+    }
+
+    // Amb el moviment encès, la feina mou fins i tot les cares petites de les llistes.
+    @Test fun `with motion on small working Cap and Rosa move`() {
+        faces(true, face("capWork", "Tramuntana", "cap", 40, WindMood.WORKING), face("rosaWork", "Migjorn", "rosa", 40, WindMood.WORKING))
+        val cap = image("capWork")
+        val rosa = image("rosaWork")
+        ui.mainClock.advanceTimeBy(300)
+        assertFalse("working Cap blows", cap.sameAs(image("capWork")))
+        assertFalse("working Rosa swings", rosa.sameAs(image("rosaWork")))
     }
 
     @Test fun `with motion on an idle Cap and Rosa move`() {

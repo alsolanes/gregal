@@ -522,12 +522,13 @@ private val esperitStreak by lazy { PathParser().parsePathString("M28.56 1.12C36
 /**
  * A head with two tails pointing to where the wind blows from, its eyes
  * looking where it goes. The idle sway follows [motion]; while the wind works
- * the tails move four times faster even without it, because that is the work.
+ * the tails move four times faster even without it, because that is the work, unless the person turned motion off.
  */
 @Composable
 private fun EsperitFace(size: Int, mood: WindMood, accent: Color, bearing: Int, motion: Boolean, modifier: Modifier) {
     val busy = mood in windWorkMoods
-    val loop = if (motion || busy) {
+    // La feina mou la cara també als avatars petits, però mai amb el moviment apagat (com el web i el mapa).
+    val loop = if (motion || busy && windMotionEnabled()) {
         rememberInfiniteTransition(label = "esperit").animateFloat(
             initialValue = 0f, targetValue = 12f,
             animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing)), label = "loop")
@@ -589,7 +590,8 @@ private val capPuffs by lazy { listOf("M0-5C6-7 12-4 18-6", "M0 6C6 8 12 5 18 7"
 @Composable
 private fun CapFace(size: Int, mood: WindMood, accent: Color, bearing: Int, motion: Boolean, modifier: Modifier) {
     val busy = mood in windWorkMoods
-    val loop = if (motion || busy) {
+    // La feina mou la cara també als avatars petits, però mai amb el moviment apagat (com el web i el mapa).
+    val loop = if (motion || busy && windMotionEnabled()) {
         rememberInfiniteTransition(label = "cap").animateFloat(
             initialValue = 0f, targetValue = 12f,
             animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing)), label = "loop")
@@ -660,7 +662,8 @@ private fun DrawScope.rosePoint(len: Float, wd: Float, left: Color, right: Color
 @Composable
 private fun RosaFace(size: Int, mood: WindMood, accent: Color, bearing: Int, motion: Boolean, modifier: Modifier) {
     val busy = mood in windWorkMoods
-    val loop = if (motion || busy) {
+    // La feina mou la cara també als avatars petits, però mai amb el moviment apagat (com el web i el mapa).
+    val loop = if (motion || busy && windMotionEnabled()) {
         rememberInfiniteTransition(label = "rosa").animateFloat(
             initialValue = 0f, targetValue = 12f,
             animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing)), label = "loop")
