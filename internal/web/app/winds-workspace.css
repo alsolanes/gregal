@@ -406,18 +406,32 @@ button.vw-start-row:hover { background:var(--hover); }
 input.vw-ask-free:focus { border-color:color-mix(in srgb, var(--accent) 55%, var(--line)); box-shadow:var(--ring); outline:none; }
 /* Targeta de permís com a la maqueta: dins del fil, sota l'últim missatge,
    amb una pregunta en pla («Vols que esborri x?»), on és i si es pot desfer,
-   l'ordre plegada i el botó amb el verb a l'esquerra. */
+   el pas en què és el vent, la vista prèvia del que farà i Permet / No. */
 .vw-asks-inline { margin:6px 0 4px 58px; max-width:760px; }
 .vw-ask.vw-ask-plan { border-radius:18px; border-color:var(--line-hi); background:var(--surface); box-shadow:none; gap:10px; }
 .vw-ask-head { display:flex; gap:10px; align-items:flex-start; }
 .vw-ask-head strong { display:block; color:var(--ink); font-size:15px; font-weight:600; line-height:1.35; }
 .vw-ask-sub { display:block; color:var(--muted); font-size:13px; margin-top:2px; line-height:1.4; }
 .vw-ask-shield { flex:none; width:20px; height:20px; margin-top:1px; color:var(--accent-hi); }
-.vw-ask-cmd summary { cursor:pointer; color:var(--muted); font-size:12.5px; width:max-content; }
-.vw-ask-cmd summary:hover { color:var(--ink); }
-.vw-ask-cmd code { margin-top:6px; max-height:12em; }
+.vw-ask-step { color:var(--muted); font-size:12px; margin-bottom:-4px; }
+.vw-ask-preview { display:flex; flex-direction:column; gap:2px; min-width:0; padding:10px 12px; border-radius:12px; border:1px solid var(--line); background:var(--bg); }
+.vw-ask-preview strong { color:var(--ink); font-size:14px; font-weight:600; overflow-wrap:anywhere; }
+.vw-ask-preview small { color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
+.vw-ask-preview[data-kind="command"] { padding:0; border:0; }
+.vw-ask-preview code { margin:0; max-height:12em; }
 .vw-ask-plan .vw-ask-actions button { min-height:40px; border-radius:12px; font-weight:600; }
-@media (max-width:640px) { .vw-asks-inline { margin-left:0; } }
+/* Respost: la targeta queda en una línia, i el vent de la cantonada assenteix (Permet) o fa que no (No),
+   per sobre de la postura «t'espera» si encara n'hi ha d'altres. */
+.vw-ask-done { margin:4px 0 8px 58px; color:var(--muted); font-size:13px; overflow-wrap:anywhere; }
+@media (prefers-reduced-motion:no-preference) {
+  .vw-ask-done { animation:vw-ask-in .2s ease-out both; }
+  .wind-workspace .vw-wind-corner[data-react="nod"] > .winds-face { animation:vw-corner-nod .8s ease-in-out; }
+  .wind-workspace .vw-wind-corner[data-react="shake"] > .winds-face { animation:vw-corner-shake .7s ease-in-out; }
+}
+@keyframes vw-ask-in { from { opacity:0; transform:translateY(6px) scale(.98); } }
+@keyframes vw-corner-nod { 25%,75% { transform:rotate(4deg) translateY(4px); } 50% { transform:none; } }
+@keyframes vw-corner-shake { 20%,60% { transform:rotate(-9deg); } 40%,80% { transform:rotate(9deg); } }
+@media (max-width:640px) { .vw-asks-inline, .vw-ask-done { margin-left:0; } }
 .vw-choices { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 2px 46px; }
 
 /* Un sol sistema amb Codi: la barra lateral amb les mides de #navRail (calma.css); el compositor,

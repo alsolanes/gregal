@@ -34,6 +34,7 @@ class Element {
     this._toggling = true;
     setTimeout(() => { this._toggling = false; for (const f of this.listeners.toggle || []) f({ type: 'toggle', target: this }); }, 0);
   }
+  before(n) { const p = this.parentNode; n.remove(); n.parentNode = p; p.children.splice(p.children.indexOf(this), 0, n); }
   replaceWith(n) { const p = this.parentNode; if (!p) return; const i = p.children.indexOf(this); n.remove(); n.parentNode = p; p.children[i] = n; this.parentNode = null; }
   get firstChild() { return this.children[0] || null; }
   get lastElementChild() { return this.children.at(-1) || null; }
@@ -119,7 +120,7 @@ async function boot({ lang = 'en', api, storage = {}, css = () => '', extra = {}
   // The page polls in the background (pending replies, the crew); those timers must not keep the test alive.
   const later = (f, ms) => { const h = setTimeout(f, ms); h.unref(); return h; };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'winds-workspace.js'), 'utf8'), {
-    window, document: doc, console, URLSearchParams, setTimeout: later, clearTimeout, queueMicrotask, TextDecoder, Option, CustomEvent, MutationObserver,
+    window, document: doc, console, URL, URLSearchParams, setTimeout: later, clearTimeout, queueMicrotask, TextDecoder, Option, CustomEvent, MutationObserver,
     getComputedStyle: () => ({ getPropertyValue: css }), matchMedia: () => ({ matches: true }),
     sessionStorage: { getItem: () => null, setItem() {} }, localStorage: { getItem: k => storage[k] ?? null, setItem: (k, v) => { storage[k] = String(v); } },
     location: { hash: '', pathname: '/', search: '' }, history: { replaceState() {} }, navigator: { platform: 'Win32' }, requestAnimationFrame: f => f(),
@@ -443,6 +444,90 @@ test('other steps of a turn do not open the computer', async () => {
 test('the handoff card opens the computer pane too', async () => {
   const f = await turnWith(['approve_request', { key: 'h1', type: 'handoff', what: 'Inicia sessió al banc' }]);
   assert.ok(f.pane());
+});
+
+// 102: una aprovació al xat d'un vent és una targeta sota el vent: el pas, una vista prèvia del que farà i Permet / No.
+async function askIn(ask, lang = 'en', answer = { ok: true, status: 200, json: async () => ({ ok: true, id: 'k1', state: 'approved' }) }) {
+  const json = data => ({ ok: true, status: 200, json: async () => data });
+  const f = await boot({ lang, api: r => r.url === '/api/winds/pending' ? json({ pending: [{ key: 'k1', type: 'approve', wind: 'xaloc', ...ask }] })
+    : r.url === '/api/winds/answer' ? answer : null });
+  await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();
+  await settle();
+  const card = f.page.querySelector('.vw-asks').querySelector('.vw-ask');
+  return { ...f, card, preview: card?.querySelector('.vw-ask-preview'), corner: f.page.querySelector('.vw-wind-corner') };
+}
+const buttons = card => card.querySelector('.vw-ask-actions').querySelectorAll('button').map(b => b.textContent);
+
+test('an approval for a command shows the step, the command itself and Allow / No, while the wind waits', async () => {
+  const f = await askIn({ kind: 'install', name: 'bash', what: 'npm install -g serve', detail: 'npm install -g serve --prefix ~/.local' });
+  assert.equal(f.card.querySelector('.vw-ask-step').textContent, 'Getting the command ready…');
+  assert.equal(f.preview.dataset.kind, 'command');
+  assert.equal(f.preview.querySelector('code').textContent, 'npm install -g serve --prefix ~/.local', 'the whole command, not the short one');
+  assert.deepEqual(buttons(f.card), ['Allow', 'No']);
+  assert.equal(f.corner.dataset.mood, 'waiting');
+});
+
+test('an approval for a page in the browser previews the site and the full address', async () => {
+  const f = await askIn({ kind: 'rule', name: 'browser', what: 'browser https://www.example.com/tickets', detail: 'https://www.example.com/tickets?day=sat', reason: 'Asking because of your rule: «Ask me before buying».' });
+  assert.equal(f.card.querySelector('.vw-ask-step').textContent, 'In the browser…');
+  assert.equal(f.preview.dataset.kind, 'page');
+  assert.equal(f.preview.querySelector('strong').textContent, 'example.com');
+  assert.equal(f.preview.querySelector('small').textContent, 'https://www.example.com/tickets?day=sat');
+  assert.match(f.card.querySelector('.vw-ask-sub').textContent, /Ask me before buying/);
+});
+
+test('an approval to write a document previews its name and where it goes', async () => {
+  const f = await askIn({ kind: 'rule', name: 'write', what: 'write /home/anna/gregal/projectes/viatge/informe.md', detail: '/home/anna/gregal/projectes/viatge/informe.md' });
+  assert.equal(f.card.querySelector('.vw-ask-step').textContent, 'Getting the document ready…');
+  assert.equal(f.preview.dataset.kind, 'doc');
+  assert.equal(f.preview.querySelector('strong').textContent, 'informe.md');
+  assert.equal(f.preview.querySelector('small').textContent, 'Projects › viatge');
+});
+
+test('an approval to publish a site previews the public address', async () => {
+  const f = await askIn({ kind: 'publish_public', name: 'publish', what: 'publish public https://viatge.example.org/', detail: 'viatge' });
+  assert.equal(f.card.querySelector('.vw-ask-step').textContent, 'Getting it ready to publish…');
+  assert.equal(f.preview.dataset.kind, 'site');
+  assert.equal(f.preview.querySelector('strong').textContent, 'viatge.example.org');
+  assert.equal(f.preview.querySelector('small').textContent, 'https://viatge.example.org/');
+});
+
+test('Allow answers through /api/winds/answer, folds the card to one line and the wind nods', async () => {
+  const f = await askIn({ kind: 'rule', name: 'write', what: 'write /home/anna/gregal/projectes/viatge/informe.md' });
+  await byText(f.card, 'button', 'Allow').click();
+  await settle();
+  assert.deepEqual(f.requests.filter(r => r.url === '/api/winds/answer').map(r => r.body), [{ key: 'k1', approve: true }]);
+  assert.equal(f.page.querySelector('.vw-asks').querySelector('.vw-ask'), null, 'the card is gone');
+  const line = f.page.querySelector('.vw-ask-done');
+  assert.equal(line.textContent, 'You allowed: informe.md');
+  assert.ok(line.parentNode === f.page.querySelector('.vw-messages'), 'the line stays in the thread');
+  assert.equal(f.corner.dataset.react, 'nod');
+});
+
+test('No declines, folds the card to one line and the wind shakes its head', async () => {
+  const f = await askIn({ kind: 'install', name: 'bash', what: 'npm install -g serve' });
+  await byText(f.card, 'button', 'No').click();
+  await settle();
+  assert.deepEqual(f.requests.filter(r => r.url === '/api/winds/answer').map(r => r.body), [{ key: 'k1', approve: false }]);
+  assert.equal(f.page.querySelector('.vw-ask-done').textContent, 'You said no: npm install -g serve');
+  assert.equal(f.corner.dataset.react, 'shake');
+});
+
+test('if the answer does not reach the server, the thread does not claim it was allowed', async () => {
+  const f = await askIn({ kind: 'install', name: 'bash', what: 'npm install -g serve' }, 'en', { ok: false, status: 409, text: async () => 'no longer pending' });
+  await byText(f.card, 'button', 'Allow').click();
+  await settle();
+  assert.equal(f.page.querySelector('.vw-ask-done'), null);
+  assert.equal(f.corner.dataset.react, undefined);
+});
+
+test('the approval card speaks Catalan too', async () => {
+  const f = await askIn({ kind: 'install', name: 'bash', what: 'npm install -g serve' }, 'ca');
+  assert.equal(f.card.querySelector('.vw-ask-step').textContent, 'Preparant l’ordre…');
+  assert.deepEqual(buttons(f.card), ['Permet', 'No']);
+  await byText(f.card, 'button', 'Permet').click();
+  await settle();
+  assert.equal(f.page.querySelector('.vw-ask-done').textContent, 'Has permès: npm install -g serve');
 });
 
 // The docs side (docs-panel.js) is in docs-panel.test.cjs.
