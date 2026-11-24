@@ -163,6 +163,20 @@ internal fun windChatState(windId: String, busy: Set<String>, asks: List<GregalA
     else -> null
 }
 
+/** Mida (dp) del vent present a la cantonada del xat. */
+internal const val WindPresenceSize = 72
+
+/**
+ * L'humor del vent de la cantonada segons [windChatState]: treballant sempre és
+ * un humor de feina (el que diu el flux en directe, si ho és) perquè hi surti l'aura.
+ */
+internal fun windPresenceMood(state: String?, live: WindMood?): WindMood = when (state) {
+    "winds.state.working" -> live?.takeIf { it in windWorkMoods } ?: WindMood.WORKING
+    "winds.state.waiting" -> WindMood.NEWS
+    "winds.state.done" -> WindMood.DONE
+    else -> WindMood.IDLE
+}
+
 /**
  * El fil s'esvaeix sota la capçalera flotant: sense això el text es llegia
  * entre els botons. És una màscara i no un degradat de color, perquè amb el
