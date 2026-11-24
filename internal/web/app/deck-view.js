@@ -91,7 +91,11 @@
       paint(e, b.id);
       // El clic d'un botó del formulari (Cancel·la) arriba aquí quan ja s'ha
       // tancat: no l'ha de tornar a obrir. Un enllaç tampoc.
-      e.onclick = ev => { if (editing?.el !== e && !ev.target?.closest?.('form, a')) open(b.id); };
+      e.onclick = ev => {
+        if (editing?.el === e || ev.target?.closest?.('form, a')) return;
+        if (!editing) return open(b.id);
+        return leave().then(ok => { if (ok) open(b.id); });
+      };
       els.set(b.id, e);
       return e;
     };
@@ -125,7 +129,7 @@
     // read és la diapositiva del formulari: els camps que no s'hi veuen
     // (un gràfic, una taula) es queden com eren.
     function read(me) {
-      const s = { ...me.slide };
+      const s = { ...me.slide, layout: me.layout };
       for (const [k, f] of Object.entries(me.fields)) {
         const lines = f.value.split('\n').map(x => x.trimEnd()).filter(x => x.trim());
         const v = f.value.trim();
@@ -139,23 +143,40 @@
       if (editing && !editing.saving) close(editing);
       current = id;
       const e = els.get(id), slide = slides.get(id).slide;
-      const me = { id, el: e, slide, base: slides.get(id).version, fields: {}, conflict: false, saving: false };
+      const me = { id, el: e, slide, layout: slide.layout, base: slides.get(id).version, fields: {}, conflict: false, saving: false };
       const form = el('form', 'deck-form');
-      form.append(el('h3', '', tx(...(LAYOUTS[slide.layout] || [slide.layout, slide.layout]))));
-      for (const k of [...(FIELDS[slide.layout] || []), 'notes']) {
-        const label = el('label', '', tx(...LABELS[k]));
-        const f = el(LONG.includes(k) ? 'textarea' : 'input');
-        f.value = k === 'bullets' ? (slide.bullets || []).join('\n') : slide[k] || '';
-        if (LONG.includes(k)) f.rows = f.value.split('\n').length + 1;
-        label.append(f);
-        form.append(label);
-        me.fields[k] = f;
+      const layout = el('select');
+      for (const [k, [ca, en]] of Object.entries(LAYOUTS)) {
+        const o = el('option', '', tx(ca, en));
+        o.value = k;
+        layout.append(o);
       }
+      layout.value = slide.layout;
+      const pickLabel = el('label', '', tx('Layout', 'Layout'));
+      pickLabel.append(layout);
       const btn = (text, fn) => { const b = el('button', '', text); b.type = 'button'; b.onclick = fn; return b; };
       const row = el('div', 'deck-form-buttons');
       row.append(btn(tx('Desa', 'Save'), () => save(me)), btn(tx('Cancel·la', 'Cancel'), () => close(me)),
         btn(tx('Esborra la diapositiva', 'Delete slide'), () => remove(me)));
-      form.append(row);
+      form.append(pickLabel, row);
+      // fill posa els camps del layout triat; el que s'hi ha escrit es
+      // queda en els camps que el nou layout també té.
+      const fill = () => {
+        const old = me.fields;
+        for (const f of Object.values(old)) f.parentNode.remove();
+        me.fields = {};
+        for (const k of [...(FIELDS[me.layout] || []), 'notes']) {
+          const label = el('label', '', tx(...LABELS[k]));
+          const f = el(LONG.includes(k) ? 'textarea' : 'input');
+          f.value = old[k] ? old[k].value : k === 'bullets' ? (me.slide.bullets || []).join('\n') : me.slide[k] || '';
+          if (LONG.includes(k)) f.rows = f.value.split('\n').length + 1;
+          label.append(f);
+          form.insertBefore(label, row);
+          me.fields[k] = f;
+        }
+      };
+      layout.onchange = () => { me.layout = layout.value; fill(); };
+      fill();
       form.onsubmit = ev => { ev.preventDefault(); save(me); };
       me.form = form;
       me.opened = JSON.stringify(read(me));
@@ -173,22 +194,24 @@
       syncEmpty();
     }
 
-    // send fa una crida de l'editor; done rep la resposta d'un 200.
-    async function send(me, call, done) {
+    // send fa una crida de l'editor; done rep la resposta d'un 200, i
+    // failed, si hi és, encapçala els errors.
+    async function send(me, call, done, failed) {
       if (me.saving) return;
       me.saving = true;
+      const fail = m => edit.error(failed ? failed + ': ' + m : m);
       let r;
       try {
         r = await call();
       } catch (err) {
         // El formulari es queda com està per tornar-ho a provar.
-        edit.error(err.message || String(err));
+        fail(err.message || String(err));
         return;
       } finally {
         me.saving = false;
       }
       if (r.status === 409) { conflict(me, r.body.block); return; }
-      if (r.status !== 200) { edit.error(r.body.error || String(r.status)); return; }
+      if (r.status !== 200) { fail(r.body.error || String(r.status)); return; }
       done(r.body);
       close(me);
     }
@@ -201,7 +224,19 @@
     }
 
     function remove(me) {
-      return send(me, () => edit.del(me.id, me.base), () => { slides.delete(me.id); if (current === me.id) current = ''; });
+      return send(me, () => edit.del(me.id, me.base), () => { slides.delete(me.id); if (current === me.id) current = ''; },
+        tx("No s'ha pogut esborrar la diapositiva", 'Could not delete the slide'));
+    }
+
+    // leave deixa el formulari obert per anar a una altra diapositiva: el
+    // que s'hi ha escrit es desa abans. Després d'un 409 s'hi queda, perquè
+    // la persona triï entre desar-lo (trepitja l'agent) i cancel·lar-lo.
+    async function leave() {
+      const me = editing;
+      if (!me || me.saving) return true;
+      if (me.conflict) { Object.values(me.fields)[0]?.focus(); return false; }
+      await save(me);
+      return editing !== me;
     }
 
     // conflict ensenya la diapositiva d'ara a sobre del formulari, que es
@@ -219,7 +254,7 @@
     // insert posa una diapositiva buida del layout després de l'actual (la
     // darrera oberta, o la darrera de totes) i n'obre el formulari.
     async function insert(layout) {
-      if (editing && !editing.saving) close(editing);
+      if (!(await leave())) return;
       const after = els.has(current) ? current : [...els.keys()].at(-1) || '';
       let r;
       try {

@@ -14,6 +14,9 @@
 
   const ROW_H = 24; // px, la mateixa alçada que .sheet-grid td al CSS del panell
   const BIG = 300; // amb més files, només es pinten les que es veuen
+  // Amb més columnes, només es pinten les que es veuen, de COL_W px (el
+  // min-width de .sheet-grid td): XFD1 no ha de pintar 16 384 columnes.
+  const WIDE = 50, COL_W = 72;
 
   // column(0) és A, column(26) és AA.
   const column = i => (i >= 26 ? column(Math.floor(i / 26) - 1) : '') + String.fromCharCode(65 + (i % 26));
@@ -40,10 +43,13 @@
     let order = [];
     for (const b of doc.blocks) { sheets.set(b.id, b); order.push(b.id); }
     const seen = doc.version;
-    let version = doc.version, current = order[0] || '';
+    // La pestanya oberta es queda a la caixa: quan el stream es reconnecta,
+    // docs-panel.js torna a fer la vista a la mateixa caixa.
+    const kept = (box.dataset.sheet || '').split(' ');
+    let version = doc.version, current = kept[0] === doc.id && sheets.has(kept[1]) ? kept[1] : order[0] || '';
     // sel és la cel·la triada; base, la versió del full que es veia en
     // triar-la; typed, si la persona ja hi ha escrit.
-    let sel = { c: 0, r: 1 }, base = 0, typed = false, saving = false, big = false, selTd = null;
+    let sel = { c: 0, r: 1 }, base = 0, typed = false, saving = false, big = false, wide = false, selTd = null;
 
     const tabs = el('div', 'sheet-tabs');
     const ref = el('span', 'sheet-ref');
@@ -65,7 +71,7 @@
       const bs = order.map(id => {
         const b = el('button', 'sheet-tab' + (id === current ? ' on' : ''), sheets.get(id).name);
         b.type = 'button';
-        b.onclick = () => show(id);
+        b.onclick = () => leave(() => show(id));
         return b;
       });
       const add = el('button', 'sheet-add', tx('Full nou', 'New sheet'));
@@ -85,31 +91,40 @@
       }
       cols = Math.max(cols, sel.c + 1);
       rows = Math.max(rows, sel.r);
-      let first = 1, last = rows;
+      let first = 1, last = rows, left = 0, right = cols - 1;
       big = rows > BIG;
       if (big) {
         first = Math.max(1, Math.floor(wrap.scrollTop / ROW_H) - 10);
         last = Math.min(rows, first + Math.ceil((wrap.clientHeight || 600) / ROW_H) + 20);
       }
+      wide = cols > WIDE;
+      if (wide) {
+        left = Math.max(0, Math.floor((wrap.scrollLeft || 0) / COL_W) - 5);
+        right = Math.min(cols - 1, left + Math.ceil((wrap.clientWidth || 800) / COL_W) + 10);
+      }
       const tr = cells => { const r = el('tr'); r.append(...cells); return r; };
       const spacer = n => { const r = el('tr', 'sheet-spacer'); r.style.height = n * ROW_H + 'px'; return r; };
-      const top = [el('th')];
-      for (let c = 0; c < cols; c++) top.push(el('th', '', column(c)));
+      // Les columnes que no es pinten ocupen una cel·la buida de la seva amplada.
+      const gap = (tag, n) => { const g = el(tag); g.style.minWidth = n * COL_W + 'px'; return g; };
+      const sides = (tag, cells) => [...(left > 0 ? [gap(tag, left)] : []), ...cells, ...(right < cols - 1 ? [gap(tag, cols - 1 - right)] : [])];
+      const letters = [];
+      for (let c = left; c <= right; c++) letters.push(el('th', '', column(c)));
+      const top = [el('th'), ...sides('th', letters)];
       const body = [];
       selTd = null;
       if (first > 1) body.push(spacer(first - 1));
       for (let r = first; r <= last; r++) {
-        const row = [el('th', '', String(r))];
-        for (let c = 0; c < cols; c++) {
+        const row = [];
+        for (let c = left; c <= right; c++) {
           const k = column(c) + r, v = s.values?.[k] ?? s.cells?.[k] ?? '';
           const td = el('td', (r === sel.r && c === sel.c ? 'sel' : '') + (v !== '' && !isNaN(v) ? ' num' : ''), v);
           td.dataset.cell = k;
           if (r === sel.r && c === sel.c) selTd = td;
-          td.onclick = () => select({ c, r });
+          td.onclick = () => leave(() => select({ c, r }));
           td.ondblclick = () => bar.focus();
           row.push(td);
         }
-        body.push(tr(row));
+        body.push(tr([el('th', '', String(r)), ...sides('td', row)]));
       }
       if (last < rows) body.push(spacer(rows - last));
       const thead = el('thead'), tbody = el('tbody'), table = el('table');
@@ -133,18 +148,26 @@
       const top = (sel.r - 1) * ROW_H, h = (wrap.clientHeight || 600) - ROW_H;
       if (top < wrap.scrollTop) wrap.scrollTop = top;
       else if (top + ROW_H > wrap.scrollTop + h) wrap.scrollTop = top + ROW_H - h;
+      // En una graella ampla, la columna també, perquè es pinti.
+      if (wide) {
+        const x = sel.c * COL_W, w = (wrap.clientWidth || 800) - 40, at = wrap.scrollLeft || 0;
+        if (x < at) wrap.scrollLeft = x;
+        else if (x + COL_W > at + w) wrap.scrollLeft = x + COL_W - w;
+      }
       paint();
       selTd?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }
 
     function show(id) {
       current = id;
+      box.dataset.sheet = doc.id + ' ' + id;
       paintTabs();
       select({ c: 0, r: 1 });
     }
 
-    // commit desa la cel·la si ha canviat i, si s'ha desat, es mou (dc, dr).
-    async function commit(dc, dr) {
+    // commit desa la cel·la si ha canviat i, si s'ha desat, es mou (dc, dr)
+    // o fa go.
+    async function commit(dc, dr, go = () => select({ c: sel.c + dc, r: sel.r + dr })) {
       // Mentre es desa la persona pot canviar de full o de cel·la: la
       // resposta és del full id, i només es mou si encara és on era.
       const p = sel, id = current, input = bar.value;
@@ -176,9 +199,14 @@
         sheets.set(id, r.body.block);
         if (!here()) return;
       }
-      select({ c: p.c + dc, r: p.r + dr });
+      go();
       wrap.focus();
     }
+
+    // leave va a una altra cel·la o a un altre full desant abans el que
+    // s'hi ha escrit, com a Excel. Si ja s'està desant, hi va de seguida:
+    // la resposta es queda al seu full (commit).
+    const leave = go => (saving ? go() : commit(0, 0, go));
 
     function cancel() {
       select(sel);
@@ -190,9 +218,17 @@
       if (MOVES[e.key]) {
         e.preventDefault();
         select({ c: sel.c + MOVES[e.key][0], r: sel.r + MOVES[e.key][1] });
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        select({ c: sel.c + (e.shiftKey ? -1 : 1), r: sel.r });
       } else if (e.key === 'Enter' || e.key === 'F2') {
         e.preventDefault();
         bar.focus();
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        bar.value = '';
+        typed = true;
+        return commit(0, 0);
       } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
         // Escriure sobre una cel·la la reemplaça, com a Excel.
         e.preventDefault();
@@ -201,24 +237,27 @@
         bar.focus();
       }
     };
-    wrap.onscroll = () => { if (big) paint(); };
+    wrap.onscroll = () => { if (big || wide) paint(); };
     bar.oninput = () => { typed = true; };
     bar.onkeydown = e => {
       if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault();
-        return commit(e.key === 'Tab' ? 1 : 0, e.key === 'Enter' ? 1 : 0);
+        const step = e.shiftKey ? -1 : 1;
+        return commit(e.key === 'Tab' ? step : 0, e.key === 'Enter' ? step : 0);
       }
       if (e.key === 'Escape') { e.preventDefault(); cancel(); }
     };
 
     // addSheet afegeix un full buit al final, amb el primer nom lliure.
+    // Es diu SheetN en tots els idiomes, com el Sheet1 que el servidor posa
+    // al full de càlcul nou.
     async function addSheet() {
       const used = new Set([...sheets.values()].map(b => b.name.toLowerCase()));
       let n = order.length + 1;
-      while (used.has((tx('Full', 'Sheet') + n).toLowerCase())) n++;
+      while (used.has('sheet' + n)) n++;
       let r;
       try {
-        r = await edit.post(order.at(-1) || '', { name: tx('Full', 'Sheet') + n });
+        r = await edit.post(order.at(-1) || '', { name: 'Sheet' + n });
       } catch (err) {
         edit.error(err.message || String(err));
         return;

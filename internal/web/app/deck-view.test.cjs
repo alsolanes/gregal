@@ -204,3 +204,89 @@ test('a slide can be deleted from its form; a 409 keeps it with the notice', asy
   assert.deepEqual(ids(box), ['a', 'c']);
   assert.equal(v.editing, null);
 });
+
+test('the form changes the slide\'s layout: the fields follow it and Save sends the new layout', async () => {
+  const box = new Node(fakeDocument), ed = fakeEdit();
+  const v = view(box, DECK, window.gregalMD.render, ed);
+  const b = slidesOf(box).children[1];
+  v.open('b');
+  const layout = b.all('select')[0];
+  assert.equal(layout.value, 'content');
+  assert.equal(layout.children.length, 10);
+  v.editing.fields.title.value = 'Usuaris';
+  layout.value = 'big_number';
+  layout.onchange();
+  assert.deepEqual(Object.keys(v.editing.fields), ['title', 'number', 'caption', 'notes']);
+  assert.equal(v.editing.fields.title.value, 'Usuaris', 'what the person typed stays');
+  assert.equal(b.all('input').filter(f => f.value === 'Usuaris').length, 1, 'the old fields are gone from the form');
+  v.editing.fields.number.value = '12.000';
+  await button(b, 'Save').onclick();
+  assert.deepEqual(ed.calls, [['put', 'b', { ...DECK.blocks[1].slide, layout: 'big_number', title: 'Usuaris', number: '12.000' }, 2]]);
+  assert.match(b.innerHTML, /slide-big_number/);
+});
+
+test('after a 409, clicking another slide or «New slide» keeps the form with the person\'s fields', async () => {
+  const box = new Node(fakeDocument), ed = fakeEdit();
+  const v = view(box, DECK, window.gregalMD.render, ed);
+  const [a, , c] = slidesOf(box).children;
+  v.open('c');
+  const me = v.editing;
+  me.fields.left.value = 'Temps i gent';
+  ed.reply({ status: 409, body: { error: 'changed', block: { id: 'c', slide: { layout: 'two_columns', title: 'Riscos grans' }, version: 7 } } });
+  await v.save();
+  await a.onclick({ target: {} });
+  assert.equal(v.editing, me);
+  assert.equal(me.fields.left.value, 'Temps i gent');
+  assert.ok(c.all('form').length, 'the form is still there');
+  await button(box.children[1], 'New slide').onclick();
+  assert.equal(v.editing, me);
+  assert.deepEqual(ed.calls.map(x => x[0]), ['put'], 'nothing else was sent');
+  button(c, 'Cancel').onclick();
+  await a.onclick({ target: {} });
+  assert.equal(v.editing.id, 'a', 'Cancel lets the person leave');
+});
+
+test('clicking another slide saves the open form first when it was changed', async () => {
+  const box = new Node(fakeDocument), ed = fakeEdit();
+  const v = view(box, DECK, window.gregalMD.render, ed);
+  const [a, b] = slidesOf(box).children;
+  v.open('a');
+  v.editing.fields.title.value = 'Llançament 2028';
+  await b.onclick({ target: {} });
+  assert.deepEqual(ed.calls, [['put', 'a', { layout: 'title', title: 'Llançament 2028', subtitle: 'Pla de llançament' }, 1]]);
+  assert.match(a.text, /Llançament 2028/);
+  assert.equal(v.editing.id, 'b');
+});
+
+test('a failed delete says the slide was not deleted, not that it was not saved', async () => {
+  const box = new Node(fakeDocument), ed = fakeEdit();
+  ed.tx = ca => ca;
+  const v = view(box, DECK, window.gregalMD.render, ed);
+  v.open('b');
+  ed.reply({ status: 404, body: { error: 'block not found' } });
+  await button(slidesOf(box).children[1], 'Esborra la diapositiva').onclick();
+  ed.del = async () => { throw new Error('offline'); };
+  await button(slidesOf(box).children[1], 'Esborra la diapositiva').onclick();
+  assert.deepEqual(ed.errors, ["No s'ha pogut esborrar la diapositiva: block not found", "No s'ha pogut esborrar la diapositiva: offline"]);
+  assert.deepEqual(ids(box), ['a', 'b', 'c']);
+  assert.equal(v.editing.id, 'b', 'the form stays to try again');
+
+  const en = fakeEdit();
+  en.reply({ status: 500, body: { error: 'disk full' } });
+  const v2 = view(new Node(fakeDocument), DECK, window.gregalMD.render, en);
+  v2.open('a');
+  await button(v2.editing.form, 'Delete slide').onclick();
+  assert.deepEqual(en.errors, ['Could not delete the slide: disk full']);
+});
+
+test('Enter in a field submits the form', async () => {
+  const box = new Node(fakeDocument), ed = fakeEdit();
+  const v = view(box, DECK, window.gregalMD.render, ed);
+  v.open('a');
+  v.editing.fields.subtitle.value = 'Pla nou';
+  let prevented = false;
+  await v.editing.form.onsubmit({ preventDefault() { prevented = true; } });
+  assert.ok(prevented);
+  assert.deepEqual(ed.calls, [['put', 'a', { layout: 'title', title: 'Llançament 2027', subtitle: 'Pla nou' }, 1]]);
+  assert.equal(v.editing, null);
+});
