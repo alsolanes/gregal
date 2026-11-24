@@ -161,16 +161,27 @@
  // El vent present a la cantonada del xat (087) fa cara del mateix estat. «waiting» no és una cara de
  // winds.js (la dibuixa en repòs): és la postura que li dona winds-workspace.css.
  const cornerMood=(s,thread,wind)=>{const m=windMark(s,thread,wind);return m==='working'?root.gregalWinds.moodOf(s.pending):m||'idle';};
- // Al fil de Gregal la seva cara ja és gran a dalt; en un grup no hi ha un sol vent.
- function cornerWind(){const w=soloWind();if(!w||state.active?.wind==='gregal')return;const n=el('div','vw-wind-corner');n.dataset.wind=w.id;n.setAttribute('aria-hidden','true');content.append(n);paintCorner(n);cheerOn(n);}
+ // 108: el vent és un de sol. Té casa a la capçalera, al costat del nom (owner), i baixa a la cantonada
+ // del xat quan ets al missatge més nou: el lloc .vw-corner-spot, que el CSS amaga on no hi cap (llavors
+ // es queda a dalt). Al fil de Gregal la seva cara ja és gran a dalt; en un grup no hi ha un sol vent.
+ let flight=null;
+ function cornerWind(){flight?.disconnect();if(!page.querySelector('.vw-wind-corner'))return;const spot=el('div','vw-corner-spot');spot.setAttribute('aria-hidden','true');spot.append(el('i'));content.append(spot);messages.addEventListener('scroll',flyCorner,{passive:true});
+  // La mida del fil canvia amb la finestra, un panell de feina o el compositor que creix: el lloc es mou.
+  flight=new ResizeObserver(flyCorner);flight.observe(messages);}
+ const flownUp=box=>box.scrollHeight-box.clientHeight-box.scrollTop>160;
+ function flyCorner(){const n=page?.querySelector('.vw-wind-corner'),spot=content?.querySelector('.vw-corner-spot')?.firstChild;if(!n||!spot||!messages)return;const a=spot.getBoundingClientRect(),at=a.width&&!flownUp(messages)?'corner':'top';
+  if(at==='corner'){const b=n.parentNode.getBoundingClientRect();n.style.setProperty('--vw-fly-x',a.left-b.left-n.offsetLeft+'px');n.style.setProperty('--vw-fly-y',a.top-b.top-n.offsetTop+'px');}
+  n.dataset.at=at;
+  // El primer lloc s'hi posa sense vol (llegir-ne la mida el fixa): només volen els canvis que vénen després.
+  if(!('fly' in n.dataset)){n.getBoundingClientRect();n.dataset.fly='';}}
  // 101: el torn que acaba de tornar el celebra (o l'arronsa) un sol cop qui el porta: el render següent ja no.
  function cheerOn(n){const c=state.cheer;if(!c||c.thread!==state.active?.id)return;n.classList.add(c.kind==='done'?'vw-cheer':'vw-shrug');if(c.kind!=='done')return;const burst=el('span','vw-burst');burst.setAttribute('aria-hidden','true');for(let i=0;i<10;i++){const s=el('i');s.style.setProperty('--i',String(i));burst.append(s);}n.append(burst);}
  function paintCorner(n=page?.querySelector('.vw-wind-corner')){if(!n)return;const mood=cornerMood(state,state.active?.id,n.dataset.wind);if(n.dataset.mood===mood)return;if(n.dataset.mood)n.className='vw-wind-corner';n.dataset.mood=mood;n.replaceChildren(root.gregalWinds.face(state.winds.find(w=>w.id===n.dataset.wind),true,mood));}
  root.gregalWindChat={mix:mixHex,share:windShare,mark:windMark,cornerMood};
- // Qui porta la conversa: el vent gran amb el seu estat, el nom i l'ofici. En un grup, les cares de qui hi és.
+ // Qui porta la conversa: el vent (l'únic, que vola a la cantonada) amb el seu estat, el nom i l'ofici. En un grup, les cares de qui hi és.
  function owner(){
   const box=el('span','vw-owner'),members=state.winds.filter(w=>(state.active?.members||[]).includes(w.id));
-  if(state.active?.legacyWind||members.length===1){const w=soloWind();if(!w)return el('span','',state.active?.name||'');const m=windMark(state,state.active.id,w.id),mood=m==='working'?root.gregalWinds.moodOf(state.pending):m==='done'?'done':undefined;box.append(root.gregalWinds.face(w,true,mood),el('strong','',w.name),...tag(w),markLabel(w));cheerOn(box);return box;}
+  if(state.active?.legacyWind||members.length===1){const w=soloWind();if(!w)return el('span','',state.active?.name||'');const slot=el('span','vw-owner-slot'),n=el('span','vw-wind-corner');n.dataset.wind=w.id;n.setAttribute('aria-hidden','true');slot.append(n);paintCorner(n);cheerOn(n);box.append(slot,el('strong','',w.name),...tag(w),markLabel(w));return box;}
   const faces=el('span','vw-owner-faces');for(const w of members.slice(0,5))faces.append(face(w,null,24));box.append(faces,el('strong','',state.active?.name||t('Conversa en grup','Group conversation')));box.title=members.map(w=>w.name).join(', ');return box;
  }
  function render(){
@@ -396,7 +407,7 @@
   paintMark();if(!messages||state.view!=='chat')return;const pending=state.pending;
   const old=messages.querySelector('.vw-pending');const follow=nearChatEnd(messages);old?.remove();
   if(!pending||pending.thread!==state.active?.id)return;
-  const wind=state.winds.find(w=>w.id===pending.wind),row=el('article','vw-message vw-pending'),copy=el('div','vw-pending-copy');row.append(face(wind,pending));
+  const wind=state.winds.find(w=>w.id===pending.wind),row=el('article','vw-message vw-pending'),copy=el('div','vw-pending-copy');if(!soloWind())row.append(face(wind,pending));
   copy.append(el('strong','',wind?.name||t('Els teus vents','Your winds')));
   const phases={writing:t('Escrivint la resposta','Writing the response'),thinking:t('Preparant la resposta','Preparing a response'),searching:t('Cercant informació','Searching for information'),scheduling:t('Preparant el recordatori','Preparing the reminder'),working:t('Treballant en la resposta','Working on the response')};
   const activity=el('div','vw-thinking');activity.setAttribute('role',pending.text?'presentation':'status');const dots=el('span','vw-thinking-dots');dots.setAttribute('aria-hidden','true');for(let i=0;i<3;i++)dots.append(el('i'));
@@ -1222,12 +1233,13 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   for(const m of run){const w=state.winds.find(x=>x.id===m.speaker_id);const v=el('div','vw-debate-voice'),head=el('div','vw-debate-who');if(w)head.append(face(w));head.append(el('strong','',w?.name||m.speaker_name||''));const body=el('div','vw-message-text');const txt=withoutSpeaker(m.text,w?.name||m.speaker_name);if(root.gregalMD)body.innerHTML=root.gregalMD.render(txt);else body.textContent=txt;v.append(head,body);d.append(v);}
   return d;
  }
- function paintHistory(){const top=messages.scrollTop,follow=nearChatEnd(messages);messages.replaceChildren();let voice='',asked=false;const H=state.history,who=m=>m?(m.from==='user'?'user':(m.speaker_id||m.from||'')):null;for(let hi=0;hi<H.length;hi++){const item=H[hi];if(item.kind==='memory'){messages.append(memoryRow(item));continue;}if(item.kind==='debate'){let end=hi;while(end+1<H.length&&H[end+1].kind==='debate')end++;messages.append(debateRun(H.slice(hi,end+1)));hi=end;continue;}const user=item.from==='user';
+ function paintHistory(){const top=messages.scrollTop,follow=nearChatEnd(messages);messages.replaceChildren();let voice='',asked=false;const solo=soloWind(),H=state.history,who=m=>m?(m.from==='user'?'user':(m.speaker_id||m.from||'')):null;for(let hi=0;hi<H.length;hi++){const item=H[hi];if(item.kind==='memory'){messages.append(memoryRow(item));continue;}if(item.kind==='debate'){let end=hi;while(end+1<H.length&&H[end+1].kind==='debate')end++;messages.append(debateRun(H.slice(hi,end+1)));hi=end;continue;}const user=item.from==='user';
   // Un vent convidat amb «Pregunta-li»: una línia diu que s'hi afegeix.
   if(item.kind==='guest'){const g=state.winds.find(x=>x.id===item.speaker_id);const n=g?.name||item.speaker_name||'';if(n)messages.append(el('p','vw-handoff',t('→ '+n+" s'hi afegeix",'→ '+n+' joins in')));}
   // Un altre vent agafa el fil després d'un missatge teu: una línia ho diu, en lloc que el vent ho expliqui.
   if(user)asked=true;else if(!state.active?.legacyWind){const id=item.speaker_id||'';if(voice&&id&&id!==voice&&asked){const who=state.winds.find(w=>w.id===id);if(who)messages.append(el('p','vw-handoff',t('→ '+who.name+' agafa el fil','→ '+who.name+' takes over')));}if(id)voice=id;asked=false;}const w=state.winds.find(w=>w.id===item.speaker_id||w.id===item.from||w.name===item.from)||(state.active?.legacyWind?state.winds.find(w=>w.id===state.active.wind):null);const row=el('article',user?'vw-message vw-user':'vw-message');if(item.id)row.dataset.messageId=item.id;// Ratxes (B1): la cara i el nom un sol cop; la cua només a l'última. Taules, codi i textos llargs es llegeixen sense bombolla.
-  if(who(H[hi-1])===who(item))row.classList.add('vw-run-cont');if(who(H[hi+1])!==who(item))row.classList.add('vw-run-last');if(!user&&chatReadingSurface(item.text))row.classList.add('vw-reading');if(!user)row.append(face(w));const copy=el('div'),body=el('div','vw-message-text'),text=user?item.text:choicesStrip(withoutSpeaker(item.text,w?.name||item.speaker_name));if(root.gregalMD){body.innerHTML=root.gregalMD.render(text);if(item.ts&&root.gregalMD.stamp)root.gregalMD.stamp(body,item.ts);}else body.textContent=text;copy.append(el('strong','',user?t('Tu','You'):w?.name||item.speaker_name||t('Els teus vents','Your winds')),body);
+  // Amb un sol vent, la seva cara és només la de dalt (108); en un grup, cada resposta diu qui parla.
+  if(who(H[hi-1])===who(item))row.classList.add('vw-run-cont');if(who(H[hi+1])!==who(item))row.classList.add('vw-run-last');if(!user&&chatReadingSurface(item.text))row.classList.add('vw-reading');if(!user&&!solo)row.append(face(w));const copy=el('div'),body=el('div','vw-message-text'),text=user?item.text:choicesStrip(withoutSpeaker(item.text,w?.name||item.speaker_name));if(root.gregalMD){body.innerHTML=root.gregalMD.render(text);if(item.ts&&root.gregalMD.stamp)root.gregalMD.stamp(body,item.ts);}else body.textContent=text;copy.append(el('strong','',user?t('Tu','You'):w?.name||item.speaker_name||t('Els teus vents','Your winds')),body);
   // Desa i Comparteix (share-msg.js): desar-la com a nota; text per a WhatsApp/Telegram, a algú de l'app o enllaç públic.
   if(item.streaming)row.dataset.streaming='true';
   if(!user&&root.gregalShare&&!item.streaming){const sh=root.gregalShare.button(()=>text,{from:w?.name||item.speaker_name||''});row.append(root.gregalShare.saveButton(()=>text,openSaved),sh);root.gregalShare.keepChips(body,()=>text,openSaved);}
