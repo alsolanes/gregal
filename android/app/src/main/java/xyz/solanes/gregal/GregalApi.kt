@@ -705,8 +705,8 @@ class GregalApi(val base: String, val token: String) {
         getAs<ConeixementDto>("/api/winds/coneixement?wind=$windId&nom=$nom").toConeixement(withBody = true)
 
     fun saveConeixement(windId: String, c: Coneixement): String {
-        val o = postAs<NomDto>("/api/winds/coneixements", JSONObject().put("wind", windId).put("nom", c.nom)
-            .put("titol", c.titol).put("descripcio", c.descripcio).put("cos", c.cos))
+        val o = GregalJson.decodeFromString<NomDto>(read("/api/winds/coneixements", "PUT", JSONObject().put("wind", windId).put("nom", c.nom)
+            .put("titol", c.titol).put("descripcio", c.descripcio).put("cos", c.cos).toString()))
         return o.nom ?: c.nom
     }
 

@@ -3552,7 +3552,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.IO) { source.api().post("/api/winds/avatar-theme", JSONObject().put("theme", theme)) }
                 if (isCompanionOrigin(source, epoch)) _avatarTheme.value = theme
             } catch (e: Exception) {
-                if (isCompanionOrigin(source, epoch)) companyError(e)
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                // A server from before avatar themes has no such route.
+                if (e.message.orEmpty().startsWith("HTTP 404")) notify(appText("winds.avatarServerOld")) else companyError(e)
             }
         }
     }
@@ -4125,7 +4127,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 onDone(true)
             } catch (e: Exception) {
                 if (isCompanionOrigin(source, epoch)) {
-                    companyError(e); onDone(false)
+                    // A server from before avatar themes rejects the unknown `avatar` field.
+                    if (avatar.isNotEmpty() && e.message.orEmpty().startsWith("HTTP 400: invalid request")) notify(appText("winds.avatarServerOld"))
+                    else companyError(e)
+                    onDone(false)
                 }
             }
         }
