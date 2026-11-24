@@ -384,31 +384,42 @@
     for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
     return h % 8 * 45;
   }
-  // The volume of Cares for the round heads of the other packs: a rim of bounced
-  // light at the far edge, a specular highlight up left where the light comes
-  // from, and for the whole figure a soft shadow where it meets the ground. The
-  // gradients take the face's own id, so faces on one page never share them.
+  // The volume of Cares for the round heads of the other packs, in layers over
+  // the head's own gradient: a core shadow that turns the far side away from the
+  // top-left light, reflected light along the bottom-right edge, a broad sheen
+  // and a crisp specular highlight. Under 28 px the sheen goes and the highlight
+  // grows a little, so the head stays one clean shape. The figure stands on a
+  // soft shadow over a bounce of its own colour, which still reads on a dark
+  // page. The gradients take the face's own id: faces on one page never share.
   const stops = list => list.map(([offset, tint, opacity]) => ['stop', { offset, 'stop-color':tint, 'stop-opacity':opacity }]);
-  function relief(defs, id, fill, cx, cy, rx, ry = rx) {
-    const glow = mix(fill, '#FFFFFF', .65);
+  function relief(defs, id, fill, cx, cy, rx, ry = rx, small = false) {
+    const core = mix(fill, '#1B1530', .6), glow = mix(fill, '#FFFFFF', .5), R = Math.max(rx, ry), lx = num(cx - .38 * rx), ly = num(cy - .48 * ry);
+    const space = { gradientUnits:'userSpaceOnUse' }, url = suffix => 'url(#' + id + suffix + ')';
     defs.append(
-      shapes(svgNode('radialGradient', { id:id + 'r', cx:num(cx - .22 * rx), cy:num(cy - .26 * ry), r:num(1.32 * Math.max(rx, ry)), gradientUnits:'userSpaceOnUse' }), stops([[.78, glow, 0], [1, glow, .4]])),
-      shapes(svgNode('radialGradient', { id:id + 's' }), stops([[0, '#FFFFFF', .85], [.45, '#FFFFFF', .3], [1, '#FFFFFF', 0]])));
-    const sx = num(cx - .38 * rx), sy = num(cy - .46 * ry);
-    return [['ellipse', { class:'wf-rim', cx, cy, rx, ry, fill:'url(#' + id + 'r)' }],
-      ['ellipse', { class:'wf-spec', cx:sx, cy:sy, rx:num(.3 * rx), ry:num(.18 * ry), transform:`rotate(-35 ${sx} ${sy})`, fill:'url(#' + id + 's)' }]];
+      shapes(svgNode('radialGradient', { id:id + 'k', ...space, cx:lx, cy:ly, r:num(1.7 * R) }), stops([[.4, core, 0], [.78, core, small ? .5 : .62], [.93, core, .45], [1, core, .2]])),
+      shapes(svgNode('radialGradient', { id:id + 'r', ...space, cx:num(cx - .22 * rx), cy:num(cy - .26 * ry), r:num(1.3 * R) }), stops([[.86, glow, 0], [1, glow, .55]])),
+      shapes(svgNode('radialGradient', { id:id + 'w', ...space, cx:lx, cy:ly, r:num(.65 * R) }), stops([[0, '#FFFFFF', .38], [1, '#FFFFFF', 0]])),
+      shapes(svgNode('radialGradient', { id:id + 's' }), stops([[0, '#FFFFFF', .95], [.5, '#FFFFFF', .8], [1, '#FFFFFF', 0]])),
+      shapes(svgNode('radialGradient', { id:id + 'o' }), stops([[0, core, .55], [1, core, 0]])));
+    const sx = num(cx - .36 * rx), sy = num(cy - .5 * ry), head = { cx, cy, rx, ry };
+    return [['ellipse', { class:'wf-shade', ...head, fill:url('k') }], ['ellipse', { class:'wf-rim', ...head, fill:url('r') }],
+      ...small ? [] : [['ellipse', { class:'wf-sheen', ...head, fill:url('w') }]],
+      ['ellipse', { class:'wf-spec', cx:sx, cy:sy, rx:num((small ? .28 : .2) * rx), ry:num((small ? .18 : .12) * ry), transform:`rotate(-35 ${sx} ${sy})`, fill:url('s') }]];
   }
   function contact(defs, id, fill, cx, cy, rx) {
-    const ground = mix(fill, '#0B0C14', .72);
-    defs.append(shapes(svgNode('radialGradient', { id:id + 'g' }), stops([[0, ground, .55], [.6, ground, .22], [1, ground, 0]])));
-    return [['ellipse', { class:'wf-ground', cx, cy, rx, ry:num(rx * .17), fill:'url(#' + id + 'g)' }]];
+    const ground = mix(fill, '#0B0C14', .75);
+    defs.append(
+      shapes(svgNode('radialGradient', { id:id + 'b' }), stops([[0, fill, .4], [1, fill, 0]])),
+      shapes(svgNode('radialGradient', { id:id + 'g' }), stops([[0, ground, .85], [.55, ground, .4], [1, ground, 0]])));
+    return [['ellipse', { class:'wf-bounce', cx, cy, rx:num(1.3 * rx), ry:num(.32 * rx), fill:'url(#' + id + 'b)' }],
+      ['ellipse', { class:'wf-ground', cx, cy, rx, ry:num(.2 * rx), fill:'url(#' + id + 'g)' }]];
   }
   // Esperit de vent (mockups/vents-avatars.html): a head with two tails that
   // point to where the wind comes from, its eyes looking where it goes. Drawn
   // in a 100 box scaled into the 80 one, so mood badges keep their corner. The
   // idle sway is left out when the system asks for less motion; work moves the
   // tails from winds.css either way.
-  function esperit(svg, w, fill, ink, full) {
+  function esperit(svg, w, fill, ink, full, small) {
     const deg = direction(w), rad = deg * Math.PI / 180, ux = Math.sin(rad), uy = -Math.cos(rad), R = 28;
     const hx = num(50 - 12 * ux), hy = num(50 - 12 * uy), px = -1.6 * ux, py = -1.6 * uy, q = v => num(v * R);
     const id = 'wf' + (++faceSerial), defs = svgNode('defs', {}), tail = 'url(#' + id + 't)';
@@ -428,9 +439,12 @@
       ['path', { d:`M0 ${q(1)}C${q(.8)} ${q(1.03)} ${q(1.22)} ${q(.78)} ${q(1.58)} ${q(.64)}C${q(1.1)} ${q(.5)} ${q(.7)} ${q(.3)} ${q(.25)} ${q(.12)}Z`, fill:tail }],
       ['path', { d:`M${q(1.02)} ${q(.04)}C${q(1.3)} ${q(-.04)} ${q(1.5)} ${q(.1)} ${q(1.8)} ${q(.02)}`, fill:'none', stroke:tail, 'stroke-width':3.2, 'stroke-linecap':'round' }]]);
     shapes(drift, [
-      ['circle', { cx:hx, cy:hy, r:R, fill:'url(#' + id + 'h)' }], ...relief(defs, id, fill, hx, hy, R),
+      ['circle', { cx:hx, cy:hy, r:R, fill:'url(#' + id + 'h)' }], ...relief(defs, id, fill, hx, hy, R, R, small),
       ...[-1, 1].flatMap(side => [
         ['ellipse', { cx:num(hx + 14 * side), cy:num(hy + 6), rx:4.6, ry:2.8, fill:'#E4577A', opacity:.32 }],
+        // The eyes sit a little into the head: a soft shadow just above them.
+        ...full ? [['ellipse', { cx:num(hx + 8 * side + px), cy:num(hy - 3.4 + py), rx:4.4, ry:4.8, fill:'url(#' + id + 'o)' }],
+          ['ellipse', { cx:num(hx + 14 * side - 1), cy:num(hy + 5), rx:2.2, ry:1, fill:'#FFFFFF', opacity:.4 }]] : [],
         ['ellipse', { cx:num(hx + 8 * side + px), cy:num(hy - 2 + py), rx:2.9, ry:3.7, fill:ink }],
         ['circle', { cx:num(hx + 8 * side + 1 + px), cy:num(hy - 3.4 + py), r:1, fill:ink === '#FFFFFF' ? fill : '#FFFFFF' }]]),
       ['path', { d:`M${num(hx - 5)} ${num(hy + 6)}Q${hx} ${num(hy + 10.5)} ${num(hx + 5)} ${num(hy + 6)}`, fill:'none', stroke:ink, 'stroke-width':2.2, 'stroke-linecap':'round' }]]);
@@ -454,9 +468,10 @@
     if (!root.matchMedia?.('(prefers-reduced-motion: reduce)').matches) svg.setAttribute('class', svg.getAttribute('class') + ' wf-idle');
     const box = group(svg, '', { transform:'scale(.8)' });
     if (full) shapes(box, contact(defs, id, fill, hx, num(hy + R + 4), num(.8 * R)));
-    shapes(box, [['ellipse', { cx:hx, cy:hy, rx:R + 1.5, ry:R, fill:'url(#' + id + 'h)' }], ...relief(defs, id, fill, hx, hy, R + 1.5, R), ...small ? [['circle', { cx:mx, cy:my, r:4, fill:ink }]] : [
-      ['circle', { cx:num(hx - 13), cy:num(hy + 5), r:6.5, fill:'#E4577A', opacity:.38 }],
-      ['circle', { cx:num(hx + 13), cy:num(hy + 5), r:6.5, fill:'#E4577A', opacity:.38 }],
+    shapes(box, [['ellipse', { cx:hx, cy:hy, rx:R + 1.5, ry:R, fill:'url(#' + id + 'h)' }], ...relief(defs, id, fill, hx, hy, R + 1.5, R, small), ...small ? [['circle', { cx:mx, cy:my, r:4, fill:ink }]] : [
+      // Full cheeks: lit on top, deeper below.
+      ...[-13, 13].flatMap(dx => [['circle', { cx:num(hx + dx), cy:num(hy + 5), r:6.5, fill:'#E4577A', opacity:.38 }],
+        ['ellipse', { cx:num(hx + dx - 1.5), cy:num(hy + 2.6), rx:3, ry:1.6, fill:'#FFFFFF', opacity:.4 }]]),
       ['path', { d:`M${num(hx - 12)} ${num(hy - 3)}q4-4.5 8 0M${num(hx + 4)} ${num(hy - 3)}q4-4.5 8 0`, fill:'none', stroke:ink, 'stroke-width':2.3, 'stroke-linecap':'round' }],
       ['ellipse', { cx:mx, cy:my, rx:3.4, ry:3.9, fill:ink }]]]);
     const lines = small ? [['M0-5C6-7 12-4 18-6', 7], ['M0 6C6 8 12 5 18 7', 7]] : [['M0-7C10-11 18-5 30-9', 3.6], ['M0 0C12-3 22 3 36 0', 3.6], ['M0 7C10 11 18 5 30 9', 3.6]];
@@ -488,8 +503,13 @@
     }
     shapes(group(group(dial, '', { transform:`rotate(${direction(w)})` }), 'wf-point'), point(small ? 40 : 43, small ? 12 : 8, mix(fill, '#FFFFFF', .55), fill));
     // The light sits on the glass over the dial, so it goes on top of the points;
-    // a rim in the dial's own dark tone keeps the ticks readable at the edge.
-    shapes(dial, [['circle', { r:small ? 7 : 4.5, fill:cream }], ['circle', { r:small ? 3 : 1.8, fill:dark }], ...relief(defs, id, dark, 0, 0, 50)]);
+    // a rim in the dial's own dark tone keeps the ticks readable at the edge, and
+    // the whole figure adds a curved reflection across the glass.
+    shapes(dial, [['circle', { r:small ? 7 : 4.5, fill:cream }], ['circle', { r:small ? 3 : 1.8, fill:dark }], ...relief(defs, id, dark, 0, 0, 50, 50, small)]);
+    if (full) {
+      defs.append(shapes(svgNode('linearGradient', { id:id + 'q', x1:-40, y1:-40, x2:5, y2:5, gradientUnits:'userSpaceOnUse' }), stops([[0, '#FFFFFF', .55], [1, '#FFFFFF', .04]])));
+      shapes(dial, [['path', { class:'wf-glass', d:'M-44.5-10.3A45.7 45.7 0 0 1 10.3-44.5A90 90 0 0 0-44.5-10.3Z', fill:'url(#' + id + 'q)' }]]);
+    }
     return svg;
   }
   // Mapa de vent (mockups/vents-avatars.html): a live weather map in a circle,
@@ -612,7 +632,7 @@
     svg.style.setProperty('--wf-phase', (-((clock() + seed / 83) % 12)).toFixed(2) + 's');
     faceKeys.set(svg, key); faceTones.set(svg, tone);
     const pack = avatarPack(w);
-    if (pack === 'esperit') return setMood(esperit(svg, w, fill, ink, large === true), mood, key);
+    if (pack === 'esperit') return setMood(esperit(svg, w, fill, ink, large === true, size < 28), mood, key);
     if (pack === 'cap') return setMood(cap(svg, w, fill, ink, size < 28, large === true), mood, key);
     if (pack === 'rosa') return setMood(rosa(svg, w, fill, size < 28, large === true), mood, key);
     if (pack === 'mapa') return setMood(mapa(svg, w, fill), mood, key);
@@ -628,13 +648,16 @@
     };
     const space = { gradientUnits:'userSpaceOnUse' }, lx = num(40 - .38 * R), ly = num(40 - .5 * R);
     const volume = paint('v', { ...space, cx:lx, cy:ly, r:num(1.9 * R) }, [[0, light], [.45, fill], [1, deep]]);
-    const glow = mix(fill, '#FFFFFF', .65);
-    const rim = paint('r', { ...space, cx:num(40 - .22 * R), cy:num(40 - .26 * R), r:num((cloud ? 1.62 : 1.32) * R) }, [[.8, glow, 0], [1, glow, .36]]);
-    const sheen = paint('s', { ...space, cx:lx, cy:ly, r:num(.5 * R) }, [[0, '#FFFFFF', .28], [1, '#FFFFFF', 0]]);
-    // A second, darker falloff turns the far side away from the light, and the
-    // base darkens where the face meets its feet.
-    const shade = paint('d', { ...space, cx:lx, cy:ly, r:num(1.75 * R) }, [[.5, deep, 0], [1, mix(fill, '#1B1530', .55), .7]]);
-    const occlusion = paint('o', {}, [[0, mix(fill, '#1B1530', .6), .75], [1, deep, 0]]);
+    const glow = mix(fill, '#FFFFFF', .5), core = mix(fill, '#1B1530', .6);
+    const rim = paint('r', { ...space, cx:num(40 - .22 * R), cy:num(40 - .26 * R), r:num((cloud ? 1.62 : 1.32) * R) }, [[.8, glow, 0], [1, glow, .55]]);
+    const sheen = paint('s', { ...space, cx:lx, cy:ly, r:num(.65 * R) }, [[0, '#FFFFFF', .38], [1, '#FFFFFF', 0]]);
+    const spec = paint('p', {}, [[0, '#FFFFFF', .95], [.5, '#FFFFFF', .8], [1, '#FFFFFF', 0]]);
+    // A second, darker falloff turns the far side away from the light and lets
+    // the rim's reflected light show at the very edge; the base darkens where
+    // the face meets its feet, and the eyes sit a little into the face.
+    const shade = paint('d', { ...space, cx:lx, cy:ly, r:num(1.7 * R) }, [[.4, core, 0], [.78, core, .62], [.93, core, .45], [1, core, .2]]);
+    const occlusion = paint('o', {}, [[0, core, .75], [1, deep, 0]]);
+    const inset = paint('i', { cy:.4 }, [[0, core, .45], [1, core, 0]]);
     const blush = paint('b', {}, [[0, '#E4577A', .5], [1, '#E4577A', 0]]);
     defs.append(shapes(svgNode('clipPath', { id:id + 'c' }), bodies[cloud ? 'n' : 'o']));
     svg.append(defs);
@@ -655,10 +678,13 @@
       ['rect', { class:'wf-shade', x:-4, y:-4, width:88, height:88, fill:shade }],
       ['ellipse', { class:'wf-ao', cx:40, cy:num(footY + 1), rx:num(.7 * R), ry:num(.24 * R), fill:occlusion }],
       ['rect', { x:-4, y:-4, width:88, height:88, fill:rim }],
-      ['circle', { cx:lx, cy:ly, r:num(.5 * R), fill:sheen }]]);
+      ['circle', { cx:lx, cy:ly, r:num(.65 * R), fill:sheen }]]);
+    const sx = num(40 - .36 * R), sy = num(40 - .5 * R);
+    shapes(head, [['ellipse', { class:'wf-spec', cx:sx, cy:sy, rx:num(.2 * R), ry:num(.12 * R), transform:`rotate(-35 ${sx} ${sy})`, fill:spec }]]);
     shapes(head, [
       ['ellipse', { cx:20.6, cy:48.8, rx:7, ry:4.6, fill:blush }],
       ['ellipse', { cx:59.4, cy:48.8, rx:7, ry:4.6, fill:blush }]]);
+    if (full) shapes(head, [19.1, 57.9].map(cx => ['ellipse', { cx, cy:46.8, rx:2.6, ry:1.2, fill:'#FFFFFF', opacity:.35 }]));
     // Two bold marks for eyes, as on Android; the figure also gets a catchlight.
     const eyes = group(group(head, 'wf-gaze'), 'wf-eyes'), ey = 38.4;
     for (const x of [30.4, 49.6]) {
@@ -666,6 +692,7 @@
       else if (s[0] === 'e') shapes(eyes, [['path', { d:`M${x} ${num(ey - 7.4)}l2.2 5.2 5.2 2.2-5.2 2.2-2.2 5.2-2.2-5.2-5.2-2.2 5.2-2.2Z`, fill:ink, stroke:ink, 'stroke-width':1.2, 'stroke-linejoin':'round' }]]);
       else {
         const half = s[0] === 'b' ? 5.4 : 4.2;
+        if (full) shapes(eyes, [['rect', { x:num(x - half - 1.6), y:num(ey - 10.2), width:num(half * 2 + 3.2), height:18.4, rx:half + 1.6, fill:inset }]]);
         shapes(eyes, [['rect', { x:num(x - half), y:num(ey - 7.8), width:half * 2, height:15.6, rx:half, fill:ink }]]);
         if (full) shapes(eyes, [['circle', { cx:num(x + half * .3), cy:num(ey - 4.1), r:num(half * .36), fill:ink === darkInk ? '#FFFFFF' : fill, opacity:'.5' }]]);
       }

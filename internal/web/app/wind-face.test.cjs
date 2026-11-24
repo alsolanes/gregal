@@ -357,14 +357,19 @@ test('Esperit, Cap de vent and Rosa de rellotge are lit like Cares: shading, rim
     const big = winds.face(w, true), small = winds.face(w, false, 'idle', 24);
     for (const [svg, size] of [[big, 'large'], [small, '24 px']]) {
       assert.ok(svg.all().some(n => n.tag === 'radialGradient'), `${pack} ${size}: a radial gradient lit from the top left`);
+      assert.ok(has(svg, 'wf-shade'), `${pack} ${size}: a core shadow away from the light`);
       assert.ok(has(svg, 'wf-rim'), `${pack} ${size}: a rim light`);
       assert.ok(has(svg, 'wf-spec'), `${pack} ${size}: a specular highlight`);
     }
     assert.ok(has(big, 'wf-ground'), pack + ': a soft contact shadow under the large figure');
+    assert.ok(has(big, 'wf-bounce'), pack + ': a bounce of its own colour, so the shadow reads on a dark page');
+    assert.equal(has(small, 'wf-sheen'), false, pack + ': no broad sheen at 24 px');
     assert.equal(has(small, 'wf-ground'), false, pack + ': no ground under a list face');
     const a = ownGradients(big), b = ownGradients(winds.face(w, true));
     assert.equal(a.filter(id => b.includes(id)).length, 0, pack + ': two faces share no gradient id');
   }
+  winds.setAvatarTheme('rosa');
+  assert.ok(has(winds.face(w, true), 'wf-glass'), 'the whole Rosa figure has a curved reflection on its glass');
 });
 
 test('Cares gets a second shading layer and ambient occlusion at its base, at every size', () => {
