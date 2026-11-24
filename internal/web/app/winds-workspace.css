@@ -757,9 +757,17 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
   .vw-messages .vw-message:not(.vw-user):not(.vw-reading) > div:not(.vw-pending-copy), .vw-messages .vw-pending-copy { max-width:calc(100% - 36px); }
   .vw-messages .vw-user > div { max-width:84%; }
 }
+/* 101: el missatge nou entra amb una molla (el teu també, quan ja l'espera la bombolla del vent), la
+   bombolla d'espera respira mentre el vent pensa i els panells de l'ordinador i de Docs hi llisquen. */
 @media(prefers-reduced-motion:no-preference) {
-  .vw-messages .vw-message.vw-run-last:last-of-type { animation:vw-in .18s ease-out; }
-  @keyframes vw-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .vw-messages .vw-message.vw-run-last:last-of-type, .vw-messages .vw-message.vw-user:has(+ .vw-pending) { animation:vw-in .5s ease-out; }
+  .vw-messages .vw-message { transform-origin:0 100%; }
+  .vw-messages .vw-message.vw-user { transform-origin:100% 100%; }
+  @keyframes vw-in { 0% { opacity:0; transform:translateY(12px) scale(.94); } 55% { opacity:1; transform:translateY(-2px) scale(1.01); } 80% { transform:translateY(1px) scale(.997); } 100% { opacity:1; transform:none; } }
+  .vw-messages .vw-pending:not(.vw-reading):not(:has(.vw-stream-text)) .vw-pending-copy { animation:vw-bubble 2.4s ease-in-out infinite; transform-origin:0 100%; }
+  @keyframes vw-bubble { 0%,100% { transform:scale(1); } 50% { transform:scale(1.02); } }
+  #workbench > :is(.vw-computer-pane, #docsPanel) { animation:vw-pane-in .38s cubic-bezier(.2,.9,.3,1); }
+  @keyframes vw-pane-in { from { opacity:0; transform:translateX(36px); } to { opacity:1; transform:none; } }
 }
 
 /* ---- La conversa d'un vent agafa el seu color (085) ----
@@ -802,6 +810,31 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
   .vw-wind-corner[data-mood="waiting"] > .winds-face { animation:vw-corner-wait 3s ease-in-out infinite; }
 }
 @keyframes vw-corner-wait { 0%,70%,100% { transform:rotate(-8deg); } 78% { transform:rotate(-8deg) translateY(-5px); } 86% { transform:rotate(-8deg); } }
+/* 101: un torn que surt bé, el vent de la cantonada i la cara de dalt fan un saltiró amb un esclat
+   d'espurnes del seu color (winds-workspace.js, cheerOn); un que falla, una arronsada d'espatlles.
+   Les espurnes són invisibles fins que es mouen: amb menys moviment no hi ha res a veure. */
+:is(.vw-owner,.vw-gregal-face).vw-cheer { position:relative; }
+.vw-burst { --vw-burst:var(--vw-wind, var(--g-accent, var(--accent))); --reach:30px; position:absolute; left:50%; top:50%; width:0; height:0; pointer-events:none; }
+.vw-owner > .vw-burst { left:22px; }
+.vw-wind-corner > .vw-burst { --reach:70px; --big:1.6; left:auto; top:auto; right:24px; bottom:70px; }
+.vw-burst i { position:absolute; left:-3px; top:-3px; width:6px; height:6px; border-radius:50%; background:var(--vw-burst); opacity:0; }
+.vw-burst i:nth-child(odd) { --far:.72; left:-5px; top:-5px; width:10px; height:10px; border-radius:0; clip-path:polygon(50% 0,62% 38%,100% 50%,62% 62%,50% 100%,38% 62%,0 50%,38% 38%); }
+.vw-burst i:nth-child(3n) { background:color-mix(in srgb, var(--vw-burst) 45%, #fff); }
+.vw-burst::before { content:""; position:absolute; left:calc(var(--reach) * -.6); top:calc(var(--reach) * -.6); width:calc(var(--reach) * 1.2); height:calc(var(--reach) * 1.2); border-radius:50%; border:2px solid var(--vw-burst); opacity:0; }
+@media(prefers-reduced-motion:no-preference) {
+  .vw-cheer > .winds-face { animation:vw-cheer 1s ease-in-out; transform-origin:50% 100%; }
+  .vw-shrug > .winds-face { animation:vw-shrug 1s ease-in-out; transform-origin:50% 100%; }
+  .vw-burst i { animation:vw-spark .95s cubic-bezier(.15,.8,.3,1) calc(.12s + var(--i) * 14ms) backwards; }
+  .vw-burst::before { animation:vw-ring .7s ease-out .1s backwards; }
+}
+@keyframes vw-cheer { 0%,100% { transform:none; } 14% { transform:scale(1.1,.86); } 38% { transform:translateY(-18%) rotate(-7deg) scale(.96,1.06); } 56% { transform:translateY(-9%) rotate(6deg); } 74% { transform:scale(1.06,.94); } 88% { transform:scale(.98,1.02); } }
+@keyframes vw-spark {
+  0% { opacity:0; transform:rotate(calc(var(--i) * 36deg)) translateY(0) scale(.2); }
+  12% { opacity:1; }
+  60% { opacity:1; transform:rotate(calc(var(--i) * 36deg + 10deg)) translateY(calc(var(--reach) * var(--far, 1) * -.85)) scale(var(--big, 1)); }
+  100% { opacity:0; transform:rotate(calc(var(--i) * 36deg + 16deg)) translateY(calc(var(--reach) * var(--far, 1) * -1)) scale(.3); } }
+@keyframes vw-ring { 0% { opacity:.7; transform:scale(.3); } 100% { opacity:0; transform:scale(1.15); } }
+@keyframes vw-shrug { 0%,100% { transform:none; } 18% { transform:translateY(2%) scale(1.04,.94); } 38% { transform:translateY(-6%) rotate(-6deg) scale(.98,1.03); } 58% { transform:translateY(-6%) rotate(5deg) scale(.98,1.03); } 78% { transform:rotate(-1deg); } }
 /* Quiet del tot: també les parts que winds.css mou en plena feina encara que es demani menys moviment. */
 @media(prefers-reduced-motion:reduce) { .wind-workspace .vw-wind-corner .winds-face[data-mood], .wind-workspace .vw-wind-corner .winds-face[data-mood] * { animation:none !important; } }
 

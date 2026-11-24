@@ -162,13 +162,15 @@
  // winds.js (la dibuixa en repòs): és la postura que li dona winds-workspace.css.
  const cornerMood=(s,thread,wind)=>{const m=windMark(s,thread,wind);return m==='working'?root.gregalWinds.moodOf(s.pending):m||'idle';};
  // Al fil de Gregal la seva cara ja és gran a dalt; en un grup no hi ha un sol vent.
- function cornerWind(){const w=soloWind();if(!w||state.active?.wind==='gregal')return;const n=el('div','vw-wind-corner');n.dataset.wind=w.id;n.setAttribute('aria-hidden','true');content.append(n);paintCorner(n);}
- function paintCorner(n=page?.querySelector('.vw-wind-corner')){if(!n)return;const mood=cornerMood(state,state.active?.id,n.dataset.wind);if(n.dataset.mood===mood)return;n.dataset.mood=mood;n.replaceChildren(root.gregalWinds.face(state.winds.find(w=>w.id===n.dataset.wind),true,mood));}
+ function cornerWind(){const w=soloWind();if(!w||state.active?.wind==='gregal')return;const n=el('div','vw-wind-corner');n.dataset.wind=w.id;n.setAttribute('aria-hidden','true');content.append(n);paintCorner(n);cheerOn(n);}
+ // 101: el torn que acaba de tornar el celebra (o l'arronsa) un sol cop qui el porta: el render següent ja no.
+ function cheerOn(n){const c=state.cheer;if(!c||c.thread!==state.active?.id)return;n.classList.add(c.kind==='done'?'vw-cheer':'vw-shrug');if(c.kind!=='done')return;const burst=el('span','vw-burst');burst.setAttribute('aria-hidden','true');for(let i=0;i<10;i++){const s=el('i');s.style.setProperty('--i',String(i));burst.append(s);}n.append(burst);}
+ function paintCorner(n=page?.querySelector('.vw-wind-corner')){if(!n)return;const mood=cornerMood(state,state.active?.id,n.dataset.wind);if(n.dataset.mood===mood)return;if(n.dataset.mood)n.className='vw-wind-corner';n.dataset.mood=mood;n.replaceChildren(root.gregalWinds.face(state.winds.find(w=>w.id===n.dataset.wind),true,mood));}
  root.gregalWindChat={mix:mixHex,share:windShare,mark:windMark,cornerMood};
  // Qui porta la conversa: el vent gran amb el seu estat, el nom i l'ofici. En un grup, les cares de qui hi és.
  function owner(){
   const box=el('span','vw-owner'),members=state.winds.filter(w=>(state.active?.members||[]).includes(w.id));
-  if(state.active?.legacyWind||members.length===1){const w=soloWind();if(!w)return el('span','',state.active?.name||'');const m=windMark(state,state.active.id,w.id),mood=m==='working'?root.gregalWinds.moodOf(state.pending):m==='done'?'done':undefined;box.append(root.gregalWinds.face(w,true,mood),el('strong','',w.name),...tag(w),markLabel(w));return box;}
+  if(state.active?.legacyWind||members.length===1){const w=soloWind();if(!w)return el('span','',state.active?.name||'');const m=windMark(state,state.active.id,w.id),mood=m==='working'?root.gregalWinds.moodOf(state.pending):m==='done'?'done':undefined;box.append(root.gregalWinds.face(w,true,mood),el('strong','',w.name),...tag(w),markLabel(w));cheerOn(box);return box;}
   const faces=el('span','vw-owner-faces');for(const w of members.slice(0,5))faces.append(face(w,null,24));box.append(faces,el('strong','',state.active?.name||t('Conversa en grup','Group conversation')));box.title=members.map(w=>w.name).join(', ');return box;
  }
  function render(){
@@ -182,7 +184,7 @@
   const gregalHome=state.view==='chat'&&state.active?.wind==='gregal';page.classList.toggle('vw-gregal',gregalHome);
   const solo=state.view==='chat'?soloWind():null;page.classList.toggle('vw-wind-chat',!!solo&&hex6(solo.color));if(solo&&hex6(solo.color)){page.style.setProperty('--vw-wind',solo.color);page.style.setProperty('--vw-wind-share',String(bubbleShare(solo.color)));}
   if(gregalHome){const g=state.winds.find(w=>w.id==='gregal');page.style.setProperty('--g-accent',g?.color||'var(--accent)');top.classList.add('vw-top-gregal');
-   const who=btn('',()=>profile(g),'vw-gregal-face');who.setAttribute('aria-label',g?.name||'Gregal');who.title=g?.name||'Gregal';const gWho=el('span','vw-gregal-who');gWho.append(el('span','vw-gregal-name',g?.name||'Gregal'),el('span','vw-gregal-role',roleName(g)||t('El teu assistent','Your assistant')));who.append(face(g),gWho);if(g)who.append(markLabel(g));
+   const who=btn('',()=>profile(g),'vw-gregal-face');who.setAttribute('aria-label',g?.name||'Gregal');who.title=g?.name||'Gregal';const gWho=el('span','vw-gregal-who');gWho.append(el('span','vw-gregal-name',g?.name||'Gregal'),el('span','vw-gregal-role',roleName(g)||t('El teu assistent','Your assistant')));who.append(face(g),gWho);if(g)who.append(markLabel(g));cheerOn(who);
    const pc=iconOnly('computer',t("L'ordinador de Gregal","Gregal's computer"),()=>openComputer(),'vw-gregal-pc');
    // «Què pot fer Gregal»: la guia, amb exemples que s'envien al fil; la primera vegada s'obre sola.
    const G=root.gregalGuide,tryIt=ex=>{if(input){input.value=ex;state.draft=ex;composer.requestSubmit();}};
@@ -202,6 +204,7 @@
   root.gregalPromptNav?.attachVents(page.querySelector('.vw-messages'));
   pageNavs();
   if(messages)messages.scrollTop=savedScroll??messages.scrollHeight;
+  state.cheer=null;
  }
  function addComposer(workspace=false){
   composer=el('form','vw-composer');input=el('textarea');input.rows=2;input.value=state.draft;input.placeholder=steerable()?t('Demana-li una altra cosa mentre treballa…','Ask for something else while it works…'):t('Què tens al cap?','What’s on your mind?');input.setAttribute('aria-label',input.placeholder);input.oninput=()=>{const sb=composer?.querySelector('.vw-send');if(sb&&sb.dataset.busy!=='true')sb.dataset.empty=String(!input.value.trim());state.draft=input.value;if(state.busy)paintSend(composer.querySelector('.vw-send'));};
@@ -1264,14 +1267,14 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
    const data=await streamChat(sentTo,text,turn,progress);
    if(data.cancelat){restore();state.notice={thread:sentTo.id,text:t('Torn aturat','Turn stopped')};}
    else if(current()){
-    state.history=data.history||state.history;state.done=sentTo.id;
+    state.history=data.history||state.history;state.done=sentTo.id;state.cheer={thread:sentTo.id,kind:data.failed?.length?'shrug':'done'};
     state.turnActs=Array.isArray(data.actions)&&data.actions.length?{thread:sentTo.id,list:data.actions}:null;
     if(voice.on){const last=[...(data.history||[])].reverse().find(m=>m.from!=='user'&&m.kind!=='memory');voiceReply(last?.text||'');}
     suggestOther(sentTo,text);
     if(sentTo.legacyWind)refreshSolo().then(()=>renderNav());
     if(data.failed?.length)state.notice={thread:sentTo.id,text:t('No han pogut completar el torn: ','Could not complete the turn: ')+data.failed.join(', ')+(data.failed_reason?' · '+root.gregalFriendlyRunError(data.failed_reason):'')};
    }
-  }catch(error){restore();throw error;}
+  }catch(error){restore();if(sentTo)state.cheer={thread:sentTo.id,kind:'shrug'};throw error;}
   finally{
    if(chatTurn===turn)chatTurn=null;
    state.pending=null;state.busy=false;

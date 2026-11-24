@@ -546,3 +546,54 @@ test('opening the chat from a news item lands on that message and marks the news
   assert.match(focused[0].textContent, /Hi ha jazz al Born/);
   assert.deepEqual(f.requests.filter(r => r.url === '/api/winds/novetats/read').map(r => [r.method, r.body]), [['POST', { ids: ['n-7'] }]]);
 });
+
+// 101: un torn que surt bé el celebren el vent de la cantonada i la cara de la capçalera, un sol cop;
+// un torn que falla, una arronsada d'espatlles.
+async function turnInXaloc(api) {
+  const f = await boot({ api });
+  await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();
+  await settle();
+  f.page.querySelector('textarea').value = 'Hola';
+  await f.page.querySelector('.vw-composer').requestSubmit()?.catch?.(() => {});
+  await settle();
+  return f;
+}
+const cheered = (f, cls) => [f.page.querySelector('.vw-wind-corner'), f.page.querySelector('.vw-owner')].map(n => n.classList.contains(cls));
+
+test('a turn that ends well makes the corner wind and the header face celebrate, once', async () => {
+  const f = await turnInXaloc();
+  assert.deepEqual(cheered(f, 'vw-cheer'), [true, true], 'the corner wind and the header face celebrate');
+  assert.deepEqual(cheered(f, 'vw-shrug'), [false, false]);
+  assert.equal(f.page.querySelectorAll('.vw-burst').length, 2, 'one sparkle burst each');
+  await f.window.loadWindsPage();
+  await settle();
+  assert.equal(f.page.querySelector('.vw-wind-mark').textContent, 'Done', 'still the same finished turn');
+  assert.deepEqual(cheered(f, 'vw-cheer'), [false, false], 'a redraw does not celebrate again');
+  assert.equal(f.page.querySelectorAll('.vw-burst').length, 0);
+});
+
+test('a turn that fails gets a shrug, not a celebration', async () => {
+  const f = await turnInXaloc(r => r.url === '/api/winds/chat/stream' ? { ok: false, status: 502, text: async () => 'boom', json: async () => ({}) } : null);
+  assert.deepEqual(cheered(f, 'vw-shrug'), [true, true]);
+  assert.deepEqual(cheered(f, 'vw-cheer'), [false, false]);
+  assert.equal(f.page.querySelectorAll('.vw-burst').length, 0);
+});
+
+// 101: els missatges nous entren amb una molla, la bombolla d'espera respira i els panells hi llisquen;
+// tot plegat només amb moviment permès, i només amb transform i opacity.
+test('new messages spring in, the waiting bubble breathes and side panes slide in, all on transform and opacity', () => {
+  const css = fs.readFileSync(path.join(__dirname, 'winds-workspace.css'), 'utf8');
+  const block = at => { let depth = 0; const start = css.indexOf('{', at); for (let i = start; i < css.length; i++) { if (css[i] === '{') depth++; else if (css[i] === '}' && --depth === 0) return css.slice(start + 1, i); } return ''; };
+  const blocks = [...css.matchAll(/@media\(prefers-reduced-motion:no-preference\)/g)].map(m => block(m.index)), motion = blocks.join('\n');
+  const still = blocks.reduce((rest, b) => rest.replace(b, ''), css);
+  for (const name of ['vw-in', 'vw-bubble', 'vw-pane-in', 'vw-cheer', 'vw-spark', 'vw-ring', 'vw-shrug']) {
+    assert.match(motion, new RegExp('animation:' + name + ' '), name + ' plays with motion allowed');
+    assert.doesNotMatch(still, new RegExp('animation:' + name + ' '), name + ' never plays under reduced motion');
+    const at = css.indexOf('@keyframes ' + name + ' ');
+    assert.ok(at >= 0, name + ' has keyframes');
+    const props = [...block(at).matchAll(/([a-z-]+)\s*:/g)].map(m => m[1]).filter(p => !['transform', 'opacity'].includes(p));
+    assert.deepEqual(props, [], name + ' animates transform and opacity only');
+  }
+  assert.match(motion, /\.vw-pending-copy[^{]*\{ animation:vw-bubble /);
+  assert.match(motion, /\.vw-computer-pane[^{]*#docsPanel[^{]*\{ animation:vw-pane-in /);
+});

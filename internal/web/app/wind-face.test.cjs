@@ -470,3 +470,49 @@ test('a map follows the reduced-motion setting when it changes', () => {
   m.motion(true);
   assert.equal(m.frames.length, 1, 'turning it off again starts the map moving');
 });
+
+// 101: what a block of CSS holds, braces matched, and which properties a keyframe animates.
+function cssBlock(css, at) {
+  if (at < 0) return '';
+  const start = css.indexOf('{', at);
+  let depth = 0;
+  for (let i = start; i < css.length; i++) {
+    if (css[i] === '{') depth++;
+    else if (css[i] === '}' && --depth === 0) return css.slice(start + 1, i);
+  }
+  return '';
+}
+const winds101 = () => fs.readFileSync(path.join(__dirname, 'winds.css'), 'utf8');
+const motionBlocks = css => [...css.matchAll(/@media \(prefers-reduced-motion:no-preference\)/g)].map(m => cssBlock(css, m.index));
+const outsideMotion = css => motionBlocks(css).reduce((rest, b) => rest.replace(b, ''), css);
+const keyframeProps = (css, name) => [...cssBlock(css, css.indexOf('@keyframes ' + name + ' ')).matchAll(/([a-z-]+)\s*:/g)].map(m => m[1]);
+
+test('idle faces blink and glance, each wind its own way, and reduced motion stills them', () => {
+  const css = winds101(), motion = motionBlocks(css).join(' ');
+  assert.match(motion, /\.winds-face \.wf-eyes \{ animation:wf-blink /, 'faces blink when motion is allowed');
+  assert.match(motion, /\.winds-face\[data-mood=idle\] \.wf-gaze \{ animation:wf-look /, 'idle faces glance around');
+  assert.equal(outsideMotion(css).includes('animation:wf-blink'), false, 'no blink outside the motion-allowed rules');
+  assert.match(cssBlock(css, css.lastIndexOf('@media (prefers-reduced-motion:reduce)')), /\.winds-face, \.winds-face \* \{ animation:none !important;/);
+  const { winds } = load();
+  const look = id => winds.face({ id, color:'#A8D8EA', style:'pso' }).style.vars['--wf-look'];
+  const looks = new Set(['xaloc', 'mestral', 'garbi', 'ponent', 'llevant'].map(look));
+  assert.ok(looks.size > 1, 'winds do not all glance the same way');
+  assert.equal(look('xaloc'), look('xaloc'), 'a redrawn face keeps its own glance');
+  assert.match(look('xaloc'), /^-?\d(\.\d+)?px$/);
+});
+
+test('a face squashes when hovered or pressed and springs back, only with motion allowed', () => {
+  const css = winds101(), motion = motionBlocks(css).join(' ');
+  assert.match(motion, /\.winds-face:hover[^{]*\{ animation:wf-squish /);
+  assert.match(motion, /\.winds-face:active[^{]*\{[^}]*transform:/);
+  assert.equal(outsideMotion(css).includes('wf-squish .'), false);
+});
+
+test('the faces animate transform and opacity only', () => {
+  const css = winds101();
+  for (const name of ['wf-blink', 'wf-look', 'wf-squish']) {
+    const props = keyframeProps(css, name);
+    assert.ok(props.length, name + ' exists');
+    assert.deepEqual(props.filter(p => !['transform', 'opacity'].includes(p)), [], name);
+  }
+});

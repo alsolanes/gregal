@@ -632,6 +632,8 @@
     if ((!mood || mood === 'idle') && news.has(w.id)) mood = 'news';
     let seed = 0; for (const c of String(key)) seed = (seed * 31 + c.charCodeAt(0)) % 997;
     svg.style.setProperty('--wf-phase', (-((clock() + seed / 83) % 12)).toFixed(2) + 's');
+    // Each wind glances its own way when idle (winds.css wf-look): a side and a reach from its seed.
+    svg.style.setProperty('--wf-look', [-3.5, -2.5, 3, 3.5, -3, 2.5][seed % 6] + 'px');
     faceKeys.set(svg, key); faceTones.set(svg, tone);
     const pack = avatarPack(w);
     if (pack === 'esperit') return setMood(esperit(svg, w, fill, ink, large === true, size < 28), mood, key);
