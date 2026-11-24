@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 	"sort"
+	"strings"
 )
 
 // windThread és una conversa a soles amb un vent tal com surt a la llista de
@@ -50,7 +51,16 @@ func threadTitle(s *Server, session string) string {
 	h.mu.RLock()
 	msgs := h.messages
 	h.mu.RUnlock()
-	return oneLine(firstUserLine(msgs), 75)
+	if first := firstUserLine(msgs); first != "" {
+		return oneLine(first, 75)
+	}
+	// Si el vent ha parlat primer (rutina, cor), el títol és el que va dir.
+	for _, m := range msgs {
+		if line := strings.TrimSpace(strings.SplitN(m.Content, "\n", 2)[0]); m.Role == "assistant" && line != "" {
+			return oneLine(line, 75)
+		}
+	}
+	return ""
 }
 
 // handleWindThreads: GET /api/winds/threads → {threads:[{wind,name,title,at,msgs}]}
