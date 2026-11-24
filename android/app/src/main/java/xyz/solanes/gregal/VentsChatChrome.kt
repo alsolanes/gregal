@@ -1,5 +1,15 @@
 package xyz.solanes.gregal
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.isSpecified
+import androidx.compose.ui.graphics.TransformOrigin
+import kotlin.math.PI
+import kotlin.math.sin
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.text.BasicTextField
@@ -88,6 +98,8 @@ internal fun VentsChatHeader(
     compact: Boolean = false,
     /** El vent del xat: el seu ofici va en pastilla al costat del nom. */
     wind: Wind? = null,
+    /** Xat d'un vent: la cara no és aquí sinó un forat on hi vola la del xat (109), que és una de sola. */
+    faceSlot: Modifier? = null,
     modifier: Modifier = Modifier,
 ) {
     if (centered) {
@@ -106,7 +118,8 @@ internal fun VentsChatHeader(
             Row(Modifier.pillBacking(SuperficieAlta).clip(RoundedCornerShape(999.dp)).clickable(onClick = onProfile, role = Role.Button)
                 .padding(start = 6.dp, end = 14.dp, top = 5.dp, bottom = 5.dp).testTag("chat-header-pill"),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                WindHalo(accent, style, size = 30, mood = mood, stacked = faces.drop(1), online = false, showKit = faces.size <= 1)
+                if (faceSlot != null) Box(faceSlot.size(44.dp).testTag("chat-header-face"))
+                else WindHalo(accent, style, size = 30, mood = mood, stacked = faces.drop(1), online = false, showKit = faces.size <= 1)
                 Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                     // El nom es mesura primer: la pastilla es queda amb el que sobra.
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -176,6 +189,55 @@ internal fun windPresenceMood(state: String?, live: WindMood?): WindMood = when 
     "winds.state.waiting" -> WindMood.NEWS
     "winds.state.done" -> WindMood.DONE
     else -> WindMood.IDLE
+}
+
+/** On pot seure el vent al seu xat (a l'arrel): la conversa, la cantonada i el forat de la capçalera. */
+internal class WindPerch {
+    var root by mutableStateOf(Offset.Unspecified)
+    var corner by mutableStateOf(Offset.Unspecified)
+    var header by mutableStateOf(Offset.Unspecified)
+    /** Contestar-li una aprovació (103): assenteix (sí) o fa que no (no) durant 0,9 s. */
+    val nod = Animatable(1f)
+    var yes by mutableStateOf(true)
+}
+
+/**
+ * El vent del xat, un de sol (109): a l'últim missatge seu a la cantonada i, quan
+ * puges pel fil ([up]), vola al costat del nom i s'encongeix fins a la mida de la
+ * capçalera. Una sola cara moguda a la capa amb una molla que es pot girar a mig
+ * vol: cap fotograma recompon la cara ni el xat. Sense moviment, salta.
+ */
+@Composable
+internal fun BoxScope.WindPresence(perch: WindPerch, up: Boolean, mood: WindMood, accent: Color, style: WindStyle,
+    label: String, onClick: () -> Unit) {
+    val motion = windMotionEnabled()
+    val flight = animateFloatAsState(if (up) 1f else 0f,
+        if (motion) spring(dampingRatio = .72f, stiffness = Spring.StiffnessMediumLow) else snap(), label = "wind-flight")
+    WindFace(size = WindPresenceSize, mood = mood, accent = accent, style = style, showKit = true, tappable = true,
+        onClick = onClick,
+        modifier = Modifier.align(Alignment.TopStart).graphicsLayer {
+            val root = perch.root
+            val corner = perch.corner
+            val header = perch.header
+            if (!root.isSpecified || !corner.isSpecified || !header.isSpecified) { alpha = 0f; return@graphicsLayer }
+            val f = flight.value
+            // La cara de la capçalera fa 38 dp (WindHalo de 30) al mig del forat de 44.
+            val to = header + Offset(3.dp.toPx(), 3.dp.toPx())
+            // Un arc cap a fora i una mica de gir: vola, no llisca.
+            val arc = sin(PI.toFloat() * f.coerceIn(0f, 1f))
+            transformOrigin = TransformOrigin(0f, 0f)
+            translationX = corner.x + (to.x - corner.x) * f - root.x + arc * 28.dp.toPx()
+            translationY = corner.y + (to.y - corner.y) * f - root.y
+            scaleX = 1f + (38f / WindPresenceSize - 1f) * f
+            scaleY = scaleX
+            rotationZ = -10f * arc
+            val n = perch.nod.value
+            if (motion && n < 1f) {
+                // Tres cops que s'apaguen: amunt i avall per al sí, de costat per al no.
+                val swing = sin(n * 6f * PI.toFloat()) * (1f - n) * 7.dp.toPx() * scaleX
+                if (perch.yes) translationY += swing else translationX += swing
+            }
+        }.semantics { contentDescription = label }.testTag("wind-presence"))
 }
 
 /**

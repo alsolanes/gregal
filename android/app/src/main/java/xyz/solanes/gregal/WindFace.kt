@@ -24,6 +24,8 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlin.math.PI
 import kotlin.math.cos
@@ -220,6 +222,9 @@ internal fun windGlanceAt(t: Float, glances: List<Pair<Float, Offset>>): Offset 
 /** Gir (graus) i batec (escala) de l'aura al temps `t` del rellotge de 12 s; sense moviment `t` és 0 i queda quieta. */
 internal fun windAuraSway(t: Float): Pair<Float, Float> = t % 6f / 6f * 360f to 1f + sin(PI.toFloat() * t) * .06f
 
+/** De quin vent (el seu color) és una cara: al xat d'un vent n'hi ha d'haver una de sola (109). */
+internal val WindFaceKey = SemanticsPropertyKey<Color>("WindFace")
+
 @Composable
 fun WindFace(
     size: Int = 96,
@@ -230,17 +235,20 @@ fun WindFace(
     /** Llista de vents: l'eina de l'ofici també en avatars petits, per triar sabent l'especialització. */
     showKit: Boolean = false,
     modifier: Modifier = Modifier,
+    /** El toc, a més del bellugueig de [tappable]: el vent del xat obre el seu perfil. */
+    onClick: (() -> Unit)? = null,
 ) {
     val compact = size < 64
     val motionAllowed = windMotionEnabled()
     val motion = (!compact || tappable) && motionAllowed
     // Celebrar o arronsar-se és un sol gest en acabar el torn: també als avatars petits.
-    val cued = modifier.then(windTurnCue(mood, accent))
+    val cued = modifier.semantics { set(WindFaceKey, accent) }.then(windTurnCue(mood, accent))
+    val packCued = if (onClick != null) cued.clickable(onClick = onClick) else cued
     when (windPack(LocalAvatarTheme.current, style)) {
-        "esperit" -> return EsperitFace(size, mood, accent, style.bearing, motion, cued)
-        "cap" -> return CapFace(size, mood, accent, style.bearing, motion, cued)
-        "rosa" -> return RosaFace(size, mood, accent, style.bearing, motion, cued)
-        "mapa" -> return MapFace(size, mood, accent, style, motion, cued)
+        "esperit" -> return EsperitFace(size, mood, accent, style.bearing, motion, packCued)
+        "cap" -> return CapFace(size, mood, accent, style.bearing, motion, packCued)
+        "rosa" -> return RosaFace(size, mood, accent, style.bearing, motion, packCued)
+        "mapa" -> return MapFace(size, mood, accent, style, motion, packCued)
     }
     // La forma reacciona quan el dit toca la cara i torna amb molla en deixar-la.
     val touch = if (tappable && motion) remember { MutableInteractionSource() } else null
@@ -318,7 +326,8 @@ fun WindFace(
             else -> 0f
         }
     } else Modifier
-    val tap = if (touch != null) Modifier.clickable(interactionSource = touch, indication = null) { punch++ } else Modifier
+    val tap = if (touch != null) Modifier.clickable(interactionSource = touch, indication = null) { punch++; onClick?.invoke() }
+        else if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
     Canvas(cued.then(tap).then(motionLayer).size(size.dp)) {
         val t = time()
         fun phase(period: Float) = t % period / period

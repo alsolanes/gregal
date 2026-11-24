@@ -90,7 +90,9 @@ internal fun withoutChoices(text: String): String {
 
 /** Les targetes dels vents que esperen: se'n tornen a buscar mentre el vent treballa. */
 @Composable
-internal fun WindAskCards(vm: GregalViewModel, lang: String, accent: Color, busy: Boolean, wind: Wind? = null) {
+internal fun WindAskCards(vm: GregalViewModel, lang: String, accent: Color, busy: Boolean, wind: Wind? = null,
+    /** Xat de [wind]: la seva cara ja hi és, una de sola (109). No es repeteix a les targetes i és ella qui assenteix o fa que no. */
+    onOwnAnswer: ((Boolean) -> Unit)? = null) {
     val asks by vm.windAsks.collectAsState()
     val winds by vm.winds.collectAsState()
     // Les aprovacions que ja has contestat queden plegades en una línia (sí o no).
@@ -102,7 +104,13 @@ internal fun WindAskCards(vm: GregalViewModel, lang: String, accent: Color, busy
         while (busy) { delay(4_000); vm.loadWindAsks() }
     }
     if (asks.isEmpty() && answered.isEmpty()) return
-    fun faceOf(a: GregalApi.WindAsk) = winds.firstOrNull { it.id == a.wind } ?: wind
+    fun own(a: GregalApi.WindAsk) = onOwnAnswer != null && (winds.firstOrNull { it.id == a.wind } ?: wind)?.id == wind?.id
+    fun faceOf(a: GregalApi.WindAsk) = if (own(a)) null else winds.firstOrNull { it.id == a.wind } ?: wind
+    fun answer(a: GregalApi.WindAsk, ok: Boolean) {
+        answered.add(a to ok)
+        if (own(a)) onOwnAnswer?.invoke(ok)
+        vm.answerWindAsk(a.key, approve = ok)
+    }
     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).testTag("wind-asks"),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         answered.forEach { (a, ok) -> AnsweredLine(lang, a, ok, faceOf(a)) }
@@ -115,8 +123,7 @@ internal fun WindAskCards(vm: GregalViewModel, lang: String, accent: Color, busy
                 onSave = { v -> vm.answerWindAsk(a.key, approve = true, secret = v) }, onDecline = { vm.answerWindAsk(a.key, approve = false) })
             else if (a.type == "question") QuestionCard(lang, a, accent) { ans -> vm.answerWindAsk(a.key, answer = ans) }
             else ApproveCard(lang, a, accent, faceOf(a),
-                onAllow = { answered.add(a to true); vm.answerWindAsk(a.key, approve = true) },
-                onDecline = { answered.add(a to false); vm.answerWindAsk(a.key, approve = false) })
+                onAllow = { answer(a, true) }, onDecline = { answer(a, false) })
         }
     }
 }

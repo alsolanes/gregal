@@ -21,6 +21,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.foundation.border
@@ -1256,7 +1258,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     val present = msgs.isNotEmpty()
     // Un torn que acaba malament: la cara s'arronsa (FAILED) en lloc de celebrar-ho (DONE).
     val turnMood = if (done && msgs.lastOrNull()?.kind == "error") WindMood.FAILED else windPresenceMood(chatState, live[wind.id]?.mood)
-    Box(Modifier.fillMaxSize().background(wash)) {
+    val perch = remember(wind.id) { WindPerch() }
+    Box(Modifier.fillMaxSize().background(wash).onGloballyPositioned { perch.root = it.positionInRoot() }) {
         Column(Modifier.fillMaxSize()) {
         // La capçalera diu qui és; «què està fent» es diu al final del fil.
         // A la portada de Gregal la capçalera és una capa flotant (a sota): el fil hi passa per sota.
@@ -1345,13 +1348,13 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     for (a in turnActs) TurnActionCard(lang, a, accent) { vm.undoTurnAction(wind.id, a) }
                 }
             }
-            // Un sol lloc per «què està fent»: la cara petita i els punts al final
-            // del fil, amb l'acció en marxa al costat («Cercant al web…»). La
-            // capçalera i la franja de dalt ja no en diuen res.
+            // Un sol lloc per «què està fent»: els punts al final del fil, amb
+            // l'acció en marxa al costat («Cercant al web…»); l'humor el porta la
+            // cara del xat. La capçalera i la franja de dalt ja no en diuen res.
             val liveNow = live[wind.id]
             if ((busy.contains(wind.id) || resuming.contains(wind.id)) && msgs.lastOrNull()?.streaming != true) {
                 item(key = "typing") {
-                    WindTypingBubble(lang, wind, accent, liveNow?.mood ?: WindMood.THINKING,
+                    WindTypingBubble(lang, wind, accent,
                         label = liveNow?.let { l -> windVisibleWork(lang, l) ?: windStallNote(lang, l, quietNow(true)) })
                     // Tempesta: què fa cada agent mentre treballen.
                     liveNow?.tempesta?.let { TempestaPanel(lang, it) }
@@ -1360,16 +1363,18 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             chatReserve(follow)
         }
         }
-        // A l'esquerra, on parla el vent; la dreta és per a «Últims».
-        if (present) WindFace(size = WindPresenceSize, mood = turnMood,
-            accent = accent, style = wind.faceStyle, showKit = true, tappable = true,
-            modifier = Modifier.align(Alignment.BottomStart).padding(start = 6.dp).testTag("wind-presence"))
+        // A l'esquerra, on parla el vent; la dreta és per a «Últims». La cara hi vola (WindPresence).
+        if (present) Box(Modifier.align(Alignment.BottomStart).padding(start = 6.dp).size(WindPresenceSize.dp)
+            .onGloballyPositioned { perch.corner = it.positionInRoot() }.testTag("wind-presence-corner"))
         if (follow.behind) LatestPill(lang) {
             scope.launch { listState.scrollToLatest() }
         }
         }
         // Aprovacions i preguntes del vent: el torn espera aquí la teva resposta.
-        WindAskCards(vm, lang, accent, isBusy, wind)
+        WindAskCards(vm, lang, accent, isBusy, wind, onOwnAnswer = if (present) ({ ok ->
+            perch.yes = ok
+            scope.launch { perch.nod.snapTo(0f); perch.nod.animateTo(1f, tween(900)) }
+        }) else null)
         // Input píndola amb el color del vent + enviament amb resplendor.
         // El desplegable de mencions va just a sobre del camp.
         mention?.let { q ->
@@ -1430,7 +1435,10 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             onComputer = { computerOpen = true },
             onWatch = { watchOpen = true },
             wind = wind,
+            faceSlot = if (present) Modifier.onGloballyPositioned { perch.header = it.positionInRoot() } else null,
             modifier = Modifier.align(Alignment.TopCenter))
+        if (present) WindPresence(perch, up = follow.behind, mood = turnMood, accent = accent, style = wind.faceStyle,
+            label = tr(lang, "app.vents.profile")) { profile = true }
     }
     if (profile) WindProfileDialog(vm, lang, wind) { profile = false }
     if (askTransfer) TransferConfirmDialog(vm, lang, "wind", wind.id) { askTransfer = false }
