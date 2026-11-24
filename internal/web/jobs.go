@@ -20,6 +20,11 @@ import (
 // llengua la fixa la directiva d'idioma que tanca la consigna (executeJob).
 const jobSystem = "You are the writer of a bulletin. You work in inspect mode: read-only (web search, reading pages and the project). Do not modify anything or run destructive actions. Produce the answer as well-structured markdown: headline, date, summary, key points with links to the sources and, if relevant, a comparison table. Reply with the bulletin only, no preamble."
 
+// windRoutineSystem és la consigna d'una rutina d'un vent: el resultat entra
+// al seu xat i sona com a novetat, així que no és un butlletí (windOwnVoice
+// en dona la forma).
+const windRoutineSystem = "You are doing a routine the user set up for you. You work in inspect mode: read-only (web search, reading pages and the project). Do not modify anything or run destructive actions. Give the actual result with links to the sources, no preamble."
+
 // ExternalJobScheduler diu si els jobs programats els dispara algú de fora
 // (GREGAL_JOBS_SCHEDULER=external): l'app Android programa una alarma del
 // sistema i crida /api/jobs/run amb scheduled, perquè el backend només viu
@@ -237,11 +242,17 @@ func (s *Server) executeJob(ctx context.Context, job jobs.Job, queued runs.Run) 
 	}
 	// Loop no té system prompt: la consigna va davant la tasca, amb la
 	// memòria del projecte si n'hi ha.
-	brief := jobSystem + "\n\nTask:\n" + job.Prompt
+	brief := jobSystem
+	if job.Wind != "" {
+		brief = windRoutineSystem
+	}
+	brief += "\n\nTask:\n" + job.Prompt
 	if info := agent.ContextProjecte(s.cwd); info != "" {
 		brief += "\n\n" + info
 	}
-	brief += "\n\n" + config.LanguageDirective(s.cfg.Lang())
+	if job.Wind == "" {
+		brief += "\n\n" + config.LanguageDirective(s.cfg.Lang())
+	}
 	var res exploracio
 	var runErr error
 	if job.Wind != "" {
@@ -256,7 +267,7 @@ func (s *Server) executeJob(ctx context.Context, job jobs.Job, queued runs.Run) 
 		} else {
 			brief += "\nWind: " + wind.Name + ". " + wind.Persona + windTradeBrief(wind) + s.windCalaixBrief(wind) + s.windMemorySystem(wind.ID) + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windSkillsSystem(wind.ID)
 			// El que l'usuari ha ensenyat a aquesta rutina («fes-ho així»).
-			brief += rutinaHowtoBrief(job)
+			brief += rutinaHowtoBrief(job) + windOwnVoice(s.cfg.Lang())
 			jobCtx = agent.WithSkillsDirs(jobCtx, s.windSkillsDir(wind.ID))
 		}
 	}

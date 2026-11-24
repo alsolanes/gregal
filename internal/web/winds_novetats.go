@@ -164,7 +164,7 @@ func recordNovetatMsgHold(s *Server, w companion.Wind, source, job, messageID, t
 		Wind:      w.ID,
 		Name:      w.Name,
 		Source:    source,
-		Text:      text,
+		Text:      novetatPreview(text),
 		Job:       job,
 		Card:      card,
 		Quiet:     !ring,
@@ -184,6 +184,18 @@ func recordNovetatMsgHold(s *Server, w companion.Wind, source, job, messageID, t
 	if ring {
 		s.pushNovetat(n)
 	}
+}
+
+// novetatPreview és el que l'app ensenya de la veu (llista i títol de la
+// notificació): la primera línia amb text, sense marques de markdown. El
+// missatge sencer és al fil.
+func novetatPreview(text string) string {
+	for _, line := range strings.Split(text, "\n") {
+		if l := plainLine(line); l != "" {
+			return l
+		}
+	}
+	return text
 }
 
 // novetatEventPayload és el que porta un event «novetat» o «novetat_read».
