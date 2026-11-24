@@ -58,28 +58,75 @@ func (s *Server) heartJobID(j jobs.Job) (string, bool) {
 }
 
 // migrateWindJobs passa el cor d'un compte desat com a wind-<vent> (abans
-// no hi havia id per compte) a l'id del compte, amb la seva programació. El
-// cor sense amo no se sap de qui és i es queda com està.
-func migrateWindJobs(store *jobs.Store) {
+// no hi havia id per compte) a l'id del compte, amb la seva programació.
+// Amb comptes (ownersOf no és nil), el cor sense amo és del compte que té el
+// vent si només n'hi ha un: el servidor arrel no el sabria córrer.
+func migrateWindJobs(store *jobs.Store, ownersOf func(windID string) []string) {
 	list, err := store.List()
 	if err != nil {
 		log.Printf("cors dels vents: no puc llegir els jobs: %v", err)
 		return
 	}
 	for _, j := range list {
-		old := j.ID
-		j.ID = ownerWindJobID(j.Wind, j.WindOwner)
-		if !strings.HasPrefix(old, windJobPrefix) || strings.Contains(old, "@") || j.WindOwner == "" || j.Wind == "" || store.Has(j.ID) {
+		wid, ok := windJobID(j.ID)
+		if !ok || strings.Contains(j.ID, "@") {
 			continue
 		}
-		if _, err := store.Save(j); err != nil {
-			log.Printf("cors dels vents: no puc migrar %s: %v", old, err)
-			continue
-		}
-		if err := store.Delete(old); err != nil {
-			log.Printf("cors dels vents: no puc esborrar %s: %v", old, err)
+		switch {
+		case j.WindOwner != "":
+			moveWindJob(store, j, wid, j.WindOwner)
+		case ownersOf != nil:
+			adoptWindJob(store, j, wid, ownersOf(wid))
 		}
 	}
+}
+
+// adoptWindJob dona el cor sense amo al compte que té el vent (owners; ""
+// és l'estat compartit, que el corre com sempre). Si no se sap de qui és,
+// queda apagat: mai ha de córrer com una feina qualsevol.
+func adoptWindJob(store *jobs.Store, j jobs.Job, wid string, owners []string) {
+	switch {
+	case len(owners) == 1 && owners[0] == "":
+	case len(owners) == 1:
+		moveWindJob(store, j, wid, owners[0])
+	case j.Enabled:
+		log.Printf("cors dels vents: %s no se sap de qui és (%d estats amb el vent): queda apagat", j.ID, len(owners))
+		j.Enabled = false
+		if _, err := store.Save(j); err != nil {
+			log.Printf("cors dels vents: no puc apagar %s: %v", j.ID, err)
+		}
+	}
+}
+
+// moveWindJob porta el cor a l'id del compte; si el compte ja en té un,
+// l'antic sobra.
+func moveWindJob(store *jobs.Store, j jobs.Job, wid, owner string) {
+	old := j.ID
+	j.ID, j.Wind, j.WindOwner = ownerWindJobID(wid, owner), wid, owner
+	if !store.Has(j.ID) {
+		if _, err := store.Save(j); err != nil {
+			log.Printf("cors dels vents: no puc migrar %s: %v", old, err)
+			return
+		}
+	}
+	if err := store.Delete(old); err != nil {
+		log.Printf("cors dels vents: no puc esborrar %s: %v", old, err)
+	}
+}
+
+// windOwners diu qui té un vent amb aquest id: "" és l'estat compartit (sense
+// compte) i la resta, els comptes.
+func (s *Server) windOwners(windID string) []string {
+	var out []string
+	if _, ok := s.winds.ByID(windID); ok {
+		out = append(out, "")
+	}
+	for _, name := range s.users.Noms() {
+		if _, ok := companion.NewWindStore(userStateDir(s.cfgPath, name)).ByID(windID); ok {
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 // windHeartbeatSystem compon la consigna del cor: persona + tema a vigilar.
@@ -206,7 +253,7 @@ func (s *Server) executeWindHeartbeat(ctx context.Context, job jobs.Job, queued 
 			_ = s.jobs.SetNextAt(job.ID, next)
 			_ = s.jobs.MarkRun(job.ID, start, "ok")
 		}
-		return jobs.Run{JobID: job.ID, JobName: job.Name, StartedAt: start, FinishedAt: start, Status: "ok"}, nil
+		return jobs.Run{Wind: w.ID, WindOwner: job.WindOwner, JobID: job.ID, JobName: job.Name, StartedAt: start, FinishedAt: start, Status: "ok"}, nil
 	}
 	brief := windHeartbeatSystem(w, s.personalMemory(), s.windUserName()) + windRemindBriefExact(w.ID)
 	brief += companion.WindBrainSystem(s.windBrain(w.ID)) + s.windMemorySystem(w.ID)
@@ -228,6 +275,7 @@ func (s *Server) executeWindHeartbeat(ctx context.Context, job jobs.Job, queued 
 
 	end := time.Now()
 	run := jobs.Run{
+		Wind: w.ID, WindOwner: job.WindOwner,
 		JobID: job.ID, JobName: job.Name, StartedAt: start, FinishedAt: end,
 	}
 	if runErr != nil {

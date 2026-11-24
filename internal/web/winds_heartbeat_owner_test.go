@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"sort"
 	"strings"
 	"testing"
@@ -124,7 +125,7 @@ func TestMigrateWindJobsToAccountIDs(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	migrateWindJobs(store)
+	migrateWindJobs(store, nil)
 	list, err := store.List()
 	if err != nil {
 		t.Fatal(err)
@@ -156,5 +157,108 @@ func TestRespHeartbeatSyncsOwnAccountJob(t *testing.T) {
 	}
 	if a, c := heartJob(t, rig.aleix, aleixID), heartJob(t, rig.carla, carlaID); !a.Enabled || c.Enabled {
 		t.Fatalf("pausa de la Carla: aleix=%v carla=%v", a.Enabled, c.Enabled)
+	}
+}
+
+// seedDueLegacyHeart: el cor wind-<vent> de l'app antiga, sense amo, que ja
+// toca; el model del cor respon amb una novetat i quan tornar a mirar.
+func seedDueLegacyHeart(t *testing.T, s *Server, windID string) *int {
+	t.Helper()
+	due := time.Now().Add(-time.Minute)
+	if _, err := s.jobs.Save(jobs.Job{ID: WindJobID(windID), Name: "Cor", Prompt: "vigila", Kind: "event", Enabled: true, Notify: true, NextAt: &due}); err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	old := windHeartbeatLoop
+	windHeartbeatLoop = func(_ *Server, _ context.Context, _ string) (exploracio, error) {
+		calls++
+		return exploracio{text: "Ha nevat al Montseny.\nNEXT: " + time.Now().Add(6*time.Hour).UTC().Format(time.RFC3339)}, nil
+	}
+	t.Cleanup(func() { waitBackground(); windHeartbeatLoop = old })
+	return &calls
+}
+
+func novetatsWith(s *Server, text string) []windNovetat {
+	var out []windNovetat
+	for _, n := range loadNovetats(s) {
+		if strings.Contains(n.Text, text) {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// Amb comptes, el cor antic sense amo d'un vent que només té un compte passa
+// a ser d'aquell compte en arrencar, i quan toca li parla a ell: missatge al
+// xat i novetat al seu compte, res a l'altre.
+func TestLegacyHeartbeatReachesItsAccount(t *testing.T) {
+	rig := sharedTestRig(t)
+	root := rig.aleix.Hub().def
+	calls := seedDueLegacyHeart(t, root, rig.mestral.ID)
+	migrateWindJobs(root.jobs, root.windOwners)
+	root.runDueJobs()
+
+	if *calls != 1 {
+		t.Fatalf("el cor ha mirat %d cops", *calls)
+	}
+	if j := heartJob(t, root, "wind-mestral@aleix"); j.Wind != rig.mestral.ID || j.WindOwner != "aleix" {
+		t.Fatalf("cor adoptat = %+v", j)
+	}
+	if root.jobs.Has("wind-mestral") {
+		t.Fatal("el cor antic encara hi és")
+	}
+	got := novetatsWith(rig.aleix, "Ha nevat")
+	if len(got) != 1 || got[0].Owner != "aleix" || got[0].Wind != rig.mestral.ID {
+		t.Fatalf("novetats de l'Aleix = %+v", got)
+	}
+	if other := novetatsWith(rig.carla, "Ha nevat"); len(other) != 0 {
+		t.Fatalf("la Carla rep la novetat de l'Aleix: %+v", other)
+	}
+	hist := windHistory(rig.aleix, rig.mestral.ID)
+	hist.mu.Lock()
+	n := len(hist.messages)
+	last := ""
+	if n > 0 {
+		last = hist.messages[n-1].Content
+	}
+	hist.mu.Unlock()
+	if !strings.Contains(last, "Ha nevat") {
+		t.Fatalf("el xat de l'Aleix no té el missatge: %q", last)
+	}
+	runs, err := root.jobs.Runs("wind-mestral@aleix", 5)
+	if err != nil || len(runs) != 1 || runs[0].Wind != rig.mestral.ID || runs[0].WindOwner != "aleix" {
+		t.Fatalf("run = %+v, %v", runs, err)
+	}
+}
+
+// Si dos comptes tenen el vent, no se sap de qui és el cor antic: queda
+// apagat i no corre mai com una feina qualsevol.
+func TestLegacyHeartbeatAmbiguousDoesNotRun(t *testing.T) {
+	rig := sharedTestRig(t)
+	sameWindTwoAccounts(t, rig)
+	root := rig.aleix.Hub().def
+	calls := seedDueLegacyHeart(t, root, rig.mestral.ID)
+	migrateWindJobs(root.jobs, root.windOwners)
+	root.runDueJobs()
+
+	if j := heartJob(t, root, "wind-mestral"); j.Enabled {
+		t.Fatalf("el cor sense amo continua encès: %+v", j)
+	}
+	if runs, _ := root.jobs.Runs("wind-mestral", 5); len(runs) != 0 || *calls != 0 {
+		t.Fatalf("ha corregut: %d runs, %d mirades", len(runs), *calls)
+	}
+}
+
+// Un cor (wind-…) el vent del qual no és a la sessió no corre mai com una
+// feina normal: queda un run d'error que ho diu, sense sortida.
+func TestHeartbeatWithoutWindIsAnError(t *testing.T) {
+	s := rutinaTestServer(t)
+	due := time.Now().Add(-time.Minute)
+	if _, err := s.jobs.Save(jobs.Job{ID: "wind-fantasma", Name: "Cor", Prompt: "vigila", Kind: "event", Enabled: true, NextAt: &due}); err != nil {
+		t.Fatal(err)
+	}
+	run, err := s.runJob("wind-fantasma", true)
+	if err == nil || run.Status != "error" || run.Output != "" || !strings.Contains(run.Error, "heartbeat") {
+		t.Fatalf("run = %+v, %v", run, err)
 	}
 }

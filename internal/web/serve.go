@@ -209,9 +209,6 @@ func New(cfg *config.Config, cfgPath string) *Server {
 	}
 	// Si el disc falla, jobs queda a nil i l'API ho diu (no tomba el servidor).
 	js, _ := jobs.New("")
-	if js != nil {
-		migrateWindJobs(js)
-	}
 	cl := llm.New()
 	cfg.ConfigureClient(cl)
 	agent.SetPostEditHook(cfg.Hooks.PostEdit)
@@ -254,6 +251,13 @@ func New(cfg *config.Config, cfgPath string) *Server {
 	// Enviar fitxers al xat: l'eina viu a les eines i el servidor web és qui sap
 	// on publicar-los (enllaç amb clau pròpia, sense sessió).
 	tools.PublicarFitxer = s.publicaFitxer
+	if js != nil {
+		var owners func(string) []string
+		if s.users.Actiu() {
+			owners = s.windOwners
+		}
+		migrateWindJobs(js, owners)
+	}
 	return s
 }
 
