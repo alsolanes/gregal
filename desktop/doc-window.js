@@ -1,5 +1,5 @@
 // Finestres pròpies dels documents vius (/app/doc/{id} del backend): una per
-// document. Les demana la pàgina de confiança amb gregal:open-doc (main.js);
+// document i scope. Les demana la pàgina de confiança amb gregal:open-doc (main.js);
 // tornar a demanar el mateix document porta al davant la que ja hi ha.
 const DOC_ID = /^[a-z0-9]{1,64}$/;
 // Com sessIDRe del backend (internal/web/hub.go).
@@ -12,7 +12,9 @@ function createDocWindows({ BrowserWindow, base, preloadPath, openExternal }) {
         open(id, session, scope = '') {
             if (typeof id !== 'string' || !DOC_ID.test(id) || typeof session !== 'string' || !SESSION.test(session)) return false;
             if (scope !== '' && scope !== 'mine') return false;
-            const old = open.get(id);
+            // Un dels meus documents i un del projecte poden tenir el mateix id.
+            const key = scope + '/' + id;
+            const old = open.get(key);
             if (old && !old.isDestroyed()) {
                 if (old.isMinimized()) old.restore();
                 old.focus();
@@ -24,8 +26,8 @@ function createDocWindows({ BrowserWindow, base, preloadPath, openExternal }) {
                 autoHideMenuBar: true,
                 webPreferences: { preload: preloadPath, contextIsolation: true, nodeIntegration: false, sandbox: true },
             });
-            open.set(id, win);
-            win.once('closed', () => { if (open.get(id) === win) open.delete(id); });
+            open.set(key, win);
+            win.once('closed', () => { if (open.get(key) === win) open.delete(key); });
             // Els enllaços del document, al navegador; la finestra no surt mai de la pàgina.
             win.webContents.setWindowOpenHandler(({ url }) => { openExternal(url); return { action: 'deny' }; });
             win.webContents.on('will-navigate', (event, url) => { event.preventDefault(); openExternal(url); });

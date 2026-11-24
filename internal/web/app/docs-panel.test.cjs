@@ -33,8 +33,10 @@ const THEME = { '--doc-page-w': '595.3', '--doc-body-font': '"Georgia"', '--doc-
 const json = data => ({ ok: true, status: 200, json: async () => data });
 
 globalThis.window = globalThis;
-globalThis.document = { getElementById: byId, createElement: () => { const e = new El(); made.push(e); return e; }, head: new El() };
+const listeners = {};
+globalThis.document = { getElementById: byId, createElement: () => { const e = new El(); made.push(e); return e; }, head: new El(), addEventListener: (k, f) => { listeners[k] = f; } };
 globalThis.localStorage = { getItem: () => 'en' };
+globalThis.location = { href: 'http://127.0.0.1:8097/' };
 globalThis.Option = function Option(text, value) { return { text, value }; };
 globalThis.open = (url, name) => opened.push([url, name]);
 globalThis.gregalMD = { render: s => s };
@@ -81,6 +83,7 @@ test('a wind document opens in the panel and every call carries scope=mine', asy
   assert.match(urls.at(-1), /^\/api\/docs\/w1\/export\?format=docx&name=Carta\.docx&scope=mine$/);
   for (const u of urls) assert.match(u, /[?&]scope=mine(&|$)/, u);
   assert.equal(win, '/app/doc/w1?session=default&scope=mine', '«Open in a window» opens the personal document');
+  assert.equal(opened[0][1], 'gregal-doc-mine-w1', 'the personal document has its own window, apart from a project one with the same id');
 });
 
 test('a Codi document never asks for scope=mine', async () => {
@@ -253,4 +256,85 @@ test('the page CSS takes every font, size and colour from the theme variables', 
   const bar = rule('#docsBody .doc-toolbar');
   assert.match(bar, /position:sticky/);
   assert.match(bar, /top:0/);
+});
+
+// attach.js, que baixa els enllaços amb la clau, no és a la finestra pròpia
+// (doc-page.js): el panell baixa el document ell mateix, en tots dos llocs.
+test('the download fetches the export with the key and saves it under the document name', async () => {
+  await load;
+  const api = window.gregal.api;
+  const fetched = [];
+  window.gregal.api = async (url, opts) => {
+    if (!url.includes('/export')) return api(url, opts);
+    fetched.push(url);
+    return { ok: true, blob: async () => new Blob(['docx']) };
+  };
+  const later = globalThis.setTimeout;
+  try {
+    window.gregalDocs.open('w1', 'mine');
+    await settle();
+    assert.doesNotMatch(byId('docsPanel').innerHTML, /data-gregal-doc/, 'attach.js must not download it a second time');
+    let prevented = false;
+    globalThis.setTimeout = () => {};
+    await byId('docsDownload').onclick({ preventDefault() { prevented = true; } });
+    globalThis.setTimeout = later;
+    assert.ok(prevented, 'the link is not followed without the key');
+    assert.deepEqual(fetched, ['/api/docs/w1/export?format=docx&name=Carta.docx&scope=mine']);
+    const save = made.at(-1);
+    assert.equal(save.download, 'Carta.docx');
+    assert.match(save.href, /^blob:/);
+  } finally {
+    globalThis.setTimeout = later;
+    window.gregal.api = api;
+    byId('docsClose').click();
+  }
+});
+
+test('switching session closes a project document, keeps a personal one and reloads the home', async () => {
+  await load;
+  window.gregalDocs.changed({ id: 'p1', title: 'Pla' });
+  await settle();
+  listeners['gregal:session']({ detail: { id: 'altra' } });
+  assert.equal(byId('docsPanel').hidden, true, 'the other project’s document is closed');
+
+  window.gregalDocs.changed({ id: 'w1', title: 'Carta', scope: 'mine' });
+  await settle();
+  calls.length = 0;
+  listeners['gregal:session']({ detail: { id: 'altra' } });
+  await settle();
+  assert.equal(byId('docsPanel').hidden, false, 'a personal document belongs to no project');
+  assert.deepEqual(calls, [], 'and it is not reopened');
+
+  const lists = [];
+  window.gregalDocHome = { home: (box, l) => lists.push(l) };
+  await byId('docsHomeBtn').click();
+  listeners['gregal:session']({ detail: { id: 'altra' } });
+  await settle();
+  assert.equal(lists.length, 2, 'the home is drawn again for the new session');
+  byId('docsClose').click();
+});
+
+test('the home still lists this project when my documents fail to load', async () => {
+  await load;
+  const api = window.gregal.api, errors = [];
+  const sys = window.gregal.sys;
+  let lists = null;
+  window.gregalDocHome = { home: (box, l) => { lists = l; } };
+  window.gregalProduct = 'codi';
+  window.gregal.state = { cwd: '/w/botiga', project: 'botiga' };
+  window.gregal.sys = m => errors.push(m);
+  window.gregal.api = async (url, opts) => (url === '/api/docs?scope=mine'
+    ? { ok: false, status: 500, statusText: 'Internal Server Error', json: async () => ({ error: 'open /x: access denied' }) }
+    : api(url, opts));
+  try {
+    await byId('docsHomeBtn').click();
+    await settle();
+    assert.equal(lists.mine, null, 'my documents could not be read');
+    assert.deepEqual(lists.project, { name: 'botiga', items: [{ id: 'w1', title: 'Carta' }] });
+    assert.deepEqual(errors, [], 'the home says it in its own list, not as a raw error');
+  } finally {
+    Object.assign(window.gregal, { api, sys, state: undefined });
+    delete window.gregalProduct;
+    byId('docsClose').click();
+  }
 });

@@ -137,3 +137,26 @@ test('the app has a Gregal Docs button in the sidebar rail, shared by Codi and V
   const panel = fs.readFileSync(path.join(__dirname, 'docs-panel.js'), 'utf8');
   assert.match(panel, /\$\('docsHomeBtn'\)/);
 });
+
+test('a list that could not be read says so, and the other list is still shown', () => {
+  const box = new Node(fakeDocument, 'div');
+  home(box, { mine: null, project: PROJECT }, { ...en, open() {}, create() {} });
+  const sections = box.all('docs-home-section');
+  assert.equal(sections.length, 2);
+  assert.match(sections[0].text, /Couldn’t load these documents\./);
+  assert.doesNotMatch(sections[0].text, /No documents yet/);
+  assert.equal(sections[1].all('docs-home-item').length, 1);
+
+  const cat = new Node(fakeDocument, 'div');
+  home(cat, { mine: [], project: { name: 'botiga', items: null } }, { ...ca, open() {}, create() {} });
+  assert.match(cat.all('docs-home-section')[1].text, /No s’han pogut carregar aquests documents\./);
+});
+
+test('a document of an unknown kind is listed as a text document, not by its raw kind', () => {
+  const box = new Node(fakeDocument, 'div');
+  home(box, { mine: [{ id: 'x1', title: 'Nota', kind: 'whiteboard', updated: '2026-11-20T09:00:00Z' }], project: null }, { ...en, open() {}, create() {} });
+  const item = box.all('docs-home-item')[0];
+  assert.match(item.text, /Nota.*Document · /);
+  assert.doesNotMatch(item.text, /whiteboard/);
+  assert.equal(item.children[0].className, 'docs-kind docs-kind-doc');
+});

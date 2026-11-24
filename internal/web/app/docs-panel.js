@@ -15,7 +15,7 @@ let ctrl = null;
 const pane = document.createElement('aside');
 pane.id = 'docsPanel';
 pane.hidden = true;
-pane.innerHTML = '<header><select id="docsList"></select><a id="docsDownload" data-gregal-doc="1"></a>' +
+pane.innerHTML = '<header><select id="docsList"></select><a id="docsDownload"></a>' +
   '<button id="docsWindow" type="button"></button><button id="docsClose" type="button">×</button></header><div id="docsBody" class="body"></div>';
 $('workbench').append(pane);
 const style = document.createElement('style');
@@ -152,6 +152,24 @@ style.textContent = '#docsPanel[hidden]{display:none}#docsPanel{flex:0 0 460px;w
 document.head.append(style);
 $('docsClose').onclick = () => { ctrl?.abort(); state.visible = false; pane.hidden = true; };
 $('docsList').onchange = e => open(e.target.value, state.scope);
+// L'exportació vol la clau, que un enllaç no porta: es baixa amb G().api.
+// attach.js ho fa amb els enllaços del xat, però no és a la finestra pròpia.
+$('docsDownload').onclick = async e => {
+  e.preventDefault();
+  const href = $('docsDownload').href;
+  try {
+    const r = await G().api(href);
+    if (!r.ok) throw new Error((await r.text()) || ('HTTP ' + r.status));
+    const url = URL.createObjectURL(await r.blob());
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = new URL(href, location.href).searchParams.get('name');
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+  } catch (err) {
+    G().sys(String(err.message || err));
+  }
+};
 // Una finestra pròpia per al document (/app/doc/{id}), i el panell es tanca.
 // A l'escriptori la crea el procés principal, una per document; al
 // navegador, el nom de la finestra fa el mateix.
@@ -160,7 +178,7 @@ const withScope = (url, scope) => (scope ? url + (url.includes('?') ? '&' : '?')
 $('docsWindow').onclick = () => {
   const s = window.gregalSession || 'default';
   if (window.gregalDesktop?.openDocWindow) window.gregalDesktop.openDocWindow(state.id, s, state.scope);
-  else window.open(withScope('/app/doc/' + encodeURIComponent(state.id) + '?session=' + encodeURIComponent(s), state.scope), 'gregal-doc-' + state.id);
+  else window.open(withScope('/app/doc/' + encodeURIComponent(state.id) + '?session=' + encodeURIComponent(s), state.scope), 'gregal-doc-' + (state.scope ? state.scope + '-' : '') + state.id);
   $('docsClose').click();
 };
 
@@ -288,11 +306,12 @@ async function home() {
   Object.assign(state, { id: '', visible: true, scope: '' });
   show(true);
   $('docsClose').setAttribute('aria-label', $('docsClose').title = tx('Tanca Gregal Docs', 'Close Gregal Docs'));
+  // Una llista que no es pot llegir és null: l'inici ho diu en aquella
+  // llista i l'altra es veu igualment.
   const items = async scope => {
     const r = await G().api(withScope('/api/docs', scope), { signal: my.signal });
-    const body = await r.json().catch(() => ({ error: r.statusText }));
-    if (!r.ok) throw new Error(body.error || String(r.status));
-    return body.items || [];
+    if (!r.ok) return null;
+    return (await r.json()).items || [];
   };
   const st = G().state || {};
   const codi = window.gregalProduct === 'codi' && G().viewActual?.() !== 'vents' && st.cwd;
@@ -308,6 +327,13 @@ async function home() {
   }
 }
 $('docsHomeBtn')?.addEventListener('click', home);
+// Un document del projecte és de la sessió d'abans: es tanca. Un dels meus
+// documents no és de cap projecte i es queda; l'inici es torna a llegir.
+document.addEventListener('gregal:session', () => {
+  if (!state.visible) return;
+  if (!state.id) home();
+  else if (!state.scope) $('docsClose').click();
+});
 
 window.gregalDocs = {
   open,
