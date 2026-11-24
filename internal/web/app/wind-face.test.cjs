@@ -17,9 +17,10 @@ class El {
 }
 function load(extra = {}) {
   let now = 1000;
-  const window = { document:{ createElementNS:(_, tag) => new El(tag), createElement:tag => new El(tag) }, performance:{ now:() => now }, ...extra };
+  const frames = [];
+  const window = { document:{ createElementNS:(_, tag) => new El(tag), createElement:tag => new El(tag) }, performance:{ now:() => now }, requestAnimationFrame:fn => frames.push(fn), ...extra };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'winds.js'), 'utf8'), { window });
-  return { winds:window.gregalWinds, tick:ms => { now += ms; } };
+  return { winds:window.gregalWinds, tick:ms => { now += ms; }, frames };
 }
 const groups = svg => svg.all().map(n => n.attrs.class).filter(Boolean);
 // Every wind stands on its feet now; the trade kit is what sets specialists apart.
@@ -511,6 +512,137 @@ test('a face squashes when hovered or pressed and springs back, only with motion
 test('the faces animate transform and opacity only', () => {
   const css = winds101();
   for (const name of ['wf-blink', 'wf-look', 'wf-squish']) {
+    const props = keyframeProps(css, name);
+    assert.ok(props.length, name + ' exists');
+    assert.deepEqual(props.filter(p => !['transform', 'opacity'].includes(p)), [], name);
+  }
+});
+
+// 110: the redesigned Cares. A pose per mood (body, gaze, eyelids) that springs
+// from the last one, a motion signature per mood, and eyes that carry the mood.
+const poseVars = ['--wf-x', '--wf-y', '--wf-tilt', '--wf-sx', '--wf-sy', '--wf-gx', '--wf-gy', '--wf-lid', '--wf-brow', '--wf-smile'];
+const poseOf = svg => Object.fromEntries(poseVars.map(v => [v, Number.parseFloat(svg.style.vars[v])]));
+const allMoods = ['idle', 'thinking', 'searching', 'reading', 'writing', 'working', 'discussing', 'waiting', 'done', 'failed', 'news'];
+// The keyframes a mood plays on the Cares figure, gaze and feet, from winds.css.
+function moodLoops(css, mood) {
+  const names = new Set();
+  for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const selector = m[1].trim();
+    if (!selector.includes('[data-mood=' + mood + ']') || !/\.wf-(figure|gaze|foot)/.test(selector)) continue;
+    for (const a of m[2].matchAll(/animation:([^;]+)/g)) for (const part of a[1].split(',')) names.add(part.trim().split(/\s+/)[0]);
+  }
+  return [...names].sort();
+}
+
+test('each mood has its own pose and its own motion signature', () => {
+  const { winds } = load(), css = winds101();
+  const w = { id:'tramuntana', name:'Tramuntana', color:'#A8CDE2', style:'pso' };
+  const poses = new Map(), loops = new Map();
+  for (const mood of allMoods) {
+    const svg = winds.face({ ...w, id:'pose-' + mood }, true, mood);
+    assert.equal(svg.getAttribute('data-mood'), mood);
+    const pose = poseOf(svg), moves = moodLoops(css, mood);
+    for (const v of poseVars) assert.ok(Number.isFinite(pose[v]), mood + ' sets ' + v);
+    assert.ok(moves.length, mood + ' moves in its own way');
+    for (const [other, seen] of poses) assert.notDeepEqual(pose, seen, mood + ' and ' + other + ' share a pose');
+    for (const [other, seen] of loops) assert.notDeepEqual(moves, seen, mood + ' and ' + other + ' share a motion');
+    poses.set(mood, pose); loops.set(mood, moves);
+  }
+  const p = mood => poses.get(mood);
+  assert.ok(p('thinking')['--wf-gy'] < 0, 'thinking looks up');
+  assert.ok(p('working')['--wf-lid'] > p('idle')['--wf-lid'] && p('working')['--wf-brow'] > 0, 'working squints, determined');
+  assert.ok(p('failed')['--wf-y'] > 0 && p('failed')['--wf-sy'] < 1 && p('failed')['--wf-brow'] < 0, 'failed droops, sad lids');
+  assert.ok(p('done')['--wf-smile'] > .4, 'done smiles with its eyes');
+  assert.equal(p('waiting')['--wf-lid'], 0, 'waiting looks at you with wide eyes');
+  assert.ok(p('waiting')['--wf-tilt'] !== 0 && p('waiting')['--wf-gy'] > 0, 'waiting leans and looks out at the person');
+  assert.ok(loops.get('searching').includes('wf-scan') && loops.get('reading').includes('wf-read'), 'searching and reading scan with the eyes');
+});
+
+test('every Cares eye has an upper lid and a smiling lower lid, at every size and eye style', () => {
+  const { winds } = load();
+  for (const eyes of 'pbem') for (const large of [false, true]) {
+    const svg = winds.face({ id:'lid' + eyes, color:'#BFCFA4', style:eyes + 'so' }, large);
+    const lids = cls => svg.all().filter(n => new RegExp('\\b' + cls + '\\b').test(n.attrs.class || ''));
+    assert.equal(lids('wf-lid').length, 2, eyes + ' has two upper lids');
+    assert.equal(lids('wf-smile').length, 2, eyes + ' has two lower lids');
+    // Lids are cut to the eye, so they never show outside it.
+    for (const lid of [...lids('wf-lid'), ...lids('wf-smile')]) assert.match(lid.parent.attrs['clip-path'] || '', /^url\(#wf\d+e\d\)$/);
+  }
+});
+
+test('the three silhouettes come from the style and are tinted with the wind colour only', () => {
+  const { winds } = load();
+  const outline = svg => JSON.stringify(svg.all().find(n => n.tag === 'clipPath' && /c$/.test(n.attrs.id)).children.map(n => [n.tag, n.attrs]));
+  const outlines = new Set([...'ons'].map(s => outline(winds.face({ id:'s' + s, color:'#A8CDE2', style:'pb' + s }, true))));
+  assert.equal(outlines.size, 3, 'pebble, cloud and gust are three outlines');
+  assert.equal(outline(winds.face({ id:'a', color:'#EFA68F', style:'eto' })), outline(winds.face({ id:'b', color:'#A8CDE2', style:'pso' })), 'the same style is the same silhouette');
+  const tints = color => new Set(winds.face({ id:'t', color, style:'pso' }, true).all().filter(n => n.tag === 'stop').map(n => n.attrs['stop-color']).filter(c => !['#FFFFFF', '#E4577A'].includes(c)));
+  const blue = tints('#A8CDE2'), rose = tints('#EFA68F');
+  assert.ok(blue.size >= 4);
+  assert.deepEqual([...blue].filter(c => rose.has(c)), [], 'every tone of the volume derives from the wind colour');
+});
+
+test('a mood change springs from the last pose, even when the face is redrawn', () => {
+  const css = winds101(), motion = motionBlocks(css).join(' ');
+  const rule = /\.winds-face :is\(\.wf-pose, \.wf-aim, \.wf-lid, \.wf-smile\) \{ transition:transform ([\d.]+)s linear\(([^)]*)\)/.exec(motion);
+  assert.ok(rule, 'pose, gaze and lids transition with a spring, only with motion allowed');
+  const curve = rule[2].split(',').map(Number);
+  assert.equal(curve[0], 0); assert.equal(curve.at(-1), 1);
+  assert.ok(Math.max(...curve) > 1.05 && Math.max(...curve) < 1.2, 'it overshoots a little, like a spring');
+  assert.ok(curve.slice(-4).every(v => Math.abs(v - 1) < .02), 'and settles');
+  assert.equal(outsideMotion(css).includes('linear('), false);
+
+  const { winds, frames } = load();
+  const w = { id:'xaloc', name:'Xaloc', color:'#EFA68F', style:'eto' };
+  const idle = poseOf(winds.face(w, true, 'idle')), working = poseOf(winds.face({ ...w, id:'other' }, true, 'working'));
+  assert.notDeepEqual(idle, working);
+  frames.length = 0;
+  const redrawn = winds.face(w, true, 'working');
+  assert.deepEqual(poseOf(redrawn), idle, 'a redrawn face starts from the pose it had');
+  while (frames.length) frames.shift()();
+  assert.deepEqual(poseOf(redrawn), working, 'then springs to the new one');
+  assert.deepEqual(poseOf(winds.face(w, true, 'working')), working, 'the same mood again does not replay');
+  assert.equal(frames.length, 0);
+  // A list row of the same wind keeps its own pose apart from the large figure.
+  winds.face(w, false);
+  assert.deepEqual(poseOf(winds.face(w, true, 'working')), working);
+  assert.equal(frames.length, 0);
+  // A newer mood before the spring starts wins over the queued one.
+  const quick = winds.face(w, true, 'done');
+  quick.isConnected = true;
+  winds.mood(quick, 'failed');
+  while (frames.length) frames.shift()();
+  assert.equal(quick.getAttribute('data-mood'), 'failed');
+  assert.ok(poseOf(quick)['--wf-y'] > 0 && poseOf(quick)['--wf-smile'] === 0, 'the face keeps the pose of the mood it shows');
+  // The same face changing mood in place: the CSS transition does the spring.
+  const svg = winds.face({ ...w, id:'inplace' }, true, 'idle');
+  svg.isConnected = true;
+  winds.mood(svg, 'failed');
+  assert.ok(poseOf(svg)['--wf-y'] > 0);
+});
+
+test('with reduced motion a face takes its new pose at once and nothing moves', () => {
+  const { winds, frames } = load({ matchMedia:q => ({ matches:/reduce/.test(q) }) });
+  const w = { id:'gregal', name:'Gregal', color:'#C1B4DE', style:'mso' };
+  winds.face(w, true, 'idle');
+  frames.length = 0;
+  assert.ok(poseOf(winds.face(w, true, 'done'))['--wf-smile'] > .4);
+  assert.equal(frames.length, 0);
+  const css = winds101(), reduce = cssBlock(css, css.lastIndexOf('@media (prefers-reduced-motion:reduce)'));
+  assert.match(reduce, /\.winds-face, \.winds-face \* \{ animation:none !important; transition:none !important;/);
+});
+
+test('done anticipates, hops and settles with a spring', () => {
+  const css = winds101();
+  assert.match(css, /\.winds-face\[data-mood=done\] \.wf-figure \{[^}]*wf-hop [^}]*var\(--wf-since,0s\) 1/);
+  const hop = cssBlock(css, css.indexOf('@keyframes wf-hop '));
+  const steps = [...hop.matchAll(/translateY\((-?[\d.]+)px\) scale\(([\d.]+),([\d.]+)\)/g)].map(m => ({ y:+m[1], sx:+m[2], sy:+m[3] }));
+  const top = steps.findIndex(s => s.y === Math.min(...steps.map(t => t.y)));
+  assert.ok(top > 1 && steps.slice(0, top).some(s => s.y === 0 && s.sy < .9 && s.sx > 1.05), 'a squash before the jump');
+  assert.ok(steps[top].y <= -6 && steps[top].sy > 1, 'a stretched hop');
+  assert.ok(steps.slice(top + 1).some(s => s.y === 0 && s.sy < .95), 'it lands with a squash');
+  assert.ok(steps.slice(top + 2).filter(s => s.sy !== 1).length >= 2, 'and wobbles to rest');
+  for (const name of ['wf-hop', 'wf-ponder', 'wf-muse', 'wf-peer', 'wf-lean', 'wf-sigh', 'wf-busy']) {
     const props = keyframeProps(css, name);
     assert.ok(props.length, name + ' exists');
     assert.deepEqual(props.filter(p => !['transform', 'opacity'].includes(p)), [], name);

@@ -181,8 +181,30 @@
       ['path', { d:'M50 55L73.2 48.8L71.9 44L48.7 50.2Z', fill:'none', ...ln() }]] },
   };
   // Moods mirror observed work only: the chat's pending phase or a live step's
-  // state and activity. Anything unknown stays idle.
-  const moods = ['idle', 'thinking', 'searching', 'reading', 'writing', 'working', 'discussing', 'done', 'failed', 'news'];
+  // state and activity. Anything unknown stays idle. «waiting» is the chat's
+  // own mark (a question of the wind's that is not answered yet).
+  const moods = ['idle', 'thinking', 'searching', 'reading', 'writing', 'working', 'discussing', 'waiting', 'done', 'failed', 'news'];
+  // The pose each mood springs to (winds.css .wf-pose, .wf-aim, .wf-lid and
+  // .wf-smile): body offset, tilt and squash, where the eyes look, how far the
+  // upper lids close (0..1 of the eye) and their slant (+ determined, − sad),
+  // and how far the lower lids rise into happy arcs. The loops play on top.
+  const poses = {
+    idle:       { x:0, y:0, tilt:0, sx:1, sy:1, gx:0, gy:0, lid:.07, brow:0, smile:0 },
+    thinking:   { x:0, y:-.5, tilt:-5, sx:1, sy:1, gx:2.4, gy:-3.2, lid:0, brow:0, smile:0 },
+    searching:  { x:1.5, y:0, tilt:4, sx:1, sy:1, gx:0, gy:-.6, lid:.22, brow:8, smile:0 },
+    reading:    { x:.5, y:1, tilt:3, sx:1, sy:1, gx:0, gy:2.2, lid:.32, brow:0, smile:0 },
+    writing:    { x:.5, y:.5, tilt:2, sx:1, sy:1, gx:-.6, gy:2.6, lid:.26, brow:5, smile:.1 },
+    working:    { x:0, y:.8, tilt:0, sx:1.04, sy:.96, gx:0, gy:.6, lid:.38, brow:14, smile:0 },
+    discussing: { x:0, y:0, tilt:-3, sx:1, sy:1, gx:0, gy:0, lid:.08, brow:0, smile:.15 },
+    waiting:    { x:-1.5, y:0, tilt:-7, sx:1, sy:1, gx:-1.8, gy:1.6, lid:0, brow:0, smile:.12 },
+    done:       { x:0, y:0, tilt:0, sx:1, sy:1, gx:0, gy:-1, lid:0, brow:0, smile:.5 },
+    failed:     { x:0, y:2.4, tilt:5, sx:1.05, sy:.92, gx:-.6, gy:2.6, lid:.42, brow:-16, smile:0 },
+    news:       { x:.5, y:-.5, tilt:-4, sx:1, sy:1, gx:2, gy:-1.6, lid:0, brow:0, smile:.22 },
+  };
+  function pose(svg, mood) {
+    const p = poses[mood], unit = { x:'px', y:'px', gx:'px', gy:'px', tilt:'deg', brow:'deg' };
+    for (const [name, value] of Object.entries(p)) svg.style.setProperty('--wf-' + name, value + (unit[name] || ''));
+  }
   const activityMoods = {
     read:'reading', ls:'reading', list:'reading', web_fetch:'reading', office_read:'reading', image:'reading', review:'reading', reviewing:'reading',
     glob:'searching', grep:'searching', find:'searching', search:'searching', web_search:'searching', web:'searching', browser:'searching',
@@ -307,6 +329,7 @@
     }
   }
   const moodSince = new Map(), faceKeys = new WeakMap(), faceTones = new WeakMap(), faceBreath = new WeakMap();
+  const lastPose = new Map(), poseKeys = new WeakMap();
   const clock = () => (root.performance?.now?.() ?? Date.now()) / 1000;
   // Cares que bufen (mockups/vents-avatars.html): while a Cares face works it
   // blows downwind. Lines in face units along +x from the rim, turned to the
@@ -329,6 +352,15 @@
     const now = clock(), last = moodSince.get(key);
     if (mood !== 'idle' && last?.mood !== mood) moodSince.set(key, { mood, at:now });
     svg.setAttribute('data-mood', mood);
+    // A face redrawn in a new mood (the chat corner replaces its face) starts
+    // from the pose this wind had at that size and springs to the new one once
+    // it is on screen; the same face changing in place transitions in CSS.
+    const posed = poseKeys.get(svg), from = posed && lastPose.get(posed);
+    if (posed) lastPose.set(posed, mood);
+    if (from && from !== mood && !svg.isConnected && !root.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      pose(svg, from);
+      root.requestAnimationFrame(() => root.requestAnimationFrame(() => { if (svg.getAttribute('data-mood') === mood) pose(svg, mood); }));
+    } else pose(svg, mood);
     if (maps.has(svg)) mapWake(maps.get(svg), mood);
     // News has no text next to it in every row, so it carries its own label.
     svg.querySelector('title')?.remove();
@@ -365,11 +397,14 @@
     };
     return .2126 * linear(1) + .7152 * linear(3) + .0722 * linear(5);
   }
-  // Silhouettes in face coordinates (the ball is r 33 around 40,40; the cloud is
-  // Android's, r 30). Its parts share one user-space gradient, so they read as
-  // a single shape.
+  // Silhouettes in face coordinates: a pebble, domed on top and settled on its
+  // base (style 'o', and 's' with its curl), and Android's cloud (r 30). Its
+  // parts share one user-space gradient, so they read as a single shape.
+  const pebble = 'M40 9.5C65 9.5 74.5 24 74.5 43C74.5 62 62 71.5 40 71.5S5.5 62 5.5 43C5.5 24 15 9.5 40 9.5Z';
+  const gust = 'M26.2 11.5C32.5 9 36.9 5.2 39.4 1.5C41.2-1.6 45.6-3.1 48.8-.9C52 1.6 51 6.1 47 6.4C45 6.5 44 4.9 45 3.4C42.8 4.6 43.2 8.4 46.9 9.9L53.8 11.6Z';
   const bodies = {
-    o: [['circle', { cx:40, cy:40, r:33 }]],
+    o: [['path', { d:pebble }]],
+    s: [['path', { d:pebble }], ['path', { d:gust }]],
     n: [['rect', { x:4.3, y:31, width:71.4, height:38.1, rx:17.4 }], ['circle', { cx:21.7, cy:38.5, r:20.1 }], ['circle', { cx:42.4, cy:34.3, r:25.8 }], ['circle', { cx:59.8, cy:41.2, r:18 }]],
   };
   const num = value => +value.toFixed(2);
@@ -652,6 +687,9 @@
     if (pack === 'rosa') return setMood(rosa(svg, w, fill, size < 28, large === true), mood, key);
     if (pack === 'mapa') return setMood(mapa(svg, w, fill), mood, key);
     if (kit) svg.setAttribute('data-kit', kitKey);
+    // A list row and the large figure of one wind each spring from their own last pose.
+    poseKeys.set(svg, key + '|' + !!large);
+    const small = size < 28;
     // Volume: soft light from the top left, the wind's own deep tone below, a rim
     // of bounced light at the far edge and a satin sheen. No outline, no glare.
     const id = 'wf' + (++faceSerial), defs = svgNode('defs', {});
@@ -665,29 +703,31 @@
     const volume = paint('v', { ...space, cx:lx, cy:ly, r:num(1.9 * R) }, [[0, light], [.45, fill], [1, deep]]);
     const glow = mix(fill, '#FFFFFF', .5), core = mix(fill, '#1B1530', .6);
     const rim = paint('r', { ...space, cx:num(40 - .22 * R), cy:num(40 - .26 * R), r:num((cloud ? 1.62 : 1.32) * R) }, [[.8, glow, 0], [1, glow, .55]]);
-    const sheen = paint('s', { ...space, cx:lx, cy:ly, r:num(.65 * R) }, [[0, '#FFFFFF', .38], [1, '#FFFFFF', 0]]);
-    const spec = paint('p', {}, [[0, '#FFFFFF', .95], [.5, '#FFFFFF', .8], [1, '#FFFFFF', 0]]);
+    const sheen = paint('s', { ...space, cx:lx, cy:ly, r:num(.7 * R) }, [[0, '#FFFFFF', .3], [1, '#FFFFFF', 0]]);
+    // Clay, not glass: a soft broad highlight instead of a crisp glint.
+    const spec = paint('p', {}, [[0, '#FFFFFF', .7], [.45, '#FFFFFF', .4], [1, '#FFFFFF', 0]]);
     // A second, darker falloff turns the far side away from the light and lets
     // the rim's reflected light show at the very edge; the base darkens where
     // the face meets its feet, and the eyes sit a little into the face.
-    const shade = paint('d', { ...space, cx:lx, cy:ly, r:num(1.7 * R) }, [[.4, core, 0], [.78, core, .62], [.93, core, .45], [1, core, .2]]);
+    const shade = paint('d', { ...space, cx:lx, cy:ly, r:num(1.7 * R) }, [[.4, core, 0], [.78, core, .5], [.93, core, .38], [1, core, .18]]);
     const occlusion = paint('o', {}, [[0, core, .75], [1, deep, 0]]);
     const inset = paint('i', { cy:.4 }, [[0, core, .45], [1, core, 0]]);
     const blush = paint('b', {}, [[0, '#E4577A', .5], [1, '#E4577A', 0]]);
-    defs.append(shapes(svgNode('clipPath', { id:id + 'c' }), bodies[cloud ? 'n' : 'o']));
+    defs.append(shapes(svgNode('clipPath', { id:id + 'c' }), bodies[s[2]]));
     svg.append(defs);
     if (large === true) {
       const ground = mix(fill, '#0B0C14', .72);
       shapes(svg, [['ellipse', { class:'wf-ground', cx:40, cy:72.4, rx:23, ry:4.4, fill:paint('g', {}, [[0, ground, .5], [1, ground, 0]]) }]]);
     }
-    const figure = group(svg, 'wf-figure');
+    // The mood's pose wraps the figure; its loops play inside it.
+    const figure = group(group(svg, 'wf-pose'), 'wf-figure');
     // The whole figure is drawn a little smaller: room for hats, tools and marks.
     // A small face only makes room for its own curl.
     const head = group(figure, '', full ? { transform:'translate(4 3) scale(.9)' } : curl ? { transform:'translate(2 3.6) scale(.95)' } : {});
     const footY = cloud ? 69.8 : 69.4;
     shapes(head, [['ellipse', { class:'wf-foot wf-foot-l', cx:25.3, cy:footY, rx:7.1, ry:3.7, fill:deep }], ['ellipse', { class:'wf-foot wf-foot-r', cx:54.7, cy:footY, rx:7.1, ry:3.7, fill:deep }]]);
     // The curl of a gust on top: it changes the outline, never the face.
-    if (curl) shapes(head, [['path', { class:'wf-curl', d:'M26.2 11.5C32.5 9 36.9 5.2 39.4 1.5C41.2-1.6 45.6-3.1 48.8-.9C52 1.6 51 6.1 47 6.4C45 6.5 44 4.9 45 3.4C42.8 4.6 43.2 8.4 46.9 9.9L53.8 11.6Z', fill:volume }]]);
+    if (curl) shapes(head, [['path', { class:'wf-curl', d:gust, fill:volume }]]);
     shapes(group(head, '', { fill:volume }), bodies[cloud ? 'n' : 'o']);
     shapes(group(head, '', { 'clip-path':'url(#' + id + 'c)' }), [
       ['rect', { class:'wf-shade', x:-4, y:-4, width:88, height:88, fill:shade }],
@@ -695,25 +735,35 @@
       ['rect', { x:-4, y:-4, width:88, height:88, fill:rim }],
       ['circle', { cx:lx, cy:ly, r:num(.65 * R), fill:sheen }]]);
     const sx = num(40 - .36 * R), sy = num(40 - .5 * R);
-    shapes(head, [['ellipse', { class:'wf-spec', cx:sx, cy:sy, rx:num(.2 * R), ry:num(.12 * R), transform:`rotate(-35 ${sx} ${sy})`, fill:spec }]]);
+    shapes(head, [['ellipse', { class:'wf-spec', cx:sx, cy:sy, rx:num(.27 * R), ry:num(.16 * R), transform:`rotate(-35 ${sx} ${sy})`, fill:spec }]]);
     shapes(head, [
       ['ellipse', { cx:20.6, cy:48.8, rx:7, ry:4.6, fill:blush }],
       ['ellipse', { cx:59.4, cy:48.8, rx:7, ry:4.6, fill:blush }]]);
     if (full) shapes(head, [19.1, 57.9].map(cx => ['ellipse', { cx, cy:46.8, rx:2.6, ry:1.2, fill:'#FFFFFF', opacity:.35 }]));
-    // Two bold marks for eyes, as on Android; the figure also gets a catchlight.
-    const eyes = group(group(head, 'wf-gaze'), 'wf-eyes'), ey = 38.4;
-    for (const x of [30.4, 49.6]) {
-      if (s[0] === 'm') shapes(eyes, [['path', { d:`M${x - 5} ${ey - 1}q5 5.6 10 0`, fill:'none', stroke:ink, 'stroke-width':3.2, 'stroke-linecap':'round' }]]);
-      else if (s[0] === 'e') shapes(eyes, [['path', { d:`M${x} ${num(ey - 7.4)}l2.2 5.2 5.2 2.2-5.2 2.2-2.2 5.2-2.2-5.2-5.2-2.2 5.2-2.2Z`, fill:ink, stroke:ink, 'stroke-width':1.2, 'stroke-linejoin':'round' }]]);
-      else {
-        const half = s[0] === 'b' ? 5.4 : 4.2;
-        if (full) shapes(eyes, [['rect', { x:num(x - half - 1.6), y:num(ey - 10.2), width:num(half * 2 + 3.2), height:18.4, rx:half + 1.6, fill:inset }]]);
-        shapes(eyes, [['rect', { x:num(x - half), y:num(ey - 7.8), width:half * 2, height:15.6, rx:half, fill:ink }]]);
-        if (full) shapes(eyes, [['circle', { cx:num(x + half * .3), cy:num(ey - 4.1), r:num(half * .36), fill:ink === darkInk ? '#FFFFFF' : fill, opacity:'.5' }]]);
-      }
-    }
-    // Content, closed eyes replace the chosen ones only while a step is done.
-    shapes(group(head, 'wf-joy', { display:'none' }), [['path', { d:'M25.4 40.2q5-7 10 0M44.6 40.2q5-7 10 0', fill:'none', stroke:ink, 'stroke-width':3.2, 'stroke-linecap':'round' }]]);
+    // Big glossy eyes carry the mood. The eye style sets their shape (tall, big,
+    // a star catchlight, or calm and low); every eye has an upper lid that
+    // closes and slants and a lower lid that rises into a happy arc, both in
+    // the body's own paint and cut to the eye, so the eye itself changes shape.
+    // A small face keeps one bold catchlight and no glow.
+    const [ex, ey0, edy] = { p:[5.8, 8, 0], b:[7.2, 8.6, 0], e:[6.2, 7.8, 0], m:[6.8, 5.8, 1.6] }[s[0]], erx = num(ex * (small ? 1.12 : 1)), ery = num(ey0 * (small ? 1.08 : 1));
+    const lash = mix(fill, '#1B1530', .45), shine = ink === darkInk ? '#FFFFFF' : fill, iris = paint('y', { cy:.85, r:.6 }, [[0, mix(fill, '#FFFFFF', .2), .7], [1, fill, 0]]);
+    const eyes = group(group(group(head, 'wf-aim'), 'wf-gaze'), 'wf-eyes'), ey = num(38.4 + edy);
+    [30.4, 49.6].forEach((x, i) => {
+      const eye = { cx:x, cy:ey, rx:erx, ry:ery }, h = 2 * ery + 2;
+      defs.append(shapes(svgNode('clipPath', { id:id + 'e' + i }), [['ellipse', eye]]));
+      if (full) shapes(eyes, [['ellipse', { cx:x, cy:num(ey - .6), rx:num(erx + 1.2), ry:num(ery + 1.4), fill:inset }]]);
+      const cut = group(eyes, '', { 'clip-path':'url(#' + id + 'e' + i + ')' });
+      shapes(cut, [['ellipse', { ...eye, fill:ink }], ...small ? [] : [['ellipse', { cx:x, cy:num(ey + .45 * ery), rx:num(.9 * erx), ry:num(.6 * ery), fill:iris }]]]);
+      const cx = num(x + .3 * erx), cy = num(ey - .38 * ery), r = num((small ? .42 : .34) * erx);
+      shapes(cut, s[0] === 'e' && !small
+        ? [['path', { d:`M${cx} ${num(cy - 2 * r)}Q${cx} ${cy} ${num(cx + 2 * r)} ${cy}Q${cx} ${cy} ${cx} ${num(cy + 2 * r)}Q${cx} ${cy} ${num(cx - 2 * r)} ${cy}Q${cx} ${cy} ${cx} ${num(cy - 2 * r)}Z`, fill:shine }]]
+        : [['circle', { cx, cy, r, fill:shine }]]);
+      if (!small) shapes(cut, [['circle', { cx:num(x - .32 * erx), cy:num(ey + .42 * ery), r:num(.15 * erx), fill:shine, opacity:.7 }]]);
+      // The lid's edge is a soft crease in the body's deep tone, so it reads as a lid.
+      shapes(group(cut, 'wf-lid wf-lid-' + (i ? 'r' : 'l')), [['rect', { x:num(x - 1.6 * erx), y:num(ey - ery - h), width:num(3.2 * erx), height:h, fill:volume }],
+        ['path', { d:`M${num(x - 1.6 * erx)} ${num(ey - ery)}h${num(3.2 * erx)}`, stroke:lash, 'stroke-width':1.2 }]]);
+      shapes(cut, [['ellipse', { class:'wf-smile', cx:x, cy:num(ey + 2.15 * ery + .5), rx:num(1.7 * erx), ry:num(1.15 * ery), fill:volume, stroke:lash, 'stroke-width':1.2 }]]);
+    });
     // Thin features vanish in a 30 px avatar: the small face draws them bolder.
     const mouth = group(head, 'wf-mouth'), line = { fill:'none', stroke:ink, 'stroke-width':full ? 2.5 : 3.1, 'stroke-linecap':'round' };
     if (s[1] === 'o') shapes(mouth, [['ellipse', { cx:40, cy:54.6, rx:4.8, ry:5.2, fill:ink }], ['ellipse', { cx:40, cy:57.4, rx:3.1, ry:2.2, fill:'#E8667E' }]]);
