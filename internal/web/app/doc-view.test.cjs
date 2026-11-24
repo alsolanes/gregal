@@ -568,3 +568,43 @@ test('every toolbar button works in a paragraph, a heading, a list, a quote and 
     }
   }
 });
+
+test('the link, table and image questions are asked in the toolbar, since prompt() does not exist in the desktop app', async () => {
+  const src = fs.readFileSync(path.join(__dirname, 'doc-view.js'), 'utf8');
+  assert.doesNotMatch(src, /^(?!\s*\/\/).*[^.\w]prompt\(/m);
+  const { ask } = require('./doc-view.js');
+  class El {
+    constructor(doc) { this.ownerDocument = doc; this.children = []; this.attrs = {}; this.parent = null; }
+    append(...c) { for (const x of c) { x.parent = this; this.children.push(x); } }
+    remove() { if (this.parent) this.parent.children = this.parent.children.filter(x => x !== this); }
+    setAttribute(k, v) { this.attrs[k] = v; }
+    focus() { this.focused = true; }
+    querySelector(sel) { return this.children.find(x => x.className === sel.slice(1)) || null; }
+  }
+  const doc = { createElement: () => new El(doc) };
+  const bar = new El(doc);
+  const tx = (ca, en) => en;
+  const first = ask(bar, 'Rows × columns', '3 × 3', tx);
+  const form = bar.children[0];
+  assert.equal(form.className, 'doc-ask');
+  const [label, input, ok, no] = form.children;
+  assert.equal(label.textContent, 'Rows × columns');
+  assert.equal(input.value, '3 × 3');
+  assert.ok(input.focused);
+  assert.equal(ok.textContent, 'OK');
+  input.value = '2 x 4';
+  let prevented = false;
+  form.onsubmit({ preventDefault: () => { prevented = true; } });
+  assert.equal(await first, '2 x 4');
+  assert.ok(prevented);
+  assert.equal(bar.children.length, 0);
+
+  const second = ask(bar, 'Link address', '', tx);
+  bar.children[0].children[3].onclick();
+  assert.equal(await second, null);
+
+  const third = ask(bar, 'Image caption', 'foto', tx);
+  bar.children[0].children[1].onkeydown({ key: 'Escape', preventDefault() {} });
+  assert.equal(await third, null);
+  assert.equal(bar.children.length, 0);
+});

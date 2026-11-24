@@ -609,6 +609,34 @@
   // upload(file) (puja una imatge: {status, body: {path}}) i image(nom) (la
   // promesa de l'URL d'una imatge de la carpeta del document).
   // La pàgina que embolcalla el text és .doc-editor.
+  // prompt() no existeix a Electron (l'app d'escriptori i el panell del
+  // navegador de l'app): el text es demana en una fila al final de la barra.
+  // Torna el text, o null si la persona cancel·la.
+  function ask(bar, label, value, tx) {
+    bar.querySelector?.('.doc-ask')?.remove();
+    const Doc = bar.ownerDocument;
+    const form = Doc.createElement('form'), text = Doc.createElement('span'), input = Doc.createElement('input');
+    const ok = Doc.createElement('button'), no = Doc.createElement('button');
+    form.className = 'doc-ask';
+    text.textContent = label;
+    input.value = value || '';
+    input.setAttribute('aria-label', label);
+    ok.type = 'submit';
+    ok.textContent = tx("D'acord", 'OK');
+    no.type = 'button';
+    no.textContent = tx('Cancel·la', 'Cancel');
+    form.append(text, input, ok, no);
+    bar.append(form);
+    input.focus();
+    input.select?.();
+    return new Promise(done => {
+      const end = v => { form.remove(); done(v); };
+      form.onsubmit = e => { e.preventDefault(); end(input.value); };
+      no.onclick = () => end(null);
+      input.onkeydown = e => { if (e.key === 'Escape') { e.preventDefault(); end(null); } };
+    });
+  }
+
   function view(box, doc, render, edit) {
     const Doc = box.ownerDocument, ed = editor(doc, edit);
     const button = (label, title, fn) => {
@@ -627,8 +655,8 @@
     const toolBtns = {};
     let tg = null;
     for (const [name, label, ca, en] of TOOLS) {
-      const b = button(label, edit.tx(ca, en), () => {
-        const href = name === 'link' && prompt(edit.tx("Adreça de l'enllaç", 'Link address'));
+      const b = button(label, edit.tx(ca, en), async () => {
+        const href = name === 'link' && await ask(bar, edit.tx("Adreça de l'enllaç", 'Link address'), '', edit.tx);
         pv.focus();
         if (name !== 'link') ed.run(commands[name]);
         else if (href) ed.run(link(href));
@@ -699,7 +727,7 @@
     file.onchange = async () => {
       const f = file.files[0];
       file.value = '';
-      const caption = f && prompt(edit.tx('Peu de la imatge', 'Image caption'), f.name.replace(/\.\w+$/, ''));
+      const caption = f && await ask(bar, edit.tx('Peu de la imatge', 'Image caption'), f.name.replace(/\.\w+$/, ''), edit.tx);
       if (caption == null) return;
       const r = await edit.upload(f);
       if (r.status !== 200) return edit.error(r.body.error || String(r.status));
@@ -708,9 +736,9 @@
     };
     const cellTools = [];
     for (const [name, label, ca, en] of INSERT) {
-      const b = button(label, edit.tx(ca, en), () => {
+      const b = button(label, edit.tx(ca, en), async () => {
         if (name === 'image') return file.click();
-        const size = name === 'table' && /(\d+)\D+(\d+)/.exec(prompt(edit.tx('Files × columnes', 'Rows × columns'), '3 × 3') || '');
+        const size = name === 'table' && /(\d+)\D+(\d+)/.exec(await ask(bar, edit.tx('Files × columnes', 'Rows × columns'), '3 × 3', edit.tx) || '');
         pv.focus();
         if (name !== 'table') ed.run(commands[name]);
         else if (size) ed.run(table(Math.min(+size[1] || 1, 50), Math.min(+size[2] || 1, 20)));
@@ -755,5 +783,5 @@
     return { apply: ed.apply, focus: () => pv.focus(), get version() { return ed.version; } };
   }
 
-  return { view, editor, onDocChanged, commands, keys, link, style, align, current, active, table, image, imageName, toDoc, toMd };
+  return { view, ask, editor, onDocChanged, commands, keys, link, style, align, current, active, table, image, imageName, toDoc, toMd };
 });
