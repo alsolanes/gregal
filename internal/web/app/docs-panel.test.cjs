@@ -353,3 +353,19 @@ test('opening a document announces the docs pane, and the computer pane opening 
   listeners['gregal:workpane']({ type: 'gregal:workpane', detail: 'computer' });
   assert.equal(byId('docsPanel').hidden, true, 'the computer pane takes its place');
 });
+
+// 126: el botó del lateral d'un xat de vent ha de saber que la persona l'ha
+// tancat, i no confondre-ho amb l'ordinador que hi pren el lloc.
+test('closing the pane with its × says the person closed it; the computer taking its place does not', async () => {
+  await load;
+  window.gregalDocs.open('w1', 'mine');
+  dispatched.length = 0;
+  listeners['gregal:workpane']({ type: 'gregal:workpane', detail: 'computer' });
+  assert.equal(byId('docsPanel').hidden, true);
+  assert.ok(!dispatched.some(e => e.type === 'gregal:docsclosed'), 'not the person');
+  window.gregalDocs.open('w1', 'mine');
+  dispatched.length = 0;
+  byId('docsClose').click();
+  assert.equal(byId('docsPanel').hidden, true);
+  assert.ok(dispatched.some(e => e.type === 'gregal:docsclosed'), 'the person closed it');
+});

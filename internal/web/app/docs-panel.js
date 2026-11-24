@@ -151,7 +151,9 @@ style.textContent = '#docsPanel[hidden]{display:none}#docsPanel{flex:0 0 460px;w
   '#docsBody .sheet-grid td.sel{outline:2px solid var(--accent,#2E86AB);outline-offset:-2px;background:var(--accent-soft)}' +
   '@media(max-width:1000px){#docsPanel{position:fixed;inset:92px 0 0 auto;width:min(100%,560px);z-index:30;box-shadow:-4px 0 16px #0003}}';
 document.head.append(style);
-$('docsClose').onclick = () => { ctrl?.abort(); state.visible = false; pane.hidden = true; };
+function close() { ctrl?.abort(); state.visible = false; pane.hidden = true; }
+// Només la × (la persona) ho avisa: el lateral d'un xat de vent (126) no el torna a obrir sol.
+$('docsClose').onclick = () => { close(); document.dispatchEvent(new CustomEvent('gregal:docsclosed')); };
 $('docsList').onchange = e => open(e.target.value, state.scope);
 // L'exportació vol la clau, que un enllaç no porta: es baixa amb G().api.
 // attach.js ho fa amb els enllaços del xat, però no és a la finestra pròpia.
@@ -335,10 +337,10 @@ $('docsHomeBtn')?.addEventListener('click', home);
 document.addEventListener('gregal:session', () => {
   if (!state.visible) return;
   if (!state.id) home();
-  else if (!state.scope) $('docsClose').click();
+  else if (!state.scope) close();
 });
 document.addEventListener('gregal:workpane', e => {
-  if (e.detail !== 'docs' && state.visible) $('docsClose').click();
+  if (e.detail !== 'docs' && state.visible) close();
 });
 
 window.gregalDocs = {
