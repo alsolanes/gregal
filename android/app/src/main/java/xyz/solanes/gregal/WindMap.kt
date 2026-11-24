@@ -105,8 +105,8 @@ private class MapPicture(wind: WindStyle, val px: Int, base: Color, ink: Color) 
 }
 
 /**
- * The map moves, one step a frame, while [motion] allows it or the wind works
- * (faster then, because that is the work); otherwise it is the still frame.
+ * The map moves, one step a frame, while [motion] allows it (faster while the
+ * wind works); otherwise it is the still frame, working or not.
  * Only a composed face steps, so a list scrolled away costs nothing.
  */
 @Composable
@@ -119,7 +119,7 @@ internal fun MapFace(size: Int, mood: WindMood, accent: Color, style: WindStyle,
     val tone = remember(accent) { lerp(accent, Color(0xFF1B1530), .8f) }
     // Seconds on the 12 s badge loop; reading it in the Canvas redraws each frame.
     var clock by remember { mutableFloatStateOf(0f) }
-    if (motion || busy) LaunchedEffect(picture, busy) {
+    if (motion) LaunchedEffect(picture, busy) {
         val start = withFrameNanos { it } - (clock * 1e9f).toLong()
         while (true) withFrameNanos { now ->
             picture.paint(busy)
@@ -137,7 +137,7 @@ internal fun MapFace(size: Int, mood: WindMood, accent: Color, style: WindStyle,
             drawCircle(Brush.radialGradient(0f to Color.White.copy(alpha = .22f), 1f to Color.White.copy(alpha = 0f),
                 center = Offset(25.6f, 20.8f), radius = 36.8f), 40f, Offset(40f, 40f))
             drawCircle(Color.White.copy(alpha = .08f), 39.5f, Offset(40f, 40f), style = Stroke(1f))
-            drawBadge(mood, t, motion || busy, 1f, tone)
+            drawBadge(mood, t, motion, 1f, tone)
         }
     }
 }

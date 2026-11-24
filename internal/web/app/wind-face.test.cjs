@@ -384,15 +384,19 @@ test('Cares gets a second shading layer and ambient occlusion at its base, at ev
 
 // Mapa de vent: streaks on a canvas. Enough of a browser for it: a 2D context
 // that ignores the drawing, an IntersectionObserver the test drives and a
-// requestAnimationFrame that only queues.
+// requestAnimationFrame that only queues; `motion(reduce)` flips the
+// reduced-motion preference like the system setting does.
 function mapLoad({ reduce = false } = {}) {
   const frames = [], observers = [], ctx = { fillRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} };
   const document = { hidden:false, addEventListener() {}, createElementNS:(_, tag) => new El(tag), createElement:tag => Object.assign(new El(tag), tag === 'canvas' ? { getContext:() => ctx } : {}) };
   class IntersectionObserver { constructor(cb) { this.cb = cb; observers.push(this); } observe() {} unobserve() {} }
-  const { winds } = load({ document, IntersectionObserver, matchMedia:q => ({ matches:reduce && /reduce/.test(q) }), requestAnimationFrame:fn => frames.push(fn) });
+  const listeners = [], reduced = { matches:reduce, addEventListener:(type, fn) => listeners.push(fn) };
+  const matchMedia = q => /reduce/.test(q) ? reduced : { matches:false, addEventListener() {} };
+  const { winds } = load({ document, IntersectionObserver, matchMedia, requestAnimationFrame:fn => frames.push(fn) });
   winds.setAvatarTheme('mapa');
   const show = (svg, on = true) => observers.forEach(o => o.cb([{ target:svg, isIntersecting:on, boundingClientRect:{ width:40 } }]));
-  return { winds, frames, show, document };
+  const motion = on => { reduced.matches = !on; listeners.forEach(fn => fn({ matches:!on })); };
+  return { winds, frames, show, document, motion };
 }
 const ponent = { id:'ponent', name:'Ponent', color:'#EACF87', style:'pso', specialty:'books' };
 const picture = (winds, w, steps) => { let st = winds.mapStart(w); for (let i = 0; i < steps; i++) st = winds.mapStep(st, false); return JSON.stringify(st); };
@@ -433,26 +437,36 @@ test('the streaks blow away from where the wind comes from, faster while it work
   assert.equal(picture(winds, { name:'Lupa Ràpida' }, 20), picture(winds, { id:'lupa-rapida', name:'Lupa Ràpida' }, 20), 'the preview of a new wind is the picture the saved wind gets');
 });
 
-test('a still map never joins the animation loop; work, motion and being on screen do', () => {
+test('under reduced motion a map is one still frame, even while its wind works; motion and being on screen move it', () => {
   const still = mapLoad({ reduce:true });
   const idle = still.winds.face(ponent);
   still.show(idle);
   assert.equal(still.frames.length, 0, 'idle under reduced motion: a still frame, no loop');
   const busy = still.winds.face(ponent, false, 'working');
-  assert.equal(still.frames.length, 0, 'not on screen yet');
   still.show(busy);
-  assert.equal(still.frames.length, 1, 'working moves even under reduced motion');
   still.winds.mood(idle, 'searching');
-  assert.equal(still.frames.length, 1, 'one shared loop for every face');
-  still.frames.shift()();
-  assert.equal(still.frames.length, 1, 'the loop goes on while a face moves');
-  still.show(busy, false); still.winds.mood(idle, 'idle');
-  still.frames.shift()();
-  assert.equal(still.frames.length, 0, 'nothing moving on screen: the loop stops');
+  assert.equal(still.frames.length, 0, 'working under reduced motion: still a single frame');
   const lively = mapLoad();
+  const work = lively.winds.face(ponent, false, 'working');
+  assert.equal(lively.frames.length, 0, 'not on screen yet');
+  lively.show(work);
+  assert.equal(lively.frames.length, 1, 'with motion allowed the map moves');
   lively.show(lively.winds.face(ponent));
-  assert.equal(lively.frames.length, 1, 'with motion allowed the idle map drifts');
+  assert.equal(lively.frames.length, 1, 'one shared loop for every face');
+  lively.frames.shift()();
+  assert.equal(lively.frames.length, 1, 'the loop goes on while a face moves');
   lively.document.hidden = true;
   lively.frames.shift()();
   assert.equal(lively.frames.length, 0, 'a hidden tab stops the loop');
+});
+
+test('a map follows the reduced-motion setting when it changes', () => {
+  const m = mapLoad();
+  m.show(m.winds.face(ponent, false, 'working'));
+  assert.equal(m.frames.length, 1);
+  m.motion(false);
+  m.frames.shift()();
+  assert.equal(m.frames.length, 0, 'turning reduced motion on stops the loop on the frame it shows');
+  m.motion(true);
+  assert.equal(m.frames.length, 1, 'turning it off again starts the map moving');
 });
