@@ -263,7 +263,7 @@ test('the sidebar draws its 20 px faces with the small variant of the packs', as
 
 // A personal wind (no squad) with its own pack, on an account in Free mode or with a theme.
 function avatarBoot(theme) {
-  // More winds than the sidebar lists, so it links to «All winds».
+  // More winds than the sidebar lists; the profiles are under «All winds».
   const mine = [{ id: 'xaloc', name: 'Xaloc', color: '#F5B45D', role: 'Música', style: 'pso', avatar: 'esperit' }, winds[1],
     { id: 'ponent', name: 'Ponent', color: '#EACF87', style: 'msn' }, { id: 'mestral', name: 'Mestral', color: '#BFCFA4', style: 'esn' }];
   const ok = data => ({ ok: true, status: 200, json: async () => data });
@@ -849,7 +849,7 @@ const clayOf = root => root.querySelectorAll('canvas').map(c => c.dataset.wind);
 
 test('large faces play the clay winds: start faces, the chat corner, Today and the profile; list avatars stay drawn', async () => {
   const card = { id: 'c1', wind: 'xaloc', title: 'Concert dissabte', source: 'wind' };
-  // Prou vents perquè la barra porti a «All winds», on hi ha els perfils.
+  // Més vents dels que llista la barra; els perfils són a «All winds».
   const four = [...winds, { id: 'ponent', name: 'Ponent', color: '#EACF87', style: 'msn' }, { id: 'mestral', name: 'Mestral', color: '#BFCFA4', style: 'esn' }];
   const json = data => ({ ok: true, status: 200, json: async () => data });
   const f = await clayBoot(r => r.url === '/api/winds/avui' ? json({ date: '2026-11-24', now: [card] }) : r.url === '/api/winds' && r.method === 'GET' ? json({ winds: four })
@@ -884,4 +884,17 @@ test('the clay corner changes mood in place, so it can crossfade, and still nods
   assert.deepEqual(f.moods.at(-1), ['Xaloc', corner.dataset.mood]);
   assert.notEqual(corner.dataset.mood, 'waiting');
   assert.equal(corner.dataset.react, 'nod');
+});
+
+// A l'escriptori, «Tots els vents» és l'única porta a l'equip: crear un vent
+// i obrir-ne el perfil (paquet d'avatar, prestatge, activitat). Només sortia
+// amb més vents dels que la barra llista, així que amb Gregal i pocs més no
+// hi havia manera de crear-ne cap; al mòbil sí, per la barra de sota.
+test('with every wind already in the sidebar, it still links to «All winds», to create one and open profiles', async () => {
+  const f = await boot({ api: r => r.url === '/api/winds/tidy' ? { ok: true, status: 200, json: async () => ({ groups: [], test: [], unused: [] }) } : null });
+  const all = byText(f.nav, 'button', 'All winds');
+  assert.ok(all, 'the sidebar links to All winds');
+  await all.click(); await settle();
+  assert.ok(byText(f.page, 'button', 'Create your own wind'));
+  assert.ok(byText(byText(f.page, '.vw-member', 'Xaloc'), 'button', 'Profile'));
 });

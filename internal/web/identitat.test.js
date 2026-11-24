@@ -276,3 +276,34 @@ test("el contrast de la paleta no empitjora", () => {
     }
   }
 });
+
+// El marc que envolta una pàgina web (el navegador, el de l'agent i la vista
+// prèvia) anava pintat de blanc a mà: en tema fosc, abans que la pàgina
+// carregués, hi havia un rectangle blanc i les cantonades arrodonides feien
+// una vora clara. El marc segueix el tema; la pàgina de dins, que pinti el
+// que vulgui.
+test("els marcs del navegador i de la vista prèvia segueixen el tema", () => {
+  const app = f => fs.readFileSync(path.join(__dirname, "app", f), "utf8");
+  // Colors escrits a mà que serien clars en un tema fosc.
+  const clars = cos => [...cos.matchAll(/#([0-9a-f]{3}|[0-9a-f]{6})\b|\bwhite\b/gi)]
+    .map(m => m[0])
+    .filter(c => {
+      if (/white/i.test(c)) return true;
+      const h = c.length === 4 ? c.slice(1).split("").map(x => x + x).join("") : c.slice(1);
+      const [r, g, b] = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+      return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > 0.5;
+    });
+  const regla = (font, sel) => {
+    const i = font.indexOf(sel + "{") >= 0 ? font.indexOf(sel + "{") : font.indexOf(sel + " {");
+    assert.ok(i >= 0, `no trobo la regla ${sel}`);
+    return font.slice(i, font.indexOf("}", i));
+  };
+  const casos = [
+    [html, ".browser-shell"],
+    [app("agent-browser.js"), "#agentBrowser .ab-view"],
+    [app("preview.js"), ".preview-viewport"],
+  ];
+  for (const [font, sel] of casos) {
+    assert.deepEqual(clars(regla(font, sel)), [], `${sel} té colors clars escrits a mà: passa'ls a var(--…)`);
+  }
+});

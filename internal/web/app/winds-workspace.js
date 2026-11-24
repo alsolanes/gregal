@@ -105,7 +105,8 @@
   section(t('Vents','Winds'));
   // Gregal i els cinc que has fet servir fa menys (converses a soles i grups);
   // si n'hi ha menys, els de l'equip actiu. La resta, a «Tots els vents»:
-  // amb 20 o 30 vents la barra era una llista sense fi.
+  // amb 20 o 30 vents la barra era una llista sense fi. L'enllaç hi és
+  // sempre: és la porta a l'equip (crear un vent, els perfils) a l'escriptori.
   const gregal=state.winds.find(w=>w.id==='gregal');
   const byId=id=>state.winds.find(w=>w.id===id);
   const recent=[];const add=w=>{if(w&&w.id!=='gregal'&&!recent.includes(w)&&recent.length<5)recent.push(w);};
@@ -113,7 +114,7 @@
   for(const c of state.chats||[])for(const id of c.members||[])add(byId(id));
   for(const w of crew())add(w);
   for(const w of [gregal,...recent].filter(Boolean)){const n=btn('',()=>talkTo(w).catch(fail),'vw-nav-item vw-nav-channel');n.append(face(w,null,20),el('span','',w.name),...tag(w));newsDot(n,w);const role=roleName(w);if(role)n.title=w.name+' · '+role;n.setAttribute('aria-current',state.view==='chat'&&state.active?.wind===w.id?'page':'false');nav.append(n);}
-  if(state.winds.length>recent.length+1){const all=btn('',()=>route('crew'),'vw-nav-item vw-nav-icon vw-nav-more');all.append(navIcon('crew'),el('span','',t('Tots els vents','All winds')),el('small','vw-nav-count',String(state.winds.length)));all.setAttribute('aria-current',state.view==='crew'?'page':'false');nav.append(all);}
+  const all=btn('',()=>route('crew'),'vw-nav-item vw-nav-icon vw-nav-more');all.append(navIcon('crew'),el('span','',t('Tots els vents','All winds')),el('small','vw-nav-count',String(state.winds.length)));all.setAttribute('aria-current',state.view==='crew'?'page':'false');nav.append(all);
   section(t('Converses','Conversations'),iconOnly('plus',t('Nova conversa','New conversation'),newChat,'vw-small'));
   renderThreads(nav);
   if(!state.chats.some(c=>!c.workspace)&&!(state.solo||[]).length)nav.append(el('p','vw-nav-empty',t('Aquí comencen les bones idees.','Good ideas start here.')));
