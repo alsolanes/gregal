@@ -809,8 +809,15 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 @media(max-width:600px) { .vw-dialog.vw-guide { padding:24px 18px; border-radius:20px; } .vw-guide-head h2 { font-size:23px; } }
 .vw-dialog.vw-guide header.vw-guide-head { display:block; padding:0 40px 0 0; margin:0; border:0; }
 
-/* Ordinador en mode local: el navegador de Gregal en directe. */
-.vw-dialog.vw-live-computer { width:min(1100px, calc(100vw - 32px)); }
+/* Ordinador en mode local: el navegador de Gregal en directe, en un panell al costat del xat (#workbench) com Gregal Docs. */
+.vw-computer-pane { flex:0 0 clamp(380px, 42%, 640px); min-width:0; display:flex; flex-direction:column; border-left:1px solid var(--line); background:var(--panel); color:var(--text); overflow:hidden; }
+.vw-computer-pane > header { display:flex; align-items:center; gap:8px; min-height:48px; padding:8px 8px 8px 16px; border-bottom:1px solid var(--line); }
+.vw-computer-pane h2 { flex:1; min-width:0; margin:0; font-size:14px; font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.vw-computer-pane .vw-close { cursor:pointer; }
+.vw-computer-pane .vw-close:focus-visible, .vw-computer-pane .vw-live-btn:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+.vw-computer-body { flex:1; overflow:auto; overscroll-behavior:contain; padding:12px 16px 16px; }
+.vw-computer-pane .vw-live-shot { max-height:none; }
+@media(max-width:899.98px) { .vw-computer-pane { position:fixed; inset:92px 0 0 auto; width:min(100%, 560px); z-index:30; box-shadow:-4px 0 16px #0003; } }
 .vw-live-where { margin:6px 0 8px; color:var(--muted); font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .vw-live-stage { position:relative; width:fit-content; max-width:100%; margin:0 auto; }
 .vw-live-shot { display:block; max-width:100%; max-height:calc(85dvh - 250px); width:auto; height:auto; border-radius:12px; border:1px solid var(--line); background:var(--surface); cursor:pointer; }

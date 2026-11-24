@@ -37,6 +37,8 @@ class Element {
   replaceWith(n) { const p = this.parentNode; if (!p) return; const i = p.children.indexOf(this); n.remove(); n.parentNode = p; p.children[i] = n; this.parentNode = null; }
   get firstChild() { return this.children[0] || null; }
   get lastElementChild() { return this.children.at(-1) || null; }
+  get lastChild() { return this.children.at(-1) || null; }
+  get previousSibling() { const s = this.parentNode?.children || []; return s[s.indexOf(this) - 1] || null; }
   get isConnected() { let n = this; while (n.parentNode) n = n.parentNode; return n === this.doc.root; }
   get textContent() { return this._text + this.children.map(n => n.textContent).join(''); }
   set textContent(v) { this.children = []; this._text = String(v); }
@@ -75,9 +77,11 @@ function stream(history) {
 }
 
 async function boot({ lang = 'en', api, storage = {} } = {}) {
-  const doc = { createElement: t => new Element(t, doc), createElementNS: (_, t) => new Element(t, doc), documentElement: { lang }, querySelector: () => null, addEventListener() {} };
+  const events = {};
+  const doc = { createElement: t => new Element(t, doc), createElementNS: (_, t) => new Element(t, doc), documentElement: { lang }, querySelector: () => null,
+    addEventListener(k, f) { (events[k] ||= []).push(f); }, dispatchEvent(e) { for (const f of events[e.type] || []) f(e); } };
   doc.root = new Element('root', doc);
-  for (const id of ['ventsPage', 'windsListCard', 'side']) { const n = new Element('div', doc); n.setAttribute('id', id); doc.root.append(n); }
+  for (const id of ['ventsPage', 'windsListCard', 'side', 'workbench']) { const n = new Element('div', doc); n.setAttribute('id', id); doc.root.append(n); }
   // Com a index.html: la barra dels vents és dins la part que es desplaça de #side.
   const scroller = new Element('div', doc), sideNav = new Element('div', doc);
   scroller.className = 'side-scroll'; sideNav.setAttribute('id', 'windContextNav');
@@ -111,7 +115,7 @@ async function boot({ lang = 'en', api, storage = {} } = {}) {
   // The page polls in the background (pending replies, the crew); those timers must not keep the test alive.
   const later = (f, ms) => { const h = setTimeout(f, ms); h.unref(); return h; };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'winds-workspace.js'), 'utf8'), {
-    window, document: doc, console, URLSearchParams, setTimeout: later, clearTimeout, queueMicrotask, TextDecoder, Option,
+    window, document: doc, console, URLSearchParams, setTimeout: later, clearTimeout, queueMicrotask, TextDecoder, Option, CustomEvent,
     getComputedStyle: () => ({ getPropertyValue: () => '' }), matchMedia: () => ({ matches: true }),
     sessionStorage: { getItem: () => null, setItem() {} }, localStorage: { getItem: k => storage[k] ?? null, setItem: (k, v) => { storage[k] = String(v); } },
     location: { hash: '', pathname: '/', search: '' }, history: { replaceState() {} }, navigator: { platform: 'Win32' }, requestAnimationFrame: f => f(),
@@ -399,4 +403,51 @@ test('the pill shows the kit’s icon when the wind has one, no icon without a k
     assert.ok(byText(root, 'button', 'Oreig'), 'the wind is listed');
     assert.equal(pillOf(root, 'Oreig'), null, 'an empty role shows no pill');
   }
+});
+
+// L'ordinador al costat del xat (089): un torn que el fa servir l'obre en un panell de #workbench.
+async function turnWith(...events) {
+  const frames = [...events, ['done', { history: [{ from: 'assistant', text: 'Fet' }] }]].map(([k, d]) => 'event: ' + k + '\ndata: ' + JSON.stringify(d) + '\n\n').join('');
+  const bytes = new TextEncoder().encode(frames);
+  let sent = false;
+  const f = await boot({ api: r => r.url === '/api/winds/chat/stream' ? { ok: true, status: 200, body: { getReader: () => ({ read: async () => { if (sent) return { done: true }; sent = true; return { done: false, value: bytes }; }, cancel: async () => {}, releaseLock() {} }) } } : null });
+  const workpanes = [];
+  f.doc.addEventListener('gregal:workpane', e => workpanes.push(e.detail));
+  f.page.querySelector('textarea').value = 'Mira el temps a Girona';
+  await f.page.querySelector('.vw-composer').requestSubmit();
+  await settle();
+  return { ...f, workpanes, pane: () => f.doc.getElementById('workbench').querySelector('.vw-computer-pane') };
+}
+
+test('a turn that uses the computer opens it live beside the chat, not in a dialog; the person can close it', async () => {
+  const f = await turnWith(['activity', { phase: 'tool', tool: 'browser' }], ['activity', { phase: 'tool_done', tool: 'browser' }]);
+  const pane = f.pane();
+  assert.ok(pane, 'the computer pane is in the workbench');
+  assert.equal(f.doc.body.querySelector('dialog'), null, 'no modal dialog');
+  assert.ok(f.requests.some(r => r.url === '/api/ordinador/live'), 'it polls the live view');
+  assert.match(pane.textContent, /Gregal’s browser|Gregal's browser/);
+  await pane.querySelector('.vw-close').click();
+  assert.equal(f.pane(), null, 'closed');
+});
+
+test('other steps of a turn do not open the computer', async () => {
+  const f = await turnWith(['activity', { phase: 'tool', tool: 'read' }], ['activity', { phase: 'tool', tool: 'web_search' }]);
+  assert.equal(f.pane(), null);
+  assert.ok(!f.requests.some(r => r.url === '/api/ordinador/live'));
+});
+
+test('the handoff card opens the computer pane too', async () => {
+  const f = await turnWith(['approve_request', { key: 'h1', type: 'handoff', what: 'Inicia sessió al banc' }]);
+  assert.ok(f.pane());
+});
+
+// The docs side (docs-panel.js) is in docs-panel.test.cjs.
+test('only one work pane at a time: the computer pane tells the docs pane to close, and a docs pane closes it', async () => {
+  const f = await turnWith(['activity', { phase: 'tool', tool: 'browser' }]);
+  assert.ok(f.pane());
+  assert.deepEqual(f.workpanes, ['computer'], 'opening the computer announces it, so the docs pane closes');
+  f.doc.dispatchEvent(new CustomEvent('gregal:workpane', { detail: 'computer' }));
+  assert.ok(f.pane(), 'its own announcement keeps it');
+  f.doc.dispatchEvent(new CustomEvent('gregal:workpane', { detail: 'docs' }));
+  assert.equal(f.pane(), null, 'the docs pane takes its place');
 });

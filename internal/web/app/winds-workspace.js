@@ -56,6 +56,7 @@
   if(!b.dataset.keepView&&root.gregal?.viewActual?.()!=='vents')root.gregal.setView('vents');});
   $('navRail')?.addEventListener('click',e=>{if(e.target.closest('a,button'))closeDrawer();});
   $('sideShade')?.addEventListener('click',closeDrawer);
+  document.addEventListener('gregal:workpane',e=>{if(e.detail!=='computer')closeComputer?.();});
  }
  // On phones the Winds bar replaces the app rail; the menu opens both together as one drawer.
  function setDrawer(open){$('side').classList.toggle('closed',!open);$('side').classList.toggle('vw-open',open);document.body.classList.toggle('vw-drawer',open);$('sideShade')?.classList.toggle('on',open);page?.querySelector('.vw-mobile-menu')?.setAttribute('aria-expanded',String(open));}
@@ -413,6 +414,8 @@
     if(kind==='done'){result=data;continue;}
     if(kind==='steer_unread'){queueAfter(destination.id,data.texts||[]);continue;}
     // Un vent espera una resposta (aprovació o pregunta): el torn està aturat fins que contestes.
+    // El vent fa servir l'ordinador (o hi espera la persona): es veu en directe al costat del xat, un cop per torn.
+    if((kind==='activity'&&data.phase==='tool'&&/^(browser|viewer)$/.test(data.tool)&&!turn.computer)||((kind==='approve_request'||kind==='question_request')&&data.type==='handoff')){turn.computer=true;openLocalComputer();}
     if(kind==='approve_request'||kind==='question_request'){state.asks=state.asks.filter(x=>x.key!==data.key).concat(data);paintAsks();continue;}
     if(kind==='ask_resolved'){state.asks=state.asks.filter(x=>x.key!==data.key);paintAsks();continue;}
     // El vent ha escrit un document viu (scope «mine»): s'obre al panell lateral (docs-panel.js).
@@ -982,7 +985,11 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  // Mode local (sense VM ni noVNC): l'ordinador de Gregal és el navegador d'aquest servidor; es veu en directe
  // i es fa servir des d'aquí: un toc a la captura hi clica, i a sota hi ha enrere, escriure, Enter i desplaçar.
  // La primera acció pren el control (Gregal s'espera); en tancar, se li torna.
- function openLocalComputer(){const d=dialog(t("El navegador de Gregal, en aquest ordinador","Gregal's browser, on this computer"));d.classList.add('vw-live-computer');
+ // Es veu en un panell al costat del xat (#workbench), com Gregal Docs: un sol panell de feina alhora.
+ let closeComputer=null;
+ function openLocalComputer(){if(closeComputer)return;const title=t("El navegador de Gregal, en aquest ordinador","Gregal's browser, on this computer");
+  const d=el('aside','vw-computer-pane vw-live-computer'),head=el('header'),body=el('div','vw-computer-body');d.setAttribute('aria-label',title);
+  head.append(el('h2','',title),iconOnly('close',t('Tanca','Close'),()=>closeComputer?.(),'vw-close'));d.append(head,body);
   const hint=el('p','vw-muted',t("El veus en directe. Toca la pantalla per fer-lo servir tu: mentrestant, Gregal s'espera.","You see it live. Tap the screen to use it yourself: Gregal waits meanwhile."));
   const where=el('p','vw-live-where'),stage=el('div','vw-live-stage'),img=el('img','vw-live-shot'),idle=el('p','vw-live-idle',t("Ara mateix Gregal no té cap pàgina oberta. Demana-li que busqui alguna cosa i ho veuràs aquí.","Gregal has no page open right now. Ask it to look something up and you'll see it here."));
   img.alt=t("Pantalla de l'ordinador","Computer screen");img.hidden=true;stage.append(img);
@@ -1001,9 +1008,12 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   bar.lastChild.setAttribute('aria-label',t('Baixa','Scroll down'));bar.lastChild.previousSibling.setAttribute('aria-label',t('Puja','Scroll up'));bar.hidden=true;
   const giveBack=async()=>{held=false;mine.hidden=true;hint.hidden=false;try{await call('/api/ordinador/control','POST',{action:'release'});}catch{}};
   mine.append(el('span','',t("Tens el control · Gregal s'espera","You have control · Gregal is waiting")),btn(t('Torna-li el control','Give control back'),giveBack,'vw-live-btn'));
-  d.append(hint,mine,where,stage,idle,bar);
-  d.addEventListener('close',()=>{alive=false;if(held)giveBack();});
-  const tick=async()=>{if(!alive||!d.isConnected)return;if(!busy){try{paint(await call('/api/ordinador/live'));}catch(e){paint(null);}}setTimeout(tick,1000);};
+  body.append(hint,mine,where,stage,idle,bar);
+  closeComputer=()=>{closeComputer=null;alive=false;d.remove();if(held)giveBack();};
+  document.dispatchEvent(new CustomEvent('gregal:workpane',{detail:'computer'}));$('workbench').append(d);
+  // Un ordinador remot no té vista local: es veu al visor, en una finestra pròpia.
+  const remote=()=>{hint.hidden=true;img.hidden=true;bar.hidden=true;idle.hidden=false;idle.textContent=t('Aquest ordinador es veu en una finestra pròpia.','This computer opens in its own window.');idle.append(el('br'),btn(t("Obre l'ordinador",'Open the computer'),()=>openComputer(),'vw-live-btn'));};
+  const tick=async()=>{if(!alive||!d.isConnected)return;if(!busy){try{paint(await call('/api/ordinador/live'));}catch(e){if(/remote computer/.test(String(e&&e.message)))return remote();paint(null);}}setTimeout(tick,1000);};
   tick();}
  // Captures del que el vent ha fet a l'ordinador en aquest torn (com «torna amb captures» de Grok): una tira
  // sota la resposta i, en tocar-ne una, gran amb ‹ ›. Les imatges demanen autenticació: van per root.api.

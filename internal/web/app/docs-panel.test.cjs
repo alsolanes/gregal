@@ -34,7 +34,8 @@ const json = data => ({ ok: true, status: 200, json: async () => data });
 
 globalThis.window = globalThis;
 const listeners = {};
-globalThis.document = { getElementById: byId, createElement: () => { const e = new El(); made.push(e); return e; }, head: new El(), addEventListener: (k, f) => { listeners[k] = f; } };
+const dispatched = [];
+globalThis.document = { getElementById: byId, createElement: () => { const e = new El(); made.push(e); return e; }, head: new El(), addEventListener: (k, f) => { listeners[k] = f; }, dispatchEvent: e => dispatched.push(e) };
 globalThis.localStorage = { getItem: () => 'en' };
 globalThis.location = { href: 'http://127.0.0.1:8097/' };
 globalThis.Option = function Option(text, value) { return { text, value }; };
@@ -337,4 +338,18 @@ test('the home still lists this project when my documents fail to load', async (
     delete window.gregalProduct;
     byId('docsClose').click();
   }
+});
+
+// Un sol panell de feina al costat del xat (089): el document i l'ordinador dels vents
+// (winds-workspace.js) s'avisen amb gregal:workpane i l'altre es tanca.
+test('opening a document announces the docs pane, and the computer pane opening closes it', async () => {
+  await load;
+  dispatched.length = 0;
+  window.gregalDocs.open('w1', 'mine');
+  assert.ok(dispatched.some(e => e.type === 'gregal:workpane' && e.detail === 'docs'), 'the docs pane says it opened');
+  assert.equal(byId('docsPanel').hidden, false);
+  listeners['gregal:workpane']({ type: 'gregal:workpane', detail: 'docs' });
+  assert.equal(byId('docsPanel').hidden, false, 'its own announcement does not close it');
+  listeners['gregal:workpane']({ type: 'gregal:workpane', detail: 'computer' });
+  assert.equal(byId('docsPanel').hidden, true, 'the computer pane takes its place');
 });
