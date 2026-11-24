@@ -109,6 +109,29 @@ class WindActivityTest {
         }
     }
 
+    @Test fun openingANewsItemFocusesItsMessageAndMarksItRead() {
+        ActivityServer { line ->
+            when {
+                line.startsWith("GET /api/winds/activity") -> """{"items":[{"at":"2026-11-24T18:05:00+01:00","wind":"xaloc","kind":"news","title":"Concerts","status":"unread","ref":"n-1"}]}"""
+                line.startsWith("GET /api/winds/novetats?id=n-1") -> """{"novetat":{"id":"n-1","wind":"xaloc","text":"Concerts","ts":1,"message_id":"m-7"}}"""
+                else -> """{"ok":true}"""
+            }
+        }.use { s ->
+            MessageFocus.request.value = null
+            val vm = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
+                .apply { setConn(Conn("127.0.0.1", s.port.toString(), "activitat")) }
+            vm.openWindActivity("")
+            waitFor { vm.windActivity.value.items.isNotEmpty() }
+            vm.openWindActivityItem(vm.windActivity.value.items.single())
+            assertEquals("wind:xaloc", vm.ventsOpen.value)
+            assertEquals("read", vm.windActivity.value.items.single().status)
+            waitFor { MessageFocus.request.value != null && s.bodies.any { it.first.startsWith("POST /api/winds/novetats/read") } }
+            assertEquals("wind:xaloc" to "m-7", MessageFocus.request.value?.let { it.target to it.messageId })
+            val read = s.bodies.single { it.first.startsWith("POST /api/winds/novetats/read") }.second
+            assertEquals(listOf("n-1"), org.json.JSONObject(read).getJSONArray("ids").let { a -> (0 until a.length()).map(a::getString) })
+        }
+    }
+
     @Test fun aFailedLoadIsAnErrorNotAnEmptyList() {
         val vm = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
             .apply { setConn(Conn("127.0.0.1", "9", "t")) }
@@ -137,6 +160,7 @@ class WindActivityTest {
         private val socket = ServerSocket(0)
         val port: Int get() = socket.localPort
         val lines = CopyOnWriteArrayList<String>()
+        val bodies = CopyOnWriteArrayList<Pair<String, String>>()
         private val acceptor = thread(isDaemon = true) {
             while (!socket.isClosed) {
                 val client = try { socket.accept() } catch (_: Exception) { break }
@@ -144,7 +168,13 @@ class WindActivityTest {
                     client.use { c ->
                         val r = c.getInputStream().bufferedReader()
                         val line = r.readLine() ?: return@use
-                        while (true) { val h = r.readLine() ?: break; if (h.isEmpty()) break }
+                        var length = 0
+                        while (true) {
+                            val h = r.readLine() ?: break
+                            if (h.isEmpty()) break
+                            if (h.startsWith("Content-Length:", true)) length = h.substringAfter(':').trim().toInt()
+                        }
+                        bodies += line to String(CharArray(length) { r.read().toChar() })
                         lines += line
                         val bytes = answer(line).toByteArray()
                         val out = c.getOutputStream()
