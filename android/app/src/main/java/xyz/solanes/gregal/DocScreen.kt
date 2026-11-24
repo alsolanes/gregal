@@ -1,8 +1,10 @@
 package xyz.solanes.gregal
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.view.ViewGroup
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -484,7 +486,6 @@ private fun LazyListScope.docSection(vm: GregalViewModel, lang: String, key: Str
  * la mateixa barra i la mateixa pàgina. La clau va a la capçalera de la càrrega i al pont GregalAndroid,
  * mai a la URL; per això la pàgina no navega enlloc més i els enllaços s'obren fora.
  */
-@SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
 @Composable
 private fun ColumnScope.DocWebPage(d: LiveDoc, api: GregalApi, key: () -> String) {
     val page = docPageUrl(api.base, DocRef(d.id, d.title, d.kind, d.scope), sessioApp)
@@ -492,23 +493,8 @@ private fun ColumnScope.DocWebPage(d: LiveDoc, api: GregalApi, key: () -> String
     var web by remember { mutableStateOf<WebView?>(null) }
     DisposableEffect(Unit) { onDispose { web?.stopLoading(); web?.destroy() } }
     AndroidView(modifier = Modifier.fillMaxWidth().weight(1f), factory = { c ->
-        WebView(c).apply {
-            settings.javaScriptEnabled = true
-            // doc-page.js hi llegeix el tema de l'app.
-            settings.domStorageEnabled = true
-            settings.allowFileAccess = false
-            settings.allowContentAccess = false
-            webViewClient = object : WebViewClient() {
-                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                    val url = request?.url?.toString().orEmpty()
-                    if (docPageKeeps(url, page)) return false
-                    runCatching { ContextCompat.startActivity(ctx, Intent(Intent.ACTION_VIEW, Uri.parse(url)), null) }
-                    return true
-                }
-            }
-            addJavascriptInterface(DocPageBridge(key), "GregalAndroid")
-            web = this
-        }
+        docWebView(c, page, key) { url -> runCatching { ContextCompat.startActivity(ctx, Intent(Intent.ACTION_VIEW, Uri.parse(url)), null) } }
+            .also { web = it }
     }, update = { view ->
         if (view.tag != page) {
             view.tag = page
@@ -516,6 +502,29 @@ private fun ColumnScope.DocWebPage(d: LiveDoc, api: GregalApi, key: () -> String
         }
     })
 }
+
+/** El WebView de l'editor de text. MATCH_PARENT: AndroidView li dona WRAP_CONTENT si no en
+ *  porta, i aleshores el WebView mesura la pàgina pel contingut: amb html,body{height:100%}
+ *  la pàgina feia 0 px d'alt i el document es veia en negre. */
+@SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
+internal fun docWebView(c: Context, page: String, key: () -> String, openOutside: (String) -> Unit): WebView =
+    WebView(c).apply {
+        layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        settings.javaScriptEnabled = true
+        // doc-page.js hi llegeix el tema de l'app.
+        settings.domStorageEnabled = true
+        settings.allowFileAccess = false
+        settings.allowContentAccess = false
+        webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                val url = request?.url?.toString().orEmpty()
+                if (docPageKeeps(url, page)) return false
+                openOutside(url)
+                return true
+            }
+        }
+        addJavascriptInterface(DocPageBridge(key), "GregalAndroid")
+    }
 
 /** La targeta del xat quan l'agent escriu un document: l'obre a DocScreen. */
 @Composable

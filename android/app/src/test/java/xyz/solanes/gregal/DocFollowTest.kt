@@ -66,6 +66,15 @@ class DocFollowTest {
         }
     }
 
+    // AndroidView dona WRAP_CONTENT a una vista sense mides, i un WebView així mesura la pàgina
+    // pel contingut: html,body{height:100%} de /app/doc feia 0 px i el document es veia en negre.
+    @Test fun theTextEditorWebViewFillsItsBoxSoThePageHasAHeight() {
+        val w = docWebView(ApplicationProvider.getApplicationContext(), "http://10.0.2.2:8097/app/doc/d1?session=mobil", { "k" }) {}
+        assertEquals(android.view.ViewGroup.LayoutParams.MATCH_PARENT, w.layoutParams.height)
+        assertEquals(android.view.ViewGroup.LayoutParams.MATCH_PARENT, w.layoutParams.width)
+        assertTrue(w.settings.javaScriptEnabled)
+    }
+
     @Test fun aDocumentWrittenWhileTheListIsOpenAppearsInIt() {
         DocServer { req, n ->
             if (req.startsWith("GET /api/docs?scope=mine")) "200" to (if (n == 1) """{"items":[]}""" else """{"items":[{"id":"n1","title":"Nou"}]}""") else null

@@ -101,7 +101,9 @@ class WindDocCardTest {
         .apply { isAccessible = true }.get(vm) as kotlinx.coroutines.flow.MutableStateFlow<Map<String, List<GregalViewModel.PetMsg>>>
 
     @Test fun tappingTheCardOpensTheDocumentScreenWithMyScope() {
-        val vm = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
+        // Un port tancat: sense connexió, WindConversation demanava l'historial a 127.0.0.1:8097, i si
+        // hi havia un Gregal obert a l'ordinador el fil real substituïa la targeta i el test fallava.
+        val vm = GregalViewModel(ApplicationProvider.getApplicationContext<Application>()).apply { setConn(Conn("127.0.0.1", "9", "t")) }
         val wind = Wind("mestral", "Mestral", "#A8CDE2", "recerca")
         vm.handleWindAskEvent(GregalApi.WindStreamEvent.DocChanged(carta), wind.id)
         ui.setContent {
