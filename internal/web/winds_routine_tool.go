@@ -25,10 +25,12 @@ var routineToolSpec = llm.ToolSpec{
 	Description: "Rutines teves que es repeteixen soles al servidor, encara que l'app estigui tancada: «cada matí a les 8 les notícies de…», «cada dilluns el resum de…», «cada 3 hores mira el preu de…». " +
 		"action=create amb task (què has de fer cada cop, concret, p. ex. «Busca les 5 notícies més importants de Catalunya d'avui i resumeix-les en una línia cadascuna amb l'enllaç»), time HH:MM i repeat: daily (cada dia), weekdays (de dilluns a divendres), weekends, o days amb days=[\"mon\",\"wed\"]; o every_hours per a cada N hores. " +
 		"A l'hora faràs un torn complet amb cerca web i el resultat arribarà al teu xat. action=list per veure les teves rutines; action=stop amb routine (id o nom) per aturar-ne una. " +
+		"action=follow amb name (un equip o qualsevol cosa que la persona vol seguir, p. ex. «Barça») i kind team|other: cada dia en buscaràs el proper partit o la novetat i sortirà a Avui; action=unfollow amb name per deixar-ho de seguir. " +
 		"Fes servir SEMPRE el teu id de vent. Per a una sola vegada fes servir remind, no routine. CRIDA L'EINA ABANS de dir que ho has fet.",
 	Parameters: map[string]any{"type": "object", "properties": map[string]any{
 		"wind":        map[string]any{"type": "string"},
-		"action":      map[string]any{"type": "string", "enum": []string{"create", "list", "stop"}},
+		"action":      map[string]any{"type": "string", "enum": []string{"create", "list", "stop", "follow", "unfollow"}},
+		"kind":        map[string]any{"type": "string", "enum": []string{"team", "other"}},
 		"task":        map[string]any{"type": "string"},
 		"time":        map[string]any{"type": "string"},
 		"repeat":      map[string]any{"type": "string", "enum": []string{"daily", "weekdays", "weekends", "days"}},
@@ -128,6 +130,7 @@ type routineArgs struct {
 	EveryHours float64  `json:"every_hours"`
 	Name       string   `json:"name"`
 	Routine    string   `json:"routine"`
+	Kind       string   `json:"kind"`
 }
 
 // routineTool fa l'acció i torna el text per al model.
@@ -200,6 +203,8 @@ func (s *Server) routineTool(a routineArgs, now time.Time) (string, error) {
 			return "", err
 		}
 		return "Aturada i esborrada la rutina «" + target.Name + "».", nil
+	case "follow", "unfollow":
+		return s.followTool(w, a)
 	case "create":
 	default:
 		return "", fmt.Errorf("action ha de ser create, list o stop")
