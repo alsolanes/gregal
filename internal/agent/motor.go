@@ -349,6 +349,9 @@ type Torn struct {
 	// (notaDocs a doc_tool.go). Va al model a cada pas però no a Hist, que
 	// és el que es desa i es pinta.
 	notaDocs string
+	// marcaDocs apunta la nota com a vista; es crida al primer pas del
+	// model que respon (RepPasRaonat).
+	marcaDocs func()
 }
 
 // NouTorn arrenca un torn.
@@ -441,7 +444,7 @@ func (t *Torn) Seguent() Pas {
 		t.hooksInici()
 		t.capsInici()
 		if dir := t.dirTorn(); dir != "" {
-			t.notaDocs = notaDocs(dir, firstOf(t.o.Sessio, procSession))
+			t.notaDocs, t.marcaDocs = notaDocs(dir, firstOf(t.o.Sessio, procSession))
 		}
 	}
 	if t.acabat {
@@ -757,6 +760,10 @@ func (t *Torn) RepPas(content string, calls []llm.ToolCall, err error) []Event {
 func (t *Torn) RepPasRaonat(content, reasoning string, calls []llm.ToolCall, err error) []Event {
 	if err != nil {
 		return t.repError(err)
+	}
+	if t.marcaDocs != nil {
+		t.marcaDocs()
+		t.marcaDocs = nil
 	}
 	t.calibraDelComptador()
 	t.serverRetries = 0

@@ -429,3 +429,99 @@ func TestFullCalculaLesFormules(t *testing.T) {
 		t.Fatalf("canvis %v", vist)
 	}
 }
+
+// Un bloc buit no és un bloc: per treure'l hi ha Delete.
+func TestReplaceBuitEsRefusa(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d, _ := s.Create("Plan", "# Plan\n\nFirst.", AuthorAgent)
+	if _, err := s.Replace(d.ID, d.Blocks[1].ID, " \n ", AuthorUser, d.Version); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("md buit: %v", err)
+	}
+	if d2, _ := s.Get(d.ID); d2.Version != d.Version || d2.Blocks[1].MD != "First." {
+		t.Fatalf("ha canviat: %+v", d2)
+	}
+}
+
+// Un id amb dos punts seria una ruta d'unitat o un flux alternatiu a Windows.
+func TestIdAmbDosPuntsNoExisteix(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	if _, err := s.Get("c:x"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("id amb dos punts: %v", err)
+	}
+	if _, err := s.ImagePath("c:x", "images/a.png"); err == nil {
+		t.Fatal("imatge d'un id amb dos punts")
+	}
+}
+
+// Una referència circular dona error, com a Excel, a les cel·les del cercle
+// i a les que en depenen; una funció com LOG10 no és una cel·la.
+func TestFullReferenciaCircular(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d := full(t, s)
+	d, err := s.SetCells(d.ID, d.Blocks[0].ID, map[string]string{
+		"A1": "=B1+1", "B1": "=a1+1", "C1": "=C1", "D1": "=SUM(D1:D2)", "E1": "=A1*2",
+		"F1": "=LOG10(100)", "G1": `="A1"&"x"`, "H1": "=Resum!A1",
+	}, AuthorAgent, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d, err = s.SetCells(d.ID, d.Blocks[1].ID, map[string]string{"A1": "=Dades!H1", "B1": "=SUM(Dades!F1:F2)"}, AuthorAgent, 0); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"A1": "#REF!", "B1": "#REF!", "C1": "#REF!", "D1": "#REF!", "E1": "#REF!", "F1": "2", "G1": "A1x", "H1": "#REF!"}
+	if v := d.Blocks[0].Values; !maps.Equal(v, want) {
+		t.Fatalf("valors %v, volia %v", v, want)
+	}
+	if v := d.Blocks[1].Values; v["A1"] != "#REF!" || v["B1"] != "2" {
+		t.Fatalf("valors de Resum %v", v)
+	}
+}
+
+// El llibre porta el valor calculat de cada fórmula numèrica, perquè un
+// visor que no recalcula no ensenyi la cel·la buida.
+func TestWorkbookPortaElsValorsCalculats(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d := full(t, s)
+	d, err := s.SetCells(d.ID, d.Blocks[0].ID, map[string]string{"A1": "10", "A2": "=A1*3"}, AuthorAgent, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := Workbook(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	fx, err1 := f.GetCellFormula("Dades", "A2")
+	v, err2 := f.GetCellValue("Dades", "A2")
+	if err1 != nil || err2 != nil || fx != "A1*3" || v != "30" {
+		t.Fatalf("A2: %q = %q (%v %v)", fx, v, err1, err2)
+	}
+}
+
+// Un full de càlcul sense cap full encara es pot calcular i treure.
+func TestFullSenseFulls(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d := full(t, s)
+	for _, b := range d.Blocks {
+		var err error
+		if d, err = s.Delete(d.ID, b.ID, AuthorUser, d.Version); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f, err := Workbook(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+}

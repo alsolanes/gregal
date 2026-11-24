@@ -2,18 +2,30 @@ package agent
 
 import (
 	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 
 	"gregal/internal/gdocs"
 	"gregal/internal/llm"
+	"gregal/internal/ooxml"
 	"gregal/internal/tools"
 )
 
-// tornDocs arrenca un torn de la sessió al projecte dir i torna el que
-// rep el model al primer pas i l'historial que es desaria.
+// tornDocs arrenca un torn de la sessió al projecte dir, el model hi
+// respon, i torna el que ha rebut al primer pas i l'historial que es desaria.
 func tornDocs(t *testing.T, sessio, dir string) (model string, desat []llm.Message) {
+	t.Helper()
+	model, tn := primerPasDocs(t, sessio, dir)
+	tn.RepPas("fet", nil, nil)
+	return model, tn.Hist
+}
+
+// primerPasDocs arrenca el torn i torna el que rep el model al primer pas.
+func primerPasDocs(t *testing.T, sessio, dir string) (string, *Torn) {
 	t.Helper()
 	tn := NouTorn(OpcionsTorn{
 		Pol: DefaultPolicy(), Mode: ModeCode, MaxSteps: 5, Sessio: sessio, Workspace: dir,
@@ -28,7 +40,7 @@ func tornDocs(t *testing.T, sessio, dir string) (model string, desat []llm.Messa
 	for _, m := range p.Hist {
 		b.WriteString(m.Content + "\n")
 	}
-	return b.String(), tn.Hist
+	return b.String(), tn
 }
 
 // creaDoc fa un document amb l'eina, com l'agent de la sessió.
@@ -78,6 +90,57 @@ func TestTornPortaElsCanvisDeLaPersona(t *testing.T) {
 	}
 	if model, _ := tornDocs(t, "s1", dir); strings.Contains(model, MarcaDocs) {
 		t.Fatalf("els mateixos canvis, dos cops:\n%s", model)
+	}
+}
+
+// Si la primera crida al model falla, el torn següent els torna a dir.
+func TestTornQueFallaNoPerdElsCanvis(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	dir := t.TempDir()
+	d := creaDoc(t, dir, "s1", "Intro.")
+	s, _ := gdocs.Open(dir)
+	if _, err := s.Replace(d.ID, d.Blocks[0].ID, "New intro.", gdocs.AuthorUser, d.Version); err != nil {
+		t.Fatal(err)
+	}
+	model, tn := primerPasDocs(t, "s1", dir)
+	if !strings.Contains(model, "New intro.") {
+		t.Fatalf("primer torn:\n%s", model)
+	}
+	tn.RepPas("", nil, errors.New("401 unauthorized"))
+	if model, _ := tornDocs(t, "s1", dir); !strings.Contains(model, "New intro.") {
+		t.Fatalf("el canvi s'ha perdut amb la crida fallida:\n%s", model)
+	}
+}
+
+// D'una diapositiva la nota en diu el títol; d'un full, les cel·les.
+func TestTornDiuQuinaDiapositivaIQuinFull(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	dir := t.TempDir()
+	s, _ := gdocs.Open(dir)
+	run := func(args string) string {
+		t.Helper()
+		out, err := docExec(dir, "s1", args)
+		if err != nil {
+			t.Fatalf("%s: %v", args, err)
+		}
+		return out
+	}
+	deck := regexp.MustCompile(`^Created document ([a-z0-9]+)`).FindStringSubmatch(run(`{"action":"create","kind":"deck","title":"Llançament"}`))[1]
+	run(`{"action":"insert","id":"` + deck + `","slide":{"layout":"title","title":"Portada"}}`)
+	full := regexp.MustCompile(`^Created document ([a-z0-9]+)`).FindStringSubmatch(run(`{"action":"create","kind":"sheet","title":"Pressupost","sheet":"Dades"}`))[1]
+	d, _ := s.Get(deck)
+	if _, err := s.ReplaceSlide(deck, d.Blocks[0].ID, ooxml.SlideSpec{Layout: "title", Title: "Portada nova"}, gdocs.AuthorUser, d.Version); err != nil {
+		t.Fatal(err)
+	}
+	f, _ := s.Get(full)
+	if _, err := s.SetCells(full, f.Blocks[0].ID, map[string]string{"A1": "4", "A2": "=A1*2"}, gdocs.AuthorUser, f.Version); err != nil {
+		t.Fatal(err)
+	}
+	model, _ := tornDocs(t, "s1", dir)
+	for _, want := range []string{"slide «Portada nova»", "sheet Dades: A1 = 4; A2 = =A1*2 → 8"} {
+		if !strings.Contains(model, want) {
+			t.Fatalf("falta %q:\n%s", want, model)
+		}
 	}
 }
 
@@ -207,6 +270,44 @@ func TestEinaDocNoTrepitjaLaPersona(t *testing.T) {
 	out, err := call(map[string]any{"action": "replace", "block": b2, "md": "Two, after reading."})
 	if err != nil || !strings.Contains(out, "Two, after reading.") {
 		t.Fatalf("després de llegir: %v\n%s", err, out)
+	}
+}
+
+// L'agent posa una imatge del projecte a la carpeta del document, i només
+// del projecte.
+func TestEinaDocPosaUnaImatgeDelProjecte(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	dir := t.TempDir()
+	d := creaDoc(t, dir, "s1", "Intro.")
+	png := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82")
+	if err := os.MkdirAll(filepath.Join(dir, "img"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "img", "logo.png"), png, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := docExec(dir, "s1", `{"action":"image","id":"`+d.ID+`","image":"img/logo.png"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := regexp.MustCompile(`images/[a-z0-9]+\.png`).FindString(out)
+	s, _ := gdocs.Open(dir)
+	p, err := s.ImagePath(d.ID, src)
+	if err != nil {
+		t.Fatalf("%s: %v", out, err)
+	}
+	if got, err := os.ReadFile(p); err != nil || string(got) != string(png) {
+		t.Fatalf("la imatge no és a la carpeta del document: %v", err)
+	}
+	fora := filepath.Join(t.TempDir(), "fora.png")
+	if err := os.WriteFile(fora, png, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, img := range []string{fora, "../fora.png", filepath.Join("..", filepath.Base(filepath.Dir(fora)), "fora.png")} {
+		raw, _ := json.Marshal(map[string]string{"action": "image", "id": d.ID, "image": img})
+		if _, err := docExec(dir, "s1", string(raw)); err == nil {
+			t.Fatalf("imatge de fora del projecte acceptada: %s", img)
+		}
 	}
 }
 

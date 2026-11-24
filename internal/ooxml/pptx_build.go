@@ -653,6 +653,46 @@ func SetText(sp *Node, md string, o TextOpts) {
 	}
 }
 
+// paraAlgn passa l'alineació d'un bloc ({align=…}) a la de DrawingML.
+var paraAlgn = map[string]string{"left": "l", "center": "ctr", "right": "r", "justify": "just"}
+
+// runPr és el format d'un tros de text en una diapositiva: el del quadre
+// (o) i, per sobre, el del markdown, format ampliat inclòs. Els fills van
+// en l'ordre de l'esquema: farciment, ressaltat, font.
+func runPr(in Inline, o TextOpts) *Node {
+	rpr := El("a:rPr", "lang", "ca-ES", "dirty", "0")
+	if o.Size > 0 {
+		rpr.Set("sz", strconv.Itoa(o.Size))
+	}
+	if in.Size > 0 {
+		rpr.Set("sz", strconv.Itoa(int(in.Size*100)))
+	}
+	if in.Bold || o.Bold {
+		rpr.Set("b", "1")
+	}
+	if in.Italic {
+		rpr.Set("i", "1")
+	}
+	if in.Underline {
+		rpr.Set("u", "sng")
+	}
+	if in.Strike {
+		rpr.Set("strike", "sngStrike")
+	}
+	if c := firstNonEmpty(in.Color, o.Color); c != "" {
+		rpr.Add(El("a:solidFill").Add(El("a:srgbClr", "val", c)))
+	}
+	if in.Bg != "" {
+		rpr.Add(El("a:highlight").Add(El("a:srgbClr", "val", in.Bg)))
+	}
+	if in.Code {
+		rpr.Add(El("a:latin", "typeface", "Courier New"))
+	} else if in.Font != "" {
+		rpr.Add(El("a:latin", "typeface", in.Font))
+	}
+	return rpr
+}
+
 func slideParas(b Block, o TextOpts) []*Node {
 	mk := func(lvl int, bullet string, ins []Inline, extra func(*Node)) *Node {
 		ap := El("a:p")
@@ -660,8 +700,8 @@ func slideParas(b Block, o TextOpts) []*Node {
 		if lvl > 0 {
 			ppr.Set("lvl", strconv.Itoa(lvl))
 		}
-		if o.Align != "" {
-			ppr.Set("algn", o.Align)
+		if a := firstNonEmpty(paraAlgn[b.ParaAlign], o.Align); a != "" {
+			ppr.Set("algn", a)
 		}
 		switch bullet {
 		case "none":
@@ -683,25 +723,7 @@ func slideParas(b Block, o TextOpts) []*Node {
 					continue
 				}
 				r := El("a:r")
-				rpr := El("a:rPr", "lang", "ca-ES", "dirty", "0")
-				if o.Size > 0 {
-					rpr.Set("sz", strconv.Itoa(o.Size))
-				}
-				if in.Bold || o.Bold {
-					rpr.Set("b", "1")
-				}
-				if in.Italic {
-					rpr.Set("i", "1")
-				}
-				if in.Strike {
-					rpr.Set("strike", "sngStrike")
-				}
-				if o.Color != "" {
-					rpr.Add(El("a:solidFill").Add(El("a:srgbClr", "val", o.Color)))
-				}
-				if in.Code {
-					rpr.Add(El("a:latin", "typeface", "Courier New"))
-				}
+				rpr := runPr(in, o)
 				if extra != nil {
 					extra(rpr)
 				}

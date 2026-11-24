@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -158,7 +159,7 @@ func (s *Store) lock() func() {
 func newID(n int) string { return strings.ToLower(rand.Text()[:n]) }
 
 func (s *Store) path(id string) (string, error) {
-	if id == "" || strings.ContainsAny(id, `/\.`) {
+	if id == "" || strings.ContainsAny(id, `/\.:`) {
 		return "", ErrNotFound
 	}
 	return filepath.Join(s.Dir, id+".json"), nil
@@ -503,6 +504,9 @@ func (s *Store) insert(id, after, kind string, mk func(v int, at time.Time) []Bl
 // Replace canvia el markdown d'un bloc; base és la versió del document
 // que l'autor ha llegit (vegeu conflict).
 func (s *Store) Replace(id, block, md, author string, base int) (Doc, error) {
+	if strings.TrimSpace(md) == "" {
+		return Doc{}, invalid{errors.New("md is empty: delete the block instead")}
+	}
 	return s.replace(id, block, KindDoc, author, base, Block{MD: strings.TrimSpace(md)})
 }
 
@@ -590,8 +594,10 @@ const (
 	calcDeadline  = 3 * time.Second // el recàlcul sencer; després, #CALC!
 )
 
-// Workbook fa el llibre d'Excel d'un full de càlcul, amb les fórmules.
-// No porta els valors desats: Excel el recalcula en obrir-lo.
+// Workbook fa el llibre d'Excel d'un full de càlcul, amb les fórmules i el
+// valor calculat de les numèriques, perquè un visor que no recalcula no les
+// ensenyi buides; Excel el recalcula igualment en obrir-lo. excelize no deixa
+// desar un valor de text al costat d'una fórmula.
 func Workbook(d Doc) (*excelize.File, error) {
 	f := excelize.NewFile()
 	noms := map[string]bool{}
@@ -610,7 +616,7 @@ func Workbook(d Doc) (*excelize.File, error) {
 			return nil, errors.Join(fmt.Errorf("sheet %q: %w", b.Name, err), f.Close())
 		}
 		for c, in := range b.Cells {
-			if err := xlsxdoc.SetString(f, b.Name, c, in); err != nil {
+			if err := setCell(f, b, c, in); err != nil {
 				return nil, errors.Join(fmt.Errorf("%s!%s: %w", b.Name, c, err), f.Close())
 			}
 		}
@@ -622,29 +628,64 @@ func Workbook(d Doc) (*excelize.File, error) {
 	return f, nil
 }
 
+// setCell escriu una cel·la del full b; d'una fórmula amb valor numèric,
+// primer el valor: SetCellFormula manté el que ja hi ha a la cel·la.
+func setCell(f *excelize.File, b Block, c, in string) error {
+	if v, err := strconv.ParseFloat(b.Values[c], 64); err == nil && strings.HasPrefix(strings.TrimSpace(in), "=") {
+		if err := f.SetCellFloat(b.Name, c, v, -1, 64); err != nil {
+			return err
+		}
+	}
+	return xlsxdoc.SetString(f, b.Name, c, in)
+}
+
+// valorDe és el valor calculat d'una cel·la, o l'error que hi posaria Excel.
+func valorDe(f *excelize.File, sheet, cell string) string {
+	v, err := f.CalcCellValue(sheet, cell)
+	if err != nil {
+		v = err.Error()
+		// excelize diu «not support X function» d'una funció que
+		// no coneix; Excel hi posa #NAME?, com a un full que no hi és.
+		if !strings.HasPrefix(v, "#") {
+			v = "#NAME?"
+		}
+	}
+	if len(v) > maxValue {
+		v = strings.ToValidUTF8(v[:maxValue], "")
+	}
+	return v
+}
+
 // calc calcula amb excelize el valor de cada cel·la dels fulls, perquè
 // tothom vegi el mateix resultat; refusa un nom de full que Excel no admet.
 func calc(d *Doc) error {
 	if d.Kind != KindSheet {
 		return nil
 	}
-	// El llibre només falla per un nom de full o de cel·la que Excel no admet.
-	f, err := Workbook(*d)
-	if err != nil {
-		return invalid{err}
-	}
 	type valor struct {
 		i              int
 		sheet, cell, v string
 	}
+	// Els valors d'abans fora abans de fer el llibre: no s'hi han de desar.
+	// Una referència circular no es calcula: #REF!, com fa Google Sheets.
+	circ := circulars(d)
 	var cells []valor
 	for i := range d.Blocks {
 		b := &d.Blocks[i]
 		b.Values = map[string]string{}
 		for c := range b.Cells {
+			if col, r, err := excelize.CellNameToCoordinates(c); err == nil && circ[cela{strings.ToLower(b.Name), col, r}] {
+				b.Values[c] = "#REF!"
+				continue
+			}
 			b.Values[c] = "#CALC!"
 			cells = append(cells, valor{i: i, sheet: b.Name, cell: c})
 		}
+	}
+	// El llibre només falla per un nom de full o de cel·la que Excel no admet.
+	f, err := Workbook(*d)
+	if err != nil {
+		return invalid{err}
 	}
 	// CalcCellValue no es pot aturar a mitges: si passa del termini, la
 	// cel·la que calcula acaba de fons (amb prou lloc al canal per no
@@ -667,19 +708,7 @@ func calc(d *Doc) error {
 				return
 			default:
 			}
-			v, err := f.CalcCellValue(cl.sheet, cl.cell)
-			if err != nil {
-				v = err.Error()
-				// excelize diu «not support X function» d'una funció que
-				// no coneix; Excel hi posa #NAME?, com a un full que no hi és.
-				if !strings.HasPrefix(v, "#") {
-					v = "#NAME?"
-				}
-			}
-			if len(v) > maxValue {
-				v = strings.ToValidUTF8(v[:maxValue], "")
-			}
-			cl.v = v
+			cl.v = valorDe(f, cl.sheet, cl.cell)
 			out <- cl
 		}
 	}()
@@ -695,6 +724,117 @@ func calc(d *Doc) error {
 			return nil
 		}
 	}
+}
+
+// refRe troba les referències d'una fórmula: una cel·la o un rang, amb el
+// full al davant o sense. Un nom seguit de ( és una funció (LOG10).
+var refRe = regexp.MustCompile(`(?i)(?:('(?:[^']|'')+'|[A-Z_][\w.]*)!)?\$?([A-Z]{1,3})\$?(\d+)(?::\$?([A-Z]{1,3})\$?(\d+))?(\(?)`)
+
+// textRe són els textos entre cometes d'una fórmula, que no referencien res.
+var textRe = regexp.MustCompile(`"(?:[^"]|"")*"`)
+
+// cela és una cel·la amb fórmula: el full (en minúscules) i la posició.
+type cela struct {
+	sheet  string
+	col, r int
+}
+
+// deps són les cel·les amb fórmula de formules que la fórmula in, del full
+// sheet, fa servir.
+func deps(sheet, in string, formules map[cela]bool) []cela {
+	in = textRe.ReplaceAllStringFunc(in, func(t string) string { return strings.Repeat(" ", len(t)) })
+	var out []cela
+	for _, m := range refRe.FindAllStringSubmatchIndex(in, -1) {
+		if m[0] > 0 && (isWord(in[m[0]-1]) || in[m[0]-1] == '!') || m[13] > m[12] {
+			continue
+		}
+		full := sheet
+		if m[2] >= 0 {
+			full = strings.ToLower(strings.ReplaceAll(strings.Trim(in[m[2]:m[3]], "'"), "''", "'"))
+		}
+		c0, r0, err0 := excelize.CellNameToCoordinates(in[m[4]:m[5]] + in[m[6]:m[7]])
+		c1, r1, err1 := c0, r0, error(nil)
+		if m[8] >= 0 {
+			c1, r1, err1 = excelize.CellNameToCoordinates(in[m[8]:m[9]] + in[m[10]:m[11]])
+		}
+		if err0 != nil || err1 != nil {
+			continue
+		}
+		out = append(out, dinsRang(full, min(c0, c1), min(r0, r1), max(c0, c1), max(r0, r1), formules)...)
+	}
+	return out
+}
+
+// dinsRang són les cel·les de formules dins del rang: es recorre el rang o
+// les fórmules, el que sigui més curt.
+func dinsRang(sheet string, c0, r0, c1, r1 int, formules map[cela]bool) []cela {
+	var out []cela
+	if (c1-c0+1)*(r1-r0+1) <= len(formules) {
+		for col := c0; col <= c1; col++ {
+			for r := r0; r <= r1; r++ {
+				if k := (cela{sheet, col, r}); formules[k] {
+					out = append(out, k)
+				}
+			}
+		}
+		return out
+	}
+	for c := range formules {
+		if c.sheet == sheet && c.col >= c0 && c.col <= c1 && c.r >= r0 && c.r <= r1 {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+func isWord(b byte) bool {
+	return b == '_' || b == '.' || b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'
+}
+
+// circulars són les cel·les amb fórmula que formen part d'una referència
+// circular o en depenen: excelize les calcula sense dir res, amb valors
+// que no volen dir res.
+func circulars(d *Doc) map[cela]bool {
+	formules := map[cela]bool{}
+	ins := map[cela]string{}
+	for _, b := range d.Blocks {
+		for c, in := range b.Cells {
+			col, r, err := excelize.CellNameToCoordinates(c)
+			if err == nil && strings.HasPrefix(strings.TrimSpace(in), "=") {
+				k := cela{strings.ToLower(b.Name), col, r}
+				formules[k], ins[k] = true, in
+			}
+		}
+	}
+	// 1 = s'està mirant, 2 = mirada i bé, 3 = circular.
+	estat := map[cela]int{}
+	var mira func(c cela) bool
+	mira = func(c cela) bool {
+		switch estat[c] {
+		case 1, 3:
+			return true
+		case 2:
+			return false
+		}
+		estat[c] = 1
+		dolenta := false
+		for _, dep := range deps(c.sheet, ins[c], formules) {
+			// Totes: les del cercle també han de quedar marcades.
+			dolenta = mira(dep) || dolenta
+		}
+		estat[c] = 2
+		if dolenta {
+			estat[c] = 3
+		}
+		return dolenta
+	}
+	out := map[cela]bool{}
+	for c := range formules {
+		if mira(c) {
+			out[c] = true
+		}
+	}
+	return out
 }
 
 // rangRe troba els rangs de cel·la a cel·la d'una fórmula (A1:B20, $a$1:$b$20).

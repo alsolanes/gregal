@@ -560,6 +560,10 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			return decision, reason
 		},
 	}
+	// El que la persona ha canviat als documents vius, com als torns de Codi.
+	if nota, marca := s.windNotaDocs(ctx, scope.workspace); nota != "" {
+		loop.Step = ambNotaDocs(loop.Step, nota, marca)
+	}
 	if spot != nil {
 		loop.Lot = spot.setHist
 		loop.Pausa = func() error {
