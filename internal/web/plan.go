@@ -310,12 +310,19 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			// Apps, publicar: les fa el servidor web, no el paquet agent.
 			if name == "app" || name == "publish" || name == "tunnel" || name == "calendar" || name == "mail" || name == "notes" || name == "connector" {
 				out, err := s.runBuildTool(ctx, scope.workspace, name, argsJSON)
+				if err == nil {
+					s.noteWindOutput(ctx, name, argsJSON, out)
+				}
 				return out, nil, err
 			}
 			dirs := append([]string{}, agent.SkillsDirsOf(ctx)...)
 			dirs = append(dirs, s.userSkillsDirs()...)
 			if d := windDocsOf(ctx); d != "" && name == "doc" {
-				return s.windDocExec(ctx, d, argsJSON, emit)
+				out, imgs, err := s.windDocExec(ctx, d, argsJSON, emit)
+				if err == nil {
+					s.noteWindOutput(ctx, name, argsJSON, out)
+				}
+				return out, imgs, err
 			}
 			cwd := scope.workspace
 			// Un vent crea els documents a la seva carpeta (winds_docs.go).
@@ -334,6 +341,9 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 				if err != nil {
 					err = errors.New(maskSecrets(err.Error(), secretVals))
 				}
+			}
+			if err == nil && windDocTool(name) {
+				s.noteWindOutput(ctx, name, argsJSON, out)
 			}
 			return out, imgs, err
 		},

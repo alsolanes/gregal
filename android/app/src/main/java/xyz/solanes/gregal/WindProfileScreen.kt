@@ -73,8 +73,8 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
     LaunchedEffect(wind.id) { vm.loadCalaix(wind.id) }
     LaunchedEffect(wind.id, isWeather) { if (isWeather) vm.loadWeather(wind.id) }
     // Primer el que sap de tu; el caràcter és a «Instruccions i ofici». Amb
-    // quatre pestanyes com a molt, caben totes sense lliscar ni tallar-se.
-    val tabs = listOf("memory", "scheduled", "saved") + if (profile?.trade != null || !shelves.isNullOrEmpty()) listOf("calaix") else emptyList()
+    // quatre pestanyes caben totes; amb el calaix, la fila llisca.
+    val tabs = listOf("memory", "scheduled", "saved", "shelf") + if (profile?.trade != null || !shelves.isNullOrEmpty()) listOf("calaix") else emptyList()
     Scaffold(containerColor = Superficie, modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(),
         bottomBar = {
             Surface(color = Superficie) {
@@ -214,6 +214,7 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                         HorizontalDivider(color = Muted.copy(alpha = .15f))
                         WindCardsSection(vm, lang, wind)
                     }
+                    "shelf" -> WindShelfSection(vm, lang, wind.id, onLeave = onDismiss)
                     "calaix" -> CalaixSection(lang, wind.name, shelves.orEmpty(), accent,
                         onAction = { shelf, action, key, item -> vm.calaixAction(wind.id, shelf, action, key, item) },
                         onSearchPlaces = { q -> vm.searchWeatherPlaces(q) })
