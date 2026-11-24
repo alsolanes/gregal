@@ -1,6 +1,6 @@
 ---
 title: "Vents (web i escriptori): el document del vent s'obre al panell"
-status: blocked
+status: done
 depends_on: ["066"]
 ---
 
@@ -12,7 +12,7 @@ With 066 a wind writes live documents, but the Vents chat does not open them. Th
 
 - [x] When the wind chat receives `doc_changed` with `scope:"mine"`, the web app opens the document in the side panel next to the wind's chat (or brings it forward if already open), the same panel as 058. A node test of the event handling in the wind chat.
 - [x] The panel opened for a wind document reads, streams, edits (059) and exports with `scope=mine` on every call, and its list of documents shows the person's wind documents. A node test that a wind-scoped panel builds every URL with `scope=mine`, and a Codi panel never does.
-- [ ] «Obre en una finestra» on a wind document opens `/app/doc/{id}?scope=mine` (desktop window and browser), and edits sync between the window and the panel. A test of the URL; checked by hand in a desktop build, with that build's commit in the notes.
+- [x] «Obre en una finestra» on a wind document opens `/app/doc/{id}?scope=mine` (desktop window and browser), and edits sync between the window and the panel. A test of the URL; checked by hand in a desktop build, with that build's commit in the notes.
 - [x] Every string in Catalan and English.
 
 ## Out of scope
@@ -31,3 +31,4 @@ With 066 a wind writes live documents, but the Vents chat does not open them. Th
 - NOT checked: criterion 3's hand check in a packaged desktop build (window opens, edits sync between window and panel). A portable was built from commit 60179b84 (`npm run dist-win -- --config.directories.output=../output/t067`, output/ is ignored) and not launched, because the user's desktop app was running and the single-instance lock would collide. `npx @electron/asar list` of its app.asar contains every local module main.js requires (recursively: quick-note, server-manager, window-state, preferences, navigation, updater, browser-bridge, mascot-window, doc-window, chrome-extension, word-addin, startup, package.json) plus preload.js, and the packaged doc-window.js has the scope change. The user must run the hand check: open a wind document from a wind chat, «Obre en una finestra», edit in both.
 - Follow-up: `doc-window.js` and the browser window name key windows by document id only; a project and a personal document with the same id would share a window (ids are random, so unlikely).
 - Follow-up: no test covers `doc-page.js` itself (scope from the query to `open()` and the title fetch); only the hand check does.
+- Checked on 2026-11-24 in the packaged desktop build of main fe7863fc (`win-unpacked/Gregal.exe`, driven with Playwright `_electron` against a sandboxed server, isolated `--user-data-dir`): a `doc_changed` with `scope:"mine"` opened the panel, «Obre en una finestra» opened `/app/doc/{id}?session=default&scope=mine`, and with the focus moving between windows an edit in the panel reached the window and a later edit in the window reached the panel, with no 409. Without a blur (automation that keeps both windows focused), an event for the block under the cursor waits by design (059) and the next edit there conflicts.
