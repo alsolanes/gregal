@@ -1241,7 +1241,13 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     LaunchedEffect(wind.id, msgs.size) { if (msgs.isNotEmpty() && liveFrom == Int.MAX_VALUE) liveFrom = msgs.size }
 
     val isBusy = busy.contains(wind.id)
-    Box(Modifier.fillMaxSize().background(Superficie)) {
+    val asks by vm.windAsks.collectAsState()
+    // «Fet» des que acaba un torn fins que tornes a escriure (un torn nou) o surts.
+    var done by remember(wind.id) { mutableStateOf(false) }
+    var wasBusy by remember(wind.id) { mutableStateOf(isBusy) }
+    LaunchedEffect(wind.id, isBusy) { if (wasBusy && !isBusy) done = true; if (isBusy) done = false; wasBusy = isBusy }
+    val wash = windWash(accent, Superficie)
+    Box(Modifier.fillMaxSize().background(wash)) {
         Column(Modifier.fillMaxSize()) {
         // La capçalera diu qui és; «què està fent» es diu al final del fil.
         // A la portada de Gregal la capçalera és una capa flotant (a sota): el fil hi passa per sota.
@@ -1291,7 +1297,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     val cap = rememberBubbleCapture()
                     BubbleIn("dm#$idx", animate = idx >= liveFrom) {
                         Box(if (m.from != "user") cap.modifier else Modifier) {
-                        WindBubble(m, accent, lang = lang,
+                        WindBubble(m, accent, lang = lang, tint = wash,
                             onCopy = {
                                 // Prémer llarg una resposta obre «Comparteix» (Share.kt); la teva, la copia.
                                 if (m.from != "user" && !m.streaming) shareTarget = ShareTarget(m.text, wind.name, cap.shot)
@@ -1401,7 +1407,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         }
         }
         // La capçalera flota: el fil passa per sota de les pastilles.
-        VentsChatHeader(lang, wind.name, "",
+        VentsChatHeader(lang, wind.name, windChatState(wind.id, busy, asks, done)?.let { tr(lang, it) }.orEmpty(),
             accent, wind.faceStyle,
             if (isBusy) live[wind.id]?.mood ?: WindMood.THINKING else WindMood.IDLE,
             onBack = onBack, onProfile = { profile = true },
@@ -1932,7 +1938,9 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
     /** L'hora (i l'altaveu) només una vegada per ratxa: a l'última. */
     showMeta: Boolean = true,
     /** Per desar la resposta des del xip de proposta del vent; sense, el xip no surt. */
-    vm: GregalViewModel? = null) {
+    vm: GregalViewModel? = null,
+    /** Fons de la conversa d'un vent: les seves bombolles s'hi tenyeixen del seu color. */
+    tint: Color? = null) {
     // El bloc ```choices són botons de resposta ràpida, no text de la bombolla.
     val m = remember(raw) { if (raw.from == "user") raw else raw.copy(text = withoutChoices(raw.text)) }
     val mine = m.from == "user"
@@ -2046,7 +2054,7 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
             val dark = LocalPal.current.dark
             Surface(
                 shape = if (tail) GregalShape.bubbleTail(mine = false) else GregalShape.bubble,
-                color = if (reading) Color.Transparent else SuperficieAlta,
+                color = tint?.let { windBubbleColor(accent, it) } ?: if (reading) Color.Transparent else SuperficieAlta,
                 shadowElevation = 0.dp,
                 // Prémer llarg copia la resposta en text pla (sense marques).
                 // Sense animateContentSize en directe: cada línia nova rellançava

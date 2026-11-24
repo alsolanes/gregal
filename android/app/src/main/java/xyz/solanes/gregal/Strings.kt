@@ -175,6 +175,9 @@ val STR_CA: Map<String, String> = mapOf(
     "docs.sheetEmpty" to "Aquest full de càlcul encara no té cap full.",
     "docs.sheetError" to "No s’ha pogut afegir el full: %s",
     "docs.layout" to "Layout de la diapositiva",
+    "winds.state.working" to "Treballant…",
+    "winds.state.waiting" to "T'espera",
+    "winds.state.done" to "Fet",
 )
 
 val STR_EN: Map<String, String> = mapOf(
@@ -350,4 +353,7 @@ val STR_EN: Map<String, String> = mapOf(
     "docs.sheetEmpty" to "This spreadsheet has no sheets yet.",
     "docs.sheetError" to "Could not add the sheet: %s",
     "docs.layout" to "Slide layout",
+    "winds.state.working" to "Working…",
+    "winds.state.waiting" to "Waiting for you",
+    "winds.state.done" to "Done",
 )
