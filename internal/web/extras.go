@@ -92,6 +92,7 @@ func (h *Hub) extraRoutes(handle func(string, http.HandlerFunc)) {
 	handle("/api/winds/novetats/read", h.route((*Server).handleWindNovetatsRead))
 	handle("/api/v2/push", h.route((*Server).handlePush))
 	handle("/api/winds/programats", h.route((*Server).handleWindsProgramats))
+	handle("/api/winds/activity", h.route((*Server).handleWindsActivity))
 	handle("/api/winds/automations", h.route((*Server).handleWindsAutomations))
 	handle("/api/winds/saved", h.route((*Server).handleWindsSaved))
 	handle("/api/winds/clip", h.route((*Server).handleWindClip))
