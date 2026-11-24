@@ -319,4 +319,122 @@ export async function renderSaved(box, opts = {}) {
   if (items.some(i => i.unread)) api('/api/winds/inbox', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: '*', action: 'read' }) }).catch(() => {});
 }
 
-window.gregalVentsActivity = { renderAutomations, renderSaved, whenText, filterItems };
+// ---- Activitat: el que els vents han fet pel seu compte (/api/winds/activity) ----
+
+const ACT_PAGE = 50;
+const ACT_KIND = { task: ['Encàrrec', 'Errand'], news: ['Novetat', 'News'], routine: ['Rutina', 'Routine'], heartbeat: ['Vigila', 'Watch'], reminder: ['Recordatori', 'Reminder'] };
+const ACT_STATUS = {
+  done: ['done', 'Fet', 'Done'], ok: ['done', 'Fet', 'Done'], read: ['done', 'Llegit', 'Read'],
+  failed: ['failed', 'Ha fallat', 'Failed'], error: ['failed', 'Ha fallat', 'Failed'],
+  cancelled: ['failed', 'Cancel·lat', 'Cancelled'], interrupted: ['failed', 'Interromput', 'Interrupted'],
+  running: ['waiting', 'En marxa', 'Running'], unread: ['waiting', 'Per llegir', 'Unread'],
+};
+
+/** L'estat com a xip: fet, ha fallat o espera (en marxa, per llegir). */
+export function statusChip(it) {
+  const s = ACT_STATUS[it.status];
+  return s ? { key: s[0], label: tx(s[1], s[2]) } : null;
+}
+
+/** Què obre l'enllaç: la feina, el xat del vent (on parlen la novetat, el cor i el recordatori) o el run de la rutina. */
+export function activityLink(it) {
+  return { task: 'task', news: 'chat', heartbeat: 'chat', reminder: 'chat', routine: 'run' }[it.kind] || '';
+}
+
+/** Els elements per dia local, en l'ordre que arriben (de més nou a més vell). */
+export function groupByDay(items, now = new Date()) {
+  const day = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const groups = [];
+  for (const it of items) {
+    const d = new Date(it.at), key = day(d);
+    let g = groups[groups.length - 1];
+    if (!g || g.key !== key) {
+      const diff = Math.round((day(now) - key) / 86400000);
+      const label = diff === 0 ? tx('Avui', 'Today') : diff === 1 ? tx('Ahir', 'Yesterday')
+        : d.toLocaleDateString(idioma() === 'en' ? 'en-GB' : 'ca-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+      g = { key, label, items: [] };
+      groups.push(g);
+    }
+    g.items.push(it);
+  }
+  return groups;
+}
+
+/** Línia de temps de l'activitat. opts.wind = només d'un vent; opts.winds = els vents (cara i nom); opts.onOpen(item, 'task'|'chat') obre la feina o el xat. */
+export async function renderActivity(box, opts = {}) {
+  const wind = opts.wind || '';
+  const url = before => '/api/winds/activity?' + new URLSearchParams({ ...(wind ? { wind } : {}), ...(before ? { before } : {}), limit: ACT_PAGE });
+  const failed = (e, retry) => [el('p', 'auto-help', tx('No s’ha pogut carregar l’activitat: ', 'Could not load the activity: ') + (e.message || e)), btn(tx('Torna-ho a provar', 'Try again'), retry, 'auto-btn subtle')];
+  box.replaceChildren(el('p', 'auto-help', tx('Carregant…', 'Loading…')));
+  let items;
+  try { items = (await getJSON(url())).items || []; }
+  catch (e) { box.replaceChildren(...failed(e, () => renderActivity(box, opts))); return; }
+  if (!items.length) {
+    box.replaceChildren(el('p', 'auto-empty', wind
+      ? tx('Aquest vent encara no ha fet res pel seu compte. Quan acabi una feina, et porti una novetat o corri una rutina, sortirà aquí.', "This wind hasn't done anything on its own yet. When it finishes a job, brings you news or runs a routine, it shows up here.")
+      : tx('Encara no hi ha activitat. Quan un vent acabi una feina, et porti una novetat o corri una rutina, sortirà aquí.', 'Nothing yet. When a wind finishes a job, brings you news or runs a routine, it shows up here.')));
+    return;
+  }
+  const row = it => {
+    const w = (opts.winds || []).find(x => x.id === it.wind) || { id: it.wind, name: it.wind, color: '#BFC7DF', style: 'psn' };
+    const r = el('div', 'auto-row act-row act-item');
+    if (window.gregalWinds?.face) { const f = el('span', 'act-face'); f.append(window.gregalWinds.face(w, false)); r.append(f); }
+    const main = el('div', 'auto-main'), head = el('div', 'act-head');
+    head.append(el('strong', '', it.title || tx(...(ACT_KIND[it.kind] || [it.kind, it.kind]))));
+    const chip = statusChip(it);
+    if (chip) head.append(el('span', 'act-state is-' + chip.key, chip.label));
+    const hm = new Date(it.at).toLocaleTimeString(idioma() === 'en' ? 'en-GB' : 'ca-ES', { hour: '2-digit', minute: '2-digit' });
+    main.append(head, el('span', 'auto-sub', [hm, wind ? '' : w.name, tx(...(ACT_KIND[it.kind] || [it.kind, it.kind]))].filter(Boolean).join(' · ')));
+    r.append(main);
+    const link = activityLink(it), actions = el('div', 'auto-actions');
+    if (link === 'run') {
+      const hist = el('div', 'auto-history auto-run'); hist.hidden = true;
+      actions.append(btn(tx('Mostra el resultat', 'Show the result'), async () => {
+        hist.hidden = !hist.hidden;
+        if (hist.hidden || hist.dataset.loaded) return;
+        hist.replaceChildren(el('p', 'auto-help', tx('Carregant…', 'Loading…')));
+        try {
+          const runs = (await getJSON('/api/winds/rutines/runs?id=' + encodeURIComponent(it.ref))).runs || [];
+          const at = new Date(it.at).getTime();
+          const run = runs.find(x => [x.finished_at, x.started_at].some(v => new Date(v).getTime() === at));
+          hist.replaceChildren(run ? el('pre', '', (run.output || run.error || tx('En silenci: no hi havia res a dir.', 'Quiet: nothing to report.')).slice(0, 4000))
+            : el('p', 'auto-empty', tx('Aquest resultat ja no es guarda.', 'This result is no longer kept.')));
+          hist.dataset.loaded = '1';
+        } catch (e) { hist.replaceChildren(el('p', 'auto-help', '⚠ ' + (e.message || e))); }
+      }, 'auto-btn subtle'));
+      r.append(actions, hist);
+    } else if (link && opts.onOpen) {
+      actions.append(btn(link === 'task' ? tx('Obre la feina', 'Open the work') : tx('Obre el xat', 'Open the chat'), () => opts.onOpen(it, link), 'auto-btn subtle'));
+      r.append(actions);
+    }
+    return r;
+  };
+  const list = el('div', 'act-timeline'), foot = el('div', 'act-more');
+  const draw = () => list.replaceChildren(...groupByDay(items).map(g => { const s = el('section', 'act-day'); s.append(el('h3', '', g.label), ...g.items.map(row)); return s; }));
+  let more = items.length === ACT_PAGE, loading = false, observer = null;
+  const olderBtn = () => btn(tx('Més antigues', 'Older'), older, 'auto-btn subtle');
+  // En arribar al final (o amb el botó, per a qui no fa servir la roda), les més velles.
+  async function older() {
+    if (loading || !more) return;
+    loading = true;
+    foot.replaceChildren(el('p', 'auto-help', tx('Carregant…', 'Loading…')));
+    try {
+      const page = (await getJSON(url(items[items.length - 1].at))).items || [];
+      items = items.concat(page);
+      more = page.length === ACT_PAGE;
+      draw();
+      foot.replaceChildren(...(more ? [olderBtn()] : []));
+      if (!more) observer.disconnect();
+    } catch (e) { foot.replaceChildren(...failed(e, older)); }
+    loading = false;
+  }
+  draw();
+  box.replaceChildren(list, foot);
+  if (more) {
+    foot.append(olderBtn());
+    observer = new IntersectionObserver(entries => { if (entries.some(e => e.isIntersecting)) older(); });
+    observer.observe(foot);
+  }
+}
+
+window.gregalVentsActivity = { renderAutomations, renderSaved, renderActivity, whenText, filterItems };
