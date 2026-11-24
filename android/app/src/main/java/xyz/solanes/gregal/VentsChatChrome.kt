@@ -156,10 +156,11 @@ internal fun windBubbleColor(accent: Color, background: Color): Color = accent.c
  * una pregunta per a tu, encara que el torn segueixi), treballant, fet (el torn
  * ha acabat i encara no has escrit ni has sortit) o res. Torna la clau del text.
  */
-internal fun windChatState(windId: String, busy: Set<String>, asks: List<GregalApi.WindAsk>, done: Boolean): String? = when {
+internal fun windChatState(windId: String, busy: Set<String>, asks: List<GregalApi.WindAsk>, done: Boolean, failed: Boolean = false): String? = when {
     asks.any { it.wind == windId } -> "winds.state.waiting"
     windId in busy -> "winds.state.working"
-    done -> "winds.state.done"
+    // Un torn que ha acabat amb «Torn interromput» no està fet.
+    done && !failed -> "winds.state.done"
     else -> null
 }
 

@@ -3,6 +3,8 @@ package xyz.solanes.gregal
 import android.app.Application
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.test.core.app.ApplicationProvider
@@ -109,5 +111,27 @@ class WindPresenceTest {
     @Test fun withMotionTheWindMoves() {
         val (a, b) = frames(motion = true)
         assertFalse(a.sameAs(b))
+    }
+
+    // La cara de la cantonada (72 dp) duu l'eina de l'ofici, com la de la capçalera: abans no en duia perquè
+    // WindFace només la dibuixa a partir de 80 dp si no se li demana.
+    @Test fun theCornerWindWearsItsKit() {
+        val bare = xaloc.copy(kit = "", role = "")
+        var shown by androidx.compose.runtime.mutableStateOf(bare)
+        val vm = vmWith(2)
+        show { WindConversation(vm, "ca", shown, onBack = {}) }
+        fun corner(): android.graphics.Bitmap {
+            ui.waitForIdle()
+            val r = ui.onNodeWithTag("wind-presence").getBoundsInRoot()
+            val px = ui.activity.resources.displayMetrics.density
+            val view = ui.activity.window.decorView
+            val bmp = android.graphics.Bitmap.createBitmap(view.width, view.height, android.graphics.Bitmap.Config.ARGB_8888)
+            ui.runOnUiThread { view.draw(android.graphics.Canvas(bmp)) }
+            return android.graphics.Bitmap.createBitmap(bmp, (r.left.value * px).toInt(), (r.top.value * px).toInt(),
+                ((r.right - r.left).value * px).toInt(), ((r.bottom - r.top).value * px).toInt())
+        }
+        val without = corner()
+        shown = bare.copy(kit = "music")
+        assertFalse("the music kit changes the corner face", corner().sameAs(without))
     }
 }

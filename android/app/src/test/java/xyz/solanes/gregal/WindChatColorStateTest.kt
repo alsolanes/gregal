@@ -60,6 +60,10 @@ class WindChatColorStateTest {
     @Test fun `fet quan s'ha acabat el torn`() =
         assertEquals("winds.state.done", windChatState("xaloc", setOf("garbi"), listOf(ask("garbi")), done = true))
 
+    // Un torn que acaba amb l'avís «Torn interromput» (kind "error") no està fet.
+    @Test fun `un torn fallit no diu fet`() =
+        assertNull(windChatState("xaloc", emptySet(), emptyList(), done = true, failed = true))
+
     @Test fun `res altrament`() =
         assertNull(windChatState("xaloc", setOf("garbi"), listOf(ask("garbi")), done = false))
 

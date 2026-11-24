@@ -1247,7 +1247,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     var wasBusy by remember(wind.id) { mutableStateOf(isBusy) }
     LaunchedEffect(wind.id, isBusy) { if (wasBusy && !isBusy) done = true; if (isBusy) done = false; wasBusy = isBusy }
     val wash = windWash(accent, Superficie)
-    val chatState = windChatState(wind.id, busy, asks, done)
+    val chatState = windChatState(wind.id, busy, asks, done, failed = msgs.lastOrNull()?.kind == "error")
     // El vent present a la cantonada; amb el fil buit ja hi ha la cara gran de benvinguda.
     val present = msgs.isNotEmpty()
     Box(Modifier.fillMaxSize().background(wash)) {
@@ -1356,7 +1356,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         }
         // A l'esquerra, on parla el vent; la dreta és per a «Últims».
         if (present) WindFace(size = WindPresenceSize, mood = windPresenceMood(chatState, live[wind.id]?.mood),
-            accent = accent, style = wind.faceStyle,
+            accent = accent, style = wind.faceStyle, showKit = true,
             modifier = Modifier.align(Alignment.BottomStart).padding(start = 6.dp).testTag("wind-presence"))
         if (follow.behind) LatestPill(lang) {
             scope.launch { listState.scrollToLatest() }
