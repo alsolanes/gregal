@@ -121,6 +121,7 @@ async function boot({ lang = 'en', api, storage = {}, css = () => '', extra = {}
   const later = (f, ms) => { const h = setTimeout(f, ms); h.unref(); return h; };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'winds-workspace.js'), 'utf8'), {
     window, document: doc, console, URL, URLSearchParams, setTimeout: later, clearTimeout, queueMicrotask, TextDecoder, Option, CustomEvent, MutationObserver,
+    ResizeObserver: class { observe() {} disconnect() {} },
     getComputedStyle: () => ({ getPropertyValue: css }), matchMedia: () => ({ matches: true }),
     sessionStorage: { getItem: () => null, setItem() {} }, localStorage: { getItem: k => storage[k] ?? null, setItem: (k, v) => { storage[k] = String(v); } },
     location: { hash: '', pathname: '/', search: '' }, history: { replaceState() {} }, navigator: { platform: 'Win32' }, requestAnimationFrame: f => f(),
@@ -579,6 +580,75 @@ test('a wind’s conversation has the wind large in the chat corner; a group con
   assert.equal(f.page.querySelector('.vw-wind-corner'), null, 'no corner wind in a group');
 });
 
+// 108: en un xat amb un vent, el vent és un de sol: la cara viu al costat del nom, a dalt, i les seves
+// respostes no en porten; en un grup, cada missatge diu qui parla amb la seva cara.
+const longChat = (n = 30) => Array.from({ length: n }, (_, i) => i % 2 ? { from: 'assistant', text: 'Resposta ' + i } : { from: 'user', text: 'Pregunta ' + i });
+const facesOf = (root, name) => root.querySelectorAll('svg').filter(s => s.dataset.wind === name);
+test('a wind’s conversation has exactly one face of the wind, next to its name; a group keeps a face per message', async () => {
+  const group = { id: 'r1', name: 'La colla del concert', members: ['xaloc', 'gregal'] };
+  const json = data => ({ ok: true, status: 200, json: async () => data });
+  const f = await boot({ api: r => r.url === '/api/winds/rotllanes' ? json({ rotllanes: [group] })
+    : r.url === '/api/winds/session/open' ? json({ wind: 'xaloc', name: r.body.name, history: longChat(6) })
+    : r.url.startsWith('/api/winds/rotllana?') ? json({ history: [{ from: 'user', text: 'Anem-hi' }, { from: 'xaloc', speaker_id: 'xaloc', text: 'Jo hi vaig' }, { from: 'gregal', speaker_id: 'gregal', text: 'I jo' }, { from: 'xaloc', speaker_id: 'xaloc', text: 'Som-hi' }] }) : null });
+  await byText(f.page.querySelector('.vw-start-recent'), 'button', 'Un concert per dissabte').click();
+  await settle();
+  const faces = facesOf(f.page, 'Xaloc');
+  assert.equal(faces.length, 1, 'one face of the wind on the page');
+  assert.ok(faces[0].closest('.vw-wind-corner'), 'it is the wind that moves');
+  assert.ok(faces[0].closest('.vw-owner'), 'its home is the header, next to its name');
+  assert.equal(f.page.querySelector('.vw-messages').querySelectorAll('svg').length, 0, 'no face per message');
+  await byText(f.nav, 'button', 'La colla del concert').click();
+  await settle();
+  const rows = f.page.querySelector('.vw-messages').querySelectorAll('article').filter(a => !a.classList.contains('vw-user'));
+  assert.deepEqual(rows.map(r => r.querySelector('svg')?.dataset.wind), ['Xaloc', 'Gregal', 'Xaloc'], 'a group tells its speakers apart');
+});
+
+// El vent descansa a la cantonada amb el missatge més nou; si tires amunt, vola al costat del nom, i torna.
+async function windChat(room) {
+  const json = data => ({ ok: true, status: 200, json: async () => data });
+  const f = await boot({ api: r => r.url === '/api/winds/session/open' ? json({ wind: 'xaloc', name: r.body.name, history: longChat() }) : null });
+  await byText(f.page.querySelector('.vw-start-recent'), 'button', 'Un concert per dissabte').click();
+  await settle();
+  const box = f.page.querySelector('.vw-messages'), spot = f.page.querySelector('.vw-corner-spot');
+  // Al navegador, el lloc de la cantonada només té mida quan hi cap (winds-workspace.css).
+  if (room) spot.firstChild.getBoundingClientRect = () => ({ left: 900, top: 600, width: 96, height: 96, right: 996, bottom: 696 });
+  const scrollTo = top => { box.scrollTop = top; for (const fn of box.listeners.scroll || []) fn({ target: box }); };
+  return { ...f, box, corner: () => f.page.querySelector('.vw-wind-corner'), scrollTo, bottom: () => scrollTo(box.scrollHeight) };
+}
+test('the wind rests in the corner at the newest message, flies up next to its name when you scroll back, and comes back', async () => {
+  const f = await windChat(true);
+  f.bottom();
+  assert.equal(f.corner().dataset.at, 'corner', 'at the newest message, in the corner');
+  f.scrollTo(f.box.scrollTop - 40);
+  assert.equal(f.corner().dataset.at, 'corner', 'a small nudge does not make it fly');
+  f.scrollTo(0);
+  assert.equal(f.corner().dataset.at, 'top', 'reading back, it sits next to its name');
+  f.bottom();
+  assert.equal(f.corner().dataset.at, 'corner', 'back at the bottom, back in the corner');
+  assert.equal(facesOf(f.page, 'Xaloc').length, 1, 'still one face');
+});
+
+test('where the corner has no room (narrow screens, a work pane open) the wind stays next to its name, still one', async () => {
+  const f = await windChat(false);
+  f.bottom();
+  assert.equal(f.corner().dataset.at, 'top');
+  assert.equal(facesOf(f.page, 'Xaloc').length, 1);
+});
+
+test('the flight moves one element with transforms only, and jumps instead of flying with reduced motion', () => {
+  const css = fs.readFileSync(path.join(__dirname, 'winds-workspace.css'), 'utf8');
+  const block = at => { let depth = 0; const start = css.indexOf('{', at); for (let i = start; i < css.length; i++) { if (css[i] === '{') depth++; else if (css[i] === '}' && --depth === 0) return css.slice(start + 1, i); } return ''; };
+  const blocks = [...css.matchAll(/@media\(prefers-reduced-motion:no-preference\)/g)].map(m => block(m.index));
+  const still = blocks.reduce((rest, b) => rest.replace(b, ''), css);
+  const flights = [...blocks.join('\n').matchAll(/\.vw-wind-corner\[data-fly\][^{]*\{ transition:([^;}]*)/g)].map(m => m[1]);
+  assert.equal(flights.length, 2, 'the corner wind flies up and down with motion allowed');
+  for (const flight of flights) {
+    const props = flight.split(/,(?![^(]*\))/).map(p => p.trim().split(' ')[0]);
+    assert.deepEqual(props.filter(p => !['translate', 'transform', 'scale'].includes(p)), [], 'transforms only: ' + props);
+  }
+  assert.doesNotMatch(still, /\.vw-wind-corner[^{]*\{[^}]*transition:/, 'no flight under reduced motion');
+});
+
 // 085: la tinta de la bombolla depèn del tema; canviar de clar a fosc amb el xat obert la refà de seguida.
 test('switching between dark and light with a wind’s chat open retints its bubbles right away', async () => {
   const themes = {
@@ -632,8 +702,8 @@ test('opening the chat from a news item lands on that message and marks the news
   assert.deepEqual(f.requests.filter(r => r.url === '/api/winds/novetats/read').map(r => [r.method, r.body]), [['POST', { ids: ['n-7'] }]]);
 });
 
-// 101: un torn que surt bé el celebren el vent de la cantonada i la cara de la capçalera, un sol cop;
-// un torn que falla, una arronsada d'espatlles.
+// 101: un torn que surt bé el celebra el vent, un sol cop; un torn que falla, una arronsada d'espatlles.
+// Des de 108 la cara de la capçalera i la de la cantonada són la mateixa.
 async function turnInXaloc(api) {
   const f = await boot({ api });
   await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();
@@ -643,24 +713,24 @@ async function turnInXaloc(api) {
   await settle();
   return f;
 }
-const cheered = (f, cls) => [f.page.querySelector('.vw-wind-corner'), f.page.querySelector('.vw-owner')].map(n => n.classList.contains(cls));
+const cheered = (f, cls) => f.page.querySelector('.vw-wind-corner').classList.contains(cls);
 
-test('a turn that ends well makes the corner wind and the header face celebrate, once', async () => {
+test('a turn that ends well makes the wind celebrate, once', async () => {
   const f = await turnInXaloc();
-  assert.deepEqual(cheered(f, 'vw-cheer'), [true, true], 'the corner wind and the header face celebrate');
-  assert.deepEqual(cheered(f, 'vw-shrug'), [false, false]);
-  assert.equal(f.page.querySelectorAll('.vw-burst').length, 2, 'one sparkle burst each');
+  assert.ok(cheered(f, 'vw-cheer'), 'the wind celebrates');
+  assert.ok(!cheered(f, 'vw-shrug'));
+  assert.equal(f.page.querySelectorAll('.vw-burst').length, 1, 'one sparkle burst');
   await f.window.loadWindsPage();
   await settle();
   assert.equal(f.page.querySelector('.vw-wind-mark').textContent, 'Done', 'still the same finished turn');
-  assert.deepEqual(cheered(f, 'vw-cheer'), [false, false], 'a redraw does not celebrate again');
+  assert.ok(!cheered(f, 'vw-cheer'), 'a redraw does not celebrate again');
   assert.equal(f.page.querySelectorAll('.vw-burst').length, 0);
 });
 
 test('a turn that fails gets a shrug, not a celebration', async () => {
   const f = await turnInXaloc(r => r.url === '/api/winds/chat/stream' ? { ok: false, status: 502, text: async () => 'boom', json: async () => ({}) } : null);
-  assert.deepEqual(cheered(f, 'vw-shrug'), [true, true]);
-  assert.deepEqual(cheered(f, 'vw-cheer'), [false, false]);
+  assert.ok(cheered(f, 'vw-shrug'));
+  assert.ok(!cheered(f, 'vw-cheer'));
   assert.equal(f.page.querySelectorAll('.vw-burst').length, 0);
 });
 

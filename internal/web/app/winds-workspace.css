@@ -491,7 +491,8 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
  .vw-message:not(.vw-user) { display:block; position:relative; }
  .vw-message:not(.vw-user) > :is(.winds-face,.vw-shared-person) { position:absolute; left:0; top:14px; width:26px; height:26px; font-size:12px; }
  .vw-message:not(.vw-user) > div { max-width:100%; }
- .vw-message:not(.vw-user) > div > strong { min-height:26px; padding-left:35px; line-height:26px; margin-bottom:6px; }
+ .vw-message:not(.vw-user) > div > strong { min-height:26px; line-height:26px; margin-bottom:6px; }
+ .vw-message:not(.vw-user):has(> :is(.winds-face,.vw-shared-person)) > div > strong { padding-left:35px; }
  .vw-choices { margin-left:0; }
 }
 
@@ -532,7 +533,6 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 
 /* ---- Qui porta la conversa, a qui parles i relleus ---- */
 .vw-owner { display:inline-flex; align-items:center; gap:8px; min-width:0; color:var(--ink); }
-.vw-owner > .winds-face { width:26px; height:26px; flex:none; }
 .vw-owner > strong { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .vw-owner-faces { display:inline-flex; flex:none; }
 .vw-owner-faces > .winds-face { width:24px; height:24px; margin-right:-7px; border-radius:50%; box-shadow:0 0 0 2px var(--bg); }
@@ -913,40 +913,54 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .wind-workspace.vw-wind-chat .vw-messages .vw-pending-copy { background:color-mix(in srgb, var(--vw-wind) calc(var(--vw-wind-share, 0) * 1%), var(--surface-hi)); }
 .wind-workspace.vw-wind-chat .vw-messages .vw-pending.vw-reading .vw-pending-copy { background:transparent; }
 .wind-workspace.vw-wind-chat .vw-top { border-bottom-color:transparent; }
-.vw-owner > .winds-face-large { width:44px; height:44px; flex:none; }
 .vw-wind-mark { flex:none; padding:1px 9px; border-radius:999px; font-size:12px; line-height:18px; font-weight:600; color:var(--ink);
   background:color-mix(in srgb, var(--vw-wind, var(--accent)) 22%, transparent); border:1px solid color-mix(in srgb, var(--vw-wind, var(--accent)) 45%, transparent); }
 .vw-wind-mark[data-mark="working"]::before { content:""; display:inline-block; width:6px; height:6px; margin-right:6px; border-radius:50%; background:currentColor; vertical-align:1px; }
 @media(prefers-reduced-motion:no-preference) { .vw-wind-mark[data-mark="working"]::before { animation:vw-thinking 1.4s ease-in-out infinite; } }
 
-/* ---- El vent present a la cantonada del xat (087) ----
-   Una fila d'alçada zero entre el fil i el compositor: el vent s'hi recolza a sobre, mig fora de la
-   columna, i el fil li deixa marge a la dreta perquè no tapi cap missatge. Sota 900 px no hi és, ni
+/* ---- El vent, un de sol (087, 108) ----
+   Un sol element: té casa a la capçalera, al costat del nom (.vw-owner-slot), i baixa a la cantonada del
+   xat quan ets al missatge més nou (winds-workspace.js, flyCorner). Vola amb translate (x), transform (y)
+   i scale del contenidor, i així no trepitja el transform de la cara: postures, celebració i sí/no. Es
+   dibuixa a 96 px i a dalt s'encongeix.
+   La cantonada és .vw-corner-spot, una fila d'alçada zero entre el fil i el compositor: el vent s'hi
+   recolza a sobre, mig fora de la columna, i el fil li deixa marge a la dreta. Sota 900 px no hi és, ni
    amb un panell de feina (l'ordinador, Gregal Docs) obert per sota de 1200 px: fins a 1000 px el panell
-   flota just a sobre seu, i d'allà amunt deixa el xat massa estret. */
-.vw-wind-corner { display:none; }
+   flota just a sobre seu, i d'allà amunt deixa el xat massa estret. Llavors el vent es queda a dalt. */
+.vw-top > span.vw-owner:has(> .vw-owner-slot) { overflow:visible; }
+.vw-owner-slot { position:relative; flex:none; width:44px; height:44px; }
+/* Mai no és més petit de 44 px: fa la ratxa de les cares grans, no la bufada de les petites (winds.css). */
+.vw-owner .vw-wind-corner .winds-face .wf-gust { display:inline; }
+.vw-owner .vw-wind-corner .winds-face .wf-puff { display:none; }
+.vw-wind-corner { position:absolute; left:-26px; bottom:0; z-index:6; width:96px; height:96px; pointer-events:none; transform-origin:50% 100%; scale:.4584; }
+.vw-wind-corner[data-at="corner"] { translate:var(--vw-fly-x) 0; transform:translateY(var(--vw-fly-y)); scale:1; }
+.vw-wind-corner > .winds-face { display:block; width:100%; height:100%; transform-origin:50% 100%; }
+/* T'espera: s'inclina cap a tu (el compositor) i hi fa un gest de tant en tant. */
+.vw-wind-corner[data-mood="waiting"] > .winds-face { transform:rotate(-8deg); }
+.vw-corner-spot { display:none; }
 @media(min-width:900px) {
-  .vw-thread-view:has(> .vw-wind-corner) > .vw-messages { padding-right:88px; }
-  .vw-wind-corner { display:block; position:relative; flex:none; height:0; pointer-events:none; }
-  .vw-wind-corner > .winds-face { position:absolute; right:-24px; bottom:4px; width:96px; height:96px; transform-origin:50% 100%; }
-  /* T'espera: s'inclina cap a tu (el compositor) i hi fa un gest de tant en tant. */
-  .vw-wind-corner[data-mood="waiting"] > .winds-face { transform:rotate(-8deg); }
+  .vw-thread-view:has(> .vw-corner-spot) > .vw-messages { padding-right:88px; }
+  .vw-corner-spot { display:block; position:relative; flex:none; height:0; }
+  .vw-corner-spot > i { position:absolute; right:-24px; bottom:4px; width:96px; height:96px; }
 }
 @media(min-width:900px) and (max-width:1199.98px) {
-  #workbench:has(> .vw-computer-pane, > #docsPanel:not([hidden])) .vw-wind-corner { display:none; }
+  #workbench:has(> .vw-computer-pane, > #docsPanel:not([hidden])) .vw-corner-spot { display:none; }
   #workbench:has(> .vw-computer-pane, > #docsPanel:not([hidden])) .vw-thread-view > .vw-messages { padding-right:3px; }
 }
-@media(min-width:900px) and (prefers-reduced-motion:no-preference) {
+@media(prefers-reduced-motion:no-preference) {
+  /* Fa un arc, no una línia: amunt s'enlaira primer i després va cap al nom; avall llisca primer cap a
+     la dreta i hi aterra amb una molla que rebota una mica. Si tornes a mig vol, gira des d'on és. */
+  .vw-wind-corner[data-fly] { transition:translate .6s cubic-bezier(.3,.7,.2,1), transform .42s cubic-bezier(.2,.8,.2,1), scale .5s cubic-bezier(.2,.8,.2,1); }
+  .vw-wind-corner[data-fly][data-at="corner"] { transition:translate .42s cubic-bezier(.2,.8,.2,1), transform .62s linear(0, .128, .37, .603, .781, .898, .966, 1, 1.013, 1.015, 1.013, 1.009, 1.005, 1.003, 1.001, 1), scale .62s linear(0, .128, .37, .603, .781, .898, .966, 1, 1.013, 1.015, 1.013, 1.009, 1.005, 1.003, 1.001, 1); }
   .vw-wind-corner[data-mood="waiting"] > .winds-face { animation:vw-corner-wait 3s ease-in-out infinite; }
 }
 @keyframes vw-corner-wait { 0%,70%,100% { transform:rotate(-8deg); } 78% { transform:rotate(-8deg) translateY(-5px); } 86% { transform:rotate(-8deg); } }
-/* 101: un torn que surt bé, el vent de la cantonada i la cara de dalt fan un saltiró amb un esclat
-   d'espurnes del seu color (winds-workspace.js, cheerOn); un que falla, una arronsada d'espatlles.
-   Les espurnes són invisibles fins que es mouen: amb menys moviment no hi ha res a veure. */
-:is(.vw-owner,.vw-gregal-face).vw-cheer { position:relative; }
+/* 101: un torn que surt bé, el vent (o la cara de Gregal) fa un saltiró amb un esclat d'espurnes del
+   seu color (winds-workspace.js, cheerOn); un que falla, una arronsada d'espatlles. L'esclat vola amb
+   el vent. Les espurnes són invisibles fins que es mouen: amb menys moviment no hi ha res a veure. */
+.vw-gregal-face.vw-cheer { position:relative; }
 .vw-burst { --vw-burst:var(--vw-wind, var(--g-accent, var(--accent))); --reach:30px; position:absolute; left:50%; top:50%; width:0; height:0; pointer-events:none; }
-.vw-owner > .vw-burst { left:22px; }
-.vw-wind-corner > .vw-burst { --reach:70px; --big:1.6; left:auto; top:auto; right:24px; bottom:70px; }
+.vw-wind-corner > .vw-burst { --reach:70px; --big:1.6; top:auto; bottom:74px; }
 .vw-burst i { position:absolute; left:-3px; top:-3px; width:6px; height:6px; border-radius:50%; background:var(--vw-burst); opacity:0; }
 .vw-burst i:nth-child(odd) { --far:.72; left:-5px; top:-5px; width:10px; height:10px; border-radius:0; clip-path:polygon(50% 0,62% 38%,100% 50%,62% 62%,50% 100%,38% 62%,0 50%,38% 38%); }
 .vw-burst i:nth-child(3n) { background:color-mix(in srgb, var(--vw-burst) 45%, #fff); }
