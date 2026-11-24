@@ -694,7 +694,8 @@ internal fun minairoLook(id: String): MinairoLook {
 private val MinairoRed = Color(0xFFD7342C)
 private val MinairoRedLight = Color(0xFFF47A5E)
 private val MinairoRedDeep = Color(0xFF7E141B)
-private val MinairoBand = Color(0xFF55121E)
+// La cinta negra de la barretina: el que la fa catalana a primer cop d'ull.
+private val MinairoBand = Color(0xFF17141A)
 private val MinairoBeard = Color(0xFFFBF8F2)
 private val MinairoBeardShade = Color(0xFFCFC7BA)
 private val MinairoNose = Color(0xFFE88875)
@@ -859,8 +860,8 @@ private fun DrawScope.drawMinairo(look: MinairoLook, eyes: WindEyes, p: WindPose
         }
     }
     val band = Path().apply { moveTo(17.5f, 32.5f); quadraticTo(40f, 19.5f, 62.5f, 32.5f) }
-    drawPath(band, Brush.verticalGradient(0f to lerp(MinairoBand, Color.White, .12f), 1f to MinairoBand, startY = 22f, endY = 36f),
-        style = Stroke(6f, cap = StrokeCap.Round))
+    drawPath(band, Brush.verticalGradient(0f to lerp(MinairoBand, Color.White, .08f), 1f to MinairoBand, startY = 22f, endY = 36f),
+        style = Stroke(8f, cap = StrokeCap.Round))
     if (!small) drawPath(Path().apply { moveTo(19.5f, 29.6f); quadraticTo(40f, 17.4f, 60.5f, 29.6f) }, Color.White, alpha = .16f,
         style = Stroke(1.1f, cap = StrokeCap.Round))
 

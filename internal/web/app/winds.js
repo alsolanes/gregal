@@ -675,7 +675,7 @@
     const full = !!large, id = 'wf' + (++faceSerial), defs = svgNode('defs', {}), url = suffix => 'url(#' + id + suffix + ')', space = { gradientUnits:'userSpaceOnUse' };
     const [rx, ry, cy] = { o:[24, 23.5, 49], n:[26.5, 22, 50.5], s:[22, 25, 48] }[s[2]], top = cy - ry, R = Math.max(rx, ry);
     const L = small ? 67 : { n:63.5, s:67.5, o:71, t:74.5 }[s[1]], deg = direction(w), fold = deg % 180 ? (deg < 180 ? -1 : 1) : seed % 2 ? 1 : -1;
-    const deep = mix(fill, '#1B1530', .4), core = mix(fill, '#1B1530', .6), band = mix(barretina, '#1B1530', .55), crease = mix(beardBottom, '#1B1530', .25);
+    const deep = mix(fill, '#1B1530', .4), core = mix(fill, '#1B1530', .6), band = '#17141A', crease = mix(beardBottom, '#1B1530', .25);
     const mouthInk = mix(barretina, '#1B1530', .65), nose = mix(fill, '#E4577A', .5), mirror = { transform:'matrix(-1 0 0 1 80 0)' };
     defs.append(
       shapes(svgNode('radialGradient', { id:id + 'v', ...space, cx:num(40 - .38 * rx), cy:num(cy - .5 * ry), r:num(1.9 * R) }), stops([[0, mix(fill, '#FFFFFF', .3), 1], [.45, fill, 1], [1, deep, 1]])),
@@ -728,8 +728,8 @@
       // The hanging part turns away from the light and lies on the crown.
       ['path', { d:'M64 12.5C67 18.5 68 27 67 34.5C66.6 37.6 62.8 37.8 62.5 34.5C62.2 29 60.5 23.5 57 20Z', fill:band, opacity:.32 }],
       ...small ? [] : [['path', { d:'M62.5 34.5C62.2 29 60.5 23.5 57 20C54.5 17.5 51.5 16.5 49 16.5', fill:'none', stroke:band, 'stroke-width':1.2, 'stroke-linecap':'round', opacity:.6 }]]]);
-    shapes(cap, [['path', { class:'wf-band', d:'M15.5 37.5C19 32 29 30.5 40 30.5S61 32 64.5 37.5L63.5 31C59.5 26.5 50 24.5 40 24.5S20.5 26.5 16.5 31Z', fill:band }],
-      ...small ? [] : [['path', { d:'M17.5 31.2C22 27.6 31 26 40 26S58 27.6 62.5 31.2', fill:'none', stroke:'#FFFFFF', 'stroke-width':.9, 'stroke-linecap':'round', opacity:.25 }]]]);
+    shapes(cap, [['path', { class:'wf-band', d:'M15.5 37.5C19 32 29 30.5 40 30.5S61 32 64.5 37.5L63.2 29C59 24.5 50 22.5 40 22.5S21 24.5 16.8 29Z', fill:band }],
+      ...small ? [] : [['path', { d:'M17.5 29.4C22 25.6 31 24 40 24S58 25.6 62.5 29.4', fill:'none', stroke:'#FFFFFF', 'stroke-width':.9, 'stroke-linecap':'round', opacity:.18 }]]]);
     if (thing === 1) shapes(group(cap, 'wf-herba', away), [['path', { d:'M58 30C61 24 63 19 67 14.5', fill:'none', stroke:leaf, 'stroke-width':1.4, 'stroke-linecap':'round' }],
       ['ellipse', { cx:62.6, cy:22.5, rx:3, ry:1.3, transform:'rotate(-40 62.6 22.5)', fill:leaf }], ['ellipse', { cx:65.4, cy:20.2, rx:2.6, ry:1.1, transform:'rotate(25 65.4 20.2)', fill:leaf }],
       ...[0, 72, 144, 216, 288].map(a => ['ellipse', { cx:67, cy:11.9, rx:1.5, ry:2.4, transform:`rotate(${a} 67 14.5)`, fill:wort }]), ['circle', { cx:67, cy:14.5, r:1.3, fill:mix(wort, barretina, .4) }]]);
