@@ -59,10 +59,11 @@ fun WindHalo(
     stacked: List<Wind> = emptyList(),
     tappable: Boolean = false,
     showKit: Boolean = false,
+    clay: Boolean = false,
 ) {
     Box(contentAlignment = Alignment.Center, modifier = Modifier.size((size + 14).dp)) {
         // Same footprint as before, without rings or shadows around the silhouette.
-        WindFace(size = size + 8, mood = mood, accent = accent, style = style, tappable = tappable, showKit = showKit)
+        WindFace(size = size + 8, mood = mood, accent = accent, style = style, tappable = tappable, showKit = showKit, clay = clay)
         if (stacked.isNotEmpty()) {
             stacked.take(1).forEach {
                 Box(Modifier.align(Alignment.BottomEnd).offset(x = 4.dp, y = 4.dp).zIndex(1f)) {
