@@ -228,7 +228,7 @@ export function renderGlance(box, opts = {}) {
     e.preventDefault();
     const n = name.value.trim();
     if (!n) return;
-    await save({ follows: [...follows, { kind, name: n }] });
+    await save({ follow: { kind, name: n } });
   };
   const placeForm = el('form', 'vw-glance-placeform'), place = el('input', 'vw-glance-place-in');
   place.value = st.place || g.weather?.place || '';
@@ -249,7 +249,7 @@ export function renderGlance(box, opts = {}) {
   const events = upcomingEvents(g.events, now);
   if (events.length) cards.push(calendarCard(events, now));
   const fresh = new Map((g.follows || []).map(f => [f.id, f]));
-  for (const f of follows) cards.push(followCard({ ...f, ...fresh.get(f.id) }, now, () => save({ follows: follows.filter(x => x.id !== f.id) })));
+  for (const f of follows) cards.push(followCard({ ...f, ...fresh.get(f.id) }, now, () => save({ unfollow: f.id })));
   if (!follows.length) cards.push(invite(tx('Segueix el teu equip i el pròxim partit sortirà aquí, amb el compte enrere.', 'Follow your team and the next match shows up here, with a countdown.'), tx('Segueix un equip', 'Follow a team'), open(name)));
   cards.forEach((c, i) => c.style.setProperty('--i', String(i)));
   row.append(...cards);

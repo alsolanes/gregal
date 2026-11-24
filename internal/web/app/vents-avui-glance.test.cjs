@@ -177,12 +177,12 @@ test('«Segueix…» afegeix un equip o una altra cosa i desa el lloc', async ()
     name.value = '  Girona FC ';
     await byClass(form, 'vw-glance-add')[0].onsubmit({ preventDefault() {} });
     assert.equal(calls[0].path, '/api/winds/avui/settings');
-    assert.deepEqual(calls[0].body.follows, [...settings.follows, { kind: 'team', name: 'Girona FC' }]);
+    assert.deepEqual(calls[0].body, { follow: { kind: 'team', name: 'Girona FC' } });
     // «Una altra cosa».
     buttons(form, 'Una altra cosa')[0].onclick();
     name.value = 'Eclipsi';
     await byClass(form, 'vw-glance-add')[0].onsubmit({ preventDefault() {} });
-    assert.deepEqual(calls[1].body.follows.at(-1), { kind: 'other', name: 'Eclipsi' });
+    assert.deepEqual(calls[1].body, { follow: { kind: 'other', name: 'Eclipsi' } });
     // Un nom buit no envia res.
     name.value = '   ';
     await byClass(form, 'vw-glance-add')[0].onsubmit({ preventDefault() {} });
@@ -202,7 +202,7 @@ test('cada seguiment es pot treure', async () => {
     const box = document.createElement('div');
     m.renderGlance(box, { glance, settings, now, onChange() {} });
     await buttons(box, 'Deixa de seguir Barça')[0].onclick();
-    assert.deepEqual(calls[0].body, { follows: [settings.follows[1]] });
+    assert.deepEqual(calls[0].body, { unfollow: 'f1' });
   });
   await withLang('en', m => {
     const box = document.createElement('div');

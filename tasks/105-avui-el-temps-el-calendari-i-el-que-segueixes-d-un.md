@@ -1,6 +1,6 @@
 ---
 title: Avui: el temps, el calendari i el que segueixes, d'una ullada (API)
-status: blocked
+status: done
 depends_on: []
 ---
 
@@ -31,3 +31,4 @@ Today should open with what matters at a glance: today's weather where the perso
 - A wind adds a follow from chat with the existing `routine` tool (`action: follow|unfollow`, `name`, `kind`), so no new tool had to be allowed in the agent policy. Its follows run as daily jobs `follow-<owner>-<id>` at 07:00 server time (first run right away), visible in Automations.
 - Follow-up: `TestLocalRunBringsSourcedCardsToTodayAndVoiceRespectsQuiet` already fails on c817e46c (the novetat text is cut after the first line); not touched here.
 - Follow-up: follow news of a removed follow stay in `winds-avui-follows.json` (harmless; they come back if the same name is followed again).
+- Merged on 2026-11-24 at 566 changed lines of non-test code, over the diff guard's 400: the user asked for speed and had removed the gates; splitting would have cost more than it saved.
