@@ -470,3 +470,22 @@ test('a wind’s conversation shows its state in the header: done after a turn, 
   await settle();
   assert.ok(f.page.querySelector('.vw-wind-mark').hidden, '«Done» goes away after leaving the conversation');
 });
+
+// El vent present (087): a la conversa amb un vent, el vent gran a la cantonada del xat; en un grup, no.
+test('a wind’s conversation has the wind large in the chat corner; a group conversation does not', async () => {
+  const group = { id: 'r1', name: 'La colla del concert', members: ['xaloc', 'gregal'] };
+  const json = data => ({ ok: true, status: 200, json: async () => data });
+  const f = await boot({ api: r => r.url === '/api/winds/rotllanes' ? json({ rotllanes: [group] })
+    : r.url.startsWith('/api/winds/rotllana?') ? json({ history: [{ from: 'user', text: 'Anem-hi' }] }) : null });
+  await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();
+  await settle();
+  const corner = f.page.querySelector('.vw-wind-corner');
+  assert.ok(corner, 'the corner wind is there');
+  assert.equal(corner.querySelector('svg').dataset.wind, 'Xaloc');
+  assert.equal(corner.dataset.mood, 'idle');
+  assert.equal(corner.getAttribute('aria-hidden'), 'true', 'the header already names the wind');
+  await byText(f.nav, 'button', 'La colla del concert').click();
+  await settle();
+  assert.equal(f.page.querySelector('.vw-messages').dataset.thread, 'r1');
+  assert.equal(f.page.querySelector('.vw-wind-corner'), null, 'no corner wind in a group');
+});
