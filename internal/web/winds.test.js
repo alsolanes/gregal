@@ -554,3 +554,22 @@ test('Cap de vent and Rosa de rellotge are packs in Preferences and in the Free 
   await f.$('windsWindForm').emit('submit');
   assert.equal(f.requests.findLast(r=>r.url==='/api/winds'&&r.method==='POST').body.avatar,'rosa');
 });
+
+test('watchNews announces a novetat that arrives while the app is open, once, even with the tab hidden',async()=>{
+  const now=Math.floor(Date.now()/1000);
+  let feed=[{id:'n-1',wind:'xaloc',name:'Xaloc',text:'Abans d’obrir',ts:now-120}];
+  const f=await boot(req=>req.url.startsWith('/api/winds/novetats?')?{ok:true,json:async()=>({novetats:feed})}:null);
+  let tick;f.root.setInterval=fn=>{tick=fn;return 7;};
+  const heard=[];
+  f.root.gregalWinds.watchNews(list=>heard.push(...list.map(n=>n.id)));
+  await settle();
+  assert.deepEqual(heard,[],'what was already waiting on opening only shows on the face');
+  assert.equal(f.root.gregalWinds.hasNews('xaloc'),true);
+  feed=[...feed,{id:'n-2',wind:'mestral',name:'Mestral',text:'Ja ho tinc',ts:now}];
+  f.doc.hidden=true;
+  await tick();
+  assert.deepEqual(heard,['n-2'],'a hidden tab still hears it, for the system notification');
+  assert.equal(f.root.gregalWinds.hasNews('mestral'),true);
+  await tick();
+  assert.deepEqual(heard,['n-2'],'announced once');
+});
