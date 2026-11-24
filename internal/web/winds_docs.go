@@ -21,6 +21,7 @@ import (
 
 	"gregal/internal/agent"
 	"gregal/internal/gdocs"
+	"gregal/internal/llm"
 	"gregal/internal/tools"
 )
 
@@ -147,6 +148,38 @@ func (s *Server) windDocExec(ctx context.Context, dir, argsJSON string, emit fun
 		}
 	}, dir, "mine", argsJSON, out)
 	return out, nil, nil
+}
+
+// windNotaDocs és la nota del torn (agent.NotaDocsIn) amb els documents
+// vius que l'eina doc del torn fa servir: els de la carpeta del vent o, si
+// no n'hi ha, els del projecte.
+func (s *Server) windNotaDocs(ctx context.Context, workspace string) (string, func()) {
+	st, err := gdocs.Open(workspace)
+	if d := windDocsOf(ctx); d != "" {
+		st, err = gdocs.OpenAt(d)
+	}
+	if err != nil {
+		return "", nil
+	}
+	return agent.NotaDocsIn(st, s.id)
+}
+
+// ambNotaDocs posa la nota dels documents al final del missatge de sistema
+// del pas, sense tocar l'historial que es desa.
+func ambNotaDocs(step agent.Stepper, nota string, marca func()) agent.Stepper {
+	return func(ctx context.Context, h []llm.Message) (string, []llm.ToolCall, error) {
+		if len(h) > 0 && h[0].Role == "system" {
+			h = append([]llm.Message{{Role: "system", Content: h[0].Content + "\n\n" + nota}}, h[1:]...)
+		} else {
+			h = append([]llm.Message{{Role: "system", Content: nota}}, h...)
+		}
+		content, calls, err := step(ctx, h)
+		if err == nil && marca != nil {
+			marca()
+			marca = nil
+		}
+		return content, calls, err
+	}
 }
 
 // windDocsBrief és la consigna dels documents per al prompt del vent.

@@ -2,12 +2,15 @@ package web
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -124,6 +127,57 @@ func TestWindDocLivesInTheWindDocsFolder(t *testing.T) {
 	}
 	if docs, _ := mine.List(); len(docs) != 1 {
 		t.Fatalf("Codi ha escrit a la carpeta dels vents: %+v", docs)
+	}
+}
+
+// Un torn de vent rep, com un de Codi, el que la persona ha canviat als
+// documents que el vent ha escrit; un cop, no a cada torn.
+func TestWindTurnGetsThePersonsDocChanges(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	t.Setenv("GREGAL_WIND_ALL_TOOLS", "1")
+	s, _ := companionTestServer(t)
+	s.cwd = t.TempDir()
+	postJSON(t, s.handleWinds, `{"name":"Tramuntana","color":"#29ADFF","role":"sistema"}`)
+	if err := os.MkdirAll(s.windDocsDir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mine, _ := gdocs.OpenAt(s.windDocsDir())
+	if _, err := agent.DocExecIn(mine, s.id, `{"action":"create","title":"Informe","md":"Primer paràgraf"}`); err != nil {
+		t.Fatal(err)
+	}
+	docs, _ := mine.List()
+	d := docs[0]
+	if _, err := mine.Replace(d.ID, d.Blocks[0].ID, "Canviat a mà", gdocs.AuthorUser, d.Version); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var rebut []string
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		rebut = append(rebut, string(raw))
+		mu.Unlock()
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\",\"content\":\"fet\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
+	}))
+	t.Cleanup(provider.Close)
+	s.cfg.Providers["p"] = config.Provider{BaseURL: provider.URL + "/v1"}
+	torn := func() string {
+		mu.Lock()
+		rebut = nil
+		mu.Unlock()
+		rec := httptest.NewRecorder()
+		s.handleWindChatStream(rec, httptest.NewRequest(http.MethodPost, "/api/winds/chat/stream", strings.NewReader(`{"wind":"tramuntana","message":"segueix"}`)))
+		waitBackground()
+		mu.Lock()
+		defer mu.Unlock()
+		return strings.Join(rebut, "\n")
+	}
+	if got := torn(); !strings.Contains(got, agent.MarcaDocs) || !strings.Contains(got, "Canviat a mà") {
+		t.Fatalf("el vent no ha rebut el canvi:\n%s", got)
+	}
+	if got := torn(); strings.Contains(got, agent.MarcaDocs) {
+		t.Fatalf("el mateix canvi, dos cops:\n%s", got)
 	}
 }
 

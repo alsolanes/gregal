@@ -260,7 +260,7 @@ func canvisPersona(d gdocs.Doc, v int) []string {
 		if blk.Since > v {
 			que = "inserted"
 		}
-		linies = append(linies, fmt.Sprintf("- %s %s: %s", que, blk.ID, retallaText(blk.MD, maxNotaBloc)))
+		linies = append(linies, fmt.Sprintf("- %s %s: %s", que, blk.ID, retallaText(textNota(blk), maxNotaBloc)))
 	}
 	for _, blk := range d.Deleted {
 		// Un bloc que l'agent no havia vist mai no cal dir-li que ja no hi és.
@@ -271,17 +271,39 @@ func canvisPersona(d gdocs.Doc, v int) []string {
 	return linies
 }
 
-// notaDocs fa la nota del torn i apunta els documents com a vistos, perquè
-// els mateixos canvis no tornin a sortir. "" si no hi ha res a dir.
-func notaDocs(dir, session string) string {
+// textNota és el que la nota ensenya d'un bloc: el markdown, el títol
+// d'una diapositiva o les cel·les d'un full (no se sap quines han canviat).
+func textNota(blk gdocs.Block) string {
+	switch {
+	case blk.Slide != nil:
+		return "slide «" + blk.Slide.Title + "»"
+	case blk.Name != "":
+		// Sense rang, cellesFull no falla.
+		cells, _ := cellesFull(blk, "")
+		return "sheet " + blk.Name + ": " + strings.ReplaceAll(strings.TrimSpace(cells), "\n", "; ")
+	}
+	return blk.MD
+}
+
+// notaDocs fa la nota del torn dels documents del projecte dir.
+func notaDocs(dir, session string) (string, func()) {
 	s, err := gdocs.Open(procDirOr(dir))
 	if err != nil {
-		return ""
+		return "", nil
 	}
+	return NotaDocsIn(s, session)
+}
+
+// NotaDocsIn fa la nota del torn amb els documents de s (els vents hi
+// passen el de la seva carpeta) i torna amb què apuntar-los com a vistos,
+// perquè els mateixos canvis no tornin a sortir. Qui la fa servir l'ha de
+// cridar quan el model l'ha rebuda de debò: si la primera crida falla, els
+// canvis han de tornar a sortir al torn següent. "" si no hi ha res a dir.
+func NotaDocsIn(s *gdocs.Store, session string) (string, func()) {
 	vistos, err := s.Seen(session)
 	if err != nil {
 		log.Printf("doc: versions vistes de la sessió: %v", err)
-		return ""
+		return "", nil
 	}
 	ids := make([]string, 0, len(vistos))
 	for id := range vistos {
@@ -289,6 +311,7 @@ func notaDocs(dir, session string) string {
 	}
 	sort.Strings(ids)
 	var b strings.Builder
+	var dits []gdocs.Doc
 	for _, id := range ids {
 		v := vistos[id]
 		d, err := s.Get(id)
@@ -301,10 +324,14 @@ func notaDocs(dir, session string) string {
 			continue
 		}
 		fmt.Fprintf(&b, "%s (%s, now v%d):\n%s\n", d.Title, d.ID, d.Version, strings.Join(linies, "\n"))
-		marcaVist(s, session, d)
+		dits = append(dits, d)
 	}
 	if b.Len() == 0 {
-		return ""
+		return "", nil
 	}
-	return MarcaDocs + "; read a document again before editing blocks near these]\n" + b.String()
+	return MarcaDocs + "; read a document again before editing blocks near these]\n" + b.String(), func() {
+		for _, d := range dits {
+			marcaVist(s, session, d)
+		}
+	}
 }
