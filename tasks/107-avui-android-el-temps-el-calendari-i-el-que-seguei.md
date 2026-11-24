@@ -1,6 +1,6 @@
 ---
 title: Avui Android: el temps, el calendari i el que segueixes a dalt de tot
-status: todo
+status: done
 depends_on: ["105"]
 ---
 
@@ -10,10 +10,10 @@ Today should open with what matters at a glance: today's weather where the perso
 
 ## Acceptance criteria
 
-- [ ] Android's Today screen (`VentsAvui.kt`) opens with the same glance: weather card, next events, one card per follow, with the same data and wording as the web. A Compose test per card from a sample `glance`.
-- [ ] Add/remove follows and set the place from the screen. A unit test with a fake server.
-- [ ] It feels alive on the phone: cards spring in, the weather icon animates gently, match countdowns tick; all off with expressive motion off.
-- [ ] Strings in Catalan and English.
+- [x] Android's Today screen (`VentsAvui.kt`) opens with the same glance: weather card, next events, one card per follow, with the same data and wording as the web. A Compose test per card from a sample `glance`.
+- [x] Add/remove follows and set the place from the screen. A unit test with a fake server.
+- [x] It feels alive on the phone: cards spring in, the weather icon animates gently, match countdowns tick; all off with expressive motion off.
+- [x] Strings in Catalan and English.
 
 ## Out of scope
 
@@ -31,3 +31,4 @@ Today should open with what matters at a glance: today's weather where the perso
 - When the glance has no weather, the place invite shows and the old weather-wind card (if any) stays below it.
 - Frames for review: `output/ui-review/107/` (dark with motion at 16/140/400/1500 ms, light, empty light), written by AvuiGlanceUiTest.
 - Not verified: on a real phone or emulator, against the real 105 server, or the copy against the web (106 was not merged when this was written).
+- Merged on 2026-11-24 at 725 changed lines of non-test code, over the diff guard's 400, like 105: the user asked for speed and had removed the gates.
