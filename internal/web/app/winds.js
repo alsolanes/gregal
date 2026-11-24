@@ -555,26 +555,28 @@
     for (const [x0, y0, x1, y1, alpha] of m.st.lines) { ctx.globalAlpha = alpha; ctx.beginPath(); ctx.moveTo(x0 * S, y0 * S); ctx.lineTo(x1 * S, y1 * S); ctx.stroke(); }
     ctx.globalAlpha = 1;
   }
-  // One requestAnimationFrame for every map that moves and is on screen; none
-  // while the tab is hidden. A still map is painted once and never joins.
+  // One requestAnimationFrame for every map on screen; none while the tab is
+  // hidden. Under reduced motion no map moves, not even while its wind works:
+  // CSS cannot stop a canvas, so each keeps the still frame it was painted with.
   const maps = new WeakMap(), mapShown = new Set();
-  let mapFrame = 0, mapSeen = null;
+  let mapFrame = 0, mapSeen = null, mapReduce = null;
   function mapRun() {
-    if (!mapFrame && !doc.hidden && [...mapShown].some(m => m.moving)) mapFrame = root.requestAnimationFrame(mapTick);
+    if (!mapFrame && !doc.hidden && !mapReduce?.matches && mapShown.size) mapFrame = root.requestAnimationFrame(mapTick);
   }
   function mapTick() {
     mapFrame = 0;
-    for (const m of mapShown) if (m.moving) mapPaint(m, m.busy);
+    for (const m of mapShown) mapPaint(m, m.busy);
     mapRun();
   }
   function mapWake(m, mood) {
     m.busy = workMoods.includes(mood);
-    m.moving = m.busy || !root.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     mapRun();
   }
   function mapWatch(svg) {
     if (!mapSeen) {
       doc.addEventListener('visibilitychange', mapRun);
+      mapReduce = root.matchMedia?.('(prefers-reduced-motion: reduce)');
+      mapReduce?.addEventListener('change', mapRun);
       mapSeen = new root.IntersectionObserver(entries => {
         for (const entry of entries) {
           const m = maps.get(entry.target);
@@ -608,7 +610,7 @@
     svg.setAttribute('data-avatar', 'mapa');
     shapes(svg, [['circle', { cx:40, cy:40, r:40, fill:'url(#' + id + ')' }], ['circle', { cx:40, cy:40, r:39.5, fill:'none', stroke:'#FFFFFF', 'stroke-opacity':.08 }]]);
     const start = mapStart(w);
-    maps.set(svg, { canvas, ctx:canvas.getContext('2d'), start, st:start, base:mix(fill, '#0C0A13', .4), ink:mix(fill, '#FFFFFF', .55), size:0, busy:false, moving:false });
+    maps.set(svg, { canvas, ctx:canvas.getContext('2d'), start, st:start, base:mix(fill, '#0C0A13', .4), ink:mix(fill, '#FFFFFF', .55), size:0, busy:false });
     mapWatch(svg);
     return svg;
   }

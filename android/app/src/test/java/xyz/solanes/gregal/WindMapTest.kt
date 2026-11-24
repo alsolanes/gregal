@@ -148,7 +148,7 @@ class WindMapTest {
         assertTrue("The same wind gets the same picture", identical(image("theme"), image("own")))
     }
 
-    @Test fun `with motion off an idle map is still, and a working one still blows`() {
+    @Test fun `with motion off a map is one still frame, even while its wind works`() {
         ui.mainClock.autoAdvance = false
         val bit = style("bit", "Bit")
         ui.setContent {
@@ -164,9 +164,24 @@ class WindMapTest {
         val working = image("working")
         ui.mainClock.advanceTimeBy(300)
         assertTrue("Without motion an idle map does not move", identical(idle, image("idle")))
+        assertTrue("Without motion a working map does not move either", identical(working, image("working")))
+    }
+
+    @Test fun `with motion on a working map blows`() {
+        ui.mainClock.autoAdvance = false
+        ui.setContent {
+            CompositionLocalProvider(LocalWindMotion provides true, LocalAvatarTheme provides "free") {
+                Box(Modifier.testTag("working").background(Color.Black)) {
+                    WindFace(size = 96, mood = WindMood.WORKING, accent = Color(0xFF29ADFF), style = style("bit", "Bit"))
+                }
+            }
+        }
+        ui.mainClock.advanceTimeBy(100)
+        val working = image("working")
+        ui.mainClock.advanceTimeBy(300)
         // The left half holds the streaks and not the mood badge (top right).
         fun streaks(b: Bitmap) = Bitmap.createBitmap(b, 0, 0, b.width / 2, b.height)
-        assertFalse("Real work is always shown", identical(streaks(working), streaks(image("working"))))
+        assertFalse("Work moves the streaks", identical(streaks(working), streaks(image("working"))))
     }
 
     // The same capture as WindEsperitTest: draw the Compose view and cut the node out.
