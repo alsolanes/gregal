@@ -186,7 +186,7 @@ internal const val WindPresenceSize = 72
  */
 internal fun windPresenceMood(state: String?, live: WindMood?): WindMood = when (state) {
     "winds.state.working" -> live?.takeIf { it in windWorkMoods } ?: WindMood.WORKING
-    "winds.state.waiting" -> WindMood.NEWS
+    "winds.state.waiting" -> WindMood.WAITING
     "winds.state.done" -> WindMood.DONE
     else -> WindMood.IDLE
 }

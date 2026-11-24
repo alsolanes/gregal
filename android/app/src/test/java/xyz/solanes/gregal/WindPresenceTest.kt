@@ -37,7 +37,7 @@ class WindPresenceTest {
         assertEquals(WindMood.WORKING, windPresenceMood("winds.state.working", WindMood.TALKING))
         assertEquals(WindMood.WORKING, windPresenceMood("winds.state.working", null))
         assertTrue(windShowsAura(windPresenceMood("winds.state.working", null), WindPresenceSize))
-        assertEquals(WindMood.NEWS, windPresenceMood("winds.state.waiting", WindMood.SEARCHING))
+        assertEquals(WindMood.WAITING, windPresenceMood("winds.state.waiting", WindMood.SEARCHING))
         assertEquals(WindMood.DONE, windPresenceMood("winds.state.done", null))
         assertEquals(WindMood.IDLE, windPresenceMood(null, null))
         assertFalse(windShowsAura(windPresenceMood("winds.state.done", null), WindPresenceSize))

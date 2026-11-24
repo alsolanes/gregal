@@ -8,7 +8,9 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -19,6 +21,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
@@ -52,9 +55,10 @@ internal fun contrastWith(a: Color, b: Color): Double {
  * L'estat d'ànim del vent. IDLE, HAPPY i TALKING són de la conversa; la resta
  * mostra feina observada (la fase del directe o un pas en marxa) o una veu
  * proactiva per obrir, amb una insígnia a dalt a la dreta com al web
- * (`badges` a internal/web/app/winds.js).
+ * (`badges` a internal/web/app/winds.js). WAITING és la marca del xat «t'espera»: el vent
+ * té una pregunta per a tu.
  */
-enum class WindMood { IDLE, THINKING, HAPPY, TALKING, SEARCHING, READING, WRITING, WORKING, DISCUSSING, DONE, FAILED, NEWS }
+enum class WindMood { IDLE, THINKING, HAPPY, TALKING, SEARCHING, READING, WRITING, WORKING, DISCUSSING, WAITING, DONE, FAILED, NEWS }
 
 private val windActivityMoods = mapOf(
     "read" to WindMood.READING, "read_file" to WindMood.READING, "ls" to WindMood.READING, "list" to WindMood.READING, "web_fetch" to WindMood.READING,
@@ -215,15 +219,128 @@ internal fun windGlances(seed: Int): List<Pair<Float, Offset>> {
     }
 }
 
-/** On mira al temps [t]: davant, tret del segon llarg de cada mirada. */
-internal fun windGlanceAt(t: Float, glances: List<Pair<Float, Offset>>): Offset =
-    glances.firstOrNull { t - it.first in 0f..1.1f }?.second ?: Offset.Zero
+/** On mira al temps [t]: davant, tret del segon llarg de cada mirada, que els ulls fan i desfan sense saltar. */
+internal fun windGlanceAt(t: Float, glances: List<Pair<Float, Offset>>): Offset {
+    val (from, to) = glances.firstOrNull { t - it.first in 0f..1.1f } ?: return Offset.Zero
+    val d = t - from
+    return to * smooth(min(d, 1.1f - d) / .16f)
+}
 
 /** Gir (graus) i batec (escala) de l'aura al temps `t` del rellotge de 12 s; sense moviment `t` és 0 i queda quieta. */
 internal fun windAuraSway(t: Float): Pair<Float, Float> = t % 6f / 6f * 360f to 1f + sin(PI.toFloat() * t) * .06f
 
 /** De quin vent (el seu color) és una cara: al xat d'un vent n'hi ha d'haver una de sola (109). */
 internal val WindFaceKey = SemanticsPropertyKey<Color>("WindFace")
+
+private fun smooth(x: Float): Float { val c = x.coerceIn(0f, 1f); return c * c * (3f - 2f * c) }
+
+/**
+ * A keyframe track like a CSS animation: [keys] are (fraction 0..1, value)
+ * from 0, eased in and out between them, back to the first after the last.
+ */
+private fun track(f: Float, vararg keys: Pair<Float, Float>): Float {
+    val i = keys.indexOfLast { it.first <= f }.coerceAtLeast(0)
+    val (a, va) = keys[i]
+    val (b, vb) = keys.getOrElse(i + 1) { 1f to keys[0].second }
+    return if (b <= a) va else va + (vb - va) * smooth((f - a) / (b - a))
+}
+
+/**
+ * Com està posat el vent, amb els números de `poses` a winds.js (110): el cos
+ * es desplaça ([x], [y] en unitats de la caixa de 80, avall positiu),
+ * s'inclina ([tilt], graus) i s'aixafa ([sx], [sy]); els ulls miren ([gx], [gy]);
+ * la parpella de dalt baixa ([lid], 0..1 de l'ull) i es decanta ([brow], graus:
+ * + decidit, − trist); la de baix puja en un arc content ([smile], 0..1).
+ */
+internal data class WindPose(
+    val x: Float = 0f, val y: Float = 0f, val tilt: Float = 0f, val sx: Float = 1f, val sy: Float = 1f,
+    val gx: Float = 0f, val gy: Float = 0f, val lid: Float = 0f, val brow: Float = 0f, val smile: Float = 0f,
+)
+
+internal fun windPoseBetween(a: WindPose, b: WindPose, f: Float): WindPose {
+    fun mix(p: Float, q: Float) = p * (1f - f) + q * f
+    return WindPose(mix(a.x, b.x), mix(a.y, b.y), mix(a.tilt, b.tilt), mix(a.sx, b.sx), mix(a.sy, b.sy),
+        mix(a.gx, b.gx), mix(a.gy, b.gy), mix(a.lid, b.lid), mix(a.brow, b.brow), mix(a.smile, b.smile))
+}
+
+/**
+ * La postura de cada estat amb la seva firma de moviment al temps [t] del
+ * rellotge de 12 s, com `poses` i els bucles de winds.css: en repòs respira i
+ * mira de reüll; pensant mira amunt i es decanta a poc a poc; buscant s'acosta
+ * i escombra ràpid; llegint els ulls fan línies; escrivint bota una mica;
+ * treballant s'aixafa i bota amb força, decidit; discutint es gronxa; esperant
+ * s'inclina cap a tu; quan falla s'ensorra i sospira; acabat queda content;
+ * amb novetats fa dos botets de «hola».
+ */
+internal fun windPose(mood: WindMood, t: Float, glances: List<Pair<Float, Offset>> = emptyList()): WindPose {
+    fun at(period: Float) = t % period / period
+    // wf-breathe: every calm face, and the figure under the other loops too.
+    val breathe = track(at(4f), 0f to 0f, .5f to 1f)
+    val calm = WindPose(sx = 1f - .01f * breathe, sy = 1f + .025f * breathe)
+    return when (mood) {
+        WindMood.IDLE, WindMood.TALKING -> windGlanceAt(t, glances).let { g -> calm.copy(gx = g.x * 4f, gy = g.y * 1.2f, lid = .07f) }
+        // Android's own «content» (profiles, games): idle with a little smile.
+        WindMood.HAPPY -> windGlanceAt(t, glances).let { g -> calm.copy(gx = g.x * 4f, gy = g.y * 1.2f, lid = .07f, smile = .15f) }
+        WindMood.THINKING -> {
+            val f = at(6f)
+            calm.copy(y = -.5f + track(f, 0f to 0f, .5f to -.6f), tilt = -5f + track(f, 0f to -2.5f, .5f to 2f),
+                gx = 2.4f + track(f, 0f to 0f, .3f to -2.4f, .45f to -2.4f, .7f to .6f, .85f to .6f),
+                gy = -3.2f + track(f, 0f to 0f, .3f to .4f, .45f to .4f, .7f to -.6f, .85f to -.6f))
+        }
+        WindMood.SEARCHING -> {
+            val peer = track(at(2.4f), 0f to 0f, .5f to 1f)
+            calm.copy(x = 1.5f + 1.2f * peer, tilt = 4f + 2f * peer, gy = -.6f, lid = .22f, brow = 8f,
+                gx = track(at(1.2f), 0f to -3f, .45f to 3f, .55f to 3f))
+        }
+        WindMood.READING -> {
+            val f = at(3f)
+            calm.copy(x = .5f, y = 1f, tilt = 3f, lid = .32f,
+                gx = track(f, 0f to -3f, .4f to 3f, .5f to -3f, .9f to 3f),
+                gy = 2.2f + track(f, 0f to 1f, .4f to 1f, .5f to 3f, .9f to 3f))
+        }
+        WindMood.WRITING -> calm.copy(x = .5f, y = .5f + track(at(1.2f), 0f to 0f, .5f to -1.5f), tilt = 2f,
+            gx = -.6f, gy = 2.6f, lid = .26f, brow = 5f, smile = .1f)
+        WindMood.WORKING -> {
+            // wf-busy: a hard squash-bob, its own scale instead of the breath.
+            val f = at(.6f)
+            WindPose(y = .8f + track(f, 0f to 0f, .4f to -3.2f, .8f to 0f),
+                sx = 1.04f * track(f, 0f to 1.03f, .4f to .98f, .8f to 1.04f),
+                sy = .96f * track(f, 0f to .97f, .4f to 1.03f, .8f to .95f),
+                gy = .6f, lid = .38f, brow = 14f)
+        }
+        WindMood.DISCUSSING -> at(3f).let { f ->
+            calm.copy(tilt = -3f + track(f, 0f to -4f, .5f to 4f), gx = track(f, 0f to -2.5f, .5f to 2.5f), lid = .08f, smile = .15f)
+        }
+        WindMood.WAITING -> {
+            val lean = track(at(4f), 0f to 0f, .5f to 1f)
+            calm.copy(x = -1.5f, y = -.8f * lean, tilt = -7f - 2.5f * lean, gx = -1.8f, gy = 1.6f, smile = .12f)
+        }
+        WindMood.DONE -> calm.copy(gy = -1f, smile = .5f)
+        WindMood.FAILED -> {
+            val f = at(6f)
+            WindPose(y = 2.4f, tilt = 5f, sx = 1.05f * track(f, 0f to 1f, .4f to 1.02f, .55f to .99f),
+                sy = .92f * track(f, 0f to 1f, .4f to .97f, .55f to 1.015f), gx = -.6f, gy = 2.6f, lid = .42f, brow = -16f)
+        }
+        WindMood.NEWS -> calm.copy(x = .5f, y = -.5f - 3f * hello(at(4f)), tilt = -4f, gx = 2f, gy = -1.6f, smile = .22f)
+    }
+}
+
+/** The feet stepping while it works or writes (wf-step, .75 s, the right half a beat later); 0 otherwise. */
+internal fun windStep(mood: WindMood, t: Float, right: Boolean): Float =
+    if (mood != WindMood.WORKING && mood != WindMood.WRITING) 0f
+    else track((t + if (right) .375f else 0f) % .75f / .75f, 0f to 0f, .25f to -2.4f, .5f to 0f)
+
+/**
+ * El salt d'acabar (f 0..1 en 1,1 s, wf-hop): s'ajup i s'eixampla, salta
+ * estirat, toca a terra aixafat i s'assenta amb un rebot. y (avall positiu,
+ * unitats de 80), escala x i escala y.
+ */
+internal fun windDoneHop(f: Float): Triple<Float, Float, Float> {
+    val y = track(f, 0f to 0f, .16f to 0f, .4f to -9f, .6f to 0f, .72f to -1.5f, .86f to 0f, 1f to 0f)
+    val sx = track(f, 0f to 1f, .16f to 1.12f, .4f to .92f, .6f to 1.1f, .72f to .97f, .86f to 1.02f, 1f to 1f)
+    val sy = track(f, 0f to 1f, .16f to .84f, .4f to 1.1f, .6f to .88f, .72f to 1.03f, .86f to .98f, 1f to 1f)
+    return Triple(y, sx, sy)
+}
 
 @Composable
 fun WindFace(
@@ -291,13 +408,28 @@ fun WindFace(
     fun wave(time: Float, period: Float) = sin(2f * PI.toFloat() * (time % period) / period)
     val doneHop = if (motion && mood == WindMood.DONE) {
         val hop = remember { Animatable(0f) }
-        LaunchedEffect(hop) { hop.animateTo(1f, tween(800)) }
+        LaunchedEffect(hop) { hop.animateTo(1f, tween(1100, easing = LinearEasing)) }
         hop
     } else null
-    val calm = mood == WindMood.IDLE || mood == WindMood.HAPPY || mood == WindMood.NEWS
-    // The stored specialty stays intact; small avatars show only their identity…
-    // unless the caller opts in (the crew strip): picking a wind by its trade tool.
-    val kit = if (size >= 80 || showKit) windKits[style.kit] else null
+    // D'un estat a l'altre la postura passa amb una molla, sense saltar (la del
+    // web: ζ .55, 1,55 Hz, ~12 % de rebot). L'estat d'on ve no és estat de
+    // Compose: el llegeix només el dibuix.
+    val moodMix = remember { Animatable(1f) }
+    val moods = remember { arrayOf(mood, mood) }
+    LaunchedEffect(mood) {
+        if (moods[1] == mood) return@LaunchedEffect
+        moods[0] = moods[1]
+        moods[1] = mood
+        moodMix.snapTo(0f)
+        moodMix.animateTo(1f, spring(dampingRatio = .55f, stiffness = 95f))
+    }
+    fun pose(t: Float) = if (!motion) windPose(mood, 0f)
+        else windPoseBetween(windPose(moods[0], t, glances), windPose(moods[1], t, glances), moodMix.value)
+    // The large figure (profile, creator, a crew strip with tools) wears its kit
+    // and is drawn a little smaller to make room for it, as `full` on the web;
+    // the stored specialty stays intact when a small avatar does not show it.
+    val full = size >= 80 || showKit
+    val kit = if (full) windKits[style.kit] else null
     // Paral·laxi de volum només a les cares grans (perfil, creador, xat buit):
     // a les llistes petites seria soroll i sensor per a res.
     val lean = rememberWindLean(motion && !compact)
@@ -309,22 +441,18 @@ fun WindFace(
     // L'aura entra i surt amb un fos quan el vent comença o acaba la feina.
     val aura by animateFloatAsState(if (windShowsAura(mood, size)) 1f else 0f, tween(450), label = "wind-aura")
     val motionLayer = if (motion) Modifier.graphicsLayer {
-        val t = time()
-        val breath = wave(t, 4f)
-        val lift = doneHop?.let { -sin(PI.toFloat() * it.value) * 7f }
-            ?: if (calm) breath * 1.6f else 0f
+        val p = pose(time())
+        val (hop, hopX, hopY) = doneHop?.let { windDoneHop(it.value) } ?: Triple(0f, 1f, 1f)
         val scale = pressScale?.value ?: 1f
+        val k = size.dp.toPx() / 80f
         transformOrigin = TransformOrigin(0.5f, 1f)
-        translationY = lift / 80f * size.dp.toPx()
-        scaleX = (1f + (1f - scale) * .5f) * (1f - breath * 0.008f)
-        scaleY = scale * (1f + breath * 0.015f)
+        translationX = p.x * k
+        translationY = (p.y + hop) * k
+        scaleX = (1f + (1f - scale) * .5f) * p.sx * hopX
+        scaleY = scale * p.sy * hopY
         // En tocar-la, un bellugueig curt que s'apaga: «sí, sóc aquí».
         val c = cheer?.value ?: 0f
-        rotationZ = sin((1f - c) * 3f * PI.toFloat()) * c * 9f + when (mood) {
-            WindMood.THINKING -> wave(t, 6f) * 5f
-            WindMood.DISCUSSING -> wave(t, 3f) * 4f
-            else -> 0f
-        }
+        rotationZ = sin((1f - c) * 3f * PI.toFloat()) * c * 9f + p.tilt
     } else Modifier
     val tap = if (touch != null) Modifier.clickable(interactionSource = touch, indication = null) { punch++; onClick?.invoke() }
         else if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
@@ -333,29 +461,26 @@ fun WindFace(
         fun phase(period: Float) = t % period / period
         val talkOpen = motion && mood == WindMood.TALKING && phase(.4f) < .5f
         val twinkle = if (motion && (mood == WindMood.HAPPY || mood == WindMood.TALKING)) (wave(t, 2f) + 1f) / 2f else 0f
-        val blinking = motion && blinks.any { t - it in 0f..0.14f }
-        val squint = motion && mood == WindMood.HAPPY && phase(6f) in .30f..0.44f
-        val look = when (mood) {
-            WindMood.THINKING, WindMood.NEWS -> Offset(.8f, -.9f)
-            WindMood.SEARCHING -> Offset(wave(t, 2.4f), 0f)
-            WindMood.READING -> {
-                val f = phase(3f)
-                Offset((f % .5f / .4f).coerceAtMost(1f) * 2f - 1f, if (f < .5f) .3f else .9f)
-            }
-            WindMood.WRITING -> Offset(0f, 1f)
-            WindMood.DISCUSSING -> Offset(wave(t, 3f), 0f)
-            WindMood.IDLE, WindMood.HAPPY -> windGlanceAt(t, glances)
-            else -> Offset.Zero
-        }
+        // A blink closes and opens the lids in 160 ms instead of cutting to closed.
+        val blink = if (!motion) 0f else blinks.maxOfOrNull { b -> (t - b).let { if (it in 0f..0.16f) sin(PI.toFloat() * it / .16f) else 0f } } ?: 0f
+        val p = pose(t)
         val w = this.size.width
         val h = this.size.height
-        val cx = w / 2f
-        // Keep the same silhouette/face placement with or without a specialty.
-        val cy = h / 2f
-        val r = min(w, h) * 0.37f
         val unit = min(w, h) / 80f
-        // Thin features vanish in a list avatar: the small face draws them bolder.
-        val mouthStroke = r * if (compact) .09f else .074f
+        // The web's 80 box: the head is a face of R 33 centred at (40, 40.5);
+        // the large figure draws it at .9 from (4, 3), a small gust at .95 from
+        // (2, 3.6) to fit its curl. [u] turns head units into pixels.
+        val (headScale, headX, headY) = when {
+            full -> Triple(.9f, 4f, 3f)
+            style.shape == WindShape.SPIRAL -> Triple(.95f, 2f, 3.6f)
+            else -> Triple(1f, 0f, 0f)
+        }
+        val u = unit * headScale
+        val cx = (headX + 40f * headScale) * unit
+        val cy = (headY + 40.5f * headScale) * unit
+        val r = 33f * u
+        fun hx(x: Float) = cx + (x - 40f) * u
+        fun hy(y: Float) = cy + (y - 40.5f) * u
 
         // Inclinació del mòbil (−1..1), llegida aquí perquè només redibuixi.
         val (tx, ty) = lean.value
@@ -374,16 +499,16 @@ fun WindFace(
                     ring, Offset(cx, cy), style = Stroke(r * .07f, cap = StrokeCap.Round))
             }
         }
-        drawWindBody(style.shape, paint, cx, cy, r, if (motion) .5f + wave(t, 6f) * 5.5f else 0f)
+        drawWindBody(style.shape, paint, cx, cy, r, if (motion) .5f + wave(t, 6f) * 5.5f else 0f,
+            ground = full, stepL = windStep(mood, t, false) / 33f, stepR = windStep(mood, t, true) / 33f)
         // A single small tool on large profiles, never a costume over the eyes.
-        // El 'head' del kit (auriculars, gorres...) es dibuixa com al web: en
-        // coordenades d'una cara de radi 33, i aquest cos és aquella cara a .9;
-        // així cenyeix les seves vores i les ulleres emmarquen els ulls. El
-        // 'prop' es porta davant, petit i a la dreta.
+        // El 'head' del kit (auriculars, gorres...) es dibuixa com al web, en
+        // coordenades del cap; així cenyeix les seves vores i les ulleres
+        // emmarquen els ulls. El 'prop' es porta davant, petit i a la dreta.
         fun accessories() {
             if (kit == null) return
             if (kit.head.isNotEmpty()) {
-                withTransform({ scale(unit, unit, Offset.Zero); translate(4f, 4f); scale(.9f, .9f, Offset.Zero) }) { drawKit(kit.head, tone) }
+                withTransform({ scale(unit, unit, Offset.Zero); translate(headX, headY); scale(headScale, headScale, Offset.Zero) }) { drawKit(kit.head, tone) }
             }
             if (kit.prop.isNotEmpty() || kit.head.isEmpty()) {
                 val shapes = kit.prop.ifEmpty { kit.head }
@@ -401,128 +526,51 @@ fun WindFace(
             }
         }
 
-        // Els trets viuen a la cara de l'esfera: amb la inclinació es desplacen una mica.
-        val fx = cx + tx * r * .09f
-        val fy = cy + ty * r * .07f
-        val eyeY = fy - r * 0.05f + look.y * r * 0.07f
-        val eyeDx = r * 0.29f
-        val eyeW = r * 0.135f
-        val gazeShift = look.x * r * 0.07f
+        // Soft cheeks: a blush that melts into the body on every wind colour, and on the large figure a touch of light on them.
+        for (x in listOf(20.6f, 59.4f)) withTransform({ translate(hx(x), hy(48.8f)); scale(7f * u, 4.6f * u, Offset.Zero) }) {
+            drawCircle(windBlush, 1f, Offset.Zero)
+        }
+        if (full) for (x in listOf(19.1f, 57.9f)) drawOval(Color.White, Offset(hx(x) - 2.6f * u, hy(46.8f) - 1.2f * u), Size(5.2f * u, 2.4f * u), alpha = .35f)
 
-        // Soft cheeks: a blush that melts into the body on every wind colour.
-        for (side in listOf(-1f, 1f)) {
-            withTransform({ translate(fx + side * r * .588f, fy + r * .267f); scale(r * .212f, r * .139f, Offset.Zero) }) {
-                drawCircle(windBlush, 1f, Offset.Zero)
-            }
+        // Els ulls porten l'expressió. Mouen tot l'ull cap on mira (també amb la
+        // inclinació del mòbil); en tocar-la somriuen amb els ulls.
+        val cheered = (((cheer?.value ?: 0f) - .15f) * 4f).coerceIn(0f, 1f)
+        val eyePose = p.copy(lid = maxOf(blink, p.lid), smile = maxOf(p.smile, cheered * .5f))
+        val small = size < 28
+        val gx = p.gx + tx * 2.4f
+        val gy = p.gy + ty * 1.8f
+        for (right in listOf(false, true)) {
+            drawWindEye(style.eyes, eyePose, right, hx(if (right) 49.6f else 30.4f) + gx * u, hy(38.4f) + gy * u, u, small, full, ink, accent, paint, cx, cy, r)
         }
 
-        // Two bold eye marks; the whole figure also gets a catchlight, as on the web.
-        if (mood == WindMood.DONE || blinking || squint || (cheer?.value ?: 0f) > .15f) {
-            for (side in listOf(-1f, 1f)) {
-                drawArc(ink, 190f, 160f, false,
-                    Offset(fx + side * eyeDx - eyeW, eyeY - eyeW * .55f),
-                    Size(eyeW * 2f, eyeW * 1.1f),
-                    style = Stroke(r * .085f, cap = StrokeCap.Round))
-            }
-        } else for (side in listOf(-1f, 1f)) {
-            val ex = fx + side * eyeDx + gazeShift
-            when (style.eyes) {
-                WindEyes.DOTS, WindEyes.WIDE -> {
-                    val half = eyeW * if (style.eyes == WindEyes.WIDE) 1.3f else 1f
-                    drawRoundRect(ink, Offset(ex - half, eyeY - r * .27f),
-                        Size(half * 2f, r * .54f),
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(half))
-                    // Only where there is room for it: never in a list avatar.
-                    if (!compact) drawCircle(if (ink == Color.White) accent else Color.White, half * .36f,
-                        Offset(ex + half * .3f, eyeY - r * .143f), alpha = .5f)
-                }
-                WindEyes.STARRY -> {
-                    val rad = r * .23f
-                    val star = Path().apply {
-                        moveTo(ex, eyeY - rad)
-                        lineTo(ex + rad * .3f, eyeY - rad * .3f)
-                        lineTo(ex + rad, eyeY)
-                        lineTo(ex + rad * .3f, eyeY + rad * .3f)
-                        lineTo(ex, eyeY + rad)
-                        lineTo(ex - rad * .3f, eyeY + rad * .3f)
-                        lineTo(ex - rad, eyeY)
-                        lineTo(ex - rad * .3f, eyeY - rad * .3f)
-                        close()
-                    }
-                    drawPath(star, ink)
-                }
-                // Closed and content, not a flat dash: the lower arc of a small ellipse.
-                WindEyes.SLEEPY -> drawArc(ink, 20f, 140f, false,
-                    Offset(ex - r * .16f, eyeY - r * .16f), Size(r * .32f, r * .22f),
-                    style = Stroke(r * .097f, cap = StrokeCap.Round))
-            }
-        }
-
-        // Boca: segons l'estil. La base és un arc cap AVALL (somriure).
-        // Cal revisar-ho: boca plana, sense somriure que ho contradigui.
-        when (if (mood == WindMood.FAILED) WindMouth.NEUTRAL else style.mouth) {
-            WindMouth.SMILE -> drawArc(
-                color = ink,
-                // Compose mesura els arcs des de la dreta, en sentit horari:
-                // startAngle=20° + sweep 140° dibuixa la meitat INFERIOR de la
-                // circumferència → la boca corba cap avall als extrems = somriure.
-                startAngle = 20f,
-                sweepAngle = 140f,
-                useCenter = false,
-                topLeft = Offset(fx - r * 0.27f, fy + r * 0.02f),
-                size = Size(r * 0.54f, r * 0.52f),
-                style = Stroke(width = mouthStroke, cap = StrokeCap.Round),
-            )
+        // Boca: petita sota els ulls, que són els que parlen (els camins de winds.js).
+        // Thin features vanish in a list avatar: the small face draws them bolder.
+        val line = Stroke((if (full) 2.5f else 3.1f) * u, cap = StrokeCap.Round)
+        fun smile() = drawPath(Path().apply { moveTo(hx(31.8f), hy(52.8f)); quadraticTo(hx(40f), hy(62.8f), hx(48.2f), hy(52.8f)) }, ink, style = line)
+        if (mood == WindMood.FAILED) drawPath(Path().apply {
+            // A worried wave instead of the mouth.
+            moveTo(hx(32.5f), hy(55.4f)); quadraticTo(hx(36.25f), hy(52f), hx(40f), hy(55.4f)); quadraticTo(hx(43.75f), hy(58.8f), hx(47.5f), hy(55.4f))
+        }, ink, style = line)
+        else when (style.mouth) {
+            WindMouth.SMILE -> smile()
             WindMouth.OPEN -> {
                 // Boca oberta: llavor fosca amb una mica de llengua.
-                drawOval(
-                    color = ink,
-                    topLeft = Offset(fx - r * 0.145f, fy + r * 0.285f),
-                    size = Size(r * 0.29f, r * 0.315f),
-                )
-                drawOval(
-                    color = WindTongue,
-                    topLeft = Offset(fx - r * 0.094f, fy + r * 0.46f),
-                    size = Size(r * 0.188f, r * 0.134f),
-                )
+                drawOval(ink, Offset(hx(35.2f), hy(49.4f)), Size(9.6f * u, 10.4f * u))
+                drawOval(WindTongue, Offset(hx(36.9f), hy(55.2f)), Size(6.2f * u, 4.4f * u))
             }
-            WindMouth.NEUTRAL -> drawLine(
-                color = ink,
-                start = Offset(fx - r * 0.164f, fy + r * 0.424f),
-                end = Offset(fx + r * 0.164f, fy + r * 0.424f),
-                strokeWidth = mouthStroke,
-                cap = StrokeCap.Round,
-            )
+            WindMouth.NEUTRAL -> drawLine(ink, Offset(hx(34.6f), hy(54f)), Offset(hx(45.4f), hy(54f)), strokeWidth = line.width, cap = StrokeCap.Round)
             WindMouth.TONGUE -> {
                 // La llengua penja del somriure, que es dibuixa a sobre.
-                drawOval(
-                    color = WindTongue,
-                    topLeft = Offset(fx - r * 0.042f, fy + r * 0.46f),
-                    size = Size(r * 0.212f, r * 0.25f),
-                )
-                drawArc(
-                    color = ink,
-                    startAngle = 20f,
-                    sweepAngle = 140f,
-                    useCenter = false,
-                    topLeft = Offset(fx - r * 0.27f, fy + r * 0.02f),
-                    size = Size(r * 0.54f, r * 0.52f),
-                    style = Stroke(width = mouthStroke, cap = StrokeCap.Round),
-                )
+                drawPath(Path().apply {
+                    moveTo(hx(38.6f), hy(56.8f)); quadraticTo(hx(38.2f), hy(63.4f), hx(42f), hy(63.4f)); quadraticTo(hx(45.8f), hy(63.4f), hx(45.6f), hy(56f)); close()
+                }, WindTongue)
+                smile()
             }
         }
         // En parlar, la boca de l'estil s'obre i tanca: sembla que vocalitza.
         if (talkOpen) {
-            drawOval(
-                color = ink,
-                topLeft = Offset(fx - r * 0.12f, fy + r * 0.30f),
-                size = Size(r * 0.24f, r * 0.24f),
-            )
-            drawOval(
-                color = WindTongue,
-                topLeft = Offset(fx - r * 0.075f, fy + r * 0.43f),
-                size = Size(r * 0.15f, r * 0.10f),
-            )
+            drawOval(ink, Offset(hx(36.4f), hy(50.8f)), Size(7.2f * u, 7.2f * u))
+            drawOval(WindTongue, Offset(hx(37.8f), hy(55f)), Size(4.4f * u, 3f * u))
         }
         accessories()
         // Espurnes quan està content o explica coses.
@@ -540,6 +588,69 @@ fun WindFace(
         }
         // In Cares the breath replaces the working cog; the other marks stay.
         if (mood != WindMood.WORKING) withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, motion, doneHop?.value ?: 1f, tone) }
+    }
+}
+
+/** Eye size (rx, ry) and how much lower it sits, in head units, per eye style: tall, big, star shine, calm and low (`face` in winds.js). */
+private fun windEyeSize(eyes: WindEyes) = when (eyes) {
+    WindEyes.DOTS -> Triple(5.8f, 8f, 0f)
+    WindEyes.WIDE -> Triple(7.2f, 8.6f, 0f)
+    WindEyes.STARRY -> Triple(6.2f, 7.8f, 0f)
+    WindEyes.SLEEPY -> Triple(6.8f, 5.8f, 1.6f)
+}
+
+/**
+ * Un ull de Cares centrat a ([x], [y0]) en píxels, [u] píxels per unitat del cap.
+ * Una el·lipse fosca i brillant amb la parpella de dalt (pintada amb el cos i un
+ * plec del seu to fosc) que baixa fins a `lid` i es decanta amb `brow`, mirall a
+ * l'ull dret, i la de baix, que puja amb `smile` fins a fer un arc content. Tot
+ * retallat a l'ull: és l'ull qui canvia de forma. Sota 28 dp ([small]) és una
+ * mica més gran i té un sol reflex gros; la figura gran ([full]) s'enfonsa una
+ * mica a la cara.
+ */
+private fun DrawScope.drawWindEye(eyes: WindEyes, p: WindPose, right: Boolean, x: Float, y0: Float, u: Float, small: Boolean, full: Boolean,
+    ink: Color, accent: Color, paint: WindBodyPaint, cx: Float, cy: Float, r: Float) {
+    val (baseRx, baseRy, drop) = windEyeSize(eyes)
+    val rx = baseRx * u * (if (small) 1.12f else 1f)
+    val ry = baseRy * u * (if (small) 1.08f else 1f)
+    val y = y0 + drop * u
+    val lash = lerp(accent, Color(0xFF1B1530), .45f)
+    val shine = if (ink == Color.White) accent else Color.White
+    if (full) drawOval(Brush.radialGradient(0f to paint.core.copy(alpha = .45f), 1f to paint.core.copy(alpha = 0f),
+        center = Offset(x, y - .6f * u - .1f * (ry + 1.4f * u)), radius = ry + 1.4f * u),
+        Offset(x - rx - 1.2f * u, y - .6f * u - ry - 1.4f * u), Size(2f * (rx + 1.2f * u), 2f * (ry + 1.4f * u)))
+    val eye = Path().apply { addOval(androidx.compose.ui.geometry.Rect(x - rx, y - ry, x + rx, y + ry)) }
+    clipPath(eye) {
+        drawOval(ink, Offset(x - rx, y - ry), Size(2f * rx, 2f * ry))
+        if (!small) drawOval(Brush.radialGradient(0f to lerp(accent, Color.White, .2f).copy(alpha = .7f), 1f to accent.copy(alpha = 0f),
+            center = Offset(x, y + .87f * ry), radius = .9f * rx),
+            Offset(x - .9f * rx, y - .15f * ry), Size(1.8f * rx, 1.2f * ry))
+        val gx = x + .3f * rx
+        val gy = y - .38f * ry
+        val gr = (if (small) .42f else .34f) * rx
+        if (eyes == WindEyes.STARRY && !small) drawPath(Path().apply {
+            moveTo(gx, gy - 2f * gr); quadraticTo(gx, gy, gx + 2f * gr, gy); quadraticTo(gx, gy, gx, gy + 2f * gr)
+            quadraticTo(gx, gy, gx - 2f * gr, gy); quadraticTo(gx, gy, gx, gy - 2f * gr); close()
+        }, shine)
+        else drawCircle(shine, gr, Offset(gx, gy))
+        if (!small) drawCircle(shine, .15f * rx, Offset(x - .32f * rx, y + .42f * ry), alpha = .7f)
+        // The lids are the body's own paint (in its radius-1 frame) with a crease in its deep tone.
+        val crease = 1.2f * u
+        val h = 2f * ry + 2f * u
+        val edge = y - ry + p.lid.coerceIn(0f, 1f) * h
+        withTransform({ rotate(if (right) -p.brow else p.brow, Offset(x, edge)) }) {
+            val lid = androidx.compose.ui.geometry.Rect(x - 1.6f * rx, edge - h, x + 1.6f * rx, edge)
+            withTransform({ translate(cx, cy); scale(r, r, Offset.Zero) }) {
+                drawRect(paint.volume, Offset((lid.left - cx) / r, (lid.top - cy) / r), Size(lid.width / r, lid.height / r))
+            }
+            drawLine(lash, Offset(lid.left, edge), Offset(lid.right, edge), strokeWidth = crease)
+        }
+        val lowY = y + 2.15f * ry + .5f * u - p.smile.coerceIn(0f, 1f) * 2.3f * ry
+        val low = androidx.compose.ui.geometry.Rect(x - 1.7f * rx, lowY - 1.15f * ry, x + 1.7f * rx, lowY + 1.15f * ry)
+        withTransform({ translate(cx, cy); scale(r, r, Offset.Zero) }) {
+            drawOval(paint.volume, Offset((low.left - cx) / r, (low.top - cy) / r), Size(low.width / r, low.height / r))
+        }
+        drawOval(lash, low.topLeft, low.size, style = Stroke(crease))
     }
 }
 
