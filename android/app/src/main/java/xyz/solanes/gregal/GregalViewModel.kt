@@ -33,7 +33,7 @@ const val CompanyJobId = "company-checkin-daily"
 const val COMPANY_CHECKIN_PROMPT = "Fes una revisió proactiva i de només lectura del projecte actiu. Consulta els objectius oberts, l’estat documentat dels serveis i les darreres proves o canvis que puguis verificar. No inventis observacions: inclou el fitxer, prova, estat o font que sosté cada afirmació, i acaba amb un únic pas següent recomanat. No modifiquis fitxers, no reiniciïs ni despleguis serveis. Si cal actuar, proposa-ho i espera aprovació explícita. Respon en català, breu i útil."
 
 /** Pantalles de l'app. */
-enum class Screen { Pairing, Chat, Sessions, Goals, Backlog, Jobs, Office, Flows, Automatitzacions, Desat, Notes, Prefs, Retro, Company, Work, Ventet, Carpeta, Preview, Webs, Docs }
+enum class Screen { Pairing, Chat, Sessions, Goals, Backlog, Jobs, Office, Flows, Automatitzacions, Desat, Notes, Prefs, Retro, Company, Work, Ventet, Carpeta, Preview, Webs, Docs, Activitat }
 
 /**
  * On parla l'app. `local` és el servidor d'aquest mateix dispositiu (el
@@ -733,6 +733,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _outbox.value = emptyList()
         _automations.value = emptyMap()
         _saved.value = emptyMap()
+        _windActivity.value = WindActivityFeed()
         _notes.value = null
         _openNote.value = null
         _savedNotes.value = null
@@ -4383,6 +4384,36 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (!isCompanionOrigin(source, epoch)) return@launch
                 if (_saved.value[wind] == null) _saved.value = _saved.value + (wind to emptyList())
                 notify(appText("saved.loadError", e.message.orEmpty()))
+            }
+        }
+    }
+
+    /** El que els vents han fet en segon pla (WindActivityScreen.kt); `wind` buit = tots. */
+    private val _windActivity = MutableStateFlow(WindActivityFeed())
+    val windActivity: StateFlow<WindActivityFeed> = _windActivity.asStateFlow()
+
+    fun openWindActivity(wind: String) {
+        _windActivity.value = WindActivityFeed(wind)
+        go(Screen.Activitat)
+        loadWindActivity()
+    }
+
+    /** La primera pàgina de nou o, amb `older`, la següent de més velles (`before` = l'«at» de l'última). */
+    fun loadWindActivity(older: Boolean = false) {
+        val cur = _windActivity.value
+        if (cur.loading || (older && (!cur.more || cur.items.isEmpty()))) return
+        val before = if (older) cur.items.last().at else ""
+        val source = _conn.value; val epoch = companionEpoch
+        _windActivity.value = cur.copy(loading = true, error = null)
+        viewModelScope.launch {
+            try {
+                val got = withContext(Dispatchers.IO) { source.api().getWindActivity(cur.wind, before, WIND_ACTIVITY_PAGE) }
+                if (!isCompanionOrigin(source, epoch) || _windActivity.value.wind != cur.wind) return@launch
+                _windActivity.value = _windActivity.value.copy(items = if (older) cur.items + got else got, loading = false, loaded = true,
+                    more = got.size == WIND_ACTIVITY_PAGE)
+            } catch (e: Exception) {
+                if (!isCompanionOrigin(source, epoch) || _windActivity.value.wind != cur.wind) return@launch
+                _windActivity.value = _windActivity.value.copy(loading = false, loaded = true, error = e.message ?: "error")
             }
         }
     }

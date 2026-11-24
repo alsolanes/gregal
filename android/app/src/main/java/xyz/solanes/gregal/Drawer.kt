@@ -24,6 +24,7 @@ import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Article
 import androidx.compose.material.icons.automirrored.rounded.Logout
@@ -204,6 +205,7 @@ private fun SimpleVentsDrawer(
                 }
                 Spacer(Modifier.height(4.dp))
                 DrawerRow(if (en) "Today" else "Avui", home && panel == "today", { close(); vm.openVentsPanel("today"); nav(Screen.Company) }, Icons.Rounded.WbSunny)
+                DrawerRow(tr(lang, "winds.activity.title"), screen == Screen.Activitat, { close(); vm.openWindActivity("") }, Icons.Rounded.History)
                 val running = tasks.orEmpty().count { it.running }
                 var workOpen by rememberSaveable { mutableStateOf(false) }
                 DrawerGroup(if (en) "Work" else "Feina", Icons.Rounded.Construction, workOpen || screen == Screen.Automatitzacions, { workOpen = !workOpen }, badge = running) {

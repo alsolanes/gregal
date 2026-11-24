@@ -378,6 +378,7 @@ class MainActivity : ComponentActivity() {
                                     Screen.Flows -> FlowsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Automatitzacions -> AutomatitzacionsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Desat -> DesatScreen(vm) { scope.launch { drawer.open() } }
+                                    Screen.Activitat -> WindActivityScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Notes -> NotesScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Webs -> WebsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Docs -> DocScreen(vm) { scope.launch { drawer.open() } }
