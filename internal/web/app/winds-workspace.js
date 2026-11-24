@@ -505,7 +505,9 @@
   const head=el('header','vw-avui-head'),title=el('div','vw-avui-title');title.append(el('h2','',t('Avui','Today')),el('span','vw-avui-date',date));
   head.append(title,iconOnly('tune',t('Ajusta Avui','Tune Today'),()=>avuiSettings(data.settings,()=>paintAvui(feed)),'vw-small'));
   const body=[head];
-  const wxWind=state.winds.find(w=>w.specialty==='weather'||/\b(el temps|meteo|weather)\b/i.test(w.role||''));
+  // D'una ullada (vents-avui-glance.js): el temps, el calendari i el que segueixes, abans de la safata.
+  if(data.glance&&root.gregalAvuiGlance){const g=el('section','vw-glance');g.setAttribute('aria-label',t('D’una ullada','At a glance'));root.gregalAvuiGlance.renderGlance(g,{glance:data.glance,settings:data.settings,onChange:()=>paintAvui(feed).catch(fail)});body.push(g);}
+  const wxWind=!data.glance?.weather&&state.winds.find(w=>w.specialty==='weather'||/\b(el temps|meteo|weather)\b/i.test(w.role||''));
   if(wxWind){const wx=el('div','vw-wx-host');body.push(wx);weatherCard(wx,wxWind,true).catch(()=>wx.remove());}
   if(data.held>0)body.push(el('p','vw-avui-held',t(data.held===1?'1 cosa ha esperat a la safata en hores tranquil·les.':data.held+' coses han esperat a la safata en hores tranquil·les.',data.held+' waited here during quiet hours.')));
   const groups=[['now',t('Ara toca','Top of mind')],['fyi',t('Per si de cas','Good to know')],['ahead',t('Més endavant','Looking ahead')]];
