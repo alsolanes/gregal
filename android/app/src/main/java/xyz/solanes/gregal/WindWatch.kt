@@ -205,6 +205,9 @@ object WindWatch {
     /** Programa la propera passada (exacta si es pot, si no inexacta). */
     fun schedule(ctx: Context, delayMs: Long = INTERVAL_MS) {
         if (!wanted(ctx)) return
+        // El cursor d'un servidor nou comença quan s'arma (en entrar-hi): si
+        // comencés a la primera passada, la novetat que arriba abans no sonaria mai.
+        if (lastTs(ctx) == 0L) saveTs(ctx, System.currentTimeMillis() / 1000)
         // Registra (o refresca) el token de push si n'hi ha; si no, sondeig.
         VentsPush.ensureRegistered(ctx)
         val am = ctx.getSystemService(AlarmManager::class.java)
@@ -306,9 +309,6 @@ class WindWatchService : Service() {
                 for (w in NoticeDedupe.readWinds(noves)) WindNotifications.cancelWind(this, source, w)
                 val candidates = WindWatchLogic.toRing(OfflineLogic.notYetShown(noves, shown)).filter { it.ts > desDe }
                 WindWatch.saveTs(this, nouTs)
-                // Primera passada en aquest servidor/compte: només marca on som.
-                // Avisar de tot el que ja hi havia seria una ràfega de notificacions velles.
-                if (desDe == 0L) { NoticeLedger.claim(this, source, candidates, p.usuari); return }
                 aviat = try { api.windTasks().any { it.running } } catch (_: Exception) { false }
                 // Un sol registre per a push i sondeig: el que ja ha sonat no torna a sonar.
                 // Amb l'app oberta tampoc no sona: la novetat ja és al fil (stream).
