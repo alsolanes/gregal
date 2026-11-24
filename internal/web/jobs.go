@@ -356,6 +356,12 @@ func (s *Server) handleJobSave(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "nom i prompt obligatoris", 400)
 		return
 	}
+	id, own := s.heartJobID(j)
+	if !own {
+		http.Error(w, "unknown routine", 404)
+		return
+	}
+	j.ID = id
 	if j.ID != "" {
 		oldJobs, err := s.jobs.List()
 		if err != nil {
@@ -518,7 +524,8 @@ func (s *Server) handleJobRuns(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) canSeeWindRoutine(job jobs.Job) bool {
 	if job.Wind == "" {
-		return true
+		// El cor antic sense amo (wind-<vent>): amb comptes no és de ningú.
+		return !strings.HasPrefix(job.ID, windJobPrefix) || respOwner(s) == ""
 	}
 	owner := ""
 	if s.user != nil && !s.user.Tothom {
@@ -530,7 +537,7 @@ func (s *Server) canSeeWindRoutine(job jobs.Job) bool {
 // canSeeWindJob és canSeeWindRoutine per als jobs que ja se sap que són d'un
 // vent (el cor wind-<id>, un recordatori). El cor antic no porta Wind: amb
 // comptes no se'n sap l'amo, i dos comptes poden tenir un vent amb el
-// mateix id; no es mostra a ningú fins que el seu amo el torni a desar.
+// mateix id; no es mostra a ningú (el compte que desa el cor en té un de nou).
 func (s *Server) canSeeWindJob(job jobs.Job) bool {
 	if job.Wind == "" {
 		return s.user == nil || s.user.Tothom

@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"log"
 	"strings"
 	"time"
 
@@ -19,17 +20,67 @@ import (
 
 const windJobPrefix = "wind-"
 
-// windJobID extreu l'id del vent d'un id de job (wind-tramuntana → tramuntana).
+// windJobID extreu l'id del vent d'un id de job: wind-tramuntana, o amb
+// comptes wind-tramuntana@aleix → tramuntana (un id de vent no porta @).
 func windJobID(jobID string) (string, bool) {
 	if !strings.HasPrefix(jobID, windJobPrefix) {
 		return "", false
 	}
-	id := strings.TrimPrefix(jobID, windJobPrefix)
+	id, _, _ := strings.Cut(strings.TrimPrefix(jobID, windJobPrefix), "@")
 	return id, id != ""
 }
 
-// WindJobID construeix l'id del job d'un vent.
+// WindJobID construeix l'id del job d'un vent d'un servidor sense comptes.
 func WindJobID(windID string) string { return windJobPrefix + windID }
+
+// ownerWindJobID és l'id del cor d'un vent d'un compte: dos comptes poden
+// tenir un vent amb el mateix id i cada un té el seu cor.
+func ownerWindJobID(windID, owner string) string {
+	if owner == "" {
+		return WindJobID(windID)
+	}
+	return WindJobID(windID) + "@" + owner
+}
+
+// heartJobID és l'id amb què es desa un job que arriba per l'API: un cor
+// (wind-<vent>, o kind event amb wind i sense id) va sempre al del compte.
+// false si l'id és el cor d'un altre compte.
+func (s *Server) heartJobID(j jobs.Job) (string, bool) {
+	wid, ok := windJobID(j.ID)
+	if !ok && j.ID == "" && j.Kind == "event" && j.Wind != "" {
+		wid, ok = j.Wind, true
+	}
+	if !ok {
+		return j.ID, true
+	}
+	own := ownerWindJobID(wid, respOwner(s))
+	return own, j.ID == "" || j.ID == WindJobID(wid) || j.ID == own
+}
+
+// migrateWindJobs passa el cor d'un compte desat com a wind-<vent> (abans
+// no hi havia id per compte) a l'id del compte, amb la seva programació. El
+// cor sense amo no se sap de qui és i es queda com està.
+func migrateWindJobs(store *jobs.Store) {
+	list, err := store.List()
+	if err != nil {
+		log.Printf("cors dels vents: no puc llegir els jobs: %v", err)
+		return
+	}
+	for _, j := range list {
+		old := j.ID
+		j.ID = ownerWindJobID(j.Wind, j.WindOwner)
+		if !strings.HasPrefix(old, windJobPrefix) || strings.Contains(old, "@") || j.WindOwner == "" || j.Wind == "" || store.Has(j.ID) {
+			continue
+		}
+		if _, err := store.Save(j); err != nil {
+			log.Printf("cors dels vents: no puc migrar %s: %v", old, err)
+			continue
+		}
+		if err := store.Delete(old); err != nil {
+			log.Printf("cors dels vents: no puc esborrar %s: %v", old, err)
+		}
+	}
+}
 
 // windHeartbeatSystem compon la consigna del cor: persona + tema a vigilar.
 func windHeartbeatSystem(w companion.Wind, memory, userName string) string {

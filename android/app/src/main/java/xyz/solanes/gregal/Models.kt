@@ -413,7 +413,14 @@ data class JobItem(
     val nextDueAt: String = "",
     /** Dies d'una feina diària (0 = diumenge … 6 = dissabte); buit, cada dia. */
     val days: List<Int> = emptyList(),
+    /** Vent de la feina (rutina, cor…); buit si no és de cap vent. */
+    val wind: String = "",
 )
+
+/** El cor d'un vent: kind event amb id wind-…, que tria el backend (amb
+ *  comptes, un per compte). El cor antic no porta wind: el seu id és wind-<vent>. */
+fun JobItem.isHeartbeatOf(windId: String): Boolean =
+    kind == "event" && id.startsWith("wind-") && (wind == windId || id == "wind-$windId")
 
 /** Dies d'una rutina en paraules: «feiners», «caps de setmana», «dl, dj»; buit si és cada dia. */
 fun jobDaysLabel(days: List<Int>, lang: String): String {

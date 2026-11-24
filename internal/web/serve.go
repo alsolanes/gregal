@@ -209,6 +209,9 @@ func New(cfg *config.Config, cfgPath string) *Server {
 	}
 	// Si el disc falla, jobs queda a nil i l'API ho diu (no tomba el servidor).
 	js, _ := jobs.New("")
+	if js != nil {
+		migrateWindJobs(js)
+	}
 	cl := llm.New()
 	cfg.ConfigureClient(cl)
 	agent.SetPostEditHook(cfg.Hooks.PostEdit)

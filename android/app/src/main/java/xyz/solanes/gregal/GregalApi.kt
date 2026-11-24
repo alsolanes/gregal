@@ -1386,7 +1386,7 @@ class GregalApi(val base: String, val token: String) {
                 intervalH = j.intervalH, enabled = j.enabled,
                 notify = j.notify, lastStatus = j.lastStatus,
                 nextDue = j.nextDue,
-                lastAt = j.lastAt, nextDueAt = j.nextDueAt, days = j.days,
+                lastAt = j.lastAt, nextDueAt = j.nextDueAt, days = j.days, wind = j.wind,
             )
         }
 
@@ -1394,7 +1394,8 @@ class GregalApi(val base: String, val token: String) {
         val o = postAs<JobRefDto>("/api/jobs/save", JSONObject()
             .put("id", j.id).put("name", j.name).put("prompt", j.prompt)
             .put("kind", j.kind).put("time", j.time).put("interval_h", j.intervalH)
-            .put("enabled", j.enabled).put("notify", j.notify))
+            .put("enabled", j.enabled).put("notify", j.notify)
+            .apply { if (j.wind.isNotBlank()) put("wind", j.wind) })
         val r = o.job as? JsonObject ?: return j
         return j.copy(id = if (r.containsKey("id")) r.str("id") else j.id)
     }
@@ -1970,7 +1971,7 @@ internal class JobDto(
     val notify: Boolean = true, @SerialName("last_status") val lastStatus: String = "",
     @SerialName("next_due") val nextDue: String = "",
     @SerialName("last_at") val lastAt: String = "", @SerialName("next_due_at") val nextDueAt: String = "",
-    val days: List<Int> = emptyList(),
+    val days: List<Int> = emptyList(), val wind: String = "",
 )
 
 @Serializable internal class JobsDto(val jobs: List<JobDto> = emptyList())

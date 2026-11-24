@@ -290,7 +290,7 @@ private fun bgHealthRow(lang: String, vm: GregalViewModel) {
 @Composable
 private fun heartbeatRow(lang: String, vm: GregalViewModel, wind: Wind) {
     val jobs by vm.jobs.collectAsState()
-    val job = jobs.firstOrNull { it.id == "wind-" + wind.id }
+    val job = jobs.firstOrNull { it.isHeartbeatOf(wind.id) }
     var pending by remember(wind.id) { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {

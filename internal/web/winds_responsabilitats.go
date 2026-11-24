@@ -555,14 +555,14 @@ func respCleanUntil(v string) (string, error) {
 }
 
 // respSyncJob deixa el job que programa la responsabilitat d'acord amb el
-// seu estat. El cor fa servir el seu job wind-<vent> de sempre.
+// seu estat. El cor fa servir el seu job wind-<vent> (amb comptes, wind-<vent>@<compte>).
 func (s *Server) respSyncJob(r *responsabilitat, kick bool) error {
 	if s.jobs == nil {
 		return nil
 	}
 	active := r.State == respActive
 	if r.Kind == respKindHeartbeat {
-		job, ok := s.respFindJob(WindJobID(r.Wind))
+		job, ok := s.respFindJob(ownerWindJobID(r.Wind, respOwner(s)))
 		if !ok {
 			return nil
 		}
@@ -1162,7 +1162,7 @@ func (s *Server) respPublicOf(r *responsabilitat) respPublic {
 	}
 	jobID := r.ID
 	if r.Kind == respKindHeartbeat {
-		jobID = WindJobID(r.Wind)
+		jobID = ownerWindJobID(r.Wind, respOwner(s))
 	}
 	if s.jobs != nil {
 		if j, ok := s.respFindJob(jobID); ok {
@@ -1182,7 +1182,7 @@ func (s *Server) respReconcile(r *responsabilitat) {
 	}
 	jobID := r.ID
 	if r.Kind == respKindHeartbeat {
-		jobID = WindJobID(r.Wind)
+		jobID = ownerWindJobID(r.Wind, respOwner(s))
 	}
 	j, ok := s.respFindJob(jobID)
 	if !ok {

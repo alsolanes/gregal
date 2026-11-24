@@ -5117,36 +5117,36 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
      *  i parla només si troba novetats que valguin la pena. El vent es
      *  reprograma ell sol per quan acabi el proper esdeveniment del seu
      *  tema (partit, llançament…): el primer cop corre ara i ell decideix
-     *  quan mirar altra vegada. L'id és wind-<vent>: el backend el tracta. */
+     *  quan mirar altra vegada. L'id el tria el backend (amb comptes, un cor
+     *  per compte): aquí es fa servir el que torna. */
     fun ensureWindHeartbeat(wind: Wind, on: Boolean, onDone: (Boolean) -> Unit = {}) {
         val source = _conn.value; val epoch = companionEpoch
         viewModelScope.launch {
             try {
                 val api = source.api()
-                val jobId = "wind-" + wind.id
                 val jobs = withContext(Dispatchers.IO) { api.getJobs() }
-                val existing = jobs.firstOrNull { it.id == jobId }
+                val existing = jobs.firstOrNull { it.isHeartbeatOf(wind.id) }
                 if (on && existing == null) {
                     withContext(Dispatchers.IO) {
-                        api.saveJob(JobItem(
-                            id = jobId,
+                        val saved = api.saveJob(JobItem(
+                            id = "", wind = wind.id,
                             name = appText("app.company.windHeartbeatName", wind.name),
                             prompt = "Cor de " + wind.name + ": vigila el tema «" + wind.role + "» i parla només si trobes novetats que valguin la pena.",
                             kind = "event", time = "",
                             enabled = true, notify = true,
                         ))
                         // Primera mirada ara: el mateix vent programa la següent.
-                        api.runJob(jobId)
+                        api.runJob(saved.id)
                     }
                 } else if (on && existing != null && !existing.enabled) {
                     withContext(Dispatchers.IO) { api.saveJob(existing.copy(enabled = true)) }
                 } else if (!on && existing != null) {
-                    withContext(Dispatchers.IO) { api.deleteJob(jobId) }
+                    withContext(Dispatchers.IO) { api.deleteJob(existing.id) }
                 }
                 if (!isCompanionOrigin(source, epoch)) return@launch
                 val current = withContext(Dispatchers.IO) { api.getJobs() }
                 if (!isCompanionOrigin(source, epoch)) return@launch
-                check(if (on) current.any { it.id == jobId && it.enabled } else current.none { it.id == jobId }) {
+                check(if (on) current.any { it.isHeartbeatOf(wind.id) && it.enabled } else current.none { it.isHeartbeatOf(wind.id) }) {
                     "Heartbeat state could not be verified"
                 }
                 _jobs.value = current
