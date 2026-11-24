@@ -32,7 +32,7 @@ class FeinesDialogTest {
         ui.onNodeWithText("Feina").assertExists()
         ui.onNodeWithText("T'espera").assertExists()
         ui.onNodeWithText("Vols que esborri pendent.txt?").assertExists()
-        ui.onNodeWithText("Esborra'l").assertExists()
+        ui.onNodeWithText("Permet").assertExists()
         ui.onNodeWithText("Fet").performScrollTo().assertExists()
     }
 }
