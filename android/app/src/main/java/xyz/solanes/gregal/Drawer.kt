@@ -227,10 +227,15 @@ private fun SimpleVentsDrawer(
                 // Gregal i els cinc amb qui has parlat fa menys (com l'escriptori); la
                 // resta, a «Tots els vents»: amb 20 o 30 vents el calaix no s'acabava.
                 val chats by vm.windChat.collectAsState()
-                val recent = drawerRecentWinds(winds, chats)
+                val newsCount by vm.windNewsCount.collectAsState()
+                val arrival by vm.windArrival.collectAsState()
+                val recent = drawerRecentWinds(winds, chats, newsCount)
                 recent.forEach { w ->
-                    DrawerRow(w.name + if (w.role.isNotBlank()) " · " + w.role else "", false, { close(); vm.openVentsPanel(null); vm.openVentsChat("wind:" + w.id) }) {
-                        WindHalo(Color(w.argb), w.faceStyle, size = 24, online = false, showKit = false)
+                    DrawerRow(w.name + if (w.role.isNotBlank()) " · " + w.role else "", false, { close(); vm.openVentsPanel(null); vm.openVentsChat("wind:" + w.id) },
+                        badge = newsCount[w.id] ?: 0) {
+                        NewsBounce(arrival?.takeIf { it.wind == w.id }) {
+                            WindHalo(Color(w.argb), w.faceStyle, size = 24, online = false, showKit = false)
+                        }
                     }
                 }
                 if (winds.size > recent.size + 1) DrawerRow((if (en) "All winds · " else "Tots els vents · ") + winds.size, home && panel == "directory",
@@ -326,10 +331,15 @@ private fun DrawerRow(label: String, selected: Boolean, onClick: () -> Unit, mut
     }
 }
 
-/** Els vents del calaix: els cinc amb l'últim missatge més recent (sense Gregal, que va a part); si n'hi ha menys, els primers de la llista. */
-internal fun drawerRecentWinds(winds: List<Wind>, chats: Map<String, List<GregalViewModel.PetMsg>>, max: Int = 5): List<Wind> {
+/**
+ * Els vents del calaix: primer els que tenen novetats per llegir, després els
+ * cinc amb l'últim missatge més recent (sense Gregal, que va a part); si n'hi
+ * ha menys, els primers de la llista.
+ */
+internal fun drawerRecentWinds(winds: List<Wind>, chats: Map<String, List<GregalViewModel.PetMsg>>, news: Map<String, Int> = emptyMap(), max: Int = 5): List<Wind> {
     val others = winds.filter { it.id != "gregal" }
     val last = { w: Wind -> chats[w.id].orEmpty().maxOfOrNull { it.ts } ?: 0L }
-    val used = others.filter { last(it) > 0 }.sortedByDescending(last)
-    return (used + others.filterNot { it in used }).take(max)
+    val fresh = others.filter { (news[it.id] ?: 0) > 0 }
+    val used = others.filter { last(it) > 0 && it !in fresh }.sortedByDescending(last)
+    return (fresh + used + others.filterNot { it in used || it in fresh }).take(max)
 }
