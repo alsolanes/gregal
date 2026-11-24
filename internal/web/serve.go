@@ -598,6 +598,8 @@ func (h *Hub) mux() *http.ServeMux {
 			w.Header().Set("Content-Type", "image/svg+xml")
 		case ".png":
 			w.Header().Set("Content-Type", "image/png")
+		case ".json":
+			w.Header().Set("Content-Type", "application/json")
 		}
 		w.Write(raw)
 	})

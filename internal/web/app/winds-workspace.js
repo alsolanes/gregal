@@ -13,6 +13,8 @@
  const face=(w,work,size)=>root.gregalWinds.face(w||{name:work?.name,color:accent(),style:'psn'},false,work&&root.gregalWinds.moodOf(work),size);
  // On es presenta un vent, la figura sencera amb l'eina del seu ofici; `ground` hi posa el terra.
  const figure=(w,ground)=>root.gregalWinds.face(w||{color:accent(),style:'psn'},ground?true:'figure');
+ // 113: on un vent es veu gran, el de plastilina (characters.js) en comptes de la cara dibuixada, que en queda de recanvi.
+ const clay=(w,svg)=>root.gregalCharacters?root.gregalCharacters.play(svg,w):svg;
  const folder=()=>{const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('class','vw-folder');svg.setAttribute('aria-hidden','true');const p=document.createElementNS(svg.namespaceURI,'path');p.setAttribute('d','M3 6a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v10H3Z');p.setAttribute('fill','none');p.setAttribute('stroke','currentColor');p.setAttribute('stroke-width','1.6');svg.append(p);return svg;};
  // Icones: el joc de traç de shell-icons.js (window.gregalIcon), igual que a Codi;
  // les que aquell joc no té van aquí amb el mateix traç i graella. Res de glifs de text.
@@ -176,7 +178,10 @@
   if(!('fly' in n.dataset)){n.getBoundingClientRect();n.dataset.fly='';}}
  // 101: el torn que acaba de tornar el celebra (o l'arronsa) un sol cop qui el porta: el render següent ja no.
  function cheerOn(n){const c=state.cheer;if(!c||c.thread!==state.active?.id)return;n.classList.add(c.kind==='done'?'vw-cheer':'vw-shrug');if(c.kind!=='done')return;const burst=el('span','vw-burst');burst.setAttribute('aria-hidden','true');for(let i=0;i<10;i++){const s=el('i');s.style.setProperty('--i',String(i));burst.append(s);}n.append(burst);}
- function paintCorner(n=page?.querySelector('.vw-wind-corner')){if(!n)return;const mood=cornerMood(state,state.active?.id,n.dataset.wind);if(n.dataset.mood===mood)return;if(n.dataset.mood)n.className='vw-wind-corner';n.dataset.mood=mood;n.replaceChildren(root.gregalWinds.face(state.winds.find(w=>w.id===n.dataset.wind),true,mood));}
+ function paintCorner(n=page?.querySelector('.vw-wind-corner')){if(!n)return;const mood=cornerMood(state,state.active?.id,n.dataset.wind);if(n.dataset.mood===mood)return;if(n.dataset.mood)n.className='vw-wind-corner';n.dataset.mood=mood;
+  // La plastilina canvia d'humor al seu lloc (s'hi fon); la cara dibuixada es torna a fer.
+  const now=n.firstChild;if(now?.classList.contains('winds-clay')){n.querySelector('.vw-burst')?.remove();root.gregalCharacters.mood(now,mood);return;}
+  const w=state.winds.find(w=>w.id===n.dataset.wind);n.replaceChildren(clay(w,root.gregalWinds.face(w,true,mood)));}
  root.gregalWindChat={mix:mixHex,share:windShare,mark:windMark,cornerMood};
  // Qui porta la conversa: el vent (l'únic, que vola a la cantonada) amb el seu estat, el nom i l'ofici. En un grup, les cares de qui hi és.
  function owner(){
@@ -482,7 +487,7 @@
  function home(){
   content.classList.add('vw-home');
   const faces=el('div','vw-start-faces');faces.setAttribute('aria-label',t('Vents','Winds'));
-  for(const w of [...state.winds].sort((a,b)=>(b.id==='gregal')-(a.id==='gregal'))){const n=btn('',()=>startWith(w),'vw-start-face');n.append(face(w),el('span','',w.name),...tag(w));newsDot(n,w);n.title=roleName(w)||w.name;faces.append(n);}
+  for(const w of [...state.winds].sort((a,b)=>(b.id==='gregal')-(a.id==='gregal'))){const n=btn('',()=>startWith(w),'vw-start-face');n.append(clay(w,face(w)),el('span','',w.name),...tag(w));newsDot(n,w);n.title=roleName(w)||w.name;faces.append(n);}
   content.append(faces);
   const hour=new Date().getHours(),greet=hour<6?t('Bona nit','Good night'):hour<13?t('Bon dia','Good morning'):hour<20?t('Bona tarda','Good afternoon'):t('Bon vespre','Good evening');
   const welcome=el('div','vw-welcome');welcome.append(el('h1','',greet+'.'),el('p','',t('Pregunta, encarrega o planifica. Els vents s’encarreguen de la resta.','Ask, delegate or plan. Your winds take care of the rest.')));content.append(welcome);
@@ -550,7 +555,7 @@
   side.append(useful,iconOnly('thumbDown',t('No m’interessa','Not interesting'),act('notuseful',leave),'vw-small'),iconOnly('clock',t('Més tard','Later'),act('later',leave),'vw-small'),iconOnly('close',t('Ara no','Not now'),act('dismiss',leave),'vw-small'));
   const done=btn('',act('done',leave),'vw-avui-done');done.append(icon('check'),el('span','',t('Fet','Done')));side.append(done);
   acts.append(side);copy.append(acts);
-  card.append(w?face(w):el('span','vw-shared-person','·'),copy);
+  card.append(w?clay(w,face(w)):el('span','vw-shared-person','·'),copy);
   return card;
  }
  // Ajusta Avui: hores tranquil·les, mode tranquil i el que vols que tingui en compte el resum de demà.
@@ -713,9 +718,9 @@
   const foot=el('div','vw-dialog-foot');foot.append(btn(t('Cancel·la','Cancel'),()=>d.close(),'vw-button'),btn(t('Crea el vent','Create wind'),async()=>{if(!name.value.trim()){name.focus();return;}await call('/api/winds','POST',{name:name.value.trim(),role:role.value.trim(),persona:persona.value.trim(),color:tint.value,style:eyes.value+mouth.value+shape.value,avatar:avatar?.value});d.close();await load();route('crew');},'vw-primary'));d.append(foot);
  }
  async function profile(w){
-  const data=await call('/api/winds/profile?wind='+encodeURIComponent(w.id));const d=dialog(w.name);const who=el('div','vw-profile-head'),whoCopy=el('p','vw-muted',roleName(w)||t('Vent propi','Your own wind'));who.append(figure(w),whoCopy,btn(t('Fitxes consultables','Reference cards'),()=>windCards(w)));d.append(who);
+  const data=await call('/api/winds/profile?wind='+encodeURIComponent(w.id));const d=dialog(w.name);const who=el('div','vw-profile-head'),whoCopy=el('p','vw-muted',roleName(w)||t('Vent propi','Your own wind'));who.append(clay(w,figure(w)),whoCopy,btn(t('Fitxes consultables','Reference cards'),()=>windCards(w)));d.append(who);
   // En mode Lliure cada vent tria el seu pack d'avatar; amb un tema, el nom del tema.
-  const pack=root.gregalWinds.avatarField?.(d,w);if(pack)pack.onchange=async()=>{try{await call('/api/winds','POST',{id:w.id,name:w.name,color:w.color,role:w.role,style:w.style,avatar:pack.value});w.avatar=pack.value;who.firstChild.replaceWith(figure(w));notice.textContent=t('Desat','Saved');}catch(e){fail(e);}};
+  const pack=root.gregalWinds.avatarField?.(d,w);if(pack)pack.onchange=async()=>{try{await call('/api/winds','POST',{id:w.id,name:w.name,color:w.color,role:w.role,style:w.style,avatar:pack.value});w.avatar=pack.value;who.firstChild.replaceWith(clay(w,figure(w)));notice.textContent=t('Desat','Saved');}catch(e){fail(e);}};
   if(data.trade?.kit==='weather'){const wx=el('div','vw-wx-host');d.append(wx);weatherCard(wx,w).catch(()=>{});}if(data.trade)d.append(tradePanel(w,data.trade));const tabs=el('div','vw-tabs'),body=el('div');d.append(tabs,body);
   const draw=kind=>{body.replaceChildren();for(const b of tabs.children){b.dataset.selected=String(b.dataset.kind===kind);b.setAttribute('aria-pressed',String(b.dataset.kind===kind));}if(kind==='calaix'){calaixPanel(body,w).catch(fail);return;}if(kind==='shelf'){const box=el('div','act-list');body.append(box);root.gregalVentsShelf?.renderShelf(box,{wind:w.id});return;}if(kind==='activity'){const box=el('div','act-list');body.append(box);root.gregalVentsActivity?.renderActivity(box,{wind:w.id,winds:state.winds,onOpen:(it,k)=>{d.close();openActivity(it,k).catch(fail);}});return;}if(kind==='scheduled'||kind==='saved'){const box=el('div','act-list');if(kind==='scheduled'){const lab=el('label','vw-check'),cb=el('input');cb.type='checkbox';cb.checked=w.followups!=='off';cb.onchange=async()=>{await call('/api/winds','POST',{id:w.id,name:w.name,color:w.color,role:w.role,style:w.style,followups:cb.checked?'on':'off'});w.followups=cb.checked?'on':'off';notice.textContent=t('Desat','Saved');};lab.append(cb,el('span','',t('Seguiments pel seu compte: si li expliques una cosa teva amb data, s’ofereix a tornar-hi després.','Follow-ups on its own: if you mention something of yours with a date, it offers to check back afterwards.')));body.append(lab);}body.append(box);const A=root.gregalVentsActivity;if(A)(kind==='saved'?A.renderSaved(box,{wind:w.id,onCard:()=>windCards(w)}):A.renderAutomations(box,{wind:w.id}));return;}const memory=kind==='memory';body.append(el('p','vw-muted',memory?t('Preferències, decisions i coses sobre tu que aquest vent recorda. Valen per a tot el que fa: el xat, les rutines, el que vigila i els recordatoris amb feina. Corregeix-les aquí un cop i ja està.','Preferences, decisions and things about you this wind remembers. They apply to everything it does: chat, routines, what it watches and reminders with a task. Correct them here once and that’s it.'):t('Fets, documents i procediments que pot utilitzar per ajudar-te.','Facts, documents and procedures it can use to help you.')));const area=field(body,memory?t('Memòria','Memory'):t('Coneixement','Knowledge'),memory?data.memory:data.knowledge,true);area.maxLength=memory?8000:24576;body.append(btn(t('Desa els canvis','Save changes'),async()=>{await call(memory?'/api/winds/memoria':'/api/winds/memory',memory?'PUT':'POST',memory?{wind:w.id,memoria:area.value}:{wind:w.id,text:area.value});if(memory)data.memory=area.value;else data.knowledge=area.value;notice.textContent=t('Desat','Saved');},'vw-primary'));
    if(!memory){for(const skill of data.skills||[]){const detail=el('details','vw-document');detail.append(el('summary','',skill.Titol||skill.Nom),el('p','',skill.Cos));body.append(detail);}body.append(iconBtn('plus',t('Afegeix un document o procediment','Add a document or procedure'),()=>knowledgeDocument(w),'vw-button vw-add'));}

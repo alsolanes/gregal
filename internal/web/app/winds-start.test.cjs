@@ -834,3 +834,54 @@ test('notification permission is asked once, from a button in the toast, never o
   await hear(f, [{ ...ponent, id: 'n-11' }]);
   assert.ok(!toasts(f).some(n => byText(n, 'button', 'Notify me when I’m away')), 'asked once');
 });
+
+// 113: on els vents es veuen grans (la cantonada del xat, el perfil, les cares de l'inici, Avui) hi
+// juga la plastilina (characters.js); les cares petites de les llistes queden dibuixades.
+function clayBoot(api) {
+  const played = [], moods = [];
+  const gregalCharacters = {
+    play(svg, w) { played.push(w.id); const c = new Element('canvas', svg.doc); c.className = 'winds-face winds-clay'; c.dataset.wind = svg.dataset.wind; return c; },
+    mood(el, mood) { moods.push([el.dataset.wind, mood]); return el; },
+  };
+  return boot({ extra: { gregalCharacters }, api }).then(f => ({ ...f, played, moods }));
+}
+const clayOf = root => root.querySelectorAll('canvas').map(c => c.dataset.wind);
+
+test('large faces play the clay winds: start faces, the chat corner, Today and the profile; list avatars stay drawn', async () => {
+  const card = { id: 'c1', wind: 'xaloc', title: 'Concert dissabte', source: 'wind' };
+  // Prou vents perquè la barra porti a «All winds», on hi ha els perfils.
+  const four = [...winds, { id: 'ponent', name: 'Ponent', color: '#EACF87', style: 'msn' }, { id: 'mestral', name: 'Mestral', color: '#BFCFA4', style: 'esn' }];
+  const json = data => ({ ok: true, status: 200, json: async () => data });
+  const f = await clayBoot(r => r.url === '/api/winds/avui' ? json({ date: '2026-11-24', now: [card] }) : r.url === '/api/winds' && r.method === 'GET' ? json({ winds: four })
+    : r.url === '/api/winds/tidy' ? json({ groups: [], test: [], unused: [] }) : null);
+  assert.deepEqual(clayOf(f.page.querySelector('.vw-start-faces')), ['Gregal', 'Xaloc', 'Ponent', 'Mestral']);
+  assert.deepEqual(clayOf(f.nav), [], 'the sidebar keeps its drawn faces');
+  assert.deepEqual(clayOf(f.page.querySelector('.vw-start-recent')), [], 'so do the recent rows');
+  await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();
+  await settle();
+  assert.deepEqual(clayOf(f.page.querySelector('.vw-wind-corner')), ['Xaloc']);
+  assert.deepEqual(clayOf(f.page.querySelector('.vw-messages')), []);
+  await byText(f.nav, 'button', 'Today').click();
+  await settle();
+  assert.deepEqual(clayOf(f.page.querySelector('.vw-avui-card')), ['Xaloc']);
+  await byText(f.nav, 'button', 'All winds').click(); await settle();
+  f.played.length = 0;
+  await byText(byText(f.page, '.vw-member', 'Xaloc'), 'button', 'Profile').click(); await settle();
+  assert.deepEqual(f.played, ['xaloc'], 'the profile plays it; the roster rows stay drawn');
+});
+
+test('the clay corner changes mood in place, so it can crossfade, and still nods', async () => {
+  const json = data => ({ ok: true, status: 200, json: async () => data });
+  const f = await clayBoot(r => r.url === '/api/winds/pending' ? json({ pending: [{ key: 'k1', type: 'approve', wind: 'xaloc', kind: 'rule', name: 'write', what: 'write informe.md' }] })
+    : r.url === '/api/winds/answer' ? json({ ok: true, id: 'k1', state: 'approved' }) : null);
+  await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();
+  await settle();
+  const corner = f.page.querySelector('.vw-wind-corner'), face = corner.firstChild;
+  assert.equal(corner.dataset.mood, 'waiting');
+  await byText(f.page.querySelector('.vw-asks'), 'button', 'Allow').click();
+  await settle();
+  assert.equal(corner.firstChild, face, 'the same clay face');
+  assert.deepEqual(f.moods.at(-1), ['Xaloc', corner.dataset.mood]);
+  assert.notEqual(corner.dataset.mood, 'waiting');
+  assert.equal(corner.dataset.react, 'nod');
+});
