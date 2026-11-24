@@ -530,6 +530,36 @@ test('the wind editor shows the pack picker only in Free mode; with a theme it s
   assert.equal('avatar' in f.requests.findLast(r=>r.url==='/api/winds'&&r.method==='POST').body,false,'the wind keeps its own pack');
 });
 
+test('a minairó can pick its barretina colour in the editor, saved as the fourth letter of its style',async()=>{
+  const state={theme:'free',avatars:{xaloc:'minairo'}};
+  const f=await boot(avatarServer(state));
+  const capIn=svg=>svg.querySelectorAll('[id]').find(g=>/^wf\d+h$/.test(g.getAttribute('id'))).children.find(s=>s.getAttribute('offset')==='0.5').getAttribute('stop-color');
+  const shown=()=>!f.$('windBarretina').parentNode.hidden;
+  await byText(f.$('windsList'),'button','Xaloc').click();
+  await byText(f.$('windsChatMembers'),'button','Perfil').click();
+  await byText(f.$('windsProfile'),'button','Edita el caràcter').click();
+  assert.ok(shown(),'Free mode, drawn as a minairó: the barretina picker is there');
+  assert.equal(f.$('windBarretina').value,'','automatic until the person picks one');
+  assert.deepEqual(f.$('windBarretina').querySelectorAll('option').map(o=>o.getAttribute('value')),['','v','m','f','o','b','g']);
+  assert.deepEqual(f.$('windBarretina').querySelectorAll('option').map(o=>o.textContent),['Automàtica','Vermella','Morada','Verd fosc','Mostassa','Blau marí','Granat']);
+  f.$('windBarretina').value='m';
+  await f.$('windBarretina').emit('change');
+  assert.equal(capIn(f.$('windFacePreview').querySelector('svg')),'#6E2F6B','the preview wears it');
+  await f.$('windsWindForm').emit('submit');
+  assert.equal(f.requests.findLast(r=>r.url==='/api/winds'&&r.method==='POST').body.style,'psom');
+  await byText(f.$('windsProfile'),'button','Edita el caràcter').click();
+  await byText(f.$('windAvatar'),'button','Cares').click();
+  assert.equal(shown(),false,'another pack has no barretina to pick');
+  state.theme='minairo';
+  await f.root.loadWindsPage(); await settle();
+  await byText(f.$('windsProfile'),'button','Edita el caràcter').click();
+  assert.ok(shown(),'with the minairons theme every wind can pick one');
+  state.theme='cares';
+  await f.root.loadWindsPage(); await settle();
+  await byText(f.$('windsProfile'),'button','Edita el caràcter').click();
+  assert.equal(shown(),false);
+});
+
 test('Cap de vent and Rosa de rellotge are packs in Preferences and in the Free picker, and draw every face',async()=>{
   const state={theme:'cares',avatars:{xaloc:'cap',mestral:'rosa'}};
   const f=await boot(avatarServer(state));
