@@ -4,7 +4,7 @@ import android.app.Application
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
@@ -24,7 +24,9 @@ import org.robolectric.annotation.LooperMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @LooperMode(LooperMode.Mode.PAUSED)
 class WindPresenceTest {
-    @get:Rule val ui = createAndroidComposeRule<androidx.activity.ComponentActivity>()
+    // v2: amb el vent ocupat, el GregalWorkStrip consulta el servidor a Dispatchers.IO; la v1 hi
+    // continuava els efectes, i el scrollToItem del xat mesurava fora del fil principal mentre la prova dibuixava.
+    @get:Rule val ui =createAndroidComposeRule<androidx.activity.ComponentActivity>()
     private val xaloc = Wind("xaloc", "Xaloc", "#EFA68F", "Música i concerts")
 
     @Test fun theMoodFollowsTheChatState() {
