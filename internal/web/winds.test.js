@@ -21,6 +21,7 @@ class Element {
   querySelector(s) { return this.querySelectorAll(s)[0]||null; }
   contains(n) { return n===this || this.children.some(c=>c.contains(n)); }
   addEventListener(k,f) { (this.listeners[k] ||= []).push(f); }
+  dispatchEvent(e) { this.emit(e.type,e); }
   async emit(k,props={}) { const e={target:this,key:'',preventDefault(){},...props}; if (this['on'+k]) await this['on'+k](e); for(const fn of this.listeners[k]||[]) await fn(e); }
   async click() { if (!this.disabled) await this.emit('click'); }
   focus() { this.doc.activeElement=this; }
@@ -32,7 +33,7 @@ class Element {
 function fixture(apiOverride, translator) {
   const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
   const pane=html.slice(html.indexOf('<section class="workspace-page" id="ventsPage"'),html.indexOf('<section class="workspace-page" id="programatPage"'));
-  const doc={activeElement:null,createElement:t=>new Element(t,doc),createElementNS:(_,t)=>new Element(t,doc),listeners:{},addEventListener(k,f){(this.listeners[k]||=[]).push(f);}};
+  const doc={activeElement:null,createElement:t=>Object.assign(new Element(t,doc),t==='canvas'?{getContext:()=>({})}:{}),createElementNS:(_,t)=>new Element(t,doc),listeners:{},addEventListener(k,f){(this.listeners[k]||=[]).push(f);}};
   const dom=new Element('root',doc), stack=[dom];
   for (const token of pane.matchAll(/<\/?([\w-]+)([^>]*)>/g)) {
     if(token[0].startsWith('</')) { if(stack.length>1) stack.pop(); continue; }
@@ -44,7 +45,7 @@ function fixture(apiOverride, translator) {
   const winds=[{id:'xaloc',name:'Xaloc',color:'#F5B45D',role:'Música',style:'pso'},{id:'mestral',name:'Mestral',color:'#8BD9CA',role:'Codi',style:'mtn'}];
   const rotllanes=[{id:'vespre',name:'Vespre',members:['xaloc','mestral']},{id:'musica',name:'Idees de música',members:['xaloc']}];
   const requests=[];
-  const root={document:doc,gregalWindI18n:translator,api:async(url,opts={})=>{
+  const root={document:doc,gregalWindI18n:translator,Event:class{constructor(type){this.type=type;}},IntersectionObserver:class{observe(){}},api:async(url,opts={})=>{
     const req={url,method:opts.method||'GET',body:opts.body ? JSON.parse(opts.body) : undefined}; requests.push(req);
     const overridden=apiOverride && await apiOverride(req,{winds,rotllanes});
     if(overridden) return overridden;
@@ -514,9 +515,9 @@ test('the wind editor shows the pack picker only in Free mode; with a theme it s
   await byText(f.$('windsChatMembers'),'button','Perfil').click();
   await byText(f.$('windsProfile'),'button','Edita el caràcter').click();
   assert.equal(f.$('windAvatar').value,'esperit');
-  assert.deepEqual(f.$('windAvatar').querySelectorAll('option').map(o=>o.textContent),['Cares','Esperit de vent','Cap de vent','Rosa de rellotge','Mapa de vent']);
+  assert.deepEqual(f.$('windAvatar').querySelectorAll('[role="radio"]').map(o=>o.textContent),['Cares','Esperit de vent','Cap de vent','Rosa de rellotge','Mapa de vent']);
   assert.equal(f.$('windFacePreview').querySelector('svg').getAttribute('data-avatar'),'esperit');
-  f.$('windAvatar').value='cares'; await f.$('windAvatar').emit('change');
+  await byText(f.$('windAvatar'),'button','Cares').click();
   assert.equal(f.$('windFacePreview').querySelector('svg').getAttribute('data-avatar'),null,'the preview follows the picker');
   await f.$('windsWindForm').emit('submit');
   assert.equal(f.requests.findLast(r=>r.url==='/api/winds'&&r.method==='POST').body.avatar,'cares');
@@ -546,9 +547,9 @@ test('Cap de vent and Rosa de rellotge are packs in Preferences and in the Free 
   await byText(f.$('windsList'),'button','Xaloc').click();
   await byText(f.$('windsChatMembers'),'button','Perfil').click();
   await byText(f.$('windsProfile'),'button','Edita el caràcter').click();
-  assert.deepEqual(f.$('windAvatar').querySelectorAll('option').map(o=>o.getAttribute('value')),['cares','esperit','cap','rosa','mapa']);
+  assert.deepEqual(f.$('windAvatar').querySelectorAll('[role="radio"]').map(o=>o.getAttribute('data-v')),['cares','esperit','cap','rosa','mapa']);
   assert.equal(f.$('windAvatar').value,'cap');
-  f.$('windAvatar').value='rosa'; await f.$('windAvatar').emit('change');
+  await byText(f.$('windAvatar'),'button','Rosa de rellotge').click();
   assert.equal(f.$('windFacePreview').querySelector('svg').getAttribute('data-avatar'),'rosa');
   await f.$('windsWindForm').emit('submit');
   assert.equal(f.requests.findLast(r=>r.url==='/api/winds'&&r.method==='POST').body.avatar,'rosa');
