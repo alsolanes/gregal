@@ -1,6 +1,6 @@
 ---
 title: Comparacions en fitxes horitzontals amb imatge, també al mode Codi (servidor i web)
-status: todo
+status: done
 depends_on: []
 ---
 
@@ -10,12 +10,12 @@ When someone asks to compare things (products, places, options, tools, libraries
 
 ## Acceptance criteria
 
-- [ ] The Code-mode agent's system prompt also teaches `gregal-compare` (only when a comparison really helps; never for code diffs or one-line answers), and the guide allows 2–8 items, each with `name`, `image_query` or `image`, optional `logo_domain` (e.g. `nodejs.org`, for brands/products/software) and `url`, `facts` with the same traits, optional `pick`, plus `verdict`. A Go test of both prompts.
-- [ ] Images are resolved for compare cards in Code-mode replies too, not only winds: `image_query` → a photo (as today), `logo_domain` → a logo URL from a free, keyless source (e.g. the site's favicon/apple-touch-icon via a server-side fetch or a public favicon service, cached), never an invented URL; a missing image falls back to the item's initial. Go tests with fake HTTP servers.
-- [ ] Web: `gregal-compare` renders as a horizontally scrollable row of cards (scroll-snap, swipe/trackpad/arrow buttons on desktop, a peek of the next card), each with its image or logo on top, name, facts aligned across cards (same trait order), a «tria» badge on the pick, and the verdict below the row; works in Codi and Vents, dark and light, under reduced motion. A node test with 2 and 6 items.
-- [ ] docs/api-contract.md mentions the block fields if the contract lists card blocks.
+- [x] The Code-mode agent's system prompt also teaches `gregal-compare` (only when a comparison really helps; never for code diffs or one-line answers), and the guide allows 2–8 items, each with `name`, `image_query` or `image`, optional `logo_domain` (e.g. `nodejs.org`, for brands/products/software) and `url`, `facts` with the same traits, optional `pick`, plus `verdict`. A Go test of both prompts.
+- [x] Images are resolved for compare cards in Code-mode replies too, not only winds: `image_query` → a photo (as today), `logo_domain` → a logo URL from a free, keyless source (e.g. the site's favicon/apple-touch-icon via a server-side fetch or a public favicon service, cached), never an invented URL; a missing image falls back to the item's initial. Go tests with fake HTTP servers.
+- [x] Web: `gregal-compare` renders as a horizontally scrollable row of cards (scroll-snap, swipe/trackpad/arrow buttons on desktop, a peek of the next card), each with its image or logo on top, name, facts aligned across cards (same trait order), a «tria» badge on the pick, and the verdict below the row; works in Codi and Vents, dark and light, under reduced motion. A node test with 2 and 6 items.
+- [x] docs/api-contract.md mentions the block fields if the contract lists card blocks.
 
-- [ ] The election example works end to end: items with `points` and two images render as a swipeable one-card-per-page carousel with page dots; a test with three parties.
+- [x] The election example works end to end: items with `points` and two images render as a swipeable one-card-per-page carousel with page dots; a test with three parties.
 
 ## Out of scope
 
@@ -27,3 +27,14 @@ When someone asks to compare things (products, places, options, tools, libraries
 - Asked by the user on 2026-11-24: «quan algun usuari demana (al mode codi o vents) una comparació, que si té sentit el llm pugui decidir fer fitxes scrollable horitzontals amb la seva imatge o logo o el que sigui».
 - Web: node tests; screenshots from a sandboxed server (never type into credential fields) in `output/ui-review/115/`.
 - User example (2026-11-24): «un resum dels programes electorals dels partits que es presenten a les eleccions, una fitxa per partit amb una foto o dues, fent swipe right poder veure el següent i així (o swipe left)». So an item can also carry `images` (up to 2: e.g. the party logo via `logo_domain` and the candidate's photo via `image_query`) and `points` (3–6 short summary bullets), and when items carry `points` the block renders as a full-width paged carousel: one card per page, swipe left/right (and arrow keys/buttons on desktop), page dots, the verdict/sources after. Short fact comparisons keep the compact snapping row. Neutral wording for political content: summarise each programme from its own sources (`url` per item), no pick on parties.
+- Done (2026-11-24). Final block format after the server: each item `{name, image?, images?, logo?, url?, facts?, points?, pick?}`; `image` is the photo (Commons, from `image_query` or the English name), `images` at most 2 http(s) URLs given by the model, `logo` the site icon found from `logo_domain`. `image_query` and `logo_domain` are removed. Same names as Android (116).
+- Guide: `companion.CompareGuide`, used by `CardsGuide` (winds) and by `sysPromptParts` (every web Codi mode, ~1 KB).
+- Logos: `internal/web/card_logos.go` reads the site's home page (4 s timeout), ranks apple-touch-icon > biggest icon > /favicon.ico, and keeps the first one that answers 200 with an `image/*` type. In-memory cache per domain (misses too, not timeouts). `logoSiteURL` is the test hook.
+- Code mode: `conduirTorn` passes the `assistant` text and the final reply through `codeCompareImages` (only ```gregal-compare blocks), memoised so the shown and saved text are the same.
+- Web: `.gx-row` (snapping row, peek of the next card, facts in a CSS subgrid so the same trait lines up across cards) or `.gx-paged` (one card per page, up to two images, page dots). Arrow buttons only with a fine pointer; smooth scroll only without reduced motion. Strings `card.prev`/`card.next` in ca and en.
+- api-contract.md does not list card block fields (only the note kinds), so it is unchanged.
+- The diff is over the guard's 400 lines (514 non-test lines), accepted by the coordinator.
+- `TestLocalRunBringsSourcedCardsToTodayAndVoiceRespectsQuiet` fails on the base commit too; not touched.
+- Follow-up: the public clip page (`clip.css`) has no styles for the new compare row/pages and does not load the arrow handler outside md.js (md.js wires it, so arrows work; only the look is missing).
+- Follow-up: `handleChat` (the legacy `/api/chat` path) does not resolve compare images; only `runTurn`/`conduirTorn` does.
+- Follow-up: the logo fetch does not block hosts that resolve to private addresses (same limit as web_fetch's comment on DNS rebinding).

@@ -2650,10 +2650,13 @@ inspect the disk, say explicitly that you cannot know instead of making it up.`,
 	if plotInSystem(mode) {
 		plot = strings.TrimPrefix(plotPrompt, "\n\n")
 	}
+	// La comparació en fitxes és curta i va a tots els modes, com als vents:
+	// el model ha de saber que la té abans que li demanin comparar.
+	compare := "The Gregal web, desktop and Android chat render comparison cards: one short sentence, the fence, a NEW line with one JSON object, the closing fence. " + companion.CompareGuide
 	// Fets i memòria del projecte van abans de la directiva d'idioma, que
 	// ha de tancar el prompt (agent.AmbContext).
-	build = func(c string) string { return agent.AmbContext(prompt, plot, fets, c) }
-	return prompt + "\x00" + plot + "\x00" + fets, agent.ContextProjecteExtra(workspace, s.id, s.userSkillsDirs()...), build
+	build = func(c string) string { return agent.AmbContext(prompt, plot, compare, fets, c) }
+	return prompt + "\x00" + plot + "\x00" + compare + "\x00" + fets, agent.ContextProjecteExtra(workspace, s.id, s.userSkillsDirs()...), build
 }
 
 // compactaSiCal resumeix la conversa quan l'estimació passa del llindar de
