@@ -77,7 +77,7 @@ private fun StartFaces(winds: List<Wind>, news: Map<String, Int>, bounce: WindAr
             ) {
                 NewsBounce(bounce?.takeIf { it.wind == w.id }) {
                     Box {
-                        WindHalo(Color(w.argb), w.faceStyle, size = 40, online = false, showKit = false)
+                        WindHalo(Color(w.argb), w.faceStyle, size = 40, online = false, showKit = false, clay = true)
                         NewsBadge(news[w.id] ?: 0, Modifier.align(Alignment.TopEnd).testTag("start-wind-badge-" + w.id))
                     }
                 }

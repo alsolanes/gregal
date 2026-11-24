@@ -218,6 +218,30 @@ tasks.matching { it.name.matches(Regex("merge.*JniLibFolders")) }.configureEach 
     dependsOn(buildGregalBackend)
 }
 
+// Els vents de plastilina (112) viuen un sol cop al repositori, a la carpeta
+// del web: es copien als assets de l'APK (assets/characters/) a cada build.
+// Com a carpeta generada de la variant, tota tasca que llegeix els assets
+// (merge, lint) fa córrer abans la còpia.
+abstract class CopyWindCharacters : DefaultTask() {
+    @get:InputDirectory abstract val from: DirectoryProperty
+    @get:OutputDirectory abstract val out: DirectoryProperty
+
+    @TaskAction fun copy() {
+        val dir = out.get().asFile
+        dir.deleteRecursively()
+        from.get().asFile.copyRecursively(File(dir, "characters"))
+    }
+}
+
+val copyWindCharacters = tasks.register<CopyWindCharacters>("copyWindCharacters") {
+    description = "Copies the clay wind sprite sheets from internal/web/app/characters into the APK assets."
+    from.set(File(repoRoot, "internal/web/app/characters"))
+}
+
+androidComponents {
+    onVariants { variant -> variant.sources.assets?.addGeneratedSourceDirectory(copyWindCharacters, CopyWindCharacters::out) }
+}
+
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2026.06.01"))
     implementation("androidx.compose.ui:ui")

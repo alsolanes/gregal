@@ -354,6 +354,8 @@ fun WindFace(
     modifier: Modifier = Modifier,
     /** El toc, a més del bellugueig de [tappable]: el vent del xat obre el seu perfil. */
     onClick: (() -> Unit)? = null,
+    /** A large face (the chat's, a profile, the home strip) is the clay wind (114) when its sheet is in the APK. */
+    clay: Boolean = false,
 ) {
     val compact = size < 64
     val motionAllowed = windMotionEnabled()
@@ -367,6 +369,9 @@ fun WindFace(
         "rosa" -> return RosaFace(size, mood, accent, style.bearing, motion, packCued)
         "mapa" -> return MapFace(size, mood, accent, style, motion, packCued)
     }
+    // The clay winds have no kits yet: a face that wears its trade keeps the Canvas figure.
+    val wearsKit = (size >= 80 || showKit) && windKits[style.kit] != null
+    if (clay && !wearsKit && WindClayFace(size, mood, accent, style.shape, motion, packCued)) return
     // La forma reacciona quan el dit toca la cara i torna amb molla en deixar-la.
     val touch = if (tappable && motion) remember { MutableInteractionSource() } else null
     val pressScale = if (touch != null) {

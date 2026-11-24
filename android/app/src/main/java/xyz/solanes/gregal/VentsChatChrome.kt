@@ -214,7 +214,7 @@ internal fun BoxScope.WindPresence(perch: WindPerch, up: Boolean, mood: WindMood
     val flight = animateFloatAsState(if (up) 1f else 0f,
         if (motion) spring(dampingRatio = .72f, stiffness = Spring.StiffnessMediumLow) else snap(), label = "wind-flight")
     WindFace(size = WindPresenceSize, mood = mood, accent = accent, style = style, showKit = true, tappable = true,
-        onClick = onClick,
+        onClick = onClick, clay = true,
         modifier = Modifier.align(Alignment.TopStart).graphicsLayer {
             val root = perch.root
             val corner = perch.corner
