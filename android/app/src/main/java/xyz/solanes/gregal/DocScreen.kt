@@ -37,7 +37,24 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ArrowDropDown
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Slideshow
+import androidx.compose.material.icons.rounded.TableChart
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -96,58 +113,96 @@ fun DocScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val open = doc?.takeIf { it.id == ref?.id }
     // Totes les files de la graella es desplacen alhora de costat.
     val sheetScroll = rememberScrollState()
+    // Amb un document obert, enrere torna a l'inici de Docs, com la fletxa de dalt.
+    BackHandler(ref != null) { vm.openDocsHome() }
+    val kind = open?.kind ?: ref?.kind.orEmpty()
     Scaffold(containerColor = Color.Transparent, topBar = {
-        GregalTopBar(open?.title ?: tr(lang, "docs.home"), lang, onMenu = onMenu)
+        if (ref == null) GregalTopBar(tr(lang, "docs.home"), lang, onMenu = onMenu)
+        else GregalTopBar(open?.title ?: ref?.title.orEmpty(), lang, onBack = { vm.openDocsHome() }, subtitle = kindLabel(lang, kind)) {
+            if (open != null) IconButton(onClick = {
+                vm.downloadServerDoc(docExportPath(DocRef(open.id, open.title, open.kind, open.scope)), open.title + "." + docExtension(open.kind))
+            }, modifier = Modifier.testTag("doc-download")) {
+                Icon(Icons.Rounded.Download, tr(lang, downloadKey(open.kind)), tint = Ink)
+            }
+        }
     }) { pad ->
         if (open != null && open.inWebEditor) {
             Column(Modifier.fillMaxSize().padding(pad).imePadding().testTag("doc-screen")) {
-                OutlinedButton(onClick = { vm.downloadServerDoc(docExportPath(DocRef(open.id, open.title, scope = open.scope)), open.title + ".docx") },
-                    modifier = Modifier.padding(horizontal = 16.dp)) {
-                    Text(tr(lang, "docs.download"))
-                }
                 DocWebPage(open, conn.api()) { vm.conn.value.token }
             }
             return@Scaffold
         }
         LazyColumn(Modifier.fillMaxSize().padding(pad).testTag("doc-screen"),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 110.dp)) {
-            if (open != null && open.kind == "sheet") {
-                item(key = "download") {
-                    OutlinedButton(onClick = { vm.downloadServerDoc(docExportPath(DocRef(open.id, open.title, open.kind, open.scope)), open.title + ".xlsx") }) {
-                        Text(tr(lang, "docs.downloadXlsx"))
-                    }
+            when {
+                open != null && open.kind == "sheet" -> sheetView(vm, lang, open, sheetScroll)
+                open != null && open.kind == "deck" -> deckView(vm, lang, open)
+                ref != null -> item(key = "loading") { Text(tr(lang, "docs.loading"), color = Muted, modifier = Modifier.padding(vertical = 12.dp)) }
+                else -> {
+                    item(key = "new") { NewDocRow(vm, lang) }
+                    docSection(vm, lang, "m", tr(lang, "docs.mine"), mine, ref)
+                    if (project != null) docSection(vm, lang, "p", tr(lang, "docs.project", project), docs, ref)
                 }
-                sheetView(vm, lang, open, sheetScroll)
-            } else if (open != null && open.kind == "deck") {
-                item(key = "download") {
-                    OutlinedButton(onClick = { vm.downloadServerDoc(docExportPath(DocRef(open.id, open.title, open.kind, open.scope)), open.title + ".pptx") }) {
-                        Text(tr(lang, "docs.downloadPptx"))
-                    }
-                }
-                deckView(vm, lang, open)
-            } else if (ref != null) {
-                item(key = "loading") { Text(tr(lang, "docs.loading"), color = Muted, modifier = Modifier.padding(vertical = 12.dp)) }
-            } else {
-                item(key = "new") { NewDocRow(vm, lang) }
             }
-            docSection(vm, lang, "m", tr(lang, "docs.mine"), mine, ref)
-            if (project != null) docSection(vm, lang, "p", tr(lang, "docs.project", project), docs, ref)
         }
     }
 }
 
-/** «Document nou»: el títol (o «Document sense títol») i el botó, com a doc-home.js. */
+private fun docExtension(kind: String) = when (kind) { "sheet" -> "xlsx"; "deck" -> "pptx"; else -> "docx" }
+private fun downloadKey(kind: String) = when (kind) { "sheet" -> "docs.downloadXlsx"; "deck" -> "docs.downloadPptx"; else -> "docs.download" }
+private fun kindLabel(lang: String, kind: String) = when (kind) {
+    "deck" -> tr(lang, "docs.kind.deck"); "sheet" -> tr(lang, "docs.kind.sheet"); else -> tr(lang, "docs.kind.doc")
+}
+
+/** La icona de cada tipus, la mateixa a l'inici, a la llista i a la targeta del xat. */
+private fun kindIcon(kind: String): ImageVector = when (kind) {
+    "sheet" -> Icons.Rounded.TableChart; "deck" -> Icons.Rounded.Slideshow; else -> Icons.Rounded.Description
+}
+
+/** El to de cada tipus, viu en tots dos temes (blau, verd i taronja, com els gràfics). */
+@Composable
+private fun kindTint(kind: String): Color {
+    val dark = LocalPal.current.dark
+    return when (kind) {
+        "sheet" -> if (dark) Color(0xFF7FD6C2) else Color(0xFF0E7C66)
+        "deck" -> if (dark) Color(0xFFF2B48E) else Color(0xFFC4622D)
+        else -> if (dark) Color(0xFF8A9BF0) else Color(0xFF2F6FD6)
+    }
+}
+
+/** La icona del tipus dins d'un quadrat arrodonit del seu to. */
+@Composable
+private fun KindBadge(kind: String, size: Dp = 40.dp) {
+    val tint = kindTint(kind)
+    Box(Modifier.size(size).background(tint.copy(alpha = 0.16f), RoundedCornerShape(size * 0.3f)), contentAlignment = Alignment.Center) {
+        Icon(kindIcon(kind), null, tint = tint, modifier = Modifier.size(size * 0.55f))
+    }
+}
+
+/** «Crea»: el títol (opcional; sense, «Document sense títol», com a doc-home.js) i una targeta per tipus. */
 @Composable
 private fun NewDocRow(vm: GregalViewModel, lang: String) {
     var title by remember { mutableStateOf("") }
-    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        OutlinedTextField(title, { title = it }, Modifier.weight(1f).testTag("doc-new-title"), singleLine = true,
-            placeholder = { Text(tr(lang, "docs.newTitle")) })
-        Button(onClick = { vm.newDoc(title) }, modifier = Modifier.padding(start = 8.dp).testTag("doc-new")) { Text(tr(lang, "docs.new")) }
-    }
-    Row {
-        OutlinedButton(onClick = { vm.newDoc(title, "sheet") }, modifier = Modifier.testTag("doc-new-sheet")) { Text(tr(lang, "docs.newSheet")) }
-        OutlinedButton(onClick = { vm.newDoc(title, "deck") }, modifier = Modifier.padding(start = 8.dp).testTag("doc-new-deck")) { Text(tr(lang, "docs.newDeck")) }
+    Text(tr(lang, "docs.create").uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp,
+        modifier = Modifier.padding(top = 8.dp, bottom = 8.dp))
+    OutlinedTextField(title, { title = it }, Modifier.fillMaxWidth().testTag("doc-new-title"), singleLine = true,
+        shape = RoundedCornerShape(14.dp), placeholder = { Text(tr(lang, "docs.newTitle")) })
+    Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        for ((kind, key, tag) in listOf(Triple("doc", "docs.new", "doc-new"), Triple("sheet", "docs.newSheet", "doc-new-sheet"),
+            Triple("deck", "docs.newDeck", "doc-new-deck"))) {
+            Surface(onClick = { vm.newDoc(title, kind) }, shape = RoundedCornerShape(16.dp), color = SuperficieOpaca,
+                border = BorderStroke(1.dp, Line), modifier = Modifier.weight(1f).semantics { contentDescription = tr(lang, key) }.testTag(tag)) {
+                Column(Modifier.padding(horizontal = 12.dp, vertical = 14.dp)) {
+                    KindBadge(kind, 36.dp)
+                    Text(kindLabel(lang, kind), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
+                    Row(Modifier.padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Add, null, tint = kindTint(kind), modifier = Modifier.size(14.dp))
+                        Text(tr(lang, "docs.createShort"), color = Muted, fontSize = 12.sp, modifier = Modifier.padding(start = 2.dp))
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -155,9 +210,20 @@ private fun NewDocRow(vm: GregalViewModel, lang: String) {
 private fun LazyListScope.deckView(vm: GregalViewModel, lang: String, d: LiveDoc) {
     val e = d.edit
     if (d.blocks.isEmpty()) item(key = "deck-empty") { Text(tr(lang, "docs.deckEmpty"), color = Muted, modifier = Modifier.padding(vertical = 12.dp)) }
-    items(d.blocks, key = { "s:" + it.id }) { b ->
-        if (e?.id == b.id) SlideForm(vm, e, lang)
-        else Box(Modifier.padding(vertical = 6.dp).clickable { vm.editDocBlock(b.id) }) { SlideCard(b.slide) }
+    itemsIndexed(d.blocks, key = { _, b -> "s:" + b.id }) { i, b ->
+        Column(Modifier.padding(vertical = 8.dp)) {
+            // El número de la diapositiva i el seu layout, a sobre, com al panell de la web.
+            Row(Modifier.padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(22.dp).background(kindTint("deck").copy(alpha = 0.18f), CircleShape), contentAlignment = Alignment.Center) {
+                    Text("${i + 1}", color = kindTint("deck"), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+                val layout = slideText(b.slide, "layout")
+                Text(tr(lang, "docs.layout.$layout").takeIf { layout in slideLayouts } ?: layout, color = Muted, fontSize = 12.sp,
+                    modifier = Modifier.padding(start = 8.dp))
+            }
+            if (e?.id == b.id) SlideForm(vm, e, lang)
+            else Box(Modifier.clip(RoundedCornerShape(12.dp)).clickable { vm.editDocBlock(b.id) }) { SlideCard(b.slide) }
+        }
     }
     item(key = "deck-add") { NewSlideRow(vm, lang) }
 }
@@ -167,16 +233,26 @@ private fun LazyListScope.deckView(vm: GregalViewModel, lang: String, d: LiveDoc
 private fun NewSlideRow(vm: GregalViewModel, lang: String) {
     var layout by remember { mutableStateOf("content") }
     var menu by remember { mutableStateOf(false) }
-    Row(Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box {
-            OutlinedButton(onClick = { menu = true }, modifier = Modifier.semantics { contentDescription = tr(lang, "docs.slideLayout") }) {
-                Text(tr(lang, "docs.layout.$layout"))
+    Surface(shape = RoundedCornerShape(14.dp), color = Color.Transparent, border = BorderStroke(1.dp, LineHi),
+        modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
+        Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) {
+                Surface(onClick = { menu = true }, shape = RoundedCornerShape(10.dp), color = SuperficieAlta,
+                    modifier = Modifier.semantics { contentDescription = tr(lang, "docs.slideLayout") }) {
+                    Row(Modifier.padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(tr(lang, "docs.layout.$layout"), color = Ink, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Icon(Icons.Rounded.ArrowDropDown, null, tint = Muted)
+                    }
+                }
+                DropdownMenu(menu, { menu = false }) {
+                    for (k in slideLayouts) DropdownMenuItem(text = { Text(tr(lang, "docs.layout.$k")) }, onClick = { layout = k; menu = false })
+                }
             }
-            DropdownMenu(menu, { menu = false }) {
-                for (k in slideLayouts) DropdownMenuItem(text = { Text(tr(lang, "docs.layout.$k")) }, onClick = { layout = k; menu = false })
+            Button(onClick = { vm.addSlide(layout) }, modifier = Modifier.padding(start = 8.dp).testTag("deck-add")) {
+                Icon(Icons.Rounded.Add, null, modifier = Modifier.size(18.dp))
+                Text(tr(lang, "docs.newSlide"), modifier = Modifier.padding(start = 4.dp))
             }
         }
-        Button(onClick = { vm.addSlide(layout) }, modifier = Modifier.padding(start = 8.dp).testTag("deck-add")) { Text(tr(lang, "docs.newSlide")) }
     }
 }
 
@@ -194,8 +270,8 @@ private fun SlideCard(s: JsonObject?) {
     val bg = when (layout) { "section" -> SlideHead; "title", "closing" -> SlideSub; else -> Color.White }
     val ink = if (cover) Color(0xFFEAF1F8) else SlideInk
     val title = slideText(s, "title")
-    Column(Modifier.fillMaxWidth().aspectRatio(16f / 9f).shadow(2.dp, RoundedCornerShape(4.dp)).background(bg, RoundedCornerShape(4.dp))
-        .clip(RoundedCornerShape(4.dp)).padding(horizontal = 22.dp, vertical = 16.dp).testTag("slide"),
+    Column(Modifier.fillMaxWidth().aspectRatio(16f / 9f).shadow(6.dp, RoundedCornerShape(12.dp)).background(bg, RoundedCornerShape(12.dp))
+        .clip(RoundedCornerShape(12.dp)).padding(horizontal = 22.dp, vertical = 16.dp).testTag("slide"),
         verticalArrangement = if (cover) Arrangement.Center else Arrangement.Top) {
         if (cover) {
             Text(title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, lineHeight = 26.sp)
@@ -281,15 +357,23 @@ private fun LazyListScope.sheetView(vm: GregalViewModel, lang: String, d: LiveDo
     val s = d.shownSheet()
     val e = d.edit?.takeIf { it.cell.isNotEmpty() }
     item(key = "sheet-tabs") {
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        val tint = kindTint("sheet")
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             for (b in d.blocks) {
                 val on = b.id == s?.id
-                Surface(onClick = { vm.showSheet(b.id) }, shape = RoundedCornerShape(8.dp), color = if (on) SuperficieOpaca else Color.Transparent,
-                    border = BorderStroke(1.dp, if (on) Sea else Line), modifier = Modifier.padding(end = 6.dp).testTag("sheet-tab")) {
-                    Text(b.name, color = if (on) Sea else Ink, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+                Surface(onClick = { vm.showSheet(b.id) }, shape = RoundedCornerShape(50), color = if (on) tint.copy(alpha = 0.18f) else Color.Transparent,
+                    modifier = Modifier.padding(end = 6.dp).testTag("sheet-tab")) {
+                    Text(b.name, color = if (on) tint else Muted, fontSize = 13.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp))
                 }
             }
-            OutlinedButton(onClick = { vm.addSheet() }, modifier = Modifier.testTag("sheet-add")) { Text(tr(lang, "docs.addSheet")) }
+            Surface(onClick = { vm.addSheet() }, shape = RoundedCornerShape(50), color = Color.Transparent, border = BorderStroke(1.dp, Line),
+                modifier = Modifier.testTag("sheet-add")) {
+                Row(Modifier.padding(start = 10.dp, end = 14.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Add, null, tint = Muted, modifier = Modifier.size(16.dp))
+                    Text(tr(lang, "docs.addSheet"), color = Muted, fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp))
+                }
+            }
         }
     }
     if (s == null) {
@@ -298,22 +382,31 @@ private fun LazyListScope.sheetView(vm: GregalViewModel, lang: String, d: LiveDo
     }
     if (e != null) item(key = "cell-editor") { CellEditor(vm, d, e, lang) }
     val (cols, rows) = sheetSize(s)
+    // La columna i la fila de la cel·la triada es ressalten a les capçaleres.
+    val sel = e?.takeIf { it.id == s.id }?.cell.orEmpty()
+    val selCol = sel.takeWhile { it.isLetter() }
+    val selRow = sel.dropWhile { it.isLetter() }
     item(key = "sheet-head") {
         Row {
-            SheetHead("", RowHeadWidth)
-            Row(Modifier.horizontalScroll(hs)) { repeat(cols) { SheetHead(sheetColumn(it), CellWidth) } }
+            SheetHead("", RowHeadWidth, false)
+            Row(Modifier.horizontalScroll(hs)) { repeat(cols) { SheetHead(sheetColumn(it), CellWidth, sheetColumn(it) == selCol) } }
         }
     }
     items((1..rows).toList(), key = { "r:$it" }) { r ->
+        val tint = kindTint("sheet")
         Row {
-            SheetHead("$r", RowHeadWidth)
+            SheetHead("$r", RowHeadWidth, "$r" == selRow)
             Row(Modifier.horizontalScroll(hs)) {
                 repeat(cols) { c ->
                     val name = sheetColumn(c) + r
-                    val on = e?.id == s.id && e.cell == name
-                    Text(s.values[name] ?: s.cells[name].orEmpty(), color = Ink, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.size(CellWidth, CellHeight).border(if (on) 2.dp else 0.5.dp, if (on) Sea else Line)
-                            .clickable { vm.editCell(s.id, name) }.padding(horizontal = 6.dp, vertical = 9.dp).testTag("cell-$name"))
+                    val on = sel == name
+                    val shown = s.values[name] ?: s.cells[name].orEmpty()
+                    // Els números a la dreta, com a qualsevol full de càlcul.
+                    Text(shown, color = Ink, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        textAlign = if (shown.toDoubleOrNull() != null) TextAlign.End else TextAlign.Start,
+                        modifier = Modifier.size(CellWidth, CellHeight).background(if (on) tint.copy(alpha = 0.10f) else Color.Transparent)
+                            .border(if (on) 2.dp else 0.5.dp, if (on) tint else Line)
+                            .clickable { vm.editCell(s.id, name) }.padding(horizontal = 8.dp, vertical = 9.dp).testTag("cell-$name"))
                 }
             }
         }
@@ -322,9 +415,11 @@ private fun LazyListScope.sheetView(vm: GregalViewModel, lang: String, d: LiveDo
 
 /** La lletra d'una columna o el número d'una fila. */
 @Composable
-private fun SheetHead(text: String, width: Dp) {
-    Box(Modifier.size(width, CellHeight).border(0.5.dp, Line), contentAlignment = Alignment.Center) {
-        Text(text, color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+private fun SheetHead(text: String, width: Dp, on: Boolean) {
+    val tint = kindTint("sheet")
+    Box(Modifier.size(width, CellHeight).background(if (on) tint.copy(alpha = 0.22f) else SuperficieAlta).border(0.5.dp, Line),
+        contentAlignment = Alignment.Center) {
+        Text(text, color = if (on) tint else Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -339,24 +434,47 @@ private fun CellEditor(vm: GregalViewModel, d: LiveDoc, e: DocEdit, lang: String
         }
         val focus = remember { FocusRequester() }
         LaunchedEffect(e.id, e.cell) { focus.requestFocus() }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(e.text, vm::typeDocBlock, Modifier.weight(1f).focusRequester(focus), enabled = !e.saving, singleLine = true,
-                label = { Text(sheet + "!" + e.cell) })
-            Button(onClick = { vm.saveDocBlock(false) }, enabled = !e.saving, modifier = Modifier.padding(start = 8.dp)) { Text(tr(lang, "docs.save")) }
+        val tint = kindTint("sheet")
+        // La barra de fórmules: la cel·la, «fx», l'entrada (la fórmula, no el valor) i desar.
+        Surface(shape = RoundedCornerShape(14.dp), color = SuperficieOpaca, border = BorderStroke(1.dp, LineHi)) {
+            Row(Modifier.padding(start = 8.dp, end = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.background(tint.copy(alpha = 0.16f), RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 5.dp)
+                    .semantics { contentDescription = sheet + "!" + e.cell }) {
+                    Text(e.cell, color = tint, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                }
+                Text("fx", color = Muted, fontSize = 15.sp, fontStyle = FontStyle.Italic, fontFamily = FontFamily.Serif,
+                    modifier = Modifier.padding(start = 10.dp))
+                TextField(e.text, vm::typeDocBlock, Modifier.weight(1f).focusRequester(focus), enabled = !e.saving, singleLine = true,
+                    textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 15.sp, color = Ink),
+                    colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent,
+                        disabledContainerColor = Color.Transparent, focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent, disabledIndicatorColor = Color.Transparent))
+                IconButton(onClick = { vm.saveDocBlock(false) }, enabled = !e.saving, modifier = Modifier.testTag("cell-save")) {
+                    Icon(Icons.Rounded.Check, tr(lang, "docs.save"), tint = tint)
+                }
+            }
         }
     }
 }
 
 private fun LazyListScope.docSection(vm: GregalViewModel, lang: String, key: String, title: String, items: List<DocRef>, open: DocRef?) {
     item(key = "h:$key") {
-        Text(title.uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(top = 20.dp, bottom = 6.dp))
+        Text(title.uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp,
+            modifier = Modifier.padding(top = 24.dp, bottom = 8.dp))
         if (items.isEmpty()) Text(tr(lang, "docs.none"), color = Muted, fontSize = 14.sp)
     }
     items(items, key = { "$key:" + it.id }) { d ->
-        Column(Modifier.fillMaxWidth().clickable { vm.openDoc(d) }.padding(vertical = 8.dp)) {
-            Text(d.title, color = if (d.id == open?.id && d.scope == open.scope) Sea else Ink, fontSize = 15.sp)
-            Text(when (d.kind) { "doc" -> tr(lang, "docs.kind.doc"); "deck" -> tr(lang, "docs.kind.deck"); "sheet" -> tr(lang, "docs.kind.sheet"); else -> d.kind }, color = Muted, fontSize = 12.sp)
+        val on = d.id == open?.id && d.scope == open.scope
+        Surface(onClick = { vm.openDoc(d) }, shape = RoundedCornerShape(14.dp), color = SuperficieOpaca,
+            border = BorderStroke(1.dp, if (on) Sea else Line), modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                KindBadge(d.kind)
+                Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                    Text(d.title, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(kindLabel(lang, d.kind), color = Muted, fontSize = 12.sp)
+                }
+                Icon(Icons.Rounded.ChevronRight, null, tint = Muted)
+            }
         }
     }
 }
@@ -405,7 +523,7 @@ fun DocCard(d: DocRef, lang: String, onOpen: () -> Unit) {
     Surface(onClick = onOpen, shape = RoundedCornerShape(14.dp), color = SuperficieOpaca, border = BorderStroke(1.dp, Line),
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).testTag("doc-card")) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Rounded.Description, null, tint = Sea)
+            KindBadge(d.kind)
             Column(Modifier.padding(start = 12.dp)) {
                 Text(d.title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                 Text(tr(lang, "docs.card"), color = Muted, fontSize = 12.sp)
