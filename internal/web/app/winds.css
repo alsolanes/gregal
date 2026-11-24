@@ -346,6 +346,21 @@
 .winds-face[data-mood=news] .wf-figure { animation:wf-hello 4s ease-in-out var(--wf-phase,0s) infinite; }
 .winds-face[data-mood=news] .wf-tool { animation:wf-twinkle 2s ease-in-out var(--wf-phase,0s) infinite; }
 .winds-face[data-mood=done] .wf-figure { animation:wf-breathe 4s ease-in-out var(--wf-phase,0s) infinite, wf-hop 1.1s ease-in-out var(--wf-since,0s) 1; }
+/* 117 Minairó: the barretina tip bobs and the beard sways a beat behind the
+   body. Working is the restless «Què farem?» shuffle; done flies the tip up on
+   the hop and lifts the beard. Under reduced motion all of it stands still. */
+.winds-face .wf-tip { transform-box:fill-box; transform-origin:42% 12%; animation:wf-tip 4s ease-in-out var(--wf-phase,0s) infinite; }
+.winds-face .wf-beard { transform-box:fill-box; transform-origin:50% 0; animation:wf-beard 4s ease-in-out calc(var(--wf-phase,0s) - .5s) infinite; }
+.winds-face[data-avatar=minairo][data-mood=working] .wf-figure { animation:wf-restless .8s ease-in-out var(--wf-phase,0s) infinite; }
+.winds-face[data-avatar=minairo]:is([data-mood=working],[data-mood=writing],[data-mood=searching]) .wf-tip { animation:wf-tip .8s ease-in-out var(--wf-phase,0s) infinite; }
+.winds-face[data-avatar=minairo][data-mood=working] .wf-beard { animation:wf-beard .4s ease-in-out calc(var(--wf-phase,0s) - .1s) infinite; }
+.winds-face[data-mood=done] .wf-tip { animation:wf-tip 4s ease-in-out var(--wf-phase,0s) infinite, wf-fly 1.1s ease-in-out var(--wf-since,0s) 1; }
+.winds-face[data-mood=done] .wf-beard { animation:wf-beard 4s ease-in-out var(--wf-phase,0s) infinite, wf-flutter 1.1s ease-in-out var(--wf-since,0s) 1; }
+@keyframes wf-tip { 0%,100% { transform:rotate(-3deg); } 50% { transform:rotate(5deg); } }
+@keyframes wf-beard { 0%,100% { transform:rotate(2deg); } 50% { transform:rotate(-2deg); } }
+@keyframes wf-restless { 0%,50%,100% { transform:translate(0px,0px) rotate(0deg) scale(1.03,.97); } 25% { transform:translate(-1.6px,-3px) rotate(-5deg) scale(.98,1.03); } 75% { transform:translate(1.6px,-3px) rotate(5deg) scale(.98,1.03); } }
+@keyframes wf-fly { 0%,100% { transform:rotate(0deg); } 16% { transform:rotate(8deg); } 40% { transform:rotate(-40deg); } 60% { transform:rotate(12deg); } 74% { transform:rotate(-7deg); } 87% { transform:rotate(3deg); } }
+@keyframes wf-flutter { 0%,100% { transform:scale(1,1); } 16% { transform:scale(1.05,.94); } 40% { transform:scale(.94,.86); } 60% { transform:scale(1.04,1.06); } 78% { transform:scale(.99,.98); } }
 .winds-face[data-mood=done] .wf-pop { animation:wf-pop .5s cubic-bezier(.3,1.6,.5,1) var(--wf-since,0s) 1 backwards; }
 /* Esperit de vent: the tails sway around the head and it drifts downwind. The
    idle loop exists only when winds.js drew the face with motion allowed

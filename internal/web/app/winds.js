@@ -411,7 +411,7 @@
   const num = value => +value.toFixed(2);
   // Avatar packs: the account's theme draws every wind with one pack, or 'free'
   // lets each wind use its own `avatar` (empty is Cares). The server keeps both.
-  const packs = ['cares', 'esperit', 'cap', 'rosa', 'mapa'];
+  const packs = ['cares', 'esperit', 'cap', 'rosa', 'mapa', 'minairo'];
   let theme = 'cares';
   function setAvatarTheme(value) { theme = value === 'free' || packs.includes(value) ? value : 'cares'; }
   function avatarPack(w) { return theme !== 'free' ? theme : packs.includes(w.avatar) ? w.avatar : 'cares'; }
@@ -661,6 +661,112 @@
     mapWatch(svg);
     return svg;
   }
+  // Minairó (117): the tiny tireless helper of Pyrenean folklore, drawn our own
+  // way. A round body in the wind's colour, modelled like Cares, under a long
+  // soft white beard and a red barretina whose tube folds over to one side; the
+  // 110 eyes peek out between the two, and tiny feet stick out below. Each wind
+  // its own: the mouth style sets the beard length, the shape a round, plump or
+  // slim body, the direction the side the tip falls to (downwind; north and
+  // south by the seed), and the seed one thing from the legend: the boxwood
+  // needle case they live in, the St John's wort they are born from, or a
+  // pebble. Under 28 px only the silhouette is left: barretina, beard, eyes.
+  const barretina = '#C9342C', beardTop = '#FFFDF7', beardBottom = '#E2DACD', boxwood = '#D9B26A', wort = '#F4C431', leaf = '#6C9A3E', pebbleGrey = '#A8A39B';
+  function minairo(svg, w, s, fill, ink, large, small, seed) {
+    const full = !!large, id = 'wf' + (++faceSerial), defs = svgNode('defs', {}), url = suffix => 'url(#' + id + suffix + ')', space = { gradientUnits:'userSpaceOnUse' };
+    const [rx, ry, cy] = { o:[24, 23.5, 49], n:[26.5, 22, 50.5], s:[22, 25, 48] }[s[2]], top = cy - ry, R = Math.max(rx, ry);
+    const L = small ? 67 : { n:63.5, s:67.5, o:71, t:74.5 }[s[1]], deg = direction(w), fold = deg % 180 ? (deg < 180 ? -1 : 1) : seed % 2 ? 1 : -1;
+    const deep = mix(fill, '#1B1530', .4), core = mix(fill, '#1B1530', .6), band = mix(barretina, '#1B1530', .55), crease = mix(beardBottom, '#1B1530', .25);
+    const mouthInk = mix(barretina, '#1B1530', .65), nose = mix(fill, '#E4577A', .5), mirror = { transform:'matrix(-1 0 0 1 80 0)' };
+    defs.append(
+      shapes(svgNode('radialGradient', { id:id + 'v', ...space, cx:num(40 - .38 * rx), cy:num(cy - .5 * ry), r:num(1.9 * R) }), stops([[0, mix(fill, '#FFFFFF', .3), 1], [.45, fill, 1], [1, deep, 1]])),
+      shapes(svgNode('radialGradient', { id:id + 'h', cx:.3, cy:.2, r:.95 }), stops([[0, mix(barretina, '#FFFFFF', .3), 1], [.5, barretina, 1], [1, mix(barretina, '#1B1530', .35), 1]])),
+      shapes(svgNode('linearGradient', { id:id + 'f', x1:0, y1:0, x2:.25, y2:1 }), stops([[0, beardTop, 1], [.55, beardTop, 1], [1, beardBottom, 1]])),
+      shapes(svgNode('radialGradient', { id:id + 'q', cx:.35, cy:.3, r:.7 }), stops([[0, mix(nose, '#FFFFFF', .45), 1], [1, nose, 1]])),
+      shapes(svgNode('radialGradient', { id:id + 'b' }), stops([[0, '#E4577A', .45], [1, '#E4577A', 0]])),
+      shapes(svgNode('radialGradient', { id:id + 'i', cy:.4 }), stops([[0, core, .4], [1, core, 0]])),
+      shapes(svgNode('clipPath', { id:id + 'c' }), [['ellipse', { cx:40, cy, rx, ry }]]));
+    svg.append(defs);
+    svg.setAttribute('data-avatar', 'minairo');
+    if (large === true) {
+      const ground = mix(fill, '#0B0C14', .72);
+      defs.append(shapes(svgNode('radialGradient', { id:id + 'g' }), stops([[0, ground, .5], [1, ground, 0]])));
+      shapes(svg, [['ellipse', { class:'wf-ground', cx:40, cy:73, rx:22, ry:4.2, fill:url('g') }]]);
+    }
+    const head = group(group(group(svg, 'wf-pose'), 'wf-figure'), '', full ? { transform:'translate(4 3) scale(.9)' } : {});
+    // Accessories are drawn on the right and mirrored to the side away from the tip.
+    const away = fold > 0 ? mirror : {}, thing = small ? -1 : seed % 3;
+    if (thing === 2) shapes(group(head, 'wf-pedra', away), [['ellipse', { cx:num(40 + rx + 5), cy:num(cy + ry - 2), rx:5.2, ry:3.8, fill:pebbleGrey }],
+      ['ellipse', { cx:num(40 + rx + 3.6), cy:num(cy + ry - 3.6), rx:2.2, ry:1.1, fill:'#FFFFFF', opacity:.45 }]]);
+    shapes(head, [-1, 1].map(side => ['ellipse', { class:'wf-foot wf-foot-' + (side < 0 ? 'l' : 'r'), cx:num(40 + side * .42 * rx), cy:num(cy + ry - .5), rx:5.6, ry:3.4, fill:deep }]));
+    shapes(head, [['ellipse', { class:'wf-body', cx:40, cy, rx, ry, fill:url('v') }]]);
+    shapes(group(head, '', { 'clip-path':url('c') }), [...relief(defs, id, fill, 40, cy, rx, ry, small).filter(([, a]) => a.class === 'wf-shade' || a.class === 'wf-rim'),
+      // The barretina sits into the head and shades the brow under it.
+      ['ellipse', { cx:40, cy:num(top + 11), rx:num(rx * .9), ry:3.6, fill:core, opacity:.28 }]]);
+    shapes(head, [-1, 1].map(side => ['ellipse', { cx:num(40 + side * .66 * rx), cy:num(cy - 3.5), rx:4.6, ry:3.2, fill:url('b') }]));
+    eyePair(head, defs, id, { s, fill, ink, volume:url('v'), inset:full && url('i'), small, xs:[num(40 - .34 * rx), num(40 + .34 * rx)], y:cy - 10, k:.84 });
+    // The beard's right half as cubic segments from under the nose to the tip,
+    // in (share of the body's half width, y); the left half goes back mirrored.
+    const beard = group(head, 'wf-beard'), pt = (f, y) => num(40 + f * rx) + ' ' + num(y);
+    const half = side => [[[.28, cy - .5], [.58, cy - 1], [.82, cy - 5.5]], [[.94, cy + 1], [.84, L - 12], [.58, L - 5.5]], [[.47, L - 2.5], [.34, L - 4], [.25, L - 2]], [[.16, L], [.07, L], [0, L + .8]]]
+      .map(c => c.map(([f, y]) => pt(side * f, y)));
+    const right = half(1), left = half(-1);
+    shapes(beard, [['path', { d:`M${pt(0, cy - 2.5)}` + right.map(c => 'C' + c.join(' ')).join('') + [3, 2, 1, 0].map(i => `C${left[i][1]} ${left[i][0]} ${i ? left[i - 1][2] : pt(0, cy - 2.5)}`).join('') + 'Z', fill:url('f') }]]);
+    if (!small) shapes(beard, [['path', { d:[-.4, 0, .4].map(f => `M${pt(f, cy + 7)}Q${pt(f * 1.15, (cy + L) / 2)} ${pt(f * .55, L - 6)}`).join(''), fill:'none', stroke:crease, 'stroke-width':1, 'stroke-linecap':'round', opacity:.6 }]]);
+    const mouth = group(beard, 'wf-mouth');
+    if (s[1] === 'o') shapes(mouth, [['ellipse', { cx:40, cy:cy + 5.4, rx:2.6, ry:2.4, fill:mouthInk }]]);
+    else shapes(mouth, [['path', { d:s[1] === 'n' ? `M37.6 ${cy + 5.2}h4.8` : `M37.2 ${cy + 4.4}q2.8 3 5.6 0`, fill:'none', stroke:mouthInk, 'stroke-width':1.8, 'stroke-linecap':'round' }]]);
+    shapes(group(beard, 'wf-worry', { display:'none' }), [['path', { d:`M36.8 ${cy + 6}q1.6-1.6 3.2 0t3.2 0`, fill:'none', stroke:mouthInk, 'stroke-width':1.8, 'stroke-linecap':'round' }]]);
+    // The moustache: two soft lobes from under the nose, over the mouth.
+    shapes(beard, [-1, 1].map(side => ['path', { d:`M${pt(0, cy - 1.8)}C${pt(side * .2, cy - 5.4)} ${pt(side * .6, cy - 4.6)} ${pt(side * .66, cy + .2)}C${pt(side * .52, cy + 3.2)} ${pt(side * .2, cy + 2.8)} ${pt(0, cy + .6)}Z`, fill:beardTop, stroke:crease, 'stroke-width':small ? 0 : .8 }]));
+    shapes(head, [['circle', { cx:40, cy:num(cy - 2.6), r:small ? 4.4 : 3.8, fill:url('q') }]]);
+    // The barretina, drawn for the round body and fitted to this one: a low
+    // crown, and the tube rising off it, folding over and hanging by the head.
+    const cap = group(head, 'wf-barretina', { transform:`translate(40 ${num(top - 25.5)}) scale(${num(rx / 24)} 1) translate(-40 0)` });
+    shapes(cap, [['path', { d:'M17 32C17.5 22 27.5 16 40 16S62.5 22 63 32Z', fill:url('h') }]]);
+    shapes(group(group(cap, '', fold < 0 ? mirror : {}), 'wf-tip'), [
+      ['path', { d:'M30 18C28.5 8.5 33 1.5 42.5 1C52.5 .5 60.5 5 64 12.5C67 18.5 68 27 67 34.5C66.6 37.6 62.8 37.8 62.5 34.5C62.2 29 60.5 23.5 57 20C54.5 17.5 51.5 16.5 49 16.5C43 16 36 16.5 30 18Z', fill:url('h') }],
+      // The hanging part turns away from the light and lies on the crown.
+      ['path', { d:'M64 12.5C67 18.5 68 27 67 34.5C66.6 37.6 62.8 37.8 62.5 34.5C62.2 29 60.5 23.5 57 20Z', fill:band, opacity:.32 }],
+      ...small ? [] : [['path', { d:'M62.5 34.5C62.2 29 60.5 23.5 57 20C54.5 17.5 51.5 16.5 49 16.5', fill:'none', stroke:band, 'stroke-width':1.2, 'stroke-linecap':'round', opacity:.6 }]]]);
+    shapes(cap, [['path', { class:'wf-band', d:'M15.5 37.5C19 32 29 30.5 40 30.5S61 32 64.5 37.5L63.5 31C59.5 26.5 50 24.5 40 24.5S20.5 26.5 16.5 31Z', fill:band }],
+      ...small ? [] : [['path', { d:'M17.5 31.2C22 27.6 31 26 40 26S58 27.6 62.5 31.2', fill:'none', stroke:'#FFFFFF', 'stroke-width':.9, 'stroke-linecap':'round', opacity:.25 }]]]);
+    if (thing === 1) shapes(group(cap, 'wf-herba', away), [['path', { d:'M58 30C61 24 63 19 67 14.5', fill:'none', stroke:leaf, 'stroke-width':1.4, 'stroke-linecap':'round' }],
+      ['ellipse', { cx:62.6, cy:22.5, rx:3, ry:1.3, transform:'rotate(-40 62.6 22.5)', fill:leaf }], ['ellipse', { cx:65.4, cy:20.2, rx:2.6, ry:1.1, transform:'rotate(25 65.4 20.2)', fill:leaf }],
+      ...[0, 72, 144, 216, 288].map(a => ['ellipse', { cx:67, cy:11.9, rx:1.5, ry:2.4, transform:`rotate(${a} 67 14.5)`, fill:wort }]), ['circle', { cx:67, cy:14.5, r:1.3, fill:mix(wort, barretina, .4) }]]);
+    // The needle case stands by its feet, as tall as half of it.
+    if (thing === 0) shapes(group(group(head, 'wf-canut', away), '', { transform:`translate(${num(40 + rx + 4.5)} ${num(cy + ry - 9)}) rotate(8)` }), [
+      ['rect', { x:-3.4, y:-9, width:6.8, height:18, rx:3, fill:boxwood }], ['rect', { x:-3.7, y:-10, width:7.4, height:4, rx:1.8, fill:mix(boxwood, '#1B1530', .35) }],
+      ['path', { d:'M-1.5-4v10', stroke:'#FFFFFF', 'stroke-width':1.2, 'stroke-linecap':'round', opacity:.45 }], ['path', { d:'M-3.4 3h6.8', stroke:mix(boxwood, '#1B1530', .2), 'stroke-width':.8 }]]);
+    return svg;
+  }
+  // Big glossy eyes carry the mood (110). The eye style sets their shape (tall,
+  // big, a star catchlight, or calm and low); every eye has an upper lid that
+  // closes and slants and a lower lid that rises into a happy arc, both in the
+  // body's own paint and cut to the eye, so the eye itself changes shape. A
+  // small face keeps one bold catchlight and no glow. `k` scales them for a
+  // smaller head; `inset` is the soft socket the whole figure draws.
+  function eyePair(head, defs, id, { s, fill, ink, volume, inset, small, xs, y, k = 1 }) {
+    const [ex, ey0, edy] = { p:[5.8, 8, 0], b:[7.2, 8.6, 0], e:[6.2, 7.8, 0], m:[6.8, 5.8, 1.6] }[s[0]], erx = num(k * ex * (small ? 1.12 : 1)), ery = num(k * ey0 * (small ? 1.08 : 1));
+    const lash = mix(fill, '#1B1530', .45), shine = ink === darkInk ? '#FFFFFF' : fill, iris = 'url(#' + id + 'y)';
+    defs.append(shapes(svgNode('radialGradient', { id:id + 'y', cy:.85, r:.6 }), stops([[0, mix(fill, '#FFFFFF', .2), .7], [1, fill, 0]])));
+    const eyes = group(group(group(head, 'wf-aim'), 'wf-gaze'), 'wf-eyes'), ey = num(y + k * edy);
+    xs.forEach((x, i) => {
+      const eye = { cx:x, cy:ey, rx:erx, ry:ery }, h = 2 * ery + 2;
+      defs.append(shapes(svgNode('clipPath', { id:id + 'e' + i }), [['ellipse', eye]]));
+      if (inset) shapes(eyes, [['ellipse', { cx:x, cy:num(ey - .6), rx:num(erx + 1.2), ry:num(ery + 1.4), fill:inset }]]);
+      const cut = group(eyes, '', { 'clip-path':'url(#' + id + 'e' + i + ')' });
+      shapes(cut, [['ellipse', { ...eye, fill:ink }], ...small ? [] : [['ellipse', { cx:x, cy:num(ey + .45 * ery), rx:num(.9 * erx), ry:num(.6 * ery), fill:iris }]]]);
+      const cx = num(x + .3 * erx), cy = num(ey - .38 * ery), r = num((small ? .42 : .34) * erx);
+      shapes(cut, s[0] === 'e' && !small
+        ? [['path', { d:`M${cx} ${num(cy - 2 * r)}Q${cx} ${cy} ${num(cx + 2 * r)} ${cy}Q${cx} ${cy} ${cx} ${num(cy + 2 * r)}Q${cx} ${cy} ${num(cx - 2 * r)} ${cy}Q${cx} ${cy} ${cx} ${num(cy - 2 * r)}Z`, fill:shine }]]
+        : [['circle', { cx, cy, r, fill:shine }]]);
+      if (!small) shapes(cut, [['circle', { cx:num(x - .32 * erx), cy:num(ey + .42 * ery), r:num(.15 * erx), fill:shine, opacity:.7 }]]);
+      // The lid's edge is a soft crease in the body's deep tone, so it reads as a lid.
+      shapes(group(cut, 'wf-lid wf-lid-' + (i ? 'r' : 'l')), [['rect', { x:num(x - 1.6 * erx), y:num(ey - ery - h), width:num(3.2 * erx), height:h, fill:volume }],
+        ['path', { d:`M${num(x - 1.6 * erx)} ${num(ey - ery)}h${num(3.2 * erx)}`, stroke:lash, 'stroke-width':1.2 }]]);
+      shapes(cut, [['ellipse', { class:'wf-smile', cx:x, cy:num(ey + 2.15 * ery + .5), rx:num(1.7 * erx), ry:num(1.15 * ery), fill:volume, stroke:lash, 'stroke-width':1.2 }]]);
+    });
+  }
   // `large` picks the level of detail: false is a clean face for lists and chat
   // rows; true is the whole figure on its own ground, with the tool of its
   // trade; 'figure' is that figure without ground, for scenes that draw theirs.
@@ -687,9 +793,10 @@
     if (pack === 'cap') return setMood(cap(svg, w, fill, ink, size < 28, large === true), mood, key);
     if (pack === 'rosa') return setMood(rosa(svg, w, fill, size < 28, large === true), mood, key);
     if (pack === 'mapa') return setMood(mapa(svg, w, fill), mood, key);
-    if (kit) svg.setAttribute('data-kit', kitKey);
     // A list row and the large figure of one wind each spring from their own last pose.
     poseKeys.set(svg, key + '|' + !!large);
+    if (pack === 'minairo') return setMood(minairo(svg, w, s, fill, ink, large, size < 28, seed), mood, key);
+    if (kit) svg.setAttribute('data-kit', kitKey);
     const small = size < 28;
     // Volume: soft light from the top left, the wind's own deep tone below, a rim
     // of bounced light at the far edge and a satin sheen. No outline, no glare.
@@ -741,30 +848,7 @@
       ['ellipse', { cx:20.6, cy:48.8, rx:7, ry:4.6, fill:blush }],
       ['ellipse', { cx:59.4, cy:48.8, rx:7, ry:4.6, fill:blush }]]);
     if (full) shapes(head, [19.1, 57.9].map(cx => ['ellipse', { cx, cy:46.8, rx:2.6, ry:1.2, fill:'#FFFFFF', opacity:.35 }]));
-    // Big glossy eyes carry the mood. The eye style sets their shape (tall, big,
-    // a star catchlight, or calm and low); every eye has an upper lid that
-    // closes and slants and a lower lid that rises into a happy arc, both in
-    // the body's own paint and cut to the eye, so the eye itself changes shape.
-    // A small face keeps one bold catchlight and no glow.
-    const [ex, ey0, edy] = { p:[5.8, 8, 0], b:[7.2, 8.6, 0], e:[6.2, 7.8, 0], m:[6.8, 5.8, 1.6] }[s[0]], erx = num(ex * (small ? 1.12 : 1)), ery = num(ey0 * (small ? 1.08 : 1));
-    const lash = mix(fill, '#1B1530', .45), shine = ink === darkInk ? '#FFFFFF' : fill, iris = paint('y', { cy:.85, r:.6 }, [[0, mix(fill, '#FFFFFF', .2), .7], [1, fill, 0]]);
-    const eyes = group(group(group(head, 'wf-aim'), 'wf-gaze'), 'wf-eyes'), ey = num(38.4 + edy);
-    [30.4, 49.6].forEach((x, i) => {
-      const eye = { cx:x, cy:ey, rx:erx, ry:ery }, h = 2 * ery + 2;
-      defs.append(shapes(svgNode('clipPath', { id:id + 'e' + i }), [['ellipse', eye]]));
-      if (full) shapes(eyes, [['ellipse', { cx:x, cy:num(ey - .6), rx:num(erx + 1.2), ry:num(ery + 1.4), fill:inset }]]);
-      const cut = group(eyes, '', { 'clip-path':'url(#' + id + 'e' + i + ')' });
-      shapes(cut, [['ellipse', { ...eye, fill:ink }], ...small ? [] : [['ellipse', { cx:x, cy:num(ey + .45 * ery), rx:num(.9 * erx), ry:num(.6 * ery), fill:iris }]]]);
-      const cx = num(x + .3 * erx), cy = num(ey - .38 * ery), r = num((small ? .42 : .34) * erx);
-      shapes(cut, s[0] === 'e' && !small
-        ? [['path', { d:`M${cx} ${num(cy - 2 * r)}Q${cx} ${cy} ${num(cx + 2 * r)} ${cy}Q${cx} ${cy} ${cx} ${num(cy + 2 * r)}Q${cx} ${cy} ${num(cx - 2 * r)} ${cy}Q${cx} ${cy} ${cx} ${num(cy - 2 * r)}Z`, fill:shine }]]
-        : [['circle', { cx, cy, r, fill:shine }]]);
-      if (!small) shapes(cut, [['circle', { cx:num(x - .32 * erx), cy:num(ey + .42 * ery), r:num(.15 * erx), fill:shine, opacity:.7 }]]);
-      // The lid's edge is a soft crease in the body's deep tone, so it reads as a lid.
-      shapes(group(cut, 'wf-lid wf-lid-' + (i ? 'r' : 'l')), [['rect', { x:num(x - 1.6 * erx), y:num(ey - ery - h), width:num(3.2 * erx), height:h, fill:volume }],
-        ['path', { d:`M${num(x - 1.6 * erx)} ${num(ey - ery)}h${num(3.2 * erx)}`, stroke:lash, 'stroke-width':1.2 }]]);
-      shapes(cut, [['ellipse', { class:'wf-smile', cx:x, cy:num(ey + 2.15 * ery + .5), rx:num(1.7 * erx), ry:num(1.15 * ery), fill:volume, stroke:lash, 'stroke-width':1.2 }]]);
-    });
+    eyePair(head, defs, id, { s, fill, ink, volume, inset:full && inset, small, xs:[30.4, 49.6], y:38.4 });
     // Thin features vanish in a 30 px avatar: the small face draws them bolder.
     const mouth = group(head, 'wf-mouth'), line = { fill:'none', stroke:ink, 'stroke-width':full ? 2.5 : 3.1, 'stroke-linecap':'round' };
     if (s[1] === 'o') shapes(mouth, [['ellipse', { cx:40, cy:54.6, rx:4.8, ry:5.2, fill:ink }], ['ellipse', { cx:40, cy:57.4, rx:3.1, ry:2.2, fill:'#E8667E' }]]);
@@ -1113,7 +1197,7 @@
     [tint, eyes, mouth, shape, avatar].filter(Boolean).forEach(n => { n.addEventListener('change', update); n.addEventListener('input', update); }); update(); form.show();
   }
   // Packs by name; the first ones are the packs a wind can pick in Free mode.
-  const themeChoices = () => [['cares', tr('winds.avatarCares', 'Cares')], ['esperit', tr('winds.avatarEsperit', 'Esperit de vent')], ['cap', tr('winds.avatarCap', 'Cap de vent')], ['rosa', tr('winds.avatarRosa', 'Rosa de rellotge')], ['mapa', tr('winds.avatarMapa', 'Mapa de vent')], ['free', tr('winds.avatarFree', 'Lliure')]];
+  const themeChoices = () => [['cares', tr('winds.avatarCares', 'Cares')], ['esperit', tr('winds.avatarEsperit', 'Esperit de vent')], ['cap', tr('winds.avatarCap', 'Cap de vent')], ['rosa', tr('winds.avatarRosa', 'Rosa de rellotge')], ['mapa', tr('winds.avatarMapa', 'Mapa de vent')], ['minairo', tr('winds.avatarMinairo', 'Minairons')], ['free', tr('winds.avatarFree', 'Lliure')]];
   // The editor offers a pack only in Free mode; with a theme it names the pack
   // that draws every wind, and saving leaves the wind's own choice untouched.
   function avatarField(parent, w) {

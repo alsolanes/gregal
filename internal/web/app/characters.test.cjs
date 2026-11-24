@@ -232,7 +232,11 @@ test('kits and the other avatar packs stay code-drawn', async () => {
   assert.equal(env.chars.play(kit.svg, wind), kit.svg);
   const cap = svgFace(env, 'idle', { 'data-avatar': 'cap' });
   assert.equal(env.chars.play(cap.svg, { ...wind, avatar: 'cap' }), cap.svg);
+  // The minairó keeps its drawing until it has clay sheets of its own (119).
+  const minairo = svgFace(env, 'idle', { 'data-avatar': 'minairo' });
+  assert.equal(env.chars.play(minairo.svg, { ...wind, avatar: 'minairo' }), minairo.svg);
   await settle();
+  assert.equal(minairo.box.children[0], minairo.svg);
   assert.equal(kit.box.children[0], kit.svg);
   assert.equal(cap.box.children[0], cap.svg);
   assert.equal(env.fetched.length, 0);

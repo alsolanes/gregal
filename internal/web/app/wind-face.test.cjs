@@ -664,3 +664,92 @@ test('done anticipates, hops and settles with a spring', () => {
     assert.deepEqual(props.filter(p => !['transform', 'opacity'].includes(p)), [], name);
   }
 });
+
+// 117: the minairó pack. A small round body in the wind's colour under a long
+// white beard and a red barretina folded to one side, with the 110 eyes.
+const classed = (svg, cls) => svg.all().filter(n => (n.attrs.class || '').split(' ').includes(cls));
+const minairoCss = css => [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(m => m[1].includes('[data-avatar=minairo]') || /\.wf-(tip|beard)\b/.test(m[1]));
+
+test('the minairó has a round body in the wind colour, a white beard, a red barretina with a dark band, the 110 eyes and tiny feet', () => {
+  const { winds } = load();
+  winds.setAvatarTheme('minairo');
+  assert.equal(winds.avatarTheme(), 'minairo');
+  const w = { id:'tramuntana', name:'Tramuntana', color:'#A8CDE2', style:'pso' };
+  for (const [large, size] of [[true, undefined], [false, 40], [false, 24]]) {
+    const svg = winds.face(w, large, 'idle', size);
+    assert.equal(svg.getAttribute('data-avatar'), 'minairo');
+    for (const part of ['wf-pose', 'wf-figure', 'wf-body', 'wf-beard', 'wf-barretina', 'wf-band', 'wf-tip', 'wf-foot-l', 'wf-foot-r', 'wf-eyes', 'wf-mouth', 'wf-worry'])
+      assert.equal(classed(svg, part).length, 1, part + ' at ' + (size || 'large'));
+    assert.equal(classed(svg, 'wf-lid').length, 2, 'two upper lids');
+    assert.equal(classed(svg, 'wf-smile').length, 2, 'two lower lids');
+    for (const lid of [...classed(svg, 'wf-lid'), ...classed(svg, 'wf-smile')]) assert.match(lid.parent.attrs['clip-path'] || '', /^url\(#wf\d+e\d\)$/);
+  }
+  const tones = color => new Set(winds.face({ ...w, color }, true).all().filter(n => n.tag === 'stop').map(n => n.attrs['stop-color']));
+  const blue = tones('#A8CDE2'), rose = tones('#EFA68F');
+  const shared = [...blue].filter(c => rose.has(c));
+  assert.ok(shared.length >= 3, 'the beard and the barretina keep their own colours');
+  assert.ok(blue.size - shared.length >= 4, 'the body is modelled in tones of the wind colour');
+  const body = classed(winds.face(w, true), 'wf-body')[0];
+  assert.match(body.attrs.fill || '', /^url\(#wf\d+/, 'the body is painted with the wind gradient');
+  assert.ok(groups(winds.face(w, true)).includes('wf-ground'), 'the whole figure stands on its ground');
+});
+
+test('each minairó differs: beard length, the side its barretina falls to and a small accessory, which small faces leave out', () => {
+  const { winds } = load();
+  winds.setAvatarTheme('minairo');
+  const beard = svg => JSON.stringify(classed(svg, 'wf-beard')[0].all().map(n => n.attrs.d));
+  const fold = svg => classed(svg, 'wf-barretina')[0].all().find(n => n.children.some(c => (c.attrs.class || '').includes('wf-tip')))?.attrs.transform || '';
+  const accessory = svg => ['wf-canut', 'wf-herba', 'wf-pedra'].filter(c => classed(svg, c).length);
+  const beards = new Set([...'sont'].map(m => beard(winds.face({ id:'b' + m, color:'#A8CDE2', style:'p' + m + 'o' }, true))));
+  assert.equal(beards.size, 4, 'the mouth style sets the beard length');
+  const crew = ['tramuntana', 'gregal', 'llevant', 'xaloc', 'migjorn', 'garbi', 'ponent', 'mestral', 'brisa', 'marinada', 'terral', 'embat'];
+  const drawn = crew.map(name => winds.face({ id:name, name, color:'#EFA68F', style:'pso' }, true));
+  assert.equal(new Set(drawn.map(fold)).size, 2, 'the barretina falls to one side or the other');
+  assert.equal(fold(winds.face({ id:'llevant', name:'Llevant', color:'#EFA68F', style:'pso' }, true)), fold(drawn[2]), 'the same wind always the same way');
+  for (const svg of drawn) assert.equal(accessory(svg).length, 1, 'one small accessory each');
+  assert.deepEqual(new Set(drawn.flatMap(accessory)), new Set(['wf-canut', 'wf-herba', 'wf-pedra']), 'needle case, St John wort and pebble all appear');
+  for (const name of crew) assert.deepEqual(accessory(winds.face({ id:name, name, color:'#EFA68F', style:'pso' }, false, 'idle', 24)), [], 'a small face keeps only the barretina and beard silhouette');
+});
+
+test('every mood works on the minairó, with its own pose and motion, the barretina and beard moving with it', () => {
+  const { winds } = load(), css = winds101();
+  winds.setAvatarTheme('minairo');
+  const w = { id:'pessic', name:'Pessic', color:'#C1B4DE', style:'bto' };
+  const seen = new Map();
+  for (const mood of allMoods) {
+    const svg = winds.face({ ...w, id:'m-' + mood }, true, mood);
+    assert.equal(svg.getAttribute('data-mood'), mood);
+    const look = JSON.stringify([poseOf(svg), moodLoops(css, mood), svg.all().filter(n => /wf-badge/.test(n.attrs.class || '')).length]);
+    for (const [other, was] of seen) assert.notEqual(look, was, mood + ' looks like ' + other);
+    seen.set(mood, look);
+  }
+  const rules = minairoCss(css), rule = (sel, re) => rules.find(m => sel(m[1]) && re.test(m[2]));
+  assert.ok(rule(s => /\.wf-tip/.test(s) && !/data-mood/.test(s), /animation:wf-\w+/), 'the barretina tip bobs');
+  assert.ok(rule(s => /\.wf-beard/.test(s) && !/data-mood/.test(s), /animation:wf-\w+/), 'the beard sways');
+  assert.ok(rule(s => /\[data-mood=done\]/.test(s) && /\.wf-tip/.test(s), /var\(--wf-since,0s\) 1/), 'done flies the barretina once per hop');
+  const restless = rule(s => /\[data-avatar=minairo\]\[data-mood=working\] \.wf-figure/.test(s), /animation:/);
+  assert.ok(restless && !/wf-busy/.test(restless[2]), 'working has its own restless energy');
+  for (const m of rules) assert.doesNotMatch(m[2], /!important/, 'reduced motion stills it all: ' + m[1].trim());
+  for (const name of new Set(rules.flatMap(m => [...m[2].matchAll(/(wf-[\w-]+) [\d.]+s/g)].map(a => a[1])))) {
+    const props = keyframeProps(css, name);
+    assert.ok(props.length, name + ' exists');
+    assert.deepEqual(props.filter(p => !['transform', 'opacity'].includes(p)), [], name + ' animates transform only');
+  }
+});
+
+test('a minairó takes its new pose at once under reduced motion, and springs from its last pose otherwise', () => {
+  const still = load({ matchMedia:q => ({ matches:/reduce/.test(q) }) });
+  still.winds.setAvatarTheme('minairo');
+  const w = { id:'didal', name:'Didal', color:'#BFCFA4', style:'mno' };
+  still.winds.face(w, true, 'idle'); still.frames.length = 0;
+  assert.ok(poseOf(still.winds.face(w, true, 'done'))['--wf-smile'] > .4);
+  assert.equal(still.frames.length, 0, 'nothing waits to move');
+  const { winds, frames } = load();
+  winds.setAvatarTheme('minairo');
+  const idle = poseOf(winds.face(w, true, 'idle'));
+  frames.length = 0;
+  const redrawn = winds.face(w, true, 'working');
+  assert.deepEqual(poseOf(redrawn), idle, 'a redrawn minairó starts from the pose it had');
+  while (frames.length) frames.shift()();
+  assert.ok(poseOf(redrawn)['--wf-brow'] > 0, 'then springs to the working pose');
+});
