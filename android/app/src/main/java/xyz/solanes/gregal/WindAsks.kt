@@ -1,5 +1,7 @@
 package xyz.solanes.gregal
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -8,6 +10,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.FormatQuote
+import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.HelpOutline
 import androidx.compose.material3.Icon
@@ -18,7 +23,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -26,6 +33,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlin.math.PI
+import kotlin.math.sin
 
 /**
  * Preguntes i aprovacions dels vents. Un vent que necessita una decisió (o
@@ -51,6 +60,9 @@ internal fun askUi(lang: String, key: String): String {
         "delete" -> if (en) "Wants to delete outside the project" else "Vol esborrar fora del projecte"
         "system" -> if (en) "Wants to change a system service" else "Vol canviar un servei del sistema"
         "approve" -> if (en) "Asks for your permission" else "Et demana permís"
+        "no" -> "No"
+        "allowed" -> if (en) "You allowed: " else "Has permès: "
+        "declined" -> if (en) "You declined: " else "Has dit que no: "
         else -> key
     }
 }
@@ -78,17 +90,22 @@ internal fun withoutChoices(text: String): String {
 
 /** Les targetes dels vents que esperen: se'n tornen a buscar mentre el vent treballa. */
 @Composable
-internal fun WindAskCards(vm: GregalViewModel, lang: String, accent: Color, busy: Boolean) {
+internal fun WindAskCards(vm: GregalViewModel, lang: String, accent: Color, busy: Boolean, wind: Wind? = null) {
     val asks by vm.windAsks.collectAsState()
+    val winds by vm.winds.collectAsState()
+    // Les aprovacions que ja has contestat queden plegades en una línia (sí o no).
+    val answered = remember { mutableStateListOf<Pair<GregalApi.WindAsk, Boolean>>() }
     // En obrir el xat i mentre un vent treballa: potser n'hi ha una d'abans.
     // Només amb l'app a la vista: en segon pla el servidor ja avisa amb la notificació.
     LifecyclePoll(busy) {
         vm.loadWindAsks()
         while (busy) { delay(4_000); vm.loadWindAsks() }
     }
-    if (asks.isEmpty()) return
+    if (asks.isEmpty() && answered.isEmpty()) return
+    fun faceOf(a: GregalApi.WindAsk) = winds.firstOrNull { it.id == a.wind } ?: wind
     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).testTag("wind-asks"),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        answered.forEach { (a, ok) -> AnsweredLine(lang, a, ok, faceOf(a)) }
         asks.forEach { a ->
             if (a.type == "handoff") HandoffCard(vm.conn.value, lang, a, accent,
                 onDone = { vm.answerWindAsk(a.key, approve = true) }, onCancel = { vm.answerWindAsk(a.key, approve = false) })
@@ -97,7 +114,9 @@ internal fun WindAskCards(vm: GregalViewModel, lang: String, accent: Color, busy
             else if (a.type == "secret") SecretCard(lang, a, accent,
                 onSave = { v -> vm.answerWindAsk(a.key, approve = true, secret = v) }, onDecline = { vm.answerWindAsk(a.key, approve = false) })
             else if (a.type == "question") QuestionCard(lang, a, accent) { ans -> vm.answerWindAsk(a.key, answer = ans) }
-            else ApproveCard(lang, a, accent, onAllow = { vm.answerWindAsk(a.key, approve = true) }, onDecline = { vm.answerWindAsk(a.key, approve = false) })
+            else ApproveCard(lang, a, accent, faceOf(a),
+                onAllow = { answered.add(a to true); vm.answerWindAsk(a.key, approve = true) },
+                onDecline = { answered.add(a to false); vm.answerWindAsk(a.key, approve = false) })
         }
     }
 }
@@ -116,8 +135,8 @@ private fun Color.compositeOverSafe(bg: Color): Color = Color(
     blue = blue * alpha + bg.blue * (1 - alpha), alpha = maxOf(alpha, bg.alpha),
 )
 
-/** Què es pregunta: la pregunta en pla, on és i si es pot desfer, i el verb del botó. */
-internal data class ApprovePlan(val question: String, val sub: String, val yes: String)
+/** Què es pregunta: la pregunta en pla, i on és i si es pot desfer. */
+internal data class ApprovePlan(val question: String, val sub: String)
 
 private fun askWhere(path: String, en: Boolean): Pair<String, String> {
     val full = path.replace('\\', '/')
@@ -144,21 +163,20 @@ internal fun approvePlan(lang: String, kind: String, what: String, name: String 
         val (file, dir) = askWhere(m.groupValues[2], en)
         val where = if (dir.isNotEmpty()) t("És a $dir.", "It is in $dir.") else ""
         val sub = if (kind == "rule" && reason.isNotBlank()) listOf(where, reason).filter { it.isNotEmpty() }.joinToString(" ") else where
-        return if (m.groupValues[1] == "write") ApprovePlan(t("Vols que escrigui $file?", "Shall I write $file?"), sub, t("Escriu-lo", "Write it"))
-        else ApprovePlan(t("Vols que modifiqui $file?", "Shall I edit $file?"), sub, t("Modifica'l", "Edit it"))
+        return if (m.groupValues[1] == "write") ApprovePlan(t("Vols que escrigui $file?", "Shall I write $file?"), sub)
+        else ApprovePlan(t("Vols que modifiqui $file?", "Shall I edit $file?"), sub)
     }
     return when (kind) {
         "delete" -> {
             val (file, dir) = askWhere(askPath(w), en)
             ApprovePlan(t("Vols que esborri $file?", "Shall I delete $file?"),
                 t((if (dir.isNotEmpty()) "És a $dir, fora" else "És fora") + " del projecte. No es podrà desfer.",
-                    (if (dir.isNotEmpty()) "It is in $dir, outside" else "It is outside") + " the project. It cannot be undone."),
-                t("Esborra'l", "Delete it"))
+                    (if (dir.isNotEmpty()) "It is in $dir, outside" else "It is outside") + " the project. It cannot be undone."))
         }
-        "install" -> ApprovePlan(t("Vols que instal·li programari?", "Shall I install software?"), t("Programari nou a l'ordinador.", "New software on the computer."), t("Instal·la'l", "Install it"))
-        "download" -> ApprovePlan(t("Vols que baixi un paquet o un fitxer?", "Shall I download a package or file?"), t("De fora, a l'ordinador.", "From outside, onto the computer."), t("Baixa-ho", "Download it"))
-        "system" -> ApprovePlan(t("Vols que canviï un servei del sistema?", "Shall I change a system service?"), t("Afecta tot l'ordinador, no només el projecte.", "It affects the whole computer, not just the project."), t("Canvia-ho", "Change it"))
-        "publish_public" -> ApprovePlan(t("Vols que publiqui la web?", "Shall I publish the site?"), t("Serà pública: qualsevol que tingui l'enllaç la veurà.", "It will be public: anyone with the link can see it."), t("Publica-la", "Publish it"))
+        "install" -> ApprovePlan(t("Vols que instal·li programari?", "Shall I install software?"), t("Programari nou a l'ordinador.", "New software on the computer."))
+        "download" -> ApprovePlan(t("Vols que baixi un paquet o un fitxer?", "Shall I download a package or file?"), t("De fora, a l'ordinador.", "From outside, onto the computer."))
+        "system" -> ApprovePlan(t("Vols que canviï un servei del sistema?", "Shall I change a system service?"), t("Afecta tot l'ordinador, no només el projecte.", "It affects the whole computer, not just the project."))
+        "publish_public" -> ApprovePlan(t("Vols que publiqui la web?", "Shall I publish the site?"), t("Serà pública: qualsevol que tingui l'enllaç la veurà.", "It will be public: anyone with the link can see it."))
         // Una regla teva («Pregunta'm abans»): la targeta diu quina.
         "rule" -> ApprovePlan(when (name) {
             "mail" -> t("Vols que enviï aquest correu?", "Shall I send this email?")
@@ -168,43 +186,116 @@ internal fun approvePlan(lang: String, kind: String, what: String, name: String 
             "calendar" -> t("Vols que canviï el calendari?", "Shall I change the calendar?")
             "remind" -> t("Vols que programi l'avís?", "Shall I set the reminder?")
             else -> t("Vols que ho faci?", "Shall I do it?")
-        }, reason, t("Fes-ho", "Do it"))
+        }, reason)
         // «other» i els tipus que no coneixem: el títol genèric. (askUi("other") és el
         // camp lliure de les preguntes, «Una altra cosa…»: sortia com a títol.)
-        else -> ApprovePlan(askUi(lang, "approve"), "", t("Fes-ho", "Do it"))
+        else -> ApprovePlan(askUi(lang, "approve"), "")
+    }
+}
+
+/**
+ * El que es veurà abans de dir que sí: una pàgina (url), un document (doc) o el
+ * text que farà servir (text). Només amb el que /api/winds/pending envia (what,
+ * detail, name): el servidor no hi posa captures ni imports. Null per a les ordres,
+ * que van plegades a «Veure l'ordre».
+ */
+internal data class AskPreview(val kind: String, val title: String, val body: String)
+
+internal fun askPreview(lang: String, a: GregalApi.WindAsk): AskPreview? {
+    val src = a.detail.ifBlank { a.what }.trim()
+    Regex("https?://[^\\s\"'<>]+").find(src)?.let { m ->
+        val host = runCatching { java.net.URI(m.value).host }.getOrNull()?.removePrefix("www.") ?: m.value
+        return AskPreview("url", host, m.value)
+    }
+    Regex("^(write|edit|patch)\\s+(.+)$").find(a.what.trim())?.let { m ->
+        val (file, dir) = askWhere(m.groupValues[2], lang == "en")
+        return AskPreview("doc", file, dir)
+    }
+    if (a.name in setOf("bash", "bash_background") || a.kind in setOf("install", "download", "delete", "system")) return null
+    return if (src.isNotEmpty() && src != a.name) AskPreview("text", "", src) else null
+}
+
+@Composable
+private fun AskPreviewBox(p: AskPreview, accent: Color) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Superficie.copy(alpha = .7f))
+            .border(1.dp, Line, RoundedCornerShape(14.dp)).padding(12.dp).testTag("ask-preview-" + p.kind),
+        horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top,
+    ) {
+        val icon = when (p.kind) { "url" -> Icons.Rounded.Language; "doc" -> Icons.Rounded.Description; else -> Icons.Rounded.FormatQuote }
+        Icon(icon, null, tint = accent, modifier = Modifier.size(18.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            if (p.title.isNotEmpty()) Text(p.title, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (p.body.isNotEmpty()) Text(p.body, color = if (p.title.isEmpty()) Ink else Muted, fontSize = 13.sp, lineHeight = 18.sp,
+                maxLines = if (p.kind == "text") 8 else 2, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+/** El pas en què és el vent quan s'atura a preguntar, amb les mateixes paraules que el directe. */
+private fun askStep(lang: String, a: GregalApi.WindAsk): String =
+    (if (a.name.isNotBlank()) windProgressLabel(lang, WindLive(phase = "tool", tool = a.name)) + " · " else "") + askUi(lang, "waiting")
+
+/** Contestada: una línia, i la cara del vent assenteix (sí) o fa que no amb el cap (no). */
+@Composable
+private fun AnsweredLine(lang: String, a: GregalApi.WindAsk, ok: Boolean, face: Wind?) {
+    val what = remember(a.key, lang) { askPreview(lang, a)?.title?.ifEmpty { null } ?: a.what.ifBlank { a.name } }
+    Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp).semantics(mergeDescendants = true) {}.testTag("ask-answered"),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (face != null) {
+            val motion = LocalWindMotion.current
+            val t = remember(a.key) { Animatable(0f) }
+            LaunchedEffect(a.key) { if (motion) t.animateTo(1f, tween(900)) }
+            WindFace(size = 22, mood = if (ok) WindMood.HAPPY else WindMood.IDLE, accent = Color(face.argb), style = face.faceStyle,
+                modifier = Modifier.graphicsLayer {
+                    // Tres cops que s'apaguen: amunt i avall per al sí, de costat per al no.
+                    val swing = sin(t.value * 6f * PI.toFloat()) * (1f - t.value) * 3.dp.toPx()
+                    if (ok) translationY = swing else translationX = swing
+                }.testTag(if (ok) "ask-face-nod" else "ask-face-shake"))
+        }
+        Text(askUi(lang, if (ok) "allowed" else "declined") + what, color = Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
 /**
  * Targeta de permís com a la maqueta: una pregunta en pla («Vols que esborri x?»),
- * on és i si es pot desfer, l'ordre plegada i el botó amb el verb («Esborra'l») a
- * l'esquerra. Abans: «Et demana permís» i l'ordre tallada, sovint abans del rm.
+ * on és i si es pot desfer, què es veurà (pàgina, document o text) o l'ordre
+ * plegada, i Permet / No. La cara del vent seu a sobre de la targeta amb el pas
+ * en què s'ha aturat.
  */
 @Composable
-private fun ApproveCard(lang: String, a: GregalApi.WindAsk, accent: Color, onAllow: () -> Unit, onDecline: () -> Unit) {
+private fun ApproveCard(lang: String, a: GregalApi.WindAsk, accent: Color, face: Wind?, onAllow: () -> Unit, onDecline: () -> Unit) {
     val plan = remember(a.key, lang) { approvePlan(lang, a.kind, a.what, a.name, a.reason) }
+    val preview = remember(a.key, lang) { askPreview(lang, a) }
     var showCmd by remember(a.key) { mutableStateOf(false) }
     val full = a.detail.ifBlank { a.what }
-    AskShell(accent, "approve-card") {
-        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Icon(Icons.Rounded.Shield, null, tint = accent, modifier = Modifier.size(22.dp))
-            Column {
-                Text(plan.question, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                if (plan.sub.isNotEmpty()) Text(plan.sub, color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
+    Box(Modifier.fillMaxWidth().padding(top = if (face != null) 16.dp else 0.dp)) {
+        AskShell(accent, "approve-card") {
+            Text(askStep(lang, a), color = Muted, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = if (face != null) 42.dp else 0.dp).testTag("ask-step"))
+            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Icon(Icons.Rounded.Shield, null, tint = accent, modifier = Modifier.size(22.dp))
+                Column {
+                    Text(plan.question, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    if (plan.sub.isNotEmpty()) Text(plan.sub, color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
+                }
+            }
+            if (preview != null) AskPreviewBox(preview, accent)
+            else if (full.isNotBlank()) {
+                Text((if (showCmd) "▾ " else "▸ ") + if (lang == "en") "See the command" else "Veure l'ordre", color = Muted, fontSize = 12.5.sp,
+                    modifier = Modifier.clickable { showCmd = !showCmd }.padding(vertical = 2.dp).testTag("ask-command-toggle"))
+                if (showCmd) Text(
+                    full, color = Ink, fontSize = 12.5.sp, fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Superficie.copy(alpha = .7f)).padding(10.dp),
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                AskButton(askUi(lang, "allow"), primary = true, accent = accent, modifier = Modifier.weight(1f).testTag("ask-allow"), onClick = onAllow)
+                AskButton(askUi(lang, "no"), primary = false, modifier = Modifier.weight(1f).testTag("ask-decline"), onClick = onDecline)
             }
         }
-        if (full.isNotBlank()) {
-            Text((if (showCmd) "▾ " else "▸ ") + if (lang == "en") "See the command" else "Veure l'ordre", color = Muted, fontSize = 12.5.sp,
-                modifier = Modifier.clickable { showCmd = !showCmd }.padding(vertical = 2.dp).testTag("ask-command-toggle"))
-            if (showCmd) Text(
-                full, color = Ink, fontSize = 12.5.sp, fontFamily = FontFamily.Monospace,
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Superficie.copy(alpha = .7f)).padding(10.dp),
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            AskButton(plan.yes, primary = true, accent = accent, modifier = Modifier.weight(1f).testTag("ask-allow"), onClick = onAllow)
-            AskButton(if (lang == "en") "Not now" else "Ara no", primary = false, modifier = Modifier.weight(1f).testTag("ask-decline"), onClick = onDecline)
-        }
+        if (face != null) WindFace(size = 36, accent = Color(face.argb), style = face.faceStyle,
+            modifier = Modifier.offset(x = 14.dp, y = (-16).dp).testTag("ask-face"))
     }
 }
 

@@ -84,6 +84,64 @@ class WindAsksTest {
         ui.onNodeWithTag("question-card").assertDoesNotExist()
     }
 
+    // Targetes per aprovar (103): la cara del vent hi seu a sobre, amb el pas i una vista prèvia.
+    private val zefir = Wind("zefir", "Zèfir", "#29BCA3", "web")
+    private fun offlineVm() = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
+        .also { it.setConn(Conn("127.0.0.1", "9", "", local = true)) }
+    private fun showAsk(vm: GregalViewModel, ask: GregalApi.WindAsk, lang: String = "en") {
+        vm.handleWindAskEvent(GregalApi.WindStreamEvent.Ask(ask))
+        ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
+            MaterialTheme(colorScheme = LightPal.scheme()) { WindAskCards(vm, lang, androidx.compose.ui.graphics.Color(0xFF29BCA3), busy = false, wind = zefir) }
+        } }
+    }
+
+    @Test fun aUrlApprovalShowsThePageUnderThePerchedFace() {
+        showAsk(offlineVm(), GregalApi.WindAsk("wa4", "approve", name = "browser", kind = "rule",
+            what = "browser https://www.example.org/form?x=1", detail = "https://www.example.org/form?x=1", wind = "zefir"))
+        ui.onNodeWithTag("ask-face", useUnmergedTree = true).assertExists()
+        ui.onNodeWithTag("ask-step").assertTextContains("Browsing", substring = true)
+        ui.onNodeWithTag("ask-preview-url").assertExists()
+        ui.onNodeWithText("example.org").assertExists()
+        ui.onNodeWithText("https://www.example.org/form?x=1").assertExists()
+        ui.onNodeWithText("Allow").assertExists()
+        ui.onNodeWithText("No").assertExists()
+    }
+
+    @Test fun aDocumentApprovalShowsTheFileAndWhereItIs() {
+        showAsk(offlineVm(), GregalApi.WindAsk("wa5", "approve", name = "write", what = "write C:/u/gregal/projectes/zefir/index.html",
+            detail = "C:/u/gregal/projectes/zefir/index.html"), lang = "ca")
+        ui.onNodeWithTag("ask-preview-doc").assertExists()
+        ui.onNodeWithText("index.html").assertExists()
+        ui.onNodeWithText("Projectes › zefir").assertExists()
+        ui.onNodeWithText("Permet").assertExists()
+        ui.onNodeWithText("No").assertExists()
+    }
+
+    @Test fun aTextApprovalShowsTheTextItWillUse() {
+        showAsk(offlineVm(), GregalApi.WindAsk("wa6", "approve", name = "notes", kind = "rule",
+            what = "notes create", detail = "Compra pa i llet abans de les 8"))
+        ui.onNodeWithTag("ask-preview-text").assertExists()
+        ui.onNodeWithText("Compra pa i llet abans de les 8").assertExists()
+        // Amb la vista prèvia, l'ordre plegada no hi és: ja es veu què farà.
+        ui.onNodeWithTag("ask-command-toggle").assertDoesNotExist()
+    }
+
+    @Test fun answeringCollapsesTheCardAndTheFaceNodsOrShakes() {
+        val vm = offlineVm()
+        showAsk(vm, GregalApi.WindAsk("wa7", "approve", name = "browser", what = "browser https://example.org", detail = "https://example.org", wind = "zefir"))
+        ui.onNodeWithText("Allow").performClick()
+        ui.waitForIdle()
+        ui.onNodeWithTag("approve-card").assertDoesNotExist()
+        ui.onNodeWithTag("ask-answered").assertTextContains("You allowed: example.org", substring = true)
+        ui.onNodeWithTag("ask-face-nod", useUnmergedTree = true).assertExists()
+        vm.handleWindAskEvent(GregalApi.WindStreamEvent.Ask(GregalApi.WindAsk("wa8", "approve", name = "write", what = "write a/b/c.txt", wind = "zefir")))
+        ui.waitForIdle()
+        ui.onNodeWithText("No").performClick()
+        ui.waitForIdle()
+        ui.onAllNodesWithTag("ask-answered")[1].assertTextContains("You declined: c.txt", substring = true)
+        ui.onNodeWithTag("ask-face-shake", useUnmergedTree = true).assertExists()
+    }
+
     @Test fun resolvedRequestsDisappearWithoutAnswering() {
         val vm = vm()
         vm.handleWindAskEvent(GregalApi.WindStreamEvent.Ask(GregalApi.WindAsk("wa3", "approve")))

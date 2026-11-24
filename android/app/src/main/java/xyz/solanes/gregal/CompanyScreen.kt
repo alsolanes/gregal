@@ -1363,7 +1363,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         }
         }
         // Aprovacions i preguntes del vent: el torn espera aquí la teva resposta.
-        WindAskCards(vm, lang, accent, isBusy)
+        WindAskCards(vm, lang, accent, isBusy, wind)
         // Input píndola amb el color del vent + enviament amb resplendor.
         // El desplegable de mencions va just a sobre del camp.
         mention?.let { q ->
