@@ -112,9 +112,10 @@
   // the page: the clay when a sheet for it is already here, or that face,
   // swapped in place for the clay once its sheet loads.
   function play(svg, w) {
-    // The clay is Cares without a trade kit; the other packs and the kits stay drawn.
-    if (!w || svg.getAttribute('data-kit') || svg.getAttribute('data-avatar')) return svg;
-    const letter = 'ons'.includes(String(w.style || '')[2]) ? w.style[2] : 'o', color = /^#[\da-f]{6}$/i.test(w.color || '') ? w.color : '#F5B45D';
+    // The clay is Cares without a trade kit, or the minairó in its own sheets; the other packs and the kits stay drawn.
+    const avatar = svg.getAttribute('data-avatar');
+    if (!w || svg.getAttribute('data-kit') || (avatar && avatar !== 'minairo')) return svg;
+    const letter = avatar || ('ons'.includes(String(w.style || '')[2]) ? w.style[2] : 'o'), color = /^#[\da-f]{6}$/i.test(w.color || '') ? w.color : '#F5B45D';
     const p = { w, svg, letter, color, mood: svg.getAttribute('data-mood') || 'idle', spot: w.id + '|' + svg.getAttribute('class') }, key = letter + '/' + p.mood + '/' + color;
     const before = w.id && last.get(p.spot), same = before?.look === letter + color ? before : null;
     if (ready.has(key)) return show(p, ready.get(key), clock(), same);

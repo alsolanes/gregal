@@ -26,14 +26,17 @@ rendering: it checks that `manifest.json` and the sheets agree.
 `internal/web/app/characters/`:
 
 - `<silhouette>/<mood>.webp`: the frames of one mood side by side, each
-  `size` px square, in a neutral grey clay with dark eyes and mouth.
+  `size` px square, in a neutral grey clay with dark eyes and mouth. Its
+  alpha is rounded to 32 levels: WebP keeps alpha lossless, and that halves
+  what it costs without a visible step.
 - `<silhouette>/<mood>.mask.webp`: the same frames at half size
   (`maskSize`), white with alpha where the wind's colour goes (body, feet,
   lids); the eyes, their catchlights and the mouth are cut out, and it fades
   under the pink cheek blush so the blush stays pink on every wind.
 - `manifest.json`: `size`, `maskSize`, `fps`, the silhouettes (`pebble`,
   `cloud`, `curl`, with the letter of the wind style each one stands for, as
-  in `winds.js`), and per mood the number of `frames` and whether it `loop`s
+  in `winds.js`; and `minairo`, which stands for the minairó avatar pack
+  whatever the wind's style), and per mood the number of `frames` and whether it `loop`s
   or plays once and holds the last frame (`done`, `failed`).
 
 To tint, `multiply` the sheet by the wind's colour where the mask is, scaling
@@ -47,7 +50,10 @@ the same in every sheet, with room above for hops and the curl.
 - Silhouettes: `SILHOUETTES` lists, per wind family, the width it is scaled
   to, the height of its eyes and the metaballs that make the body. The body
   is normalised to that width and settled flat on the ground, so a new shape
-  only needs its balls.
+  only needs its balls. The minairo adds a white felt beard with a two-lobed
+  moustache, a rosy nose and a red barretina with a black ribbon (`minairo()`,
+  `barretina()`), none of them in the mask; `follow()` makes the beard and the
+  cap's tip lag behind the body with two damped springs.
 - Moods: `MOODS` gives frames and loop; `pose()` says what every frame looks
   like (squash, hop, tilt, turn, lean, gaze, blink, lids, happy eyes, mouth).
   It is a pure function of the frame number, so renders are reproducible:
@@ -60,7 +66,7 @@ the same in every sheet, with room above for hops and the curl.
   the pink cheek blush and contact shadow (`glow_material()`), `scene()`
   (camera, a warm key, a dim fill and a cool rim light), `SIZE` and `QUALITY`.
 
-Keep all the sheets together under 1.5 MB.
+Keep all the sheets together under 1.5 MB (`TestCharactersMinairoWithinBudget`).
 
 ## Licence
 

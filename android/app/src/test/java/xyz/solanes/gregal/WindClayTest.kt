@@ -95,6 +95,14 @@ class WindClayTest {
         anyClay().assertCountEquals(0)
     }
 
+    @Test fun aMinairoWithoutSheetsKeepsItsDrawing() {
+        show(dir = "no-such-folder") {
+            CompositionLocalProvider(LocalAvatarTheme provides "minairo") { WindFace(size = 96, accent = orange, clay = true) }
+        }
+        anyFace().assertCountEquals(1)
+        anyClay().assertCountEquals(0)
+    }
+
     /** The same face with motion on and off, now and half a second later. */
     private fun frames(): Map<String, Bitmap> {
         ui.mainClock.autoAdvance = false

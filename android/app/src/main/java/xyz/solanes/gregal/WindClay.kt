@@ -78,11 +78,11 @@ internal object WindClay {
         }
     }
 
-    /** The sheet for [shape] and [mood], or null when the manifest or the files are not there. */
-    fun sheet(assets: AssetManager, dir: String, shape: WindShape, mood: WindMood): WindClaySheet? {
+    /** The sheet of the silhouette that stands for [family] (a shape's key, or the minairó) in [mood], or null when the manifest or the files are not there. */
+    fun sheet(assets: AssetManager, dir: String, family: String, mood: WindMood): WindClaySheet? {
         val m = manifest(assets, dir) ?: return null
         val shapes = m.optJSONObject("silhouettes") ?: return null
-        val silhouette = shapes.keys().asSequence().firstOrNull { shapes.optString(it) == shape.key } ?: return null
+        val silhouette = shapes.keys().asSequence().firstOrNull { shapes.optString(it) == family } ?: return null
         val moodName = windClayMood(mood)
         val spec = m.optJSONObject("moods")?.optJSONObject(moodName) ?: return null
         val name = "$silhouette/$moodName"
@@ -127,10 +127,10 @@ private fun DrawScope.drawClay(s: WindClaySheet, frame: Int, accent: Color, alph
  * frame of the old one.
  */
 @Composable
-internal fun WindClayFace(size: Int, mood: WindMood, accent: Color, shape: WindShape, motion: Boolean, modifier: Modifier): Boolean {
+internal fun WindClayFace(size: Int, mood: WindMood, accent: Color, family: String, motion: Boolean, modifier: Modifier): Boolean {
     val assets = LocalContext.current.assets
     val dir = LocalWindClay.current
-    val sheet = remember(dir, shape, mood) { WindClay.sheet(assets, dir, shape, mood) } ?: return false
+    val sheet = remember(dir, family, mood) { WindClay.sheet(assets, dir, family, mood) } ?: return false
     val shown = remember { object { var sheet: WindClaySheet? = null; var frame = 0 } }
     // Built in composition so the first frame of the new mood already fades in over the old one.
     val change = remember(sheet) {

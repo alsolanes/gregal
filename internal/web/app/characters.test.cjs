@@ -232,14 +232,26 @@ test('kits and the other avatar packs stay code-drawn', async () => {
   assert.equal(env.chars.play(kit.svg, wind), kit.svg);
   const cap = svgFace(env, 'idle', { 'data-avatar': 'cap' });
   assert.equal(env.chars.play(cap.svg, { ...wind, avatar: 'cap' }), cap.svg);
-  // The minairó keeps its drawing until it has clay sheets of its own (119).
-  const minairo = svgFace(env, 'idle', { 'data-avatar': 'minairo' });
-  assert.equal(env.chars.play(minairo.svg, { ...wind, avatar: 'minairo' }), minairo.svg);
   await settle();
-  assert.equal(minairo.box.children[0], minairo.svg);
   assert.equal(kit.box.children[0], kit.svg);
   assert.equal(cap.box.children[0], cap.svg);
   assert.equal(env.fetched.length, 0);
+});
+
+test('a minairó plays the minairó clay sheets, whatever its silhouette, and keeps its drawing without them', async () => {
+  const env = load();
+  const { svg, box } = svgFace(env, 'idle', { 'data-avatar': 'minairo' });
+  assert.equal(env.chars.play(svg, { ...wind, avatar: 'minairo' }), svg);
+  await settle();
+  assert.ok(env.fetched.includes('/app/characters/minairo/idle.webp') && env.fetched.includes('/app/characters/minairo/idle.mask.webp'));
+  assert.ok(!env.fetched.some(u => u.includes('/curl/')), 'not the curl of its style');
+  assert.equal(box.children[0].tag, 'canvas');
+  assert.deepEqual(lastDraw(box.children[0]), { sheet: 'minairo/idle.webp', sx: 0, alpha: 1, op: 'source-over' });
+  const bare = load({ files: [] });
+  const drawn = svgFace(bare, 'idle', { 'data-avatar': 'minairo' });
+  bare.chars.play(drawn.svg, { ...wind, avatar: 'minairo' });
+  await settle();
+  assert.equal(drawn.box.children[0], drawn.svg, 'no minairó sheets: the drawn minairó stays');
 });
 
 test('reduced motion shows the first frame and switches moods without a crossfade', async () => {
