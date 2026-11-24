@@ -102,20 +102,33 @@ internal class WindBodyPaint(shape: WindShape, accent: Color, tx: Float = 0f, ty
 }
 
 internal fun DrawScope.drawWindBody(shape: WindShape, paint: WindBodyPaint, cx: Float, cy: Float, r: Float, sway: Float = 0f) {
-    val body = windBodies.getValue(shape)
     withTransform({ translate(cx, cy); scale(r, r, Offset.Zero) }) {
-        withTransform({ scale(1f, .2f, paint.foot) }) {
-            drawCircle(paint.shadow, radius = .8f, center = paint.foot)
-        }
+        drawWindShadow(paint)
         drawOval(paint.deep, topLeft = Offset(-.66f, .78f), size = Size(.43f, .22f))
         drawOval(paint.deep, topLeft = Offset(.23f, .78f), size = Size(.43f, .22f))
         // El rínxol es gronxa una mica amb l'aire (sway, en graus) des de l'arrel.
         if (shape == WindShape.SPIRAL) withTransform({ rotate(sway, curlRoot) }) { drawPath(windCurl, paint.volume) }
-        drawPath(body, paint.volume)
-        clipPath(body) {
-            drawRect(paint.rim, topLeft = Offset(-1.6f, -1.6f), size = Size(3.2f, 3.2f))
-            drawCircle(paint.shine, radius = .5f, center = paint.light)
-        }
+        drawWindVolume(shape, paint)
+    }
+}
+
+/** L'ombra de contacte a terra, en coordenades de radi 1: també la fan els caps d'Esperit i Cap. */
+internal fun DrawScope.drawWindShadow(paint: WindBodyPaint) {
+    withTransform({ scale(1f, .2f, paint.foot) }) {
+        drawCircle(paint.shadow, radius = .8f, center = paint.foot)
+    }
+}
+
+/**
+ * El cos amb llum, vora i brillantor, en coordenades de radi 1. [fill] és el
+ * gradient del cos; la Rosa hi posa la seva esfera fosca.
+ */
+internal fun DrawScope.drawWindVolume(shape: WindShape, paint: WindBodyPaint, fill: Brush = paint.volume) {
+    val body = windBodies.getValue(shape)
+    drawPath(body, fill)
+    clipPath(body) {
+        drawRect(paint.rim, topLeft = Offset(-1.6f, -1.6f), size = Size(3.2f, 3.2f))
+        drawCircle(paint.shine, radius = .5f, center = paint.light)
     }
 }
 
