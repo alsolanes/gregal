@@ -287,9 +287,9 @@ internal fun HomeFacesRow(
     }
 }
 
-/** El vent escriu: la seva cara petita i els punts, a l'esquerra com un missatge seu. */
+/** El vent escriu: els punts, a l'esquerra com un missatge seu. La cara és la del xat, una de sola (109). */
 @Composable
-internal fun WindTypingBubble(lang: String, wind: Wind, accent: Color, mood: WindMood,
+internal fun WindTypingBubble(lang: String, wind: Wind, accent: Color,
                                 /** Què està fent ara («Cercant al web…»). Aquí i enlloc més. */
                                 label: String? = null) {
     Row(
@@ -299,7 +299,6 @@ internal fun WindTypingBubble(lang: String, wind: Wind, accent: Color, mood: Win
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        WindFace(size = 30, mood = mood, accent = accent, style = wind.faceStyle)
         // La bombolla respira mentre el vent hi pensa; l'escala va a la capa, no recompon la fila.
         val breath = if (windMotionEnabled()) rememberInfiniteTransition(label = "typing-breath").animateFloat(
             initialValue = 0f, targetValue = 1f, label = "breath",

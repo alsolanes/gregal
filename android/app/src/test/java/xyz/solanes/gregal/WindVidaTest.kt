@@ -184,7 +184,7 @@ class WindVidaTest {
 
     private fun typingWidths(motion: Boolean): Pair<Int, Int> {
         show(motion) {
-            Box(Modifier.testTag("typing").background(Color.White).width(360.dp)) { WindTypingBubble("ca", xaloc, accent, WindMood.THINKING) }
+            Box(Modifier.testTag("typing").background(Color.White).width(360.dp)) { WindTypingBubble("ca", xaloc, accent) }
         }
         ui.mainClock.advanceTimeBy(100)
         val rest = rightEdge("typing")
