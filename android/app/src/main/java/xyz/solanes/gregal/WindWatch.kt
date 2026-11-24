@@ -408,9 +408,14 @@ object WindNotifications {
             .setVisibility(Notification.VISIBILITY_PRIVATE)
         // Glif, color i insígnia segons el que diu el vent (resum del matí, recordatori, temps…).
         val kind = NotifLook.apply(ctx, builder, NotifLook.of(n.source, "", n.text, hour = java.time.LocalTime.now().hour))
+        // Un vent conegut hi posa el seu color i la seva cara, per sobre dels de la mena.
+        val face = windLook(ctx, source, n.wind)?.let { (color, face) ->
+            builder.setColor(color).setLargeIcon(android.graphics.drawable.Icon.createWithBitmap(face))
+            face
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             val vent = Person.Builder().setName(nom)
-                .apply { NotifLook.badge(ctx, kind)?.let { setIcon(android.graphics.drawable.Icon.createWithBitmap(it)) } }
+                .apply { (face ?: NotifLook.badge(ctx, kind))?.let { setIcon(android.graphics.drawable.Icon.createWithBitmap(it)) } }
                 .build()
             builder.style = Notification.MessagingStyle(vent)
                 .addMessage(cos, System.currentTimeMillis(), vent)
@@ -431,6 +436,17 @@ object WindNotifications {
         try {
             ctx.getSystemService(NotificationManager::class.java).notify(notifId, builder.build())
         } catch (_: Exception) {
+        }
+    }
+
+    /** El color i la cara del vent, de la còpia de la llista d'aquest origen; null sense còpia (origen local, vent nou) o si no es llegeix. */
+    private fun windLook(ctx: Context, source: String, windId: String): Pair<Int, android.graphics.Bitmap>? {
+        val raw = VentsOffline.store(ctx, source).windsRaw() ?: return null
+        return try {
+            val wind = Wind.parse(raw).firstOrNull { it.id == windId } ?: return null
+            wind.argb.toInt() to windFaceBitmap(wind, avatarThemeOf(raw))
+        } catch (_: org.json.JSONException) {
+            null
         }
     }
 

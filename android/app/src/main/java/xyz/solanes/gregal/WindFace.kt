@@ -14,6 +14,11 @@ import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
@@ -413,7 +418,6 @@ fun WindFace(
     val blinks = remember(seed) { windBlinkTimes(seed.toBits()) }
     val glances = remember(seed) { windGlances(seed.toBits()) }
     fun time() = loop?.let { (it.value + seed) % 12f } ?: 0f
-    fun wave(time: Float, period: Float) = sin(2f * PI.toFloat() * (time % period) / period)
     val doneHop = if (motion && mood == WindMood.DONE) {
         val hop = remember { Animatable(0f) }
         LaunchedEffect(hop) { hop.animateTo(1f, tween(1100, easing = LinearEasing)) }
@@ -437,14 +441,9 @@ fun WindFace(
     // and is drawn a little smaller to make room for it, as `full` on the web;
     // the stored specialty stays intact when a small avatar does not show it.
     val full = size >= 80 || showKit
-    val kit = if (full && !minairo) windKits[style.kit] else null
     // Paral·laxi de volum només a les cares grans (perfil, creador, xat buit):
     // a les llistes petites seria soroll i sensor per a res.
     val lean = rememberWindLean(motion && !compact)
-    val ink = remember(accent) { windInk(accent) }
-    // Eines i insígnies es dibuixen amb la tinta del mateix vent, no amb un lila fix.
-    val tone = remember(accent) { lerp(accent, Color(0xFF1B1530), .8f) }
-    val handEdge = remember(accent) { lerp(accent, Color(0xFF1B1530), .45f) }
     val bodyPaint = remember(style.shape, accent, minairo) { WindBodyPaint(if (minairo) WindShape.BALL else style.shape, accent) }
     val look = remember(style.windId) { minairoLook(style.windId) }
     // L'aura entra i surt amb un fos quan el vent comença o acaba la feina.
@@ -466,7 +465,27 @@ fun WindFace(
     val tap = if (touch != null) Modifier.clickable(interactionSource = touch, indication = null) { punch++; onClick?.invoke() }
         else if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
     Canvas(cued.then(tap).then(motionLayer).size(size.dp)) {
-        val t = time()
+        with(WindFigure) {
+            draw(time(), size, mood, accent, style, minairo, full, motion, ::pose, blinks, aura, lean.value, cheer?.value, doneHop?.value, blow?.value, look, bodyPaint)
+        }
+    }
+}
+
+/** The Cares figure (or the minairó) at one instant [t]: the live face and the still avatar of a notification draw it the same way. */
+internal object WindFigure {
+    private fun wave(time: Float, period: Float) = sin(2f * PI.toFloat() * (time % period) / period)
+
+    fun DrawScope.draw(
+        t: Float, size: Int, mood: WindMood, accent: Color, style: WindStyle, minairo: Boolean, full: Boolean, motion: Boolean,
+        pose: (Float) -> WindPose, blinks: List<Float>, aura: Float, lean: Offset,
+        cheer: Float?, doneHop: Float?, blow: Float?, look: MinairoLook, bodyPaint: WindBodyPaint,
+    ) {
+        val kit = if (full && !minairo) windKits[style.kit] else null
+        val ink = windInk(accent)
+        // Eines i insígnies es dibuixen amb la tinta del mateix vent, no amb un lila fix.
+        val tone = lerp(accent, Color(0xFF1B1530), .8f)
+        val handEdge = lerp(accent, Color(0xFF1B1530), .45f)
+        val breathing = mood in windBreathMoods
         fun phase(period: Float) = t % period / period
         val talkOpen = motion && mood == WindMood.TALKING && phase(.4f) < .5f
         val twinkle = if (motion && (mood == WindMood.HAPPY || mood == WindMood.TALKING)) (wave(t, 2f) + 1f) / 2f else 0f
@@ -492,7 +511,7 @@ fun WindFace(
         fun hy(y: Float) = cy + (y - 40.5f) * u
 
         // Inclinació del mòbil (−1..1), llegida aquí perquè només redibuixi.
-        val (tx, ty) = lean.value
+        val (tx, ty) = lean
         val paint = if (tx == 0f && ty == 0f) bodyPaint else WindBodyPaint(if (minairo) WindShape.BALL else style.shape, accent, tx, ty)
         if (aura > 0f) {
             // Darrere el cos: un halo suau i un anell que gira, tots dos del color del vent.
@@ -509,18 +528,18 @@ fun WindFace(
             }
         }
         if (minairo) {
-            val cheered = (((cheer?.value ?: 0f) - .15f) * 4f).coerceIn(0f, 1f)
+            val cheered = (((cheer ?: 0f) - .15f) * 4f).coerceIn(0f, 1f)
             val eyePose = p.copy(lid = maxOf(blink, p.lid), smile = maxOf(p.smile, cheered * .5f))
             // The cap and the beard trail the figure: how far it moved in the last tenth of a second, the hop included.
-            val hop = doneHop?.value
+            val hop = doneHop
             fun lift(at: Float) = if (hop == null) 0f else windDoneHop(at.coerceIn(0f, 1f)).first
             val moved = if (!motion) 0f else p.y - pose(t - .1f).y + lift(hop ?: 0f) - lift((hop ?: 0f) - .09f)
             withTransform({ scale(unit, unit, Offset.Zero) }) {
                 drawMinairo(look, style.eyes, eyePose, mood, t, motion, moved, size, accent, ink, paint, tx, ty, talkOpen)
                 // The badge goes to the corner the barretina does not fold over.
-                withTransform({ translate(if (look.fold == 1) -54f else 0f, 0f) }) { drawBadge(mood, t, motion, doneHop?.value ?: 1f, tone) }
+                withTransform({ translate(if (look.fold == 1) -54f else 0f, 0f) }) { drawBadge(mood, t, motion, doneHop ?: 1f, tone) }
             }
-            return@Canvas
+            return
         }
         drawWindBody(style.shape, paint, cx, cy, r, if (motion) .5f + wave(t, 6f) * 5.5f else 0f,
             ground = full, stepL = windStep(mood, t, false) / 33f, stepR = windStep(mood, t, true) / 33f)
@@ -557,7 +576,7 @@ fun WindFace(
 
         // Els ulls porten l'expressió. Mouen tot l'ull cap on mira (també amb la
         // inclinació del mòbil); en tocar-la somriuen amb els ulls.
-        val cheered = (((cheer?.value ?: 0f) - .15f) * 4f).coerceIn(0f, 1f)
+        val cheered = (((cheer ?: 0f) - .15f) * 4f).coerceIn(0f, 1f)
         val eyePose = p.copy(lid = maxOf(blink, p.lid), smile = maxOf(p.smile, cheered * .5f))
         val small = size < 28
         val gx = p.gx + tx * 2.4f
@@ -607,11 +626,26 @@ fun WindFace(
             sparkle(cx - r * 1.10f, cy - r * 0.45f, r * 0.10f, 1f - twinkle)
         }
         if (breathing) withTransform({ scale(unit, unit, Offset.Zero); translate(40f, 40f); rotate(style.bearing + 90f, Offset.Zero) }) {
-            drawBreath(size, accent, blow?.value ?: 0f)
+            drawBreath(size, accent, blow ?: 0f)
         }
         // In Cares the breath replaces the working cog; the other marks stay.
-        if (mood != WindMood.WORKING) withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, motion, doneHop?.value ?: 1f, tone) }
+        if (mood != WindMood.WORKING) withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, motion, doneHop ?: 1f, tone) }
     }
+}
+
+/** A wind's still face as a bitmap, for a notification's large icon: drawn without a window, as a list avatar. */
+internal fun windFaceBitmap(wind: Wind, theme: String, px: Int = 128): android.graphics.Bitmap {
+    val accent = Color(wind.argb)
+    val style = wind.faceStyle
+    val minairo = windPack(theme, style) == "minairo"
+    val image = ImageBitmap(px, px)
+    CanvasDrawScope().draw(Density(1f), LayoutDirection.Ltr, androidx.compose.ui.graphics.Canvas(image), Size(px.toFloat(), px.toFloat())) {
+        with(WindFigure) {
+            draw(0f, 48, WindMood.IDLE, accent, style, minairo, false, false, { windPose(WindMood.IDLE, 0f) }, emptyList(), 0f, Offset.Zero,
+                null, null, null, minairoLook(style.windId), WindBodyPaint(if (minairo) WindShape.BALL else style.shape, accent))
+        }
+    }
+    return image.asAndroidBitmap()
 }
 
 /** Eye size (rx, ry) and how much lower it sits, in head units, per eye style: tall, big, star shine, calm and low (`face` in winds.js). */
