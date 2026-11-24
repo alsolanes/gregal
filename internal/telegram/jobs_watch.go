@@ -78,7 +78,8 @@ func (b *Bot) notifyNewRuns(ctx context.Context) {
 // notifiquen mai per Telegram: els vents avisen dins l'app (novetats),
 // no per cap bot.
 func notifyForRun(st *jobs.Store, r jobs.Run) bool {
-	if strings.TrimSpace(r.Wind) != "" {
+	// Un cor antic no porta Wind ni al run ni al job: el delata l'id wind-….
+	if strings.TrimSpace(r.Wind) != "" || strings.HasPrefix(r.JobID, "wind-") {
 		return false
 	}
 	list, err := st.List()
@@ -87,7 +88,7 @@ func notifyForRun(st *jobs.Store, r jobs.Run) bool {
 	}
 	for _, j := range list {
 		if j.ID == r.JobID {
-			return j.Notify
+			return j.Notify && strings.TrimSpace(j.Wind) == "" && j.Kind != "event"
 		}
 	}
 	return true // job esborrat: avisa igualment
