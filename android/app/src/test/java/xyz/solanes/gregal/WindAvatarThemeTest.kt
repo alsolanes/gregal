@@ -89,6 +89,25 @@ class WindAvatarThemeTest {
         }
     }
 
+    @Test fun `a server from before avatar themes says to update it instead of a raw 404`() {
+        // What a server built before task 045 answers: no avatar-theme route, and a wind with `avatar` is not a valid request.
+        FakeGregal(404) { """{"error":"not found"}""" }.use { server ->
+            val vm = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
+            vm.setConn(Conn("127.0.0.1", server.port, "token", "alice"))
+            val wait = { repeat(150) { if (vm.notice.value.isEmpty()) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(20)); Thread.sleep(5) } } }
+            vm.setAvatarTheme("esperit"); wait()
+            assertEquals(tr(vm.idioma.value, "winds.avatarServerOld"), vm.notice.value)
+            assertEquals("cares", vm.avatarTheme.value)
+        }
+        FakeGregal(400) { "invalid request" }.use { server ->
+            val vm = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
+            vm.setConn(Conn("127.0.0.1", server.port, "token", "alice"))
+            val wait = { repeat(150) { if (vm.notice.value.isEmpty()) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(20)); Thread.sleep(5) } } }
+            vm.createWind("Ratxa", "#5B8DEF", "", avatar = "minairo"); wait()
+            assertEquals(tr(vm.idioma.value, "winds.avatarServerOld"), vm.notice.value)
+        }
+    }
+
     private fun editor(theme: String, edit: Wind?, onSave: (WindDraft) -> Unit) {
         ui.setContent {
             CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false, LocalAvatarTheme provides theme) {
