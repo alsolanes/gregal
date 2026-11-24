@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -143,6 +144,24 @@ internal fun VentsChatHeader(
 
 /** Alçada de la capçalera flotant del xat: el fil hi deixa aquest marge a dalt. */
 internal val ChatHeaderInset = 62.dp
+
+/** El fons de la conversa d'un vent: la superfície amb un vel suau del seu color. */
+internal fun windWash(accent: Color, surface: Color): Color = accent.copy(alpha = 0.06f).compositeOver(surface)
+
+/** Les bombolles del vent, tenyides del seu color com els punts d'escriure (16 %). */
+internal fun windBubbleColor(accent: Color, background: Color): Color = accent.copy(alpha = 0.16f).compositeOver(background)
+
+/**
+ * L'estat del vent a la capçalera, la mateixa regla que el web: t'espera (té
+ * una pregunta per a tu, encara que el torn segueixi), treballant, fet (el torn
+ * ha acabat i encara no has escrit ni has sortit) o res. Torna la clau del text.
+ */
+internal fun windChatState(windId: String, busy: Set<String>, asks: List<GregalApi.WindAsk>, done: Boolean): String? = when {
+    asks.any { it.wind == windId } -> "winds.state.waiting"
+    windId in busy -> "winds.state.working"
+    done -> "winds.state.done"
+    else -> null
+}
 
 /**
  * El fil s'esvaeix sota la capçalera flotant: sense això el text es llegia
