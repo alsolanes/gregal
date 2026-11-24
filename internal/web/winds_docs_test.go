@@ -158,7 +158,7 @@ func TestWindTurnGetsThePersonsDocChanges(t *testing.T) {
 		rebut = append(rebut, string(raw))
 		mu.Unlock()
 		w.Header().Set("Content-Type", "text/event-stream")
-		fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\",\"content\":\"fet\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
+		_, _ = fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\",\"content\":\"fet\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
 	}))
 	t.Cleanup(provider.Close)
 	s.cfg.Providers["p"] = config.Provider{BaseURL: provider.URL + "/v1"}

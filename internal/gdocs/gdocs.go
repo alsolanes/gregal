@@ -639,6 +639,23 @@ func setCell(f *excelize.File, b Block, c, in string) error {
 	return xlsxdoc.SetString(f, b.Name, c, in)
 }
 
+// valorDe és el valor calculat d'una cel·la, o l'error que hi posaria Excel.
+func valorDe(f *excelize.File, sheet, cell string) string {
+	v, err := f.CalcCellValue(sheet, cell)
+	if err != nil {
+		v = err.Error()
+		// excelize diu «not support X function» d'una funció que
+		// no coneix; Excel hi posa #NAME?, com a un full que no hi és.
+		if !strings.HasPrefix(v, "#") {
+			v = "#NAME?"
+		}
+	}
+	if len(v) > maxValue {
+		v = strings.ToValidUTF8(v[:maxValue], "")
+	}
+	return v
+}
+
 // calc calcula amb excelize el valor de cada cel·la dels fulls, perquè
 // tothom vegi el mateix resultat; refusa un nom de full que Excel no admet.
 func calc(d *Doc) error {
@@ -691,19 +708,7 @@ func calc(d *Doc) error {
 				return
 			default:
 			}
-			v, err := f.CalcCellValue(cl.sheet, cl.cell)
-			if err != nil {
-				v = err.Error()
-				// excelize diu «not support X function» d'una funció que
-				// no coneix; Excel hi posa #NAME?, com a un full que no hi és.
-				if !strings.HasPrefix(v, "#") {
-					v = "#NAME?"
-				}
-			}
-			if len(v) > maxValue {
-				v = strings.ToValidUTF8(v[:maxValue], "")
-			}
-			cl.v = v
+			cl.v = valorDe(f, cl.sheet, cl.cell)
 			out <- cl
 		}
 	}()

@@ -3,6 +3,8 @@ package agent
 import (
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -268,6 +270,44 @@ func TestEinaDocNoTrepitjaLaPersona(t *testing.T) {
 	out, err := call(map[string]any{"action": "replace", "block": b2, "md": "Two, after reading."})
 	if err != nil || !strings.Contains(out, "Two, after reading.") {
 		t.Fatalf("després de llegir: %v\n%s", err, out)
+	}
+}
+
+// L'agent posa una imatge del projecte a la carpeta del document, i només
+// del projecte.
+func TestEinaDocPosaUnaImatgeDelProjecte(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	dir := t.TempDir()
+	d := creaDoc(t, dir, "s1", "Intro.")
+	png := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82")
+	if err := os.MkdirAll(filepath.Join(dir, "img"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "img", "logo.png"), png, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := docExec(dir, "s1", `{"action":"image","id":"`+d.ID+`","image":"img/logo.png"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := regexp.MustCompile(`images/[a-z0-9]+\.png`).FindString(out)
+	s, _ := gdocs.Open(dir)
+	p, err := s.ImagePath(d.ID, src)
+	if err != nil {
+		t.Fatalf("%s: %v", out, err)
+	}
+	if got, err := os.ReadFile(p); err != nil || string(got) != string(png) {
+		t.Fatalf("la imatge no és a la carpeta del document: %v", err)
+	}
+	fora := filepath.Join(t.TempDir(), "fora.png")
+	if err := os.WriteFile(fora, png, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, img := range []string{fora, "../fora.png", filepath.Join("..", filepath.Base(filepath.Dir(fora)), "fora.png")} {
+		raw, _ := json.Marshal(map[string]string{"action": "image", "id": d.ID, "image": img})
+		if _, err := docExec(dir, "s1", string(raw)); err == nil {
+			t.Fatalf("imatge de fora del projecte acceptada: %s", img)
+		}
 	}
 }
 
