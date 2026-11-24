@@ -123,7 +123,7 @@ class WindVidaTest {
     }
 
     /** Painted pixels around the 72 dp face, outside its own box: where only the burst reaches. */
-    private fun around(motion: Boolean, from: WindMood, to: WindMood, then: WindMood? = null): Int {
+    private fun around(motion: Boolean, from: WindMood, to: WindMood, then: WindMood? = null, band: Int = 46): Int {
         var mood by mutableStateOf(from)
         show(motion) {
             Box(Modifier.testTag("stage").background(Color.White).padding(48.dp)) { WindFace(size = 72, mood = mood, accent = accent) }
@@ -139,7 +139,7 @@ class WindVidaTest {
         }
         val bmp = shot("stage")
         val px = ui.activity.resources.displayMetrics.density
-        val inner = (46 * px).toInt()..(bmp.width - 46 * px).toInt()
+        val inner = (band * px).toInt()..(bmp.width - band * px).toInt()
         var painted = 0
         for (x in 0 until bmp.width) for (y in 0 until bmp.height) {
             if (x in inner && y in inner) continue
@@ -153,8 +153,9 @@ class WindVidaTest {
     }
 
     @Test fun aFailedTurnShrugsWithoutConfetti() {
-        // From IDLE: a working face's aura reaches the edge of its box, and the shrug tilts it a little past it.
-        assertEquals(0, around(motion = true, from = WindMood.IDLE, to = WindMood.FAILED))
+        // The redesigned shrug (111) leans with a springy overshoot past the 46 dp band under load; confetti would fly
+        // to the stage edge, so the outer 34 dp are what tells a burst apart from the lean.
+        assertEquals(0, around(motion = true, from = WindMood.IDLE, to = WindMood.FAILED, band = 34))
     }
 
     @Test fun noBurstWithoutMotion() {
