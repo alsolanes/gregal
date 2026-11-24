@@ -779,6 +779,29 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-wind-mark[data-mark="working"]::before { content:""; display:inline-block; width:6px; height:6px; margin-right:6px; border-radius:50%; background:currentColor; vertical-align:1px; }
 @media(prefers-reduced-motion:no-preference) { .vw-wind-mark[data-mark="working"]::before { animation:vw-thinking 1.4s ease-in-out infinite; } }
 
+/* ---- El vent present a la cantonada del xat (087) ----
+   Una fila d'alçada zero entre el fil i el compositor: el vent s'hi recolza a sobre, mig fora de la
+   columna, i el fil li deixa marge a la dreta perquè no tapi cap missatge. Sota 900 px no hi és, ni
+   quan un panell de feina (l'ordinador, Gregal Docs) deixa el xat massa estret. */
+.vw-wind-corner { display:none; }
+@media(min-width:900px) {
+  .vw-thread-view:has(> .vw-wind-corner) > .vw-messages { padding-right:88px; }
+  .vw-wind-corner { display:block; position:relative; flex:none; height:0; pointer-events:none; }
+  .vw-wind-corner > .winds-face { position:absolute; right:-24px; bottom:4px; width:96px; height:96px; transform-origin:50% 100%; }
+  /* T'espera: s'inclina cap a tu (el compositor) i hi fa un gest de tant en tant. */
+  .vw-wind-corner[data-mood="waiting"] > .winds-face { transform:rotate(-8deg); }
+}
+@media(min-width:900px) and (max-width:1199.98px) {
+  #workbench:has(> .vw-computer-pane, > #docsPanel:not([hidden])) .vw-wind-corner { display:none; }
+  #workbench:has(> .vw-computer-pane, > #docsPanel:not([hidden])) .vw-thread-view > .vw-messages { padding-right:3px; }
+}
+@media(min-width:900px) and (prefers-reduced-motion:no-preference) {
+  .vw-wind-corner[data-mood="waiting"] > .winds-face { animation:vw-corner-wait 3s ease-in-out infinite; }
+}
+@keyframes vw-corner-wait { 0%,70%,100% { transform:rotate(-8deg); } 78% { transform:rotate(-8deg) translateY(-5px); } 86% { transform:rotate(-8deg); } }
+/* Quiet del tot: també les parts que winds.css mou en plena feina encara que es demani menys moviment. */
+@media(prefers-reduced-motion:reduce) { .wind-workspace .vw-wind-corner .winds-face[data-mood], .wind-workspace .vw-wind-corner .winds-face[data-mood] * { animation:none !important; } }
+
 /* ---- Fil de Gregal com a portada (B14) ----
    A dalt, només la cara flotant (centrada) i l'ordinador; sense barra ni
    rutes. En obrir, la lluïssor floreix al voltant de la cara (≈0,7 s) i

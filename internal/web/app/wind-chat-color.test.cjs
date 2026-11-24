@@ -58,3 +58,19 @@ test('the header says what the wind is doing: working, waiting for you, done or 
   // Amb el torn aturat esperant la teva resposta, el vent t'espera.
   assert.equal(mark({ pending: { thread: chat, wind }, asks: [{ key: 'k', wind }] }, chat, wind), 'waiting');
 });
+
+// El vent present a la cantonada del xat (087) fa cara del mateix estat: les cares de feina
+// de moodOf mentre el torn corre, la postura d'espera amb una pregunta seva, «fet» en acabar.
+test('the corner wind’s mood follows the state: working moods, waiting with an ask, done after the turn', () => {
+  const window = { document: { createElementNS() {}, createElement() {} }, performance: { now: () => 0 } };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'winds.js'), 'utf8'), { window });
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'winds-workspace.js'), 'utf8'), { window, document: { documentElement: { lang: 'en' }, addEventListener() {} } });
+  const { cornerMood } = window.gregalWindChat;
+  const chat = 'company-xaloc-s1', wind = 'xaloc';
+  assert.equal(cornerMood({ pending: { thread: chat, wind, phase: 'thinking' } }, chat, wind), 'thinking');
+  assert.equal(cornerMood({ pending: { thread: chat, wind, phase: 'searching' } }, chat, wind), 'searching');
+  assert.equal(cornerMood({ pending: { thread: chat, wind, phase: 'working', text: 'Hi ha' } }, chat, wind), 'writing');
+  assert.equal(cornerMood({ pending: { thread: chat, wind, phase: 'working' }, asks: [{ key: 'k', wind }] }, chat, wind), 'waiting');
+  assert.equal(cornerMood({ asks: [], done: chat }, chat, wind), 'done');
+  assert.equal(cornerMood({ asks: [] }, chat, wind), 'idle');
+});

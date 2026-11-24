@@ -155,8 +155,14 @@
  const windMark=({pending,asks,done}={},thread,wind)=>(asks||[]).some(a=>a.wind===wind)?'waiting':pending?.thread===thread?'working':done===thread?'done':'';
  const markText=m=>({working:t('Treballant…','Working…'),waiting:t("T'espera",'Waiting for you'),done:t('Fet','Done')})[m]||'';
  function markLabel(w){const n=el('span','vw-wind-mark');n.dataset.wind=w.id;paintMark(n);return n;}
- function paintMark(n=page?.querySelector('.vw-wind-mark')){if(!n)return;const m=windMark(state,state.active?.id,n.dataset.wind);n.dataset.mark=m;n.textContent=markText(m);n.hidden=!m;}
- root.gregalWindChat={mix:mixHex,share:windShare,mark:windMark};
+ function paintMark(n=page?.querySelector('.vw-wind-mark')){paintCorner();if(!n)return;const m=windMark(state,state.active?.id,n.dataset.wind);n.dataset.mark=m;n.textContent=markText(m);n.hidden=!m;}
+ // El vent present a la cantonada del xat (087) fa cara del mateix estat. «waiting» no és una cara de
+ // winds.js (la dibuixa en repòs): és la postura que li dona winds-workspace.css.
+ const cornerMood=(s,thread,wind)=>{const m=windMark(s,thread,wind);return m==='working'?root.gregalWinds.moodOf(s.pending):m||'idle';};
+ // Al fil de Gregal la seva cara ja és gran a dalt; en un grup no hi ha un sol vent.
+ function cornerWind(){const w=soloWind();if(!w||state.active?.wind==='gregal')return;const n=el('div','vw-wind-corner');n.dataset.wind=w.id;n.setAttribute('aria-hidden','true');content.append(n);paintCorner(n);}
+ function paintCorner(n=page?.querySelector('.vw-wind-corner')){if(!n)return;const mood=cornerMood(state,state.active?.id,n.dataset.wind);if(n.dataset.mood===mood)return;n.dataset.mood=mood;n.replaceChildren(root.gregalWinds.face(state.winds.find(w=>w.id===n.dataset.wind),true,mood));}
+ root.gregalWindChat={mix:mixHex,share:windShare,mark:windMark,cornerMood};
  // Qui porta la conversa: el vent gran amb el seu estat, el nom i l'ofici. En un grup, les cares de qui hi és.
  function owner(){
   const box=el('span','vw-owner'),members=state.winds.filter(w=>(state.active?.members||[]).includes(w.id));
@@ -983,7 +989,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   card.append(days);host.append(card);}
  function placePicker(w,after){const d=dialog(t('On vols seguir el temps?','Where do you want to follow the weather?'));const q=field(d,t('Cerca un lloc','Search a place'),'');q.placeholder=t('Barcelona, Puigcerdà, Sóller…','Barcelona, Puigcerdà, Sóller…');const list=el('div','vw-place-results');d.append(list,el('p','vw-error'));let timer=0;
   q.oninput=()=>{clearTimeout(timer);timer=setTimeout(async()=>{const r=await call('/api/winds/weather/places?q='+encodeURIComponent(q.value)).catch(()=>({places:[]}));list.replaceChildren();for(const p of r.places||[]){const b=btn('',async()=>{await call('/api/winds/calaix','POST',{wind:w.id,shelf:'llocs',action:'add',item:{name:p.name,lat:p.lat,lon:p.lon,where:p.where,primary:true}});await call('/api/winds/calaix','POST',{wind:w.id,shelf:'llocs',action:'primary',key:p.name.toLowerCase()});d.close();after?.();},'vw-place-result');b.append(el('strong','',p.name),el('small','',p.where||''));list.append(b);}},250);};setTimeout(()=>q.focus(),0);}
- function chatView(){content.classList.add('vw-thread-view');messages=el('div','vw-messages gc-sayable');messages.dataset.thread=state.active.id;messages.addEventListener('gregal-say',e=>{const text=String(e.detail?.text||'').trim();if(!text||!input||!composer||state.busy)return;input.value=text;composer.requestSubmit();});content.append(messages);paintHistory();const linked=state.tasks.filter(task=>task.thread===state.active.id);for(const task of linked)messages.append(linkRow(task.task+' · '+statusName(task.status),()=>{state.events=task.events||[];route('task',{...task,name:task.task,conversation:state.active});}));asksBox=el('div','vw-asks vw-asks-inline');messages.append(asksBox);paintAsks();loadAsks();addComposer(!!state.active?.workspace);}
+ function chatView(){content.classList.add('vw-thread-view');messages=el('div','vw-messages gc-sayable');messages.dataset.thread=state.active.id;messages.addEventListener('gregal-say',e=>{const text=String(e.detail?.text||'').trim();if(!text||!input||!composer||state.busy)return;input.value=text;composer.requestSubmit();});content.append(messages);paintHistory();const linked=state.tasks.filter(task=>task.thread===state.active.id);for(const task of linked)messages.append(linkRow(task.task+' · '+statusName(task.status),()=>{state.events=task.events||[];route('task',{...task,name:task.task,conversation:state.active});}));asksBox=el('div','vw-asks vw-asks-inline');messages.append(asksBox);paintAsks();loadAsks();cornerWind();addComposer(!!state.active?.workspace);}
  function emptyWindThread(){
   const wind=state.winds.find(w=>w.id===state.active?.wind);
   if(!wind)return;
