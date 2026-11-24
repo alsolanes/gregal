@@ -49,4 +49,21 @@ class CompareCardsTest {
         val items = ViewerLogic.itemsOfTexts(listOf(text))
         assertEquals(listOf("https://e.org/c.jpg", "https://e.org/l.jpg"), items.filterIsInstance<ViewItem.Image>().map { it.url })
     }
+    @Test
+    fun upToEightItemsWithLogosPhotosAndSummaryPoints() {
+        val many = (1..10).joinToString(",") { """{"name":"N$it"}""" }
+        assertEquals(8, parseCompareSpec("""{"title":"t","items":[$many]}""")!!.items.size)
+        val spec = parseCompareSpec("""{"title":"Programes","items":[
+            {"name":"Partit A","image":"https://e.org/a.jpg","images":["https://e.org/a.jpg","https://e.org/a2.jpg","https://e.org/a3.jpg"],"logo":"https://e.org/a.png","url":"https://a.example/programa","points":["Un","Dos","Tres","4","5","6","7"]},
+            {"name":"Partit B","logo":"ftp://x","points":"no"}]}""")!!
+        val a = spec.items[0]
+        assertEquals(listOf("https://e.org/a.jpg", "https://e.org/a2.jpg"), a.photos)
+        assertEquals("https://e.org/a.jpg", a.image)
+        assertEquals("https://e.org/a.png", a.logo)
+        assertEquals("https://a.example/programa", a.url)
+        assertEquals(6, a.points.size)
+        assertEquals("", spec.items[1].logo)
+        assertTrue("items with points page one by one", spec.paged)
+        assertFalse(parseCompareSpec("""{"title":"t","items":[{"name":"A"},{"name":"B"}]}""")!!.paged)
+    }
 }
