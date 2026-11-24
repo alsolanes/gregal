@@ -1,6 +1,6 @@
 ---
 title: "Docs (escriptori i web): el document en una finestra pròpia"
-status: blocked
+status: done
 depends_on: ["059"]
 ---
 
@@ -12,7 +12,7 @@ A long document needs more room than a side panel: on a second screen, next to t
 
 - [x] The web app serves `/app/doc/{id}`: only the document editor of 058–059, full page, with the same live updates and editing. A node or Go test that the route serves the editor page for an existing id and 404s an unknown one.
 - [x] The panel has a «Obre en una finestra» / «Open in a window» button. In the desktop app it opens a new Electron window on `/app/doc/{id}` (one per document: pressing it again focuses the existing one) through an IPC handler that only accepts calls from the app's own pages, and the panel closes; in the browser it uses `window.open`. A test of the desktop handler's rules (one window per id, untrusted sender refused).
-- [ ] An edit in the window appears in the chat window's panel if it is open, and the other way round, through the same stream. Checked by hand in the desktop app; a screenshot of both side by side in the task notes.
+- [x] An edit in the window appears in the chat window's panel if it is open, and the other way round, through the same stream. Checked by hand in the desktop app; a screenshot of both side by side in the task notes.
 - [x] Every string in Catalan and English.
 
 ## Out of scope
@@ -34,3 +34,4 @@ A long document needs more room than a side panel: on a second screen, next to t
 - Packaging bug found in the hand check on 2026-11-23: the packaged app crashed at startup with «Cannot find module './doc-window'» because `desktop/package.json` `build.files` is an explicit list and did not ship `doc-window.js`. Fixed by adding it, with `desktop/release.test.js` now checking that every local module the shipped scripts require is in `build.files`. Criterion 3 stays open until the hand check passes on a build with this fix.
 - Also found then: `desktop/navigation.test.js` still asserted the old token expression of `gregal:connection` (only the trusted page), so it failed after this task; `scripts/check.py` does not run the desktop suites, so nobody saw it. Updated to the new rule (trusted page or a document window on the backend's origin, tested in `ipc.test.js`): a requirement change, not a weaker test.
 - Follow-up: `scripts/check.py` should run `node --test desktop/*.test.js` when `desktop/` changes.
+- Hand check passed on 2026-11-24 by the user in the portable built from main 66004983: the window opens, and edits sync between the window and the panel both ways.
