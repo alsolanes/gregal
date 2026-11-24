@@ -77,7 +77,8 @@
     return a;
   }
   // extended afegeix a markdown-it els [text]{…} i la línia {align=…} just
-  // després d'un paràgraf o d'un títol de primer nivell.
+  // després d'un paràgraf (també el d'una cita o d'una llista, si la línia
+  // no porta el prefix, com llegeix l'exportació) o d'un títol de primer nivell.
   const ALIGN = /^\{align=(left|center|right|justify)\}$/;
   function extended(md) {
     md.inline.ruler.before('link', 'span', (state, silent) => {
@@ -107,11 +108,10 @@
       const lines = state.src.split('\n'), t = state.tokens;
       for (let i = 0; i < t.length; i++) {
         const o = t[i];
-        if (o.level !== 0) continue;
         if (o.type === 'paragraph_open' && o.map[1] - o.map[0] > 1) {
           const m = ALIGN.exec(lines[o.map[1] - 1]);
           if (m) { o.attrSet('align', m[1]); t[i + 1].content = t[i + 1].content.replace(/\n[^\n]*$/, ''); }
-        } else if (o.type === 'heading_open' && t[i + 3]?.type === 'paragraph_open' && t[i + 3].map[0] === o.map[1] && t[i + 3].map[1] === o.map[1] + 1) {
+        } else if (o.level === 0 && o.type === 'heading_open' && t[i + 3]?.type === 'paragraph_open' && t[i + 3].map[0] === o.map[1] && t[i + 3].map[1] === o.map[1] + 1) {
           const m = ALIGN.exec(lines[o.map[1]]);
           if (m) { o.attrSet('align', m[1]); t.splice(i + 3, 3); }
         }
@@ -121,7 +121,8 @@
 
   const cell = { block: 'table_cell', getAttrs: t => ({ align: /text-align:(\w+)/.exec(t.attrGet('style') || '')?.[1] || null }) };
   const parser = new pm.MarkdownParser(schema, pm.MarkdownIt('commonmark', { html: false }).enable(['strikethrough', 'table']).use(pm.ins).use(extended), {
-    ...pm.defaultMarkdownParser.tokens, s: { mark: 'strike' }, ins: { mark: 'underline' },
+    // Un salt de línia dins d'un paràgraf es queda salt de línia, i no un espai, quan es torna a escriure.
+    ...pm.defaultMarkdownParser.tokens, s: { mark: 'strike' }, ins: { mark: 'underline' }, softbreak: { node: 'hard_break' },
     paragraph: { block: 'paragraph', getAttrs: t => ({ align: t.attrGet('align') }) },
     heading: { block: 'heading', getAttrs: t => ({ level: +t.tag.slice(1), align: t.attrGet('align') }) },
     span: { mark: 'span', getAttrs: t => t.meta },
@@ -140,9 +141,11 @@
     for (const cells of [rows[0], delim, ...rows.slice(1)]) { s.write('| ' + cells.join(' | ') + ' |'); s.ensureNewLine(); }
     s.closeBlock(n);
   }
-  // La línia {align=…} només a primer nivell: dins d'una llista o d'una cita
-  // aniria sagnada i l'exportació no la llegiria.
-  const alignLine = (s, n) => { if (n.attrs.align && !s.delim) { s.ensureNewLine(); s.write('{align=' + n.attrs.align + '}'); } };
+  // La línia {align=…} va sense el prefix de la llista o la cita (amb el
+  // prefix, l'exportació no la llegiria); un títol només l'aguanta a primer nivell.
+  const alignLine = (s, n) => {
+    if (n.attrs.align && (!s.delim || n.type.name === 'paragraph')) { s.ensureNewLine(); s.append('{align=' + n.attrs.align + '}'); }
+  };
   const serializer = new pm.MarkdownSerializer({
     ...D.nodes, bullet_list: (s, n) => s.renderList(n, '  ', () => '- '), table: tableMd,
     paragraph: (s, n) => { s.renderInline(n); alignLine(s, n); s.closeBlock(n); },
@@ -172,11 +175,13 @@
   }
 
   const S = schema.nodes, M = schema.marks;
+  // blockType canvia el tipus del bloc i en deixa l'id i l'alineació.
+  const blockType = (type, attrs) => pm.setBlockType(type, n => ({ ...attrs, id: n.attrs.id, align: n.attrs.align }));
   const commands = {
-    paragraph: pm.setBlockType(S.paragraph),
-    h1: pm.setBlockType(S.heading, { level: 1 }),
-    h2: pm.setBlockType(S.heading, { level: 2 }),
-    h3: pm.setBlockType(S.heading, { level: 3 }),
+    paragraph: blockType(S.paragraph),
+    h1: blockType(S.heading, { level: 1 }),
+    h2: blockType(S.heading, { level: 2 }),
+    h3: blockType(S.heading, { level: 3 }),
     bold: pm.toggleMark(M.strong),
     italic: pm.toggleMark(M.em),
     underline: pm.toggleMark(M.underline),
@@ -185,7 +190,8 @@
     bullets: pm.wrapInList(S.bullet_list),
     numbers: pm.wrapInList(S.ordered_list),
     quote: pm.wrapIn(S.blockquote),
-    rule: (st, d) => { if (d) d(st.tr.replaceSelectionWith(S.horizontal_rule.create())); return true; },
+    // Dins d'una cel·la, la línia aniria on ProseMirror triés: no s'hi pot posar.
+    rule: (st, d) => { if (inCell(st)) return false; if (d) d(st.tr.replaceSelectionWith(S.horizontal_rule.create())); return true; },
     undo: pm.undo,
     redo: pm.redo,
   };
@@ -386,6 +392,7 @@
     for (const b of doc.blocks) known.set(b.id, { md: toMd(fromMd(b.md, b.id)), version: b.version });
     const conflicts = new Map(); // id → el bloc com és ara, després d'un 409
     const waiting = []; // events que esperen: un desament en curs o el bloc que s'edita
+    const posted = new Set(); // els blocs que han fet els POST d'aquí: el seu insert del stream és el nostre
     const base = doc.version;
     let version = doc.version, timer = null, busy = false, temp = 0, focused = false;
     let state = pm.EditorState.create({ schema, doc: toDoc(doc.blocks), plugins: [pm.history(), pm.keymap(keys), pm.keymap(pm.baseKeymap), keepIds, fillRows] });
@@ -427,9 +434,11 @@
           ctl.dispatch(tr);
           r = await edit.post(op.after, op.md);
           if (r.status === 200) {
-            const b = r.body.blocks[0];
-            known.set(b.id, { md: op.md, version: b.version });
-            retag(tmp, b.id);
+            // El servidor parteix el markdown a cada línia en blanc (una
+            // llista no compacta, per exemple): el node es queda el primer
+            // bloc, que el PUT següent omple sencer, i els altres s'esborren.
+            for (const b of r.body.blocks) { known.set(b.id, { md: b.md, version: b.version }); posted.add(b.id); }
+            retag(tmp, r.body.blocks[0].id);
           } else retag(tmp, null);
         } else if (op.md) {
           r = await edit.put(op.id, op.md, known.get(op.id).version);
@@ -481,7 +490,7 @@
     function drain() {
       for (const c of waiting.splice(0)) {
         const id = c.block.id, k = known.get(id);
-        if (c.op === 'insert' ? k : !k || c.block.version <= k.version) continue; // ja hi és: és el nostre
+        if (c.op === 'insert' ? k || posted.has(id) : !k || c.block.version <= k.version) continue; // ja hi és: és el nostre
         if (conflicts.has(id)) { conflicts.set(id, c.block); ctl.onConflict(); continue; }
         if (busy || (c.op !== 'insert' && (editingId() === id || dirty(id)))) waiting.push(c);
         else remote(c);
@@ -678,8 +687,8 @@
       const c = current(st), on = active(st);
       STYLES.forEach(([key], i) => pickers[i](c[key]));
       for (const [name, b] of Object.entries(toolBtns)) {
-        if (name === 'undo' || name === 'redo') b.disabled = !commands[name](st);
-        else if (name !== 'rule') b.setAttribute('aria-pressed', String(on.has(name)));
+        if (name === 'undo' || name === 'redo' || name === 'rule') b.disabled = !commands[name](st);
+        else b.setAttribute('aria-pressed', String(on.has(name)));
       }
     };
     const insertGroup = Doc.createElement('span'), file = Doc.createElement('input');

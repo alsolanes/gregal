@@ -475,3 +475,96 @@ test('an image goes in its own block as ![caption](images/<name>), and only name
   for (const bad of ['/etc/x.png', '../x.png', 'images/../x.png', 'images/..', 'images/a/b.png', 'images\\..\\x.png', 'C:\\x.png', 'https://exemple.cat/x.png', 'x.png'])
     assert.equal(imageName(bad), null, bad);
 });
+
+test('a heading level or paragraph from the toolbar keeps the block\'s alignment', () => {
+  const ed = editor(block('hola\n{align=center}'), fakeEdit());
+  select(ed, pos(ed, 'hola'));
+  ed.run(commands.h2);
+  assert.equal(md(ed), '## hola\n{align=center}');
+  ed.run(commands.paragraph);
+  assert.equal(md(ed), 'hola\n{align=center}');
+  assert.deepEqual(ids(ed), ['a']);
+});
+
+test('an {align=…} line right after a quote or a list item aligns it and comes back the same', () => {
+  for (const s of ['> hola\n{align=center}', '- u\n{align=right}\n- dos', '1. u\n2. dos\n{align=justify}']) {
+    const doc = toDoc([{ id: 'x', md: s }]);
+    let aligned = 0;
+    doc.descendants(n => { if (n.attrs.align) aligned++; });
+    assert.equal(aligned, 1, s);
+    assert.equal(toMd(doc.content.content), s);
+  }
+  const ed = editor(block('> hola\n{align=center}'), fakeEdit());
+  type(ed, '!', pos(ed, 'hola', true));
+  assert.equal(md(ed), '> hola!\n{align=center}', 'editing it does not join the line to the text');
+  assert.equal(toDoc([{ id: 'x', md: '> hola\n> {align=center}' }]).firstChild.firstChild.attrs.align, null, 'inside the quote it is text, as in the export');
+});
+
+test('nested spans keep every letter\'s style once the block is written back', () => {
+  const doc = toDoc([{ id: 'x', md: '[a [b]{color=#c0392b} c]{size=14}' }]);
+  const styles = d => { const out = []; d.descendants(n => { if (n.isText) for (const ch of n.text.trim()) out.push([ch, n.marks.map(m => JSON.stringify(m.attrs))]); }); return out; };
+  const back = toMd(doc.content.content);
+  assert.deepEqual(styles(toDoc([{ id: 'x', md: back }])), styles(doc));
+});
+
+test('the horizontal line cannot be inserted inside a table cell', () => {
+  const e = editor(block(TABLE, 't'), fakeEdit());
+  select(e, pos(e, 'Beta', true));
+  assert.equal(e.run(commands.rule), false);
+  assert.equal(md(e), TABLE);
+});
+
+test('a block the server splits on POST is not lost nor duplicated by later edits and its stream events', async () => {
+  const ed = fakeEdit(), e = editor(block('hola'), ed);
+  ed.post = async (after, s) => {
+    ed.calls.push(['post', after, s]);
+    return { status: 200, body: { version: 5, blocks: [{ id: 'p1', md: '- u', version: 5 }, { id: 'p2', md: '- dos', version: 5 }] } };
+  };
+  select(e, pos(e, 'hola', true));
+  e.run(keys.Enter);
+  e.dispatch(e.state.tr.insertText('u'));
+  e.run(commands.bullets);
+  e.run(keys.Enter);
+  e.dispatch(e.state.tr.insertText('dos'));
+  const saving = e.flush();
+  e.apply({ op: 'insert', block: { id: 'p1', md: '- u', version: 5 }, after: 'a', version: 5 });
+  e.apply({ op: 'insert', block: { id: 'p2', md: '- dos', version: 5 }, after: 'p1', version: 5 });
+  await saving;
+  const list = '- u\n\n- dos';
+  assert.deepEqual(ed.calls, [['post', 'a', list], ['put', 'p1', list, 5], ['del', 'p2', 5]]);
+  assert.equal(md(e), 'hola\n\n' + list);
+  assert.deepEqual(ids(e), ['a', 'p1']);
+  e.dispatch(e.state.tr.insertText('!'));
+  await e.flush();
+  assert.deepEqual(ed.calls.at(-1), ['put', 'p1', list + '!', 9]);
+});
+
+test('a line break inside a paragraph stays a line break after editing', () => {
+  const ed = editor(block('primera\nsegona'), fakeEdit());
+  type(ed, '!', pos(ed, 'segona', true));
+  assert.equal(md(ed), 'primera\\\nsegona!');
+});
+
+test('every toolbar button works in a paragraph, a heading, a list, a quote and a table cell without throwing', () => {
+  const buttons = [
+    ...Object.entries(commands), ['link', link('https://exemple.cat')],
+    ...['color', 'bg'].map(k => [k, style(k, '#2e75b6')]), ['font', style('font', 'Georgia')], ['size', style('size', '14')],
+    ...['center', 'right', 'justify', 'left'].map(v => ['align ' + v, align(v)]),
+    ['table', table(2, 2)], ['image', image('images/x.png', 'x')],
+  ];
+  const places = [['paragraph', 'hola món'], ['heading', '## hola món'], ['list', '- hola món'], ['quote', '> hola món'], ['cell', '| hola món | b |\n| --- | --- |\n| c | d |']];
+  for (const [where, s] of places) {
+    for (const [name, cmd] of buttons) {
+      for (const empty of [true, false]) {
+        const ed = editor(block(s), fakeEdit());
+        if (empty) select(ed, pos(ed, 'món'));
+        else select(ed, pos(ed, 'hola'), pos(ed, 'hola', true));
+        const before = ed.state.doc;
+        assert.doesNotThrow(() => ed.run(cmd), name + ' in a ' + where);
+        assert.doesNotThrow(() => { md(ed); current(ed.state); active(ed.state); }, name + ' in a ' + where + ' leaves a document that can be written');
+        if (where === 'paragraph' && !empty && !['undo', 'redo', 'paragraph', 'align left', 'rowAdd', 'rowDelete', 'colAdd', 'colDelete'].includes(name))
+          assert.ok(!ed.state.doc.eq(before), name + ' changes the paragraph');
+      }
+    }
+  }
+});
