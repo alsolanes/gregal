@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -11,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -31,14 +33,85 @@ var (
 	logoMu    sync.Mutex
 )
 
+// L'adreça del web la tria el model (logo_domain), així que el servidor no
+// pot anar enlloc que no sigui un web públic: només noms (no IP ni
+// «localhost»), http(s) als ports de sempre, com a molt tres redireccions
+// mirades una per una, i cada connexió, també les de les redireccions, passa
+// per logoDialContext, que només connecta a adreces públiques (ni loopback,
+// ni xarxes privades, ni link-local, ni CGNAT): un nom públic que apunta a
+// dins de casa, o que canvia d'adreça entre la consulta i la connexió, no hi arriba.
+var (
+	// logoLookup i logoDial: els tests els substitueixen per veure que no es connecta.
+	logoLookup = net.DefaultResolver.LookupIPAddr
+	logoDial   = (&net.Dialer{Timeout: 4 * time.Second, Control: logoDialControl}).DialContext
+	cgnat      = net.IPNet{IP: net.IPv4(100, 64, 0, 0), Mask: net.CIDRMask(10, 32)}
+)
+
+// logoClient: els tests hi posen el client del servidor de prova.
 var logoClient = &http.Client{
-	Timeout: 4 * time.Second,
-	CheckRedirect: func(req *http.Request, via []*http.Request) error {
-		if len(via) >= 3 || (req.URL.Scheme != "http" && req.URL.Scheme != "https") {
-			return errors.New("redirect refused")
+	Timeout:       6 * time.Second,
+	Transport:     &http.Transport{DialContext: logoDialContext, TLSHandshakeTimeout: 4 * time.Second, ResponseHeaderTimeout: 4 * time.Second},
+	CheckRedirect: logoRedirect,
+}
+
+func logoRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= 3 || !logoURLOK(req.URL) {
+		return errors.New("redirect refused")
+	}
+	return nil
+}
+
+// logoURLOK: http(s), port per defecte i un nom amb punt (no una IP).
+func logoURLOK(u *url.URL) bool {
+	h := u.Hostname()
+	return (u.Scheme == "https" || u.Scheme == "http") && (u.Port() == "" || u.Port() == "80" || u.Port() == "443") &&
+		strings.Contains(h, ".") && net.ParseIP(h) == nil && !strings.HasSuffix(h, ".localhost")
+}
+
+// internalIP: una adreça on el servidor no ha d'anar mai a buscar un logo.
+func internalIP(ip net.IP) bool {
+	if v4 := ip.To4(); v4 != nil {
+		ip = v4
+	}
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
+		ip.IsInterfaceLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() || cgnat.Contains(ip)
+}
+
+// logoDialContext resol el nom, rebutja el que no és públic i connecta a
+// l'adreça que ha mirat (no torna a resoldre).
+func logoDialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	if port != "80" && port != "443" {
+		return nil, errors.New("logo: port not allowed")
+	}
+	ips, err := logoLookup(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	if len(ips) == 0 {
+		return nil, errors.New("logo: no address")
+	}
+	for _, ip := range ips {
+		if internalIP(ip.IP) {
+			return nil, errors.New("logo: address not public")
 		}
-		return nil
-	},
+	}
+	return logoDial(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))
+}
+
+// logoDialControl torna a mirar l'adreça just abans de connectar.
+func logoDialControl(_, address string, _ syscall.RawConn) error {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return err
+	}
+	if ip := net.ParseIP(host); ip == nil || internalIP(ip) {
+		return errors.New("logo: address not public")
+	}
+	return nil
 }
 
 // cardLogo torna l'adreça del logo d'un domini, o "" si no en té cap que

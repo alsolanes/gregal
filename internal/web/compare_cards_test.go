@@ -3,9 +3,12 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -58,12 +61,13 @@ func fakeLogoSites(t *testing.T, pages map[string]string) *[]string {
 			http.NotFound(w, r)
 		}
 	}))
-	old := logoSiteURL
+	old, oldClient := logoSiteURL, logoClient
 	logoSiteURL = func(domain string) string { return srv.URL + "/" + domain + "/" }
+	logoClient = srv.Client()
 	logoMu.Lock()
 	logoCache = map[string]string{}
 	logoMu.Unlock()
-	t.Cleanup(func() { srv.Close(); logoSiteURL = old })
+	t.Cleanup(func() { srv.Close(); logoSiteURL, logoClient = old, oldClient })
 	return &hits
 }
 
@@ -148,5 +152,60 @@ func TestCodeModeReplyGetsCompareLogos(t *testing.T) {
 	}
 	if shown != "" && shown != reply {
 		t.Fatalf("what is shown differs from what is saved:\n%s\n---\n%s", shown, reply)
+	}
+}
+
+// El servidor de prova (127.0.0.1) només s'hi arriba amb el client injectat:
+// el de debò no connecta a adreces que no són públiques.
+func TestCompareLogoOnlyFromPublicHosts(t *testing.T) {
+	logoMu.Lock()
+	logoCache = map[string]string{}
+	logoMu.Unlock()
+	var looked, dialed []string
+	oldLookup, oldDial := logoLookup, logoDial
+	logoLookup = func(_ context.Context, host string) ([]net.IPAddr, error) {
+		looked = append(looked, host)
+		ips := map[string]string{"intranet.example.com": "10.0.0.5", "cgnat.example.com": "100.64.3.4", "meta.example.com": "169.254.169.254", "public.example.com": "93.184.216.34"}
+		return []net.IPAddr{{IP: net.ParseIP(ips[host])}}, nil
+	}
+	logoDial = func(_ context.Context, _, addr string) (net.Conn, error) {
+		dialed = append(dialed, addr)
+		return nil, errors.New("no network in tests")
+	}
+	t.Cleanup(func() { logoLookup, logoDial = oldLookup, oldDial })
+	for _, d := range []string{"localhost", "127.0.0.1", "10.0.0.5", "169.254.169.254", "[::1]", "intranet", "intranet.example.com", "cgnat.example.com", "meta.example.com"} {
+		if u := cardLogo(context.Background(), d); u != "" {
+			t.Errorf("%s: logo %q", d, u)
+		}
+	}
+	if len(dialed) != 0 {
+		t.Fatalf("connected to %v", dialed)
+	}
+	if strings.Join(looked, " ") != "intranet.example.com cgnat.example.com meta.example.com" {
+		t.Fatalf("only real names are looked up: %v", looked)
+	}
+	// Un nom públic sí que s'intenta, a l'adreça mirada i al port 443.
+	cardLogo(context.Background(), "public.example.com")
+	if len(dialed) == 0 || dialed[0] != "93.184.216.34:443" {
+		t.Fatalf("public host not dialed at its checked address: %v", dialed)
+	}
+	// La connexió també es mira just abans de fer-la, i les redireccions una per una.
+	for addr, ok := range map[string]bool{"127.0.0.1:443": false, "10.1.2.3:80": false, "[fd00::1]:443": false, "100.100.0.1:443": false, "[::ffff:127.0.0.1]:443": false, "93.184.216.34:443": true} {
+		if err := logoDialControl("tcp4", addr, nil); (err == nil) != ok {
+			t.Errorf("control %s: %v", addr, err)
+		}
+	}
+	for raw, ok := range map[string]bool{"https://cdn.example.com/a.png": true, "http://127.0.0.1/a.png": false, "https://cdn.example.com:8443/a.png": false, "ftp://cdn.example.com/a": false, "http://intranet/a.png": false} {
+		u, err := url.Parse(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req := &http.Request{URL: u}
+		if err := logoRedirect(req, nil); (err == nil) != ok {
+			t.Errorf("redirect %s: %v", raw, err)
+		}
+	}
+	if logoRedirect(&http.Request{URL: &url.URL{Scheme: "https", Host: "a.example.com"}}, make([]*http.Request, 3)) == nil {
+		t.Error("a fourth redirect must be refused")
 	}
 }

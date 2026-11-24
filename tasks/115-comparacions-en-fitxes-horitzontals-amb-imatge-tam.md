@@ -33,8 +33,8 @@ When someone asks to compare things (products, places, options, tools, libraries
 - Code mode: `conduirTorn` passes the `assistant` text and the final reply through `codeCompareImages` (only ```gregal-compare blocks), memoised so the shown and saved text are the same.
 - Web: `.gx-row` (snapping row, peek of the next card, facts in a CSS subgrid so the same trait lines up across cards) or `.gx-paged` (one card per page, up to two images, page dots). Arrow buttons only with a fine pointer; smooth scroll only without reduced motion. Strings `card.prev`/`card.next` in ca and en.
 - api-contract.md does not list card block fields (only the note kinds), so it is unchanged.
-- The diff is over the guard's 400 lines (514 non-test lines), accepted by the coordinator.
+- The diff is over the guard's 400 lines (581 non-test lines after the SSRF hardening), accepted by the coordinator.
 - `TestLocalRunBringsSourcedCardsToTodayAndVoiceRespectsQuiet` fails on the base commit too; not touched.
 - Follow-up: the public clip page (`clip.css`) has no styles for the new compare row/pages and does not load the arrow handler outside md.js (md.js wires it, so arrows work; only the look is missing).
 - Follow-up: `handleChat` (the legacy `/api/chat` path) does not resolve compare images; only `runTurn`/`conduirTorn` does.
-- Follow-up: the logo fetch does not block hosts that resolve to private addresses (same limit as web_fetch's comment on DNS rebinding).
+- Logo fetch hardened against SSRF (logo_domain comes from the model): only dotted host names (no IPs, no localhost or single-label names), http(s) on ports 80/443, at most 3 redirects each re-checked (`logoRedirect`), and every connection goes through `logoDialContext` (resolves once, refuses loopback, RFC1918/ULA, link-local, multicast, unspecified and CGNAT, dials the checked IP) plus a `net.Dialer` Control that re-checks at connect time. Page reads capped at 512 KB; the icon check reads no body. Tests inject `logoClient`, `logoLookup` and `logoDial`. The server fetches no other compare-card image URLs (photos come from the Commons search).
