@@ -339,6 +339,49 @@ test('Cap de vent and Rosa de rellotge move while working; idle only with motion
   assert.match(css, /\[data-mood=working\][^{]*\.wf-point[^{]*\{[^}]*animation:[^}]*!important/, 'working point swings');
 });
 
+// Volume: every gradient a face paints with is its own, so many faces on one
+// page never borrow each other's light.
+const has = (svg, cls) => !!svg.querySelector('.' + cls);
+function ownGradients(svg) {
+  const ids = svg.all().filter(n => /Gradient$/.test(n.tag)).map(n => n.attrs.id);
+  const used = svg.all().flatMap(n => ['fill', 'stroke'].map(k => /^url\(#(.+)\)$/.exec(n.attrs[k] || '')?.[1]).filter(Boolean));
+  for (const id of used) assert.ok(ids.includes(id), id + ' is defined in the same face');
+  return ids;
+}
+
+test('Esperit, Cap de vent and Rosa de rellotge are lit like Cares: shading, rim, highlight and a contact shadow when large', () => {
+  const { winds } = load();
+  const w = { id:'xaloc', name:'Xaloc', color:'#EFA68F', style:'pso' };
+  for (const pack of ['esperit', 'cap', 'rosa']) {
+    winds.setAvatarTheme(pack);
+    const big = winds.face(w, true), small = winds.face(w, false, 'idle', 24);
+    for (const [svg, size] of [[big, 'large'], [small, '24 px']]) {
+      assert.ok(svg.all().some(n => n.tag === 'radialGradient'), `${pack} ${size}: a radial gradient lit from the top left`);
+      assert.ok(has(svg, 'wf-shade'), `${pack} ${size}: a core shadow away from the light`);
+      assert.ok(has(svg, 'wf-rim'), `${pack} ${size}: a rim light`);
+      assert.ok(has(svg, 'wf-spec'), `${pack} ${size}: a specular highlight`);
+    }
+    assert.ok(has(big, 'wf-ground'), pack + ': a soft contact shadow under the large figure');
+    assert.ok(has(big, 'wf-bounce'), pack + ': a bounce of its own colour, so the shadow reads on a dark page');
+    assert.equal(has(small, 'wf-sheen'), false, pack + ': no broad sheen at 24 px');
+    assert.equal(has(small, 'wf-ground'), false, pack + ': no ground under a list face');
+    const a = ownGradients(big), b = ownGradients(winds.face(w, true));
+    assert.equal(a.filter(id => b.includes(id)).length, 0, pack + ': two faces share no gradient id');
+  }
+  winds.setAvatarTheme('rosa');
+  assert.ok(has(winds.face(w, true), 'wf-glass'), 'the whole Rosa figure has a curved reflection on its glass');
+});
+
+test('Cares gets a second shading layer and ambient occlusion at its base, at every size', () => {
+  const { winds } = load();
+  const w = { id:'xaloc', name:'Xaloc', color:'#EFA68F', style:'pso' };
+  for (const svg of [winds.face(w), winds.face(w, true), winds.face({ ...w, style:'psn' }, true)]) {
+    assert.ok(has(svg, 'wf-shade'), 'a second shading layer');
+    assert.ok(has(svg, 'wf-ao'), 'ambient occlusion where the face meets its feet');
+    ownGradients(svg);
+  }
+});
+
 // Mapa de vent: streaks on a canvas. Enough of a browser for it: a 2D context
 // that ignores the drawing, an IntersectionObserver the test drives and a
 // requestAnimationFrame that only queues.
