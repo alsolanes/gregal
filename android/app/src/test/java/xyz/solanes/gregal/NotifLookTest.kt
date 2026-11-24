@@ -54,4 +54,27 @@ class NotifLookTest {
         out.parentFile?.mkdirs()
         out.outputStream().use { sheet.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
+
+    // Un avís d'un vent porta el color del vent i la seva cara, no els de la mena de missatge.
+    @Test fun aWindNoticeWearsTheWindsColourAndFace() {
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        org.robolectric.Shadows.shadowOf(ctx as android.app.Application)
+            .grantPermissions(android.Manifest.permission.POST_NOTIFICATIONS)
+        val prefs = Prefs(ctx)
+        prefs.idioma = "ca"
+        prefs.save("https://winds.example", "443", "fake-token", "test-user")
+        prefs.target = Prefs.TARGET_REMOTE
+        val origin = NotificationOrigins.remote(prefs)!!.id
+        VentsOffline.store(ctx, origin).saveWinds("""{"winds":[{"id":"ponent","name":"Ponent","color":"#2E86DE","role":"El temps"}]}""")
+        WindNotifications.veu(ctx, WindNovetat(10, "ponent", "Ponent", "remind", "Truca al dentista"), origin)
+        val notice = org.robolectric.Shadows.shadowOf(ctx.getSystemService(android.app.NotificationManager::class.java)).allNotifications.single()
+        assertEquals(Color.parseColor("#2E86DE"), notice.color)
+        val face = (notice.getLargeIcon().loadDrawable(ctx) as android.graphics.drawable.BitmapDrawable).bitmap
+        // El front de la cara és del blau del vent, no l'ambre del recordatori.
+        val front = face.getPixel(face.width / 2, face.height * 22 / 80)
+        assert(Color.blue(front) > Color.red(front)) { "front: #%08X".format(front) }
+        val out = File("build/notif-look/wind-face.png")
+        out.parentFile?.mkdirs()
+        out.outputStream().use { face.compress(Bitmap.CompressFormat.PNG, 100, it) }
+    }
 }

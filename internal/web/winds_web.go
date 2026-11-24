@@ -63,6 +63,13 @@ func windHistoryFor(s *Server, name string) *windHistoryEntry {
 	entry.loadOnce.Do(func() {
 		if saved, err := session.Load(s.sessDir(), name); err == nil {
 			entry.messages = append([]llm.Message(nil), saved.Convo...)
+			// Els encàrrecs desats abans que es guardessin llegibles portaven
+			// l'etiqueta per al model: es mostren com els d'ara, sense reescriure el fitxer.
+			for i, m := range entry.messages {
+				if task, ok := strings.CutPrefix(m.Content, handoffTag); ok && m.Role == "user" {
+					entry.messages[i].Content = handoffShown(s.cfg.Lang(), task)
+				}
+			}
 		}
 	})
 	return entry

@@ -355,7 +355,7 @@ func (s *Server) windDelegate(parent context.Context, wind companion.Wind, task 
 	ctx, doneTurn := s.beginWindTurn("wind", wind.ID, ctx)
 	defer doneTurn()
 	ctx = s.windDocsCtx(s.interactiveWindCtx(ctx))
-	msg := "[Task handed over by the main agent] " + task
+	msg := handoffTag + task
 	start := time.Now()
 	s.mu.Lock()
 	_, logRole := s.windRoleRef()
@@ -397,6 +397,9 @@ func (s *Server) windDelegate(parent context.Context, wind companion.Wind, task 
 func agentSkills(ctx context.Context, s *Server, windID string) context.Context {
 	return agent.WithSkillsDirs(ctx, s.windSkillsDir(windID))
 }
+
+// handoffTag és l'etiqueta per al model que porta l'encàrrec d'un vent.
+const handoffTag = "[Task handed over by the main agent] "
 
 // handoffShown és l'encàrrec tal com es desa al xat del vent (i en fa el títol):
 // qui l'encarrega i què, sense l'etiqueta en anglès que només llegeix el model.
