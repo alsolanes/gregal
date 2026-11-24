@@ -26,7 +26,7 @@ const calls = [];
 const json = data => ({ ok: true, status: 200, json: async () => data });
 
 globalThis.window = globalThis;
-globalThis.document = { getElementById: byId, createElement: () => new El(), head: new El(), body: new El(), addEventListener() {}, title: '' };
+globalThis.document = { getElementById: byId, createElement: () => new El(), head: new El(), body: new El(), addEventListener() {}, dispatchEvent() {}, title: '' };
 globalThis.Option = function Option(text, value) { return { text, value }; };
 globalThis.gregalMD = { render: s => s };
 globalThis.gregalDocView = { onDocChanged: () => 'open', view: () => ({ focus() {}, apply() {} }) };

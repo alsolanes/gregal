@@ -279,6 +279,8 @@ function show(home) {
   for (const b of ['docsList', 'docsDownload', 'docsWindow']) $(b).hidden = home;
   $('docsBody').classList.toggle('doc-paper', false);
   $('workbench').append(pane);
+  // Un sol panell de feina al costat del xat: l'ordinador dels vents (winds-workspace.js) es tanca.
+  document.dispatchEvent(new CustomEvent('gregal:workpane', { detail: 'docs' }));
 }
 
 function open(id, scope = '', write = false) {
@@ -334,6 +336,9 @@ document.addEventListener('gregal:session', () => {
   if (!state.visible) return;
   if (!state.id) home();
   else if (!state.scope) $('docsClose').click();
+});
+document.addEventListener('gregal:workpane', e => {
+  if (e.detail !== 'docs' && state.visible) $('docsClose').click();
 });
 
 window.gregalDocs = {
