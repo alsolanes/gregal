@@ -423,13 +423,16 @@
   const plainName = w => String(w?.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
   // A wind not saved yet (the editor's preview) uses the id its name will get.
   const windId = w => String(w?.id || plainName(w).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''));
-  function direction(w) {
-    const name = plainName(w);
-    if (Object.hasOwn(rose, name)) return rose[name];
+  function idHash(w) {
     const id = windId(w);
     let h = 0;
     for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-    return h % 8 * 45;
+    return h;
+  }
+  function direction(w) {
+    const name = plainName(w);
+    if (Object.hasOwn(rose, name)) return rose[name];
+    return idHash(w) % 8 * 45;
   }
   // The volume of Cares for the round heads of the other packs, in layers over
   // the head's own gradient: a core shadow that turns the far side away from the
@@ -670,13 +673,35 @@
   // south by the seed), and the seed one thing from the legend: the boxwood
   // needle case they live in, the St John's wort they are born from, or a
   // pebble. Under 28 px only the silhouette is left: barretina, beard, eyes.
-  const barretina = '#C9342C', beardTop = '#FFFDF7', beardBottom = '#E2DACD', boxwood = '#D9B26A', wort = '#F4C431', leaf = '#6C9A3E', pebbleGrey = '#A8A39B';
+  // 120: the seed also sets white brows (straight, arched, bushy), the
+  // moustache (lobes, walrus, handlebar) and, rarely, round glasses; small
+  // faces keep the plain lobes.
+  const red = '#C9342C', beardTop = '#FFFDF7', beardBottom = '#E2DACD', boxwood = '#D9B26A', wort = '#F4C431', leaf = '#6C9A3E', pebbleGrey = '#A8A39B';
+  // Folk barretina colours, each under the black band; Android's WindFace
+  // keeps the same list, letters and pick.
+  const barretines = [['v', red], ['m', '#6E2F6B'], ['f', '#2E6B3F'], ['o', '#C8962E'], ['b', '#26406E'], ['g', '#7D1F33']];
+  function hue(hex) {
+    const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255), max = Math.max(r, g, b), d = max - Math.min(r, g, b);
+    if (!d) return 0;
+    const h = max === r ? (g - b) / d % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return (h * 60 + 360) % 360;
+  }
+  // The wind's own pick (the fourth letter of its style), or one from its id,
+  // moving on to the next colour while the hue is within 30° of the body's.
+  function barretinaOf(w, fill) {
+    const own = barretines.find(([letter]) => letter === String(w.style || '')[3]);
+    if (own) return own[1];
+    const start = idHash(w) % barretines.length, gap = c => { const d = Math.abs(hue(c) - hue(fill)); return Math.min(d, 360 - d); };
+    return barretines.map((_, i) => barretines[(start + i) % barretines.length][1]).find(c => gap(c) >= 30);
+  }
   function minairo(svg, w, s, fill, ink, large, small, seed) {
     const full = !!large, id = 'wf' + (++faceSerial), defs = svgNode('defs', {}), url = suffix => 'url(#' + id + suffix + ')', space = { gradientUnits:'userSpaceOnUse' };
     const [rx, ry, cy] = { o:[24, 23.5, 49], n:[26.5, 22, 50.5], s:[22, 25, 48] }[s[2]], top = cy - ry, R = Math.max(rx, ry);
     const L = small ? 67 : { n:63.5, s:67.5, o:71, t:74.5 }[s[1]], deg = direction(w), fold = deg % 180 ? (deg < 180 ? -1 : 1) : seed % 2 ? 1 : -1;
-    const deep = mix(fill, '#1B1530', .4), core = mix(fill, '#1B1530', .6), band = '#17141A', crease = mix(beardBottom, '#1B1530', .25);
-    const mouthInk = mix(barretina, '#1B1530', .65), nose = mix(fill, '#E4577A', .5), mirror = { transform:'matrix(-1 0 0 1 80 0)' };
+    const deep = mix(fill, '#1B1530', .4), core = mix(fill, '#1B1530', .6), band = '#17141A', crease = mix(beardBottom, '#1B1530', .25), barretina = barretinaOf(w, fill);
+    const mouthInk = mix(red, '#1B1530', .65), nose = mix(fill, '#E4577A', .5), mirror = { transform:'matrix(-1 0 0 1 80 0)' };
+    // Moduli prime to the 2 and 3 above, so ids one letter apart still differ.
+    const brows = small ? '' : ['straight', 'arched', 'bushy'][seed % 7 % 3], moustache = small ? 'lobes' : ['lobes', 'walrus', 'handlebar'][seed % 11 % 3];
     defs.append(
       shapes(svgNode('radialGradient', { id:id + 'v', ...space, cx:num(40 - .38 * rx), cy:num(cy - .5 * ry), r:num(1.9 * R) }), stops([[0, mix(fill, '#FFFFFF', .3), 1], [.45, fill, 1], [1, deep, 1]])),
       shapes(svgNode('radialGradient', { id:id + 'h', cx:.3, cy:.2, r:.95 }), stops([[0, mix(barretina, '#FFFFFF', .3), 1], [.5, barretina, 1], [1, mix(barretina, '#1B1530', .35), 1]])),
@@ -716,8 +741,12 @@
     if (s[1] === 'o') shapes(mouth, [['ellipse', { cx:40, cy:cy + 5.4, rx:2.6, ry:2.4, fill:mouthInk }]]);
     else shapes(mouth, [['path', { d:s[1] === 'n' ? `M37.6 ${cy + 5.2}h4.8` : `M37.2 ${cy + 4.4}q2.8 3 5.6 0`, fill:'none', stroke:mouthInk, 'stroke-width':1.8, 'stroke-linecap':'round' }]]);
     shapes(group(beard, 'wf-worry', { display:'none' }), [['path', { d:`M36.8 ${cy + 6}q1.6-1.6 3.2 0t3.2 0`, fill:'none', stroke:mouthInk, 'stroke-width':1.8, 'stroke-linecap':'round' }]]);
-    // The moustache: two soft lobes from under the nose, over the mouth.
-    shapes(beard, [-1, 1].map(side => ['path', { d:`M${pt(0, cy - 1.8)}C${pt(side * .2, cy - 5.4)} ${pt(side * .6, cy - 4.6)} ${pt(side * .66, cy + .2)}C${pt(side * .52, cy + 3.2)} ${pt(side * .2, cy + 2.8)} ${pt(0, cy + .6)}Z`, fill:beardTop, stroke:crease, 'stroke-width':small ? 0 : .8 }]));
+    // The moustache from under the nose, over the mouth and clear of it: two
+    // soft lobes, drooping walrus ends, or handlebar ends curled up.
+    const lip = { lobes:[[[.2, -5.4], [.6, -4.6], [.66, .2]], [[.52, 3.2], [.2, 2.8], [0, .6]]],
+      walrus:[[[.24, -5.6], [.72, -4.4], [.74, 3.8]], [[.5, 4.2], [.2, 2.4], [0, .6]]],
+      handlebar:[[[.2, -5.2], [.55, -4.4], [.74, -1.4]], [[.84, -.2], [1, -1.8], [.94, -4.8]], [[.92, 1.4], [.4, 3.2], [0, .6]]] }[moustache];
+    shapes(group(beard, 'wf-moustache wf-moustache-' + moustache), [-1, 1].map(side => ['path', { d:`M${pt(0, cy - 1.8)}` + lip.map(c => 'C' + c.map(([f, dy]) => pt(side * f, cy + dy)).join(' ')).join('') + 'Z', fill:beardTop, stroke:crease, 'stroke-width':small ? 0 : .8 }]));
     shapes(head, [['circle', { cx:40, cy:num(cy - 2.6), r:small ? 4.4 : 3.8, fill:url('q') }]]);
     // The barretina, drawn for the round body and fitted to this one: a low
     // crown, and the tube rising off it, folding over and hanging by the head.
@@ -730,6 +759,16 @@
       ...small ? [] : [['path', { d:'M62.5 34.5C62.2 29 60.5 23.5 57 20C54.5 17.5 51.5 16.5 49 16.5', fill:'none', stroke:band, 'stroke-width':1.2, 'stroke-linecap':'round', opacity:.6 }]]]);
     shapes(cap, [['path', { class:'wf-band', d:'M15.5 37.5C19 32 29 30.5 40 30.5S61 32 64.5 37.5L63.2 29C59 24.5 50 22.5 40 22.5S21 24.5 16.8 29Z', fill:band }],
       ...small ? [] : [['path', { d:'M17.5 29.4C22 25.6 31 24 40 24S58 25.6 62.5 29.4', fill:'none', stroke:'#FFFFFF', 'stroke-width':.9, 'stroke-linecap':'round', opacity:.18 }]]]);
+    // Glasses and white brows sit over the band's edge, so both read on it and on the body.
+    const eyeAt = side => ({ x:40 + side * .34 * rx, y:cy - 10 }), at = (side, dx, dy) => { const e = eyeAt(side); return num(e.x + side * dx) + ' ' + num(e.y + dy); };
+    if (!small && seed % 13 === 5) shapes(group(head, 'wf-glasses'), [
+      ...[-1, 1].map(side => ['circle', { cx:num(eyeAt(side).x), cy:cy - 10, r:7.4, fill:'#FFFFFF', 'fill-opacity':.14, stroke:'#2B2530', 'stroke-width':1.4 }]),
+      ['path', { d:`M${at(-1, -7.4, 0)}Q40 ${cy - 12.5} ${at(1, -7.4, 0)}`, fill:'none', stroke:'#2B2530', 'stroke-width':1.4 }]]);
+    if (brows) shapes(group(head, 'wf-brows wf-brows-' + brows), [-1, 1].map(side => ['path', { d:{
+      straight:`M${at(side, -5, -8.2)}L${at(side, 5, -7.4)}L${at(side, 5, -5.2)}L${at(side, -5, -6)}Z`,
+      arched:`M${at(side, -5.6, -5.6)}Q${at(side, 0, -11.6)} ${at(side, 5.8, -5.8)}Q${at(side, 0, -8.6)} ${at(side, -5.6, -5.6)}Z`,
+      bushy:`M${at(side, -6.4, -5)}C${at(side, -5, -10.8)} ${at(side, 4, -11.6)} ${at(side, 7.2, -7.6)}C${at(side, 6, -5.4)} ${at(side, 2, -6.4)} ${at(side, -1, -5.2)}C${at(side, -3, -4.6)} ${at(side, -5, -4.2)} ${at(side, -6.4, -5)}Z`,
+    }[brows], fill:beardTop, stroke:crease, 'stroke-width':.8, 'stroke-linejoin':'round' }]));
     if (thing === 1) shapes(group(cap, 'wf-herba', away), [['path', { d:'M58 30C61 24 63 19 67 14.5', fill:'none', stroke:leaf, 'stroke-width':1.4, 'stroke-linecap':'round' }],
       ['ellipse', { cx:62.6, cy:22.5, rx:3, ry:1.3, transform:'rotate(-40 62.6 22.5)', fill:leaf }], ['ellipse', { cx:65.4, cy:20.2, rx:2.6, ry:1.1, transform:'rotate(25 65.4 20.2)', fill:leaf }],
       ...[0, 72, 144, 216, 288].map(a => ['ellipse', { cx:67, cy:11.9, rx:1.5, ry:2.4, transform:`rotate(${a} 67 14.5)`, fill:wort }]), ['circle', { cx:67, cy:14.5, r:1.3, fill:mix(wort, barretina, .4) }]]);
@@ -1166,10 +1205,10 @@
   }
   function windForm(w, focusBack, preset) {
     const editing = !!w; w = w || preset || {name:'', role:'', persona:'', color:'#F5B45D', style:'pso'};
-    let name, role, persona, tint, eyes, mouth, shape, avatar;
+    let name, role, persona, tint, eyes, mouth, shape, hat, avatar;
     const form = dialogForm(editing ? tr('winds.characterOf', 'El caràcter de {name}', {name:w.name}) : tr('winds.aNewWind', 'Un vent nou'), 'windsWindForm', editing ? tr('winds.saveChanges', 'Desa els canvis') : tr('winds.createWind', 'Crea el vent'), async feedback => {
       if (!name.value.trim()) { paint(feedback, tr('winds.giveYourWindAName', 'Posa un nom al vent.')); name.focus(); return; }
-      const payload = {name:name.value.trim(), role:role.value.trim(), color:color(tint.value), persona:persona.value.trim(), style:eyes.value + mouth.value + shape.value, avatar:avatar?.value};
+      const payload = {name:name.value.trim(), role:role.value.trim(), color:color(tint.value), persona:persona.value.trim(), style:eyes.value + mouth.value + shape.value + hat.value, avatar:avatar?.value};
       if (editing) payload.id = w.id;
       const saved = await call('/api/winds', 'POST', payload);
       await verifyWritten(async () => {
@@ -1192,9 +1231,14 @@
     eyes = select(choices, 'windEyes', tr('winds.eyes', 'Ulls'), [['p',tr('winds.dots','Punts')],['b',tr('winds.wideOpen','Ben oberts')],['e',tr('winds.starry','Estrellats')],['m',tr('winds.halfClosed','Mig tancats')]], s[0]);
     mouth = select(choices, 'windMouth', tr('winds.mouth', 'Boca'), [['s',tr('winds.smile','Somriure')],['o',tr('winds.open','Oberta')],['n',tr('winds.relaxed','Tranquil·la')],['t',tr('winds.tongue','Llengua')]], s[1]);
     shape = select(choices, 'windShape', tr('winds.shape', 'Forma'), [['o',tr('winds.ball','Bola')],['n',tr('winds.cloud','Núvol')],['s',tr('winds.spiral','Espiral')]], s[2]);
+    // Empty is the automatic barretina; the picker shows while the wind is drawn as a minairó.
+    hat = select(choices, 'windBarretina', tr('winds.barretina', 'Barretina'), [['', tr('winds.barretinaAuto', 'Automàtica')], ['v', tr('winds.barretinaV', 'Vermella')], ['m', tr('winds.barretinaM', 'Morada')], ['f', tr('winds.barretinaF', 'Verd fosc')], ['o', tr('winds.barretinaO', 'Mostassa')], ['b', tr('winds.barretinaB', 'Blau marí')], ['g', tr('winds.barretinaG', 'Granat')]], barretines.some(([letter]) => letter === String(w.style || '')[3]) ? w.style[3] : '');
     avatar = avatarField(form.fields, w);
-    const update = () => preview.replaceChildren(face({id:w.id, name:name.value, color:tint.value, style:eyes.value + mouth.value + shape.value, avatar:avatar?.value}, true));
-    [tint, eyes, mouth, shape, avatar].filter(Boolean).forEach(n => { n.addEventListener('change', update); n.addEventListener('input', update); }); update(); form.show();
+    const update = () => {
+      hat.parentNode.hidden = avatarPack({avatar:avatar?.value}) !== 'minairo';
+      preview.replaceChildren(face({id:w.id, name:name.value, color:tint.value, style:eyes.value + mouth.value + shape.value + hat.value, avatar:avatar?.value}, true));
+    };
+    [tint, eyes, mouth, shape, hat, avatar].filter(Boolean).forEach(n => { n.addEventListener('change', update); n.addEventListener('input', update); }); update(); form.show();
   }
   // Packs by name; the first ones are the packs a wind can pick in Free mode.
   const themeChoices = () => [['cares', tr('winds.avatarCares', 'Cares')], ['esperit', tr('winds.avatarEsperit', 'Esperit de vent')], ['cap', tr('winds.avatarCap', 'Cap de vent')], ['rosa', tr('winds.avatarRosa', 'Rosa de rellotge')], ['mapa', tr('winds.avatarMapa', 'Mapa de vent')], ['minairo', tr('winds.avatarMinairo', 'Minairons')], ['free', tr('winds.avatarFree', 'Lliure')]];
