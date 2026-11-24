@@ -118,11 +118,11 @@
     const input = $('in');
     const task = input ? input.value.trim() : '';
     if (!task) { G().sys(T('bestof.empty', 'Write the task in the field first, then choose Try N ways.')); return; }
-    const raw = prompt(T('bestof.askN', 'How many attempts? (2-4)'), '2');
+    const raw = await window.gregalAsk(T('bestof.askN', 'How many attempts? (2-4)'), '2');
     if (raw == null) return;
     const n = parseInt(raw, 10);
     if (!(n >= 2 && n <= 4)) { G().sys(T('bestof.badN', 'Choose between 2 and 4 attempts.')); return; }
-    const models = (prompt(T('bestof.askModels', 'Models per attempt (optional, comma-separated roles or provider/model; empty = current code model)'), '') || '')
+    const models = (await window.gregalAsk(T('bestof.askModels', 'Models per attempt (optional, comma-separated roles or provider/model; empty = current code model)'), '') || '')
       .split(',').map(s => s.trim()).filter(Boolean);
     input.value = ''; input.dispatchEvent(new Event('input'));
     G().add('u', '', G().md ? G().md(task) : esc(task));
