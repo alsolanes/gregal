@@ -777,6 +777,7 @@ test('each minairó wears a barretina from the palette, the same for the same wi
     assert.ok(barretines.includes(cap), cap + ' is from the palette');
     assert.ok(hueGap(cap, color) >= 30, `${id}: barretina ${cap} stands apart from body ${color}`);
     assert.equal(capOf(winds.face({ id, name:'Vent ' + i, color, style:'pso' }, false, 'idle', 24)), cap, 'the same wind, the same barretina, at every size');
+    assert.equal(winds.face({ id, name:'Vent ' + i, color, style:'pso' }, true).getAttribute('data-barretina'), cap, 'the clay player (characters.js) tints its barretina with it');
     seen.set(cap, (seen.get(cap) || 0) + 1);
   }
   assert.equal(seen.size, barretines.length, 'every colour of the palette is worn');

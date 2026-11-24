@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -14,8 +15,9 @@ import (
 
 type charactersManifest struct {
 	Size, Fps, MaskSize int
-	Files, Mask         string
+	Files, Mask, Cap    string
 	Silhouettes         map[string]string
+	Caps                []string
 	Moods               map[string]struct {
 		Frames int
 		Loop   *bool
@@ -34,7 +36,11 @@ func TestCharactersManifestMatchesSheets(t *testing.T) {
 				t.Fatalf("%s: frames=%d loop=%v", mood, spec.Frames, spec.Loop)
 			}
 			names := strings.NewReplacer("<silhouette>", silhouette, "<mood>", mood)
-			for pattern, size := range map[string]int{m.Files: m.Size, m.Mask: m.MaskSize} {
+			sheets := map[string]int{m.Files: m.Size, m.Mask: m.MaskSize}
+			if slices.Contains(m.Caps, silhouette) {
+				sheets[m.Cap] = m.MaskSize
+			}
+			for pattern, size := range sheets {
 				path := "app/characters/" + names.Replace(pattern)
 				expected[path] = true
 				checkSheet(t, path, spec.Frames, size)
@@ -52,11 +58,16 @@ func TestCharactersManifestMatchesSheets(t *testing.T) {
 	}
 }
 
-// El paquet minairó té la seva figura (barba i barretina fora de la màscara)
-// i, amb ella, tots els fulls junts han de cabre en 1,5 MB.
+// El paquet minairó té la seva figura (barba fora de la màscara, la barretina
+// en una màscara pròpia perquè cada minairó la tenyeixi del seu color) i, amb
+// ella, tots els fulls junts han de cabre en 1,5 MB.
 func TestCharactersMinairoWithinBudget(t *testing.T) {
-	if family := loadCharactersManifest(t).Silhouettes["minairo"]; family != "minairo" {
+	m := loadCharactersManifest(t)
+	if family := m.Silhouettes["minairo"]; family != "minairo" {
 		t.Fatalf("el manifest no té el minairó: %q", family)
+	}
+	if !slices.Equal(m.Caps, []string{"minairo"}) || m.Cap != "<silhouette>/<mood>.cap.webp" {
+		t.Fatalf("la barretina del minairó no té màscara pròpia: caps=%v cap=%q", m.Caps, m.Cap)
 	}
 	total := 0
 	err := fs.WalkDir(assets, "app/characters", func(path string, d fs.DirEntry, err error) error {

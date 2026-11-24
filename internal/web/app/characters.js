@@ -1,6 +1,6 @@
 // Clay winds (tools/characters, task 112) where a wind's face is large: the
 // mood's sprite sheet on a canvas, the body tinted with the wind's colour
-// through its mask. The code-drawn face from winds.js shows until the sheet is
+// through its mask and the minairó's barretina with its own through the cap mask. The code-drawn face from winds.js shows until the sheet is
 // ready and stays if it cannot load; it follows every mood, ready to come back.
 (function (root) {
   'use strict';
@@ -28,21 +28,25 @@
     }
     return pixels;
   }
-  // One tinted sheet per silhouette, mood and colour, shared by every face.
-  function sheet(letter, mood, color) {
-    const key = letter + '/' + mood + '/' + color;
+  // One tinted sheet per silhouette, mood and colours, shared by every face.
+  function sheet(letter, mood, color, cap) {
+    const key = letter + '/' + mood + '/' + color + cap;
     if (!sheets.has(key)) {
       manifest ||= root.fetch(base + 'manifest.json').then(r => { if (!r.ok) throw new Error('characters-manifest'); return r.json(); });
       sheets.set(key, manifest.then(async m => {
         const spec = m.moods[mood], silhouette = Object.keys(m.silhouettes).find(k => m.silhouettes[k] === letter);
         if (!spec || !silhouette) throw new Error('characters-' + key);
         const file = pattern => base + pattern.replace('<silhouette>', silhouette).replace('<mood>', mood);
-        const [body, mask] = await Promise.all([image(file(m.files)), image(file(m.mask))]);
-        const width = spec.frames * m.size, out = canvas(width, m.size), ctx = out.getContext('2d'), up = canvas(width, m.size).getContext('2d');
-        up.drawImage(mask, 0, 0, width, m.size);
+        const masks = [[m.mask, color], ...(m.caps || []).includes(silhouette) ? [[m.cap, cap]] : []];
+        const [body, ...shapes] = await Promise.all([image(file(m.files)), ...masks.map(([pattern]) => image(file(pattern)))]);
+        const width = spec.frames * m.size, out = canvas(width, m.size), ctx = out.getContext('2d');
         ctx.drawImage(body, 0, 0);
-        const pixels = ctx.getImageData(0, 0, width, m.size), n = parseInt(color.slice(1), 16);
-        tint(pixels.data, up.getImageData(0, 0, width, m.size).data, [n >> 16 & 255, n >> 8 & 255, n & 255]);
+        const pixels = ctx.getImageData(0, 0, width, m.size);
+        shapes.forEach((shape, i) => {
+          const up = canvas(width, m.size).getContext('2d'), n = parseInt(masks[i][1].slice(1), 16);
+          up.drawImage(shape, 0, 0, width, m.size);
+          tint(pixels.data, up.getImageData(0, 0, width, m.size).data, [n >> 16 & 255, n >> 8 & 255, n & 255]);
+        });
         ctx.putImageData(pixels, 0, 0);
         const done = { canvas: out, size: m.size, fps: m.fps, frames: spec.frames, loop: spec.loop };
         ready.set(key, done);
@@ -107,7 +111,7 @@
   // The sheet each wind showed last in each spot (the chat corner, a start
   // face): a face drawn again there goes on from it instead of popping.
   const last = new Map();
-  function remember(p) { last.set(p.spot, { look: p.letter + p.color, sheet: p.now, mood: p.mood, at: p.at }); }
+  function remember(p) { last.set(p.spot, { look: p.letter + p.color + p.cap, sheet: p.now, mood: p.mood, at: p.at }); }
   // Takes the face winds.js drew for a large spot and returns what to put on
   // the page: the clay when a sheet for it is already here, or that face,
   // swapped in place for the clay once its sheet loads.
@@ -116,12 +120,14 @@
     const avatar = svg.getAttribute('data-avatar');
     if (!w || svg.getAttribute('data-kit') || (avatar && avatar !== 'minairo')) return svg;
     const letter = avatar || ('ons'.includes(String(w.style || '')[2]) ? w.style[2] : 'o'), color = /^#[\da-f]{6}$/i.test(w.color || '') ? w.color : '#F5B45D';
-    const p = { w, svg, letter, color, mood: svg.getAttribute('data-mood') || 'idle', spot: w.id + '|' + svg.getAttribute('class') }, key = letter + '/' + p.mood + '/' + color;
-    const before = w.id && last.get(p.spot), same = before?.look === letter + color ? before : null;
+    // The minairó's barretina colour, as winds.js picked it for this wind.
+    const cap = svg.getAttribute('data-barretina') || '';
+    const p = { w, svg, letter, color, cap, mood: svg.getAttribute('data-mood') || 'idle', spot: w.id + '|' + svg.getAttribute('class') }, key = letter + '/' + p.mood + '/' + color + cap;
+    const before = w.id && last.get(p.spot), same = before?.look === letter + color + cap ? before : null;
     if (ready.has(key)) return show(p, ready.get(key), clock(), same);
     const mood = p.mood;
     if (same) { p.mood = same.mood; return change(show(p, same.sheet, same.at), mood); }
-    sheet(letter, mood, color).then(s => {
+    sheet(letter, mood, color, cap).then(s => {
       if (!svg.isConnected) return;
       const c = show(p, s);
       svg.replaceWith(c);
@@ -139,7 +145,7 @@
     for (const name of ['data-mood', 'aria-hidden', 'role', 'aria-label']) {
       if (p.svg.getAttribute(name) === null) el.removeAttribute(name); else el.setAttribute(name, p.svg.getAttribute(name));
     }
-    sheet(p.letter, mood, p.color).then(s => {
+    sheet(p.letter, mood, p.color, p.cap).then(s => {
       if (p.mood !== mood) return;
       if (!reduced()) { p.from = p.now; p.fromAt = p.at; p.fadeAt = clock(); }
       p.now = s; p.at = clock();

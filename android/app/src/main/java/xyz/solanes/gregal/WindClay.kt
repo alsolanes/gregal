@@ -51,7 +51,8 @@ internal val LocalWindClay = staticCompositionLocalOf { "characters" }
 /** Which sheet a clay face plays, `<silhouette>/<mood>`. */
 internal val WindClayKey = SemanticsPropertyKey<String>("WindClay")
 
-internal class WindClaySheet(val name: String, val sheet: ImageBitmap, val mask: ImageBitmap,
+/** [cap]: the minairó's barretina, tinted with its own colour (`caps` in the manifest). */
+internal class WindClaySheet(val name: String, val sheet: ImageBitmap, val mask: ImageBitmap, val cap: ImageBitmap?,
     val size: Int, val maskSize: Int, val frames: Int, val loop: Boolean, val fps: Int)
 
 /** Android's own moods have no sheet: content is idle, talking is the talking turn of discussing. */
@@ -66,7 +67,7 @@ internal object WindClay {
     // Decoded once per sheet; a sheet of 24 frames is 1.5 MB of pixels, so the least used go.
     private val sheets = object : android.util.LruCache<String, WindClaySheet>(24 shl 20) {
         override fun sizeOf(key: String, value: WindClaySheet) =
-            4 * (value.sheet.width * value.sheet.height + value.mask.width * value.mask.height)
+            4 * (value.sheet.width * value.sheet.height + 2 * value.mask.width * value.mask.height)
     }
 
     private fun manifest(assets: AssetManager, dir: String): JSONObject? = manifests.getOrPut(dir) {
@@ -95,18 +96,21 @@ internal object WindClay {
         }
         val sheet = decode("$name.webp") ?: return null
         val mask = decode("$name.mask.webp") ?: return null
-        return WindClaySheet(name, sheet, mask, m.optInt("size", 128), m.optInt("maskSize", 64),
+        val capped = m.optJSONArray("caps")?.let { caps -> (0 until caps.length()).any { caps.optString(it) == silhouette } } == true
+        val cap = if (capped) decode("$name.cap.webp") ?: return null else null
+        return WindClaySheet(name, sheet, mask, cap, m.optInt("size", 128), m.optInt("maskSize", 64),
             spec.optInt("frames", 1), spec.optBoolean("loop", true), m.optInt("fps", 12))
             .also { sheets.put("$dir/$name", it) }
     }
 }
 
 /**
- * One frame of [s], tinted: in its own layer, white where the body is not
- * and the wind's colour through the mask, then the clay multiplied in
+ * One frame of [s], tinted: in its own layer, white where the body is not,
+ * the wind's colour through the mask and the [barretina] colour through the
+ * cap mask, then the clay multiplied in
  * (Modulate keeps the clay's alpha and is the same blend on every API level).
  */
-private fun DrawScope.drawClay(s: WindClaySheet, frame: Int, accent: Color, alpha: Float) {
+private fun DrawScope.drawClay(s: WindClaySheet, frame: Int, accent: Color, barretina: Color, alpha: Float) {
     if (alpha <= 0f) return
     val dst = IntSize(size.width.roundToInt(), size.height.roundToInt())
     val canvas = drawContext.canvas
@@ -114,6 +118,8 @@ private fun DrawScope.drawClay(s: WindClaySheet, frame: Int, accent: Color, alph
     drawRect(Color.White)
     drawImage(s.mask, IntOffset(frame * s.maskSize, 0), IntSize(s.maskSize, s.maskSize), dstSize = dst,
         colorFilter = ColorFilter.tint(accent, BlendMode.SrcIn))
+    if (s.cap != null) drawImage(s.cap, IntOffset(frame * s.maskSize, 0), IntSize(s.maskSize, s.maskSize), dstSize = dst,
+        colorFilter = ColorFilter.tint(barretina, BlendMode.SrcIn))
     drawImage(s.sheet, IntOffset(frame * s.size, 0), IntSize(s.size, s.size), dstSize = dst, blendMode = BlendMode.Modulate)
     canvas.restore()
 }
@@ -124,10 +130,10 @@ private fun DrawScope.drawClay(s: WindClaySheet, frame: Int, accent: Color, alph
  * a state read only while drawing: the sheet plays at its 12 fps without
  * recomposing anything, stops while the screen is not started, and with
  * [motion] off shows the first frame. A new mood crossfades over the last
- * frame of the old one.
+ * frame of the old one. [barretina] tints the minairó's barretina.
  */
 @Composable
-internal fun WindClayFace(size: Int, mood: WindMood, accent: Color, family: String, motion: Boolean, modifier: Modifier): Boolean {
+internal fun WindClayFace(size: Int, mood: WindMood, accent: Color, barretina: Color, family: String, motion: Boolean, modifier: Modifier): Boolean {
     val assets = LocalContext.current.assets
     val dir = LocalWindClay.current
     val sheet = remember(dir, family, mood) { WindClay.sheet(assets, dir, family, mood) } ?: return false
@@ -164,8 +170,8 @@ internal fun WindClayFace(size: Int, mood: WindMood, accent: Color, family: Stri
         val f = frame.intValue
         shown.frame = f
         val mix = fade.value
-        if (from != null && mix < 1f) drawClay(from.first, from.second, accent, 1f - mix)
-        drawClay(sheet, f, accent, mix)
+        if (from != null && mix < 1f) drawClay(from.first, from.second, accent, barretina, 1f - mix)
+        drawClay(sheet, f, accent, barretina, mix)
     }
     return true
 }

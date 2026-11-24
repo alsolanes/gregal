@@ -157,6 +157,32 @@ class WindClayTest {
         assertTrue("a blue wind is blue: ${blue.toList()}", blue[2] > blue[0] + 40f)
     }
 
+    /** Opaque pixels of a clay minairó in an orange wind wearing the barretina of [style]'s fourth letter that are far bluer or greener than red. */
+    private fun capPixels(style: String): Int {
+        show {
+            CompositionLocalProvider(LocalAvatarTheme provides "minairo") {
+                WindFace(size = 96, accent = orange, style = windStyleOf(style), clay = true, modifier = Modifier.testTag("f"))
+            }
+        }
+        clay("minairo/idle").assertExists()
+        val bmp = pixels("f")
+        var n = 0
+        for (y in 0 until bmp.height) for (x in 0 until bmp.width) {
+            val p = bmp.getPixel(x, y)
+            val (r, g, b) = Triple(android.graphics.Color.red(p), android.graphics.Color.green(p), android.graphics.Color.blue(p))
+            if (android.graphics.Color.alpha(p) > 250 && maxOf(g, b) > r + 25) n++
+        }
+        return n
+    }
+
+    @Test fun aClayMinairoWearsItsOwnBarretinaColour() {
+        assertTrue("a navy barretina is blue on the clay minairo", capPixels("psob") > 150)
+    }
+
+    @Test fun aClayMinairoInARedBarretinaHasNoBlueCap() {
+        assertTrue("a red barretina and an orange body have nothing blue or green", capPixels("psov") < 30)
+    }
+
     /** Painted pixels around a 72 dp clay face, outside its own box: where only the 100 burst reaches. */
     private fun burst(motion: Boolean): Int {
         var mood by mutableStateOf(WindMood.WORKING)

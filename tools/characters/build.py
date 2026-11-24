@@ -40,6 +40,8 @@ SILHOUETTES = {
     # Not a style letter: the face of every wind in the minairó pack (winds.js, WindFace.kt).
     "minairo": ("minairo", 1.7, 0.96, [((0, 0, 0.8), 1.25, (1, 0.9, 0.9)), ((0, 0, 1.15), 0.95, (0.95, 0.9, 0.88))]),
 }
+# Silhouettes with a barretina in its own mask (<mood>.cap.webp), tinted per wind.
+CAPS = ("minairo",)
 # Moods of winds.js; frames at FPS, loop or play once and hold the last frame.
 MOODS = {"idle": (24, True), "thinking": (16, True), "searching": (12, True), "reading": (16, True),
          "writing": (12, True), "working": (8, True), "discussing": (16, True), "waiting": (24, True),
@@ -156,7 +158,8 @@ def material(name, color, roughness, sss=0.0, sheen=0.0, coat=0.0, emit=0.0, see
 
 
 def mask_material():
-    """White where the wind's colour goes, held out (no alpha) everywhere else."""
+    """White where the wind's colour goes, held out (no alpha) everywhere else; render()
+    points it at the "cap" property for the barretina's own mask."""
     mat = bpy.data.materials.new("mask")
     nodes, links = mat.node_tree.nodes, mat.node_tree.links
     nodes.remove(nodes["Principled BSDF"])
@@ -317,11 +320,12 @@ def character(silhouette, seed):
 
 def minairo(parts, seed):
     """A white felt beard with a two-lobed moustache over the lower face, a rosy nose and a
-    red barretina with its black ribbon, folded to one side, as the drawn minairó (winds.js).
-    None of them is in the mask: they keep their colours on every wind."""
+    barretina with its black ribbon, folded to one side, as the drawn minairó (winds.js).
+    None of them is in the mask: they keep their colours on every wind. The barretina is
+    neutral felt in its own cap mask, which clients tint with each minairó's barretina colour."""
     tree, eyes, rig = parts["tree"], parts["eyes"], parts["rig"]
     felt = material("felt", (0.9, 0.88, 0.84, 1), 0.85, sss=0.15, sheen=0.6, seed=seed, grain=9.0)
-    red = material("barretina", (0.42, 0.016, 0.012, 1), 0.7, sss=0.15, sheen=0.1, seed=seed, grain=6.0)  # #C9342C
+    felt_cap = material("barretina", NEUTRAL, 0.7, sss=0.15, sheen=0.1, seed=seed, grain=6.0)
     band = material("band", (0.012, 0.011, 0.013, 1), 0.9, sheen=0.1, spec=0.2)  # the black ribbon of a barretina, matte felt
     rosy = material("nose", (0.8, 0.25, 0.3, 1), 0.5, sss=0.3, sheen=0.2, seed=seed)
     meta = bpy.data.metaballs.new("beard")
@@ -352,7 +356,8 @@ def minairo(parts, seed):
     head = obj("head", None, rig)
     head.location = (0, 0, eyes + 0.36)
     wide = tree.ray_cast(Vector((3, 0, eyes + 0.36)), Vector((-1, 0, 0)))[0].x
-    cap = obj("cap", bpy.data.curves.new("cap", "CURVE"), head, red)
+    cap = obj("cap", bpy.data.curves.new("cap", "CURVE"), head, felt_cap)
+    cap["cap"] = 1.0
     cap.data.dimensions, cap.data.bevel_depth, cap.data.bevel_resolution = "3D", 1.0, 4
     cap.data.use_fill_caps = True
     cap.data.splines.new("POLY").points.add(15)
@@ -426,11 +431,14 @@ def apply(parts, p):
 
 
 def render(sc, path, mask):
+    """mask: None for the clay, "mask" for where the wind's colour goes, "cap" for the barretina's."""
     sc.cycles.samples, sc.cycles.use_denoising = (16, False) if mask else (160, False)
+    if mask:
+        bpy.data.materials["mask"].node_tree.nodes["Attribute"].attribute_name = mask
     for ob in bpy.data.objects:
         for slot in ob.material_slots:
             slot.link = "OBJECT" if mask else "DATA"
-    bpy.data.objects["shadow"].hide_render = mask
+    bpy.data.objects["shadow"].hide_render = bool(mask)
     sc.render.filepath = str(path)
     bpy.ops.render.render(write_still=True)
 
@@ -461,47 +469,67 @@ def build(silhouettes, moods):
         parts = character(silhouette, seed + 1)
         for mood in moods:
             n = MOODS[mood][0]
-            sheets = {False: [], True: []}
-            for mask in (False, True):
+            sheets = {None: [], "mask": [], "cap": []}
+            for mask in (None, "mask") + (("cap",) if silhouette in CAPS else ()):
                 for i in range(n):
                     apply(parts, pose(mood, i, n) | follow(mood, i, n))
                     render(sc, tmp / "frame.png", mask)
                     sheets[mask].append(pixels(tmp / "frame.png"))
-            colour, alpha = np.concatenate(sheets[False], axis=1), np.concatenate(sheets[True], axis=1)
+            colour = np.concatenate(sheets[None], axis=1)
             # WebP keeps alpha lossless: 32 levels look the same and halve what it costs.
             colour[..., 3] = np.round(colour[..., 3] * 31) / 31
             save(colour, OUT / silhouette / f"{mood}.webp", QUALITY)
-            # The mask keeps only coverage, at half size: constant white compresses to
-            # almost nothing. The largest of each 2x2 so the tint reaches the very edge.
-            half = alpha[..., 3].reshape(SIZE // 2, 2, -1, 2).max((1, 3))
-            white = np.ones(half.shape + (4,), dtype=np.float32)
-            white[..., 3] = half
-            save(white, OUT / silhouette / f"{mood}.mask.webp", 100)
+            for mask in ("mask", "cap"):
+                if not sheets[mask]:
+                    continue
+                # A mask keeps only coverage, at half size: constant white compresses to
+                # almost nothing. The largest of each 2x2 so the tint reaches the very edge.
+                half = np.concatenate(sheets[mask], axis=1)[..., 3].reshape(SIZE // 2, 2, -1, 2).max((1, 3))
+                white = np.ones(half.shape + (4,), dtype=np.float32)
+                white[..., 3] = half
+                save(white, OUT / silhouette / f"{mood}.{mask}.webp", 100)
 
 
 def manifest():
     data = {"size": SIZE, "fps": FPS, "tint": "multiply",
             "files": "<silhouette>/<mood>.webp", "mask": "<silhouette>/<mood>.mask.webp", "maskSize": SIZE // 2,
+            "cap": "<silhouette>/<mood>.cap.webp", "caps": list(CAPS),
             "silhouettes": {name: family for name, (family, *_) in SILHOUETTES.items()},
             "moods": {mood: {"frames": n, "loop": loop} for mood, (n, loop) in MOODS.items()}}
     (OUT / "manifest.json").write_text(json.dumps(data) + "\n", encoding="utf-8")
 
 
-def preview(folder, silhouettes=tuple(SILHOUETTES), motion=False, tints=((0.36, 0.55, 0.94), (0.95, 0.65, 0.25))):
-    """Contact sheets at 128 and 40 px: each silhouette in two wind colours with a few
-    frames per mood, or with motion every frame of one silhouette, one mood per row."""
+def hex_rgb(hex):
+    return tuple(int(hex[i:i + 2], 16) / 255 for i in (1, 3, 5))
+
+
+# Six minairons, a body colour and the barretina winds.js picks for it (task 120).
+MINAIRONS = tuple((hex_rgb(body), hex_rgb(cap)) for body, cap in (
+    ("#A8CDE2", "#C9342C"), ("#EFA68F", "#6E2F6B"), ("#A8CDE2", "#2E6B3F"), ("#A8CDE2", "#C8962E"),
+    ("#EFA68F", "#26406E"), ("#BFCFA4", "#7D1F33")))
+
+
+def preview(folder, silhouettes=tuple(SILHOUETTES), motion=False, title=None,
+            tints=(((0.36, 0.55, 0.94), hex_rgb("#C9342C")), ((0.95, 0.65, 0.25), hex_rgb("#6E2F6B")))):
+    """Contact sheets at 128 and 40 px: each silhouette in each wind and barretina colour
+    with a few frames per mood, or with motion every frame of one silhouette, one mood per row."""
     rows = []
     for silhouette in silhouettes:
-        for tint in tints:
+        for tint, cap in tints:
             cells = []
             for mood, (n, _) in MOODS.items():
                 if not (OUT / silhouette / f"{mood}.webp").exists():
                     continue
-                colour, mask = pixels(OUT / silhouette / f"{mood}.webp"), pixels(OUT / silhouette / f"{mood}.mask.webp")
-                mask = mask.repeat(2, 0).repeat(2, 1)
+                colour = pixels(OUT / silhouette / f"{mood}.webp")
+                masks = [(pixels(OUT / silhouette / f"{mood}.mask.webp"), tint)]
+                if silhouette in CAPS:
+                    masks.append((pixels(OUT / silhouette / f"{mood}.cap.webp"), cap))
                 for i in range(n) if motion else (0, n // 3, 2 * n // 3):
-                    c, m = colour[:, i * SIZE:(i + 1) * SIZE], mask[:, i * SIZE:(i + 1) * SIZE, 3:]
-                    rgb = c[..., :3] * (1 - m + m * np.array(tint, dtype=np.float32))
+                    c = colour[:, i * SIZE:(i + 1) * SIZE]
+                    rgb = c[..., :3]
+                    for mask, paint in masks:
+                        m = mask.repeat(2, 0).repeat(2, 1)[:, i * SIZE:(i + 1) * SIZE, 3:]
+                        rgb = rgb * (1 - m + m * np.array(paint, dtype=np.float32))
                     cells.append(np.concatenate([rgb, c[..., 3:]], axis=2))
                 if motion:
                     rows.append(np.concatenate(cells + [np.zeros_like(cells[0])] * (24 - n), axis=1))
@@ -518,7 +546,7 @@ def preview(folder, silhouettes=tuple(SILHOUETTES), motion=False, tints=((0.36, 
         img.file_format = "PNG"
         for size in (SIZE, 40):
             img.scale(sheet.shape[1] * size // SIZE, sheet.shape[0] * size // SIZE)
-            img.save(filepath=str(Path(folder) / f"{'motion-' + silhouettes[0] if motion else 'contact'}-{size}-{name}.png"))
+            img.save(filepath=str(Path(folder) / f"{title or ('motion-' + silhouettes[0] if motion else 'contact')}-{size}-{name}.png"))
         bpy.data.images.remove(img)
 
 
@@ -534,7 +562,8 @@ def main():
         Path(args.preview).mkdir(parents=True, exist_ok=True)
         preview(args.preview)
         for silhouette in SILHOUETTES:
-            preview(args.preview, (silhouette,), True, ((0.36, 0.55, 0.94),))
+            preview(args.preview, (silhouette,), True, tints=(((0.36, 0.55, 0.94), hex_rgb("#C9342C")),))
+        preview(args.preview, ("minairo",), title="minairons", tints=MINAIRONS)
 
 
 main()

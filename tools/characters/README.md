@@ -15,8 +15,9 @@ Blender 5.3 (free, `winget install BlenderFoundation.Blender`):
 The first renders everything (about 6 minutes with Cycles on the CPU of a laptop),
 the second only some sheets, the third only writes contact sheets of what is
 already rendered: every silhouette tinted in two wind colours with a few
-frames per mood (`contact-*`), and every frame of every mood per silhouette
-(`motion-*`), at 128 and 40 px, on light and dark.
+frames per mood (`contact-*`), every frame of every mood per silhouette
+(`motion-*`), and six minairons each in its own barretina colour
+(`minairons-*`), at 128 and 40 px, on light and dark.
 
 Run `go test ./internal/web -run TestCharactersManifestMatchesSheets` after
 rendering: it checks that `manifest.json` and the sheets agree.
@@ -33,6 +34,9 @@ rendering: it checks that `manifest.json` and the sheets agree.
   (`maskSize`), white with alpha where the wind's colour goes (body, feet,
   lids); the eyes, their catchlights and the mouth are cut out, and it fades
   under the pink cheek blush so the blush stays pink on every wind.
+- `<silhouette>/<mood>.cap.webp`, only for the silhouettes listed in `caps`
+  (`minairo`): the same kind of mask for the barretina (its tube and crown,
+  not the black band), which the sheet shows in the neutral clay too.
 - `manifest.json`: `size`, `maskSize`, `fps`, the silhouettes (`pebble`,
   `cloud`, `curl`, with the letter of the wind style each one stands for, as
   in `winds.js`; and `minairo`, which stands for the minairó avatar pack
@@ -42,7 +46,9 @@ rendering: it checks that `manifest.json` and the sheets agree.
 To tint, `multiply` the sheet by the wind's colour where the mask is, scaling
 the mask up to `size` (canvas: draw the mask scaled, fill with the colour
 using `source-in`, then draw the sheet with `multiply`; keep the sheet's
-alpha). All silhouettes share one framing: the ground line and the scale are
+alpha). Tint the barretina the same way through the cap mask, with the
+minairó's barretina colour (`barretinaOf` in `winds.js`, `minairoLook` in
+`WindFace.kt`). All silhouettes share one framing: the ground line and the scale are
 the same in every sheet, with room above for hops and the curl.
 
 ## Change a design
@@ -51,8 +57,8 @@ the same in every sheet, with room above for hops and the curl.
   to, the height of its eyes and the metaballs that make the body. The body
   is normalised to that width and settled flat on the ground, so a new shape
   only needs its balls. The minairo adds a white felt beard with a two-lobed
-  moustache, a rosy nose and a red barretina with a black ribbon (`minairo()`,
-  `barretina()`), none of them in the mask; `follow()` makes the beard and the
+  moustache, a rosy nose and a barretina with a black ribbon (`minairo()`,
+  `barretina()`), none of them in the mask (the barretina has its own, `CAPS`); `follow()` makes the beard and the
   cap's tip lag behind the body with two damped springs.
 - Moods: `MOODS` gives frames and loop; `pose()` says what every frame looks
   like (squash, hop, tilt, turn, lean, gaze, blink, lids, happy eyes, mouth).

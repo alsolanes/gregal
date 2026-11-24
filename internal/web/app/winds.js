@@ -712,6 +712,7 @@
       shapes(svgNode('clipPath', { id:id + 'c' }), [['ellipse', { cx:40, cy, rx, ry }]]));
     svg.append(defs);
     svg.setAttribute('data-avatar', 'minairo');
+    svg.setAttribute('data-barretina', barretina); // the clay minairó (characters.js) tints its barretina with it
     if (large === true) {
       const ground = mix(fill, '#0B0C14', .72);
       defs.append(shapes(svgNode('radialGradient', { id:id + 'g' }), stops([[0, ground, .5], [1, ground, 0]])));

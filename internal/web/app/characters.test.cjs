@@ -52,7 +52,7 @@ function load({ files = null, reduced = false, winds = {} } = {}) {
   let observer;
   class IntersectionObserver { constructor(f) { observer = this; this.f = f; this.targets = []; } observe(t) { this.targets.push(t); } unobserve(t) { this.targets = this.targets.filter(x => x !== t); } }
   // Every sheet exists unless the test lists the ones that do. A sheet's
-  // pixels are grey clay; its mask covers the first pixel only.
+  // pixels are grey clay; its mask covers the first pixel only, its cap mask the second.
   class Image {
     set src(url) {
       fetched.push(url);
@@ -62,6 +62,7 @@ function load({ files = null, reduced = false, winds = {} } = {}) {
         const mood = name.split('/')[1].split('.')[0], width = manifest.moods[mood].frames * SIZE;
         this.pixels = new Uint8ClampedArray(width * SIZE * 4).fill(200);
         if (name.endsWith('.mask.webp')) { this.pixels.fill(0); this.pixels[3] = 255; }
+        if (name.endsWith('.cap.webp')) { this.pixels.fill(0); this.pixels[7] = 255; }
         this.sheet = name;
         this.onload();
       });
@@ -252,6 +253,27 @@ test('a minairó plays the minairó clay sheets, whatever its silhouette, and ke
   bare.chars.play(drawn.svg, { ...wind, avatar: 'minairo' });
   await settle();
   assert.equal(drawn.box.children[0], drawn.svg, 'no minairó sheets: the drawn minairó stays');
+});
+
+test('a minairó tints its barretina with its own colour through the cap mask, its body with the wind colour', async () => {
+  const env = load();
+  const purple = svgFace(env, 'idle', { 'data-avatar': 'minairo', 'data-barretina': '#6E2F6B' });
+  env.chars.play(purple.svg, { ...wind, avatar: 'minairo' });
+  await settle();
+  assert.ok(env.fetched.includes('/app/characters/minairo/idle.cap.webp'));
+  const canvas = purple.box.children[0];
+  assert.deepEqual([...canvas.source.pixels.slice(0, 12)], [200, 100, 0, 200, 86, 37, 84, 200, 200, 200, 200, 200], 'body orange, barretina purple, the rest clay');
+  // Another wind of the same colour with another barretina gets its own sheet.
+  const green = svgFace(env, 'idle', { 'data-avatar': 'minairo', 'data-barretina': '#2E6B3F' });
+  env.chars.play(green.svg, { ...wind, id: 'garbi', avatar: 'minairo' });
+  await settle();
+  assert.deepEqual([...green.box.children[0].source.pixels.slice(4, 8)], [36, 84, 49, 200]);
+  assert.ok(!env.fetched.some(u => u.includes('/curl/')));
+  // The other silhouettes have no cap mask.
+  const curl = svgFace(env);
+  env.chars.play(curl.svg, wind);
+  await settle();
+  assert.ok(!env.fetched.some(u => u.endsWith('.cap.webp') && !u.includes('/minairo/')));
 });
 
 test('reduced motion shows the first frame and switches moods without a crossfade', async () => {
