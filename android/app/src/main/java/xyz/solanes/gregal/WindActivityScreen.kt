@@ -125,7 +125,7 @@ internal fun WindActivityScreen(vm: GregalViewModel, onMenu: () -> Unit) {
         if (atEnd && feed.more && feed.error == null) vm.loadWindActivity(older = true)
     }
     // Les tasques i novetats són al xat del vent; Android no té pantalla de runs d'una rutina.
-    val open: (WindActivityItem) -> Unit = { vm.openVentsChat("wind:" + it.wind) }
+    val open: (WindActivityItem) -> Unit = { vm.openWindActivityItem(it) }
     Scaffold(containerColor = Color.Transparent, snackbarHost = { NoticeHost(vm) }, topBar = {
         GregalTopBar(title, lang, onMenu = onMenu,
             actions = { IconButton(onClick = { vm.loadWindActivity() }) { Icon(Icons.Rounded.Refresh, tr(lang, "auto.refresh")) } })

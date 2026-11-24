@@ -4398,6 +4398,26 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         loadWindActivity()
     }
 
+    /** Obre el xat del vent; una novetat, pel seu missatge (com des de l'avís) i llegida a tot arreu. */
+    fun openWindActivityItem(item: WindActivityItem) {
+        if (item.kind == "news" && item.ref.isNotBlank()) {
+            _windActivity.value = _windActivity.value.let { f -> f.copy(items = f.items.map { if (it == item) it.copy(status = "read") else it }) }
+            val source = _conn.value
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    val api = source.api()
+                    AvuiJson.novetat(api.get("/api/winds/novetats?id=" + java.net.URLEncoder.encode(item.ref, "UTF-8")).toString())
+                        ?.let { MessageFocus.open("wind:" + item.wind, it.messageId) }
+                    api.post("/api/winds/novetats/read", JSONObject().put("ids", JSONArray().put(item.ref)))
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    // Sense xarxa o servidor antic: el xat s'obre pel final i, obert, el fil marca llegides les novetats del vent.
+                }
+            }
+        }
+        openVentsChat("wind:" + item.wind)
+    }
+
     /** La primera pàgina de nou o, amb `older`, la següent de més velles (`before` = l'«at» de l'última). */
     fun loadWindActivity(older: Boolean = false) {
         val cur = _windActivity.value
