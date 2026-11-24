@@ -38,11 +38,13 @@ internal fun VentsStartPage(
     onThread: (WindThread) -> Unit,
     modifier: Modifier = Modifier,
     aboveComposer: @Composable () -> Unit = {},
+    news: Map<String, Int> = emptyMap(),
+    bounce: WindArrival? = null,
 ) {
     VentsOpening(
         lang, name, text, onText, busy, onPhoto = null, onDoc = null, onSend = onSend,
         modifier = modifier, halo = false,
-        top = { StartFaces(winds, onWind) },
+        top = { StartFaces(winds, news, bounce, onWind) },
         below = {
             if (threads.isNotEmpty()) StartRecents(lang) {
                 threads.forEach { t ->
@@ -60,7 +62,7 @@ internal fun VentsStartPage(
 }
 
 @Composable
-private fun StartFaces(winds: List<Wind>, onWind: (Wind) -> Unit) {
+private fun StartFaces(winds: List<Wind>, news: Map<String, Int>, bounce: WindArrival?, onWind: (Wind) -> Unit) {
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -73,7 +75,12 @@ private fun StartFaces(winds: List<Wind>, onWind: (Wind) -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                WindHalo(Color(w.argb), w.faceStyle, size = 40, online = false, showKit = false)
+                NewsBounce(bounce?.takeIf { it.wind == w.id }) {
+                    Box {
+                        WindHalo(Color(w.argb), w.faceStyle, size = 40, online = false, showKit = false)
+                        NewsBadge(news[w.id] ?: 0, Modifier.align(Alignment.TopEnd).testTag("start-wind-badge-" + w.id))
+                    }
+                }
                 Text(w.name, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 WindRolePill(w)
             }
@@ -113,3 +120,7 @@ internal fun threadWhen(at: String, lang: String, nowMs: Long = System.currentTi
     val day = dayLabel(ms, nowMs, lang)
     return if (dayKey(ms) == dayKey(nowMs)) day + " " + hourMinute(ms) else day
 }
+
+/** Les recents de la més nova a la més vella per l'instant, no pel text: «09:00+01:00» és abans que «08:30Z». */
+internal fun newestFirst(threads: List<WindThread>): List<WindThread> =
+    threads.sortedByDescending { runCatching { java.time.OffsetDateTime.parse(it.at).toInstant().toEpochMilli() }.getOrDefault(0L) }

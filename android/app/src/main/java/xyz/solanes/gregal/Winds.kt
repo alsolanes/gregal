@@ -203,6 +203,19 @@ object WindNewsLogic {
     fun unseenCounts(novetats: List<WindNovetat>, seen: Map<String, Long>, floor: Long): Map<String, Int> =
         novetats.filter { !it.read && it.wind.isNotBlank() && it.ts > maxOf(seen[it.wind] ?: 0L, floor) }
             .groupingBy { it.wind }.eachCount()
+
+    /** Clau d'una novetat pendent: l'id (B7) o, en un servidor antic, vent i hora. */
+    fun keys(novetats: List<WindNovetat>, seen: Map<String, Long>, floor: Long): Set<String> =
+        pending(novetats, seen, floor).map(::key).toSet()
+
+    /** Les pendents que no hi eren a la lectura d'abans; cap si encara no n'hi havia hagut cap ([known] null). */
+    fun arrived(novetats: List<WindNovetat>, seen: Map<String, Long>, floor: Long, known: Set<String>?): List<WindNovetat> =
+        if (known == null) emptyList() else pending(novetats, seen, floor).filter { key(it) !in known }
+
+    private fun pending(novetats: List<WindNovetat>, seen: Map<String, Long>, floor: Long) =
+        novetats.filter { !it.read && it.wind.isNotBlank() && it.ts > maxOf(seen[it.wind] ?: 0L, floor) }
+
+    private fun key(n: WindNovetat) = n.id.ifBlank { n.wind + ":" + n.ts }
 }
 
 /**

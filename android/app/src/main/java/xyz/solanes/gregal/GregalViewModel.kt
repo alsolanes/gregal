@@ -745,6 +745,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _windLive.value = emptyMap()
         _lastWindReply.value = null
         _windNews.value = emptySet()
+        knownNews = null
+        _windArrival.value = null
         _rotllanes.value = emptyList()
         _rotllanaChat.value = emptyMap()
         _rotllanaBusy.value = emptySet()
@@ -3575,6 +3577,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _windBusy.value = _windBusy.value - id
         endLive(id)
         flushLateSteer(id, rotllana = false)
+        // El torn ja és al disc: la conversa entra (o puja) a les recents de la portada.
+        loadWindThreads()
         // La memòria s'aprèn en segon pla: es torna a mirar el fil per ensenyar «Ho recordaré».
         if (complete) viewModelScope.launch {
             for (wait in listOf(9_000L, 12_000L)) {
@@ -3636,11 +3640,33 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (isCompanionOrigin(source, epoch)) {
                     _windNews.value = WindNewsLogic.unseen(list, seen, floor)
                     _windNewsCount.value = WindNewsLogic.unseenCounts(list, seen, floor)
+                    val arrived = WindNewsLogic.arrived(list, seen, floor, knownNews)
+                    knownNews = WindNewsLogic.keys(list, seen, floor)
+                    if (arrived.isNotEmpty()) {
+                        loadWindThreads()
+                        arrived.filter { _ventsOpen.value != "wind:" + it.wind }.maxByOrNull { it.ts }
+                            ?.let { _windArrival.value = WindArrival(it.wind, it.name, it.text, it.messageId, System.currentTimeMillis()) }
+                    }
                 }
             } catch (_: Exception) {
                 // Sense servidor o en mode local: cap novetat, cap soroll.
             }
         }
+    }
+
+    /** Novetats pendents ja vistes per aquesta connexió; null fins a la primera lectura (les d'abans no fan bàner). */
+    private var knownNews: Set<String>? = null
+    private val _windArrival = MutableStateFlow<WindArrival?>(null)
+    /** L'última novetat arribada amb l'app oberta: el bàner de dalt i el salt de la cara del vent. */
+    val windArrival: StateFlow<WindArrival?> = _windArrival
+
+    fun dismissWindArrival(a: WindArrival) { _windArrival.compareAndSet(a, null) }
+
+    /** Tocar el bàner: el xat del vent, al missatge de la novetat. */
+    fun openWindArrival(a: WindArrival) {
+        _windArrival.compareAndSet(a, null)
+        MessageFocus.open("wind:" + a.wind, a.messageId)
+        openVentsChat("wind:" + a.wind)
     }
 
     /** Les novetats que tenia cada vent just abans d'obrir-lo (i marcar-les llegides): el fil s'hi obre. */
@@ -5740,7 +5766,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 val list = withContext(Dispatchers.IO) { source.api().windThreads() }
-                if (_conn.value == source) _windThreads.value = list
+                if (_conn.value == source) _windThreads.value = newestFirst(list)
             } catch (_: Exception) {
                 // Sense llista, la portada només ensenya els vents.
             }
