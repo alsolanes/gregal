@@ -66,7 +66,7 @@ fun slideText(s: JsonObject?, key: String): String = (s?.get(key) as? JsonPrimit
 
 fun slideBullets(s: JsonObject?): List<String> = (s?.get("bullets") as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty()
 
-private fun slideForm(s: JsonObject): Map<String, String> = slideFields(slideText(s, "layout")).associateWith {
+private fun slideForm(s: JsonObject, layout: String = slideText(s, "layout")): Map<String, String> = slideFields(layout).associateWith {
     if (it == "bullets") slideBullets(s).joinToString("\n") else slideText(s, it)
 }
 
@@ -83,12 +83,19 @@ private fun slideWith(s: JsonObject, form: Map<String, String>): JsonObject = Js
     }
 })
 
+/** La imatge d'una diapositiva si és una adreça web (es pot baixar); una ruta del projecte, null. */
+fun slideImageUrl(s: JsonObject?): String? = slideText(s, "image").trim().takeIf { it.startsWith("http://") || it.startsWith("https://") }
+
 /** La lletra d'una columna: 0 → A, 26 → AA. */
 fun sheetColumn(i: Int): String = (if (i >= 26) sheetColumn(i / 26 - 1) else "") + ('A' + i % 26)
 
 private val cellName = Regex("([A-Z]+)([0-9]+)")
 
-/** Columnes i files de la graella: fins a l'última cel·la amb dades i unes quantes de buides per escriure-hi. */
+// Una cel·la com ZZZ99999 no ha de fer una graella de milers de columnes: cada fila es compon sencera.
+private const val SHEET_MAX_COLS = 100
+private const val SHEET_MAX_ROWS = 10_000
+
+/** Columnes i files de la graella: fins a l'última cel·la amb dades i unes quantes de buides per escriure-hi, amb un límit. */
 fun sheetSize(b: DocBlock): Pair<Int, Int> {
     var cols = 0
     var rows = 0
@@ -97,7 +104,7 @@ fun sheetSize(b: DocBlock): Pair<Int, Int> {
         cols = maxOf(cols, m.groupValues[1].fold(0) { n, ch -> n * 26 + (ch - 'A' + 1) })
         rows = maxOf(rows, m.groupValues[2].toInt())
     }
-    return maxOf(cols + 1, 6) to maxOf(rows + 5, 20)
+    return minOf(maxOf(cols + 1, 6), SHEET_MAX_COLS) to minOf(maxOf(rows + 5, 20), SHEET_MAX_ROWS)
 }
 
 /**
@@ -106,7 +113,8 @@ fun sheetSize(b: DocBlock): Pair<Int, Int> {
  * `opened` és el text amb què s'ha obert (sense tocar no es desa) i `base`
  * la versió del bloc que la persona té; `conflict` és el bloc d'ara després
  * d'un 409; `gone`, que el stream l'ha esborrat mentre s'editava.
- * En una presentació, `slide` és la diapositiva tal com s'ha obert i `fields` el formulari del seu layout.
+ * En una presentació, `slide` és la diapositiva tal com s'ha obert, `fields` el formulari del seu layout
+ * i `layout` el que s'hi ha triat (buit, el de la diapositiva).
  */
 data class DocEdit(
     val id: String,
@@ -120,6 +128,7 @@ data class DocEdit(
     val cell: String = "",
     val slide: JsonObject? = null,
     val fields: Map<String, String> = emptyMap(),
+    val layout: String = "",
 )
 
 data class DocRequest(val method: String, val path: String, val body: String? = null)
@@ -199,6 +208,17 @@ data class LiveDoc(
 
     fun typedField(key: String, value: String): LiveDoc = copy(edit = edit?.copy(fields = edit.fields + (key to value)))
 
+    /** Canvia el layout de la diapositiva oberta: el formulari passa a ser el del nou, amb el que ja s'hi havia escrit. */
+    fun chooseLayout(layout: String): LiveDoc {
+        val e = edit ?: return this
+        val s = e.slide ?: return this
+        return copy(edit = e.copy(layout = layout, fields = slideForm(s, layout) + e.fields.filterKeys { it in slideFields(layout) }))
+    }
+
+    /** El document tornat a llegir en reconnectar: la pestanya, la diapositiva i l'editor obert es queden (l'editor, si el seu bloc hi és). */
+    fun kept(next: LiveDoc): LiveDoc = if (next.id != id) next else
+        next.copy(sheet = sheet, current = current, edit = edit?.takeIf { e -> e.id.isEmpty() || next.blocks.any { it.id == e.id } })
+
     /** La diapositiva oberta per últim, si encara hi és; si no, l'última (o el principi d'una presentació buida). */
     val slideAfter: String get() = blocks.firstOrNull { it.id == current }?.id ?: blocks.lastOrNull()?.id.orEmpty()
 
@@ -231,6 +251,25 @@ data class LiveDoc(
 
     fun openNew(after: String): LiveDoc = copy(edit = DocEdit("", after = after))
 
+    /** «Full nou»: un full buit al final amb el primer nom lliure ([base] i un número), com sheet-view.js. */
+    fun addSheetRequest(base: String): DocRequest {
+        val used = blocks.map { it.name.lowercase() }.toSet()
+        var n = blocks.size + 1
+        while ((base + n).lowercase() in used) n++
+        return DocRequest("POST", scoped(blocksPath(), scope), buildJsonObject {
+            put("after", blocks.lastOrNull()?.id.orEmpty()); put("name", base + n)
+        }.toString())
+    }
+
+    /** La resposta de «Full nou»: el full va al final i se'n mostra la pestanya. */
+    fun sheetAdded(code: Int, body: String): DocSaved {
+        val a = runCatching { GregalJson.decodeFromString(BlockAnswer.serializer(), body) }.getOrNull() ?: BlockAnswer()
+        if (code != 200) return DocSaved(this, error = a.error.ifBlank { "HTTP $code" })
+        var d = this
+        for (n in a.blocks) d = d.apply(DocChange("insert", n, d.blocks.lastOrNull()?.id.orEmpty(), a.version))
+        return DocSaved(d.showSheet(a.blocks.lastOrNull()?.id ?: sheet))
+    }
+
     /** El full de la pestanya triada; si l'han esborrat, el primer. */
     fun shownSheet(): DocBlock? = blocks.firstOrNull { it.id == sheet } ?: blocks.firstOrNull()
 
@@ -252,7 +291,9 @@ data class LiveDoc(
         val path = blocksPath()
         if (e.slide != null) {
             // Després d'un 409, els camps de la persona van sobre la diapositiva d'ara.
-            val s = slideWith(e.conflict?.slide ?: e.slide, e.fields)
+            val s = slideWith(e.conflict?.slide ?: e.slide, e.fields).let {
+                if (e.layout.isEmpty()) it else JsonObject(it + ("layout" to JsonPrimitive(e.layout)))
+            }
             if (e.conflict == null && s == slideWith(e.slide, slideForm(e.slide))) return null
             return DocRequest("PUT", scoped(path + "/" + URLEncoder.encode(e.id, "UTF-8"), scope),
                 buildJsonObject { put("slide", s); put("base_version", e.base) }.toString())
@@ -319,10 +360,11 @@ fun docPageUrl(base: String, d: DocRef, session: String): String =
 /** La clau per carregar la pàgina: en una capçalera, mai a la URL. */
 fun docPageHeaders(token: String): Map<String, String> = if (token.isBlank()) emptyMap() else mapOf("Authorization" to "Bearer $token")
 
-/** Les crides de la pàgina: doc-page.js llegeix la clau d'aquest pont (window.GregalAndroid), com a l'escriptori de window.gregalDesktop. */
-class DocPageBridge(private val token: String) {
+/** Les crides de la pàgina: doc-page.js llegeix la clau d'aquest pont (window.GregalAndroid), com a l'escriptori de window.gregalDesktop.
+ *  Es llegeix a cada crida: si la connexió canvia de clau, la pàgina ja oberta fa servir la nova. */
+class DocPageBridge(private val key: () -> String) {
     @JavascriptInterface
-    fun token(): String = token
+    fun token(): String = key()
 }
 
 /** Només la pàgina mateixa es carrega al WebView (la pàgina, amb el pont i la clau, no navega enlloc més). */
