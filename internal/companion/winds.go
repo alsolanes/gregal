@@ -497,6 +497,11 @@ const windToolsGuide = "\n\nWHAT YOU CAN USE:" +
 	"\n- Charts: a fenced ```chart block with one JSON line {\"type\":\"bar\"|\"line\"|\"pie\",\"title\":\"...\",\"labels\":[...],\"series\":[{\"name\":\"...\",\"values\":[...]}]} — only with real numbers from the chat or your tools, never invented." +
 	CardsGuide
 
+// CompareGuide ensenya la comparació en fitxes: md.js la pinta en una fila
+// que llisca, o una fitxa per pàgina si porten punts. La fan servir els vents
+// (CardsGuide) i el mode Codi de la web.
+const CompareGuide = "```gregal-compare {\"title\",\"items\":[{\"name\",\"image_query\",\"logo_domain\",\"url\",\"facts\":{\"Trait\":\"value\"},\"points\":[\"...\"],\"pick\":true}],\"verdict\",\"sources\":[{\"name\",\"url\"}]} — 2-8 things side by side (products, places, options, tools, libraries) when a comparison really helps; never for code diffs or one-line answers. Every item has the SAME traits in the same order. image_query: 2-4 English words for its real photo (Earth, Cheetah); logo_domain: the official site of a brand, product or software (nodejs.org) and the app adds its logo; an item may have both (a party logo and its candidate's photo), or \"image\" with a URL from web_images, never an invented one. url: the item's own page. points: 3-6 short bullets when each item needs a summary (each party's programme), and then every item is a full card to swipe. pick: at most one; on political or contested choices keep the wording neutral, summarise each from its own sources (url) and no pick."
+
 // CardsGuide ensenya les targetes riques del xat (md.js i Md.kt les pinten).
 // També la fa servir el xat de grup i Gregal.
 const CardsGuide = "\n- Cards for a recipe, a plan in time order or options: one short sentence, the fence, a NEW line with one JSON object, the closing fence, then at most one sentence:" +
@@ -504,7 +509,7 @@ const CardsGuide = "\n- Cards for a recipe, a plan in time order or options: one
 	"\n  ```gregal-plan {\"kicker\",\"title\",\"image_query\",\"items\":[{\"time\":\"08:05\",\"title\",\"detail\"}],\"total\":{\"label\",\"value\"},\"sources\":[{\"name\",\"url\"}]}" +
 	"\n  ```gregal-result {\"title\",\"numbered\":true,\"rows\":[{\"lead\",\"text\",\"value\",\"tag\",\"pick\":true,\"url\"}]} (max 5 rows, one pick)." +
 	"\n  ```gregal-route {\"from\",\"to\",\"depart\",\"arrive\",\"mode\":\"train\",\"service\",\"duration\",\"badge\",\"price\",\"alternatives\":[{\"time\",\"service\",\"price\",\"url\"}]}." +
-	"\n  ```gregal-compare {\"title\",\"items\":[{\"name\",\"image_query\",\"facts\":{\"Trait\":\"value\"},\"pick\":true}],\"verdict\"} — 2-3 things side by side (animals, products, options, places) with the SAME traits; give every item an image_query in English (Earth, Mars, Cheetah) and the app adds its photo. For \"X or Y?\", \"difference between\"." +
+	"\n  " + CompareGuide + " For \"X or Y?\", \"difference between\"." +
 	"\n  ```gregal-facts {\"title\",\"facts\":[{\"value\":\"300 g\",\"label\",\"note\"}]} — 2-6 key numbers at a glance, only real ones, when a few figures ARE the answer (how big, how fast, how many)." +
 	"\n  Show what helps: a real photo of the concrete thing they ask about (gallery for several), a chart for numbers over time, a card for steps, plans or options. Don't stack the same information twice (a card and a table of it). A short or personal reply (a message to write, how they feel, advice) gets no visuals." +
 	"\n  Any card can end with \"actions\":[{\"label\",\"prompt\",\"primary\":true},{\"label\"}]: 1-2 next steps to tap." +

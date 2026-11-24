@@ -100,7 +100,9 @@ test('la foto pendent (image: consulta) no es veu mentre arriba la resposta', ()
   assert.ok(h.includes('Ves-hi.'), h);
 });
 
-test('la comparació posa les coses en columnes, amb foto, els trets en files i el veredicte', () => {
+// La comparació era una graella de 2-3 columnes; ara (tasca 115) és una fila
+// de fitxes que llisca, amb els trets en el mateix ordre a totes.
+test('la comparació és una fila de fitxes amb foto, els trets alineats i el veredicte', () => {
   const h = md.render(block('gregal-compare', {
     title: 'Guepard o lleopard',
     items: [
@@ -109,15 +111,63 @@ test('la comparació posa les coses en columnes, amb foto, els trets en files i 
     ],
     verdict: 'El guepard corre; el **lleopard** s\'enfila.',
   }));
-  assert.ok(h.includes('class="gregal-card gregal-compare"'), h);
-  assert.ok(h.includes('--gx-n:2'));
+  assert.ok(h.includes('class="gregal-card gregal-compare gx-row"'), h);
+  assert.strictEqual((h.match(/class="gx-item/g) || []).length, 2);
   assert.ok(h.includes('class="gx-photo" src="https://upload.wikimedia.org/c.jpg"'), h);
   assert.ok(!h.includes('javascript:'), 'only http(s) photos');
-  assert.strictEqual((h.match(/class="gx-key"/g) || []).length, 3, 'Velocitat, Pes, Caça once each');
+  assert.ok(h.includes('data-initial="L"'), 'without a photo, the initial');
+  // Tres trets a cada fitxa, en el mateix ordre: Velocitat, Pes, Caça.
+  assert.strictEqual((h.match(/class="gx-key"/g) || []).length, 6);
+  assert.ok(h.includes('--gx-rows:5'), 'photo, name and three traits share rows across cards');
+  const order = [...h.matchAll(/class="gx-key">([^<]+)</g)].map((m) => m[1]);
+  assert.deepStrictEqual(order, ['Velocitat', 'Pes', 'Caça', 'Velocitat', 'Pes', 'Caça']);
   assert.ok(h.includes('<span class="gx-val">—</span>'), 'a missing value shows a dash');
-  assert.ok(h.includes('gx-pick') && h.includes('class="gx-verdict"') && h.includes('<b>lleopard</b>'), h);
+  assert.ok(h.includes('gx-pick') && h.includes('class="gx-badge">La tria<') && h.includes('class="gx-verdict"') && h.includes('<b>lleopard</b>'), h);
+  assert.ok(!h.includes('gx-dots'), 'a short comparison has no page dots');
   // Amb una sola cosa no és una comparació: es queda com a codi.
   assert.ok(!md.render(block('gregal-compare', { title: 'x', items: [{ name: 'A' }] })).includes('gregal-compare"'));
+});
+
+test('sis productes surten tots a la fila, amb el logo, l\'enllaç i les fletxes', () => {
+  const items = ['Node.js', 'Deno', 'Bun', 'Python', 'Ruby', 'Go'].map((name, i) => ({
+    name, logo: 'https://e.com/' + i + '.png', url: 'https://e.com/' + name, facts: { Any: String(2000 + i), Tipus: 'runtime' },
+  }));
+  const h = md.render(block('gregal-compare', { title: 'Entorns', items }));
+  assert.strictEqual((h.match(/class="gx-item/g) || []).length, 6, 'no longer cut at 3');
+  assert.ok(h.includes('class="gx-logo" src="https://e.com/0.png"'), h);
+  assert.ok(h.includes('href="https://e.com/Node.js"'), h);
+  assert.ok(h.includes('class="gx-track" tabindex="0"'), 'the row scrolls with the keyboard');
+  assert.ok(h.includes('data-gx-step="-1"') && h.includes('data-gx-step="1"'), 'arrow buttons');
+  assert.ok(h.includes('aria-label="Previous"') && h.includes('aria-label="Next"'), h);
+  // Més de 8 no hi caben.
+  const nine = md.render(block('gregal-compare', { title: 'N', items: Array.from({ length: 9 }, (_, i) => ({ name: 'X' + i })) }));
+  assert.strictEqual((nine.match(/class="gx-item/g) || []).length, 8);
+});
+
+test('els programes de tres partits són fitxes de pàgina sencera amb punts, dues imatges i punts de pàgina', () => {
+  const h = md.render(block('gregal-compare', {
+    title: 'Programes electorals',
+    items: [
+      { name: 'Partit A', logo: 'https://a.cat/logo.png', image: 'https://upload.wikimedia.org/a.jpg', url: 'https://a.cat/programa', points: ['Habitatge **públic**', 'Més escoles', 'Tren cada 10 min'] },
+      { name: 'Partit B', image: 'https://upload.wikimedia.org/b.jpg', images: ['https://b.cat/2.jpg', 'https://b.cat/3.jpg'], points: ['Menys impostos', 'Autopistes', 'Turisme'] },
+      { name: 'Partit C', points: ['Renda bàsica', 'Energia', '<script>x</script>'] },
+    ],
+    sources: [{ name: 'a.cat', url: 'https://a.cat/programa' }],
+  }));
+  assert.ok(h.includes('class="gregal-card gregal-compare gx-paged"'), h);
+  assert.strictEqual((h.match(/class="gx-item/g) || []).length, 3);
+  assert.strictEqual((h.match(/<li>/g) || []).length, 9, 'three points per party');
+  assert.ok(h.includes('<b>públic</b>') && !h.includes('<script>'), 'points are markdown, escaped');
+  // Dues imatges com a molt per fitxa: el logo i la foto.
+  const first = h.slice(h.indexOf('Partit A') - 400, h.indexOf('Partit B'));
+  assert.ok(first.includes('class="gx-photo" src="https://upload.wikimedia.org/a.jpg"') && first.includes('class="gx-logo" src="https://a.cat/logo.png"'), first);
+  assert.ok(!h.includes('https://b.cat/3.jpg'), 'at most two images');
+  assert.ok(h.includes('data-initial="P"'));
+  // Una pàgina per partit: punts de pàgina amb el nom, el primer marcat.
+  assert.strictEqual((h.match(/data-gx-dot="/g) || []).length, 3);
+  assert.ok(h.includes('data-gx-dot="0" aria-label="Partit A" aria-current="true"'), h);
+  assert.ok(h.includes('aria-label="1 / 3"'), 'each page says where it is');
+  assert.ok(h.includes('class="gr-foot'), 'sources after the pages');
 });
 
 test('les xifres clau són rajoles amb el número gran i què vol dir', () => {

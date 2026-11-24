@@ -331,37 +331,99 @@
     return h + sourcesFoot(o) + "</div>" + cardActions(o);
   }
 
-  // Comparació (```gregal-compare): 2-3 coses una al costat de l'altra, cada
-  // una amb la seva foto, els mateixos trets en files i el veredicte a sota.
-  // {title, items:[{name, image, facts:{Tret: valor} | [{label, value}], pick}], verdict}
+  // Comparació (```gregal-compare): 2-8 coses en fitxes que llisquen. Cada
+  // fitxa porta la foto o el logo (o la inicial), el nom, els mateixos trets en
+  // el mateix ordre i, si n'hi ha, «La tria»; el veredicte va a sota. Si les
+  // coses porten punts (un resum per a cada una: els programes dels partits),
+  // cada fitxa és una pàgina sencera, amb fins a dues imatges i punts de pàgina.
+  // {title, items:[{name, image, logo, images, url, facts:{Tret: valor} | [{label, value}], points, pick}], verdict, sources}
   function compareFacts(f) {
     if (Array.isArray(f)) return f.filter((x) => x && x.label).map((x) => [String(x.label), String(x.value == null ? "" : x.value)]);
     if (f && typeof f === "object") return Object.keys(f).map((k) => [k, String(f[k] == null ? "" : f[k])]);
     return [];
   }
+  // compareMedia: la foto i el logo (com a molt `max`); la inicial hi és a
+  // sota per si cap no carrega.
+  function compareMedia(x, max) {
+    const name = String(x.name);
+    const pics = [[x.image, "gx-photo"]].concat((Array.isArray(x.images) ? x.images : []).map((u) => [u, "gx-photo"]), [[x.logo, "gx-logo"]])
+      .filter(([u], i, all) => safeUrl(u) && all.findIndex(([v]) => v === u) === i).slice(0, max);
+    return '<div class="gx-media" data-initial="' + esc(name.trim().charAt(0).toUpperCase()) + '">' +
+      pics.map(([u, cls]) => '<img class="' + cls + '" src="' + safeUrl(u) + '" alt="' + esc(name) + '" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">').join("") + "</div>";
+  }
   function compareCard(code) {
     const o = parseCard(code);
     if (!o) return "";
     const title = String(o.title || "").trim();
-    const items = (Array.isArray(o.items) ? o.items : []).filter((x) => x && x.name).slice(0, 3);
+    const items = (Array.isArray(o.items) ? o.items : []).filter((x) => x && x.name).slice(0, 8);
     if (!title || items.length < 2) return "";
+    const paged = items.some((x) => Array.isArray(x.points) && x.points.length);
     const facts = items.map((x) => compareFacts(x.facts));
     const keys = [];
     facts.forEach((f) => f.forEach(([k]) => { if (!keys.includes(k)) keys.push(k); }));
-    let h = '<div class="gregal-card gregal-compare"><div class="gc-body"><strong class="gc-title">' + esc(title) + "</strong>" +
+    const shown = keys.slice(0, 8);
+    let h = '<div class="gregal-card gregal-compare ' + (paged ? "gx-paged" : "gx-row") + '"><div class="gc-body"><strong class="gc-title">' + esc(title) + "</strong>" +
       (o.subtitle ? '<span class="gc-subtitle">' + str(o.subtitle) + "</span>" : "") +
-      '<div class="gx-grid" style="--gx-n:' + items.length + '"><span class="gx-corner"></span>';
-    items.forEach((x) => {
-      h += '<div class="gx-item' + (x.pick ? " gx-pick" : "") + '">' + cardImage(x.image, String(x.name)).replace('class="gc-hero', 'class="gx-photo') +
-        "<b>" + str(x.name) + "</b>" + (x.pick ? '<em class="gx-badge">' + label("card.pick", "La tria") + "</em>" : "") + "</div>";
+      '<div class="gx-carousel"><div class="gx-track" tabindex="0" role="region" aria-label="' + esc(title) + '" style="--gx-rows:' + (shown.length + (paged ? 3 : 2)) + '">';
+    items.forEach((x, i) => {
+      const url = safeUrl(x.url);
+      h += '<article class="gx-item' + (x.pick ? " gx-pick" : "") + '" aria-label="' + (i + 1) + " / " + items.length + '">' + compareMedia(x, paged ? 2 : 1) +
+        '<div class="gx-name"><b>' + (url ? '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + str(x.name) + "</a>" : str(x.name)) + "</b>" +
+        (x.pick ? '<em class="gx-badge">' + label("card.pick", "La tria") + "</em>" : "") + "</div>";
+      if (paged) {
+        const points = (Array.isArray(x.points) ? x.points : []).filter((p) => p != null && String(p).trim()).slice(0, 6);
+        h += '<ul class="gx-points">' + points.map((p) => "<li>" + inline(esc(String(p).trim())) + "</li>").join("") + "</ul>";
+      }
+      shown.forEach((k) => {
+        const v = (facts[i].find(([kk]) => kk === k) || [])[1];
+        h += '<p class="gx-fact"><span class="gx-key">' + esc(k) + '</span><span class="gx-val">' + (v ? inline(esc(v)) : "—") + "</span></p>";
+      });
+      h += "</article>";
     });
-    keys.slice(0, 8).forEach((k) => {
-      h += '<span class="gx-key">' + esc(k) + "</span>";
-      facts.forEach((f) => { const v = (f.find(([kk]) => kk === k) || [])[1]; h += '<span class="gx-val">' + (v ? inline(esc(v)) : "—") + "</span>"; });
-    });
+    h += '</div><button type="button" class="gx-step gx-prev" data-gx-step="-1" aria-label="' + label("card.prev", "Previous") + '" disabled>‹</button>' +
+      '<button type="button" class="gx-step gx-next" data-gx-step="1" aria-label="' + label("card.next", "Next") + '">›</button>';
+    if (paged) {
+      h += '<div class="gx-dots">' + items.map((x, i) => '<button type="button" data-gx-dot="' + i + '" aria-label="' + str(x.name) + '"' + (i ? "" : ' aria-current="true"') + "></button>").join("") + "</div>";
+    }
     h += "</div>";
     if (o.verdict) h += '<p class="gx-verdict">' + inline(esc(String(o.verdict).trim())) + "</p>";
     return h + "</div>" + sourcesFoot(o) + "</div>" + cardActions(o);
+  }
+
+  // Les fletxes i els punts de pàgina de les comparacions. Un sol escoltador
+  // per a tot el document (les fitxes arriben com a HTML pintat): la fletxa
+  // avança una pàgina (o gairebé una amplada a la fila), el punt va a la seva
+  // fitxa, i en lliscar es marca el punt i s'apaguen les fletxes dels extrems.
+  if (typeof document !== "undefined" && document.addEventListener) {
+    const still = () => root.matchMedia && root.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const gxSync = (track) => {
+      const car = track.parentNode, kids = [...track.children];
+      const left = track.getBoundingClientRect().left;
+      let at = 0;
+      kids.forEach((k, i) => { if (Math.abs(k.getBoundingClientRect().left - left) < Math.abs(kids[at].getBoundingClientRect().left - left)) at = i; });
+      car.querySelectorAll("[data-gx-dot]").forEach((d, i) => { if (i === at) d.setAttribute("aria-current", "true"); else d.removeAttribute("aria-current"); });
+      car.querySelector(".gx-prev").disabled = track.scrollLeft < 4;
+      car.querySelector(".gx-next").disabled = track.scrollLeft > track.scrollWidth - track.clientWidth - 4;
+    };
+    document.addEventListener("click", (e) => {
+      const b = e.target.closest && e.target.closest("[data-gx-step], [data-gx-dot]");
+      const track = b && b.closest(".gx-carousel") && b.closest(".gx-carousel").querySelector(".gx-track");
+      if (!track) return;
+      const behavior = still() ? "auto" : "smooth";
+      if (b.dataset.gxDot != null) {
+        const kid = track.children[+b.dataset.gxDot];
+        if (kid) track.scrollTo({ left: kid.offsetLeft - track.children[0].offsetLeft, behavior });
+      } else {
+        const paged = track.closest(".gx-paged");
+        track.scrollBy({ left: +b.dataset.gxStep * track.clientWidth * (paged ? 1 : 0.8), behavior });
+      }
+    });
+    document.addEventListener("scroll", (e) => { if (e.target.classList && e.target.classList.contains("gx-track")) gxSync(e.target); }, true);
+    // La fila que hi cap sencera no té on anar: les fletxes es miren en passar-hi.
+    document.addEventListener("pointerover", (e) => {
+      const car = e.target.closest && e.target.closest(".gx-carousel");
+      if (car && !car.dataset.gxSeen) { car.dataset.gxSeen = "1"; gxSync(car.querySelector(".gx-track")); }
+    });
   }
 
   // Xifres clau (```gregal-facts): 2-6 números grans amb el que volen dir.
