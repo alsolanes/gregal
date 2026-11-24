@@ -2,6 +2,43 @@
 
 ## Unreleased
 
+## v1.94.0 - 2026-11-24 - Gregal Docs, Avui i vents amb vida
+
+- **Gregal Docs: documents vius que fas amb els vents (web, escriptori i
+  Android).** Demana «fes-me un Word» i el vent obre un document que pots
+  editar al mateix temps, amb un editor com el d'un processador de textos
+  (estils, colors, lletres, alineació, taules i imatges), presentacions i
+  fulls de càlcul amb fórmules. Es baixen en Word, PowerPoint o Excel, i el
+  document s'obre en una finestra pròpia que se sincronitza amb el panell.
+- **Avui, d'una ullada (web, escriptori i Android).** A dalt de tot, el temps
+  d'avui a la teva ciutat, el calendari d'avui i de demà i el que segueixes:
+  el pròxim partit dels teus equips, amb compte enrere, o qualsevol altra
+  cosa que els vents miren cada matí. «Segueix el Barça» també funciona des
+  del xat.
+- **Els vents es fan notar (web, escriptori i Android).** Quan un vent
+  t'escriu pel seu compte, la seva cara salta amb una insígnia, surt un avís
+  i, amb l'app tancada, una notificació. Escriuen en el teu idioma i curt.
+  La pantalla «Activitat» recull el que han fet mentre no hi eres.
+- **Vents amb vida.** Avatars redissenyats que parpellegen, miren i celebren
+  la feina feta, i una versió de plastilina feta amb Blender. Al xat, el
+  vent és un de sol: és a la cantonada amb tu i vola fins a la capçalera
+  quan puges. Cada conversa agafa el color del seu vent.
+- **Minairons.** Si dius «minairons» als teus ajudants, tenen aspecte de
+  minairó català: barretina vermella amb la cinta negra, barba blanca i un
+  canut d'agulles, un brot d'herba de Sant Joan o una pedreta.
+- **Feina de veritat, a la vista.** Les aprovacions són targetes amb vista
+  prèvia i «Permet / No»; mentre un vent fa servir l'ordinador el veus al
+  costat del xat; i cada vent té un prestatge amb el que t'ha fet.
+- **Comparacions en fitxes que llisques (a Codi i a Vents).** Amb foto o
+  logo de cada cosa, o una fitxa per pàgina per a resums llargs, com els
+  programes electorals.
+- **Terminal integrat** al panell lateral, amb Ctrl+C que funciona a Windows.
+- **Correccions.** Els batecs i recordatoris dels vents ja no arriben mai per
+  Telegram, només a l'app; amb comptes, cada compte té els seus batecs; els
+  botons que demanaven un text (taula, imatge, enllaç, carpeta, kanban…) tornen
+  a funcionar a l'app d'escriptori; i l'app d'Android ja no es tanca en obrir-se
+  ni ensenya els documents en negre.
+
 ## v1.93.0 - 2026-11-22 - Quatre aspectes nous per als vents
 
 - **Quatre aspectes nous per als vents (web, escriptori i Android).** A
