@@ -212,7 +212,7 @@ func (s *Server) jobActivity(winds map[string]companion.Wind) ([]ActivityItem, e
 	}
 	var items []ActivityItem
 	for _, j := range list {
-		if j.LastAt == nil || (j.Wind != "" && !s.canSeeWindRoutine(j)) {
+		if j.LastAt == nil || !s.canSeeWindJob(j) {
 			continue
 		}
 		wd, ok := winds[automationWind(j)]

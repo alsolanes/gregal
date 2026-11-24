@@ -526,6 +526,17 @@ func (s *Server) canSeeWindRoutine(job jobs.Job) bool {
 	}
 	return job.WindOwner == owner
 }
+
+// canSeeWindJob és canSeeWindRoutine per als jobs que ja se sap que són d'un
+// vent (el cor wind-<id>, un recordatori). El cor antic no porta Wind: amb
+// comptes no se'n sap l'amo, i dos comptes poden tenir un vent amb el
+// mateix id; no es mostra a ningú fins que el seu amo el torni a desar.
+func (s *Server) canSeeWindJob(job jobs.Job) bool {
+	if job.Wind == "" {
+		return s.user == nil || s.user.Tothom
+	}
+	return s.canSeeWindRoutine(job)
+}
 func (s *Server) windRoutineVisibleID(id string) bool {
 	list, err := s.jobs.List()
 	if err != nil {
