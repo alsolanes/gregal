@@ -26,6 +26,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.verticalScroll
@@ -216,7 +220,7 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         Text(t("winds.avatars"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                         Text(t("winds.avatarsHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
                         Spacer(Modifier.height(10.dp))
-                        ChoicePills((windPacks + "free").map { it to t(avatarLabelKey(it)) }, avatarTheme, { vm.setAvatarTheme(it) })
+                        AvatarPackChoices(avatarTheme, { t(avatarLabelKey(it)) }, { vm.setAvatarTheme(it) })
                     }
                     PrefsPage.Theme -> {
                         Text(t("prefs.theme"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
@@ -431,6 +435,48 @@ private fun TemaMostra(tem: GregalTema, fosc: Boolean, triat: Boolean, nom: Stri
     }
 }
 
+
+/**
+ * The avatar pack choice, each option with a sample face drawn with its pack
+ * above its name. Free shows two winds with a pack of their own each.
+ */
+@Composable
+private fun AvatarPackChoices(selected: String, label: (String) -> String, onPick: (String) -> Unit) {
+    val (tramuntana, xaloc, mestral) = listOf(2, 1, 3).map { WindSuggestions.all[it] }
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        for (choice in windPacks + "free") {
+            val on = choice == selected
+            val samples = if (choice == "free") listOf("esperit" to xaloc, "rosa" to mestral) else listOf(choice to tramuntana)
+            Column(
+                Modifier.width(78.dp).clip(RoundedCornerShape(14.dp))
+                    .background(if (on) SuperficieAlta else Color.Transparent)
+                    .border(if (on) 2.dp else 1.dp, if (on) Sea else LineHi, RoundedCornerShape(14.dp))
+                    .selectable(on, role = Role.RadioButton) { onPick(choice) }
+                    .padding(horizontal = 4.dp, vertical = 9.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy((-12).dp)) {
+                    for ((pack, wind) in samples) {
+                        CompositionLocalProvider(LocalAvatarTheme provides pack) {
+                            WindFace(
+                                size = 40, accent = Color(Wind("", "", wind.color, "").argb), style = windStyleOf(wind.style).copy(bearing = windDirection("", wind.name)),
+                                modifier = Modifier.testTag("avatarSample-$pack"),
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    label(choice), color = if (on) Ink else Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
+                )
+            }
+        }
+    }
+}
 
 /** Genera un codi d'un sol ús i el comparteix amb l'adreça del servidor. */
 @Composable

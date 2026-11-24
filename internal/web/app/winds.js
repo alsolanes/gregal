@@ -1055,7 +1055,35 @@
       parent.append(node('p', 'winds-muted', tr('winds.avatarThemeInUse', 'Tots els vents es dibuixen amb «{pack}». Es canvia a Preferències › Avatars.', {pack:themeChoices().find(([value]) => value === theme)[1]})));
       return null;
     }
-    return select(parent, 'windAvatar', tr('winds.avatar', 'Avatar'), themeChoices().filter(([value]) => packs.includes(value)), packs.includes(w?.avatar) ? w.avatar : 'cares');
+    // Radios that show each pack drawn as this wind; `value` and `change` work
+    // like the <select> they replace, so the editor's preview follows them.
+    const wrap = node('div', 'winds-field'), group = node('div', 'winds-packs'), title = node('span', '', tr('winds.avatar', 'Avatar'));
+    title.setAttribute('id', 'windAvatarLabel'); group.setAttribute('id', 'windAvatar');
+    group.setAttribute('role', 'radiogroup'); group.setAttribute('aria-labelledby', 'windAvatarLabel');
+    const radios = themeChoices().filter(([value]) => packs.includes(value)).map(([value, name]) => {
+      const radio = node('button', 'winds-pack'); radio.setAttribute('type', 'button'); radio.setAttribute('role', 'radio'); radio.setAttribute('data-v', value);
+      radio.append(packFace(value, w), node('span', '', name)); radio.onclick = () => { if (value !== group.value) pick(value); };
+      return radio;
+    });
+    const pick = (value, focus) => {
+      group.value = value;
+      for (const radio of radios) { const on = radio.getAttribute('data-v') === value; radio.setAttribute('aria-checked', String(on)); radio.setAttribute('tabindex', on ? '0' : '-1'); if (on && focus) radio.focus(); }
+      group.dispatchEvent(new root.Event('change'));
+    };
+    group.addEventListener('keydown', e => {
+      const step = {ArrowRight:1, ArrowDown:1, ArrowLeft:-1, ArrowUp:-1}[e.key];
+      if (!step) return;
+      e.preventDefault();
+      pick(packs[(packs.indexOf(group.value) + step + packs.length) % packs.length], true);
+    });
+    group.append(...radios); wrap.append(title, group); parent.append(wrap);
+    pick(packs.includes(w?.avatar) ? w.avatar : 'cares');
+    return group;
+  }
+  // A sample of one pack drawn as `w`, whatever pack the account's theme uses.
+  function packFace(pack, w) {
+    const was = theme; theme = 'free';
+    try { return face({...w, id:undefined, avatar:pack}, false, 'idle', 40); } finally { theme = was; }
   }
   // «Avatars» in Preferences, saved per account so every device draws the same.
   async function avatarPrefs(box) {
@@ -1068,7 +1096,10 @@
     catch (_) { paint(feedback, tr('winds.avatarsNotLoaded', 'No s’han pogut llegir els avatars. Torna a obrir Preferències.')); return; }
     const mark = () => { for (const b of choices.children) { const on = b.getAttribute('data-v') === theme; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); } };
     for (const [value, name] of themeChoices()) {
-      const choice = node('button', '', name); choice.setAttribute('type', 'button'); choice.setAttribute('data-v', value);
+      const choice = node('button', 'winds-pack'); choice.setAttribute('type', 'button'); choice.setAttribute('data-v', value);
+      // Free mode lets every wind pick its own: two winds with different packs.
+      const samples = value === 'free' ? [packFace('esperit', presetDefaults[1]), packFace('rosa', presetDefaults[3])] : [packFace(value, presetDefaults[2])];
+      const faces = node('span', 'winds-pack-faces'); faces.append(...samples); choice.append(faces, node('span', '', name));
       choice.onclick = async () => {
         try {
           await call('/api/winds/avatar-theme', 'POST', {theme:value});

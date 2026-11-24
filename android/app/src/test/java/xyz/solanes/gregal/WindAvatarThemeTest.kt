@@ -50,6 +50,30 @@ class WindAvatarThemeTest {
         }
     }
 
+    @Test fun `each avatar choice in Preferences shows a sample face of its pack above its name`() {
+        val vm = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
+        vm.setConn(Conn("127.0.0.1", "9", "t"))
+        vm.openPreferences(PrefsPage.Appearance)
+        ui.setContent {
+            CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
+                MaterialTheme(colorScheme = LightPal.scheme()) { PrefsScreen(vm) {} }
+            }
+        }
+        val lang = vm.idioma.value
+        // Free mode lets each wind pick its pack: its sample is two winds with different ones.
+        for ((choice, samples) in windPacks.map { it to listOf(it) } + ("free" to listOf("esperit", "rosa"))) {
+            val label = tr(lang, avatarLabelKey(choice))
+            ui.onNode(hasText(label) and isSelectable()).performScrollTo()
+            val name = ui.onNode(hasText(label) and hasAnyAncestor(isSelectable()), useUnmergedTree = true).getUnclippedBoundsInRoot()
+            for (pack in samples) {
+                val face = ui.onNode(hasTestTag("avatarSample-$pack") and hasAnyAncestor(isSelectable() and hasAnyChild(hasText(label))), useUnmergedTree = true)
+                    .assertExists("$choice shows a $pack face").getUnclippedBoundsInRoot()
+                assertTrue("the $pack face sits above «$label»", face.bottom <= name.top)
+            }
+        }
+        ui.onNodeWithText(tr(lang, "winds.avatarCares")).assertIsSelected()
+    }
+
     @Test fun `a server older than the client's packs says to update it instead of a raw 400`() {
         // What v1.91 and v1.92 answer for Cap de vent, Rosa de rellotge and Mapa de vent.
         FakeGregal(400) { if (it.startsWith("/api/winds/avatar-theme")) "unknown avatar theme" else "unknown avatar pack" }.use { server ->
