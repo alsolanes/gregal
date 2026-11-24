@@ -1042,7 +1042,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  }
  const choicesStrip=text=>root.gregalChoices?root.gregalChoices.strip(text):text;
  const askTitle=kind=>({install:t('Vol instal·lar programari','Wants to install software'),download:t('Vol baixar un paquet o un fitxer','Wants to download a package or file'),delete:t('Vol esborrar fora del projecte','Wants to delete outside the project'),system:t('Vol canviar un servei del sistema','Wants to change a system service')}[kind]||t('Et demana permís','Asks for your permission'));
- async function answerAsk(a,body){state.asks=state.asks.filter(x=>x.key!==a.key);paintAsks();try{await call('/api/winds/answer','POST',{key:a.key,...body});}catch(e){fail(e);return;}if(body.approve!==false||body.answer)watchResumed(a);}
+ async function answerAsk(a,body){state.asks=state.asks.filter(x=>x.key!==a.key);paintAsks();try{await call('/api/winds/answer','POST',{key:a.key,...body});}catch(e){fail(e);return false;}if(body.approve!==false||body.answer)watchResumed(a);return true;}
  // Una decisió d'un torn aparcat (B4) el reprèn al servidor, fora d'aquesta pàgina: el fil diu que treballa
  // i, quan arriba el missatge (la resposta o una altra pregunta), l'ensenya. Amb el torn en directe no cal.
  function watchResumed(a){const chat=state.active;if(!chat||state.view!=='chat'||state.busy)return;const before=state.history.length;state.pending={thread:chat.id,wind:a.wind||null,phase:'working',text:'',resumed:true};paintPending();let n=0;
@@ -1127,20 +1127,38 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   const what=String(a.what||'').trim(),m=/^(write|edit|patch)\s+(.+)$/.exec(what);
   if(m){
    const {file,dir}=askWhere(m[2]);const sub=(dir?t('És a '+dir+'.','It is in '+dir+'.'):'')+(a.kind==='rule'&&a.reason?(dir?' ':'')+a.reason:'');
-   return m[1]==='write'?{q:t('Vols que escrigui '+file+'?','Shall I write '+file+'?'),sub,yes:t('Escriu-lo','Write it')}
-    :{q:t('Vols que modifiqui '+file+'?','Shall I edit '+file+'?'),sub,yes:t("Modifica'l",'Edit it')};
+   return m[1]==='write'?{q:t('Vols que escrigui '+file+'?','Shall I write '+file+'?'),sub}
+    :{q:t('Vols que modifiqui '+file+'?','Shall I edit '+file+'?'),sub};
   }
   switch(a.kind){
    case 'delete':{const {file,dir}=askWhere(askPath(what));
-    return {q:t('Vols que esborri '+file+'?','Shall I delete '+file+'?'),sub:t((dir?'És a '+dir+', fora':'És fora')+' del projecte. No es podrà desfer.',(dir?'It is in '+dir+', outside':'It is outside')+' the project. It cannot be undone.'),yes:t("Esborra'l",'Delete it')};}
-   case 'install':return {q:t('Vols que instal·li programari?','Shall I install software?'),sub:t("Programari nou a l'ordinador.",'New software on the computer.'),yes:t("Instal·la'l",'Install it')};
-   case 'download':return {q:t('Vols que baixi un paquet o un fitxer?','Shall I download a package or file?'),sub:t("De fora, a l'ordinador.",'From outside, onto the computer.'),yes:t('Baixa-ho','Download it')};
-   case 'system':return {q:t('Vols que canviï un servei del sistema?','Shall I change a system service?'),sub:t("Afecta tot l'ordinador, no només el projecte.",'It affects the whole computer, not just the project.'),yes:t('Canvia-ho','Change it')};
-   case 'publish_public':return {q:t('Vols que publiqui la web?','Shall I publish the site?'),sub:t("Serà pública: qualsevol que tingui l'enllaç la veurà.",'It will be public: anyone with the link can see it.'),yes:t('Publica-la','Publish it')};
+    return {q:t('Vols que esborri '+file+'?','Shall I delete '+file+'?'),sub:t((dir?'És a '+dir+', fora':'És fora')+' del projecte. No es podrà desfer.',(dir?'It is in '+dir+', outside':'It is outside')+' the project. It cannot be undone.')};}
+   case 'install':return {q:t('Vols que instal·li programari?','Shall I install software?'),sub:t("Programari nou a l'ordinador.",'New software on the computer.')};
+   case 'download':return {q:t('Vols que baixi un paquet o un fitxer?','Shall I download a package or file?'),sub:t("De fora, a l'ordinador.",'From outside, onto the computer.')};
+   case 'system':return {q:t('Vols que canviï un servei del sistema?','Shall I change a system service?'),sub:t("Afecta tot l'ordinador, no només el projecte.",'It affects the whole computer, not just the project.')};
+   case 'publish_public':return {q:t('Vols que publiqui la web?','Shall I publish the site?'),sub:t("Serà pública: qualsevol que tingui l'enllaç la veurà.",'It will be public: anyone with the link can see it.')};
    // Una regla teva («Pregunta'm abans»): la targeta diu quina.
-   case 'rule':{const verb={mail:t('Vols que enviï aquest correu?','Shall I send this email?'),browser:t('Vols que faci aquest pas al navegador?','Shall I take this step in the browser?'),bash:t('Vols que executi aquesta ordre?','Shall I run this command?'),bash_background:t('Vols que executi aquesta ordre?','Shall I run this command?'),publish:t('Vols que publiqui la web?','Shall I publish the site?'),calendar:t('Vols que canviï el calendari?','Shall I change the calendar?'),remind:t("Vols que programi l'avís?",'Shall I set the reminder?')}[a.name]||t('Vols que ho faci?','Shall I do it?');return {q:verb,sub:a.reason||'',yes:t('Fes-ho','Do it')};}
+   case 'rule':{const verb={mail:t('Vols que enviï aquest correu?','Shall I send this email?'),browser:t('Vols que faci aquest pas al navegador?','Shall I take this step in the browser?'),bash:t('Vols que executi aquesta ordre?','Shall I run this command?'),bash_background:t('Vols que executi aquesta ordre?','Shall I run this command?'),publish:t('Vols que publiqui la web?','Shall I publish the site?'),calendar:t('Vols que canviï el calendari?','Shall I change the calendar?'),remind:t("Vols que programi l'avís?",'Shall I set the reminder?')}[a.name]||t('Vols que ho faci?','Shall I do it?');return {q:verb,sub:a.reason||''};}
   }
-  return {q:askTitle(a.kind),sub:'',yes:t('Fes-ho','Do it')};
+  return {q:askTitle(a.kind),sub:''};
+ }
+ // La vista prèvia del que farà, només amb el que porta la decisió: un document (write/edit), l'adreça
+ // pública d'una web, una pàgina del navegador o, si no, l'ordre sencera. brief és el que en queda en respondre.
+ function askPreview(a){
+  const what=String(a.what||'').trim(),full=String(a.detail||what),m=/^(write|edit|patch)\s+(.+)$/.exec(what);
+  if(m){const {file,dir}=askWhere(m[2]);return {kind:'doc',step:t('Preparant el document…','Getting the document ready…'),main:file,sub:dir,brief:file};}
+  if(a.kind==='publish_public'){const url=what.replace(/^publish public\s*/,'');return {kind:'site',step:t('Preparant la publicació…','Getting it ready to publish…'),main:shotHost(url)||url,sub:url,brief:shotHost(url)||url};}
+  if(/^https?:\/\//i.test(full))return {kind:'page',step:t('Al navegador…','In the browser…'),main:shotHost(full)||full,sub:full,brief:shotHost(full)||full};
+  return {kind:'command',step:t('Preparant l’ordre…','Getting the command ready…'),main:full,brief:what.length>60?what.slice(0,59)+'…':what};
+ }
+ function askPreviewBox(pv){const box=el('div','vw-ask-preview');box.dataset.kind=pv.kind;
+  if(pv.kind==='command')box.append(el('code','',pv.main));else{box.append(el('strong','',pv.main));if(pv.sub)box.append(el('small','',pv.sub));}
+  return box;}
+ // En respondre, la targeta queda en una línia al fil i el vent de la cantonada assenteix o fa que no.
+ async function decide(a,pv,approve){
+  if(!await answerAsk(a,{approve}))return;
+  if(asksBox&&messages&&asksBox.parentNode===messages)asksBox.before(el('p','vw-ask-done',(approve?t('Has permès: ','You allowed: '):t('Has dit que no: ','You said no: '))+pv.brief));
+  const corner=page?.querySelector('.vw-wind-corner');if(corner){corner.dataset.react=approve?'nod':'shake';setTimeout(()=>{if(corner.dataset.react===(approve?'nod':'shake'))delete corner.dataset.react;},900);}
  }
  function paintAsks(){
   const box=(asksBox&&messages&&state.view==='chat')?asksBox:page?.querySelector('.vw-asks');if(!box)return;if(box===asksBox&&box.parentElement!==messages)messages.append(box);const abans=box.childElementCount;box.replaceChildren();
@@ -1180,11 +1198,11 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
     for(const o of a.options||[]){const b=btn(o.label,()=>answerAsk(a,{answer:o.label}),'vw-ask-option');if(o.description)b.append(el('small','',o.description));card.append(b);}
     const free=el('input','vw-ask-free');free.placeholder=t('Una altra cosa…','Something else…');free.setAttribute('aria-label',free.placeholder);free.onkeydown=e=>{if(e.key==='Enter'&&free.value.trim()){e.preventDefault();answerAsk(a,{answer:free.value.trim()});}};card.append(free);
    }else{
-    const plan=askPlan(a);card.classList.add('vw-ask-plan');
+    const plan=askPlan(a),pv=askPreview(a);card.classList.add('vw-ask-plan');
+    card.append(el('small','vw-ask-step',pv.step));
     const head=el('div','vw-ask-head'),txt=el('div');txt.append(el('strong','',plan.q));if(plan.sub)txt.append(el('small','vw-ask-sub',plan.sub));
-    head.append(askShield(),txt);card.append(head);
-    const full=a.detail||a.what;if(full){const d=el('details','vw-ask-cmd');d.append(el('summary','',t("Veure l'ordre",'See the command')),el('code','',full));card.append(d);}
-    const row=el('div','vw-ask-actions');row.append(btn(plan.yes,()=>answerAsk(a,{approve:true}),'vw-ask-allow'),btn(t('Ara no','Not now'),()=>answerAsk(a,{approve:false}),'vw-ask-decline'));card.append(row);
+    head.append(askShield(),txt);card.append(head,askPreviewBox(pv));
+    const row=el('div','vw-ask-actions');row.append(btn(t('Permet','Allow'),()=>decide(a,pv,true),'vw-ask-allow'),btn('No',()=>decide(a,pv,false),'vw-ask-decline'));card.append(row);
    }
    box.append(card);
   }
