@@ -15,6 +15,8 @@ When someone asks to compare things (products, places, options, tools, libraries
 - [ ] Web: `gregal-compare` renders as a horizontally scrollable row of cards (scroll-snap, swipe/trackpad/arrow buttons on desktop, a peek of the next card), each with its image or logo on top, name, facts aligned across cards (same trait order), a «tria» badge on the pick, and the verdict below the row; works in Codi and Vents, dark and light, under reduced motion. A node test with 2 and 6 items.
 - [ ] docs/api-contract.md mentions the block fields if the contract lists card blocks.
 
+- [ ] The election example works end to end: items with `points` and two images render as a swipeable one-card-per-page carousel with page dots; a test with three parties.
+
 ## Out of scope
 
 - Android (116).
@@ -24,3 +26,4 @@ When someone asks to compare things (products, places, options, tools, libraries
 - Existing: ```gregal-compare {title, items:[{name, image_query, facts:{Trait:value}, pick}], verdict}``` taught in `internal/companion/winds.go` `CardsGuide` (winds and Gregal only, «2-3 things side by side»); images resolved in `internal/web/winds_card_images.go` (Commons, English names) only for wind replies; rendered by `internal/web/app/md.js` `compareCard` (grid) and Android `CompareCards.kt` (Row).
 - Asked by the user on 2026-11-24: «quan algun usuari demana (al mode codi o vents) una comparació, que si té sentit el llm pugui decidir fer fitxes scrollable horitzontals amb la seva imatge o logo o el que sigui».
 - Web: node tests; screenshots from a sandboxed server (never type into credential fields) in `output/ui-review/115/`.
+- User example (2026-11-24): «un resum dels programes electorals dels partits que es presenten a les eleccions, una fitxa per partit amb una foto o dues, fent swipe right poder veure el següent i així (o swipe left)». So an item can also carry `images` (up to 2: e.g. the party logo via `logo_domain` and the candidate's photo via `image_query`) and `points` (3–6 short summary bullets), and when items carry `points` the block renders as a full-width paged carousel: one card per page, swipe left/right (and arrow keys/buttons on desktop), page dots, the verdict/sources after. Short fact comparisons keep the compact snapping row. Neutral wording for political content: summarise each programme from its own sources (`url` per item), no pick on parties.
