@@ -1,6 +1,6 @@
 ---
 title: Vents Android: avatars redissenyats, una silueta per vent, ulls que parlen i un moviment per a cada estat
-status: blocked
+status: done
 depends_on: []
 ---
 
@@ -40,3 +40,4 @@ The winds must look as good as the best agent characters out there, with no new 
 - Not verified: the real app and a device (no emulator by instruction); the 109 flying face was only exercised by its existing Robolectric tests.
 - Follow-up: the lids are painted with the body gradient but sit above the shade, occlusion and sheen, so on DONE the lower lids read a touch lighter than the face around them (same as the web's follow-up in 110).
 - Follow-up: `aMoodChangeSpringsInsteadOfSnapping` (WindCaresTest) and `aTappedFaceWigglesAndSpringsBack` (WindVidaTest) each failed once in a full `*Wind*`/`*Vents*` run and passed on rerun. Two identical twin faces sometimes differ by a few hundred pixels at one frame. That looks like their 12 s clocks starting a frame apart under load; worth a look.
+- Merged on 2026-11-24 at 484 changed lines of non-test code, over the diff guard's 400, like 105 and 107.
