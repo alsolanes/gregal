@@ -1040,7 +1040,18 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-computer-body { flex:1; overflow:auto; overscroll-behavior:contain; padding:12px 16px 16px; }
 .vw-computer-pane .vw-live-shot { max-height:none; }
 /* Flota sobre el xat a la mateixa amplada que Gregal Docs (docs-panel.js). */
-@media(max-width:1000px) { .vw-computer-pane { position:fixed; inset:92px 0 0 auto; width:min(100%, 560px); z-index:30; box-shadow:-4px 0 16px #0003; } }
+@media(max-width:1000px) { .vw-computer-pane { position:fixed; inset:92px 0 0 auto; width:min(100%, 560px); z-index:30; box-shadow:-4px 0 16px #0003; } .vw-pane-grip { display:none; } }
+/* 126: al costat del xat, el lateral (document o ordinador) fa l'amplada que s'hi ha arrossegat (winds-workspace.js),
+   i el xat en guarda 420 px encara que la finestra s'estrenyi. */
+@media(min-width:1001px) {
+  #workbench > :is(.vw-computer-pane, #docsPanel) { position:relative; max-width:calc(100% - 420px); }
+  #workbench > .vw-computer-pane { flex-basis:var(--work-pane-w, clamp(380px, 42%, 640px)); }
+  #workbench > #docsPanel { flex-basis:var(--work-pane-w, 460px); width:var(--work-pane-w, 460px); }
+}
+.vw-pane-grip { position:absolute; left:-3px; top:0; bottom:0; width:9px; cursor:col-resize; z-index:2; }
+.vw-pane-grip::after { content:""; position:absolute; left:3px; top:0; bottom:0; width:3px; background:transparent; transition:background .12s; }
+.vw-pane-grip:hover::after, .vw-pane-grip:focus-visible::after, body.redimensionant .vw-pane-grip::after { background:var(--accent); }
+.vw-pane-grip:focus-visible { outline:none; }
 .vw-live-where { margin:6px 0 8px; color:var(--muted); font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .vw-live-stage { position:relative; width:fit-content; max-width:100%; margin:0 auto; }
 .vw-live-shot { display:block; max-width:100%; max-height:calc(85dvh - 250px); width:auto; height:auto; border-radius:12px; border:1px solid var(--line); background:var(--surface); cursor:pointer; }
@@ -1560,8 +1571,12 @@ dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize
    marcat quan el panell és obert. */
 .vw-top .vw-top-browser { margin-left:auto; }
 .vw-top .vw-top-action + .vw-top-browser { margin-left:4px; }
-.vw-gregal-actions .vw-browser-toggle { width:36px; height:36px; border:1px solid var(--line-hi); border-radius:50%; background:color-mix(in srgb, var(--surface) 70%, transparent); }
-.vw-browser-toggle[aria-pressed="true"] { color:var(--accent); border-color:color-mix(in srgb, var(--accent) 55%, transparent); background:var(--accent-soft-hi); }
+/* 126: el botó del lateral, el de més a la dreta; el punt diu que el vent hi ha canviat alguna cosa mentre era tancat. */
+.vw-top .vw-pane-toggle { position:relative; margin-left:auto; }
+.vw-top :is(.vw-top-action, .vw-top-browser) + .vw-pane-toggle { margin-left:4px; }
+.vw-pane-toggle[data-fresh="true"]::after { content:""; position:absolute; top:4px; right:4px; width:8px; height:8px; border-radius:50%; background:var(--vw-wind, var(--accent)); box-shadow:0 0 0 2px var(--bg); }
+.vw-gregal-actions :is(.vw-browser-toggle, .vw-pane-toggle) { width:36px; height:36px; border:1px solid var(--line-hi); border-radius:50%; background:color-mix(in srgb, var(--surface) 70%, transparent); }
+:is(.vw-browser-toggle, .vw-pane-toggle)[aria-pressed="true"] { color:var(--accent); border-color:color-mix(in srgb, var(--accent) 55%, transparent); background:var(--accent-soft-hi); }
 
 /* Comparació (```gregal-compare, md.js): fitxes en una fila que llisca, amb un
    tros de la següent a la vista; la foto o el logo a dalt, el nom i els trets

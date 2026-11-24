@@ -18,7 +18,7 @@
  const folder=()=>{const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('class','vw-folder');svg.setAttribute('aria-hidden','true');const p=document.createElementNS(svg.namespaceURI,'path');p.setAttribute('d','M3 6a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v10H3Z');p.setAttribute('fill','none');p.setAttribute('stroke','currentColor');p.setAttribute('stroke-width','1.6');svg.append(p);return svg;};
  // Icones: el joc de traç de shell-icons.js (window.gregalIcon), igual que a Codi;
  // les que aquell joc no té van aquí amb el mateix traç i graella. Res de glifs de text.
- const ownIcons={computer:'M3 5h18v11H3z M8 20h8 M12 16v4',clock:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18 M12 7v5l3 2',thumbUp:'M7 10v10H4V10z M7 10l4-7a2 2 0 0 1 3 2l-1 4h5a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 16.8 20H7',thumbDown:'M17 14V4h3v10z M17 14l-4 7a2 2 0 0 1-3-2l1-4H6a2 2 0 0 1-2-2.3l1.2-7A2 2 0 0 1 7.2 4H17',tune:'M4 6h10 M18 6h2 M4 12h4 M12 12h8 M4 18h12 M20 18h0 M14 4v4 M8 10v4 M16 16v4',plus:'M12 5v14 M5 12h14',close:'M7 7l10 10 M17 7L7 17',menu:'M4 5h16v14H4z M9 5v14',star:'M12 3.8l2.5 5.1 5.6.8-4 3.9.9 5.6-5-2.6-5 2.6.9-5.6-4-3.9 5.6-.8z',back:'M19 12H5 M11 6l-6 6 6 6',arrow:'M5 12h14 M13 6l6 6-6 6',open:'M8 16 16 8 M9.5 8H16v6.5',bell:'M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z M10 20.5h4',chat:'M4 5h16v11H10l-5 4v-4H4z',work:'M4 8h16v11H4z M9 8V5h6v3 M4 13h16',sun:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M12 2v2 M12 20v2 M4.9 4.9l1.4 1.4 M17.7 17.7l1.4 1.4 M2 12h2 M20 12h2 M4.9 19.1l1.4-1.4 M17.7 6.3l1.4-1.4',sparkles:'M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z',calendar:'M4 6h16v14H4z M4 10h16 M8 3v4 M16 3v4',pin:'M9 3h6 M10 3v6l-3 4h10l-3-4V3 M12 13v8',lock:'M6 11h12v9H6z M8 11V8a4 4 0 0 1 8 0v3',eyeOff:'M3 3l18 18 M10.6 6.1A10 10 0 0 1 12 6c5 0 9 6 9 6a17 17 0 0 1-3.2 3.7 M6.6 7.6C4.4 9.1 3 12 3 12s4 6 9 6a8.7 8.7 0 0 0 4-1 M9.9 9.9a3 3 0 0 0 4.2 4.2',notebook:'M6 3h12v18H6z M9 3v18 M12 8h3',tasks:'M5 12l3 3 6-6 M4 4h16v16H4z',mapPin:'M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z M12 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4'};
+ const ownIcons={sidePane:'M4 5h16v14H4z M15 5v14',computer:'M3 5h18v11H3z M8 20h8 M12 16v4',clock:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18 M12 7v5l3 2',thumbUp:'M7 10v10H4V10z M7 10l4-7a2 2 0 0 1 3 2l-1 4h5a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 16.8 20H7',thumbDown:'M17 14V4h3v10z M17 14l-4 7a2 2 0 0 1-3-2l1-4H6a2 2 0 0 1-2-2.3l1.2-7A2 2 0 0 1 7.2 4H17',tune:'M4 6h10 M18 6h2 M4 12h4 M12 12h8 M4 18h12 M20 18h0 M14 4v4 M8 10v4 M16 16v4',plus:'M12 5v14 M5 12h14',close:'M7 7l10 10 M17 7L7 17',menu:'M4 5h16v14H4z M9 5v14',star:'M12 3.8l2.5 5.1 5.6.8-4 3.9.9 5.6-5-2.6-5 2.6.9-5.6-4-3.9 5.6-.8z',back:'M19 12H5 M11 6l-6 6 6 6',arrow:'M5 12h14 M13 6l6 6-6 6',open:'M8 16 16 8 M9.5 8H16v6.5',bell:'M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z M10 20.5h4',chat:'M4 5h16v11H10l-5 4v-4H4z',work:'M4 8h16v11H4z M9 8V5h6v3 M4 13h16',sun:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M12 2v2 M12 20v2 M4.9 4.9l1.4 1.4 M17.7 17.7l1.4 1.4 M2 12h2 M20 12h2 M4.9 19.1l1.4-1.4 M17.7 6.3l1.4-1.4',sparkles:'M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z',calendar:'M4 6h16v14H4z M4 10h16 M8 3v4 M16 3v4',pin:'M9 3h6 M10 3v6l-3 4h10l-3-4V3 M12 13v8',lock:'M6 11h12v9H6z M8 11V8a4 4 0 0 1 8 0v3',eyeOff:'M3 3l18 18 M10.6 6.1A10 10 0 0 1 12 6c5 0 9 6 9 6a17 17 0 0 1-3.2 3.7 M6.6 7.6C4.4 9.1 3 12 3 12s4 6 9 6a8.7 8.7 0 0 0 4-1 M9.9 9.9a3 3 0 0 0 4.2 4.2',notebook:'M6 3h12v18H6z M9 3v18 M12 8h3',tasks:'M5 12l3 3 6-6 M4 4h16v16H4z',mapPin:'M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z M12 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4'};
  function icon(name){const s=el('span','vw-ic');s.setAttribute('aria-hidden','true');const html=root.gregalIcon?.(name);if(html)s.innerHTML=html;else if(ownIcons[name])s.innerHTML='<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+ownIcons[name]+'"/></svg>';return s;}
  // Botó amb icona i text: el text continua sent el nom accessible.
  const iconBtn=(name,label,action,cls)=>{const b=btn('',action,cls);b.append(icon(name),el('span','',label));return b;};
@@ -58,7 +58,9 @@
   if(!b.dataset.keepView&&root.gregal?.viewActual?.()!=='vents')root.gregal.setView('vents');});
   $('navRail')?.addEventListener('click',e=>{if(e.target.closest('a,button'))closeDrawer();});
   $('sideShade')?.addEventListener('click',closeDrawer);
-  document.addEventListener('gregal:workpane',e=>{if(e.detail!=='computer')closeComputer?.();});
+  document.addEventListener('gregal:workpane',e=>{if(e.detail!=='computer')closeComputer?.();if(e.detail==='docs')paneGrip($('docsPanel'));syncPaneToggle();});
+  document.addEventListener('gregal:docsclosed',()=>{closedByPerson();syncPaneToggle();});
+  let savedW=0;try{savedW=+localStorage.getItem(PANE_KEY);}catch{}if(savedW){paneW=savedW;$('workbench').style.setProperty('--work-pane-w',savedW+'px');}
   // El tema (prefs.js, palette.js, brands.js) és el data-theme de l'arrel: en canviar, la bombolla del vent es retenyeix ja.
   new MutationObserver(()=>{const solo=state.view==='chat'?soloWind():null;if(solo&&hex6(solo.color))page.style.setProperty('--vw-wind-share',String(bubbleShare(solo.color)));}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
  }
@@ -205,12 +207,12 @@
    // «Què pot fer Gregal»: la guia, amb exemples que s'envien al fil; la primera vegada s'obre sola.
    const G=root.gregalGuide,tryIt=ex=>{if(input){input.value=ex;state.draft=ex;composer.requestSubmit();}};
    const guide=iconOnly('sparkles',t('Què pot fer Gregal','What Gregal can do'),()=>G?.open({accent:g?.color,onTry:tryIt}),'vw-gregal-guide');
-   const right=el('div','vw-gregal-actions');right.append(guide,pc);const abT=browserToggle();if(abT)right.append(abT);
+   const right=el('div','vw-gregal-actions');right.append(guide,pc);const abT=browserToggle();if(abT)right.append(abT);right.append(paneToggle());
    top.replaceChildren(top.firstChild,who,right);
    if(G&&!G.seen()&&!state.guideShown){state.guideShown=true;setTimeout(()=>G.open({accent:g?.color,onTry:tryIt}),900);}}
   if(state.view==='chat'&&state.active?.legacyWind&&!gregalHome)top.append(btn(t('Fils','Threads'),windThreads,'vw-top-action'));
   if(state.view==='chat'&&state.active?.id&&!gregalHome)top.append(btn(t('Desa a la wiki','Save to wiki'),summarizeToWiki,'vw-top-action'));
-  if(!gregalHome){const abT=browserToggle();if(abT){abT.classList.add('vw-top-browser');top.append(abT);}}
+  if(!gregalHome){const abT=browserToggle();if(abT){abT.classList.add('vw-top-browser');top.append(abT);}if(state.view==='chat')top.append(paneToggle());}
   page.append(top);
   content=el('div','vw-content');page.append(content);status=el('div','vw-status');status.setAttribute('role','status');status.textContent=state.notice?.thread===state.active?.id?state.notice?.text||'':'';page.append(status);
   if(state.view==='home')home();else if(state.view==='today')todayView();else if(state.view==='crew')team();else if(state.view==='library')library();else if(state.view==='project')projectView();else if(state.view==='tasks')tasks();else if(state.view==='chat')chatView();else if(state.view==='task')taskView();else if(state.view==='wiki')wikiView();else if(state.view==='pati')patiView();else if(state.view==='saved')savedView();else if(state.view==='notes')notesView();else if(state.view==='rules')rulesView();else if(state.view==='fes')fesView();else if(state.view==='apres')apresView();else if(state.view==='shared')root.gregalShared?.view(content,{chat:state.active,back:()=>route('home')});
@@ -462,11 +464,12 @@
     if(kind==='steer_unread'){queueAfter(destination.id,data.texts||[]);continue;}
     // Un vent espera una resposta (aprovació o pregunta): el torn està aturat fins que contestes.
     // El vent fa servir l'ordinador (o hi espera la persona): es veu en directe al costat del xat, un cop per torn.
-    if((kind==='activity'&&data.phase==='tool'&&/^(browser|viewer)$/.test(data.tool)&&!turn.computer)||((kind==='approve_request'||kind==='question_request')&&data.type==='handoff')){turn.computer=true;openLocalComputer();}
+    if((kind==='activity'&&data.phase==='tool'&&/^(browser|viewer)$/.test(data.tool)&&!turn.computer)||((kind==='approve_request'||kind==='question_request')&&data.type==='handoff')){turn.computer=true;paneOf(destination.id).last='computer';openLocalComputer();}
     if(kind==='approve_request'||kind==='question_request'){state.asks=state.asks.filter(x=>x.key!==data.key).concat(data);paintAsks();continue;}
     if(kind==='ask_resolved'){state.asks=state.asks.filter(x=>x.key!==data.key);paintAsks();continue;}
     // El vent ha escrit un document viu (scope «mine»): s'obre al panell lateral (docs-panel.js).
-    if(kind==='doc_changed'){root.gregalDocs?.changed(data);continue;}
+    // Si la persona ha tancat el lateral en aquest xat, es queda tancat i el botó hi posa un punt (126).
+    if(kind==='doc_changed'){const p=paneOf(destination.id);p.doc={id:data.id,scope:data.scope||''};p.last='docs';if(p.closed)p.fresh=true;else root.gregalDocs?.changed(data);syncPaneToggle();continue;}
     // A group voice finished and is already saved: show it in place before the next voice starts.
     if(kind==='reply'){if(Array.isArray(data.history)){progress.history=data.history;if(state.pending?.thread===destination.id)state.pending.text='';if(state.view==='chat'&&state.active?.id===destination.id){state.history=data.history;paintHistory();}}continue;}
     const pending=state.pending;if(!pending||pending.thread!==destination.id)continue;
@@ -1078,7 +1081,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  let closeComputer=null;
  function openLocalComputer(){if(closeComputer)return;const title=t("El navegador de Gregal, en aquest ordinador","Gregal's browser, on this computer");
   const d=el('aside','vw-computer-pane vw-live-computer'),head=el('header'),body=el('div','vw-computer-body');d.setAttribute('aria-label',title);
-  head.append(el('h2','',title),iconOnly('close',t('Tanca','Close'),()=>closeComputer?.(),'vw-close'));d.append(head,body);
+  head.append(el('h2','',title),iconOnly('close',t('Tanca','Close'),()=>{closedByPerson();closeComputer?.();},'vw-close'));d.append(head,body);paneGrip(d);
   const hint=el('p','vw-muted',t("El veus en directe. Toca la pantalla per fer-lo servir tu: mentrestant, Gregal s'espera.","You see it live. Tap the screen to use it yourself: Gregal waits meanwhile."));
   const where=el('p','vw-live-where'),stage=el('div','vw-live-stage'),img=el('img','vw-live-shot'),idle=el('p','vw-live-idle',t("Ara mateix Gregal no té cap pàgina oberta. Demana-li que busqui alguna cosa i ho veuràs aquí.","Gregal has no page open right now. Ask it to look something up and you'll see it here."));
   img.alt=t("Pantalla de l'ordinador","Computer screen");img.hidden=true;stage.append(img);
@@ -1098,12 +1101,37 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   const giveBack=async()=>{held=false;mine.hidden=true;hint.hidden=false;try{await call('/api/ordinador/control','POST',{action:'release'});}catch{}};
   mine.append(el('span','',t("Tens el control · Gregal s'espera","You have control · Gregal is waiting")),btn(t('Torna-li el control','Give control back'),giveBack,'vw-live-btn'));
   body.append(hint,mine,where,stage,idle,bar);
-  closeComputer=()=>{closeComputer=null;alive=false;d.remove();if(held)giveBack();};
+  closeComputer=()=>{closeComputer=null;alive=false;d.remove();if(held)giveBack();syncPaneToggle();};
   document.dispatchEvent(new CustomEvent('gregal:workpane',{detail:'computer'}));$('workbench').append(d);
   // Un ordinador remot no té vista local: es veu al visor, en una finestra pròpia.
   const remote=()=>{hint.hidden=true;img.hidden=true;bar.hidden=true;idle.hidden=false;idle.textContent=t('Aquest ordinador es veu en una finestra pròpia.','This computer opens in its own window.');idle.append(el('br'),btn(t("Obre l'ordinador",'Open the computer'),()=>openComputer(),'vw-live-btn'));};
   const tick=async()=>{if(!alive||!d.isConnected)return;if(!busy){try{paint(await call('/api/ordinador/live'));}catch(e){if(/remote computer/.test(String(e&&e.message)))return remote();paint(null);}}setTimeout(tick,1000);};
   tick();}
+ // 126: el lateral de cada xat (el document o l'ordinador del vent) s'obre i es tanca des d'un botó de la capçalera.
+ // Si la persona l'ha tancat, un document nou del vent no el torna a obrir: el botó hi posa un punt.
+ const panes=new Map();
+ const paneOf=id=>{if(!panes.has(id))panes.set(id,{});return panes.get(id);};
+ const paneOpen=()=>!!closeComputer||$('docsPanel')?.hidden===false;
+ function closedByPerson(){const p=panes.get(state.active?.id);if(p)p.closed=true;}
+ function paintPaneToggle(b){const p=panes.get(state.active?.id);b.hidden=!p?.last;if(!p?.last)return;
+  const label=(p.last==='computer'?t("Mostra l'ordinador al costat",'Show the computer alongside'):t('Mostra el document al costat','Show the document alongside'))+(p.fresh?' · '+t('hi ha canvis nous','there are new changes'):'');
+  b.setAttribute('aria-label',label);b.title=label;b.setAttribute('aria-pressed',String(paneOpen()));if(p.fresh)b.dataset.fresh='true';else delete b.dataset.fresh;}
+ function syncPaneToggle(){const b=page?.querySelector('.vw-pane-toggle');if(b)paintPaneToggle(b);}
+ function paneToggle(){const b=iconOnly('sidePane','',()=>{const p=panes.get(state.active?.id);if(!p?.last)return;
+   if(paneOpen()){p.closed=true;if($('docsPanel')?.hidden===false)$('docsClose').click();closeComputer?.();}
+   else{p.closed=false;p.fresh=false;if(p.last==='computer')openLocalComputer();else root.gregalDocs?.open(p.doc.id,p.doc.scope);}
+   syncPaneToggle();},'vw-pane-toggle');paintPaneToggle(b);return b;}
+ // L'amplada del lateral s'arrossega des de la vora (o amb les fletxes) i es recorda; el xat i el lateral en guarden un mínim.
+ const PANE_MIN=340,CHAT_MIN=420,PANE_KEY='gregal_work_pane_w';let paneW=0;
+ function setPaneWidth(px,save){const total=$('workbench').getBoundingClientRect().width;paneW=Math.round(Math.min(Math.max(px,PANE_MIN),Math.max(PANE_MIN,total-CHAT_MIN)));
+  $('workbench').style.setProperty('--work-pane-w',paneW+'px');if(save)try{localStorage.setItem(PANE_KEY,String(paneW));}catch{}}
+ function paneGrip(pane){if(!pane||pane.querySelector('.vw-pane-grip'))return;const g=el('div','vw-pane-grip');g.setAttribute('role','separator');g.setAttribute('aria-orientation','vertical');g.setAttribute('aria-label',t('Amplada del lateral','Side pane width'));g.tabIndex=0;
+  const edge=()=>{const r=$('workbench').getBoundingClientRect();return r.left+r.width;};
+  g.addEventListener('pointerdown',e=>{e.preventDefault();document.body.classList.add('redimensionant');
+   const move=m=>setPaneWidth(edge()-m.clientX);const up=u=>{root.removeEventListener('pointermove',move);root.removeEventListener('pointerup',up);root.removeEventListener('pointercancel',up);document.body.classList.remove('redimensionant');if(u.type!=='pointercancel')setPaneWidth(edge()-u.clientX,true);else if(paneW)setPaneWidth(paneW,true);};
+   root.addEventListener('pointermove',move);root.addEventListener('pointerup',up);root.addEventListener('pointercancel',up);});
+  g.addEventListener('keydown',e=>{const step=e.key==='ArrowLeft'?24:e.key==='ArrowRight'?-24:0;if(!step)return;e.preventDefault();setPaneWidth((paneW||pane.getBoundingClientRect().width)+step,true);});
+  pane.append(g);}
  // Captures del que el vent ha fet a l'ordinador en aquest torn (com «torna amb captures» de Grok): una tira
  // sota la resposta i, en tocar-ne una, gran amb ‹ ›. Les imatges demanen autenticació: van per root.api.
  const shotBlobs=new Map();

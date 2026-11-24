@@ -885,3 +885,119 @@ test('the clay corner changes mood in place, so it can crossfade, and still nods
   assert.notEqual(corner.dataset.mood, 'waiting');
   assert.equal(corner.dataset.react, 'nod');
 });
+
+// 126: el lateral del xat d'un vent s'obre i es tanca quan vols. Cada torn és
+// una resposta de la cua; el panell de documents (docs-panel.js) és fals:
+// s'obre amb changed/open i la seva × avisa gregal:docsclosed, com el de debò.
+async function paneChat(storage = {}) {
+  const turns = [];
+  const f = await boot({ storage, api: r => {
+    if (r.url !== '/api/winds/chat/stream') return null;
+    const frames = [...(turns.shift() || []), ['done', { history: [{ from: 'assistant', text: 'Fet' }] }]].map(([k, d]) => 'event: ' + k + '\ndata: ' + JSON.stringify(d) + '\n\n').join('');
+    const bytes = new TextEncoder().encode(frames);
+    let sent = false;
+    return { ok: true, status: 200, body: { getReader: () => ({ read: async () => { if (sent) return { done: true }; sent = true; return { done: false, value: bytes }; }, cancel: async () => {}, releaseLock() {} }) } };
+  } });
+  const docs = f.doc.createElement('aside'), close = f.doc.createElement('button');
+  docs.setAttribute('id', 'docsPanel'); close.setAttribute('id', 'docsClose'); docs.hidden = true; docs.append(close);
+  f.doc.getElementById('workbench').append(docs);
+  const show = () => { docs.hidden = false; f.doc.dispatchEvent(new CustomEvent('gregal:workpane', { detail: 'docs' })); };
+  close.onclick = () => { docs.hidden = true; f.doc.dispatchEvent(new CustomEvent('gregal:docsclosed')); };
+  const changed = [], opened = [];
+  f.window.gregalDocs = { changed: d => { changed.push(d.id); show(); }, open: (id, scope) => { opened.push([id, scope]); show(); } };
+  await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();
+  await settle();
+  const turn = async (...events) => { turns.push(events); f.page.querySelector('textarea').value = 'Fes-ho'; await f.page.querySelector('.vw-composer').requestSubmit(); await settle(); };
+  return { ...f, docs, close, changed, opened, turn, toggle: () => f.page.querySelector('.vw-pane-toggle'), computer: () => f.doc.getElementById('workbench').querySelector('.vw-computer-pane') };
+}
+const letter = ['doc_changed', { id: 'w1', title: 'Carta', scope: 'mine' }];
+
+test('a wind chat with a document has a header toggle that closes the side pane and reopens the same document', async () => {
+  const f = await paneChat();
+  assert.ok(!f.toggle() || f.toggle().hidden, 'no toggle before there is anything to show');
+  await f.turn(letter);
+  assert.equal(f.docs.hidden, false, 'the document opens beside the chat');
+  const tg = f.toggle();
+  assert.ok(tg && !tg.hidden, 'the toggle is in the header');
+  assert.equal(tg.getAttribute('aria-pressed'), 'true');
+  assert.match(tg.getAttribute('aria-label'), /document/);
+  await tg.click();
+  assert.equal(f.docs.hidden, true, 'closed');
+  assert.equal(f.toggle().getAttribute('aria-pressed'), 'false');
+  await f.toggle().click();
+  assert.deepEqual(f.opened, [['w1', 'mine']], 'the same document again');
+  assert.equal(f.docs.hidden, false);
+  assert.equal(f.toggle().getAttribute('aria-pressed'), 'true');
+});
+
+test('the header toggle closes and reopens the computer view too', async () => {
+  const f = await paneChat();
+  await f.turn(['activity', { phase: 'tool', tool: 'browser' }]);
+  assert.ok(f.computer(), 'the computer opens beside the chat');
+  assert.equal(f.toggle().getAttribute('aria-pressed'), 'true');
+  assert.match(f.toggle().getAttribute('aria-label'), /computer/);
+  await f.toggle().click();
+  assert.equal(f.computer(), null, 'closed');
+  assert.equal(f.toggle().getAttribute('aria-pressed'), 'false');
+  await f.toggle().click();
+  assert.ok(f.computer(), 'open again');
+});
+
+test('a new version of the document leaves a pane the person closed closed, with a dot on the toggle', async () => {
+  const f = await paneChat();
+  await f.turn(letter);
+  await f.close.click();
+  assert.equal(f.toggle().getAttribute('aria-pressed'), 'false', 'the × is the person closing it too');
+  await f.turn(letter);
+  assert.deepEqual(f.changed, ['w1'], 'the wind does not open it again');
+  assert.equal(f.docs.hidden, true);
+  assert.equal(f.toggle().dataset.fresh, 'true', 'the dot says there is something new');
+  assert.match(f.toggle().getAttribute('aria-label'), /new/);
+  await f.toggle().click();
+  assert.deepEqual(f.opened, [['w1', 'mine']]);
+  assert.notEqual(f.toggle().dataset.fresh, 'true', 'seen');
+});
+
+test('a new version of the document opens the pane when the person never closed it in this chat', async () => {
+  const f = await paneChat();
+  await f.turn(letter);
+  f.docs.hidden = true;
+  await f.turn(letter);
+  assert.deepEqual(f.changed, ['w1', 'w1']);
+  assert.equal(f.docs.hidden, false);
+  assert.notEqual(f.toggle().dataset.fresh, 'true');
+});
+
+test('the side pane width is dragged within a minimum for chat and pane, and remembered', async () => {
+  const storage = {};
+  const f = await paneChat(storage);
+  const bench = f.doc.getElementById('workbench');
+  bench.getBoundingClientRect = () => ({ left: 0, width: 1200 });
+  await f.turn(['activity', { phase: 'tool', tool: 'browser' }]);
+  const grip = f.computer().querySelector('.vw-pane-grip');
+  assert.ok(grip, 'the computer pane has a grip');
+  assert.equal(grip.getAttribute('role'), 'separator');
+  f.computer().getBoundingClientRect = () => ({ width: 500 });
+  const key = k => grip.listeners.keydown[0]({ key: k, preventDefault() {} });
+  key('ArrowLeft');
+  assert.equal(bench.style['--work-pane-w'], '524px', 'wider');
+  assert.equal(storage.gregal_work_pane_w, '524');
+  for (let i = 0; i < 40; i++) key('ArrowLeft');
+  assert.equal(bench.style['--work-pane-w'], '780px', 'the chat keeps 420 px');
+  for (let i = 0; i < 40; i++) key('ArrowRight');
+  assert.equal(bench.style['--work-pane-w'], '340px', 'the pane keeps 340 px');
+  const moves = {};
+  f.window.addEventListener = (k, fn) => { moves[k] = fn; };
+  f.window.removeEventListener = () => {};
+  grip.listeners.pointerdown[0]({ clientX: 700, preventDefault() {} });
+  moves.pointermove({ clientX: 600 });
+  moves.pointerup({ clientX: 650 });
+  assert.equal(bench.style['--work-pane-w'], '550px', 'dragging the grip');
+  assert.equal(storage.gregal_work_pane_w, '550');
+  await f.turn(letter);
+  assert.ok(f.docs.querySelector('.vw-pane-grip'), 'the document pane has the grip too');
+  const again = await boot({ storage });
+  assert.equal(again.doc.getElementById('workbench').style['--work-pane-w'], '550px', 'remembered');
+  const css = fs.readFileSync(path.join(__dirname, 'winds-workspace.css'), 'utf8');
+  assert.match(css, /@media\(max-width:1000px\) \{ \.vw-computer-pane \{[^}]*\} \.vw-pane-grip \{ display:none; \} \}/, 'no grip on the overlay of narrow screens');
+});
