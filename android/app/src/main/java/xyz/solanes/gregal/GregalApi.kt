@@ -966,6 +966,17 @@ class GregalApi(val base: String, val token: String) {
         return AvuiJson.settings(read("/api/winds/avui/settings", "POST", body.toString()))
     }
 
+    /** On ets, per al temps de dalt d'«Avui» (un nom de ciutat). */
+    fun avuiPlace(place: String): AvuiSettings =
+        AvuiJson.settings(read("/api/winds/avui/settings", "POST", JSONObject().put("place", place).toString()))
+
+    /** Segueix un equip (kind «team») o qualsevol altra cosa («other»). */
+    fun avuiFollow(kind: String, name: String): AvuiSettings = AvuiJson.settings(read("/api/winds/avui/settings", "POST",
+        JSONObject().put("follow", JSONObject().put("kind", kind).put("name", name)).toString()))
+
+    fun avuiUnfollow(id: String): AvuiSettings =
+        AvuiJson.settings(read("/api/winds/avui/settings", "POST", JSONObject().put("unfollow", id).toString()))
+
     // --- «A prop teu» (VentsLocal.kt, /api/winds/local) ---
 
     fun localInfo(): LocalInfo = LocalJson.view(read("/api/winds/local"))
@@ -1563,6 +1574,8 @@ object AvuiJson {
             quietTo = o.quietTo.ifBlank { "08:00" },
             level = if (o.level == "calm") "calm" else "normal",
             tune = o.tune,
+            place = o.place,
+            follows = o.follows.map(::glanceFollow).filter { it.id.isNotBlank() },
         )
     }
 
@@ -1574,7 +1587,7 @@ object AvuiJson {
         return AvuiView(
             date = o.date,
             now = cards(o.now), fyi = cards(o.fyi), ahead = cards(o.ahead), done = cards(o.done),
-            held = o.held, settings = settings(o.settings),
+            held = o.held, settings = settings(o.settings), glance = glance(o.glance),
         )
     }
 
@@ -2020,6 +2033,7 @@ internal class AvuiCardDto(
 internal class AvuiSettingsDto(
     @SerialName("quiet_from") val quietFrom: String = "", @SerialName("quiet_to") val quietTo: String = "",
     val level: String = "", val tune: String = "",
+    val place: String = "", val follows: List<AvuiFollowDto> = emptyList(),
 )
 
 @Serializable
@@ -2027,5 +2041,5 @@ internal class AvuiViewDto(
     val date: String = "",
     val now: List<AvuiCardDto> = emptyList(), val fyi: List<AvuiCardDto> = emptyList(),
     val ahead: List<AvuiCardDto> = emptyList(), val done: List<AvuiCardDto> = emptyList(),
-    val held: Int = 0, val settings: AvuiSettingsDto? = null,
+    val held: Int = 0, val settings: AvuiSettingsDto? = null, val glance: AvuiGlanceDto? = null,
 )

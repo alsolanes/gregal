@@ -133,6 +133,10 @@ internal fun AvuiTray(
     weather: (@Composable () -> Unit)? = null,
     /** «A prop teu» (VentsLocal.kt), sota els ajustos. */
     local: (@Composable () -> Unit)? = null,
+    /** La ullada de dalt (VentsAvuiGlance.kt): segueix (kind, nom), deixa de seguir (id) i on ets. */
+    onFollow: (String, String) -> Unit = { _, _ -> },
+    onUnfollow: (String) -> Unit = {},
+    onPlace: (String) -> Unit = {},
 ) {
     val p = LocalPal.current
     Column(
@@ -157,7 +161,7 @@ internal fun AvuiTray(
             Icon(Icons.Rounded.Bedtime, null, tint = Muted, modifier = Modifier.size(14.dp))
             Text(tr(lang, "app.avui.held", view.held), color = Muted, style = GregalType.caption)
         }
-        if (weather != null) Box(Modifier.padding(top = 14.dp)) { weather() }
+        AvuiGlanceSection(lang, view, winds, onFollow, onUnfollow, onPlace, windWeather = weather)
         val open = view.openCount
         listOf("now" to view.now, "fyi" to view.fyi, "ahead" to view.ahead).forEach { (key, cards) ->
             AvuiSection(lang, key, cards, winds, onAct, onRun)

@@ -371,6 +371,10 @@ data class AvuiSettings(
     /** calm | normal */
     val level: String = "normal",
     val tune: String = "",
+    /** On ets, per al temps de dalt (un nom de ciutat). */
+    val place: String = "",
+    /** El que segueixes: id, kind (team | other), name i, si cal, el vent que ho mira. */
+    val follows: List<AvuiFollow> = emptyList(),
 ) {
     val calm: Boolean get() = level == "calm"
 }
@@ -384,6 +388,8 @@ data class AvuiView(
     val done: List<AvuiCard>,
     val held: Int,
     val settings: AvuiSettings,
+    /** El temps, el calendari i el que segueixes, a dalt de tot (VentsAvuiGlance.kt). */
+    val glance: AvuiGlance = AvuiGlance(),
 ) {
     val all: List<AvuiCard> get() = now + fyi + ahead
     /** Les que encara demanen alguna cosa (la insígnia de la pestanya). */
