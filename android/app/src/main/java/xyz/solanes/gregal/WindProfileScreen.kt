@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.*
@@ -91,7 +92,10 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
         topBar = { TopAppBar(
             title = { Text(tr(lang, "app.vents.profile"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
             navigationIcon = { IconButton(onClick = onDismiss, enabled = !saving) { Icon(Icons.Rounded.ArrowBack, tr(lang, "app.vents.back")) } },
-            actions = { IconButton(onClick = onEdit, enabled = !busy && !saving && profile != null) { Icon(Icons.Rounded.Edit, tr(lang, "app.company.windEdit")) } },
+            actions = {
+                IconButton(onClick = { onDismiss(); vm.openWindActivity(wind.id) }, enabled = !saving) { Icon(Icons.Rounded.History, tr(lang, "winds.activity.title")) }
+                IconButton(onClick = onEdit, enabled = !busy && !saving && profile != null) { Icon(Icons.Rounded.Edit, tr(lang, "app.company.windEdit")) }
+            },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie)) }) { padding ->
         // Tot en una llista: la cara i el nom s'emporten mitja pantalla i, si
         // es queden fixes, la informació del vent no té lloc. Ara el hero
