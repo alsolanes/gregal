@@ -248,7 +248,7 @@ test('the sidebar draws its 20 px faces with the small variant of the packs', as
   assert.equal(f.page.querySelector('.vw-start-faces').querySelector('svg').dataset.size, undefined, 'the 40 px start faces keep the details');
   await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();
   await settle();
-  assert.ok(+f.page.querySelector('.vw-owner > svg').dataset.size < 28, 'the 26 px owner face in the conversation header is small too');
+  assert.equal(f.page.querySelector('.vw-owner > svg').dataset.size, undefined, 'the conversation header shows the wind large, with its details');
 });
 
 // A personal wind (no squad) with its own pack, on an account in Free mode or with a theme.
@@ -399,4 +399,23 @@ test('the pill shows the kit’s icon when the wind has one, no icon without a k
     assert.ok(byText(root, 'button', 'Oreig'), 'the wind is listed');
     assert.equal(pillOf(root, 'Oreig'), null, 'an empty role shows no pill');
   }
+});
+
+test('a wind’s conversation shows its state in the header: done after a turn, gone once you leave', async () => {
+  const f = await boot();
+  await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();
+  await settle();
+  assert.ok(f.page.querySelector('.vw-wind-mark').hidden, 'nothing before the first turn');
+  assert.ok(f.page.querySelector('.wind-workspace').classList.contains('vw-wind-chat'), 'the page takes the wind’s colour');
+  f.page.querySelector('textarea').value = 'Hola';
+  await f.page.querySelector('.vw-composer').requestSubmit();
+  await settle();
+  const mark = f.page.querySelector('.vw-wind-mark');
+  assert.equal(mark.textContent, 'Done');
+  assert.ok(!mark.hidden);
+  await byText(f.nav, 'button', 'New conversation').click();
+  await settle();
+  await byText(f.page.querySelector('.vw-start-recent'), 'button', 'Un concert per dissabte').click();
+  await settle();
+  assert.ok(f.page.querySelector('.vw-wind-mark').hidden, '«Done» goes away after leaving the conversation');
 });
