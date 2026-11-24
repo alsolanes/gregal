@@ -105,7 +105,8 @@ internal fun windMotionEnabled(): Boolean {
  *  - eyes: punts, badalls (ovals grossos), estrellats, mig tancats
  *  - mouth: somriure, oberta (parlant), neutra, llengua
  *  - shape: bola, núvol, espiral
- * Desat com a tres lletres al backend (p.ex. "pso" = punts/somriure/bola).
+ * Desat com a tres lletres al backend (p.ex. "pso" = punts/somriure/bola),
+ * i una quarta si la persona tria el color de la barretina del minairó.
  * `kit` és l'especialitat d'un vent de colla ("shopping", "frontend"…): li dona
  * peus i l'eina del seu ofici. No es desa amb l'estil; ve de Wind.specialty.
  */
@@ -113,7 +114,9 @@ data class WindStyle(val eyes: WindEyes = WindEyes.DOTS, val mouth: WindMouth = 
     /** The wind's own avatar pack (Wind.avatar) and the bearing it blows from (windDirection): they come from the wind, not the style code. */
     val pack: String = "", val bearing: Int = 0,
     /** windId: what seeds the Mapa de vent picture, so the same wind always gets the same one. */
-    val windId: String = "")
+    val windId: String = "",
+    /** The barretina colour the person picked ([minairoBarretines]); empty picks one from the wind. */
+    val barretina: String = "")
 
 enum class WindEyes(val key: String) { DOTS("p"), WIDE("b"), STARRY("e"), SLEEPY("m") }
 enum class WindMouth(val key: String) { SMILE("s"), OPEN("o"), NEUTRAL("n"), TONGUE("t") }
@@ -125,11 +128,12 @@ fun windStyleOf(code: String?): WindStyle {
     val eyes = WindEyes.entries.firstOrNull { it.key == c.getOrNull(0)?.toString() } ?: WindEyes.DOTS
     val mouth = WindMouth.entries.firstOrNull { it.key == c.getOrNull(1)?.toString() } ?: WindMouth.SMILE
     val shape = WindShape.entries.firstOrNull { it.key == c.getOrNull(2)?.toString() } ?: WindShape.BALL
-    return WindStyle(eyes, mouth, shape)
+    val barretina = c.getOrNull(3)?.toString()?.takeIf { letter -> minairoBarretines.any { it.first == letter } }.orEmpty()
+    return WindStyle(eyes, mouth, shape, barretina = barretina)
 }
 
-/** De l'estil al codi de tres lletres que viatja al backend. */
-fun WindStyle.encode(): String = eyes.key + mouth.key + shape.key
+/** De l'estil al codi que viatja al backend: tres lletres, i la de la barretina si n'hi ha. */
+fun WindStyle.encode(): String = eyes.key + mouth.key + shape.key + barretina
 
 /** The packs a wind can be drawn with; the account theme is one of them or "free" (task 045). */
 internal val windPacks = listOf("cares", "esperit", "cap", "rosa", "mapa", "minairo")
@@ -446,7 +450,7 @@ fun WindFace(
     val tone = remember(accent) { lerp(accent, Color(0xFF1B1530), .8f) }
     val handEdge = remember(accent) { lerp(accent, Color(0xFF1B1530), .45f) }
     val bodyPaint = remember(style.shape, accent, minairo) { WindBodyPaint(if (minairo) WindShape.BALL else style.shape, accent) }
-    val look = remember(style.windId) { minairoLook(style.windId) }
+    val look = remember(style, accent) { minairoLook(style, accent) }
     // L'aura entra i surt amb un fos quan el vent comença o acaba la feina.
     val aura by animateFloatAsState(if (windShowsAura(mood, size)) 1f else 0f, tween(450), label = "wind-aura")
     val motionLayer = if (motion) Modifier.graphicsLayer {
@@ -678,99 +682,139 @@ private fun DrawScope.drawWindEye(eyes: WindEyes, p: WindPose, right: Boolean, x
 }
 
 /**
- * A wind's own minairó (118), the same every time from its id: the side its
- * barretina folds to ([fold], 1 = right), where its beard ends ([beard], box
- * units) and what it carries ([gear]: a boxwood needle case, a sprig of St
- * John's wort in the band, or a pebble at its feet).
+ * A wind's own minairó (118, 120), the same every time and the same as on the
+ * web (`minairo` in winds.js): the side its barretina folds to ([fold], 1 =
+ * right: downwind, north and south by the seed), where its beard ends ([beard],
+ * box units, from the mouth style), what it carries ([gear]: a boxwood needle
+ * case, a sprig of St John's wort in the band, or a pebble), the barretina
+ * colour ([cap]), and the brows, moustache and rare round glasses on top.
  */
-internal data class MinairoLook(val fold: Int, val beard: Float, val gear: Int)
+internal data class MinairoLook(val fold: Int, val beard: Float, val gear: Int, val cap: Color,
+    val brows: String, val moustache: String, val glasses: Boolean)
 
-internal fun minairoLook(id: String): MinairoLook {
-    val h = id.hashCode()
-    return MinairoLook(if (h and 1 == 0) 1 else -1, 66f + 6f * Math.floorMod(h shr 1, 3), Math.floorMod(h shr 3, 3))
+/** Folk barretina colours by the style letter that picks them, each worn under the black band (`barretines` in winds.js). */
+internal val minairoBarretines = listOf("v" to Color(0xFFC9342C), "m" to Color(0xFF6E2F6B), "f" to Color(0xFF2E6B3F),
+    "o" to Color(0xFFC8962E), "b" to Color(0xFF26406E), "g" to Color(0xFF7D1F33))
+
+/** "winds.barretinaAuto" for the automatic pick, "winds.barretinaV", "winds.barretinaM"… for a palette letter. */
+internal fun barretinaLabelKey(letter: String) = "winds.barretina" + letter.uppercase().ifEmpty { "Auto" }
+
+private fun hueOf(c: Color): Double {
+    val (r, g, b) = listOf(c.red, c.green, c.blue).map { it.toDouble() }
+    val max = maxOf(r, g, b)
+    val d = max - minOf(r, g, b)
+    if (d == 0.0) return 0.0
+    val h = when (max) { r -> (g - b) / d % 6; g -> (b - r) / d + 2; else -> (r - g) / d + 4 }
+    return (h * 60 + 360) % 360
 }
 
-// The barretina and the beard keep their own colours on every wind.
-private val MinairoRed = Color(0xFFD7342C)
-private val MinairoRedLight = Color(0xFFF47A5E)
-private val MinairoRedDeep = Color(0xFF7E141B)
+internal fun minairoLook(style: WindStyle, body: Color): MinairoLook {
+    // The face seed of winds.js (its key is the id); the barretina walks from the id hash instead.
+    val seed = style.windId.fold(0) { s, c -> (s * 31 + c.code) % 997 }
+    val fold = if (style.bearing % 180 != 0) (if (style.bearing < 180) -1 else 1) else if (seed % 2 == 1) 1 else -1
+    val beard = when (style.mouth) { WindMouth.NEUTRAL -> 63.5f; WindMouth.SMILE -> 67.5f; WindMouth.OPEN -> 71f; WindMouth.TONGUE -> 74.5f }
+    val start = (Integer.toUnsignedLong(style.windId.hashCode()) % minairoBarretines.size).toInt()
+    fun gap(c: Color) = Math.abs(hueOf(c) - hueOf(body)).let { minOf(it, 360 - it) }
+    // The person's pick as it is; otherwise the next colour whose hue stands 30° from the body's.
+    val cap = minairoBarretines.firstOrNull { it.first == style.barretina }?.second
+        ?: minairoBarretines.indices.map { minairoBarretines[(start + it) % minairoBarretines.size].second }.first { gap(it) >= 30 }
+    // Moduli prime to the 2 and 3 above, so ids one letter apart still differ.
+    return MinairoLook(fold, beard, seed % 3, cap, listOf("straight", "arched", "bushy")[seed % 7 % 3],
+        listOf("lobes", "walrus", "handlebar")[seed % 11 % 3], seed % 13 == 5)
+}
+
 // La cinta negra de la barretina: el que la fa catalana a primer cop d'ull.
 private val MinairoBand = Color(0xFF17141A)
-private val MinairoBeard = Color(0xFFFBF8F2)
-private val MinairoBeardShade = Color(0xFFCFC7BA)
+// The beard keeps its own colours on every wind.
+private val MinairoBeard = Color(0xFFFFFDF7)
+private val MinairoBeardShade = Color(0xFFE2DACD)
+private val MinairoCrease = lerp(MinairoBeardShade, Color(0xFF1B1530), .25f)
 private val MinairoNose = Color(0xFFE88875)
 
+private fun svgPath(d: String) = PathParser().parsePathString(d).toPath()
+
+// The barretina of winds.js, drawn for a body of rx 24 with its top at 25.5: the
+// crown, the tube rising off it and folding over to the right, the shade on its
+// hanging part, the crease where it folds, and the wide black band.
+private val minairoCrown by lazy { svgPath("M17 32C17.5 22 27.5 16 40 16S62.5 22 63 32Z") }
+private val minairoTip by lazy { svgPath("M30 18C28.5 8.5 33 1.5 42.5 1C52.5 .5 60.5 5 64 12.5C67 18.5 68 27 67 34.5C66.6 37.6 62.8 37.8 62.5 34.5" +
+    "C62.2 29 60.5 23.5 57 20C54.5 17.5 51.5 16.5 49 16.5C43 16 36 16.5 30 18Z") }
+private val minairoTipShade by lazy { svgPath("M64 12.5C67 18.5 68 27 67 34.5C66.6 37.6 62.8 37.8 62.5 34.5C62.2 29 60.5 23.5 57 20Z") }
+private val minairoTipCrease by lazy { svgPath("M62.5 34.5C62.2 29 60.5 23.5 57 20C54.5 17.5 51.5 16.5 49 16.5") }
+private val minairoBand by lazy { svgPath("M15.5 37.5C19 32 29 30.5 40 30.5S61 32 64.5 37.5L63.2 29C59 24.5 50 22.5 40 22.5S21 24.5 16.8 29Z") }
+private val minairoBandShine by lazy { svgPath("M17.5 29.4C22 25.6 31 24 40 24S58 25.6 62.5 29.4") }
+// White brows over the right eye, from its centre; the left one is its mirror.
+private val minairoBrows by lazy { mapOf(
+    "straight" to svgPath("M-5 -8.2L5 -7.4L5 -5.2L-5 -6Z"),
+    "arched" to svgPath("M-5.6 -5.6Q0 -11.6 5.8 -5.8Q0 -8.6 -5.6 -5.6Z"),
+    "bushy" to svgPath("M-6.4 -5C-5 -10.8 4 -11.6 7.2 -7.6C6 -5.4 2 -6.4 -1 -5.2C-3 -4.6 -5 -4.2 -6.4 -5Z")) }
+// The moustache's right half from under the nose: cubic segments in (share of the half width, dy from the body's centre).
+private val minairoLips = mapOf(
+    "lobes" to listOf(listOf(.2f, -5.4f, .6f, -4.6f, .66f, .2f), listOf(.52f, 3.2f, .2f, 2.8f, 0f, .6f)),
+    "walrus" to listOf(listOf(.24f, -5.6f, .72f, -4.4f, .74f, 3.8f), listOf(.5f, 4.2f, .2f, 2.4f, 0f, .6f)),
+    "handlebar" to listOf(listOf(.2f, -5.2f, .55f, -4.4f, .74f, -1.4f), listOf(.84f, -.2f, 1f, -1.8f, .94f, -4.8f), listOf(.92f, 1.4f, .4f, 3.2f, 0f, .6f)))
+
 /**
- * The minairó in the 80 box: a Cares body of R 25 at (40, 49) with its feet,
- * a red barretina whose tube folds to [MinairoLook.fold] over a dark band, a
- * long soft beard with a moustache over the lower face, a round nose and the
- * Cares eyes and lids above it. The cap's tip bobs and the beard sways on
- * their own clock and both trail the figure by [moved] (how far it went down
- * in the last tenth of a second); motion off leaves them at the mood's rest.
+ * The minairó in the 80 box, as winds.js draws it: a Cares body of R 25 at
+ * (40, 49) with its feet, a long soft beard narrower than the body with a
+ * moustache over the lower face, a round nose, the Cares eyes at .84 with
+ * white brows, and the barretina in [MinairoLook.cap] whose tube folds to
+ * [MinairoLook.fold] over the black band. The cap's tip bobs and the beard
+ * sways on their own clock and both trail the figure by [moved] (how far it
+ * went down in the last tenth of a second); motion off leaves them at the
+ * mood's rest. Under 28 dp only the silhouette is left.
  */
 private fun DrawScope.drawMinairo(look: MinairoLook, eyes: WindEyes, p: WindPose, mood: WindMood, t: Float, motion: Boolean, moved: Float,
     size: Int, accent: Color, ink: Color, paint: WindBodyPaint, tx: Float, ty: Float, talkOpen: Boolean) {
     val s = look.fold.toFloat()
-    val g = -s
     val small = size < 28
     val full = size >= 80
-    val gear = if (size >= 56) look.gear else -1
-    fun fx(x: Float) = 40f + s * (x - 40f)
+    val gear = if (small) -1 else look.gear
+    val rx = 25f
+    val cy = 49f
+    fun x(f: Float) = 40f + f * rx
     fun wave(period: Float) = if (motion) sin(2f * PI.toFloat() * (t % period) / period) else 0f
+    // Accessories are drawn on the right and mirrored to the side away from the tip.
+    fun away(block: DrawScope.() -> Unit) = withTransform({ scale(-s, 1f, Offset(40f, 0f)) }, block)
 
-    if (gear == 2) {
-        // A pebble on the ground beside it, big next to someone this small.
-        val px = 40f + g * 28f
-        drawOval(Color(0xFF0B0C14).copy(alpha = .18f), Offset(px - 5.5f, 74f), Size(11f, 2.6f))
-        drawOval(Brush.radialGradient(0f to Color(0xFFC9CDD2), .6f to Color(0xFF9AA0A8), 1f to Color(0xFF6F757E),
-            center = Offset(px - 1.8f, 69.5f), radius = 7f), Offset(px - 5f, 68.5f), Size(10f, 6.6f))
+    if (gear == 2) away {
+        drawOval(Color(0xFFA8A39B), Offset(x(1f) + 5f - 5.2f, cy + rx - 2f - 3.8f), Size(10.4f, 7.6f))
+        drawOval(Color.White.copy(alpha = .45f), Offset(x(1f) + 3.6f - 2.2f, cy + rx - 3.6f - 1.1f), Size(4.4f, 2.2f))
     }
-    drawWindBody(WindShape.BALL, paint, 40f, 49f, 25f, ground = full,
-        stepL = windStep(mood, t, false) / 25f, stepR = windStep(mood, t, true) / 25f)
+    drawWindBody(WindShape.BALL, paint, 40f, cy, rx, ground = full,
+        stepL = windStep(mood, t, false) / rx, stepR = windStep(mood, t, true) / rx)
 
-    // The beard hangs from under the eyes and sways from there; it lags the hops by stretching.
+    // The beard hangs from under the nose and sways from there; it lags the hops by stretching.
     val busy = mood == WindMood.WORKING || mood == WindMood.WRITING
     val sway = wave(if (busy) .6f else 3.2f) * (if (busy) 3f else 2f) + (if (mood == WindMood.FAILED) 0f else p.tilt * -.3f)
     val stretch = (1f - moved * .05f).coerceIn(.85f, 1.15f)
-    // A list avatar needs the beard's mass to read, so the short one only shows on larger faces.
-    val l = if (size < 40) maxOf(look.beard, 72f) else look.beard
-    // Soft lumps down each side to a rounded point: wool, not a bib.
+    val l = if (small) 67f else look.beard
+    // Its right half as cubic segments from under the nose to the tip, then back mirrored.
+    val half = listOf(listOf(.28f, cy - .5f, .58f, cy - 1f, .82f, cy - 5.5f), listOf(.94f, cy + 1f, .84f, l - 12f, .58f, l - 5.5f),
+        listOf(.47f, l - 2.5f, .34f, l - 4f, .25f, l - 2f), listOf(.16f, l, .07f, l, 0f, l + .8f))
     val beard = Path().apply {
-        moveTo(18f, 48f)
-        cubicTo(14.5f, 55f, 17f, 61f, 21.5f, 63f)
-        cubicTo(20.5f, l - 8f, 26f, l - 3f, 31f, l - 4.5f)
-        cubicTo(33f, l, 37f, l + 2f, 40f, l + 1.5f)
-        cubicTo(43f, l + 2f, 47f, l, 49f, l - 4.5f)
-        cubicTo(54f, l - 3f, 59.5f, l - 8f, 58.5f, 63f)
-        cubicTo(63f, 61f, 65.5f, 55f, 62f, 48f)
-        cubicTo(57f, 54.5f, 46f, 56.5f, 40f, 53.5f)
-        cubicTo(34f, 56.5f, 23f, 54.5f, 18f, 48f)
+        moveTo(40f, cy - 2.5f)
+        for (c in half) cubicTo(x(c[0]), c[1], x(c[2]), c[3], x(c[4]), c[5])
+        for (i in 3 downTo 0) {
+            val c = half[i]
+            val (ef, ey) = if (i > 0) half[i - 1][4] to half[i - 1][5] else 0f to cy - 2.5f
+            cubicTo(x(-c[2]), c[3], x(-c[0]), c[1], x(-ef), ey)
+        }
         close()
     }
-    withTransform({ rotate(sway, Offset(40f, 51f)); scale(1f, stretch, Offset(40f, 51f)) }) {
+    withTransform({ rotate(sway, Offset(40f, cy)); scale(1f, stretch, Offset(40f, cy)) }) {
         withTransform({ translate(1.2f, 1.8f) }) { drawPath(beard, paint.core, alpha = .35f) }
-        drawPath(beard, Brush.radialGradient(0f to Color.White, .5f to MinairoBeard, 1f to MinairoBeardShade,
-            center = Offset(34f, 55f), radius = l - 42f))
-        // Two curls of wool where the lumps meet.
+        drawPath(beard, Brush.verticalGradient(0f to MinairoBeard, .55f to MinairoBeard, 1f to MinairoBeardShade, startY = cy - 5.5f, endY = l + .8f))
         if (!small) drawPath(Path().apply {
-            moveTo(27f, 60f); cubicTo(24.5f, 63.5f, 26.5f, l - 7f, 30f, l - 6.5f)
-            moveTo(53f, 60f); cubicTo(55.5f, 63.5f, 53.5f, l - 7f, 50f, l - 6.5f)
-            moveTo(38f, l - 9f); cubicTo(37f, l - 6f, 38.5f, l - 3f, 40.5f, l - 2.5f)
-        }, MinairoBeardShade, style = Stroke(1.1f, cap = StrokeCap.Round), alpha = .75f)
+            for (f in listOf(-.4f, 0f, .4f)) { moveTo(x(f), cy + 7f); quadraticTo(x(f * 1.15f), (cy + l) / 2f, x(f * .55f), l - 6f) }
+        }, MinairoCrease, alpha = .6f, style = Stroke(1f, cap = StrokeCap.Round))
     }
 
-    // The Cares eyes, a little smaller on this smaller head, and white brows that follow the lids.
+    // The Cares eyes, at .84 on this smaller head.
     val gx = (p.gx + tx * 2.4f) * .8f
     val gy = (p.gy + ty * 1.8f) * .8f
     for (right in listOf(false, true)) {
-        val ex = if (right) 49.6f else 30.4f
-        drawWindEye(eyes, p, right, ex + gx, 42.5f + gy, .86f, small, full, ink, accent, paint, 40f, 49f, 25f)
-        if (!small) withTransform({ rotate(if (right) -p.brow else p.brow, Offset(ex + gx * .5f, 33.4f + p.lid * 2.4f)) }) {
-            val by = 33.4f + p.lid * 2.4f
-            drawOval(paint.core, Offset(ex + gx * .5f - 4.1f, by - .9f), Size(8.2f, 3.2f), alpha = .3f)
-            drawOval(Brush.verticalGradient(0f to Color.White, 1f to MinairoBeardShade, startY = by - 1.6f, endY = by + 1.6f),
-                Offset(ex + gx * .5f - 4.3f, by - 1.6f), Size(8.6f, 3.2f))
-        }
+        drawWindEye(eyes, p, right, x(if (right) .34f else -.34f) + gx, cy - 10f + gy, .84f, small, full, ink, accent, paint, 40f, cy, rx)
     }
 
     // A mouth only shows when it talks or cheers, under the moustache.
@@ -783,25 +827,23 @@ private fun DrawScope.drawMinairo(look: MinairoLook, eyes: WindEyes, p: WindPose
         drawOval(ink, Offset(36.6f, 54.6f), Size(6.8f, open))
         drawOval(WindTongue, Offset(38f, 54.6f + open * .55f), Size(4f, open * .4f))
     }
-    // The moustache lifts with a smile and droops when it fails.
+    // The moustache lifts with a smile and droops when it fails; a small face keeps the plain lobes.
     val curl = p.smile * 16f - (if (mood == WindMood.FAILED) 12f else 0f) + wave(4f) * 1.5f
-    for (side in listOf(1f, -1f)) withTransform({ rotate(curl * side, Offset(40f, 52f)); scale(side, 1f, Offset(40f, 0f)) }) {
-        val lobe = Path().apply {
-            moveTo(40f, 51.2f)
-            cubicTo(36.5f, 49.3f, 30.5f, 49.8f, 27.5f, 53.2f)
-            cubicTo(26.3f, 54.8f, 27.6f, 56.6f, 29.8f, 56.1f)
-            cubicTo(33f, 55.3f, 36.8f, 56f, 40f, 54.6f)
-            close()
-        }
-        withTransform({ translate(.5f, 1.1f) }) { drawPath(lobe, MinairoBeardShade) }
-        drawPath(lobe, Brush.radialGradient(0f to Color.White, .7f to MinairoBeard, 1f to MinairoBeardShade, center = Offset(34f, 51.5f), radius = 8f))
+    val lip = Path().apply {
+        moveTo(0f, -1.8f)
+        for (c in minairoLips.getValue(if (small) "lobes" else look.moustache)) cubicTo(c[0] * rx, c[1], c[2] * rx, c[3], c[4] * rx, c[5])
+        close()
     }
-    val nose = if (small) 4.2f else 3.6f
+    for (side in listOf(1f, -1f)) withTransform({ translate(40f, cy); rotate(curl * side, Offset.Zero); scale(side, 1f, Offset.Zero) }) {
+        drawPath(lip, MinairoBeard)
+        if (!small) drawPath(lip, MinairoCrease, style = Stroke(.8f))
+    }
+    val nose = if (small) 4.4f else 3.8f
     drawCircle(Brush.radialGradient(0f to Color(0xFFF8BCA8), .55f to MinairoNose, 1f to Color(0xFFB2544A),
-        center = Offset(38.8f, 48.3f), radius = nose * 1.5f), nose, Offset(40f, 49.8f))
-    if (!small) drawCircle(Color.White, .9f, Offset(38.7f, 48.6f), alpha = .7f)
+        center = Offset(38.8f, cy - 4.1f), radius = nose * 1.5f), nose, Offset(40f, cy - 2.6f))
+    if (!small) drawCircle(Color.White, .9f, Offset(38.7f, cy - 3.8f), alpha = .7f)
 
-    // The barretina: the crown, then the tube folding over it, then the band.
+    // The barretina, fitted to this body from the web's rx 24 and top at 25.5.
     // The tip bobs on its own clock, lags the figure and flies up on the hop.
     val (period, amp) = when (mood) {
         WindMood.WORKING -> .6f to 7f
@@ -816,67 +858,58 @@ private fun DrawScope.drawMinairo(look: MinairoLook, eyes: WindEyes, p: WindPose
         else -> 0f
     }
     // Held to a swing the fold can make without the tube parting from the crown.
-    val tip = s * (rest + wave(period) * amp - moved * 9f).coerceIn(-18f, 18f)
-    val red = Brush.radialGradient(0f to MinairoRedLight, .45f to MinairoRed, 1f to MinairoRedDeep, center = Offset(fx(30f), 12f), radius = 42f)
-    // A soft tube standing up from the band, leaning to the fold side...
-    val crown = Path().apply {
-        moveTo(fx(19f), 31f)
-        cubicTo(fx(18.5f), 20f, fx(25f), 9f, fx(34f), 5f)
-        cubicTo(fx(41f), 2f, fx(51f), 2f, fx(57f), 6.5f)
-        cubicTo(fx(61.5f), 12f, fx(62f), 22f, fx(61f), 31f)
-        close()
-    }
-    // ...whose top falls over and hangs down that side, the tip by the ear.
-    val flop = Path().apply {
-        moveTo(fx(49f), 3f)
-        cubicTo(fx(60f), -.5f, fx(69.5f), 4.5f, fx(71.5f), 14f)
-        cubicTo(fx(73f), 21f, fx(73f), 27f, fx(71.5f), 31f)
-        cubicTo(fx(70f), 34.5f, fx(65.5f), 34f, fx(65f), 30f)
-        cubicTo(fx(64.5f), 24f, fx(64f), 16.5f, fx(57.5f), 11.5f)
-        close()
-    }
-    drawPath(crown, red)
-    withTransform({ rotate(tip, Offset(fx(58f), 6f)) }) {
-        withTransform({ translate(-s * 1.3f, 1.4f) }) { drawPath(flop, MinairoRedDeep, alpha = .5f) }
-        drawPath(flop, red)
-        // The crease where the tube folds back on itself.
-        if (!small) drawPath(Path().apply { moveTo(fx(57.5f), 11.5f); cubicTo(fx(63f), 16f, fx(64.5f), 23f, fx(65f), 30f) }, MinairoRedDeep, alpha = .55f,
-            style = Stroke(1.2f, cap = StrokeCap.Round))
-        if (!small) drawPath(Path().apply { moveTo(fx(52f), 3.4f); cubicTo(fx(60f), 1.8f, fx(67f), 6f, fx(68.6f), 14f) }, Color.White, alpha = .25f,
-            style = Stroke(1.6f, cap = StrokeCap.Round))
-    }
-    if (gear == 1) {
+    val tip = (rest + wave(period) * amp - moved * 9f).coerceIn(-18f, 18f)
+    val cap = look.cap
+    fun capPaint(px: Float, py: Float, r: Float) = Brush.radialGradient(0f to lerp(cap, Color.White, .3f), .5f to cap,
+        1f to lerp(cap, Color(0xFF1B1530), .35f), center = Offset(px, py), radius = r)
+    withTransform({ translate(0f, cy - rx - 25.5f); scale(rx / 24f, 1f, Offset(40f, 0f)) }) {
+        drawPath(minairoCrown, capPaint(30.8f, 19.2f, 44f))
+        withTransform({ scale(s, 1f, Offset(40f, 0f)); rotate(tip, Offset(46f, 17f)) }) {
+            drawPath(minairoTip, capPaint(40.4f, 8f, 38f))
+            drawPath(minairoTipShade, MinairoBand, alpha = .32f)
+            if (!small) drawPath(minairoTipCrease, MinairoBand, alpha = .6f, style = Stroke(1.2f, cap = StrokeCap.Round))
+        }
+        drawPath(minairoBand, MinairoBand)
+        if (!small) drawPath(minairoBandShine, Color.White, alpha = .18f, style = Stroke(.9f, cap = StrokeCap.Round))
         // A sprig of St John's wort, the herb minairons are born from, tucked in the band.
-        val bx = 40f + g * 15f
-        drawPath(Path().apply { moveTo(bx, 28f); quadraticTo(bx + g * 2f, 20f, bx + g * 5.5f, 13f); moveTo(bx + g * 1.4f, 21.5f); lineTo(bx + g * 7.5f, 18.5f) },
-            Color(0xFF4E8A3A), style = Stroke(1.3f, cap = StrokeCap.Round))
-        drawOval(Color(0xFF5FA046), Offset(bx + g * 2.6f - 2f, 22.5f), Size(4f, 2f))
-        for (f in listOf(Offset(bx + g * 5.5f, 13f), Offset(bx + g * 7.8f, 18.3f), Offset(bx + g * 2.4f, 16.6f))) {
-            for (i in 0 until 5) {
-                val a = i * 2f * PI.toFloat() / 5f
-                drawCircle(Color(0xFFF7C928), 1.35f, f + Offset(cos(a) * 1.5f, sin(a) * 1.5f))
-            }
-            drawCircle(Color(0xFFE38A1C), .9f, f)
+        if (gear == 1) away {
+            val leaf = Color(0xFF6C9A3E)
+            val wort = Color(0xFFF4C431)
+            drawPath(Path().apply { moveTo(58f, 30f); cubicTo(61f, 24f, 63f, 19f, 67f, 14.5f) }, leaf, style = Stroke(1.4f, cap = StrokeCap.Round))
+            withTransform({ rotate(-40f, Offset(62.6f, 22.5f)) }) { drawOval(leaf, Offset(59.6f, 21.2f), Size(6f, 2.6f)) }
+            withTransform({ rotate(25f, Offset(65.4f, 20.2f)) }) { drawOval(leaf, Offset(62.8f, 19.1f), Size(5.2f, 2.2f)) }
+            for (a in 0 until 5) withTransform({ rotate(a * 72f, Offset(67f, 14.5f)) }) { drawOval(wort, Offset(65.5f, 9.5f), Size(3f, 4.8f)) }
+            drawCircle(lerp(wort, cap, .4f), 1.3f, Offset(67f, 14.5f))
         }
     }
-    val band = Path().apply { moveTo(17.5f, 32.5f); quadraticTo(40f, 19.5f, 62.5f, 32.5f) }
-    drawPath(band, Brush.verticalGradient(0f to lerp(MinairoBand, Color.White, .08f), 1f to MinairoBand, startY = 22f, endY = 36f),
-        style = Stroke(8f, cap = StrokeCap.Round))
-    if (!small) drawPath(Path().apply { moveTo(19.5f, 29.6f); quadraticTo(40f, 17.4f, 60.5f, 29.6f) }, Color.White, alpha = .16f,
-        style = Stroke(1.1f, cap = StrokeCap.Round))
 
-    if (gear == 0) {
-        // The boxwood needle case minairons live in, held at its side.
-        val cx = 40f + g * 25.5f
-        withTransform({ rotate(g * -16f, Offset(cx, 62f)) }) {
-            val wood = Brush.horizontalGradient(0f to Color(0xFFE9CC8E), .6f to Color(0xFFD1A862), 1f to Color(0xFF9E7434), startX = cx - 2.8f, endX = cx + 2.8f)
-            drawRoundRect(wood, Offset(cx - 2.8f, 54f), Size(5.6f, 16f), CornerRadius(2.2f))
-            drawRoundRect(Color(0xFF8A6129), Offset(cx - 3.1f, 53.2f), Size(6.2f, 3.4f), CornerRadius(1.4f))
-            drawLine(Color(0xFF8A6129), Offset(cx - 2.8f, 66f), Offset(cx + 2.8f, 66f), .8f)
+    // Glasses and white brows sit over the band's edge, so both read on it and on the body.
+    val frame = Color(0xFF2B2530)
+    for (side in listOf(-1f, 1f)) {
+        val ex = x(.34f * side)
+        if (!small && look.glasses) {
+            drawCircle(Color.White.copy(alpha = .14f), 7.4f, Offset(ex, cy - 10f))
+            drawCircle(frame, 7.4f, Offset(ex, cy - 10f), style = Stroke(1.4f))
         }
-        val hand = Offset(40f + g * 22.8f, 63f)
-        drawOval(accent, hand - Offset(3.6f, 3f), Size(7.2f, 6f))
-        drawOval(lerp(accent, Color(0xFF1B1530), .45f), hand - Offset(3.6f, 3f), Size(7.2f, 6f), style = Stroke(1.1f))
+        // The brows follow the lids: down with them, and slanting with the mood.
+        if (!small) withTransform({ translate(ex, cy - 10f + p.lid * 2.4f); rotate(side * -p.brow, Offset.Zero); scale(side, 1f, Offset.Zero) }) {
+            val brow = minairoBrows.getValue(look.brows)
+            drawPath(brow, MinairoBeard)
+            drawPath(brow, MinairoCrease, style = Stroke(.8f, join = StrokeJoin.Round))
+        }
+    }
+    if (!small && look.glasses) drawPath(Path().apply { moveTo(x(-.34f) + 7.4f, cy - 10f); quadraticTo(40f, cy - 12.5f, x(.34f) - 7.4f, cy - 10f) },
+        frame, style = Stroke(1.4f))
+
+    // The boxwood needle case minairons live in, standing by its feet as tall as half of it.
+    if (gear == 0) away {
+        val wood = Color(0xFFD9B26A)
+        withTransform({ translate(x(1f) + 4.5f, cy + rx - 9f); rotate(8f, Offset.Zero) }) {
+            drawRoundRect(wood, Offset(-3.4f, -9f), Size(6.8f, 18f), CornerRadius(3f))
+            drawRoundRect(lerp(wood, Color(0xFF1B1530), .35f), Offset(-3.7f, -10f), Size(7.4f, 4f), CornerRadius(1.8f))
+            drawLine(Color.White.copy(alpha = .45f), Offset(-1.5f, -4f), Offset(-1.5f, 6f), 1.2f, StrokeCap.Round)
+            drawLine(lerp(wood, Color(0xFF1B1530), .2f), Offset(-3.4f, 3f), Offset(3.4f, 3f), .8f)
+        }
     }
 }
 

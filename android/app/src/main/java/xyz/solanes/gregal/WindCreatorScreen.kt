@@ -215,6 +215,9 @@ internal fun WindEditor(
             if (theme == "free") FaceOptions(lang, "winds.avatar", windPacks, avatar, { avatar = it },
                 ::avatarLabelKey, { face.copy(pack = it) }, color, controlsEnabled)
             else Text(tr(lang, "winds.avatarThemeInUse", tr(lang, avatarLabelKey(theme))), color = Muted, fontSize = 13.sp)
+            // A wind drawn as a minairó picks its barretina; the first choice leaves it to the wind.
+            if (windPack(theme, face) == "minairo") FaceOptions(lang, "winds.barretina", listOf("") + minairoBarretines.map { it.first }, face.barretina,
+                { style = face.copy(barretina = it).encode() }, ::barretinaLabelKey, { face.copy(barretina = it) }, color, controlsEnabled)
             EditorDisclosure(tr(lang, "app.vents.customize"), customize, !saving) { customize = !customize }
             if (customize) {
                 FaceOptions(lang, "app.company.windFaceEyes", WindEyes.entries.map { it.key }, face.eyes.key,
@@ -233,7 +236,7 @@ internal fun WindEditor(
                 OutlinedButton(onClick = {
                     suggesting = true; error = null
                     onSuggest(name, role, { suggesting = false; error = tr(lang, "app.vents.suggestError") }) { p, s ->
-                        persona = p; style = windStyleOf(s).encode(); suggesting = false
+                        persona = p; style = windStyleOf(s).copy(barretina = face.barretina).encode(); suggesting = false
                     }
                 }, enabled = name.isNotBlank() && controlsEnabled, modifier = Modifier.fillMaxWidth()) {
                     if (suggesting) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
