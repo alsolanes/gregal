@@ -36,3 +36,4 @@ A wind's conversation looks the same for every wind: neutral bubbles on a neutra
 - Screenshots (before/after, dark and light, Xaloc, a saturated blue wind and Gregal): `output/ui-review/085/`.
 - Not verified: «T'espera» in the browser (the sandbox had no ask to raise; covered only by the node test). The share is computed when the chat is drawn, so after switching theme with a chat open it uses the previous theme's share until the next redraw.
 - Follow-up: `winds.js` has its own `mix` and `luminance`; the copies in `winds-workspace.js` could share them once `winds.js` exports them (not touched here because other tasks edit that file).
+- Follow-up done (fix/vents-web-detalls): the share now follows a theme change at once; `winds-workspace.js` watches `data-theme` on the root with a MutationObserver and recomputes `--vw-wind-share`. Test: `winds-start.test.cjs` «switching between dark and light…».

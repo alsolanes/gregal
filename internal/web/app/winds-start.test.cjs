@@ -76,8 +76,12 @@ function stream(history) {
   return { ok: true, status: 200, body: { getReader: () => ({ read: async () => { if (sent) return { done: true }; sent = true; return { done: false, value: bytes }; }, cancel: async () => {}, releaseLock() {} }) } };
 }
 
-async function boot({ lang = 'en', api, storage = {} } = {}) {
+async function boot({ lang = 'en', api, storage = {}, css = () => '', extra = {} } = {}) {
   const events = {};
+  // Com un MutationObserver: el test diu quin atribut ha canviat i en quin node.
+  const observers = [];
+  class MutationObserver { constructor(f) { this.f = f; } observe(target, opts) { observers.push({ f: this.f, target, opts }); } }
+  const mutate = (target, attr) => { for (const o of observers) if (o.target === target && o.opts.attributeFilter?.includes(attr)) o.f([{ type: 'attributes', attributeName: attr }]); };
   const doc = { createElement: t => new Element(t, doc), createElementNS: (_, t) => new Element(t, doc), documentElement: { lang }, querySelector: () => null,
     addEventListener(k, f) { (events[k] ||= []).push(f); }, dispatchEvent(e) { for (const f of events[e.type] || []) f(e); } };
   doc.root = new Element('root', doc);
@@ -91,7 +95,7 @@ async function boot({ lang = 'en', api, storage = {} } = {}) {
   const requests = [];
   const json = data => ({ ok: true, status: 200, json: async () => data, text: async () => JSON.stringify(data) });
   const window = {
-    document: doc, gregalNotes: notes, addEventListener() {},
+    document: doc, gregalNotes: notes, addEventListener() {}, ...extra,
     gregalWinds: { face: (w, large, mood, size) => { const n = new Element('svg', doc); n.dataset.wind = w?.name || ''; if (size) n.dataset.size = String(size); return n; }, moodOf: () => '', seen() {}, watchNews() {}, setAvatarTheme(theme) { this.theme = theme; },
       // winds.js draws the real picker (winds.test.js); here only Free mode gets one.
       avatarField(parent, w) { if (this.theme !== 'free') return null; const s = new Element('select', doc); s.setAttribute('id', 'windAvatar'); s.value = w?.avatar || 'cares'; parent.append(s); return s; } },
@@ -115,15 +119,15 @@ async function boot({ lang = 'en', api, storage = {} } = {}) {
   // The page polls in the background (pending replies, the crew); those timers must not keep the test alive.
   const later = (f, ms) => { const h = setTimeout(f, ms); h.unref(); return h; };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'winds-workspace.js'), 'utf8'), {
-    window, document: doc, console, URLSearchParams, setTimeout: later, clearTimeout, queueMicrotask, TextDecoder, Option, CustomEvent,
-    getComputedStyle: () => ({ getPropertyValue: () => '' }), matchMedia: () => ({ matches: true }),
+    window, document: doc, console, URLSearchParams, setTimeout: later, clearTimeout, queueMicrotask, TextDecoder, Option, CustomEvent, MutationObserver,
+    getComputedStyle: () => ({ getPropertyValue: css }), matchMedia: () => ({ matches: true }),
     sessionStorage: { getItem: () => null, setItem() {} }, localStorage: { getItem: k => storage[k] ?? null, setItem: (k, v) => { storage[k] = String(v); } },
     location: { hash: '', pathname: '/', search: '' }, history: { replaceState() {} }, navigator: { platform: 'Win32' }, requestAnimationFrame: f => f(),
   });
   await window.loadWindsPage();
   await settle();
   const page = doc.getElementById('ventsPage');
-  return { window, doc, page, requests, nav: doc.getElementById('windContextNav'), scroller };
+  return { window, doc, page, requests, mutate, nav: doc.getElementById('windContextNav'), scroller };
 }
 const settle = () => new Promise(r => setTimeout(r, 5));
 const byText = (root, sel, text) => root.querySelectorAll(sel).find(n => n.textContent.includes(text));
@@ -488,4 +492,57 @@ test('a wind’s conversation has the wind large in the chat corner; a group con
   await settle();
   assert.equal(f.page.querySelector('.vw-messages').dataset.thread, 'r1');
   assert.equal(f.page.querySelector('.vw-wind-corner'), null, 'no corner wind in a group');
+});
+
+// 085: la tinta de la bombolla depèn del tema; canviar de clar a fosc amb el xat obert la refà de seguida.
+test('switching between dark and light with a wind’s chat open retints its bubbles right away', async () => {
+  const themes = {
+    dark: { '--surface-hi': '#24282D', '--text': '#DEE2E7', '--ink': '#F2F4F7', '--muted': '#A7AEB8' },
+    light: { '--surface-hi': '#DEE5DE', '--text': '#1C2D35', '--ink': '#10202A', '--muted': '#4C5F5C' },
+  };
+  let theme = 'dark';
+  const f = await boot({ css: n => themes[theme][n] || '' });
+  await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();
+  await settle();
+  const ws = f.page.querySelector('.wind-workspace'), { share } = f.window.gregalWindChat;
+  const expected = th => String(share('#F5B45D', themes[th]['--surface-hi'], ['--text', '--ink', '--muted'].map(n => themes[th][n])));
+  assert.notEqual(expected('dark'), expected('light'), 'the two themes give different shares');
+  assert.equal(ws.style['--vw-wind-share'], expected('dark'));
+  theme = 'light';
+  f.mutate(f.doc.documentElement, 'data-theme');
+  assert.equal(ws.style['--vw-wind-share'], expected('light'), 'the light share, without a redraw');
+});
+
+// 089: el panell de Gregal Docs i el de l'ordinador passen a flotar sobre el xat a la mateixa amplada.
+test('the docs pane and the computer pane switch to an overlay at the same width', () => {
+  const docs = fs.readFileSync(path.join(__dirname, 'docs-panel.js'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, 'winds-workspace.css'), 'utf8');
+  const docsAt = docs.match(/@media\(([^)]*)\)\{#docsPanel\{position:fixed/)?.[1];
+  const computerAt = css.match(/@media\(([^)]*)\) \{ \.vw-computer-pane \{ position:fixed/)?.[1];
+  assert.ok(docsAt && computerAt, 'both panes have an overlay rule');
+  assert.equal(computerAt, docsAt);
+});
+
+// 092: «Obre el xat» d'una novetat obre el xat del vent al missatge exacte i la marca com a llegida.
+test('opening the chat from a news item lands on that message and marks the news read', async () => {
+  let open;
+  const json = data => ({ ok: true, status: 200, json: async () => data });
+  const history = [{ id: 'm1', from: 'assistant', text: 'Bon dia' }, { id: 'm2', from: 'assistant', text: 'Hi ha jazz al Born' }, { id: 'm3', from: 'user', text: 'Gràcies' }];
+  const f = await boot({
+    extra: { gregalVentsActivity: { renderActivity(box, opts) { open = opts.onOpen; } } },
+    api: r => r.url.startsWith('/api/winds/chat?') ? json({ session: 'company-xaloc', history })
+      : r.url === '/api/winds/novetats?id=n-7' ? json({ novetat: { id: 'n-7', wind: 'xaloc', message_id: 'm2' } }) : null,
+  });
+  await byText(f.nav, 'button', 'Work').click();
+  await settle();
+  await byText(f.page.querySelector('.vw-page-tabs'), 'button', 'Activity').click();
+  await settle();
+  assert.ok(open, 'the activity view is drawn');
+  await open({ kind: 'news', wind: 'xaloc', ref: 'n-7' }, 'chat');
+  await settle();
+  assert.equal(f.page.querySelector('.vw-messages').dataset.thread, 'company-xaloc');
+  const focused = f.page.querySelectorAll('.vw-message-focus');
+  assert.equal(focused.length, 1);
+  assert.match(focused[0].textContent, /Hi ha jazz al Born/);
+  assert.deepEqual(f.requests.filter(r => r.url === '/api/winds/novetats/read').map(r => [r.method, r.body]), [['POST', { ids: ['n-7'] }]]);
 });

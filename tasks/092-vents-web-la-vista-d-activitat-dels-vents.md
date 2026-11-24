@@ -29,3 +29,4 @@ The person should see what each wind did while they were away, in one place, as 
 - Strings are inline `tx(ca, en)` like the rest of `vents-activity.js` and `t(ca, en)` in `winds-workspace.js`, not keys in `i18n.js`.
 - Older pages: an IntersectionObserver on the foot plus a «Més antigues» button for keyboard users.
 - Follow-up: «Obre el xat» opens the wind's current chat, not the exact message (`message_id` from `/api/winds/novetats?id=`), and does not mark the news read.
+- Follow-up done (fix/vents-web-detalls): «Obre el xat» for a news item marks it read (`POST /api/winds/novetats/read` with `ids`), reads its `message_id` from `/api/winds/novetats?id=` and lands on that message (`.vw-message-focus`); a trimmed news item (404) leaves the chat at the end. Test: `winds-start.test.cjs` «opening the chat from a news item…».
