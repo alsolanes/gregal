@@ -37,6 +37,8 @@ SILHOUETTES = {
         ((0.14 + (0.3 - 0.14 * s) * math.cos(math.pi * (1 - 1.15 * s)), 0,
           2.2 + (0.3 - 0.14 * s) * math.sin(math.pi * (1 - 1.15 * s))), 0.36 - 0.2 * s, (1, 1, 1))
         for s in [k / 9 for k in range(10)]]),
+    # Not a style letter: the face of every wind in the minairó pack (winds.js, WindFace.kt).
+    "minairo": ("minairo", 1.7, 0.96, [((0, 0, 0.8), 1.25, (1, 0.9, 0.9)), ((0, 0, 1.15), 0.95, (0.95, 0.9, 0.88))]),
 }
 # Moods of winds.js; frames at FPS, loop or play once and hold the last frame.
 MOODS = {"idle": (24, True), "thinking": (16, True), "searching": (12, True), "reading": (16, True),
@@ -112,7 +114,23 @@ def pose(mood, i, n):
     return p
 
 
-def material(name, color, roughness, sss=0.0, sheen=0.0, coat=0.0, emit=0.0, seed=0, spec=0.5):
+def follow(mood, i, n):
+    """What hangs off the body lags behind it: two damped springs pushed by the body's
+    motion up to frame i (loops run twice first, so they start settled). sway: degrees the
+    beard and the cap swing sideways; flop: how far the cap's tip flies up (+) or droops."""
+    loop = MOODS[mood][1]
+    sway = vsway = flop = vflop = 0.0
+    top = lambda q: q["hop"] - 1.8 * q["sq"]  # height of the top of the head
+    last = [pose(mood, 0, n)] * 2
+    for k in range(2 * n + i + 1 if loop else i + 1):
+        p = pose(mood, k % n, n)
+        vsway += -0.3 * sway - 0.3 * vsway - 0.8 * (p["tilt"] - last[0]["tilt"]) - 0.3 * (p["turn"] - last[0]["turn"])
+        vflop += -0.3 * flop - 0.3 * vflop - 4 * (top(p) - 2 * top(last[0]) + top(last[1]))
+        sway, flop, last = sway + vsway, flop + vflop, [p, last[0]]
+    return dict(sway=max(-14.0, min(14.0, sway)), flop=max(-1.0, min(1.0, flop)))
+
+
+def material(name, color, roughness, sss=0.0, sheen=0.0, coat=0.0, emit=0.0, seed=0, spec=0.5, grain=4.0):
     mat = bpy.data.materials.new(name)
     nodes, links = mat.node_tree.nodes, mat.node_tree.links
     bsdf = nodes["Principled BSDF"]
@@ -131,7 +149,7 @@ def material(name, color, roughness, sss=0.0, sheen=0.0, coat=0.0, emit=0.0, see
         bump, noise = nodes.new("ShaderNodeBump"), nodes.new("ShaderNodeTexNoise")
         bump.inputs["Strength"].default_value, bump.inputs["Distance"].default_value = 1.0, 0.025
         noise.noise_dimensions, noise.inputs["W"].default_value = "4D", seed
-        noise.inputs["Scale"].default_value, noise.inputs["Detail"].default_value = 4.0, 6.0
+        noise.inputs["Scale"].default_value, noise.inputs["Detail"].default_value = grain, 6.0
         links.new(noise.outputs["Fac"], bump.inputs["Height"])
         links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
     return mat
@@ -292,7 +310,74 @@ def character(silhouette, seed):
         decal.location, decal.scale = (0, -0.02, 0), (0.24, 1, 0.15)
     mouth = obj("mouth", None, rig)
     parts["mouth"] = dict(anchor=mouth, line=arc("smile", mouth, ink), open=sphere("open", mouth, ink))
+    if silhouette == "minairo":
+        minairo(parts, seed)
     return parts
+
+
+def minairo(parts, seed):
+    """A white felt beard with a two-lobed moustache over the lower face, a rosy nose and a
+    red barretina with its black ribbon, folded to one side, as the drawn minairó (winds.js).
+    None of them is in the mask: they keep their colours on every wind."""
+    tree, eyes, rig = parts["tree"], parts["eyes"], parts["rig"]
+    felt = material("felt", (0.9, 0.88, 0.84, 1), 0.85, sss=0.15, sheen=0.6, seed=seed, grain=9.0)
+    red = material("barretina", (0.42, 0.016, 0.012, 1), 0.7, sss=0.15, sheen=0.1, seed=seed, grain=6.0)  # #C9342C
+    band = material("band", (0.012, 0.011, 0.013, 1), 0.9, sheen=0.1, spec=0.2)  # the black ribbon of a barretina, matte felt
+    rosy = material("nose", (0.8, 0.25, 0.3, 1), 0.5, sss=0.3, sheen=0.2, seed=seed)
+    meta = bpy.data.metaballs.new("beard")
+    meta.resolution = meta.render_resolution = 0.03
+    # Cheeks, the beard narrowing down to a scalloped point and, standing out of it, the
+    # two lobes of the moustache; seated on the face (x, depth below the eyes, radius, out, flat).
+    for x, dz, r, out, flat in ((0.5, 0.3, 0.3, 0.05, 1), (-0.5, 0.3, 0.3, 0.05, 1), (0.24, 0.3, 0.34, 0.05, 1),
+                                (-0.24, 0.3, 0.34, 0.05, 1), (0.36, 0.55, 0.37, 0.05, 1), (-0.36, 0.55, 0.37, 0.05, 1),
+                                (0, 0.55, 0.4, 0.05, 1), (0.2, 0.78, 0.3, 0.05, 1), (-0.2, 0.78, 0.3, 0.05, 1),
+                                (0, 0.84, 0.3, 0.05, 1), (0.15, 0.3, 0.22, 0.2, 0.7), (-0.15, 0.3, 0.22, 0.2, 0.7)):
+        hit, normal, _, _ = tree.ray_cast(Vector((x, -3, eyes - dz)), Vector((0, 1, 0)))
+        el = meta.elements.new(type="ELLIPSOID")
+        el.co, el.radius, el.size_x, el.size_y, el.size_z = hit + normal * out, r, 1.1 + 0.4 * (flat < 1), 0.5, flat
+    blob = obj("blob", meta, None)
+    beard = bpy.data.meshes.new_from_object(blob.evaluated_get(bpy.context.evaluated_depsgraph_get()))
+    bpy.data.objects.remove(blob)
+    beard.shade_smooth()
+    parts["beard_tree"] = BVHTree.FromPolygons([v.co for v in beard.vertices], [p.vertices for p in beard.polygons])
+    hinge = Vector((0, -0.5, eyes - 0.2))
+    beard.transform(Matrix.Translation(-hinge))
+    parts["beard"] = obj("beard", beard, rig, felt)
+    parts["beard"].location = hinge
+    nose = sphere("nose", rig, rosy)
+    stick(nose, tree, 0, eyes - 0.24)
+    nose.location.y -= 0.1  # on the moustache, which stands out of the face
+    nose.scale = (0.14, 0.12, 0.13)
+    # The band sits just above the eyes and the cap is as wide as the head there.
+    head = obj("head", None, rig)
+    head.location = (0, 0, eyes + 0.36)
+    wide = tree.ray_cast(Vector((3, 0, eyes + 0.36)), Vector((-1, 0, 0)))[0].x
+    cap = obj("cap", bpy.data.curves.new("cap", "CURVE"), head, red)
+    cap.data.dimensions, cap.data.bevel_depth, cap.data.bevel_resolution = "3D", 1.0, 4
+    cap.data.use_fill_caps = True
+    cap.data.splines.new("POLY").points.add(15)
+    cap["wide"] = wide
+    ring = obj("band", bpy.data.curves.new("band", "CURVE"), head, band)
+    ring.data.dimensions, ring.data.extrude, ring.data.bevel_depth, ring.data.bevel_resolution = "3D", 0.1, 0.04, 3
+    spline = ring.data.splines.new("POLY")
+    spline.points.add(31)
+    spline.use_cyclic_u = True
+    for k, pt in enumerate(spline.points):
+        a = 2 * math.pi * k / 32
+        pt.co = ((wide + 0.04) * math.cos(a), 0.95 * (wide + 0.04) * math.sin(a), 0.04, 1)
+    parts["cap"] = cap
+
+
+def barretina(cap, sway, flop):
+    """The cap rises from the head and folds over to the right, its tip hanging down to the
+    eyes; flop lifts or drops the fold and sway bends it sideways."""
+    x, z, length = 0.0, 0.0, 1.8
+    pts = cap.data.splines[0].points
+    for k, pt in enumerate(pts):
+        s = k / (len(pts) - 1)
+        pt.co, pt.radius = (x, 0, z, 1), cap["wide"] * (1 - 0.7 * s ** 0.7) * (1 if k < len(pts) - 1 else 0.6)
+        a = (3.05 - 0.8 * flop) * ease((s + 0.05) / 0.75) + math.radians(sway) * s
+        x, z = x + math.sin(a) * length / (len(pts) - 1), z + math.cos(a) * length / (len(pts) - 1)
 
 
 def stick(anchor, tree, x, z):
@@ -310,7 +395,7 @@ def apply(parts, p):
     shadow = parts["shadow"]
     shadow.scale = (1.35 * (1 - 0.9 * p["hop"]) * (1 + 0.6 * p["sq"]), 1.1, 1)
     shadow.data.materials[0].node_tree.nodes["strength"].inputs[1].default_value = 0.75 * (1 - 1.6 * p["hop"])
-    w, h = 0.23 * p["wide"], 0.28 * p["wide"]
+    w, h = (0.23 * p["wide"], 0.28 * p["wide"]) if "beard" not in parts else (0.19 * p["wide"], 0.235 * p["wide"])
     for side in (-1, 1):
         f = parts[side]
         stick(f["anchor"], tree, side * 0.36 + p["gx"], parts["eyes"] + p["gz"])
@@ -328,7 +413,11 @@ def apply(parts, p):
         foot.location = (side * 0.5, -0.3, 0.12 + 0.09 * max(0.0, side * p["step"]))
         foot.scale = (0.32, 0.36, 0.16)
     m = parts["mouth"]
-    stick(m["anchor"], tree, p["gx"] * 0.5, parts["eyes"] - 0.38 + p["gz"] * 0.5)
+    under = 0.5 if "beard" in parts else 0.38  # the minairó's mouth is under its moustache
+    stick(m["anchor"], parts.get("beard_tree", tree), p["gx"] * 0.5, parts["eyes"] - under + p["gz"] * 0.5)
+    if "beard" in parts:
+        parts["beard"].rotation_euler = (0, math.radians(p["sway"]), 0)
+        barretina(parts["cap"], p["sway"], p["flop"])
     talking = p["mouth"] > 0.12
     m["line"].hide_render, m["open"].hide_render = talking, not talking
     bend(m["line"], 0.13 + 0.04 * p["smile"], -0.12 * p["smile"], 0.042, p["wave"])
@@ -375,10 +464,12 @@ def build(silhouettes, moods):
             sheets = {False: [], True: []}
             for mask in (False, True):
                 for i in range(n):
-                    apply(parts, pose(mood, i, n))
+                    apply(parts, pose(mood, i, n) | follow(mood, i, n))
                     render(sc, tmp / "frame.png", mask)
                     sheets[mask].append(pixels(tmp / "frame.png"))
             colour, alpha = np.concatenate(sheets[False], axis=1), np.concatenate(sheets[True], axis=1)
+            # WebP keeps alpha lossless: 32 levels look the same and halve what it costs.
+            colour[..., 3] = np.round(colour[..., 3] * 31) / 31
             save(colour, OUT / silhouette / f"{mood}.webp", QUALITY)
             # The mask keeps only coverage, at half size: constant white compresses to
             # almost nothing. The largest of each 2x2 so the tint reaches the very edge.

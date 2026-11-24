@@ -52,6 +52,29 @@ func TestCharactersManifestMatchesSheets(t *testing.T) {
 	}
 }
 
+// El paquet minairó té la seva figura (barba i barretina fora de la màscara)
+// i, amb ella, tots els fulls junts han de cabre en 1,5 MB.
+func TestCharactersMinairoWithinBudget(t *testing.T) {
+	if family := loadCharactersManifest(t).Silhouettes["minairo"]; family != "minairo" {
+		t.Fatalf("el manifest no té el minairó: %q", family)
+	}
+	total := 0
+	err := fs.WalkDir(assets, "app/characters", func(path string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			raw, readErr := assets.ReadFile(path)
+			total += len(raw)
+			return readErr
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total > 1_500_000 {
+		t.Errorf("els personatges fan %d bytes, més d'1,5 MB", total)
+	}
+}
+
 // La web els demana a /app/: el reproductor (characters.js), el manifest i
 // els fulls, amb un tipus que el navegador accepti.
 func TestCharactersServedToTheWeb(t *testing.T) {

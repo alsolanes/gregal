@@ -372,9 +372,9 @@ fun WindFace(
     }
     // The minairó is a Cares figure in costume: the same eyes, poses and springs, its own body.
     val minairo = pack == "minairo"
-    // The clay winds have no kits yet: a face that wears its trade keeps the Canvas figure, and so does the minairó until it has sheets (119).
-    val wearsKit = (size >= 80 || showKit) && windKits[style.kit] != null
-    if (clay && !minairo && !wearsKit && WindClayFace(size, mood, accent, style.shape, motion, packCued)) return
+    // The clay winds have no kits yet: a face that wears its trade keeps the Canvas figure. The minairó wears none and has its own sheets (119).
+    val wearsKit = !minairo && (size >= 80 || showKit) && windKits[style.kit] != null
+    if (clay && !wearsKit && WindClayFace(size, mood, accent, if (minairo) "minairo" else style.shape.key, motion, packCued)) return
     // La forma reacciona quan el dit toca la cara i torna amb molla en deixar-la.
     val touch = if (tappable && motion) remember { MutableInteractionSource() } else null
     val pressScale = if (touch != null) {

@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.os.Looper
 import java.time.Duration
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -191,7 +192,7 @@ class WindMinairoTest {
         }
     }
 
-    @Test fun `the clay player keeps the drawn minairo`() {
+    @Test fun `the clay player plays the minairo sheets`() {
         ui.mainClock.autoAdvance = false
         val w = six[0]
         var clay by mutableStateOf(false)
@@ -207,12 +208,13 @@ class WindMinairoTest {
         fun frame(): Bitmap { androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications(); ui.mainClock.advanceTimeBy(100); return shot("face") }
         val drawn = frame()
         clay = true
-        assertTrue("the minairó stays drawn", drawn.sameAs(frame()))
-        // The same face as Cares does turn to clay, so the comparison can tell.
+        val minairo = frame()
+        assertFalse("the minairó turns to clay", drawn.sameAs(minairo))
+        ui.onNode(SemanticsMatcher.expectValue(WindClayKey, "minairo/idle"), useUnmergedTree = true).assertExists()
+        // Its own sheets, not the pebble of its shape that Cares plays.
         theme = "cares"
-        val cares = frame()
-        clay = false
-        assertFalse(cares.sameAs(frame()))
+        assertFalse(minairo.sameAs(frame()))
+        ui.onNode(SemanticsMatcher.expectValue(WindClayKey, "pebble/idle"), useUnmergedTree = true).assertExists()
     }
 
     @Composable private fun sheet(bg: Color, tag: String) {
