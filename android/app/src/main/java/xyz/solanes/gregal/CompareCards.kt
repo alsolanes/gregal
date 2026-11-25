@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -165,7 +166,6 @@ private fun CompareRow(spec: CompareSpec, link: Color, lang: String, motion: Boo
 @Composable
 private fun ComparePager(spec: CompareSpec, link: Color, lang: String, motion: Boolean) {
     val pager = rememberPagerState { spec.items.size }
-    val scope = rememberCoroutineScope()
     val uri = LocalUriHandler.current
     HorizontalPager(pager, Modifier.fillMaxWidth().springIn(0, motion).testTag("compare-pager"), pageSpacing = 12.dp,
         verticalAlignment = Alignment.Top) { page ->
@@ -202,14 +202,21 @@ private fun ComparePager(spec: CompareSpec, link: Color, lang: String, motion: B
                     .clickable(role = Role.Button) { uri.openUri(item.url) }.padding(vertical = 6.dp).testTag("compare-link"))
         }
     }
+    PagerDots(pager, link, motion, "compare-dot")
+}
+
+/** Els punts sota un pàger: diuen on ets i, tocats, hi porten (també el resum d'«Avui»). */
+@Composable
+internal fun PagerDots(pager: PagerState, color: Color, motion: Boolean, tag: String) {
+    val scope = rememberCoroutineScope()
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-        spec.items.indices.forEach { i ->
+        (0 until pager.pageCount).forEach { i ->
             val on = pager.currentPage == i
             Box(Modifier.size(28.dp).clip(CircleShape)
                 .clickable(role = Role.Tab) { scope.launch { if (motion) pager.animateScrollToPage(i) else pager.scrollToPage(i) } }
-                .semantics { selected = on; contentDescription = "${i + 1} / ${spec.items.size}" }.testTag("compare-dot"),
+                .semantics { selected = on; contentDescription = "${i + 1} / ${pager.pageCount}" }.testTag(tag),
                 contentAlignment = Alignment.Center) {
-                Box(Modifier.size(if (on) 9.dp else 7.dp).clip(CircleShape).background(if (on) link else Line))
+                Box(Modifier.size(if (on) 9.dp else 7.dp).clip(CircleShape).background(if (on) color else Line))
             }
         }
     }
