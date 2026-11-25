@@ -192,6 +192,8 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     // El permís d'avisos ja no es demana aquí (B7): una sola política
     // contextual i durable a NotifPermission.kt.
     val open by vm.ventsOpen.collectAsState()
+    // La cara tocada a la portada i on era: vola fins a la capçalera del xat que obre.
+    var landing by remember { mutableStateOf<Pair<String, androidx.compose.ui.geometry.Rect>?>(null) }
     var creation by remember { mutableStateOf<String?>(null) }
     var menu by remember { mutableStateOf(false) }
     var tidyOpen by remember { mutableStateOf(false) }
@@ -306,7 +308,10 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                 key == "cap" -> VentetConversation(vm, lang, winds) { vm.openVentsChat(null) }
                 key.startsWith("shared:") && sharedChats.any { it.id == id } ->
                     SharedChatConversation(vm, lang, sharedChats.first { it.id == id }) { vm.openVentsChat(null) }
-                wind != null -> WindConversation(vm, lang, wind, { vm.openVentsChat(null) }) { wikiFromChat = ChatTarget(wind.name, wind.id, null) }
+                wind != null -> WindConversation(vm, lang, wind, { vm.openVentsChat(null) },
+                    landFrom = landing?.takeIf { it.first == wind.id }?.second, onLanded = { landing = null }) {
+                    wikiFromChat = ChatTarget(wind.name, wind.id, null)
+                }
                 rot != null -> RotllanaConversation(vm, lang, rot, winds, { vm.openVentsChat(null) }) { wikiFromChat = ChatTarget(rot.name, null, rot.id) }
                 else -> Column(Modifier.fillMaxSize().background(Superficie).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     TextButton(onClick = { vm.openVentsChat(null) }) { Text(tr(lang, "app.vents.back")) }
@@ -450,10 +455,10 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                         onSend = { text ->
                             if (vm.startWindConversation(gregalWind.id, text) { askText.value = it }) askText.value = ""
                         },
-                        onWind = { w -> if (!vm.startWindConversation(w.id, null)) vm.openVentsChat("wind:" + w.id) },
+                        onWind = { w, face -> landing = w.id to face; vm.openWindFromHome(w.id) },
                         onThread = { t -> vm.resumeWindThread(t.wind, t.name) },
                         modifier = Modifier.weight(1f),
-                        news = newsCount, bounce = arrival,
+                        news = newsCount, bounce = arrival, working = windBusy,
                     )
                 }
                 WindArrivalBanner(vm, lang, winds, Modifier.padding(pad))
@@ -1180,7 +1185,9 @@ internal fun ConversationRow(
 
 /** El xat d'un vent a pantalla completa: capçalera amb la cara, bombolles, input. */
 @Composable
-internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onBack: () -> Unit, onWiki: () -> Unit = {}) {
+internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onBack: () -> Unit,
+    /** D'on surt la cara si s'ha obert tocant-la a la portada (FaceLanding). */
+    landFrom: androidx.compose.ui.geometry.Rect? = null, onLanded: () -> Unit = {}, onWiki: () -> Unit = {}) {
     val chats by vm.windChat.collectAsState()
     val loadingChat by vm.windChatLoading.collectAsState()
     val busy by vm.windBusy.collectAsState()
@@ -1438,10 +1445,12 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             onComputer = { computerOpen = true },
             onWatch = { watchOpen = true },
             wind = wind,
-            faceSlot = if (present) Modifier.onGloballyPositioned { perch.header = it.positionInRoot() } else null,
+            faceSlot = if (present || landFrom != null) Modifier.onGloballyPositioned { perch.header = it.positionInRoot() } else null,
             modifier = Modifier.align(Alignment.TopCenter))
-        if (present) WindPresence(perch, up = follow.behind, mood = turnMood, accent = accent, style = wind.faceStyle,
-            label = tr(lang, "app.vents.profile")) { profile = true }
+        // Mentre la cara de la portada hi vola, la del xat l'espera amagada al forat i després baixa al seu lloc.
+        if (present) WindPresence(perch, up = follow.behind || landFrom != null, mood = turnMood, accent = accent, style = wind.faceStyle,
+            label = tr(lang, "app.vents.profile"), hidden = landFrom != null) { profile = true }
+        if (landFrom != null) FaceLanding(perch, landFrom, accent, wind.faceStyle, onLanded)
     }
     if (profile) WindProfileDialog(vm, lang, wind) { profile = false }
     if (askTransfer) TransferConfirmDialog(vm, lang, "wind", wind.id) { askTransfer = false }

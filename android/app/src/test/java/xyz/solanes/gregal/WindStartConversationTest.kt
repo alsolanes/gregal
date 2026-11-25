@@ -7,6 +7,7 @@ import java.net.ServerSocket
 import java.util.Collections
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -53,6 +54,30 @@ class WindStartConversationTest {
         }
     }
 
+    @Test fun `tocar un vent a la portada repren el seu ultim fil, no en crea un de nou`() {
+        Server().use { server ->
+            val vm = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
+            vm.setConn(Conn("127.0.0.1", server.port.toString(), "token", "alice"))
+            vm.loadWindThreads()
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+            while (vm.windThreads.value.isEmpty() && System.nanoTime() < deadline) { shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(5) }
+            vm.openWindFromHome("gregal")
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals("wind:gregal", vm.ventsOpen.value)
+            vm.loadWindChat("gregal")
+            fun history() = server.requests.firstOrNull { it.startsWith("GET /api/winds/chat?") }
+            while (history() == null && System.nanoTime() < deadline) { shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(5) }
+            assertTrue("el fil més nou de Gregal: ${server.requests}", history().orEmpty().contains("session=company-gregal-s3"))
+            // Un vent sense converses obre el seu xat de sempre.
+            vm.openWindFromHome("xaloc")
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals("wind:xaloc", vm.ventsOpen.value)
+            Thread.sleep(200)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertTrue("cap sessió nova buida: ${server.requests}", server.requests.none { it.startsWith("POST /api/winds/sessions") })
+        }
+    }
+
     /** Desa la primera línia de cada petició; la sessió nova i el torn tenen resposta, la resta un JSON buit. */
     private class Server : AutoCloseable {
         private val socket = ServerSocket(0)
@@ -84,6 +109,9 @@ class WindStartConversationTest {
                     out.write("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n".toByteArray())
                     out.write("event: done\ndata: {\"reply\":\"D'acord\",\"wind\":\"gregal\",\"history\":[]}\n\n".toByteArray())
                 }
+                line.startsWith("GET /api/winds/threads") -> json("""{"threads":[
+                    {"wind":"gregal","name":"company-gregal-s3","title":"Viatge","at":"2026-11-24T10:00:00Z","msgs":4},
+                    {"wind":"gregal","name":"company-gregal-s1","title":"Sopar","at":"2026-11-20T10:00:00Z","msgs":2}]}""")
                 line.startsWith("POST /api/winds/chat") -> json("""{"reply":"D'acord","wind":"gregal","history":[]}""")
                 else -> json("{}")
             }

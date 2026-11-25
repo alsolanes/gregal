@@ -42,7 +42,7 @@ class VentsStartPageTest {
                 MaterialTheme(colorScheme = pal.scheme()) {
                     GregalBg {
                         VentsStartPage("ca", "Anna", listOf(gregal, xaloc), threads, "", {}, busy = false,
-                            onSend = {}, onWind = onWind, onThread = onThread)
+                            onSend = {}, onWind = { w, _ -> onWind(w) }, onThread = onThread)
                     }
                 }
             }

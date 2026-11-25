@@ -209,7 +209,7 @@ internal class WindPerch {
  */
 @Composable
 internal fun BoxScope.WindPresence(perch: WindPerch, up: Boolean, mood: WindMood, accent: Color, style: WindStyle,
-    label: String, onClick: () -> Unit) {
+    label: String, hidden: Boolean, onClick: () -> Unit) {
     val motion = windMotionEnabled()
     val flight = animateFloatAsState(if (up) 1f else 0f,
         if (motion) spring(dampingRatio = .72f, stiffness = Spring.StiffnessMediumLow) else snap(), label = "wind-flight")
@@ -219,7 +219,7 @@ internal fun BoxScope.WindPresence(perch: WindPerch, up: Boolean, mood: WindMood
             val root = perch.root
             val corner = perch.corner
             val header = perch.header
-            if (!root.isSpecified || !corner.isSpecified || !header.isSpecified) { alpha = 0f; return@graphicsLayer }
+            if (hidden || !root.isSpecified || !corner.isSpecified || !header.isSpecified) { alpha = 0f; return@graphicsLayer }
             val f = flight.value
             // La cara de la capçalera fa 38 dp (WindHalo de 30) al mig del forat de 44.
             val to = header + Offset(3.dp.toPx(), 3.dp.toPx())
