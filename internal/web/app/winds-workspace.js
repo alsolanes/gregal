@@ -3,7 +3,7 @@
  'use strict';
  const $=id=>document.getElementById(id), ca=()=>document.documentElement.lang==='ca', t=(a,b)=>{const v=ca()?a:b;return window.gregalCollective?window.gregalCollective.apply(v):v;};
  const state={asks:[],winds:[],squads:[],chats:[],tasks:[],projects:[],workspace:'',view:'home',squad:'daily',active:null,history:[],busy:false,draft:'',snapshot:null,events:[],library:[],filter:'all',meta:null};
- let mounted=false, page, nav, content, messages, asksBox=null, composer, input, status, loadVersion=0, chatTurn=null, pendingTimer=0;
+ let mounted=false, page, nav, content, messages, asksBox=null, composer, input, status, loadVersion=0, chatTurn=null, pendingTimer=0, flyFrom=null;
  const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;};
  const accent=()=>{const v=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();return /^#[0-9a-f]{6}$/i.test(v)?v:'#8193FF';};
  const btn=(label,action,cls='vw-button')=>{const n=el('button',cls,label);n.type='button';n.onclick=()=>Promise.resolve().then(action).catch(fail);return n;};
@@ -44,7 +44,7 @@
  const linkRow=(label,action)=>{const b=btn('',action,'vw-recent');b.append(el('span','',label),icon('open'));return b;};
  const squadName=id=>{const s=state.squads.find(s=>s.id===id);return s?(ca()?s.ca:s.en):t('Els teus vents','Your winds');};
  const crew=()=>state.winds.filter(w=>w.squad===state.squad);
- const MOBILE_NAV=[['today','Avui','Today'],['tasks','Feina','Work'],['saved','Desat','Saved'],['crew','Vents','Winds']];
+ const MOBILE_NAV=[['home','Inici','Home'],['today','Avui','Today'],['tasks','Feina','Work'],['saved','Desat','Saved'],['pati','El pati','Playground'],['crew','Vents','Winds']];
  // Group replies are stored as "Name: text" for the model's context; the face and name already say who speaks.
  const withoutSpeaker=(text,name)=>{let out=String(text||'');const prefix=String(name||'').trim().toLowerCase()+':';if(prefix.length<2)return out;while(out.slice(0,prefix.length).toLowerCase()===prefix)out=out.slice(prefix.length).trimStart();return out;};
  const roleName=w=>{const specialist=state.squads.find(s=>s.id===w.squad)?.members?.find(m=>m.key===w.specialty);return specialist?(ca()?specialist.ca:specialist.en):w.role||'';};
@@ -116,7 +116,7 @@
   const search=btn('',()=>root.gregalPalette?.open?.(),'vw-nav-item vw-nav-icon vw-nav-search');search.append(navIcon('search'),el('span','',t('Cerca','Search')),el('kbd','',/Mac/.test(navigator.platform)?'⌘K':'Ctrl K'));top.append(search);
   nav.replaceChildren(top);
   const navRow=([id,a,b],views=[id])=>{const n=btn('',()=>route(id),'vw-nav-item vw-nav-icon');n.append(navIcon(id),el('span','',t(a,b)));n.setAttribute('aria-current',views.includes(state.view)?'page':'false');return n;};
-  nav.append(navRow(['today','Avui','Today']),navRow(['tasks','Feina','Work'],['tasks','task','fes','activitat']),navRow(['saved','Desat','Saved'],['saved','notes']));
+  nav.append(navRow(['today','Avui','Today']),navRow(['tasks','Feina','Work'],['tasks','task','fes','activitat']),navRow(['saved','Desat','Saved'],['saved','notes']),navRow(['pati','El pati','Playground']));
   // Els vents: Gregal primer i tots els especialistes (abans només cinc).
   section(t('Vents','Winds'));
   // Gregal i els cinc que has fet servir fa menys (converses a soles i grups);
@@ -146,13 +146,13 @@
    if((state.active?.path||state.active?.workspace)===project.path){for(const chat of state.chats.filter(c=>c.workspace===project.path).slice(0,8))nav.append(threadButton(chat,'vw-nav-item vw-thread vw-nested'));}
   }
   // La resta d'espais, plegats en una sola entrada al final (s'obre sola si n'hi ha un d'obert).
-  const settingsViews=['apres','rules','pati','library','wiki','memoria','publicacions','raco'];
+  const settingsViews=['apres','rules','library','wiki','memoria','publicacions'];
   const more=el('details','vw-more'),moreSum=el('summary','vw-nav-item vw-nav-icon');moreSum.append(navIcon('settings'),el('span','',t('Configuració i més','Settings & more')));more.append(moreSum);
   const subRow=([id,a,b])=>{const n=btn('',()=>route(id),'vw-nav-item vw-nav-icon');n.append(navIcon(id),el('span','',t(a,b)));n.setAttribute('aria-current',state.view===id?'page':'false');return n;};
   const shellRow=(view,a,b,ic)=>{const n=btn('',()=>root.gregal.setView(view),'vw-nav-item vw-nav-icon');n.dataset.keepView='1';n.append(navIcon(ic),el('span','',t(a,b)));return n;};
   const pc=btn('',()=>openComputer(),'vw-nav-item vw-nav-icon');pc.dataset.keepView='1';pc.append(navIcon('computer'),el('span','',computerName()));
   const prefs=btn('',()=>root.document.getElementById('prefsBtn')?.click(),'vw-nav-item vw-nav-icon');prefs.dataset.keepView='1';prefs.append(navIcon('settings'),el('span','',t('Preferències','Preferences')));
-  more.append(prefs,subRow(['apres','Què sap de tu','About you']),subRow(['rules','Regles','Rules']),shellRow('memoria','Memòria del projecte','Project memory','wiki'),pc,subRow(['library','Biblioteca','Library']),subRow(['wiki','Wiki','Wiki']),subRow(['pati','El pati','Playground']),shellRow('raco','El Racó dels vents','The winds’ corner','pati'));
+  more.append(prefs,subRow(['apres','Què sap de tu','About you']),subRow(['rules','Regles','Rules']),shellRow('memoria','Memòria del projecte','Project memory','wiki'),pc,subRow(['library','Biblioteca','Library']),subRow(['wiki','Wiki','Wiki']));
   more.open=settingsViews.includes(state.view)||(()=>{try{return localStorage.getItem('gregal_vw_more')==='1';}catch{return false;}})();
   // En obrir-lo, la barra baixa fins al final del menú: si no, les opcions
   // quedaven sota la barra de baix i semblava que no s'obria. El navegador
@@ -273,7 +273,7 @@
   content=el('div','vw-content');page.append(content);status=el('div','vw-status');status.setAttribute('role','status');status.textContent=state.notice?.thread===state.active?.id?state.notice?.text||'':'';page.append(status);
   if(state.view==='home')home();else if(state.view==='today')todayView();else if(state.view==='crew')team();else if(state.view==='library')library();else if(state.view==='project')projectView();else if(state.view==='tasks')tasks();else if(state.view==='chat')chatView();else if(state.view==='task')taskView();else if(state.view==='wiki')wikiView();else if(state.view==='pati')patiView();else if(state.view==='saved')savedView();else if(state.view==='notes')notesView();else if(state.view==='rules')rulesView();else if(state.view==='fes')fesView();else if(state.view==='apres')apresView();else if(state.view==='shared')root.gregalShared?.view(content,{chat:state.active,back:()=>route('home')});
   if(state.view==='activitat')activityView();
-  // Al mòbil, cinc destinacions amb icona; El pati, la biblioteca i la wiki són al menú, dins de «Més».
+  // Al mòbil, sis destinacions amb icona; la biblioteca i la wiki són al menú de la barra lateral.
   const bottom=el('nav','vw-mobile-nav');bottom.setAttribute('aria-label',t('Seccions dels vents','Winds sections'));for(const [id,a,b]of MOBILE_NAV){const n=btn('',()=>route(id));n.append(navIcon(id),el('span','',t(a,b)));n.dataset.selected=String(state.view===id);if(state.view===id)n.setAttribute('aria-current','page');bottom.append(n);}page.append(bottom);
   root.gregalPromptNav?.attachVents(page.querySelector('.vw-messages'));
   pageNavs();
@@ -558,8 +558,12 @@
  function home(){
   content.classList.add('vw-home');
   const faces=el('div','vw-start-faces');faces.setAttribute('aria-label',t('Vents','Winds'));
-  for(const w of [...state.winds].sort((a,b)=>(b.id==='gregal')-(a.id==='gregal'))){const n=btn('',()=>startWith(w),'vw-start-face');n.append(clay(w,face(w)),el('span','',w.name),...tag(w));newsDot(n,w);n.title=roleName(w)||w.name;faces.append(n);}
-  content.append(faces);
+  // 132: cada cara respira desfasada de les altres (3,6 s, com a l'Android) i, si la toques, vola fins al xat.
+  for(const [i,w] of [...state.winds].sort((a,b)=>(b.id==='gregal')-(a.id==='gregal')).entries()){const n=btn('',async()=>{flyFrom=n.firstChild;try{await openFromHome(w);}finally{flyFrom=null;}},'vw-start-face');n.style.setProperty('--vw-breath',-(i*1.3%3.6).toFixed(1)+'s');n.append(clay(w,face(w)),el('span','',w.name),...tag(w));newsDot(n,w);n.title=roleName(w)||w.name;faces.append(n);}
+  // Al mòbil la fila llisca: s'esvaeix només pel costat on queden cares amagades.
+  const edge=()=>{faces.dataset.fade=[faces.scrollLeft>1&&'start',faces.scrollLeft+faces.clientWidth<faces.scrollWidth-1&&'end'].filter(Boolean).join(' ');};
+  faces.addEventListener('scroll',edge,{passive:true});new ResizeObserver(edge).observe(faces);
+  content.append(faces);busyDots();
   // La mateixa salutació que Codi (i18n.js, salutacio).
   const welcome=el('div','vw-welcome');welcome.append(el('h1','',root.gregalGreeting()),el('p','',t('Pregunta, encarrega o planifica. Els vents s’encarreguen de la resta.','Ask, delegate or plan. Your winds take care of the rest.')));content.append(welcome);
   addComposer(!!state.active?.project);
@@ -578,7 +582,10 @@
  const running=w=>state.busy&&state.pending&&(!w||state.pending.wind===w.id)?state.pending:null;
  async function openRunning(p){const chat=state.chats.find(c=>c.id===p.thread),w=state.winds.find(w=>w.id===p.wind);if(chat)await openChat(chat);else if(w)await talkTo(w,p.thread);}
  // Una conversa nova amb el vent; si el vent respon ara mateix, s'obre la que té en marxa.
- async function startWith(w){const p=running(w);if(p){await openRunning(p);return;}const thread=await call('/api/winds/sessions','POST',{wind:w.id});showWindThread(w,thread.name,[]);}
+ // 132 (com 133 a l'Android): una cara de l'inici repren el fil més nou del vent, o el seu xat de sempre; si respon ara, el que té en marxa.
+ function openFromHome(w){const p=running(w);if(p)return openRunning(p);const th=(state.solo||[]).find(x=>x.wind===w.id);return th?openThread(w,th.name):talkTo(w);}
+ // El punt del vent que respon ara, a la seva cara de l'inici.
+ function busyDots(){for(const b of content?.querySelectorAll('.vw-start-face')||[]){b.querySelector('.vw-busy-dot')?.remove();const w=state.winds.find(x=>x.id===b.dataset.wind);if(!w||!running(w))continue;const d=el('span','vw-busy-dot');d.style.setProperty('--c',w.color);d.append(el('span','winds-sr-only',t('Treballant…','Working…')));b.append(d);}}
  // Reprendre una conversa la fa l'activa del vent; mentre el vent respon només es mira.
  async function openThread(w,name){if(running(w)){await talkTo(w,name);return;}const data=await call('/api/winds/session/open','POST',{wind:w.id,name});showWindThread(w,data.name,data.history||[]);}
  // «Avui» a la barra: la safata, com a l'Android (abans portava a la conversa de
@@ -690,7 +697,11 @@
   state.history=history;
   state.view='chat';
   state.draft='';
-  render();
+  const from=flyFrom;flyFrom=null;
+  // 132: la cara tocada a l'inici vola fins al vent del xat; sense View Transitions o amb menys moviment, s'hi va i prou.
+  if(!from?.isConnected||!document.startViewTransition||still()){render();return;}
+  from.style.viewTransitionName='vw-face';let to=null;
+  document.startViewTransition(()=>{from.style.viewTransitionName='';render();to=page.querySelector('.vw-wind-corner');if(to)to.style.viewTransitionName='vw-face';}).finished.finally(()=>{if(to)to.style.viewTransitionName='';});
  }
  async function windThreads(){
   if(state.busy)return;
@@ -827,7 +838,10 @@
  async function openProject(project){await switchFolder(project.path);route('project',project);}
  function projectView(){heading(state.active.name,t('Un lloc per conversar, treballar i trobar els resultats.','A place to talk, work and find the results.'));const path=el('p','vw-project-path');path.append(folder(),el('span','',state.active.path));content.append(path);content.append(iconBtn('plus',t('Nova conversa al projecte','New project conversation'),()=>{state.active={...state.active,project:true};state.view='home';render();},'vw-button vw-add'));const chats=state.chats.filter(c=>c.workspace===state.active.path);for(const c of chats)content.append(linkRow(c.name,()=>openChat(c)));taskList(state.tasks.filter(task=>task.workspace===state.active.path));}
  // El pati: la colla jugant; la feina real els porta al taller (winds-pati.js).
- function patiView(){content.classList.add('vw-pati-view');heading(t('El pati','The playground'),t('Els vents a l’hora del pati. Fes clic en un vent per saber què fa i què pensa; arrossega’n uns quants al cercle de guix per fer un grup o encarregar-los una feina.','Your winds at playtime. Click a wind to see what it is doing and thinking; drag a few into the chalk circle to make a group or give them a task.'));if(!state.winds.length){content.append(el('p','vw-empty',t('Encara no hi ha cap vent al pati.','No winds in the playground yet.')));return;}root.gregalPati?.mount(content,{winds:state.winds,tasks:state.tasks,talkTo,openChat,openThread:id=>openChat(state.chats.find(c=>c.id===id)||{id,name:'',members:[]}),call,notify:text=>{if(status)status.textContent=text;},refreshTasks:async()=>(await call('/api/winds/tasks?summary=1')).tasks||[]});}
+ function patiView(){content.classList.add('vw-pati-view');heading(t('El pati','The playground'),t('Els vents a l’hora del pati. Fes clic en un vent per saber què fa i què pensa; arrossega’n uns quants al cercle de guix per fer un grup o encarregar-los una feina.','Your winds at playtime. Click a wind to see what it is doing and thinking; drag a few into the chalk circle to make a group or give them a task.'));
+  // 132: El Racó dels vents ja no té fila pròpia a la barra: s'hi entra des del pati.
+  if(root.gregalPlugins?.viewAllowed?.('raco')!==false){const raco=btn('',()=>root.gregal.setView('raco'),'vw-button vw-pati-raco');raco.append(navIcon('pati'),el('span','',t('El Racó dels vents','The winds’ corner')));content.append(raco);}
+  if(!state.winds.length){content.append(el('p','vw-empty',t('Encara no hi ha cap vent al pati.','No winds in the playground yet.')));return;}root.gregalPati?.mount(content,{winds:state.winds,tasks:state.tasks,talkTo,openChat,openThread:id=>openChat(state.chats.find(c=>c.id===id)||{id,name:'',members:[]}),call,notify:text=>{if(status)status.textContent=text;},refreshTasks:async()=>(await call('/api/winds/tasks?summary=1')).tasks||[]});}
  // Pestanyes dins d'un grup de la barra: Feina (en marxa · Fes ·
  // Automatitzacions) i Desat (desat · notes · comparticions). Així la barra
  // té poques entrades i res no queda amagat.
@@ -1036,7 +1050,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  function openSaved(id){state.openNote=id;route('notes');}
  function savedView(){heading(t('Desat','Saved'));pageTabs(SAVED_TABS);root.gregalNotes?.saved(content,{open:openSaved});const made=el('div','vw-saved-made');made.append(el('h2','',t('El que han fet els vents','What the winds made')),el('p','vw-muted',t('Tot el que els vents han fet per a tu: documents, webs, gràfics, imatges i fitxes, amb qui ho va fer i quan.','Everything the winds made for you: documents, websites, charts, images and cards, with who made it and when.')));content.append(made);const box=el('div','vw-saved');content.append(box);if(root.gregalVentsActivity)root.gregalVentsActivity.renderSaved(box,{onCard:it=>{const w=state.winds.find(x=>x.id===it.wind);if(w)windCards(w);}});else box.append(el('p','vw-muted',t('Carregant…','Loading…')));}
  // Racó i Automatitzacions també són de Vents: al telèfon porten la mateixa barra de baix, que torna a Vents.
- function pageNavs(){for(const id of ['racoPage','automatitzacionsPage']){const page=document.getElementById(id);if(!page)continue;page.querySelector(':scope > .vw-page-nav')?.remove();const bottom=el('nav','vw-mobile-nav vw-page-nav');bottom.setAttribute('aria-label',t('Seccions dels vents','Winds sections'));for(const [view,a,b]of MOBILE_NAV){const n=btn('',()=>{root.gregal?.setView?.('vents');route(view);});n.append(navIcon(view),el('span','',t(a,b)));bottom.append(n);}page.append(bottom);}}
+ function pageNavs(){for(const id of ['racoPage','automatitzacionsPage']){const page=document.getElementById(id);if(!page)continue;page.querySelector(':scope > .vw-page-nav')?.remove();const bottom=el('nav','vw-mobile-nav vw-page-nav');bottom.setAttribute('aria-label',t('Seccions dels vents','Winds sections'));for(const [view,a,b]of MOBILE_NAV){const n=btn('',()=>{root.gregal?.setView?.('vents');route(view);});n.append(navIcon(view),el('span','',t(a,b)));if(id==='racoPage'&&view==='pati'){n.dataset.selected='true';n.setAttribute('aria-current','page');}bottom.append(n);}page.append(bottom);}}
  function navIcon(id){const paths={search:'M7 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z M10 10l3.5 3.5',settings:'M8 5.6a2.4 2.4 0 1 0 0 4.8 2.4 2.4 0 0 0 0-4.8Z M8 1.8v1.6 M8 12.6v1.6 M1.8 8h1.6 M12.6 8h1.6 M3.6 3.6l1.1 1.1 M11.3 11.3l1.1 1.1 M3.6 12.4l1.1-1.1 M11.3 4.7l1.1-1.1',today:'M8 4.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8Z M8 1.6v1.5 M8 12.9v1.5 M1.6 8h1.5 M12.9 8h1.5',computer:'M2.5 3.5h11v7.5h-11Z M6 13.5h4 M8 11v2.5',home:'M3 7.5 8 3.5l5 4V13H3Z M6.5 13V9.5h3V13',pati:'M8 2.6a3.1 3.1 0 0 1 3.1 3.1c0 1.8-1.4 3.2-3.1 3.2S4.9 7.5 4.9 5.7A3.1 3.1 0 0 1 8 2.6Z M8 8.9V13.4 M5.2 13.4h5.6 M11.6 11.6a1.3 1.3 0 1 0 0 .01',tasks:'M8 2.75a5.25 5.25 0 1 0 0 10.5 5.25 5.25 0 0 0 0-10.5Z M8 5v3.2l2.2 1.3',crew:'M5.5 7.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z M10.8 7.2a1.7 1.7 0 1 0 0-3.4 M2.5 13c.4-2.2 1.6-3.4 3-3.4s2.6 1.2 3 3.4 M10 9.7c1.4.1 2.6 1.2 3 3.3',library:'M3 3.5h3v9H3Z M7 3.5h3v9H7Z M11 4.2l2.4-.6 1.9 8.4-2.4.6Z',wiki:'M4 2.75h5.5L12 5.25v8H4Z M9.5 2.75v2.5H12 M6 8h4 M6 10.5h4',saved:'M4 2.75h8v10.5L8 10.5 4 13.25Z',apres:'M8 2.75a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z M3.5 13.25c.5-2.4 2.3-3.75 4.5-3.75s4 1.35 4.5 3.75 M12.4 2.6l.5 1 1 .5-1 .5-.5 1-.5-1-1-.5 1-.5Z',fes:'M8.6 2.5 4 9h3.6l-.8 4.5L12 7H8.3Z',rules:'M8 2.5 3.5 4.3v3.5c0 2.8 1.9 4.9 4.5 5.7 2.6-.8 4.5-2.9 4.5-5.7V4.3Z M6 8l1.4 1.4L10.2 6.6',notes:'M4.5 2.75h7v10.5h-7Z M6.5 5.5h3 M6.5 8h3 M6.5 10.5h2 M3.2 4.5h1.3 M3.2 7h1.3 M3.2 9.5h1.3',more:'M3.4 8a.8.8 0 1 0 1.6 0 .8.8 0 1 0-1.6 0 M7.2 8a.8.8 0 1 0 1.6 0 .8.8 0 1 0-1.6 0 M11 8a.8.8 0 1 0 1.6 0 .8.8 0 1 0-1.6 0'};return strokeIcon(paths[id]||'','vw-nav-svg');}
  function strokeIcon(d,cls){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 16 16');svg.setAttribute('aria-hidden','true');svg.setAttribute('class',cls);const p=document.createElementNS(svg.namespaceURI,'path');p.setAttribute('d',d);p.setAttribute('fill','none');p.setAttribute('stroke','currentColor');p.setAttribute('stroke-width','1.3');p.setAttribute('stroke-linecap','round');p.setAttribute('stroke-linejoin','round');svg.append(p);return svg;}
  // La icona de l'ofici a la pastilla, una per a cada kit de winds.js (`kits`), amb el mateix traç que navIcon.
@@ -1489,7 +1503,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
    state.failed={thread:sentTo.id,text,wind:state.pending?.wind,reason:error.message,retry:!progress.history};}
   finally{
    if(chatTurn===turn)chatTurn=null;
-   state.pending=null;state.busy=false;
+   state.pending=null;state.busy=false;busyDots();
    if(state.view==='chat'){if(landed&&messages?.dataset.thread===state.active?.id)settleTurn();else render();}
    if(sentTo){sendAfter(sentTo.id);recheckThread(sentTo);}
    // Conversa per veu: si no hi ha hagut resposta per llegir (error, aturat), es torna a escoltar.

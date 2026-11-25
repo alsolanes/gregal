@@ -153,7 +153,8 @@
     const ro = new ResizeObserver(() => fit());
     ro.observe(scene);
     // Comença mirant la plaça.
-    const centerOn = (z, smooth = true) => scroller.scrollTo({ left: (z.x + z.w / 2) * scale - scroller.clientWidth / 2, behavior: smooth && !reduced() ? 'smooth' : 'auto' });
+    const edges = [...zones.values()].map(z => z.x);
+    const centerOn = (z, smooth = true) => scroller.scrollTo({ left: startLeft(edges, z, scroller.clientWidth / scale) * scale, behavior: smooth && !reduced() ? 'smooth' : 'auto' });
     requestAnimationFrame(() => centerOn(plaza, false));
     function setZoom(z) {
       const mid = (scroller.scrollLeft + scroller.clientWidth / 2) / scale;
@@ -749,7 +750,15 @@
     svg.innerHTML = out;
     return svg;
   }
+  // 132: centrar una zona tallava el racó del costat pel mig (Mestral quedava mig fora a
+  // l'esquerra). La vora esquerra va a l'inici de racó més proper des d'on la zona encara
+  // hi cap sencera; si no n'hi ha cap (un telèfon), la zona es centra.
+  function startLeft(edges, z, view) {
+    const want = z.x + z.w / 2 - view / 2;
+    const fit = edges.filter(e => e <= want && e + view >= z.x + z.w);
+    return fit.length ? Math.max(...fit) : want;
+  }
   const escapeXML = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-  root.gregalPati = { mount };
+  root.gregalPati = { mount, startLeft };
 })(window);

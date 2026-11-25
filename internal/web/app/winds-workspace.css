@@ -268,7 +268,7 @@ label.vw-pick-card > span:last-child { min-width:0; overflow:hidden; text-overfl
  .vw-select { max-width:46%; } button.vw-model { max-width:42%; } .vw-user > div { max-width:86%; }
  .vw-member { gap:10px; } .vw-member > .winds-face { width:48px; height:48px; } .vw-member button { padding:7px 9px; }
  .vw-member h2 { font-size:14px; }
- .vw-mobile-nav { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); flex:none; gap:2px; border-top:1px solid var(--line); background:var(--panel); padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px)); }
+ .vw-mobile-nav { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); flex:none; gap:2px; border-top:1px solid var(--line); background:var(--panel); padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px)); }
  .vw-mobile-nav button { display:flex; flex-direction:column; align-items:center; gap:3px; min-height:48px; min-width:0; border:0; background:transparent; color:var(--muted); font-size:11px!important; line-height:1.2; padding:6px 2px; border-radius:var(--r-md,12px); }
  .vw-mobile-nav button > span { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
  .vw-mobile-nav .vw-nav-svg { width:20px; height:20px; }
@@ -370,6 +370,23 @@ button.vw-start-face { display:flex; flex-direction:column; align-items:center; 
 button.vw-start-face:hover { background:var(--hover); color:var(--ink); }
 .vw-start-face .winds-face { width:40px; height:40px; }
 .vw-start-face > span { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* 132: al telèfon la fila llisca cara a cara i s'esvaeix només pel costat on en queden d'amagades (data-fade, del JS). */
+@media(max-width:760px) {
+ .vw-start-faces { scroll-snap-type:x mandatory; }
+ .vw-start-face { scroll-snap-align:start; }
+ .vw-start-faces[data-fade="end"] { mask-image:linear-gradient(to right, black calc(100% - 48px), transparent); }
+ .vw-start-faces[data-fade="start"] { mask-image:linear-gradient(to left, black calc(100% - 48px), transparent); }
+ .vw-start-faces[data-fade="start end"] { mask-image:linear-gradient(to right, transparent, black 48px, black calc(100% - 48px), transparent); }
+}
+/* Cada cara respira al seu ritme (--vw-breath, desfasat per posició); el vent que respon porta un punt del seu color. */
+.vw-busy-dot { position:absolute; left:calc(50% + 12px); top:34px; width:10px; height:10px; border-radius:50%; background:var(--c,var(--accent)); box-shadow:0 0 0 2px var(--bg); pointer-events:none; }
+@media(prefers-reduced-motion:no-preference) {
+ .vw-start-face > :first-child { transform-origin:50% 100%; animation:vw-face-breathe 3.6s ease-in-out var(--vw-breath,0s) infinite; }
+ .vw-busy-dot { animation:vw-busy-pulse 1.4s ease-in-out infinite; }
+ ::view-transition-group(vw-face) { animation-duration:.45s; animation-timing-function:cubic-bezier(.2,.8,.2,1); }
+}
+@keyframes vw-face-breathe { 0%,100% { scale:1 1; } 50% { scale:1.03 .97; } }
+@keyframes vw-busy-pulse { 0%,100% { scale:1; opacity:1; } 50% { scale:.7; opacity:.6; } }
 .vw-start-recent { display:flex; flex-direction:column; gap:2px; margin:28px 0 0; }
 .vw-start-recent > h2 { margin:0 0 6px 6px; color:var(--muted); font-size:13px; font-weight:600; }
 button.vw-start-row { display:flex; align-items:center; gap:11px; min-height:48px; padding:6px; background:transparent; border:0; border-radius:12px; text-align:left; }
