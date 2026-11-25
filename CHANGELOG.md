@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+## v1.95.0 - 2026-11-25 - Xat més pro, vents que es mouen amb calma i proactius
+
+- **Un xat més professional (web i escriptori).** La resposta d'un vent creix
+  dins d'una sola bombolla, sense salts ni repintats, i quan acaba és el
+  mateix missatge. Les respostes es llegeixen com un text net, amb una sola
+  mida i amplada de lectura; els teus missatges, en una bombolla discreta.
+  Si puges a llegir mentre escriu, ja no et torna a baixar.
+- **El vent es mou amb calma (web, escriptori i Android).** Ja no salta entre
+  la cantonada i la capçalera a la mínima: hi ha marge. Canvia d'estat amb
+  una transició suau i, si canvia d'eina cada pocs segons, l'animació no
+  torna a començar. Mentre treballa es mou una mica i fa servir un objecte
+  segons la feina.
+- **Plastilina amb objectes.** Els vents de plastilina tenen mans: escombren
+  amb una lupa quan busquen, passen pàgines quan llegeixen, gargotegen amb un
+  llapis, piquen un portàtil, fan girar engranatges quan pensen i tiren
+  confeti en acabar. Els minairons porten cadascun la barretina d'un color,
+  sempre amb la cinta negra, i trets propis (celles, bigoti, alguns ulleres);
+  el color es tria a l'editor del vent.
+- **Avui funciona de debò.** El temps i el que segueixes es desen (a Android
+  també amb la tecla del teclat) i, si no es troba un lloc o uns partits,
+  ho diu. Avui comença amb una targeta lliscable per a cada vent que ha fet
+  o proposa alguna cosa.
+- **Vents més proactius, sense ser pesats.** Preparen les teves reunions
+  abans que comencin, continuen al matí el que va quedar pendent en un xat i,
+  si dius «no m'interessa» sovint, afluixen o s'aturen («Torna-hi» els
+  engega de nou). Només a l'app, mai per Telegram.
+- **Inici i lateral.** A Android, la fila de cares respira, mostra qui
+  treballa i, en tocar-ne una, s'obre la seva última conversa. A l'escriptori
+  el document del vent al lateral s'obre i es tanca quan vols i se'n pot
+  canviar l'amplada.
+- **Correccions.** El navegador ja no té marcs blancs en tema fosc i la pàgina
+  omple tot el marc; «Tots els vents» sempre és a la barra; a Android els
+  estils dels vents es refresquen en tornar a l'app i les notificacions
+  porten la cara i el color del vent; els coneixements es desen; els fils
+  antics diuen «Encàrrec de Gregal».
+
 ## v1.94.0 - 2026-11-24 - Gregal Docs, Avui i vents amb vida
 
 - **Gregal Docs: documents vius que fas amb els vents (web, escriptori i
