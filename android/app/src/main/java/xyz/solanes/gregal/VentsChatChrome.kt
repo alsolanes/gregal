@@ -5,6 +5,8 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.foundation.lazy.LazyListLayoutInfo
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.snapshotFlow
@@ -46,6 +48,7 @@ import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Forum
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -96,8 +99,6 @@ internal fun VentsChatHeader(
     centered: Boolean = false,
     /** L'ordinador de l'assistent (dreta), quan n'hi ha. */
     onComputer: (() -> Unit)? = null,
-    /** B6: el que aquest vent vigila (responsabilitats). */
-    onWatch: (() -> Unit)? = null,
     /** A la portada el botó de l'esquerra obre el menú (no torna enrere). */
     menu: Boolean = false,
     /** Portada de Gregal: només la cara, petita i flotant, sense nom ni fons (B14). */
@@ -124,7 +125,7 @@ internal fun VentsChatHeader(
             Row(Modifier.pillBacking(SuperficieAlta).clip(RoundedCornerShape(999.dp)).clickable(onClick = onProfile, role = Role.Button)
                 .padding(start = 6.dp, end = 14.dp, top = 5.dp, bottom = 5.dp).testTag("chat-header-pill"),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (faceSlot != null) Box(faceSlot.size(44.dp).testTag("chat-header-face"))
+                if (faceSlot != null) Box(faceSlot.height(44.dp).testTag("chat-header-face"))
                 else WindHalo(accent, style, size = 30, mood = mood, stacked = faces.drop(1), online = false, showKit = faces.size <= 1)
                 Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                     // El nom es mesura primer: la pastilla es queda amb el que sobra.
@@ -136,24 +137,25 @@ internal fun VentsChatHeader(
                 }
             }
         }
-        // Una sola acció a la dreta, amb noms: dues icones soles (llibre,
-        // bombolles) no deien què feien. El perfil també és a la cara.
-        if (onWiki != null || onSessions != null || onTransfer != null || onWatch != null || onComputer != null) {
+        // Una sola acció a la dreta, amb noms, la mateixa per a tots els vents (Gregal inclòs) i en
+        // l'ordre del web: Perfil, Fils, Desa a la wiki, l'ordinador. El perfil també és a la cara.
+        if (onWiki != null || onSessions != null || onTransfer != null || onComputer != null) {
             var more by remember { mutableStateOf(false) }
             Box {
                 IconButton(onClick = { more = true }, modifier = Modifier.softBacking(SuperficieAlta).testTag("chat-more")) {
                     Icon(Icons.Rounded.MoreHoriz, tr(lang, "app.vents.more"), tint = Ink)
                 }
                 DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
-                    DropdownMenuItem(text = { Text(tr(lang, "app.vents.profile")) }, onClick = { more = false; onProfile() })
+                    DropdownMenuItem(leadingIcon = { Icon(Icons.Rounded.Person, null) },
+                        text = { Text(tr(lang, "app.vents.menu.profile")) }, onClick = { more = false; onProfile() })
                     if (onSessions != null) DropdownMenuItem(
                         leadingIcon = { Icon(Icons.Rounded.Forum, null) },
-                        text = { Text(tr(lang, "app.wind.sessions")) }, onClick = { more = false; onSessions() })
+                        text = { Text(tr(lang, "app.vents.menu.threads")) }, onClick = { more = false; onSessions() })
                     if (onWiki != null) DropdownMenuItem(
                         leadingIcon = { Icon(Icons.Rounded.AutoStories, null) },
-                        text = { Text(tr(lang, "app.wiki.summarize")) }, onClick = { more = false; onWiki() })
-                    if (onWatch != null) DropdownMenuItem(text = { Text(respCopy(lang, "title")) }, onClick = { more = false; onWatch() })
-                    if (onComputer != null) DropdownMenuItem(text = { Text(ordinadorCopy(lang, "title")) }, onClick = { more = false; onComputer() })
+                        text = { Text(tr(lang, "app.vents.menu.wiki")) }, onClick = { more = false; onWiki() })
+                    if (onComputer != null) DropdownMenuItem(leadingIcon = { Icon(Icons.Rounded.Computer, null) },
+                        text = { Text(tr(lang, "app.computer.name")) }, onClick = { more = false; onComputer() })
                     if (onTransfer != null) DropdownMenuItem(text = { Text(tr(lang, "app.vents.transferToServer")) }, onClick = { more = false; onTransfer() })
                 }
             }
@@ -290,14 +292,43 @@ internal fun rememberWindUp(list: LazyListState): Boolean {
     return up
 }
 
+/** El que passa al xat i el vent nota amb el cos (128 al web). */
+internal enum class WindEvent { SENT, APPROVED, DECLINED, REPLY, FAILED }
+
+/** Com hi reacciona el vent: assenteix, s'hi acosta o fa que no. */
+internal enum class WindReaction { NOD, LEAN, SHAKE }
+
+internal fun windReaction(event: WindEvent): WindReaction = when (event) {
+    WindEvent.SENT, WindEvent.APPROVED -> WindReaction.NOD
+    WindEvent.REPLY -> WindReaction.LEAN
+    WindEvent.FAILED, WindEvent.DECLINED -> WindReaction.SHAKE
+}
+
+/** Com ha acabat un torn, pel seu últim missatge; null si l'has aturat abans que respongués. */
+internal fun windTurnEvent(msgs: List<GregalViewModel.PetMsg>): WindEvent? {
+    val last = msgs.lastOrNull { it.kind != "memory" } ?: return null
+    return when {
+        last.kind == "error" -> WindEvent.FAILED
+        last.from == "user" -> null
+        else -> WindEvent.REPLY
+    }
+}
+
 /** On pot seure el vent al seu xat (a l'arrel): la conversa, la cantonada i el forat de la capçalera. */
 internal class WindPerch {
     var root by mutableStateOf(Offset.Unspecified)
     var corner by mutableStateOf(Offset.Unspecified)
     var header by mutableStateOf(Offset.Unspecified)
-    /** Contestar-li una aprovació (103): assenteix (sí) o fa que no (no) durant 0,9 s. */
-    val nod = Animatable(1f)
-    var yes by mutableStateOf(true)
+    /** La reacció en marxa, de 0 a 1 en 0,9 s; a 1 el vent és quiet. */
+    val act = Animatable(1f)
+    var reaction by mutableStateOf(WindReaction.NOD)
+        private set
+
+    suspend fun react(kind: WindReaction) {
+        reaction = kind
+        act.snapTo(0f)
+        act.animateTo(1f, tween(900, easing = LinearEasing))
+    }
 }
 
 /**
@@ -330,11 +361,25 @@ internal fun BoxScope.WindPresence(perch: WindPerch, up: Boolean, mood: WindMood
             scaleX = 1f + (38f / WindPresenceSize - 1f) * f
             scaleY = scaleX
             rotationZ = -10f * arc
-            val n = perch.nod.value
-            if (motion && n < 1f) {
-                // Tres cops que s'apaguen: amunt i avall per al sí, de costat per al no.
-                val swing = sin(n * 6f * PI.toFloat()) * (1f - n) * 7.dp.toPx() * scaleX
-                if (perch.yes) translationY += swing else translationX += swing
+        }.graphicsLayer {
+            // La reacció, a una capa pròpia que gira des dels peus; l'esclat de la resposta el fa la cara en passar a DONE.
+            val n = perch.act.value
+            if (!motion || n >= 1f) return@graphicsLayer
+            transformOrigin = TransformOrigin(.5f, 1f)
+            // Tres cops que s'apaguen: amunt i avall per assentir, de costat per fer que no (103).
+            val swing = sin(n * 6f * PI.toFloat()) * (1f - n) * 7.dp.toPx()
+            when (perch.reaction) {
+                WindReaction.NOD -> translationY = swing
+                // S'inclina cap al fil (a la seva dreta), una mica més gran, i torna.
+                WindReaction.LEAN -> {
+                    val lean = sin(PI.toFloat() * n)
+                    translationX = 7.dp.toPx() * lean
+                    translationY = -4.dp.toPx() * lean
+                    rotationZ = 8f * lean
+                    scaleX = 1f + .06f * lean
+                    scaleY = scaleX
+                }
+                WindReaction.SHAKE -> translationX = swing
             }
         }.semantics { contentDescription = label }.testTag("wind-presence"))
 }
