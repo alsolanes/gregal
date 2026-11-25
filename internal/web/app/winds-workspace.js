@@ -74,8 +74,9 @@
   document.addEventListener('gregal:workpane',e=>{if(e.detail!=='computer')closeComputer?.();if(e.detail==='docs')paneGrip($('docsPanel'));paneThread=state.view==='chat'?state.active?.id:null;syncPaneToggle();});
   document.addEventListener('gregal:docsclosed',()=>{closedByPerson();syncPaneToggle();});
   let savedW=0;try{savedW=+localStorage.getItem(PANE_KEY);}catch{}if(savedW){paneW=savedW;$('workbench').style.setProperty('--work-pane-w',savedW+'px');}
-  // El tema (prefs.js, palette.js, brands.js) és el data-theme de l'arrel: en canviar, la bombolla del vent es retenyeix ja.
-  new MutationObserver(()=>{const solo=state.view==='chat'?soloWind():null;if(solo&&hex6(solo.color))page.style.setProperty('--vw-wind-share',String(bubbleShare(solo.color)));}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+  // El tema (prefs.js, palette.js, brands.js) és el data-theme de l'arrel: en canviar, el Permet de les targetes obertes es repinta
+  // al seu lloc (refer-les perdria el que s'hi està escrivint).
+  new MutationObserver(()=>{for(const c of page.querySelectorAll('.vw-ask-wind'))askColour(c,state.winds.find(w=>w.id===c.dataset.wind));}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
  }
  // On phones the Winds bar replaces the app rail; the menu opens both together as one drawer.
  function setDrawer(open){$('side').classList.toggle('closed',!open);$('side').classList.toggle('vw-open',open);document.body.classList.toggle('vw-drawer',open);$('sideShade')?.classList.toggle('on',open);page?.querySelector('.vw-mobile-menu')?.setAttribute('aria-expanded',String(open));}
@@ -162,14 +163,14 @@
  }
  // El vent d'una conversa a soles (en un grup, cap).
  function soloWind(){const members=state.winds.filter(w=>(state.active?.members||[]).includes(w.id));return state.active?.legacyWind||members.length===1?state.winds.find(w=>w.id===(state.active.wind||members[0]?.id))||null:null;}
- // La conversa d'un vent agafa el seu color: la bombolla barreja el color amb el fons del tema (com
- // color-mix in srgb) tant com es pot sense que cap tinta que s'hi escriu baixi de 4.5:1.
+// La barreja de dos colors com color-mix in srgb, i el contrast WCAG entre dos colors.
  const mixHex=(hex,base,amount)=>{const a=parseInt(hex.slice(1),16),b=parseInt(base.slice(1),16);return '#'+[16,8,0].map(s=>Math.round((a>>s&255)*amount+(b>>s&255)*(1-amount)).toString(16).padStart(2,'0')).join('');};
  const lum=hex=>[1,3,5].map(i=>{const v=parseInt(hex.slice(i,i+2),16)/255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;}).reduce((s,v,i)=>s+v*[.2126,.7152,.0722][i],0);
  const contrast=(a,b)=>{const x=lum(a),y=lum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
- const windShare=(color,base,inks)=>{for(let p=24;p>0;p-=2)if(inks.every(ink=>contrast(mixHex(color,base,p/100),ink)>=4.5))return p;return 0;};
+ // 130: el botó Permet és del color del vent. El text és una de les dues tintes del tema (la clara i la fosca):
+ // la que deixa més color al fons, que cedeix cap a l'altra tinta només fins que el text arriba a 4.5:1.
+ const allowPaint=(color,[a,b])=>{let best=null;for(const [ink,other] of [[a,b],[b,a]])for(let p=100;p>=0;p-=2){const fill=mixHex(color,other,p/100);if(contrast(fill,ink)>=4.5){if(!best||p>best.p)best={fill,ink,p};break;}}return {fill:best.fill,ink:best.ink};};
  const hex6=v=>/^#[0-9a-f]{6}$/i.test(v);
- function bubbleShare(color){const cs=getComputedStyle(document.documentElement),v=n=>cs.getPropertyValue(n).trim(),base=v('--surface-hi'),inks=['--text','--ink','--muted'].map(v);return hex6(color)&&hex6(base)&&inks.every(hex6)?windShare(color,base,inks):0;}
  // L'estat del vent a la capçalera: t'espera (una pregunta seva sense contestar), treballa (un torn en
  // marxa en aquesta conversa), ha acabat (fins que hi escrius o en surts) o res.
  const windMark=({pending,asks,done}={},thread,wind)=>(asks||[]).some(a=>a.wind===wind)?'waiting':pending?.thread===thread?'working':done===thread?'done':'';
@@ -242,7 +243,7 @@
   // La plastilina canvia d'humor al seu lloc (s'hi fon); la cara dibuixada es fa de nou i es fon amb la vella.
   const now=live(n,'winds-face');if(now?.classList.contains('winds-clay')){root.gregalCharacters.mood(now,mood);return;}
   const w=state.winds.find(w=>w.id===n.dataset.wind),next=clay(w,root.gregalWinds.face(w,true,mood));next.style.setProperty('--vw-phase',phase());swapIn(n,now,next);}
- root.gregalWindChat={mix:mixHex,share:windShare,mark:windMark,cornerMood,cornerAt,heldMood};
+ root.gregalWindChat={mix:mixHex,allow:allowPaint,mark:windMark,cornerMood,cornerAt,heldMood};
  // Qui porta la conversa: el vent (l'únic, que vola a la cantonada) amb el seu estat, el nom i l'ofici. En un grup, les cares de qui hi és.
  // 128: el mateix per a tots els vents, Gregal inclòs; la cara i el nom obren el perfil.
  function owner(){
@@ -259,7 +260,7 @@
   renderNav();page.replaceChildren();messages=null;asksBox=null;input=null;composer=null;
   const top=el('header','vw-top');const menu=iconOnly('menu',t('Obre la navegació','Open navigation'),()=>{if(matchMedia('(max-width:760px)').matches){setDrawer(!document.body.classList.contains('vw-drawer'));return;}const side=$('side');const reopen=side.classList.contains('closed')||side.classList.contains('compact');if(reopen&&root.setSideCompact)root.setSideCompact(false);if(root.setSide)root.setSide(reopen);},'vw-mobile-menu');menu.setAttribute('aria-expanded',String(document.body.classList.contains('vw-drawer')));top.append(menu);if(state.view==='chat')top.append(owner());else top.append(el('span','',t('Vents','Winds')));if(state.view!=='home'&&state.view!=='chat')top.append(el('span','vw-separator','/'),el('span','',({tasks:t('Feina','Work'),fes:t('Feina','Work'),saved:t('Desat','Saved'),notes:t('Desat','Saved'),today:t('Avui','Today'),crew:t('Els teus vents','Your winds'),apres:t('Què sap de tu','About you'),rules:t('Regles','Rules'),library:t('Biblioteca','Library'),wiki:t('Wiki','Wiki'),pati:t('El pati','Playground')})[state.view]||state.active?.name||squadName(state.squad)));
   // «La colla» ja és a la barra lateral (i a la de sota, al mòbil): aquí només hi van les accions del fil obert.
-  const solo=state.view==='chat'?soloWind():null;page.classList.toggle('vw-wind-chat',!!solo&&hex6(solo.color));if(solo&&hex6(solo.color)){page.style.setProperty('--vw-wind',solo.color);page.style.setProperty('--vw-wind-share',String(bubbleShare(solo.color)));}
+  const solo=state.view==='chat'?soloWind():null;page.classList.toggle('vw-wind-chat',!!solo&&hex6(solo.color));if(solo&&hex6(solo.color))page.style.setProperty('--vw-wind',solo.color);
   const abT=browserToggle();if(abT){abT.classList.add('vw-top-browser');top.append(abT);}
   if(state.view==='chat'){
    // 128: les accions del fil, les mateixes per a cada vent, en un sol menú «⋯». Gregal hi afegeix la
@@ -463,7 +464,6 @@
   return t('Fent servir una eina','Using a tool');};
  // Passos seguits iguals es compten un cop («Llegint fitxers ×3»).
  const workSteps=list=>{const out=[];for(const x of list||[]){const label=stepLabel(x.tool),last=out[out.length-1];if(last&&last.label===label&&last.done&&x.done)last.n++;else out.push({label,done:!!x.done,n:1});}return out;};
- const chatReadingSurface=text=>{const s=String(text||'');return s.length>900||/```/.test(s)||/^\s*\|.*\|\s*$/m.test(s)&&/^\s*\|?\s*:?-{3,}/m.test(s);};
  const nearChatEnd=box=>box.scrollHeight-box.clientHeight-box.scrollTop<64;
  // 144: la resposta en directe és un sol node que creix al seu lloc. Abans es refeia sencer a cada tanda de
  // tokens (la cara i els punts tornaven a començar i l'alçada saltava). El que només hi és mentre treballa
@@ -476,7 +476,7 @@
   const copy=row.lastChild,activity=copy.lastChild;
   // La cara només es refà si parla un altre vent o li canvia l'humor.
   const who=soloWind()?'':(wind?.id||'')+' '+(root.gregalWinds.moodOf?.(pending)||'');
-  if(row.dataset.face!==who){row.dataset.face=who;if(row.firstChild!==copy)row.firstChild.remove();if(who)row.prepend(face(wind,pending));}
+  if(row.dataset.face!==who){row.dataset.face=who;if(row.firstChild!==copy)row.firstChild.remove();if(who)row.prepend(face(wind,pending,20));}
   if(wind&&hex6(wind.color))row.style.setProperty('--vw-wind',wind.color);
   copy.firstChild.textContent=wind?.name||t('Els teus vents','Your winds');
   const phases={writing:t('Escrivint la resposta','Writing the response'),thinking:t('Preparant la resposta','Preparing a response'),searching:t('Cercant informació','Searching for information'),scheduling:t('Preparant el recordatori','Preparing the reminder'),working:t('Treballant en la resposta','Working on the response')};
@@ -486,7 +486,6 @@
   const flat=x=>String(x||'').replace(/\s+/g,' ').trim();
   const already=!!pending.text&&state.history.some(h=>h.from!=='user'&&flat(withoutSpeaker(h.text,wind?.name||h.speaker_name))===flat(withoutSpeaker(pending.text,wind?.name)));
   const writing=!!pending.text&&!already;
-  row.classList.toggle('vw-reading',writing&&chatReadingSurface(pending.text));
   const steps=workSteps(pending.steps),live=steps.find(x=>!x.done);
   activity.firstChild.textContent=writing?phases.writing:live?live.label:phases[pending.phase]||phases.thinking;
   for(const old of copy.querySelectorAll('.vw-tempesta'))old.remove();
@@ -1233,6 +1232,8 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  async function loadAsks(){try{state.asks=(await call('/api/winds/pending')).pending||[];paintAsks();}catch(e){}}
  // Targetes d'aprovació i de pregunta: el torn del vent espera aquí.
  function askShield(){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');svg.setAttribute('class','vw-ask-shield');const p=document.createElementNS(svg.namespaceURI,'path');p.setAttribute('d','M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z');p.setAttribute('fill','none');p.setAttribute('stroke','currentColor');p.setAttribute('stroke-width','1.8');p.setAttribute('stroke-linejoin','round');svg.append(p);return svg;}
+ // 130: la targeta del vent que pregunta porta el seu color (la vora i Permet); sense colors del tema en hex, Permet es queda amb l'accent.
+ function askColour(card,w){card.style.setProperty('--vw-wind',w.color);const cs=getComputedStyle(document.documentElement),inks=['--ink','--bg'].map(n=>cs.getPropertyValue(n).trim());if(!inks.every(hex6))return;const {fill,ink}=allowPaint(w.color,inks);card.style.setProperty('--vw-allow',fill);card.style.setProperty('--vw-allow-ink',ink);}
  function askPlain(a){const p=askPlan(a);return p?p.q:'';}
  // Com la maqueta: una pregunta en pla («Vols que esborri x?»), on és i si es
  // pot desfer, i un botó amb el verb («Esborra'l»). L'ordre sencera, plegada.
@@ -1249,7 +1250,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  function askPlan(a){
   const what=String(a.what||'').trim(),m=/^(write|edit|patch)\s+(.+)$/.exec(what);
   if(m){
-   const {file,dir}=askWhere(m[2]);const sub=(dir?t('És a '+dir+'.','It is in '+dir+'.'):'')+(a.kind==='rule'&&a.reason?(dir?' ':'')+a.reason:'');
+   const {file,dir}=askWhere(m[2]);const sub=dir?t('És a '+dir+'.','It is in '+dir+'.'):'';
    return m[1]==='write'?{q:t('Vols que escrigui '+file+'?','Shall I write '+file+'?'),sub}
     :{q:t('Vols que modifiqui '+file+'?','Shall I edit '+file+'?'),sub};
   }
@@ -1261,7 +1262,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
    case 'system':return {q:t('Vols que canviï un servei del sistema?','Shall I change a system service?'),sub:t("Afecta tot l'ordinador, no només el projecte.",'It affects the whole computer, not just the project.')};
    case 'publish_public':return {q:t('Vols que publiqui la web?','Shall I publish the site?'),sub:t("Serà pública: qualsevol que tingui l'enllaç la veurà.",'It will be public: anyone with the link can see it.')};
    // Una regla teva («Pregunta'm abans»): la targeta diu quina.
-   case 'rule':{const verb={mail:t('Vols que enviï aquest correu?','Shall I send this email?'),browser:t('Vols que faci aquest pas al navegador?','Shall I take this step in the browser?'),bash:t('Vols que executi aquesta ordre?','Shall I run this command?'),bash_background:t('Vols que executi aquesta ordre?','Shall I run this command?'),publish:t('Vols que publiqui la web?','Shall I publish the site?'),calendar:t('Vols que canviï el calendari?','Shall I change the calendar?'),remind:t("Vols que programi l'avís?",'Shall I set the reminder?')}[a.name]||t('Vols que ho faci?','Shall I do it?');return {q:verb,sub:a.reason||''};}
+   case 'rule':{const verb={mail:t('Vols que enviï aquest correu?','Shall I send this email?'),browser:t('Vols que faci aquest pas al navegador?','Shall I take this step in the browser?'),bash:t('Vols que executi aquesta ordre?','Shall I run this command?'),bash_background:t('Vols que executi aquesta ordre?','Shall I run this command?'),publish:t('Vols que publiqui la web?','Shall I publish the site?'),calendar:t('Vols que canviï el calendari?','Shall I change the calendar?'),remind:t("Vols que programi l'avís?",'Shall I set the reminder?')}[a.name]||t('Vols que ho faci?','Shall I do it?');return {q:verb,sub:''};}
   }
   return {q:askTitle(a.kind),sub:''};
  }
@@ -1287,6 +1288,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   const box=(asksBox&&messages&&state.view==='chat')?asksBox:page?.querySelector('.vw-asks');if(!box)return;if(box===asksBox&&box.parentElement!==messages)messages.append(box);const abans=box.childElementCount;box.replaceChildren();
   for(const a of state.asks){
    const card=el('section','vw-ask'+(a.type==='question'?' vw-ask-question':' vw-ask-approve'));card.setAttribute('role','group');
+   const w=state.winds.find(x=>x.id===a.wind);if(w&&hex6(w.color)&&a.type!=='question'){card.dataset.wind=w.id;askColour(card,w);}
    if(a.type==='handoff'){
     // B3: la feina espera que la persona faci una cosa a l'ordinador (iniciar sessió, 2FA). El visor s'obre amb un testimoni curt.
     card.className='vw-ask vw-ask-approve vw-ask-handoff';
@@ -1324,9 +1326,11 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
     const plan=askPlan(a),pv=askPreview(a);card.classList.add('vw-ask-plan');
     card.append(el('small','vw-ask-step',pv.step));
     const head=el('div','vw-ask-head'),txt=el('div');txt.append(el('strong','',plan.q));if(plan.sub)txt.append(el('small','vw-ask-sub',plan.sub));
-    head.append(askShield(),txt);card.append(head,askPreviewBox(pv));
+    if(a.reason){const why=el('small','vw-ask-why',a.reason);why.title=a.reason;txt.append(why);}
+    head.append(card.dataset.wind?face(w):askShield(),txt);card.append(head,askPreviewBox(pv));
     const row=el('div','vw-ask-actions');row.append(btn(t('Permet','Allow'),()=>decide(a,pv,true),'vw-ask-allow'),btn('No',()=>decide(a,pv,false),'vw-ask-decline'));card.append(row);
    }
+   if(card.dataset.wind)card.classList.add('vw-ask-wind');
    box.append(card);
   }
   // Una petició nova no pot quedar sota el compositor: el fil baixa fins a la targeta sencera.
@@ -1351,9 +1355,9 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   // Un vent convidat amb «Pregunta-li»: una línia diu que s'hi afegeix.
   if(item.kind==='guest'){const g=state.winds.find(x=>x.id===item.speaker_id);const n=g?.name||item.speaker_name||'';if(n)add(el('p','vw-handoff',t('→ '+n+" s'hi afegeix",'→ '+n+' joins in')));}
   // Un altre vent agafa el fil després d'un missatge teu: una línia ho diu, en lloc que el vent ho expliqui.
-  if(user)asked=true;else if(!state.active?.legacyWind){const id=item.speaker_id||'';if(voice&&id&&id!==voice&&asked){const who=state.winds.find(w=>w.id===id);if(who)add(el('p','vw-handoff',t('→ '+who.name+' agafa el fil','→ '+who.name+' takes over')));}if(id)voice=id;asked=false;}const w=state.winds.find(w=>w.id===item.speaker_id||w.id===item.from||w.name===item.from)||(state.active?.legacyWind?state.winds.find(w=>w.id===state.active.wind):null);const row=el('article',user?'vw-message vw-user':'vw-message');if(item.id)row.dataset.messageId=item.id;// Ratxes (B1): la cara i el nom un sol cop; la cua només a l'última. Taules, codi i textos llargs es llegeixen sense bombolla.
-  // Amb un sol vent, la seva cara és només la de dalt (108); en un grup, cada resposta diu qui parla.
-  if(who(H[hi-1])===who(item))row.classList.add('vw-run-cont');if(who(H[hi+1])!==who(item))row.classList.add('vw-run-last');if(!user&&chatReadingSurface(item.text))row.classList.add('vw-reading');if(!user&&!solo)row.append(face(w));const copy=el('div'),body=el('div','vw-message-text'),text=user?item.text:choicesStrip(withoutSpeaker(item.text,w?.name||item.speaker_name));if(root.gregalMD){body.innerHTML=root.gregalMD.render(text);if(item.ts&&root.gregalMD.stamp)root.gregalMD.stamp(body,item.ts);}else body.textContent=text;copy.append(el('strong','',user?t('Tu','You'):w?.name||item.speaker_name||t('Els teus vents','Your winds')),body);
+  if(user)asked=true;else if(!state.active?.legacyWind){const id=item.speaker_id||'';if(voice&&id&&id!==voice&&asked){const who=state.winds.find(w=>w.id===id);if(who)add(el('p','vw-handoff',t('→ '+who.name+' agafa el fil','→ '+who.name+' takes over')));}if(id)voice=id;asked=false;}const w=state.winds.find(w=>w.id===item.speaker_id||w.id===item.from||w.name===item.from)||(state.active?.legacyWind?state.winds.find(w=>w.id===state.active.wind):null);const row=el('article',user?'vw-message vw-user':'vw-message');if(item.id)row.dataset.messageId=item.id;// Ratxes (B1): la cara i el nom un sol cop; la cua només a l'última. Una sola forma per a cada qui parla, curt o llarg.
+  // Amb un sol vent, la seva cara és només la de dalt (108); en un grup, la primera resposta de cada ratxa diu qui parla.
+  const cont=who(H[hi-1])===who(item);if(cont)row.classList.add('vw-run-cont');if(who(H[hi+1])!==who(item))row.classList.add('vw-run-last');if(!user&&!solo&&!cont)row.append(face(w,null,20));const copy=el('div'),body=el('div','vw-message-text'),text=user?item.text:choicesStrip(withoutSpeaker(item.text,w?.name||item.speaker_name));if(root.gregalMD){body.innerHTML=root.gregalMD.render(text);if(item.ts&&root.gregalMD.stamp)root.gregalMD.stamp(body,item.ts);}else body.textContent=text;copy.append(el('strong','',user?t('Tu','You'):w?.name||item.speaker_name||t('Els teus vents','Your winds')),body);
   // Desa i Comparteix (share-msg.js): desar-la com a nota; text per a WhatsApp/Telegram, a algú de l'app o enllaç públic.
   if(item.streaming)row.dataset.streaming='true';
   if(!user&&root.gregalShare&&!item.streaming){const sh=root.gregalShare.button(()=>text,{from:w?.name||item.speaker_name||''});row.append(root.gregalShare.saveButton(()=>text,openSaved),sh);root.gregalShare.keepChips(body,()=>text,openSaved);}

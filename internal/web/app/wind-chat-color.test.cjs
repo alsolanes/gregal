@@ -1,5 +1,5 @@
 // La conversa d'un vent agafa el seu color i en diu l'estat (winds-workspace.js):
-// la barreja de la bombolla i l'etiqueta de la capçalera, com a funcions pures.
+// el botó Permet amb el color del vent i l'etiqueta de la capçalera, com a funcions pures.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -20,23 +20,28 @@ const contrast = (a, b) => { const [x, y] = [luminance(a), luminance(b)].sort((p
 
 // Els vuit vents de la colla (presetDefaults a winds.js) i el blau de Gregal (winds_gregal.go).
 const winds = ['#EFC69A', '#EFA68F', '#A8CDE2', '#BFCFA4', '#E8AEC2', '#C1B4DE', '#EACF87', '#9ED3C5', '#3D7BFF'];
-// --surface-hi (el fons de la bombolla) i les tintes que s'hi escriuen: --text, --ink i --muted (el nom).
+// Les dues tintes del tema per al botó Permet: --ink i --bg (una clara i una fosca).
 const themes = {
-  dark: { base: '#24282D', inks: ['#DEE2E7', '#F2F4F7', '#A7AEB8'] },
-  light: { base: '#DEE5DE', inks: ['#1C2D35', '#10202A', '#4C5F5C'] },
+  dark: ['#F2F4F7', '#131518'],
+  light: ['#10202A', '#F4F6F3'],
 };
 
-test('a wind bubble takes a tint of the wind’s colour and its text stays at 4.5:1 or more in dark and light', () => {
-  const { mix, share } = load();
-  for (const [theme, { base, inks }] of Object.entries(themes)) {
+test('the Allow button takes the wind’s colour and its text stays at 4.5:1 or more in dark and light', () => {
+  const { allow } = load();
+  for (const [theme, inks] of Object.entries(themes)) {
     for (const color of winds) {
-      const amount = share(color, base, inks);
-      assert.ok(amount > 0, `${theme} ${color}: the bubble is tinted`);
-      const bubble = mix(color, base, amount / 100);
-      assert.notEqual(bubble.toLowerCase(), base.toLowerCase(), `${theme} ${color}`);
-      for (const ink of inks) assert.ok(contrast(bubble, ink) >= 4.5, `${theme} ${color} on ${bubble} with ${ink}: ${contrast(bubble, ink).toFixed(2)}`);
+      const { fill, ink } = allow(color, inks);
+      assert.ok(inks.includes(ink), `${theme} ${color}: the text is one of the theme's inks`);
+      assert.ok(contrast(fill, ink) >= 4.5, `${theme} ${color}: ${ink} on ${fill} is ${contrast(fill, ink).toFixed(2)}`);
     }
+    // Els vents pastel queden amb el seu color tal qual.
+    assert.equal(allow('#EFC69A', inks).fill, '#efc69a', theme);
   }
+  // El blau de Gregal es llegeix amb la tinta fosca del tema fosc; amb les del clar no arriba a 4.5:1 i cedeix una mica.
+  assert.equal(allow('#3D7BFF', themes.dark).fill, '#3d7bff');
+  const blue = allow('#3D7BFF', themes.light).fill;
+  assert.notEqual(blue, '#3d7bff');
+  assert.ok(contrast(blue, '#3D7BFF') < 1.6, `${blue} is still Gregal's blue`);
 });
 
 test('the mix goes from the base to the colour as CSS color-mix in srgb does', () => {

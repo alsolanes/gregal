@@ -448,9 +448,9 @@ test('the handoff card opens the computer pane too', async () => {
 });
 
 // 102: una aprovació al xat d'un vent és una targeta sota el vent: el pas, una vista prèvia del que farà i Permet / No.
-async function askIn(ask, lang = 'en', answer = { ok: true, status: 200, json: async () => ({ ok: true, id: 'k1', state: 'approved' }) }) {
+async function askIn(ask, lang = 'en', answer = { ok: true, status: 200, json: async () => ({ ok: true, id: 'k1', state: 'approved' }) }, css) {
   const json = data => ({ ok: true, status: 200, json: async () => data });
-  const f = await boot({ lang, api: r => r.url === '/api/winds/pending' ? json({ pending: [{ key: 'k1', type: 'approve', wind: 'xaloc', ...ask }] })
+  const f = await boot({ lang, css, api: r => r.url === '/api/winds/pending' ? json({ pending: [{ key: 'k1', type: 'approve', wind: 'xaloc', ...ask }] })
     : r.url === '/api/winds/answer' ? answer : null });
   await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();
   await settle();
@@ -474,7 +474,8 @@ test('an approval for a page in the browser previews the site and the full addre
   assert.equal(f.preview.dataset.kind, 'page');
   assert.equal(f.preview.querySelector('strong').textContent, 'example.com');
   assert.equal(f.preview.querySelector('small').textContent, 'https://www.example.com/tickets?day=sat');
-  assert.match(f.card.querySelector('.vw-ask-sub').textContent, /Ask me before buying/);
+  assert.equal(f.card.querySelector('.vw-ask-why').textContent, 'Asking because of your rule: «Ask me before buying».');
+  assert.equal(f.card.querySelector('.vw-ask-sub'), null, 'the reason is said once, on its own line');
 });
 
 test('an approval to write a document previews its name and where it goes', async () => {
@@ -529,6 +530,42 @@ test('the approval card speaks Catalan too', async () => {
   await byText(f.card, 'button', 'Permet').click();
   await settle();
   assert.equal(f.page.querySelector('.vw-ask-done').textContent, 'Has permès: npm install -g serve');
+});
+
+// 130: la targeta és del vent que pregunta: la seva cara, la vora del seu color, el perquè en una línia
+// i Permet amb el color del vent, amb la tinta del tema que s'hi llegeix (wind-chat-color.test.cjs).
+const themeInks = {
+  dark: { '--ink': '#F2F4F7', '--bg': '#131518' },
+  light: { '--ink': '#10202A', '--bg': '#F4F6F3' },
+};
+test('an approval card carries the asking wind: its face, its colour, one line of why and Allow in its colour', async () => {
+  const f = await askIn({ kind: 'rule', name: 'bash', what: 'rm -rf build', reason: 'Asking because of your rule: «Ask me before deleting».' }, 'en', undefined, n => themeInks.dark[n] || '');
+  assert.equal(f.card.querySelector('.vw-ask-head').querySelector('svg').dataset.wind, 'Xaloc', 'the wind’s face, not a shield');
+  assert.ok(f.card.classList.contains('vw-ask-wind'));
+  assert.equal(f.card.style['--vw-wind'], '#F5B45D');
+  assert.equal(f.card.querySelector('.vw-ask-why').textContent, 'Asking because of your rule: «Ask me before deleting».');
+  const { fill, ink } = f.window.gregalWindChat.allow('#F5B45D', ['#F2F4F7', '#131518']);
+  assert.equal(f.card.style['--vw-allow'], fill);
+  assert.equal(f.card.style['--vw-allow-ink'], ink);
+});
+
+test('switching between dark and light with an approval card open repaints its Allow button right away', async () => {
+  let theme = 'dark';
+  const f = await askIn({ kind: 'install', name: 'bash', what: 'npm install -g serve' }, 'en', undefined, n => themeInks[theme][n] || '');
+  f.card.querySelector('.vw-ask-actions').append(f.doc.createElement('i'));
+  const { allow } = f.window.gregalWindChat;
+  assert.equal(f.card.style['--vw-allow-ink'], allow('#F5B45D', ['#F2F4F7', '#131518']).ink);
+  theme = 'light';
+  f.mutate(f.doc.documentElement, 'data-theme');
+  assert.equal(f.card.style['--vw-allow-ink'], allow('#F5B45D', ['#10202A', '#F4F6F3']).ink);
+  assert.equal(f.page.querySelector('.vw-ask'), f.card, 'the same card, not a redraw');
+});
+
+test('an approval with no reason has no why line, and a card from an unknown wind keeps the shield', async () => {
+  const f = await askIn({ kind: 'install', name: 'bash', what: 'npm install -g serve', wind: 'nobody' });
+  assert.equal(f.card.querySelector('.vw-ask-why'), null);
+  assert.ok(f.card.querySelector('.vw-ask-shield'));
+  assert.ok(!f.card.classList.contains('vw-ask-wind'));
 });
 
 // The docs side (docs-panel.js) is in docs-panel.test.cjs.
@@ -603,6 +640,23 @@ test('a wind’s conversation has exactly one face of the wind, next to its name
   assert.deepEqual(rows.map(r => r.querySelector('svg')?.dataset.wind), ['Xaloc', 'Gregal', 'Xaloc'], 'a group tells its speakers apart');
 });
 
+// 130: en un grup, la cara (20 px) només al primer missatge d'una ratxa del mateix vent, i cada vent té
+// una sola forma de missatge, sigui curt o llarg.
+test('in a group a wind’s small face starts its run only, and a long reply looks like a short one', async () => {
+  const group = { id: 'r1', name: 'La colla del concert', members: ['xaloc', 'gregal'] };
+  const json = data => ({ ok: true, status: 200, json: async () => data });
+  const long = 'Taula:\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n```\ncodi\n```\n' + 'llarg '.repeat(200);
+  const f = await boot({ api: r => r.url === '/api/winds/rotllanes' ? json({ rotllanes: [group] })
+    : r.url.startsWith('/api/winds/rotllana?') ? json({ history: [{ from: 'user', text: 'Anem-hi' }, { from: 'xaloc', speaker_id: 'xaloc', text: 'Jo hi vaig' }, { from: 'xaloc', speaker_id: 'xaloc', text: long }, { from: 'gregal', speaker_id: 'gregal', text: 'I jo' }] }) : null });
+  await byText(f.nav, 'button', 'La colla del concert').click();
+  await settle();
+  const rows = f.page.querySelector('.vw-messages').querySelectorAll('article').filter(a => !a.classList.contains('vw-user'));
+  assert.deepEqual(rows.map(r => r.querySelector('svg')?.dataset.wind), ['Xaloc', undefined, 'Gregal'], 'the face only starts a run');
+  assert.deepEqual(rows.map(r => r.querySelector('svg')?.dataset.size), ['20', undefined, '20']);
+  const look = r => r.className.split(' ').filter(c => !c.startsWith('vw-run-')).sort().join(' ');
+  assert.equal(look(rows[1]), look(rows[0]), 'the long reply has the same shape as the short one');
+});
+
 // El vent descansa a la cantonada amb el missatge més nou; si tires amunt, vola al costat del nom, i torna.
 async function windChat(room) {
   const json = data => ({ ok: true, status: 200, json: async () => data });
@@ -647,25 +701,6 @@ test('the flight moves one element with transforms only, and jumps instead of fl
     assert.deepEqual(props.filter(p => !['translate', 'transform', 'scale'].includes(p)), [], 'transforms only: ' + props);
   }
   assert.doesNotMatch(still, /\.vw-wind-corner[^{]*\{[^}]*transition:/, 'no flight under reduced motion');
-});
-
-// 085: la tinta de la bombolla depèn del tema; canviar de clar a fosc amb el xat obert la refà de seguida.
-test('switching between dark and light with a wind’s chat open retints its bubbles right away', async () => {
-  const themes = {
-    dark: { '--surface-hi': '#24282D', '--text': '#DEE2E7', '--ink': '#F2F4F7', '--muted': '#A7AEB8' },
-    light: { '--surface-hi': '#DEE5DE', '--text': '#1C2D35', '--ink': '#10202A', '--muted': '#4C5F5C' },
-  };
-  let theme = 'dark';
-  const f = await boot({ css: n => themes[theme][n] || '' });
-  await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();
-  await settle();
-  const ws = f.page.querySelector('.wind-workspace'), { share } = f.window.gregalWindChat;
-  const expected = th => String(share('#F5B45D', themes[th]['--surface-hi'], ['--text', '--ink', '--muted'].map(n => themes[th][n])));
-  assert.notEqual(expected('dark'), expected('light'), 'the two themes give different shares');
-  assert.equal(ws.style['--vw-wind-share'], expected('dark'));
-  theme = 'light';
-  f.mutate(f.doc.documentElement, 'data-theme');
-  assert.equal(ws.style['--vw-wind-share'], expected('light'), 'the light share, without a redraw');
 });
 
 // 089: el panell de Gregal Docs i el de l'ordinador passen a flotar sobre el xat a la mateixa amplada.
