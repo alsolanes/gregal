@@ -47,6 +47,8 @@ const (
 type avuiAction struct {
 	Label  string `json:"label"`
 	Prompt string `json:"prompt,omitempty"`
+	// Thread: el fil del vent que obre (winds_avui_loops.go).
+	Thread string `json:"thread,omitempty"`
 }
 
 type avuiCard struct {
@@ -515,6 +517,10 @@ func (s *Server) avuiPauseCard(r *responsabilitat) avuiCard {
 func (s *Server) handleWindsAvui(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
+		if err := s.syncLoopsJob(); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		v := s.avuiView()
 		v["glance"] = s.avuiGlance()
 		writeJSON(w, v)
@@ -654,6 +660,10 @@ func (s *Server) handleWindsAvuiSettings(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		if err := s.syncFollowJobs(st); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := s.syncLoopsJob(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
