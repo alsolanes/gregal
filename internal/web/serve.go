@@ -1761,10 +1761,12 @@ func (s *Server) recordActive(event string, value any) {
 		chunk, _ := value.(map[string]string)
 		s.mu.Lock()
 		if s.active != nil {
+			firstChunk := s.tokenBuf == ""
 			s.tokenBuf += chunk["text"]
-			// Una escriptura durable per cada token saturava el registre i
-			// l'event stream en tirades de milers de passos.
-			if len(s.tokenBuf) >= 512 || time.Since(s.tokenAt) >= 180*time.Millisecond {
+			// El primer fragment surt de seguida: si el model s'atura un instant
+			// després, no podem esperar un altre token per buidar el buffer.
+			// Després agrupem les escriptures per no saturar registre i SSE.
+			if firstChunk || len(s.tokenBuf) >= 512 || time.Since(s.tokenAt) >= 180*time.Millisecond {
 				s.flushTokensLocked()
 			}
 		}
