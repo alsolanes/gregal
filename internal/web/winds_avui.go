@@ -28,7 +28,7 @@ import (
 // de fer sonar el mòbil.
 //
 //	GET  /api/winds/avui                     → {date, now, fyi, ahead, done, settings, held, glance}
-//	POST /api/winds/avui {id, action}        → done|later|dismiss|useful|notuseful|reopen|save
+//	POST /api/winds/avui {id, action}        → done|later|dismiss|useful|notuseful|reopen|save|resume
 //	GET  /api/winds/avui/settings            → {quiet_from, quiet_to, level, tune, place, follows}
 //	POST /api/winds/avui/settings {…}        → desa i torna la configuració (follow, unfollow)
 
@@ -459,6 +459,59 @@ func (s *Server) avuiView() map[string]any {
 	}
 }
 
+// avuiPauseSource és la targeta «He deixat de mirar X» (respEase).
+const avuiPauseSource = "pausa"
+
+// avuiWatchOf és la responsabilitat que va fer parlar el vent ("" si cap).
+func avuiWatchOf(c avuiCard) string {
+	switch c.Source {
+	case "responsabilitat":
+		return c.Job
+	case "heartbeat":
+		return respHeartID(c.Wind)
+	}
+	return ""
+}
+
+// avuiNoes compta els «no» (Ara no, No m'interessa) dels últims 7 dies a les
+// targetes d'una responsabilitat. Un «Útil» en una targeta posterior torna a
+// començar el compte; la llista va en ordre d'arribada.
+func avuiNoes(list []avuiCard, watch string, now time.Time) int {
+	cut := now.Add(-7 * 24 * time.Hour).Unix()
+	n := 0
+	for _, c := range list {
+		if avuiWatchOf(c) != watch {
+			continue
+		}
+		switch {
+		case c.Feedback == "useful":
+			n = 0
+		case (c.State == avuiDismissed || c.Feedback == "notuseful") && c.Updated >= cut:
+			n++
+		}
+	}
+	return n
+}
+
+// avuiPauseCard diu a «Avui» que una vigilància s'ha pausat sola; POST
+// {action:"resume"} la reprèn.
+func (s *Server) avuiPauseCard(r *responsabilitat) avuiCard {
+	obj := oneLine(r.Objective, 90)
+	name := r.Wind
+	if w, ok := s.winds.ByID(r.Wind); ok {
+		name = w.Name
+	}
+	now := time.Now().Unix()
+	return avuiCard{
+		ID: avuiID(), Wind: r.Wind, WindName: name, Source: avuiPauseSource, Job: r.ID, Section: avuiNow,
+		Title: s.tr("He deixat de mirar: ", "I've stopped watching: ") + obj,
+		Why:   s.tr("Li has dit que no 5 cops aquesta setmana.", "You said no to it 5 times this week."),
+		Actions: []avuiAction{{Label: s.tr("Torna a mirar-ho", "Watch it again"),
+			Prompt: s.tr("Torna a vigilar: ", "Watch this again: ") + obj}},
+		State: avuiOpen, Created: now, Updated: now,
+	}
+}
+
 func (s *Server) handleWindsAvui(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -478,12 +531,16 @@ func (s *Server) handleWindsAvui(w http.ResponseWriter, r *http.Request) {
 		list := loadAvui(s)
 		now := time.Now()
 		found := false
+		watch, before := "", 0
 		for i := range list {
 			if list[i].ID != req.ID {
 				continue
 			}
 			found = true
 			c := &list[i]
+			if watch = avuiWatchOf(*c); watch != "" {
+				before = avuiNoes(list, watch, now)
+			}
 			switch req.Action {
 			case "done":
 				c.State = avuiDone
@@ -510,6 +567,16 @@ func (s *Server) handleWindsAvui(w http.ResponseWriter, r *http.Request) {
 				c.Saved = !c.Saved
 			case "reopen":
 				c.State, c.Until = avuiOpen, 0
+			case "resume":
+				if c.Source != avuiPauseSource {
+					http.Error(w, "only a paused watch's card resumes", http.StatusBadRequest)
+					return
+				}
+				if _, code, err := s.respAction("resume", c.Job, respInput{}, r); err != nil {
+					http.Error(w, err.Error(), code)
+					return
+				}
+				c.State = avuiDone
 			default:
 				http.Error(w, "unknown action", http.StatusBadRequest)
 				return
@@ -520,6 +587,22 @@ func (s *Server) handleWindsAvui(w http.ResponseWriter, r *http.Request) {
 		if !found {
 			http.Error(w, "unknown card", http.StatusNotFound)
 			return
+		}
+		if watch != "" {
+			after := avuiNoes(list, watch, now)
+			for _, at := range []int{3, 5} {
+				if before >= at || after < at {
+					continue
+				}
+				paused, err := s.respEase(watch, at)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				if paused != nil {
+					list = append(list, s.avuiPauseCard(paused))
+				}
+			}
 		}
 		if err := saveAvui(s, list); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
