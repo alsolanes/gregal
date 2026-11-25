@@ -165,7 +165,8 @@
  function paintMark(n=page?.querySelector('.vw-wind-mark')){paintCorner();if(!n)return;const m=windMark(state,state.active?.id,n.dataset.wind);n.dataset.mark=m;n.textContent=markText(m);n.hidden=!m;}
  // El vent present a la cantonada del xat (087) fa cara del mateix estat. «waiting» no és una cara de
  // winds.js (la dibuixa en repòs): és la postura que li dona winds-workspace.css.
- const cornerMood=(s,thread,wind)=>{const m=windMark(s,thread,wind);return m==='working'?root.gregalWinds.moodOf(s.pending):m||'idle';};
+ // 138: l'eina que corre diu quina feina fa (llegir, cercar, escriure, l'ordinador), per sobre de la fase i el text.
+ const cornerMood=(s,thread,wind)=>{const m=windMark(s,thread,wind);if(m!=='working')return m||'idle';const tool=s.pending.steps?.findLast(x=>!x.done)?.tool;return root.gregalWinds.moodOf(tool?{state:'working',activity:tool}:s.pending);};
  // 108: el vent és un de sol. Té casa a la capçalera, al costat del nom (owner), i baixa a la cantonada
  // del xat quan ets al missatge més nou: el lloc .vw-corner-spot, que el CSS amaga on no hi cap (llavors
  // es queda a dalt). Al fil de Gregal la seva cara ja és gran a dalt; en un grup no hi ha un sol vent.
@@ -173,19 +174,57 @@
  function cornerWind(){flight?.disconnect();if(!page.querySelector('.vw-wind-corner'))return;const spot=el('div','vw-corner-spot');spot.setAttribute('aria-hidden','true');spot.append(el('i'));content.append(spot);messages.addEventListener('scroll',flyCorner,{passive:true});
   // La mida del fil canvia amb la finestra, un panell de feina o el compositor que creix: el lloc es mou.
   flight=new ResizeObserver(flyCorner);flight.observe(messages);}
- const flownUp=box=>box.scrollHeight-box.clientHeight-box.scrollTop>160;
- function flyCorner(){const n=page?.querySelector('.vw-wind-corner'),spot=content?.querySelector('.vw-corner-spot')?.firstChild;if(!n||!spot||!messages)return;const a=spot.getBoundingClientRect(),at=a.width&&!flownUp(messages)?'corner':'top';
+ // 138: amb marge. A la cantonada, només puja quan has pujat clarament lluny del final (240 px); a dalt, només
+ // baixa quan tornes a ser-hi a prop (48 px); entremig es queda on és. El fil que creix sota un vent que
+ // escriu allunya el final sense que hagis pujat: això no el mou.
+ const cornerAt=(at,gap,up)=>at==='corner'?(up&&gap>240?'top':'corner'):(gap<48?'corner':'top');
+ let lastTop=0;
+ function flyCorner(){const n=page?.querySelector('.vw-wind-corner'),spot=content?.querySelector('.vw-corner-spot')?.firstChild;if(!n||!spot||!messages)return;const a=spot.getBoundingClientRect(),top=messages.scrollTop,up=top<lastTop;lastTop=top;
+  const at=a.width?cornerAt(n.dataset.at,messages.scrollHeight-messages.clientHeight-top,up):'top';
   if(at==='corner'){const b=n.parentNode.getBoundingClientRect();n.style.setProperty('--vw-fly-x',a.left-b.left-n.offsetLeft+'px');n.style.setProperty('--vw-fly-y',a.top-b.top-n.offsetTop+'px');}
   n.dataset.at=at;
   // El primer lloc s'hi posa sense vol (llegir-ne la mida el fixa): només volen els canvis que vénen després.
   if(!('fly' in n.dataset)){n.getBoundingClientRect();n.dataset.fly='';}}
  // 101: el torn que acaba de tornar el celebra (o l'arronsa) un sol cop qui el porta: el render següent ja no.
  function cheerOn(n){const c=state.cheer;if(!c||c.thread!==state.active?.id)return;n.classList.add(c.kind==='done'?'vw-cheer':'vw-shrug');if(c.kind!=='done')return;const burst=el('span','vw-burst');burst.setAttribute('aria-hidden','true');for(let i=0;i<10;i++){const s=el('i');s.style.setProperty('--i',String(i));burst.append(s);}n.append(burst);}
- function paintCorner(n=page?.querySelector('.vw-wind-corner')){if(!n)return;const mood=cornerMood(state,state.active?.id,n.dataset.wind);if(n.dataset.mood===mood)return;if(n.dataset.mood)n.className='vw-wind-corner';n.dataset.mood=mood;
-  // La plastilina canvia d'humor al seu lloc (s'hi fon); la cara dibuixada es torna a fer.
-  const now=n.firstChild;if(now?.classList.contains('winds-clay')){n.querySelector('.vw-burst')?.remove();root.gregalCharacters.mood(now,mood);return;}
-  const w=state.winds.find(w=>w.id===n.dataset.wind);n.replaceChildren(clay(w,root.gregalWinds.face(w,true,mood)));}
- root.gregalWindChat={mix:mixHex,share:windShare,mark:windMark,cornerMood};
+ // 138: una cara de feina es queda almenys 1,2 s. Si en aquesta estona passa d'una eina a una altra, o
+ // d'eina a xerrar i a eina, la cara que es veu continua (sense tornar a començar l'animació) i en acabar
+ // l'estona mostra la feina d'aquell moment. Acabar el torn o preguntar-te alguna cosa es veu de seguida.
+ const workMoods=['thinking','searching','reading','writing','working','discussing'],moodHold=1200,held=new Map();
+ function heldMood(key,mood,again){const h=held.get(key),now=Date.now();
+  if(h&&h.mood!==mood&&workMoods.includes(h.mood)&&workMoods.includes(mood)&&now-h.at<moodHold){clearTimeout(h.timer);h.timer=setTimeout(again,h.at+moodHold-now);return h.mood;}
+  if(h)clearTimeout(h.timer);if(h?.mood!==mood)held.set(key,{mood,at:now});return mood;}
+ const still=()=>!!root.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+ // La cara (o l'estri) nova entra per sobre de la vella i es fonen en 300 ms, en comptes de canviar de cop.
+ function swapIn(n,old,next){if(next)old?old.after(next):n.prepend(next);if(!old)return;if(still()||!old.animate){old.remove();return;}
+  old.classList.add('vw-fade-out');const gone=()=>old.remove();old.animate([{opacity:1},{opacity:0}],{duration:300,easing:'ease',fill:'forwards'}).finished.then(gone,gone);next?.animate([{opacity:0},{opacity:1}],{duration:300,easing:'ease'});}
+ // Mentre treballa, el vent té a tocar un estri de la feina que fa: la lupa que escombra, la pàgina que
+ // gira, el llapis que gargoteja, l'ordinador on pica, els engranatges del pensament, del seu color
+ // (winds-workspace.css). On el vent gran és de plastilina (characters.js), el CSS l'amaga: ja porta els seus.
+ const props={
+  searching:[['g',{class:'vp-move'},[['path',{class:'vp-ink vp-thick',d:'M21 21l10 10'}],['circle',{class:'vp-tint vp-ink',cx:15,cy:15,r:9}],['path',{class:'vp-shine',d:'M10.5 13.5a5 5 0 0 1 4-4.5'}]]]],
+  reading:[['path',{class:'vp-paper vp-ink',d:'M20 13C15 10 9 10 4 12v19c5-2 11-2 16 1Z'}],['path',{class:'vp-paper vp-ink',d:'M20 13c5-3 11-3 16-1v19c-5-2-11-2-16 1Z'}],
+   ['path',{class:'vp-line',d:'M7.5 17c3-1 6-1 9 0M7.5 21c3-1 6-1 9 0M7.5 25c3-1 6-1 9 0'}],['path',{class:'vp-turn vp-paper vp-ink',d:'M20 13c4-3 9-3 13-1.5v19c-4-1.5-9-1.5-13 1.5Z'}]],
+  writing:[['rect',{class:'vp-paper vp-ink',x:3,y:15,width:27,height:20,rx:2.5,transform:'rotate(-6 17 25)'}],['path',{class:'vp-trail',pathLength:1,d:'M7 26.5c2-3 3 3 5 0s3 3 5 0 3 3 5 0',transform:'rotate(-6 17 25)'}],
+   ['g',{class:'vp-move'},[['path',{class:'vp-tint vp-ink',d:'M22.5 26.5l11-13 4 3.4-11 13-5.4 1.4Z'}],['path',{class:'vp-nib',d:'M22.5 26.5l-1.4 4.8 4.4-1.5Z'}]]]],
+  working:[['path',{class:'vp-tint vp-ink',d:'M9 9h22a2 2 0 0 1 2 2v15H7V11a2 2 0 0 1 2-2Z'}],['rect',{class:'vp-screen',x:10,y:12,width:20,height:11,rx:1}],['path',{class:'vp-code',d:'M13 15.5h7M13 19.5h11'}],
+   ['path',{class:'vp-paper vp-ink',d:'M2 26h36l-3 5.5H5Z'}],['path',{class:'vp-key vp-line',d:'M12 28.6h3'}],['path',{class:'vp-key vp-key-b vp-line',d:'M18.5 28.6h3'}],['path',{class:'vp-key vp-key-c vp-line',d:'M25 28.6h3'}]],
+  thinking:[['g',{class:'vp-gear'},[['circle',{class:'vp-teeth',cx:16,cy:23,r:9}],['circle',{class:'vp-tint vp-ink',cx:16,cy:23,r:7}],['circle',{class:'vp-paper vp-ink',cx:16,cy:23,r:2.6}]]],
+   ['g',{class:'vp-gear vp-gear-b'},[['circle',{class:'vp-teeth vp-teeth-b',cx:29.5,cy:11.5,r:5.5}],['circle',{class:'vp-tint vp-ink',cx:29.5,cy:11.5,r:4}],['circle',{class:'vp-paper vp-ink',cx:29.5,cy:11.5,r:1.4}]]]],
+ };
+ const svgOf=([tag,attrs,kids=[]])=>{const n=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const k in attrs)n.setAttribute(k,attrs[k]);for(const c of kids)n.append(svgOf(c));return n;};
+ // Els bucles de la cara i de l'estri segueixen un sol rellotge (com --wf-phase a winds.js): la cara
+ // nova continua el balanceig on el deixava la vella.
+ const phase=()=>-(((root.performance?.now?.()??Date.now())/1000)%12).toFixed(2)+'s';
+ // El fill (cara o estri) que es veu, no el que s'esvaeix.
+ const live=(n,cls)=>[...n.children].find(c=>c.classList.contains(cls)&&!c.classList.contains('vw-fade-out'))||null;
+ function propFor(mood){if(!props[mood])return null;const box=svgOf(['svg',{class:'vw-prop',viewBox:'0 0 40 40','aria-hidden':'true'},props[mood]]);box.dataset.kind=mood;box.style.setProperty('--vw-phase',phase());return box;}
+ function paintCorner(n=page?.querySelector('.vw-wind-corner')){if(!n)return;const mood=heldMood(n.dataset.wind,cornerMood(state,state.active?.id,n.dataset.wind),()=>paintCorner());if(n.dataset.mood===mood)return;if(n.dataset.mood)n.className='vw-wind-corner';n.dataset.mood=mood;
+  n.querySelector('.vw-burst')?.remove();swapIn(n,live(n,'vw-prop'),propFor(mood));
+  // La plastilina canvia d'humor al seu lloc (s'hi fon); la cara dibuixada es fa de nou i es fon amb la vella.
+  const now=live(n,'winds-face');if(now?.classList.contains('winds-clay')){root.gregalCharacters.mood(now,mood);return;}
+  const w=state.winds.find(w=>w.id===n.dataset.wind),next=clay(w,root.gregalWinds.face(w,true,mood));next.style.setProperty('--vw-phase',phase());swapIn(n,now,next);}
+ root.gregalWindChat={mix:mixHex,share:windShare,mark:windMark,cornerMood,cornerAt,heldMood};
  // Qui porta la conversa: el vent (l'únic, que vola a la cantonada) amb el seu estat, el nom i l'ofici. En un grup, les cares de qui hi és.
  function owner(){
   const box=el('span','vw-owner'),members=state.winds.filter(w=>(state.active?.members||[]).includes(w.id));
