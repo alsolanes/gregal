@@ -26,20 +26,20 @@ class El {
 class Event { constructor(type, opts = {}) { this.type = type; this.bubbles = !!opts.bubbles; } }
 class KeyboardEvent extends Event { constructor(type, opts = {}) { super(type, { bubbles:true }); this.key = opts.key; } preventDefault() { this.prevented = true; } }
 
-function load(theme) {
+function load(theme, characters) {
   const document = { activeElement:null, body:null, hidden:false, addEventListener() {} };
   document.createElement = tag => Object.assign(new El(tag, document), tag === 'canvas' ? { getContext:() => ({}) } : {});
   document.createElementNS = (_, tag) => new El(tag, document);
   const posts = [];
   const api = async (url, opts) => { if (opts.method === 'POST') posts.push(JSON.parse(opts.body)); return { ok:true, json:async () => ({ avatarTheme:theme }) }; };
-  const window = { document, api, Event, performance:{ now:() => 0 }, IntersectionObserver:class { observe() {} } };
+  const window = { document, api, Event, performance:{ now:() => 0 }, IntersectionObserver:class { observe() {} }, gregalCharacters:characters };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'winds.js'), 'utf8'), { window });
   return { winds:window.gregalWinds, document, posts };
 }
 const faces = n => n.all().filter(c => c.tag === 'svg');
 // Cares is the plain face, the only pack without a data-avatar mark.
 const packOf = svg => svg.getAttribute('data-avatar') || 'cares';
-const packs = ['cares', 'esperit', 'cap', 'rosa', 'mapa', 'minairo'];
+const packs = ['cares', 'esperit', 'cap', 'rosa', 'mapa', 'minairo', 'pelut'];
 
 test('Preferences › Avatars shows a sample face of each pack on its choice and keeps the chosen one marked', async () => {
   const { winds, document, posts } = load('esperit');
@@ -75,20 +75,22 @@ test('the Lliure avatar field offers each pack as a sample in the wind colour, c
   assert.ok(faces(radios[0])[0].all().some(n => n.getAttribute('stop-color') === '#123456'), 'drawn in the wind colour');
   const checked = () => radios.filter(r => r.getAttribute('aria-checked') === 'true').map(r => packOf(faces(r)[0]));
   assert.deepEqual(checked(), ['rosa']);
-  assert.deepEqual(radios.map(r => r.getAttribute('tabindex')), ['-1', '-1', '-1', '0', '-1', '-1'], 'one tab stop, on the chosen pack');
+  assert.deepEqual(radios.map(r => r.getAttribute('tabindex')), ['-1', '-1', '-1', '0', '-1', '-1', '-1'], 'one tab stop, on the chosen pack');
   let changes = 0; field.addEventListener('change', () => changes++);
   radios[3].dispatchEvent(new KeyboardEvent('keydown', { key:'ArrowRight' }));
   assert.equal(field.value, 'mapa'); assert.deepEqual(checked(), ['mapa']); assert.equal(document.activeElement, radios[4]);
   radios[4].dispatchEvent(new KeyboardEvent('keydown', { key:'ArrowDown' }));
   assert.equal(field.value, 'minairo');
   radios[5].dispatchEvent(new KeyboardEvent('keydown', { key:'ArrowDown' }));
+  assert.equal(field.value, 'pelut');
+  radios[6].dispatchEvent(new KeyboardEvent('keydown', { key:'ArrowDown' }));
   assert.equal(field.value, 'cares', 'the arrows wrap around');
   radios[0].dispatchEvent(new KeyboardEvent('keydown', { key:'ArrowLeft' }));
-  assert.equal(field.value, 'minairo');
+  assert.equal(field.value, 'pelut');
   radios[1].click();
   assert.equal(field.value, 'esperit'); assert.deepEqual(checked(), ['esperit']);
   radios[1].click();
-  assert.equal(changes, 5, 'every new pick, and only a new one, tells the editor to redraw its preview');
+  assert.equal(changes, 6, 'every new pick, and only a new one, tells the editor to redraw its preview');
 });
 
 test('with a theme the editor names the pack instead of offering a choice', () => {
@@ -136,4 +138,44 @@ test('the barretina field offers Automàtica and the six colours, starts on the 
   assert.equal(winds.avatarPack({ avatar:'rosa' }), 'rosa');
   winds.setAvatarTheme('minairo');
   assert.equal(winds.avatarPack({ avatar:'rosa' }), 'minairo', 'the theme draws every wind');
+});
+
+test('Pelut is a pack in both pickers, and the clay packs (Cares, Minairons, Pelut) show their still 3D figure without a trade kit', async () => {
+  const played = [];
+  const characters = { play(svg, w, still) { played.push({ pack:packOf(svg), still, kit:w.kit }); return svg; } };
+  const { winds, document, posts } = load('cares', characters);
+  const box = new El('div', document);
+  await winds.avatarPrefs(box);
+  const choice = box.all().find(n => n.getAttribute('data-v') === 'pelut');
+  assert.match(choice.textContent, /Pelut/);
+  assert.deepEqual(faces(choice).map(packOf), ['pelut'], 'its sample is a pelut');
+  assert.deepEqual(played, ['cares', 'minairo', 'pelut'].map(pack => ({ pack, still:true, kit:undefined })), 'only the clay packs go to the clay player');
+  await choice.click();
+  assert.deepEqual(posts, [{ theme:'pelut' }]);
+  assert.equal(packOf(winds.face({ id:'brisa', name:'Brisa', color:'#123456', style:'pso' })), 'pelut');
+  played.length = 0;
+  winds.setAvatarTheme('free');
+  const field = winds.avatarField(new El('div', document), { id:'brisa', name:'Brisa', color:'#123456', style:'pso', kit:'cuina', avatar:'pelut' });
+  assert.equal(field.value, 'pelut');
+  assert.deepEqual(played.map(p => p.pack), ['cares', 'minairo', 'pelut']);
+  assert.ok(played.every(p => p.still && p.kit === undefined), 'a still sample, without the wind’s kit');
+});
+
+test('a pelut face is clay at every size: a large one plays, a smaller one holds still, a scene figure stays drawn', () => {
+  const played = [];
+  const { winds } = load('pelut', { play(svg, w, still) { played.push(still); return svg; } });
+  winds.setAvatarTheme('pelut');
+  const w = { id:'brisa', name:'Brisa', color:'#123456', style:'pso' };
+  winds.face(w, true); winds.face(w); winds.face(w, false, 'idle', 20);
+  assert.deepEqual(played, [false, true, true]);
+  const figure = winds.face(w, 'figure');
+  assert.equal(played.length, 3, 'a scene changes its figure’s mood on the drawing');
+  assert.equal(packOf(figure), 'pelut');
+  assert.ok(figure.all().some(n => n.getAttribute('stop-color') === '#123456'), 'drawn in the wind colour');
+});
+
+test('the Pelut pack is «Furry» in English', async () => {
+  const { CLAUS } = await import('./i18n.js');
+  assert.equal(CLAUS.ca['winds.avatarPelut'], 'Pelut');
+  assert.equal(CLAUS.en['winds.avatarPelut'], 'Furry');
 });

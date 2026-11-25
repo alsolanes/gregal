@@ -22,6 +22,9 @@ from mathutils.bvhtree import BVHTree
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "internal/web/app/characters"
 SIZE, FPS, QUALITY = 128, 12, 82
+FUR_QUALITY = 75
+# Silhouettes rendered larger than SIZE: the fur needs the pixels of a phone screen.
+SIZES = {"pelut": 256}
 NEUTRAL = (0.8, 0.8, 0.8, 1)
 INK = (0.012, 0.011, 0.02, 1)
 # Each wind family (the third letter of a wind's style, as in winds.js) keeps one
@@ -39,6 +42,8 @@ SILHOUETTES = {
         for s in [k / 9 for k in range(10)]]),
     # Not a style letter: the face of every wind in the minairó pack (winds.js, WindFace.kt).
     "minairo": ("minairo", 1.7, 0.96, [((0, 0, 0.8), 1.25, (1, 0.9, 0.9)), ((0, 0, 1.15), 0.95, (0.95, 0.9, 0.88))]),
+    # Not a style letter either: every wind in the pelut pack, a round ball of short fur.
+    "pelut": ("pelut", 1.7, 1.02, [((0, 0, 0.95), 1.3, (1, 0.95, 1.08))]),
 }
 # Silhouettes with a barretina in its own mask (<mood>.cap.webp), tinted per wind.
 CAPS = ("minairo",)
@@ -291,12 +296,12 @@ def bend(ob, half, rise, thick, wave=0.0):
         pt.co = (x, 0, rise * (1 - (x / half) ** 2) + wave * math.sin(math.pi * x / half), 1)
 
 
-def scene():
+def scene(size):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     sc = bpy.context.scene
     # Cycles on the CPU with a fixed seed, no denoiser and no dithering repeats its frames.
     sc.render.engine, sc.cycles.device, sc.cycles.seed = "CYCLES", "CPU", 1
-    sc.render.resolution_x = sc.render.resolution_y = SIZE
+    sc.render.resolution_x = sc.render.resolution_y = size
     sc.render.dither_intensity = 0  # dithering adds noise that differs on every run
     sc.render.film_transparent = True
     sc.render.image_settings.file_format, sc.render.image_settings.color_mode = "PNG", "RGBA"
@@ -369,8 +374,44 @@ def character(silhouette, seed):
     parts["mouth"] = dict(anchor=mouth, line=arc("smile", mouth, ink), open=sphere("open", mouth, ink))
     if silhouette == "minairo":
         minairo(parts, seed)
+    if silhouette == "pelut":
+        parts["fur"] = fur(parts)
     props(parts, seed)
     return parts
+
+
+def fur(parts):
+    """Short hair all over the body, in the mask so it takes the wind's colour, shorter round
+    the face so the eyes and mouth stay clear: Cycles renders the strands as curves."""
+    body, eyes = parts["body"], parts["eyes"]
+    hair = bpy.data.materials.new("fur")
+    nodes, links = hair.node_tree.nodes, hair.node_tree.links
+    nodes.remove(nodes["Principled BSDF"])
+    bsdf = nodes.new("ShaderNodeBsdfHairPrincipled")
+    bsdf.parametrization = "COLOR"
+    bsdf.inputs["Color"].default_value = NEUTRAL
+    bsdf.inputs["Roughness"].default_value = 0.4
+    bsdf.inputs["Radial Roughness"].default_value = 0.6
+    links.new(bsdf.outputs[0], nodes["Material Output"].inputs[0])
+    body.data.materials.append(hair)
+    slot = body.material_slots[1]
+    slot.link, slot.material, slot.link = "OBJECT", bpy.data.materials["mask"], "DATA"
+    # The face: bare round the eyes and mouth, the fur growing back towards the edge.
+    group = body.vertex_groups.new(name="length")
+    for v in body.data.vertices:
+        d = math.hypot(v.co.x / 0.62, (v.co.z - eyes + 0.18) / 0.5) if v.co.y < 0 else 9.0
+        group.add([v.index], 0.15 + 0.85 * ease((d - 0.95) / 0.45), "REPLACE")
+    psys = body.modifiers.new("fur", "PARTICLE_SYSTEM").particle_system
+    psys.seed, psys.vertex_group_length = 155, "length"
+    s = psys.settings
+    s.type, s.count, s.hair_length, s.material = "HAIR", 2500, 0.2, 2
+    s.child_type, s.child_percent, s.rendered_child_count = "INTERPOLATED", 12, 12
+    # Tufts that clump a little and tips that stray: a soft, uneven outline.
+    s.child_length, s.clump_factor, s.roughness_1, s.roughness_endpoint = 1.0, 0.25, 0.02, 0.07
+    s.roughness_2, s.roughness_2_size = 0.04, 1.0
+    s.root_radius, s.tip_radius, s.radius_scale = 1.0, 0.0, 0.006
+    s.render_step = 3
+    return psys
 
 
 def minairo(parts, seed):
@@ -475,7 +516,8 @@ def apply(parts, p):
         bend(f["happy"], w * 0.85, h * 0.6, 0.05)
         f["happy"].location = (0, -0.06, -0.06)
     for side, foot in zip((-1, 1), parts["feet"]):
-        foot.location = (side * 0.5, -0.3, 0.12 + 0.09 * max(0.0, side * p["step"]))
+        # The pelut's feet step out of its fur.
+        foot.location = (side * 0.5, -0.3 - 0.25 * ("fur" in parts), 0.12 + 0.09 * max(0.0, side * p["step"]))
         foot.scale = (0.32, 0.36, 0.16)
     m = parts["mouth"]
     under = 0.5 if "beard" in parts else 0.38  # the minairó's mouth is under its moustache
@@ -827,7 +869,8 @@ def build(silhouettes, moods):
     for seed, silhouette in enumerate(SILHOUETTES):
         if silhouette not in silhouettes:
             continue
-        sc = scene()
+        size = SIZES.get(silhouette, SIZE)
+        sc = scene(size)
         mask_material()
         parts = character(silhouette, seed + 1)
         for mood in moods:
@@ -841,16 +884,18 @@ def build(silhouettes, moods):
                     sheets[mask].append(pixels(tmp / "frame.png"))
             colour = np.concatenate(sheets[None], axis=1)
             # WebP keeps alpha lossless: 32 levels look the same and halve what it costs.
-            colour[..., 3] = np.round(colour[..., 3] * 31) / 31
-            save(colour, OUT / silhouette / f"{mood}.webp", QUALITY)
+            # The fur's fringe is noisy anyway: 8 levels and a lower quality keep it in budget.
+            levels, quality = (7, FUR_QUALITY) if "fur" in parts else (31, QUALITY)
+            colour[..., 3] = np.round(colour[..., 3] * levels) / levels
+            save(colour, OUT / silhouette / f"{mood}.webp", quality)
             for mask in ("mask", "cap"):
                 if not sheets[mask]:
                     continue
                 # A mask keeps only coverage, at half size: constant white compresses to
                 # almost nothing. The largest of each 2x2 so the tint reaches the very edge.
-                half = np.concatenate(sheets[mask], axis=1)[..., 3].reshape(SIZE // 2, 2, -1, 2).max((1, 3))
+                half = np.concatenate(sheets[mask], axis=1)[..., 3].reshape(size // 2, 2, -1, 2).max((1, 3))
                 white = np.ones(half.shape + (4,), dtype=np.float32)
-                white[..., 3] = half
+                white[..., 3] = np.round(half * levels) / levels if "fur" in parts else half
                 save(white, OUT / silhouette / f"{mood}.{mask}.webp", 100)
 
 
@@ -858,6 +903,7 @@ def manifest():
     data = {"size": SIZE, "fps": FPS, "tint": "multiply",
             "files": "<silhouette>/<mood>.webp", "mask": "<silhouette>/<mood>.mask.webp", "maskSize": SIZE // 2,
             "cap": "<silhouette>/<mood>.cap.webp", "caps": list(CAPS),
+            "sizes": {name: [size, size // 2] for name, size in SIZES.items()},
             "silhouettes": {name: family for name, (family, *_) in SILHOUETTES.items()},
             "moods": {mood: {"frames": n, "loop": loop} | ({"prop": PROPS[mood][0], "still": PROPS[mood][1]} if mood in PROPS else {})
                       for mood, (n, loop) in MOODS.items()}}
@@ -876,10 +922,12 @@ MINAIRONS = tuple((hex_rgb(body), hex_rgb(cap)) for body, cap in (
 
 def preview(folder, silhouettes=tuple(SILHOUETTES), motion=False, title=None,
             tints=(((0.36, 0.55, 0.94), hex_rgb("#C9342C")), ((0.95, 0.65, 0.25), hex_rgb("#6E2F6B")))):
-    """Contact sheets at 128 and 40 px: each silhouette in each wind and barretina colour
-    with a few frames per mood, or with motion every frame of one silhouette, one mood per row."""
-    rows = []
+    """Contact sheets at the largest frame size among the silhouettes and at 40 px: each
+    silhouette in each wind and barretina colour with a few frames per mood, or with motion
+    every frame of one silhouette, one mood per row. Smaller frames are scaled up to fit."""
+    rows, cell = [], max(SIZES.get(name, SIZE) for name in silhouettes)
     for silhouette in silhouettes:
+        size = SIZES.get(silhouette, SIZE)
         for tint, cap in tints:
             cells = []
             for mood, (n, _) in MOODS.items():
@@ -890,12 +938,13 @@ def preview(folder, silhouettes=tuple(SILHOUETTES), motion=False, title=None,
                 if silhouette in CAPS:
                     masks.append((pixels(OUT / silhouette / f"{mood}.cap.webp"), cap))
                 for i in range(n) if motion else (0, n // 3, 2 * n // 3):
-                    c = colour[:, i * SIZE:(i + 1) * SIZE]
+                    c = colour[:, i * size:(i + 1) * size]
                     rgb = c[..., :3]
                     for mask, paint in masks:
-                        m = mask.repeat(2, 0).repeat(2, 1)[:, i * SIZE:(i + 1) * SIZE, 3:]
+                        m = mask.repeat(2, 0).repeat(2, 1)[:, i * size:(i + 1) * size, 3:]
                         rgb = rgb * (1 - m + m * np.array(paint, dtype=np.float32))
-                    cells.append(np.concatenate([rgb, c[..., 3:]], axis=2))
+                    up = cell // size
+                    cells.append(np.concatenate([rgb, c[..., 3:]], axis=2).repeat(up, 0).repeat(up, 1))
                 if motion:
                     rows.append(np.concatenate(cells + [np.zeros_like(cells[0])] * (24 - n), axis=1))
                     cells = []
@@ -909,8 +958,8 @@ def preview(folder, silhouettes=tuple(SILHOUETTES), motion=False, title=None,
         img = bpy.data.images.new("preview", sheet.shape[1], sheet.shape[0])
         img.pixels[:] = np.concatenate([rgb * a + bg * (1 - a), np.ones_like(a)], axis=2).ravel()
         img.file_format = "PNG"
-        for size in (SIZE, 40):
-            img.scale(sheet.shape[1] * size // SIZE, sheet.shape[0] * size // SIZE)
+        for size in (cell, 40):
+            img.scale(sheet.shape[1] * size // cell, sheet.shape[0] * size // cell)
             img.save(filepath=str(Path(folder) / f"{title or ('motion-' + silhouettes[0] if motion else 'contact')}-{size}-{name}.png"))
         bpy.data.images.remove(img)
 

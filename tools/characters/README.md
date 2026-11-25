@@ -39,8 +39,8 @@ rendering: it checks that `manifest.json` and the sheets agree.
   not the black band), which the sheet shows in the neutral clay too.
 - `manifest.json`: `size`, `maskSize`, `fps`, the silhouettes (`pebble`,
   `cloud`, `curl`, with the letter of the wind style each one stands for, as
-  in `winds.js`; and `minairo`, which stands for the minairó avatar pack
-  whatever the wind's style), and per mood the number of `frames` and whether it `loop`s
+  in `winds.js`; and `minairo` and `pelut`, which stand for the minairó and
+  pelut avatar packs whatever the wind's style), and per mood the number of `frames` and whether it `loop`s
   or plays once and holds the last frame (`done`, `failed`). The work moods also
   name the `prop` the wind handles in them and the `still` frame a player shows
   with reduced motion (one with the prop in view; the first frame otherwise).
@@ -61,7 +61,11 @@ the same in every sheet, with room above for hops and the curl.
   only needs its balls. The minairo adds a white felt beard with a two-lobed
   moustache, a rosy nose and a barretina with a black ribbon (`minairo()`,
   `barretina()`), none of them in the mask (the barretina has its own, `CAPS`); `follow()` makes the beard and the
-  cap's tip lag behind the body with two damped springs.
+  cap's tip lag behind the body with two damped springs. The pelut (task 155)
+  is a round ball covered in short particle hair (`fur()`), in the mask so the
+  fur takes the wind's colour, shorter round the face so the eyes stay clear;
+  its feet step out of the fur. Its sheets keep 8 levels of alpha and
+  `FUR_QUALITY`: the fur's fringe is noisy anyway, and so it stays in budget.
 - Moods: `MOODS` gives frames and loop; `pose()` says what every frame looks
   like (squash, hop, tilt, turn, lean, gaze, blink, lids, happy eyes, mouth).
   It is a pure function of the frame number, so renders are reproducible:

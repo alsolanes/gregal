@@ -8,6 +8,8 @@ const vm = require('node:vm');
 
 const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'characters', 'manifest.json'), 'utf8'));
 const SIZE = manifest.size;
+// The frame size of one silhouette: its own (155) or the manifest's.
+const sizeOf = silhouette => manifest.sizes?.[silhouette]?.[0] || SIZE;
 
 class Node {
   constructor(tag, doc) { this.tag = tag; this.doc = doc; this.attrs = {}; this.children = []; this.parent = null; }
@@ -59,8 +61,8 @@ function load({ files = null, reduced = false, winds = {} } = {}) {
       const name = url.replace('/app/characters/', '');
       setImmediate(() => {
         if (files && !files.includes(name)) return this.onerror(new Error('404'));
-        const mood = name.split('/')[1].split('.')[0], width = manifest.moods[mood].frames * SIZE;
-        this.pixels = new Uint8ClampedArray(width * SIZE * 4).fill(200);
+        const [silhouette, file] = name.split('/'), mood = file.split('.')[0], size = sizeOf(silhouette), width = manifest.moods[mood].frames * size;
+        this.pixels = new Uint8ClampedArray(width * size * 4).fill(200);
         if (name.endsWith('.mask.webp')) { this.pixels.fill(0); this.pixels[3] = 255; }
         if (name.endsWith('.cap.webp')) { this.pixels.fill(0); this.pixels[7] = 255; }
         this.sheet = name;
@@ -86,6 +88,7 @@ function load({ files = null, reduced = false, winds = {} } = {}) {
     // One animation frame `ms` later.
     frame(ms = 16) { now += ms; for (const f of frames.splice(0)) f(now); },
     see(target, visible) { observer.f([{ target, isIntersecting: visible }]); },
+    watched: target => observer.targets.includes(target),
   };
 }
 // The fake images load on setImmediate; a few turns let the manifest, both images and the tint finish.
@@ -274,6 +277,50 @@ test('a minairó tints its barretina with its own colour through the cap mask, i
   env.chars.play(curl.svg, wind);
   await settle();
   assert.ok(!env.fetched.some(u => u.endsWith('.cap.webp') && !u.includes('/minairo/')));
+});
+
+test('a pelut plays the pelut clay sheets in its colour, a still one holds the still frame, and a face handed twice is played once', async () => {
+  const env = load();
+  const big = svgFace(env, 'searching', { 'data-avatar': 'pelut' });
+  env.chars.play(big.svg, { ...wind, avatar: 'pelut' });
+  await settle();
+  assert.ok(env.fetched.includes('/app/characters/pelut/searching.webp') && env.fetched.includes('/app/characters/pelut/searching.mask.webp'));
+  assert.ok(!env.fetched.some(u => u.includes('/curl/')), 'not the curl of its style');
+  const canvas = big.box.children[0];
+  assert.deepEqual([...canvas.source.pixels.slice(0, 8)], [200, 100, 0, 200, 200, 200, 200, 200], 'tinted orange where the mask is');
+  env.frame(1000);
+  assert.notEqual(lastDraw(canvas).sx, 0, 'a large pelut plays');
+  const small = svgFace(env, 'reading', { 'data-avatar': 'pelut' });
+  small.svg.setAttribute('class', 'winds-face');
+  assert.ok(env.chars.play(small.svg, { ...wind, avatar: 'pelut' }, true) === small.svg);
+  assert.ok(env.chars.play(small.svg, { ...wind, avatar: 'pelut' }) === small.svg, 'already handed: left alone');
+  await settle();
+  assert.equal(env.fetched.filter(u => u.endsWith('pelut/reading.webp')).length, 1);
+  const held = small.box.children[0];
+  assert.equal(held.tag, 'canvas');
+  env.frame(1000);
+  assert.equal(held.width, 256, 'the pelut has frames of its own size');
+  assert.equal(held.source.width, 256, 'a still face tints only its still frame, not the whole sheet');
+  assert.deepEqual(lastDraw(held), { sheet: 'pelut/reading.webp', sx: 0, alpha: 1, op: 'source-over' });
+  assert.ok(env.watched(canvas) && !env.watched(held), 'the large one animates while on screen; the still one is drawn once');
+  assert.ok(env.chars.play(held, { ...wind, avatar: 'pelut' }) === held, 'a clay face stays as it is');
+});
+
+test('the tinted sheets kept for later are bounded: many colours do not pile up, the oldest is tinted again', async () => {
+  const env = load();
+  const colours = Array.from({ length: 30 }, (_, i) => '#' + (0x102030 + i * 0x010101).toString(16).toUpperCase());
+  for (const color of colours) {
+    env.chars.play(svgFace(env, 'idle', { 'data-avatar': 'pelut' }).svg, { ...wind, id: undefined, color, avatar: 'pelut' }, true);
+    await settle();
+  }
+  const loads = () => env.fetched.filter(u => u.endsWith('pelut/idle.webp')).length;
+  assert.equal(loads(), 30);
+  env.chars.play(svgFace(env, 'idle', { 'data-avatar': 'pelut' }).svg, { ...wind, id: undefined, color: colours.at(-1), avatar: 'pelut' }, true);
+  await settle();
+  assert.equal(loads(), 30, 'a recent colour is still kept');
+  env.chars.play(svgFace(env, 'idle', { 'data-avatar': 'pelut' }).svg, { ...wind, id: undefined, color: colours[0], avatar: 'pelut' }, true);
+  await settle();
+  assert.equal(loads(), 31, 'the oldest was let go');
 });
 
 // 142: while a turn works, the big wind handles the prop of its work kind.

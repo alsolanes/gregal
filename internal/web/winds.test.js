@@ -112,7 +112,7 @@ test('«Avatars» in Preferences offers every pack and Free, and a pack draws ev
   await f.root.gregalWinds.avatarPrefs(box);
   assert.deepEqual(packsOf(f,state),['cares','cares'],'Cares by default, even for a wind that chose another pack');
   assert.match(box.textContent,/Avatars/);
-  assert.deepEqual(box.querySelectorAll('button').map(b=>b.textContent),['Cares','Esperit de vent','Cap de vent','Rosa de rellotge','Mapa de vent','Minairons','Lliure']);
+  assert.deepEqual(box.querySelectorAll('button').map(b=>b.textContent),['Cares','Esperit de vent','Cap de vent','Rosa de rellotge','Mapa de vent','Minairons','Pelut','Lliure']);
   assert.equal(byText(box,'button','Cares').getAttribute('aria-pressed'),'true');
   await byText(box,'button','Esperit de vent').click();
   assert.deepEqual(f.requests.find(r=>r.url==='/api/winds/avatar-theme').body,{theme:'esperit'});
