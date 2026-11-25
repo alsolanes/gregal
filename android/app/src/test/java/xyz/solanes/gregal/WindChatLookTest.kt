@@ -66,7 +66,9 @@ Si plou, deixa-ho per diumenge.
         ui.mainClock.advanceTimeBy(600)
         val view = ui.activity.window.decorView
         val bmp = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-        ui.runOnUiThread { view.draw(android.graphics.Canvas(bmp)) }
+        // Al conjunt sencer, dibuixar mentre Compose encara tenia un pas de mida pendent petava amb
+        // «performMeasureAndLayout called during measure layout»: es dibuixa quan ja és quiet.
+        ui.runOnIdle { view.draw(android.graphics.Canvas(bmp)) }
         File("../../output/ui-review/145/$name.png").also { it.parentFile!!.mkdirs() }.outputStream().use {
             bmp.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
