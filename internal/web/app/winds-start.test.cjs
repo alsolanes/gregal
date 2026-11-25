@@ -1161,3 +1161,94 @@ test('switching chats closes the side pane without counting it as the person clo
   await f.turn(letter);
   assert.equal(f.docs.hidden, false, 'a new version opens it again: the person never closed it');
 });
+
+// 144: la resposta creix en un sol node, que en arribar es converteix en el missatge; el fil no es refà.
+// El torn arriba un esdeveniment per lectura; `each(i)` mira la pàgina just abans de la lectura i.
+function slowStream(frames, each) {
+  const bytes = frames.map(([k, d]) => new TextEncoder().encode('event: ' + k + '\ndata: ' + JSON.stringify(d) + '\n\n'));
+  let i = 0;
+  return { ok: true, status: 200, body: { getReader: () => ({ read: async () => { each(i); return i < bytes.length ? { done: false, value: bytes[i++] } : { done: true }; }, cancel: async () => {}, releaseLock() {} }) } };
+}
+const fifty = Array.from({ length: 50 }, (_, i) => 'mot' + i + ' ');
+const replyRows = f => f.page.querySelector('.vw-messages').querySelectorAll('article').filter(a => !a.classList.contains('vw-user'));
+
+test('a streamed reply grows in one node that becomes the final message: the face and dots stay, the thread is not rebuilt', async () => {
+  const group = { id: 'r1', name: 'La colla del concert', members: ['xaloc', 'gregal'] };
+  const json = data => ({ ok: true, status: 200, json: async () => data });
+  const saved = [{ from: 'user', text: 'Anem-hi' }, { from: 'xaloc', speaker_id: 'xaloc', text: fifty.join('').trim() }];
+  const frames = [['phase', { phase: 'speaker:xaloc' }], ...fifty.map(token => ['token', { token }]), ['reply', { wind: 'xaloc', history: saved }], ['done', { history: saved }]];
+  const seen = []; let thread;
+  const f = await boot({ api: r => r.url === '/api/winds/rotllanes' ? json({ rotllanes: [group] })
+    : r.url.startsWith('/api/winds/rotllana?') ? json({ history: [] })
+    : r.url === '/api/winds/rotllana/stream' ? slowStream(frames, i => { const n = f.page.querySelector('.vw-pending'); if (!i) thread = f.page.querySelector('.vw-messages'); seen[i] = { n, face: n?.firstChild, dots: n?.querySelector('.vw-thinking-dots'), text: n?.textContent || '' }; }) : null });
+  await byText(f.nav, 'button', 'La colla del concert').click();
+  await settle();
+  // The thread as it is once the turn has started (sending your message draws it).
+  f.page.querySelector('textarea').value = 'Anem-hi';
+  await f.page.querySelector('.vw-composer').requestSubmit();
+  await settle();
+  // seen[k + 1] is the page once token k has arrived.
+  const live = seen[2].n;
+  assert.ok(live, 'the reply is on the page while it streams');
+  for (let k = 1; k <= 50; k++) {
+    assert.ok(seen[k + 1].n === live, 'token ' + k + ': the same node');
+    assert.ok(seen[k + 1].face === seen[2].face, 'token ' + k + ': the same face');
+    assert.ok(seen[k + 1].dots === seen[2].dots, 'token ' + k + ': the same dots');
+    assert.match(seen[k + 1].text, new RegExp('mot' + (k - 1) + '\\b'), 'token ' + k + ' is shown');
+  }
+  assert.ok(replyRows(f).at(-1) === live, 'the reply that landed is the node that grew');
+  assert.ok(!live.classList.contains('vw-pending'));
+  assert.match(live.textContent, /mot49/);
+  assert.ok(f.page.querySelector('.vw-messages') === thread, 'the thread is the same, not repainted from scratch');
+  assert.equal(f.page.querySelectorAll('.vw-pending').length, 0);
+});
+
+test('a wind’s reply that lands with the turn (no reply event) is the node that streamed too', async () => {
+  const saved = [{ from: 'user', text: 'Hola' }, { from: 'assistant', text: fifty.join('').trim() }];
+  const frames = [...fifty.map(token => ['token', { token }]), ['done', { history: saved }]];
+  const seen = []; let thread;
+  const f = await boot({ api: r => r.url === '/api/winds/chat/stream' ? slowStream(frames, i => { if (!i) thread = f.page.querySelector('.vw-messages'); seen[i] = f.page.querySelector('.vw-pending'); }) : null });
+  await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();
+  await settle();
+  // The thread as it is once the turn has started.
+  f.page.querySelector('textarea').value = 'Hola';
+  await f.page.querySelector('.vw-composer').requestSubmit();
+  await settle();
+  assert.ok(seen[1]);
+  assert.ok(seen.slice(1, 51).every(n => n === seen[1]), 'one node while it streams');
+  assert.ok(replyRows(f).at(-1) === seen[1], 'and that node is the final message');
+  assert.ok(f.page.querySelector('.vw-messages') === thread, 'the thread is the same');
+  assert.equal(f.page.querySelector('.vw-wind-mark').textContent, 'Done', 'the header still says the turn is done');
+});
+
+test('while a reply streams the thread stays pinned to the end, and does not pull you down once you scroll up', async () => {
+  // Like a browser: the text makes the thread taller (two pixels per character).
+  const height = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollHeight');
+  Object.defineProperty(Element.prototype, 'scrollHeight', { configurable: true, get() { return height.get.call(this) + (this.classList.contains('vw-messages') ? 2 * this.textContent.length : 0); } });
+  try {
+    for (const scrollUpAt of [null, 20]) {
+      const saved = [{ from: 'user', text: 'Hola' }, { from: 'assistant', text: fifty.join('').trim() }];
+      const frames = [...fifty.map(token => ['token', { token }]), ['done', { history: saved }]];
+      const tops = [];
+      const f = await boot({ api: r => r.url === '/api/winds/chat/stream' ? slowStream(frames, i => {
+        const box = f.page.querySelector('.vw-messages');
+        if (i === scrollUpAt) box.scrollTop = 0;
+        tops[i] = [box.scrollTop, box.scrollHeight - box.clientHeight];
+      }) : null });
+      await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();
+      await settle();
+      f.page.querySelector('textarea').value = 'Hola';
+      await f.page.querySelector('.vw-composer').requestSubmit();
+      await settle();
+      const box = f.page.querySelector('.vw-messages'), end = box.scrollHeight - box.clientHeight;
+      if (scrollUpAt === null) {
+        for (let i = 2; i <= 50; i++) assert.equal(tops[i][0], tops[i][1], 'read ' + i + ': at the end');
+        assert.ok(tops[50][1] > tops[10][1], 'the thread grew while it streamed');
+        assert.equal(box.scrollTop, end, 'still at the end when the reply lands');
+      } else {
+        for (let i = scrollUpAt + 1; i <= 50; i++) assert.equal(tops[i][0], 0, 'read ' + i + ': left where the person scrolled');
+        assert.equal(box.scrollTop, 0, 'the landed reply does not pull them down');
+      }
+    }
+  } finally { Object.defineProperty(Element.prototype, 'scrollHeight', height); }
+});
