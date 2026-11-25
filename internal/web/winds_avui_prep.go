@@ -86,6 +86,37 @@ func prepEventTitle(c avuiCard) string {
 	return strings.ToLower(t)
 }
 
+// prepPast llegeix les targetes «Prep» d'abans: les fetes fa poc (per títol),
+// els títols marcats «No m'interessa» i quantes n'han sortit avui.
+func (s *Server) prepPast(now time.Time) (made, muted map[string]bool, today int) {
+	avuiMu.ReadLock()
+	list := loadAvui(s)
+	avuiMu.ReadUnlock()
+	made, muted = map[string]bool{}, map[string]bool{}
+	for _, c := range list {
+		if c.Source != avuiPrepSource {
+			continue
+		}
+		// La mateixa reunió només pot tornar a sortir dins de la finestra.
+		if now.Sub(time.Unix(c.Created, 0)) < 12*time.Hour {
+			made[c.Title] = true
+		}
+		if c.Feedback == "notuseful" {
+			muted[prepEventTitle(c)] = true
+		}
+		if c.Created >= startOfToday(s).Unix() {
+			today++
+		}
+	}
+	return made, muted, today
+}
+
+// prepWanted: un event amb títol, no de tot el dia, que comença d'aquí a 45-120 min.
+func prepWanted(e calEvent, name string, now time.Time) bool {
+	lead := e.Start.Sub(now)
+	return !e.AllDay && name != "" && lead >= prepLeadMin && lead <= prepLeadMax
+}
+
 // executePrep és el pas de la feina de preparació.
 func (s *Server) executePrep(ctx context.Context, job jobs.Job) (jobs.Run, error) {
 	start := time.Now()
@@ -112,31 +143,12 @@ func (s *Server) executePrep(ctx context.Context, job jobs.Job) (jobs.Run, error
 	now := start.In(loc)
 	evs, problems := s.calendarEvents(ctx, start, start.Add(prepLeadMax))
 
-	avuiMu.ReadLock()
-	list := loadAvui(s)
-	avuiMu.ReadUnlock()
-	made, muted, today := map[string]bool{}, map[string]bool{}, 0
-	for _, c := range list {
-		if c.Source != avuiPrepSource {
-			continue
-		}
-		// La mateixa reunió només pot tornar a sortir dins de la finestra.
-		if start.Sub(time.Unix(c.Created, 0)) < 12*time.Hour {
-			made[c.Title] = true
-		}
-		if c.Feedback == "notuseful" {
-			muted[prepEventTitle(c)] = true
-		}
-		if c.Created >= startOfToday(s).Unix() {
-			today++
-		}
-	}
+	made, muted, today := s.prepPast(start)
 	var titles []string
 	for _, e := range evs {
 		name := oneLine(e.Summary, 90)
-		lead := e.Start.Sub(start)
 		title := "Prep: " + name + " · " + e.Start.In(loc).Format("15:04")
-		if e.AllDay || name == "" || lead < prepLeadMin || lead > prepLeadMax || made[title] || muted[strings.ToLower(name)] {
+		if !prepWanted(e, name, start) || made[title] || muted[strings.ToLower(name)] {
 			continue
 		}
 		if today >= prepMaxPerDay {
