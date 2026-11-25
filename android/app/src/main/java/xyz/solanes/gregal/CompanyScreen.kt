@@ -2015,9 +2015,9 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
         return
     }
     val displayName = speakerName.ifBlank { speaker?.name.orEmpty() }
-    // La teva, una bombolla discreta: les respostes dels vents ja no en porten
-    // i no s'hi pot confondre (com a Claude o ChatGPT).
-    val ownBackground = SuperficieAlta
+    // La teva, una bombolla discreta (les respostes ja no en porten): un vel de tinta,
+    // perquè la superfície alta en fosc gairebé no es distingia del fons del xat.
+    val ownBackground = LocalPal.current.let { it.ink.copy(alpha = if (it.dark) .10f else .06f) }
     val ownText = Ink
     // L'hora arriba del backend en segons Unix; els missatges creats en aquesta
     // sessió (enviats per l'app) són en millis. Unificat a millis una sola volta.
@@ -2153,7 +2153,7 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                                     softWrap = false,
                                     color = Ink,
                                     modifier = Modifier
-                                        .background(CodeDark, GregalShape.xs)
+                                        .background(Ink.copy(alpha = if (dark) .10f else .06f), GregalShape.xs)
                                         .padding(horizontal = 12.dp, vertical = 10.dp),
                                 )
                             }
