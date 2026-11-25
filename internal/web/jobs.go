@@ -227,6 +227,10 @@ func (s *Server) executeJob(ctx context.Context, job jobs.Job, queued runs.Run) 
 	if isFollowJob(job.ID) {
 		return s.executeFollow(jobCtx, job)
 	}
+	// Els fils oberts a «Avui» (winds_avui_loops.go): targetes, cap missatge.
+	if isLoopsJob(job.ID) {
+		return s.executeLoops(jobCtx, job)
+	}
 	// Els jobs de vent (id wind-<vent>) tenen consigna pròpia: el vent vigila
 	// el seu tema amb cerques web i només parla si troba algo que valgui la
 	// pena. El missatge entra al seu xat (company-<vent>).
