@@ -21,3 +21,4 @@ Android parity for 155: the Pelut pack on Android.
 
 - The sheets reach the APK through the copyClayCharacters gradle task; nothing to copy by hand.
 - Edit Strings/AppStrings by hand; do not run regen-strings.py.
+- The pelut sheets are 256 px with a 128 px mask (155): WindClay must read the frame and mask size per silhouette as the manifest gives it, not one global size.
