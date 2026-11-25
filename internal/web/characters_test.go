@@ -18,7 +18,6 @@ type charactersManifest struct {
 	Files, Mask, Cap    string
 	Silhouettes         map[string]string
 	Caps                []string
-	Sizes               map[string][2]int
 	Moods               map[string]struct {
 		Frames, Still int
 		Loop          *bool
@@ -27,9 +26,14 @@ type charactersManifest struct {
 
 // Els personatges de plastilina (tools/characters/build.py) són fulls de
 // fotogrames en fila: el manifest ha de dir exactament quins fitxers hi ha i
-// de quina mida, perquè els reproductors hi confien sense mirar-los.
+// de quina mida, perquè els reproductors hi confien sense mirar-los. Totes
+// les famílies són de 256 px amb la màscara a 128 (157): un mòbil dibuixa un
+// vent a 72-96 dp, de 190 a 340 px.
 func TestCharactersManifestMatchesSheets(t *testing.T) {
 	m := loadCharactersManifest(t)
+	if m.Size != 256 || m.MaskSize != 128 {
+		t.Fatalf("el manifest diu fotogrames de %d px i màscara de %d, no 256 i 128", m.Size, m.MaskSize)
+	}
 	expected := map[string]bool{"app/characters/manifest.json": true}
 	for silhouette := range m.Silhouettes {
 		for mood, spec := range m.Moods {
@@ -37,13 +41,9 @@ func TestCharactersManifestMatchesSheets(t *testing.T) {
 				t.Fatalf("%s: frames=%d loop=%v still=%d", mood, spec.Frames, spec.Loop, spec.Still)
 			}
 			names := strings.NewReplacer("<silhouette>", silhouette, "<mood>", mood)
-			size, maskSize := m.Size, m.MaskSize
-			if own, ok := m.Sizes[silhouette]; ok {
-				size, maskSize = own[0], own[1]
-			}
-			sheets := map[string]int{m.Files: size, m.Mask: maskSize}
+			sheets := map[string]int{m.Files: m.Size, m.Mask: m.MaskSize}
 			if slices.Contains(m.Caps, silhouette) {
-				sheets[m.Cap] = maskSize
+				sheets[m.Cap] = m.MaskSize
 			}
 			for pattern, size := range sheets {
 				path := "app/characters/" + names.Replace(pattern)
@@ -65,8 +65,9 @@ func TestCharactersManifestMatchesSheets(t *testing.T) {
 
 // El paquet minairó té la seva figura (barba fora de la màscara, la barretina
 // en una màscara pròpia perquè cada minairó la tenyeixi del seu color) i, amb
-// ella i els objectes de la feina (142), tots els fulls junts han de cabre en 2 MB.
-// El pelut (155), a 256 px, té el seu propi pressupost.
+// ella i els objectes de la feina (142), els fulls de les famílies de plastilina
+// a 256 px (157) han de cabre en 3,7 MB: en fan 3,55. El pelut (155) té el seu
+// propi pressupost.
 func TestCharactersMinairoWithinBudget(t *testing.T) {
 	m := loadCharactersManifest(t)
 	if family := m.Silhouettes["minairo"]; family != "minairo" {
@@ -87,8 +88,8 @@ func TestCharactersMinairoWithinBudget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if total > 2_000_000 {
-		t.Errorf("els personatges fan %d bytes, més de 2 MB", total)
+	if total > 3_700_000 {
+		t.Errorf("els personatges fan %d bytes, més de 3,7 MB", total)
 	}
 }
 
@@ -125,7 +126,7 @@ func loadCharactersManifest(t *testing.T) charactersManifest {
 	if err := json.Unmarshal(raw, &m); err != nil {
 		t.Fatalf("manifest: %v", err)
 	}
-	if m.Size <= 0 || m.Size > 128 || m.MaskSize <= 0 || m.Fps <= 0 || len(m.Silhouettes) == 0 || len(m.Moods) == 0 {
+	if m.Size <= 0 || m.MaskSize <= 0 || m.Fps <= 0 || len(m.Silhouettes) == 0 || len(m.Moods) == 0 {
 		t.Fatalf("manifest incomplet: %+v", m)
 	}
 	return m
@@ -150,8 +151,8 @@ func checkSheet(t *testing.T, path string, frames, size int) {
 // amb la màscara a 128; tots els seus fulls junts no passen d'1,2 MB.
 func TestCharactersPelutAt256WithinBudget(t *testing.T) {
 	m := loadCharactersManifest(t)
-	if m.Silhouettes["pelut"] != "pelut" || m.Sizes["pelut"] != [2]int{256, 128} {
-		t.Fatalf("el pelut no és al manifest a 256 px: %q %v", m.Silhouettes["pelut"], m.Sizes["pelut"])
+	if m.Silhouettes["pelut"] != "pelut" || m.Size != 256 || m.MaskSize != 128 {
+		t.Fatalf("el pelut no és al manifest a 256 px: %q %d %d", m.Silhouettes["pelut"], m.Size, m.MaskSize)
 	}
 	total := 0
 	err := fs.WalkDir(assets, "app/characters/pelut", func(path string, d fs.DirEntry, err error) error {

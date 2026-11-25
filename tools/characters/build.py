@@ -21,10 +21,9 @@ from mathutils.bvhtree import BVHTree
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "internal/web/app/characters"
-SIZE, FPS, QUALITY = 128, 12, 82
+# 256 px frames: a phone draws a wind at 72-96 dp, 190 to 340 px.
+SIZE, FPS, QUALITY = 256, 12, 82
 FUR_QUALITY = 75
-# Silhouettes rendered larger than SIZE: the fur needs the pixels of a phone screen.
-SIZES = {"pelut": 256}
 NEUTRAL = (0.8, 0.8, 0.8, 1)
 INK = (0.012, 0.011, 0.02, 1)
 # Each wind family (the third letter of a wind's style, as in winds.js) keeps one
@@ -869,8 +868,7 @@ def build(silhouettes, moods):
     for seed, silhouette in enumerate(SILHOUETTES):
         if silhouette not in silhouettes:
             continue
-        size = SIZES.get(silhouette, SIZE)
-        sc = scene(size)
+        sc = scene(SIZE)
         mask_material()
         parts = character(silhouette, seed + 1)
         for mood in moods:
@@ -893,7 +891,7 @@ def build(silhouettes, moods):
                     continue
                 # A mask keeps only coverage, at half size: constant white compresses to
                 # almost nothing. The largest of each 2x2 so the tint reaches the very edge.
-                half = np.concatenate(sheets[mask], axis=1)[..., 3].reshape(size // 2, 2, -1, 2).max((1, 3))
+                half = np.concatenate(sheets[mask], axis=1)[..., 3].reshape(SIZE // 2, 2, -1, 2).max((1, 3))
                 white = np.ones(half.shape + (4,), dtype=np.float32)
                 white[..., 3] = np.round(half * levels) / levels if "fur" in parts else half
                 save(white, OUT / silhouette / f"{mood}.{mask}.webp", 100)
@@ -903,7 +901,6 @@ def manifest():
     data = {"size": SIZE, "fps": FPS, "tint": "multiply",
             "files": "<silhouette>/<mood>.webp", "mask": "<silhouette>/<mood>.mask.webp", "maskSize": SIZE // 2,
             "cap": "<silhouette>/<mood>.cap.webp", "caps": list(CAPS),
-            "sizes": {name: [size, size // 2] for name, size in SIZES.items()},
             "silhouettes": {name: family for name, (family, *_) in SILHOUETTES.items()},
             "moods": {mood: {"frames": n, "loop": loop} | ({"prop": PROPS[mood][0], "still": PROPS[mood][1]} if mood in PROPS else {})
                       for mood, (n, loop) in MOODS.items()}}
@@ -922,12 +919,11 @@ MINAIRONS = tuple((hex_rgb(body), hex_rgb(cap)) for body, cap in (
 
 def preview(folder, silhouettes=tuple(SILHOUETTES), motion=False, title=None,
             tints=(((0.36, 0.55, 0.94), hex_rgb("#C9342C")), ((0.95, 0.65, 0.25), hex_rgb("#6E2F6B")))):
-    """Contact sheets at the largest frame size among the silhouettes and at 40 px: each
-    silhouette in each wind and barretina colour with a few frames per mood, or with motion
-    every frame of one silhouette, one mood per row. Smaller frames are scaled up to fit."""
-    rows, cell = [], max(SIZES.get(name, SIZE) for name in silhouettes)
+    """Contact sheets at the frame size and at 40 px: each silhouette in each wind and
+    barretina colour with a few frames per mood, or with motion every frame of one
+    silhouette, one mood per row."""
+    rows = []
     for silhouette in silhouettes:
-        size = SIZES.get(silhouette, SIZE)
         for tint, cap in tints:
             cells = []
             for mood, (n, _) in MOODS.items():
@@ -938,13 +934,12 @@ def preview(folder, silhouettes=tuple(SILHOUETTES), motion=False, title=None,
                 if silhouette in CAPS:
                     masks.append((pixels(OUT / silhouette / f"{mood}.cap.webp"), cap))
                 for i in range(n) if motion else (0, n // 3, 2 * n // 3):
-                    c = colour[:, i * size:(i + 1) * size]
+                    c = colour[:, i * SIZE:(i + 1) * SIZE]
                     rgb = c[..., :3]
                     for mask, paint in masks:
-                        m = mask.repeat(2, 0).repeat(2, 1)[:, i * size:(i + 1) * size, 3:]
+                        m = mask.repeat(2, 0).repeat(2, 1)[:, i * SIZE:(i + 1) * SIZE, 3:]
                         rgb = rgb * (1 - m + m * np.array(paint, dtype=np.float32))
-                    up = cell // size
-                    cells.append(np.concatenate([rgb, c[..., 3:]], axis=2).repeat(up, 0).repeat(up, 1))
+                    cells.append(np.concatenate([rgb, c[..., 3:]], axis=2))
                 if motion:
                     rows.append(np.concatenate(cells + [np.zeros_like(cells[0])] * (24 - n), axis=1))
                     cells = []
@@ -958,8 +953,8 @@ def preview(folder, silhouettes=tuple(SILHOUETTES), motion=False, title=None,
         img = bpy.data.images.new("preview", sheet.shape[1], sheet.shape[0])
         img.pixels[:] = np.concatenate([rgb * a + bg * (1 - a), np.ones_like(a)], axis=2).ravel()
         img.file_format = "PNG"
-        for size in (cell, 40):
-            img.scale(sheet.shape[1] * size // cell, sheet.shape[0] * size // cell)
+        for size in (SIZE, 40):
+            img.scale(sheet.shape[1] * size // SIZE, sheet.shape[0] * size // SIZE)
             img.save(filepath=str(Path(folder) / f"{title or ('motion-' + silhouettes[0] if motion else 'contact')}-{size}-{name}.png"))
         bpy.data.images.remove(img)
 

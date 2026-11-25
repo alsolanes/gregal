@@ -8,8 +8,6 @@ const vm = require('node:vm');
 
 const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'characters', 'manifest.json'), 'utf8'));
 const SIZE = manifest.size;
-// The frame size of one silhouette: its own (155) or the manifest's.
-const sizeOf = silhouette => manifest.sizes?.[silhouette]?.[0] || SIZE;
 
 class Node {
   constructor(tag, doc) { this.tag = tag; this.doc = doc; this.attrs = {}; this.children = []; this.parent = null; }
@@ -61,8 +59,8 @@ function load({ files = null, reduced = false, winds = {} } = {}) {
       const name = url.replace('/app/characters/', '');
       setImmediate(() => {
         if (files && !files.includes(name)) return this.onerror(new Error('404'));
-        const [silhouette, file] = name.split('/'), mood = file.split('.')[0], size = sizeOf(silhouette), width = manifest.moods[mood].frames * size;
-        this.pixels = new Uint8ClampedArray(width * size * 4).fill(200);
+        const mood = name.split('/')[1].split('.')[0], width = manifest.moods[mood].frames * SIZE;
+        this.pixels = new Uint8ClampedArray(width * SIZE * 4).fill(200);
         if (name.endsWith('.mask.webp')) { this.pixels.fill(0); this.pixels[3] = 255; }
         if (name.endsWith('.cap.webp')) { this.pixels.fill(0); this.pixels[7] = 255; }
         this.sheet = name;
@@ -299,7 +297,7 @@ test('a pelut plays the pelut clay sheets in its colour, a still one holds the s
   const held = small.box.children[0];
   assert.equal(held.tag, 'canvas');
   env.frame(1000);
-  assert.equal(held.width, 256, 'the pelut has frames of its own size');
+  assert.equal(held.width, 256, 'the pelut has 256 px frames');
   assert.equal(held.source.width, 256, 'a still face tints only its still frame, not the whole sheet');
   assert.deepEqual(lastDraw(held), { sheet: 'pelut/reading.webp', sx: 0, alpha: 1, op: 'source-over' });
   assert.ok(env.watched(canvas) && !env.watched(held), 'the large one animates while on screen; the still one is drawn once');
