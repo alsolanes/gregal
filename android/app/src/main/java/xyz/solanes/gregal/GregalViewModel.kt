@@ -1099,9 +1099,13 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Una acció de la targeta: obre la conversa amb el vent i li diu el que demana. */
+    /**
+     * Una acció de la targeta: obre la conversa amb el vent i li diu el que demana.
+     * Si porta [AvuiAction.thread] (un fil obert, task 148), reprèn aquell fil i no hi envia res.
+     */
     fun avuiRun(card: AvuiCard, action: AvuiAction) {
         if (card.wind.isBlank()) return
+        if (action.thread.isNotBlank()) { resumeWindThread(card.wind, action.thread); return }
         openVentsChat("wind:" + card.wind)
         if (action.prompt.isNotBlank()) sendWindMessage(card.wind, avuiPrompt(card, action))
     }

@@ -286,6 +286,29 @@ class AvuiGlanceTest {
         }
     }
 
+    @Test fun unaAccioAmbFilObreAquellaConversa() {
+        FakeServer { request, _ ->
+            if (!request.startsWith("GET /api/winds/avui ")) """{"history":[]}"""
+            else JSONObject().put("date", "2026-11-24").put("fyi", org.json.JSONArray().put(JSONObject()
+                .put("id", "l1").put("wind", "xaloc").put("source", "loop").put("section", "fyi").put("state", "open")
+                .put("title", "Ja hi ha entrades")
+                .put("actions", org.json.JSONArray().put(JSONObject().put("label", "Obre la conversa").put("thread", "company-xaloc-s2"))))).toString()
+        }.use { server ->
+            val vm = loaded(server)
+            val card = vm.avui.value!!.fyi.single()
+            assertEquals("company-xaloc-s2", card.actions.single().thread)
+            vm.avuiRun(card, card.actions.single())
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals("wind:xaloc", vm.ventsOpen.value)
+            // Com la pantalla: en obrir-se la conversa, en carrega el fil.
+            vm.loadWindChat("xaloc")
+            waitUntil { server.requests.any { it.first.startsWith("GET /api/winds/chat?") } }
+            val history = server.requests.first { it.first.startsWith("GET /api/winds/chat?") }.first
+            assertTrue(history, history.contains("session=company-xaloc-s2"))
+            assertTrue("no s'envia res: ${server.requests}", server.requests.none { it.first.startsWith("POST") })
+        }
+    }
+
     @Test fun posaElLloc() {
         avuiServer().use { server ->
             val vm = loaded(server)

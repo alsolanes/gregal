@@ -1559,7 +1559,7 @@ object AvuiJson {
         id = j.id, wind = j.wind, windName = j.windName,
         source = j.source, section = j.section.ifBlank { "fyi" },
         title = j.title, why = j.why, body = j.body,
-        actions = j.actions.mapNotNull { a -> if (a.label.isBlank()) null else AvuiAction(a.label, a.prompt) },
+        actions = j.actions.mapNotNull { a -> if (a.label.isBlank()) null else AvuiAction(a.label, a.prompt, a.thread) },
         state = j.state.ifBlank { "open" }, feedback = j.feedback,
         saved = j.saved, held = j.held,
         created = j.created, days = j.days,
@@ -2019,7 +2019,7 @@ internal class NovetatDto(
 
 @Serializable internal class NovetatsDto(val novetats: List<NovetatDto> = emptyList())
 
-@Serializable internal class AvuiActionDto(val label: String = "", val prompt: String = "")
+@Serializable internal class AvuiActionDto(val label: String = "", val prompt: String = "", val thread: String = "")
 
 @Serializable
 internal class AvuiCardDto(

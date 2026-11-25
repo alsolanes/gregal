@@ -1161,3 +1161,17 @@ test('switching chats closes the side pane without counting it as the person clo
   await f.turn(letter);
   assert.equal(f.docs.hidden, false, 'a new version opens it again: the person never closed it');
 });
+
+test('a Today card action with a thread opens that conversation instead of sending a prompt', async () => {
+  const card = { id: 'l1', wind: 'xaloc', title: 'Ja hi ha entrades', source: 'loop', section: 'fyi', actions: [{ label: 'Open the conversation', thread: 'company-xaloc-s2' }] };
+  const json = data => ({ ok: true, status: 200, json: async () => data });
+  const f = await boot({ api: r => r.url === '/api/winds/avui' ? json({ date: '2026-11-24', fyi: [card] }) : null });
+  await byText(f.nav, 'button', 'Today').click();
+  await settle();
+  await byText(f.page.querySelector('.vw-avui-card'), 'button', 'Open the conversation').click();
+  await settle();
+  assert.deepEqual(f.requests.find(r => r.url === '/api/winds/session/open')?.body, { wind: 'xaloc', name: 'company-xaloc-s2' });
+  assert.ok(!f.requests.some(r => r.url === '/api/winds/sessions' && r.method === 'POST'), 'no new conversation');
+  assert.ok(!f.requests.some(r => r.url === '/api/winds/chat/stream'), 'nothing is sent');
+  assert.match(f.page.querySelector('.vw-messages').textContent, /Hi ha jazz al Born/);
+});
