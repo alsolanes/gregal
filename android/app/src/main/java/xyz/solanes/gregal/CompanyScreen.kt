@@ -1215,7 +1215,6 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     var askTransfer by remember(wind.id) { mutableStateOf(false) }
     var showPerm by remember(wind.id) { mutableStateOf(false) }
     var sessionsOpen by remember(wind.id) { mutableStateOf(false) }
-    var watchOpen by remember(wind.id) { mutableStateOf(false) }
     var computerOpen by remember(wind.id) { mutableStateOf(false) }
     var whyId by remember(wind.id) { mutableStateOf("") }
     val st by vm.state.collectAsState()
@@ -1266,23 +1265,31 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     // «Fet» des que acaba un torn fins que tornes a escriure (un torn nou) o surts.
     var done by remember(wind.id) { mutableStateOf(false) }
     var wasBusy by remember(wind.id) { mutableStateOf(isBusy) }
-    LaunchedEffect(wind.id, isBusy) { if (wasBusy && !isBusy) done = true; if (isBusy) done = false; wasBusy = isBusy }
+    val perch = remember(wind.id) { WindPerch() }
+    // Fora dels efectes: si el torn torna a començar a mig gest, el gest acaba igualment i no queda glaçat.
+    val scope = rememberCoroutineScope()
+    // El vent reacciona amb el cos: assenteix quan envies i, en acabar el torn, s'hi acosta o fa que no.
+    fun react(event: WindEvent) { scope.launch { perch.react(windReaction(event)) } }
+    val sent = { follow.send(); react(WindEvent.SENT) }
+    LaunchedEffect(wind.id, isBusy) {
+        if (wasBusy && !isBusy) { done = true; windTurnEvent(msgs)?.let { react(it) } }
+        if (isBusy) done = false
+        wasBusy = isBusy
+    }
     val wash = windWash(accent, Superficie)
     val chatState = windChatState(wind.id, busy, asks, done, failed = msgs.lastOrNull()?.kind == "error")
     // El vent present a la cantonada; amb el fil buit ja hi ha la cara gran de benvinguda.
     val present = msgs.isNotEmpty()
     // Un torn que acaba malament: la cara s'arronsa (FAILED) en lloc de celebrar-ho (DONE).
     val turnMood = if (done && msgs.lastOrNull()?.kind == "error") WindMood.FAILED else windPresenceMood(chatState, live[wind.id]?.mood)
-    val perch = remember(wind.id) { WindPerch() }
     Box(Modifier.fillMaxSize().background(wash).onGloballyPositioned { perch.root = it.positionInRoot() }) {
         Column(Modifier.fillMaxSize()) {
         // La capçalera diu qui és; «què està fent» es diu al final del fil.
         // A la portada de Gregal la capçalera és una capa flotant (a sota): el fil hi passa per sota.
         // Missatges
-        val scope = rememberCoroutineScope()
         Box(Modifier.weight(1f)) {
         // Els botons d'acció de les targetes (RichCards.kt) envien el seu text al vent.
-        val cardSay: (String) -> Unit = { text -> if (!busy.contains(wind.id)) { follow.send(); vm.sendWindMessage(wind.id, text) } }
+        val cardSay: (String) -> Unit = { text -> if (!busy.contains(wind.id)) { sent(); vm.sendWindMessage(wind.id, text) } }
         CompositionLocalProvider(LocalCardSay provides cardSay) {
         // Un sol lloc per «què està fent»: els punts al final del fil, amb
         // l'acció en marxa al costat («Cercant al web…»); l'humor el porta la
@@ -1307,7 +1314,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                         hint = tr(lang, "app.company.windHello", wind.name),
                         // Com al Grok: tres primeres frases a un toc, segons l'ofici del vent.
                         suggestions = windStarters(lang, wind.specialty),
-                        onPick = { follow.send(); vm.sendWindMessage(wind.id, it) },
+                        onPick = { sent(); vm.sendWindMessage(wind.id, it) },
                     )
                 }
             }
@@ -1333,7 +1340,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     if (idx == newFrom) ThreadDivider(threadCopy(lang, "new"), accent = true)
                     if (m.kind == "guest" && m.speakerName.isNotBlank()) GuestJoinsLine(lang, m.speakerName)
                     val cap = rememberBubbleCapture()
-                    if (m.from == "pet" && firstOfRun) WindByline(m.speakerName.ifBlank { wind.name }, accent, modifier = Modifier.padding(start = 6.dp))
+                    // Un torn que no ha arribat també el diu el vent (WindBubble).
+                    if ((m.from == "pet" || m.kind == "error") && firstOfRun) WindByline(m.speakerName.ifBlank { wind.name }, accent, modifier = Modifier.padding(start = 6.dp))
                     BubbleIn("dm#$idx", animate = idx >= liveFrom, mine = m.from == "user") {
                         // Abans del primer fragment, els punts i què fa, a la mateixa fila on creixerà el text.
                         if (m.streaming && m.text.isBlank()) Column {
@@ -1351,8 +1359,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                                     scope.launch { vm.notify(tr(lang, "app.vents.copied")) }
                                 }
                             },
-                            onContinue = if (!isBusy) ({ follow.send(); vm.sendWindContinue(wind.id) }) else null,
-                            onRetry = if (!isBusy) ({ follow.send(); vm.retryLastWindTurn(wind.id) }) else null,
+                            onContinue = if (!isBusy) ({ sent(); vm.sendWindContinue(wind.id) }) else null,
+                            onRetry = if (!isBusy) ({ sent(); vm.retryLastWindTurn(wind.id) }) else null,
                             onTransfer = if (vm.canTransferToServer() && !isBusy) ({ askTransfer = true }) else null,
                             onDiscard = if (m.kind == "queued") ({ vm.discardQueued(wind.id, m.ts) }) else null,
                             onCopied = { scope.launch { vm.notify(tr(lang, "app.vents.linkCopied")) } }, vm = vm)
@@ -1371,7 +1379,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             if (!isBusy) {
                 val quick = msgs.lastOrNull { it.kind != "memory" }?.takeIf { it.from != "user" && !it.streaming }?.let { extractChoices(it.text) }.orEmpty()
                 if (quick.isNotEmpty()) item(key = "quick") {
-                    ChoiceChips(quick, accent) { pick -> follow.send(); vm.sendWindMessage(wind.id, pick) }
+                    ChoiceChips(quick, accent) { pick -> sent(); vm.sendWindMessage(wind.id, pick) }
                 }
             }
             // Prova del que el vent ha programat de debò en aquest torn, amb «Desfés».
@@ -1393,8 +1401,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         }
         // Aprovacions i preguntes del vent: el torn espera aquí la teva resposta.
         WindAskCards(vm, lang, accent, isBusy, wind, onOwnAnswer = if (present) ({ ok ->
-            perch.yes = ok
-            scope.launch { perch.nod.snapTo(0f); perch.nod.animateTo(1f, tween(900)) }
+            scope.launch { perch.react(windReaction(if (ok) WindEvent.APPROVED else WindEvent.DECLINED)) }
         }) else null)
         // Input píndola amb el color del vent + enviament amb resplendor.
         // El desplegable de mencions va just a sobre del camp.
@@ -1414,7 +1421,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         val lastReply = msgs.lastOrNull { it.from != "user" && it.kind != "memory" && !it.streaming }
         val replyKey = lastReply?.let { "${it.ts}:${it.text.hashCode()}" }.orEmpty()
         val voiceConv = rememberVoiceConversation(lang) { said ->
-            follow.send()
+            sent()
             vm.sendWindMessage(wind.id, said)
         }
         if (voiceConv != null) {
@@ -1441,10 +1448,15 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     field = TextFieldValue("")
                 }
             } else {
-                follow.send(); vm.sendWindMessage(wind.id, body); field = TextFieldValue("")
+                sent(); vm.sendWindMessage(wind.id, body); field = TextFieldValue("")
             }
         }
         }
+        val up = windUp || landFrom != null
+        // Mentre el vent seu a la cantonada, el forat de la capçalera es plega i el nom no hi deixa un buit (com al web).
+        val slot by androidx.compose.animation.core.animateDpAsState(if (up) 44.dp else 0.dp,
+            if (windMotionEnabled()) androidx.compose.animation.core.spring(dampingRatio = .72f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow)
+            else androidx.compose.animation.core.snap(), label = "face-slot")
         // La capçalera flota: el fil passa per sota de les pastilles.
         VentsChatHeader(lang, wind.name, chatState?.let { tr(lang, it) }.orEmpty(),
             accent, wind.faceStyle,
@@ -1454,12 +1466,11 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             onSessions = { sessionsOpen = true; vm.loadWindSessions(wind.id) },
             onTransfer = if (vm.canTransferToServer()) ({ askTransfer = true }) else null,
             onComputer = { computerOpen = true },
-            onWatch = { watchOpen = true },
             wind = wind,
-            faceSlot = if (present || landFrom != null) Modifier.onGloballyPositioned { perch.header = it.positionInRoot() } else null,
+            faceSlot = if (present || landFrom != null) Modifier.width(slot).onGloballyPositioned { perch.header = it.positionInRoot() } else null,
             modifier = Modifier.align(Alignment.TopCenter))
         // Mentre la cara de la portada hi vola, la del xat l'espera amagada al forat i després baixa al seu lloc.
-        if (present) WindPresence(perch, up = windUp || landFrom != null, mood = turnMood, accent = accent, style = wind.faceStyle,
+        if (present) WindPresence(perch, up = up, mood = turnMood, accent = accent, style = wind.faceStyle,
             label = tr(lang, "app.vents.profile"), hidden = landFrom != null) { profile = true }
         if (landFrom != null) FaceLanding(perch, landFrom, accent, wind.faceStyle, onLanded)
     }
@@ -1467,7 +1478,6 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     if (askTransfer) TransferConfirmDialog(vm, lang, "wind", wind.id) { askTransfer = false }
     if (showPerm) PermissionDialog(st, lang, onPick = { vm.setAccess(it); showPerm = false }, onClose = { showPerm = false })
     if (sessionsOpen) WindSessionsSheet(vm, lang, wind) { sessionsOpen = false }
-    if (watchOpen) ResponsabilitatsSheet(chatConn, lang, winds, accent) { watchOpen = false }
     if (computerOpen) OrdinadorSheet(chatConn, lang, accent) { computerOpen = false }
     if (whyId.isNotBlank()) RespWhySheet(chatConn, lang, whyId) { whyId = "" }
 }
@@ -1990,20 +2000,24 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
     val m = remember(raw) { if (raw.from == "user") raw else raw.copy(text = withoutChoices(raw.text)) }
     val mine = m.from == "user"
     if (m.kind == "error") {
-        // Un torn interromput no és una resposta: avís tenyit amb l'acció a
-        // sota (reintentar el mateix text o continuar al servidor).
-        Surface(color = Sand.copy(alpha = 0.12f), shape = RoundedCornerShape(14.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Sand.copy(alpha = 0.55f)),
-            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-            Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Icon(Icons.Rounded.Warning, contentDescription = null, tint = Sand, modifier = Modifier.size(20.dp).padding(top = 1.dp))
-                    Text(m.text, color = Ink, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.weight(1f))
+        // Un torn que no ha arribat el diu el vent, al fil (128 al web): «No he pogut arribar-hi»,
+        // el motiu en petit i com tornar-hi (el mateix text o continuar al servidor).
+        val card = RoundedCornerShape(18.dp)
+        Surface(color = Red.copy(alpha = 0.05f), shape = card,
+            border = androidx.compose.foundation.BorderStroke(1.dp, Red.copy(alpha = 0.16f).compositeOver(Line)),
+            modifier = Modifier.padding(vertical = 4.dp).widthIn(max = GregalChat.readingMax).testTag("wind-failed")) {
+            Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Rounded.Warning, contentDescription = null, tint = Red, modifier = Modifier.size(18.dp))
+                    Text(tr(lang, "app.vents.failedSay"), color = Ink, style = GregalType.chatBody)
                 }
+                Text(m.text, color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
                 if (onRetry != null || onTransfer != null) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        if (onRetry != null) TextButton(onClick = onRetry) {
-                            Text(tr(lang, "app.vents.retry"), color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (onRetry != null) Surface(onClick = onRetry, shape = GregalShape.pill, color = accent.copy(alpha = .14f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.lerp(Line, accent, .5f))) {
+                            Text(tr(lang, "app.vents.retry"), color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp))
                         }
                         if (onTransfer != null) TextButton(onClick = onTransfer) {
                             Text(tr(lang, "app.vents.transferToServer"), color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
