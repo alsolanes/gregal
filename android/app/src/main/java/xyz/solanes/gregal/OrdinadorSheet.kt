@@ -59,8 +59,7 @@ import org.json.JSONObject
 internal fun ordinadorCopy(lang: String, key: String): String {
     val en = lang == "en"
     return when (key) {
-        "title" -> if (en) "Computer" else "Ordinador"
-        "local" -> if (en) "Gregal's browser, on this computer" else "El navegador de Gregal, en aquest ordinador"
+        "title", "local" -> tr(lang, "app.computer.name")
         "localSub" -> if (en) "You see it live. Tap the screen to use it yourself: Gregal waits meanwhile." else "El veus en directe. Toca la pantalla per fer-lo servir tu: mentrestant, Gregal s'espera."
         "localMine" -> if (en) "You have control · Gregal is waiting" else "Tens el control · Gregal s'espera"
         "giveShort" -> if (en) "Give it back" else "Torna-l'hi"
