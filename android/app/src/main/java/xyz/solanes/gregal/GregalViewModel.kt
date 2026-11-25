@@ -5847,6 +5847,15 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         openVentsChat("wind:$windId")
     }
 
+    /**
+     * Tocar un vent a la portada: reprèn el seu fil més recent o, si encara no
+     * en té, el seu xat de sempre. Abans cada toc creava una sessió buida.
+     */
+    fun openWindFromHome(windId: String) {
+        val latest = _windThreads.value.firstOrNull { it.wind == windId }
+        if (latest != null) resumeWindThread(windId, latest.name) else openVentsChat("wind:$windId")
+    }
+
     /** Fa de [name] el fil del vent abans d'obrir-lo; amb [history] null, el fil es buida fins que arriba. */
     private fun selectWindThread(windId: String, name: String, history: List<PetMsg>?) {
         windHistoryRequests[windId] = (windHistoryRequests[windId] ?: 0L) + 1

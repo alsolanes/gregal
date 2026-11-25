@@ -76,7 +76,7 @@ class VentsArrivalTest {
                         val arrival by vm.windArrival.collectAsState()
                         Box {
                             VentsStartPage("ca", "Anna", listOf(gregal, ponent), emptyList(), "", {}, busy = false,
-                                onSend = {}, onWind = {}, onThread = {}, news = news, bounce = arrival)
+                                onSend = {}, onWind = { _, _ -> }, onThread = {}, news = news, bounce = arrival)
                             WindArrivalBanner(vm, "ca", listOf(gregal, ponent))
                         }
                     }
