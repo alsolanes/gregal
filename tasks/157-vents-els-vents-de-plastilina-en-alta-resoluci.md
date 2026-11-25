@@ -1,6 +1,6 @@
 ---
 title: Vents: els vents de plastilina en alta resolució
-status: blocked
+status: done
 depends_on: ["155"]
 ---
 
@@ -27,3 +27,5 @@ On phones the clay winds look low resolution: the sheets are 128 px frames with 
 - The manifest has no `sizes` any more: every family is the global `size` 256 / `maskSize` 128. characters.js and its test read only the global size again. Go tests: `TestCharactersManifestMatchesSheets` now also requires 256/128; `TestCharactersMinairoWithinBudget` (all families but the pelut) went from 2 MB to 3.7 MB for the real 3.55 MB; `TestCharactersPelutAt256WithinBudget` keeps 1.2 MB and checks the global size instead of the override.
 - Android (WindClay.kt): the decoded-sheet cache went from 24 to 48 MB and counts a cap mask only when there is one (a 24-frame 256 px sheet and its mask are about 8 MB); the tinted-sheet cache went from 16 to 32 MB, and a still face (motion off, or any face under 64 dp) now tints only its still frame (256 KB), as 155 did on the web. Bitmap pixels live in native memory since Android 8, not in the Java heap. Robolectric: `WindClayTest.everyFamilyHas256PxFramesAndAStillFaceTintsOneFrame`.
 - Emulator (emulator-5554, 420 dpi), PNGs in %TEMP%/g157/shots: the wind profile before (installed 1.101.0 APK, `before-profile.png`) and after (this branch, `after-profile.png`), side by side at 3x in `compare-profile.png`: the eyes, mouth and edges are sharp where they were soft. The home strip winds (clay, about 64 dp) in `compare-strip.png` (`before-chat.png` / `after-home.png`). Not done: the chat's corner wind (72 dp) after. The emulator was in a bad state that evening (2 GB of RAM, 870 MB swapped, frames of 1-2 s, ANRs in the app and then "Process system isn't responding"); an APK built from df6af48a with the 128 px assets hung the same way (`before-chatwind.png` shows it under the ANR dialog), and the dropbox ANR trace is the same as one from 20:46, before this work, the main thread waiting on the RenderThread in `HardwareRenderer.setStopped`. So no frame-time comparison either: on that emulator both builds were equally stuck. The criterion stays unticked and the task `blocked` until someone takes the chat-wind screenshot (and a frame-time check) on a healthy emulator or a phone; everything else is done.
+
+- Chat corner wind (72 dp) checked after rebooting the emulator: sharp, no box around it (zoomed screenshot taken, not committed). Frame timing on this software-rendered emulator stays unmeasured: jank numbers there are dominated by the emulator itself, before and after.
