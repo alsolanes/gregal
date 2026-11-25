@@ -18,7 +18,7 @@
  const folder=()=>{const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('class','vw-folder');svg.setAttribute('aria-hidden','true');const p=document.createElementNS(svg.namespaceURI,'path');p.setAttribute('d','M3 6a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v10H3Z');p.setAttribute('fill','none');p.setAttribute('stroke','currentColor');p.setAttribute('stroke-width','1.6');svg.append(p);return svg;};
  // Icones: el joc de traç de shell-icons.js (window.gregalIcon), igual que a Codi;
  // les que aquell joc no té van aquí amb el mateix traç i graella. Res de glifs de text.
- const ownIcons={sidePane:'M4 5h16v14H4z M15 5v14',computer:'M3 5h18v11H3z M8 20h8 M12 16v4',clock:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18 M12 7v5l3 2',thumbUp:'M7 10v10H4V10z M7 10l4-7a2 2 0 0 1 3 2l-1 4h5a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 16.8 20H7',thumbDown:'M17 14V4h3v10z M17 14l-4 7a2 2 0 0 1-3-2l1-4H6a2 2 0 0 1-2-2.3l1.2-7A2 2 0 0 1 7.2 4H17',tune:'M4 6h10 M18 6h2 M4 12h4 M12 12h8 M4 18h12 M20 18h0 M14 4v4 M8 10v4 M16 16v4',plus:'M12 5v14 M5 12h14',close:'M7 7l10 10 M17 7L7 17',menu:'M4 5h16v14H4z M9 5v14',star:'M12 3.8l2.5 5.1 5.6.8-4 3.9.9 5.6-5-2.6-5 2.6.9-5.6-4-3.9 5.6-.8z',back:'M19 12H5 M11 6l-6 6 6 6',arrow:'M5 12h14 M13 6l6 6-6 6',open:'M8 16 16 8 M9.5 8H16v6.5',bell:'M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z M10 20.5h4',chat:'M4 5h16v11H10l-5 4v-4H4z',work:'M4 8h16v11H4z M9 8V5h6v3 M4 13h16',sun:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M12 2v2 M12 20v2 M4.9 4.9l1.4 1.4 M17.7 17.7l1.4 1.4 M2 12h2 M20 12h2 M4.9 19.1l1.4-1.4 M17.7 6.3l1.4-1.4',sparkles:'M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z',calendar:'M4 6h16v14H4z M4 10h16 M8 3v4 M16 3v4',pin:'M9 3h6 M10 3v6l-3 4h10l-3-4V3 M12 13v8',lock:'M6 11h12v9H6z M8 11V8a4 4 0 0 1 8 0v3',eyeOff:'M3 3l18 18 M10.6 6.1A10 10 0 0 1 12 6c5 0 9 6 9 6a17 17 0 0 1-3.2 3.7 M6.6 7.6C4.4 9.1 3 12 3 12s4 6 9 6a8.7 8.7 0 0 0 4-1 M9.9 9.9a3 3 0 0 0 4.2 4.2',notebook:'M6 3h12v18H6z M9 3v18 M12 8h3',tasks:'M5 12l3 3 6-6 M4 4h16v16H4z',mapPin:'M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z M12 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4'};
+ const ownIcons={person:'M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M4.5 20a7.5 7.5 0 0 1 15 0',sidePane:'M4 5h16v14H4z M15 5v14',computer:'M3 5h18v11H3z M8 20h8 M12 16v4',clock:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18 M12 7v5l3 2',thumbUp:'M7 10v10H4V10z M7 10l4-7a2 2 0 0 1 3 2l-1 4h5a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 16.8 20H7',thumbDown:'M17 14V4h3v10z M17 14l-4 7a2 2 0 0 1-3-2l1-4H6a2 2 0 0 1-2-2.3l1.2-7A2 2 0 0 1 7.2 4H17',tune:'M4 6h10 M18 6h2 M4 12h4 M12 12h8 M4 18h12 M20 18h0 M14 4v4 M8 10v4 M16 16v4',plus:'M12 5v14 M5 12h14',close:'M7 7l10 10 M17 7L7 17',menu:'M4 5h16v14H4z M9 5v14',star:'M12 3.8l2.5 5.1 5.6.8-4 3.9.9 5.6-5-2.6-5 2.6.9-5.6-4-3.9 5.6-.8z',back:'M19 12H5 M11 6l-6 6 6 6',arrow:'M5 12h14 M13 6l6 6-6 6',open:'M8 16 16 8 M9.5 8H16v6.5',bell:'M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z M10 20.5h4',chat:'M4 5h16v11H10l-5 4v-4H4z',work:'M4 8h16v11H4z M9 8V5h6v3 M4 13h16',sun:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M12 2v2 M12 20v2 M4.9 4.9l1.4 1.4 M17.7 17.7l1.4 1.4 M2 12h2 M20 12h2 M4.9 19.1l1.4-1.4 M17.7 6.3l1.4-1.4',sparkles:'M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z',calendar:'M4 6h16v14H4z M4 10h16 M8 3v4 M16 3v4',pin:'M9 3h6 M10 3v6l-3 4h10l-3-4V3 M12 13v8',lock:'M6 11h12v9H6z M8 11V8a4 4 0 0 1 8 0v3',eyeOff:'M3 3l18 18 M10.6 6.1A10 10 0 0 1 12 6c5 0 9 6 9 6a17 17 0 0 1-3.2 3.7 M6.6 7.6C4.4 9.1 3 12 3 12s4 6 9 6a8.7 8.7 0 0 0 4-1 M9.9 9.9a3 3 0 0 0 4.2 4.2',notebook:'M6 3h12v18H6z M9 3v18 M12 8h3',tasks:'M5 12l3 3 6-6 M4 4h16v16H4z',mapPin:'M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z M12 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4'};
  function icon(name){const s=el('span','vw-ic');s.setAttribute('aria-hidden','true');const html=root.gregalIcon?.(name);if(html)s.innerHTML=html;else if(ownIcons[name])s.innerHTML='<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+ownIcons[name]+'"/></svg>';return s;}
  // Botó amb icona i text: el text continua sent el nom accessible.
  const iconBtn=(name,label,action,cls)=>{const b=btn('',action,cls);b.append(icon(name),el('span','',label));return b;};
@@ -27,6 +27,18 @@
  // i tancar-lo des de dalt, també després d'haver-lo tancat amb la ✕.
  function browserToggle(){const ab=root.gregalAgentBrowser;if(!ab)return null;const b=iconOnly('navegador',t("Obre el navegador","Open the browser"),()=>ab.toggle(),'vw-browser-toggle');b.dataset.agentBrowserToggle='';queueMicrotask(()=>ab.sync());return b;}
  const iconOnly=(name,label,action,cls)=>{const b=btn('',action,cls);b.append(icon(name));b.setAttribute('aria-label',label);b.title=label;return b;};
+ // 128: el menú «⋯» del capçal del xat: [icona, nom, acció]. Es tanca en triar, amb Esc o fent clic fora;
+ // les fletxes hi passen d'una entrada a l'altra.
+ function moreMenu(items){
+  const box=el('div','vw-more'),list=el('div','vw-more-list');list.setAttribute('role','menu');list.hidden=true;
+  const toggle=iconOnly('moreBtn',t('Més opcions','More options'),()=>show(list.hidden),'vw-more-btn');toggle.setAttribute('aria-haspopup','menu');toggle.setAttribute('aria-expanded','false');
+  const away=e=>{if(e.target.closest?.('.vw-more')!==box)show(false);},esc=e=>{if(e.key!=='Escape')return;e.stopPropagation();show(false);toggle.focus();};
+  function show(open){list.hidden=!open;toggle.setAttribute('aria-expanded',String(open));
+   if(open){document.addEventListener('click',away,true);document.addEventListener('keydown',esc,true);list.firstChild?.focus();}
+   else{document.removeEventListener('click',away,true);document.removeEventListener('keydown',esc,true);}}
+  for(const [ic,label,action]of items){const b=btn('',()=>{show(false);return action();},'vw-more-item');b.setAttribute('role','menuitem');b.append(icon(ic),el('span','',label));list.append(b);}
+  list.addEventListener('keydown',e=>{if(e.key!=='ArrowDown'&&e.key!=='ArrowUp')return;e.preventDefault();const all=[...list.children],i=all.indexOf(document.activeElement),down=e.key==='ArrowDown';all[i<0?(down?0:all.length-1):(i+(down?1:all.length-1))%all.length].focus();});
+  box.append(toggle,list);return box;}
  // Fila que obre una conversa o una feina: el text i una fletxa d'icona.
  const linkRow=(label,action)=>{const b=btn('',action,'vw-recent');b.append(el('span','',label),icon('open'));return b;};
  const squadName=id=>{const s=state.squads.find(s=>s.id===id);return s?(ca()?s.ca:s.en):t('Els teus vents','Your winds');};
@@ -41,7 +53,7 @@
  const tag=w=>{const role=roleName(w);if(!role)return [];const n=el('span','vw-tag');n.style.setProperty('--c',w.color);const ic=kitIcon(w.kit);if(ic)n.append(ic);n.append(el('span','',role));return [n];};
  function heading(title,copy){const h=el('div','vw-heading');h.append(el('h1','',title));if(copy)h.append(el('p','',copy));content.append(h);}
  function section(title,action){const h=el('div','vw-section-label');h.append(el('span','',title));if(action)h.append(action);nav.append(h);}
- function route(view,active=null){if(state.preparing&&!state.busy)return;state.chatEpoch=(state.chatEpoch||0)+1;state.draft=input?.value??state.draft;state.view=view;state.active=active;state.history=[];if(view!=='task'&&root.gregalPreview?.getState().open)$('previewClose')?.click();render();}
+ function route(view,active=null){if(state.preparing&&!state.busy)return;state.chatEpoch=(state.chatEpoch||0)+1;state.draft=input?.value??state.draft;state.view=view;state.active=active;state.history=[];state.failed=null;if(view!=='task'&&root.gregalPreview?.getState().open)$('previewClose')?.click();render();}
  const draftKey='gregal_vents_draft';
  function saveDraft(){
   try{sessionStorage.setItem(draftKey,JSON.stringify({draft:input?.value??state.draft,chat:state.view==='chat'?state.active?.id:null,wind:state.active?.legacyWind?state.active.wind:null}));}catch{}
@@ -185,8 +197,13 @@
   n.dataset.at=at;
   // El primer lloc s'hi posa sense vol (llegir-ne la mida el fixa): només volen els canvis que vénen després.
   if(!('fly' in n.dataset)){n.getBoundingClientRect();n.dataset.fly='';}}
- // 101: el torn que acaba de tornar el celebra (o l'arronsa) un sol cop qui el porta: el render següent ja no.
- function cheerOn(n){const c=state.cheer;if(!c||c.thread!==state.active?.id)return;n.classList.add(c.kind==='done'?'vw-cheer':'vw-shrug');if(c.kind!=='done')return;const burst=el('span','vw-burst');burst.setAttribute('aria-hidden','true');for(let i=0;i<10;i++){const s=el('i');s.style.setProperty('--i',String(i));burst.append(s);}n.append(burst);}
+ // 128: el vent reacciona amb el cos: assenteix quan envies (nod), s'hi acosta amb un esclat del seu color
+ // quan arriba la resposta (lean) i fa que no quan falla o li dius que no (shake).
+ function react(n,kind){if(!n)return;clearTimeout(n.reacting);n.querySelector('.vw-burst')?.remove();n.dataset.react=kind;
+  if(kind==='lean'){const burst=el('span','vw-burst');burst.setAttribute('aria-hidden','true');for(let i=0;i<10;i++){const s=el('i');s.style.setProperty('--i',String(i));burst.append(s);}n.append(burst);}
+  n.reacting=setTimeout(()=>{if(n.dataset.react===kind)delete n.dataset.react;},1000);}
+ // 101: el torn que acaba de tornar hi reacciona un sol cop: el render següent ja no.
+ function cheerOn(n){const c=state.cheer;if(c&&c.thread===state.active?.id)react(n,c.kind==='done'?'lean':'shake');}
  // 138: una cara de feina es queda almenys 1,2 s. Si en aquesta estona passa d'una eina a una altra, o
  // d'eina a xerrar i a eina, la cara que es veu continua (sense tornar a començar l'animació) i en acabar
  // l'estona mostra la feina d'aquell moment. Acabar el torn o preguntar-te alguna cosa es veu de seguida.
@@ -219,16 +236,18 @@
  // El fill (cara o estri) que es veu, no el que s'esvaeix.
  const live=(n,cls)=>[...n.children].find(c=>c.classList.contains(cls)&&!c.classList.contains('vw-fade-out'))||null;
  function propFor(mood){if(!props[mood])return null;const box=svgOf(['svg',{class:'vw-prop',viewBox:'0 0 40 40','aria-hidden':'true'},props[mood]]);box.dataset.kind=mood;box.style.setProperty('--vw-phase',phase());return box;}
- function paintCorner(n=page?.querySelector('.vw-wind-corner')){if(!n)return;const mood=heldMood(n.dataset.wind,cornerMood(state,state.active?.id,n.dataset.wind),()=>paintCorner());if(n.dataset.mood===mood)return;if(n.dataset.mood)n.className='vw-wind-corner';n.dataset.mood=mood;
+ function paintCorner(n=page?.querySelector('.vw-wind-corner')){if(!n)return;const mood=heldMood(n.dataset.wind,cornerMood(state,state.active?.id,n.dataset.wind),()=>paintCorner());if(n.dataset.mood===mood)return;n.dataset.mood=mood;
   n.querySelector('.vw-burst')?.remove();swapIn(n,live(n,'vw-prop'),propFor(mood));
   // La plastilina canvia d'humor al seu lloc (s'hi fon); la cara dibuixada es fa de nou i es fon amb la vella.
   const now=live(n,'winds-face');if(now?.classList.contains('winds-clay')){root.gregalCharacters.mood(now,mood);return;}
   const w=state.winds.find(w=>w.id===n.dataset.wind),next=clay(w,root.gregalWinds.face(w,true,mood));next.style.setProperty('--vw-phase',phase());swapIn(n,now,next);}
  root.gregalWindChat={mix:mixHex,share:windShare,mark:windMark,cornerMood,cornerAt,heldMood};
  // Qui porta la conversa: el vent (l'únic, que vola a la cantonada) amb el seu estat, el nom i l'ofici. En un grup, les cares de qui hi és.
+ // 128: el mateix per a tots els vents, Gregal inclòs; la cara i el nom obren el perfil.
  function owner(){
   const box=el('span','vw-owner'),members=state.winds.filter(w=>(state.active?.members||[]).includes(w.id));
-  if(state.active?.legacyWind||members.length===1){const w=soloWind();if(!w)return el('span','',state.active?.name||'');const slot=el('span','vw-owner-slot'),n=el('span','vw-wind-corner');n.dataset.wind=w.id;n.setAttribute('aria-hidden','true');slot.append(n);paintCorner(n);cheerOn(n);box.append(slot,el('strong','',w.name),...tag(w),markLabel(w));return box;}
+  if(state.active?.legacyWind||members.length===1){const w=soloWind();if(!w)return el('span','',state.active?.name||'');const who=btn('',()=>profile(w),'vw-owner-who');who.setAttribute('aria-label',w.name+' · '+t('Perfil','Profile'));who.title=who.getAttribute('aria-label');
+   const slot=el('span','vw-owner-slot'),n=el('span','vw-wind-corner');n.dataset.wind=w.id;n.setAttribute('aria-hidden','true');slot.append(n);paintCorner(n);cheerOn(n);who.append(slot,el('strong','',w.name));box.append(who,...tag(w),markLabel(w));return box;}
   const faces=el('span','vw-owner-faces');for(const w of members.slice(0,5))faces.append(face(w,null,24));box.append(faces,el('strong','',state.active?.name||t('Conversa en grup','Group conversation')));box.title=members.map(w=>w.name).join(', ');return box;
  }
  function render(){
@@ -237,23 +256,17 @@
   if(state.done&&(state.view!=='chat'||state.active?.id!==state.done))state.done=null;
   if(paneThread&&state.view==='chat'&&state.active?.id!==paneThread&&paneOpen())document.dispatchEvent(new CustomEvent('gregal:workpane',{detail:'none'}));
   renderNav();page.replaceChildren();messages=null;asksBox=null;input=null;composer=null;
-  const top=el('header','vw-top');const menu=iconOnly('menu',t('Obre la navegació','Open navigation'),()=>{if(matchMedia('(max-width:760px)').matches){setDrawer(!document.body.classList.contains('vw-drawer'));return;}const side=$('side');const reopen=side.classList.contains('closed')||side.classList.contains('compact');if(reopen&&root.setSideCompact)root.setSideCompact(false);if(root.setSide)root.setSide(reopen);},'vw-mobile-menu');menu.setAttribute('aria-expanded',String(document.body.classList.contains('vw-drawer')));top.append(menu,el('span','',t('Vents','Winds')));if(state.view!=='home')top.append(el('span','vw-separator','/'),state.view==='chat'?owner():el('span','',({tasks:t('Feina','Work'),fes:t('Feina','Work'),saved:t('Desat','Saved'),notes:t('Desat','Saved'),today:t('Avui','Today'),crew:t('Els teus vents','Your winds'),apres:t('Què sap de tu','About you'),rules:t('Regles','Rules'),library:t('Biblioteca','Library'),wiki:t('Wiki','Wiki'),pati:t('El pati','Playground')})[state.view]||state.active?.name||squadName(state.squad)));
+  const top=el('header','vw-top');const menu=iconOnly('menu',t('Obre la navegació','Open navigation'),()=>{if(matchMedia('(max-width:760px)').matches){setDrawer(!document.body.classList.contains('vw-drawer'));return;}const side=$('side');const reopen=side.classList.contains('closed')||side.classList.contains('compact');if(reopen&&root.setSideCompact)root.setSideCompact(false);if(root.setSide)root.setSide(reopen);},'vw-mobile-menu');menu.setAttribute('aria-expanded',String(document.body.classList.contains('vw-drawer')));top.append(menu);if(state.view==='chat')top.append(owner());else top.append(el('span','',t('Vents','Winds')));if(state.view!=='home'&&state.view!=='chat')top.append(el('span','vw-separator','/'),el('span','',({tasks:t('Feina','Work'),fes:t('Feina','Work'),saved:t('Desat','Saved'),notes:t('Desat','Saved'),today:t('Avui','Today'),crew:t('Els teus vents','Your winds'),apres:t('Què sap de tu','About you'),rules:t('Regles','Rules'),library:t('Biblioteca','Library'),wiki:t('Wiki','Wiki'),pati:t('El pati','Playground')})[state.view]||state.active?.name||squadName(state.squad)));
   // «La colla» ja és a la barra lateral (i a la de sota, al mòbil): aquí només hi van les accions del fil obert.
-  // Fil de Gregal (B14): a dalt només la seva cara, flotant, i l'ordinador; la lluïssor floreix en obrir.
-  const gregalHome=state.view==='chat'&&state.active?.wind==='gregal';page.classList.toggle('vw-gregal',gregalHome);
   const solo=state.view==='chat'?soloWind():null;page.classList.toggle('vw-wind-chat',!!solo&&hex6(solo.color));if(solo&&hex6(solo.color)){page.style.setProperty('--vw-wind',solo.color);page.style.setProperty('--vw-wind-share',String(bubbleShare(solo.color)));}
-  if(gregalHome){const g=state.winds.find(w=>w.id==='gregal');page.style.setProperty('--g-accent',g?.color||'var(--accent)');top.classList.add('vw-top-gregal');
-   const who=btn('',()=>profile(g),'vw-gregal-face');who.setAttribute('aria-label',g?.name||'Gregal');who.title=g?.name||'Gregal';const gWho=el('span','vw-gregal-who');gWho.append(el('span','vw-gregal-name',g?.name||'Gregal'),el('span','vw-gregal-role',roleName(g)||t('El teu assistent','Your assistant')));who.append(face(g),gWho);if(g)who.append(markLabel(g));cheerOn(who);
-   const pc=iconOnly('computer',computerName(),()=>openComputer(),'vw-gregal-pc');
-   // «Què pot fer Gregal»: la guia, amb exemples que s'envien al fil; la primera vegada s'obre sola.
-   const G=root.gregalGuide,tryIt=ex=>{if(input){input.value=ex;state.draft=ex;composer.requestSubmit();}};
-   const guide=iconOnly('sparkles',t('Què pot fer Gregal','What Gregal can do'),()=>G?.open({accent:g?.color,onTry:tryIt}),'vw-gregal-guide');
-   const right=el('div','vw-gregal-actions');right.append(guide,pc);const abT=browserToggle();if(abT)right.append(abT);right.append(paneToggle());
-   top.replaceChildren(top.firstChild,who,right);
-   if(G&&!G.seen()&&!state.guideShown){state.guideShown=true;setTimeout(()=>G.open({accent:g?.color,onTry:tryIt}),900);}}
-  if(state.view==='chat'&&state.active?.legacyWind&&!gregalHome)top.append(btn(t('Fils','Threads'),windThreads,'vw-top-action'));
-  if(state.view==='chat'&&state.active?.id&&!gregalHome)top.append(btn(t('Desa a la wiki','Save to wiki'),summarizeToWiki,'vw-top-action'));
-  if(!gregalHome){const abT=browserToggle();if(abT){abT.classList.add('vw-top-browser');top.append(abT);}if(state.view==='chat')top.append(paneToggle());}
+  const abT=browserToggle();if(abT){abT.classList.add('vw-top-browser');top.append(abT);}
+  if(state.view==='chat'){
+   // 128: les accions del fil, les mateixes per a cada vent, en un sol menú «⋯». Gregal hi afegeix la
+   // seva guia («Què pot fer Gregal», amb exemples que s'envien al fil), que la primera vegada s'obre sola.
+   const G=solo?.id==='gregal'&&root.gregalGuide,tryIt=ex=>{if(input){input.value=ex;state.draft=ex;composer.requestSubmit();}},guide=()=>G.open({accent:solo.color,onTry:tryIt});
+   const actions=[...(solo?[['person',t('Perfil','Profile'),()=>profile(solo)]]:[]),...(state.active?.legacyWind?[['chat',t('Fils','Threads'),windThreads]]:[]),...(state.active?.id?[['notebook',t('Desa a la wiki','Save to wiki'),summarizeToWiki]]:[]),['computer',computerName(),()=>openComputer()],...(G?[['sparkles',t('Què pot fer Gregal','What Gregal can do'),guide]]:[])];
+   top.append(paneToggle(),moreMenu(actions));
+   if(G&&!G.seen()&&!state.guideShown){state.guideShown=true;setTimeout(guide,900);}}
   page.append(top);
   content=el('div','vw-content');page.append(content);status=el('div','vw-status');status.setAttribute('role','status');status.textContent=state.notice?.thread===state.active?.id?state.notice?.text||'':'';page.append(status);
   if(state.view==='home')home();else if(state.view==='today')todayView();else if(state.view==='crew')team();else if(state.view==='library')library();else if(state.view==='project')projectView();else if(state.view==='tasks')tasks();else if(state.view==='chat')chatView();else if(state.view==='task')taskView();else if(state.view==='wiki')wikiView();else if(state.view==='pati')patiView();else if(state.view==='saved')savedView();else if(state.view==='notes')notesView();else if(state.view==='rules')rulesView();else if(state.view==='fes')fesView();else if(state.view==='apres')apresView();else if(state.view==='shared')root.gregalShared?.view(content,{chat:state.active,back:()=>route('home')});
@@ -1267,7 +1280,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  async function decide(a,pv,approve){
   if(!await answerAsk(a,{approve}))return;
   if(asksBox&&messages&&asksBox.parentNode===messages)asksBox.before(el('p','vw-ask-done',(approve?t('Has permès: ','You allowed: '):t('Has dit que no: ','You said no: '))+pv.brief));
-  const corner=page?.querySelector('.vw-wind-corner');if(corner){corner.dataset.react=approve?'nod':'shake';setTimeout(()=>{if(corner.dataset.react===(approve?'nod':'shake'))delete corner.dataset.react;},900);}
+  react(page?.querySelector('.vw-wind-corner'),approve?'nod':'shake');
  }
  function paintAsks(){
   const box=(asksBox&&messages&&state.view==='chat')?asksBox:page?.querySelector('.vw-asks');if(!box)return;if(box===asksBox&&box.parentElement!==messages)messages.append(box);const abans=box.childElementCount;box.replaceChildren();
@@ -1352,6 +1365,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   if(same){same.className=row.className;add(same);}
   else if(live&&!user&&hi===lastAt){live.className=row.className;for(const k of Object.keys(live.dataset))delete live.dataset[k];Object.assign(live.dataset,row.dataset,{grown:'true'});if(w&&hex6(w.color))live.style.setProperty('--vw-wind',w.color);live.key=row.key;live.replaceChildren(...row.children);add(live);live=null;}
   else add(row);}
+  if(state.failed?.thread===state.active?.id)add(state.failed.row||=failedRow(state.failed));
   // Avisos i seguiments que ha programat en aquest torn (com la targeta de l'Android), amb «Desfés».
   if(state.turnActs?.thread===state.active?.id&&state.turnActs.list.length)add(turnActsRow(state.turnActs));
   // Respostes ràpides que el vent proposa al final del seu missatge.
@@ -1367,13 +1381,18 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   out.forEach((n,i)=>{const at=messages.children[i];if(at!==n){if(at)at.before(n);else messages.append(n);}});
   paintPending();
   messages.scrollTop=follow?messages.scrollHeight:top;}
+ // 128: un torn que no ha arribat el diu el vent, al fil, amb el motiu en petit i la manera de tornar-hi.
+ function failedRow(f){
+  const w=state.winds.find(x=>x.id===f.wind)||soloWind(),row=el('article','vw-message vw-failed');row.setAttribute('role','alert');if(w&&hex6(w.color))row.style.setProperty('--vw-wind',w.color);if(!soloWind())row.append(face(w));
+  const again=btn(t('Torna-ho a provar','Try again'),async()=>{if(state.busy||state.preparing)return;state.failed=null;state.history=state.history.filter(m=>!m.optimistic);state.preparing=true;try{await submitRequest(f.text);}finally{state.preparing=false;}},'vw-retry');
+  const copy=el('div'),say=el('p','vw-failed-say');say.append(icon('alert'),el('span','',t('No he pogut arribar-hi','I couldn’t get to it')));
+  copy.append(el('strong','',w?.name||t('Els teus vents','Your winds')),say,el('p','vw-failed-why',f.reason),again);row.append(copy);return row;}
  // 144: el torn acaba al fil obert: es posa al dia al seu lloc (la capçalera, el botó d'enviar, l'avís i el
  // fil), sense refer la pàgina, perquè la resposta que ha crescut no es canviï per una altra.
  function settleTurn(){
   renderNav();paintHistory();paintMark();paintSend(composer?.querySelector('.vw-send'));
   if(status)status.textContent=state.notice?.thread===state.active?.id?state.notice.text||'':'';
-  const host=page.querySelector('.vw-wind-corner')||page.querySelector('.vw-gregal-face');
-  if(host){host.classList.remove('vw-cheer');host.classList.remove('vw-shrug');host.querySelector('.vw-burst')?.remove();cheerOn(host);}
+  const host=page.querySelector('.vw-wind-corner');if(host)cheerOn(host);
   state.cheer=null;
  }
  async function submit(){
@@ -1423,7 +1442,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   }
   const epoch=state.chatEpoch||0,workspace=state.active?.project?state.active.path:'';let sentTo=state.view==='chat'?state.active:null;
   state.busy=true;state.done=null;
-  state.notice=null;
+  state.notice=null;state.failed=null;
   const turn={},progress={};let landed=false;
   chatTurn=turn;
   const current=()=>state.view==='chat'&&state.active?.id===sentTo?.id;
@@ -1441,7 +1460,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
    if(sentTo.workspace)await switchFolder(sentTo.workspace);
    state.pending={thread:sentTo.id,wind:sentTo.legacyWind?sentTo.wind:sentTo.members?.length===1?sentTo.members[0]:null,phase:'thinking',text:''};
    if(epoch===(state.chatEpoch||0)){
-    state.history.push({from:'user',text,optimistic:true});state.draft=keep;state.view='chat';render();
+    state.history.push({from:'user',text,optimistic:true});state.draft=keep;state.view='chat';render();react(page.querySelector('.vw-wind-corner'),'nod');
    }
    const data=await streamChat(sentTo,text,turn,progress);
    if(data.cancelat){restore();state.notice={thread:sentTo.id,text:t('Torn aturat','Turn stopped')};}
@@ -1453,7 +1472,11 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
     if(sentTo.legacyWind)refreshSolo().then(()=>renderNav());
     if(data.failed?.length)state.notice={thread:sentTo.id,text:t('No han pogut completar el torn: ','Could not complete the turn: ')+data.failed.join(', ')+(data.failed_reason?' · '+root.gregalFriendlyRunError(data.failed_reason):'')};
    }
-  }catch(error){restore();if(sentTo)state.cheer={thread:sentTo.id,kind:'shrug'};throw error;}
+  }catch(error){if(sentTo)state.cheer={thread:sentTo.id,kind:'shrug'};
+   if(!sentTo||!current()){restore();throw error;}
+   // 128: al fil obert, el torn que no arriba el diu el vent mateix, amb «Torna-ho a provar»; el teu missatge s'hi queda.
+   if(progress.history)state.history=progress.history;
+   state.failed={thread:sentTo.id,text,wind:state.pending?.wind,reason:error.message};}
   finally{
    if(chatTurn===turn)chatTurn=null;
    state.pending=null;state.busy=false;
