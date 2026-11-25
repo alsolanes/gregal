@@ -1093,7 +1093,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (e is CancellationException) throw e
                 false
             }
-            if (!ok && _conn.value == c) _avui.value = AvuiLogic.revert(_avui.value ?: before, before, id)
+            if (_conn.value != c) return@launch
+            if (!ok) _avui.value = AvuiLogic.revert(_avui.value ?: before, before, id)
+            if (action == "resume") notify(appText(if (ok) "app.avui.resumed" else "app.avui.resumeError"))
         }
     }
 

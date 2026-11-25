@@ -127,6 +127,25 @@ class AvuiTrayUiTest {
         assertEquals(listOf("garbi:Explica'm"), runs)
     }
 
+    @Test fun laVigilanciaPausadaEsRepren() {
+        val pausa = AvuiCard("p1", "xaloc", "Xaloc", "pausa", "now", "He deixat de mirar: preus del lloguer",
+            actions = listOf(AvuiAction("Torna a mirar-ho", "Torna a vigilar: preus del lloguer")))
+        val acts = mutableListOf<Pair<String, String>>()
+        val runs = mutableListOf<String>()
+        ui.setContent {
+            CompositionLocalProvider(LocalWindMotion provides false, LocalPal provides LightPal) {
+                AvuiTray("ca", AvuiView("2026-11-10", listOf(pausa), emptyList(), emptyList(), emptyList(), 0, AvuiSettings()),
+                    winds, false, onAct = { id, a -> acts += id to a }, onRun = { c, _ -> runs += c.id },
+                    onSettings = { _, _ -> }, onRetry = {})
+            }
+        }
+        // El xip de sempre només ho demanaria al xat, que no la pot reprendre.
+        ui.onNodeWithText("Torna a mirar-ho").assertDoesNotExist()
+        ui.onNodeWithTag("avui-resume").assertTextEquals("Torna-hi").performClick()
+        assertEquals("p1" to "resume", acts.single())
+        assertTrue(runs.isEmpty())
+    }
+
     @Test fun safataBuidaDiuQueTotEsEnCalma() {
         ui.setContent {
             CompositionLocalProvider(LocalWindMotion provides false, LocalPal provides LightPal) {

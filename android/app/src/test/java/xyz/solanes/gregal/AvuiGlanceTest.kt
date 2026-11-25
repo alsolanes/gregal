@@ -253,6 +253,39 @@ class AvuiGlanceTest {
         }
     }
 
+    /** Una safata amb la targeta d'una vigilància pausada (task 146); [fails] fa que el servidor no accepti el resume. */
+    private fun pausaServer(fails: Boolean) = FakeServer({ request, _ -> if (fails && request.startsWith("POST")) 400 else 200 }) { request, _ ->
+        if (request.startsWith("POST")) (if (fails) "resume only applies to a pausa card\n" else """{"ok":true}""")
+        else JSONObject().put("date", "2026-11-24").put("now", org.json.JSONArray().put(JSONObject()
+            .put("id", "p1").put("wind", "xaloc").put("source", "pausa").put("section", "now").put("state", "open")
+            .put("title", "He deixat de mirar: preus del lloguer"))).toString()
+    }
+
+    @Test fun tornaHiReprenLaVigilanciaIHoDiu() {
+        pausaServer(fails = false).use { server ->
+            val vm = loaded(server)
+            vm.avuiAct("p1", "resume")
+            assertEquals("done", vm.avui.value!!.now.single().state)
+            waitUntil { vm.notice.value.isNotEmpty() }
+            val (request, body) = server.requests.single()
+            assertTrue(request, request.startsWith("POST /api/winds/avui "))
+            assertEquals("resume", JSONObject(body).getString("action"))
+            assertEquals("p1", JSONObject(body).getString("id"))
+            assertEquals("Watching it again.", vm.notice.value)
+            assertEquals("done", vm.avui.value!!.now.single().state)
+        }
+    }
+
+    @Test fun siNoEsPotRependreLaTargetaTornaIHoDiu() {
+        pausaServer(fails = true).use { server ->
+            val vm = loaded(server)
+            vm.avuiAct("p1", "resume")
+            waitUntil { vm.notice.value.isNotEmpty() }
+            assertEquals("Could not resume the watch.", vm.notice.value)
+            assertEquals("open", vm.avui.value!!.now.single().state)
+        }
+    }
+
     @Test fun posaElLloc() {
         avuiServer().use { server ->
             val vm = loaded(server)
