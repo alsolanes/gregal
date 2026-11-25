@@ -412,35 +412,49 @@
  const workSteps=list=>{const out=[];for(const x of list||[]){const label=stepLabel(x.tool),last=out[out.length-1];if(last&&last.label===label&&last.done&&x.done)last.n++;else out.push({label,done:!!x.done,n:1});}return out;};
  const chatReadingSurface=text=>{const s=String(text||'');return s.length>900||/```/.test(s)||/^\s*\|.*\|\s*$/m.test(s)&&/^\s*\|?\s*:?-{3,}/m.test(s);};
  const nearChatEnd=box=>box.scrollHeight-box.clientHeight-box.scrollTop<64;
+ // 144: la resposta en directe és un sol node que creix al seu lloc. Abans es refeia sencer a cada tanda de
+ // tokens (la cara i els punts tornaven a començar i l'alçada saltava). El que només hi és mentre treballa
+ // (la tempesta, els passos i l'estat) va sota el text: en acabar se'n va sense moure res de dalt.
  function paintPending(){
-  paintMark();if(!messages||state.view!=='chat')return;const pending=state.pending;
-  const old=messages.querySelector('.vw-pending');const follow=nearChatEnd(messages);old?.remove();
-  if(!pending||pending.thread!==state.active?.id)return;
-  const wind=state.winds.find(w=>w.id===pending.wind),row=el('article','vw-message vw-pending'),copy=el('div','vw-pending-copy');if(!soloWind())row.append(face(wind,pending));
-  copy.append(el('strong','',wind?.name||t('Els teus vents','Your winds')));
+  paintMark();if(!messages||state.view!=='chat')return;const pending=state.pending;let row=messages.querySelector('.vw-pending');
+  if(!pending||pending.thread!==state.active?.id){row?.remove();return;}
+  const follow=nearChatEnd(messages),wind=state.winds.find(w=>w.id===pending.wind);
+  if(!row){row=el('article','vw-message vw-pending');const copy=el('div','vw-pending-copy'),activity=el('div','vw-thinking'),dots=el('span','vw-thinking-dots');dots.setAttribute('aria-hidden','true');for(let i=0;i<3;i++)dots.append(el('i'));activity.append(el('span'),dots);copy.append(el('strong'),activity);row.append(copy);if(asksBox?.parentNode===messages)asksBox.before(row);else messages.append(row);}
+  const copy=row.lastChild,activity=copy.lastChild;
+  // La cara només es refà si parla un altre vent o li canvia l'humor.
+  const who=soloWind()?'':(wind?.id||'')+' '+(root.gregalWinds.moodOf?.(pending)||'');
+  if(row.dataset.face!==who){row.dataset.face=who;if(row.firstChild!==copy)row.firstChild.remove();if(who)row.prepend(face(wind,pending));}
+  if(wind&&hex6(wind.color))row.style.setProperty('--vw-wind',wind.color);
+  copy.firstChild.textContent=wind?.name||t('Els teus vents','Your winds');
   const phases={writing:t('Escrivint la resposta','Writing the response'),thinking:t('Preparant la resposta','Preparing a response'),searching:t('Cercant informació','Searching for information'),scheduling:t('Preparant el recordatori','Preparing the reminder'),working:t('Treballant en la resposta','Working on the response')};
-  const activity=el('div','vw-thinking');activity.setAttribute('role',pending.text?'presentation':'status');const dots=el('span','vw-thinking-dots');dots.setAttribute('aria-hidden','true');for(let i=0;i<3;i++)dots.append(el('i'));
+  activity.setAttribute('role',pending.text?'presentation':'status');
   // A crew posts each message to the thread (followCrew repaints it) and also streams it as tokens: if the
   // history already shows this text, the live bubble keeps only the dots instead of a second copy.
   const flat=x=>String(x||'').replace(/\s+/g,' ').trim();
   const already=!!pending.text&&state.history.some(h=>h.from!=='user'&&flat(withoutSpeaker(h.text,wind?.name||h.speaker_name))===flat(withoutSpeaker(pending.text,wind?.name)));
   const writing=!!pending.text&&!already;
-  // A long answer becomes a reading surface (no bubble) when it lands: it streams in that shape too, so it doesn't jump.
-  if(writing&&chatReadingSurface(pending.text))row.classList.add('vw-reading');
+  row.classList.toggle('vw-reading',writing&&chatReadingSurface(pending.text));
   const steps=workSteps(pending.steps),live=steps.find(x=>!x.done);
-  activity.append(el('span','',writing?t('Escrivint la resposta','Writing the response'):live?live.label:phases[pending.phase]||phases.thinking),dots);copy.append(activity);
-  // Com dots o Duet: el que ja ha fet, en una línia discreta sota l'estat.
-  const doneSteps=steps.filter(x=>x.done);
+  activity.firstChild.textContent=writing?phases.writing:live?live.label:phases[pending.phase]||phases.thinking;
+  for(const old of copy.querySelectorAll('.vw-tempesta'))old.remove();
+  for(const old of copy.querySelectorAll('.vw-steps'))old.remove();
+  // Streamed text is formatted as it arrives, like the finished message it becomes; only its own body changes.
+  let body=copy.querySelector('.vw-stream-text');
+  if(!writing)body?.remove();
+  else{if(!body){body=el('div','vw-message-text vw-stream-text');activity.before(body);}
+   const shown=choicesStrip(withoutSpeaker(pending.text,wind?.name)).replace(/```(?:chart|gregal-plot)\n[\s\S]*?```/g,'\n_'+t('Preparant un gràfic…','Preparing a chart…')+'_\n').replace(/```(?:gregal-[a-z]+|chart)[ \n](?![\s\S]*```)[\s\S]*$/,'\n_'+t('Preparant la targeta…','Preparing the card…')+'_\n');
+   if(body.shown!==shown){body.shown=shown;if(root.gregalMD)body.innerHTML=root.gregalMD.render(shown);else body.textContent=shown;}}
   // Tempesta (winds_tempesta.go): què fa cada agent, i quan escriu la síntesi, que les ajunta.
-  if(Array.isArray(pending.tempesta)&&pending.tempesta.length){const box=el('div','vw-tempesta');const n=pending.tempesta.length,done=pending.tempesta.filter(a=>a.state!=='working').length;box.append(el('div','vw-tempesta-head',done<n?t(n+' vents hi treballen alhora','The '+n+' winds are on it at once'):t('Ajuntant el que han trobat','Merging what they found')));for(const a of pending.tempesta){const r=el('div','vw-tempesta-agent vw-tempesta-'+a.state);r.append(el('span','vw-tempesta-dot'),el('strong','',a.ca?t(a.ca,a.en):a.label),el('small','',String(a.model||'').replace(/^.*\//,'')),el('span','vw-tempesta-state',a.state==='working'?t('treballant','working'):a.state==='done'?'✓':t('no ha pogut','failed')));box.append(r);}copy.append(box);}
-  if(doneSteps.length){const trail=el('div','vw-steps');trail.setAttribute('aria-label',t('Passos fets','Steps done'));for(const x of doneSteps.slice(-4))trail.append(el('span','vw-step',x.label+(x.n>1?' ×'+x.n:'')));if(doneSteps.length>4)trail.prepend(el('span','vw-step vw-step-more','+'+(doneSteps.length-4)));copy.append(trail);}
-  // Streamed text is formatted as it arrives, like the finished message it becomes.
-  if(writing){const body=el('div','vw-message-text vw-stream-text'),shown=choicesStrip(withoutSpeaker(pending.text,wind?.name)).replace(/```(?:chart|gregal-plot)\n[\s\S]*?```/g,'\n_'+t('Preparant un gràfic…','Preparing a chart…')+'_\n').replace(/```(?:gregal-[a-z]+|chart)[ \n](?![\s\S]*```)[\s\S]*$/,'\n_'+t('Preparant la targeta…','Preparing the card…')+'_\n');if(root.gregalMD)body.innerHTML=root.gregalMD.render(shown);else body.textContent=shown;copy.append(body);}
-  row.append(copy);messages.append(row);if(follow)messages.scrollTop=messages.scrollHeight;
+  if(Array.isArray(pending.tempesta)&&pending.tempesta.length){const box=el('div','vw-tempesta');const n=pending.tempesta.length,done=pending.tempesta.filter(a=>a.state!=='working').length;box.append(el('div','vw-tempesta-head',done<n?t(n+' vents hi treballen alhora','The '+n+' winds are on it at once'):t('Ajuntant el que han trobat','Merging what they found')));for(const a of pending.tempesta){const r=el('div','vw-tempesta-agent vw-tempesta-'+a.state);r.append(el('span','vw-tempesta-dot'),el('strong','',a.ca?t(a.ca,a.en):a.label),el('small','',String(a.model||'').replace(/^.*\//,'')),el('span','vw-tempesta-state',a.state==='working'?t('treballant','working'):a.state==='done'?'✓':t('no ha pogut','failed')));box.append(r);}activity.before(box);}
+  // Com dots o Duet: el que ja ha fet, en una línia discreta.
+  const doneSteps=steps.filter(x=>x.done);
+  if(doneSteps.length){const trail=el('div','vw-steps');trail.setAttribute('aria-label',t('Passos fets','Steps done'));for(const x of doneSteps.slice(-4))trail.append(el('span','vw-step',x.label+(x.n>1?' ×'+x.n:'')));if(doneSteps.length>4)trail.prepend(el('span','vw-step vw-step-more','+'+(doneSteps.length-4)));activity.before(trail);}
+  if(follow)messages.scrollTop=messages.scrollHeight;
  }
+ // Un cop per fotograma: les tandes de tokens que arriben entre dos es pinten juntes.
  function schedulePending(){
   if(pendingTimer)return;
-  pendingTimer=setTimeout(()=>{pendingTimer=0;paintPending();},80);
+  pendingTimer=requestAnimationFrame(()=>{pendingTimer=0;paintPending();});
  }
  async function stopChat(turn){
   if(!turn.started||turn.cancelSent||chatTurn!==turn)return;
@@ -1060,7 +1074,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   const orb=el('div','vw-orb');
   orb.append(figure(wind,true));
   card.append(orb,el('h1','',wind.name),el('p','',roleName(wind)||t('Conversa directa','Direct conversation')));
-  messages.append(card);
+  return card;
  }
  const choicesStrip=text=>root.gregalChoices?root.gregalChoices.strip(text):text;
  const askTitle=kind=>({install:t('Vol instal·lar programari','Wants to install software'),download:t('Vol baixar un paquet o un fitxer','Wants to download a package or file'),delete:t('Vol esborrar fora del projecte','Wants to delete outside the project'),system:t('Vol canviar un servei del sistema','Wants to change a system service')}[kind]||t('Et demana permís','Asks for your permission'));
@@ -1273,11 +1287,13 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   for(const m of run){const w=state.winds.find(x=>x.id===m.speaker_id);const v=el('div','vw-debate-voice'),head=el('div','vw-debate-who');if(w)head.append(face(w));head.append(el('strong','',w?.name||m.speaker_name||''));const body=el('div','vw-message-text');const txt=withoutSpeaker(m.text,w?.name||m.speaker_name);if(root.gregalMD)body.innerHTML=root.gregalMD.render(txt);else body.textContent=txt;v.append(head,body);d.append(v);}
   return d;
  }
- function paintHistory(){const top=messages.scrollTop,follow=nearChatEnd(messages);messages.replaceChildren();let voice='',asked=false;const solo=soloWind(),H=state.history,who=m=>m?(m.from==='user'?'user':(m.speaker_id||m.from||'')):null;for(let hi=0;hi<H.length;hi++){const item=H[hi];if(item.kind==='memory'){messages.append(memoryRow(item));continue;}if(item.kind==='debate'){let end=hi;while(end+1<H.length&&H[end+1].kind==='debate')end++;messages.append(debateRun(H.slice(hi,end+1)));hi=end;continue;}const user=item.from==='user';
+ // 144: el fil es posa al dia al seu lloc. Els missatges que ja hi són es queden (el mateix node, sense
+ // tornar a entrar) i la resposta en directe es converteix en el missatge que arriba, en lloc de canviar-la per una altra.
+ function paintHistory(){const top=messages.scrollTop,follow=nearChatEnd(messages),out=[],add=n=>out.push(n),reuse=new Map();for(const n of [...messages.children])if(n.key)reuse.set(n.key,[...(reuse.get(n.key)||[]),n]);let live=messages.querySelector('.vw-pending');let voice='',asked=false;const solo=soloWind(),H=state.history,lastAt=H.findLastIndex(m=>m.kind!=='memory'),who=m=>m?(m.from==='user'?'user':(m.speaker_id||m.from||'')):null;for(let hi=0;hi<H.length;hi++){const item=H[hi];if(item.kind==='memory'){add(memoryRow(item));continue;}if(item.kind==='debate'){let end=hi;while(end+1<H.length&&H[end+1].kind==='debate')end++;add(debateRun(H.slice(hi,end+1)));hi=end;continue;}const user=item.from==='user';
   // Un vent convidat amb «Pregunta-li»: una línia diu que s'hi afegeix.
-  if(item.kind==='guest'){const g=state.winds.find(x=>x.id===item.speaker_id);const n=g?.name||item.speaker_name||'';if(n)messages.append(el('p','vw-handoff',t('→ '+n+" s'hi afegeix",'→ '+n+' joins in')));}
+  if(item.kind==='guest'){const g=state.winds.find(x=>x.id===item.speaker_id);const n=g?.name||item.speaker_name||'';if(n)add(el('p','vw-handoff',t('→ '+n+" s'hi afegeix",'→ '+n+' joins in')));}
   // Un altre vent agafa el fil després d'un missatge teu: una línia ho diu, en lloc que el vent ho expliqui.
-  if(user)asked=true;else if(!state.active?.legacyWind){const id=item.speaker_id||'';if(voice&&id&&id!==voice&&asked){const who=state.winds.find(w=>w.id===id);if(who)messages.append(el('p','vw-handoff',t('→ '+who.name+' agafa el fil','→ '+who.name+' takes over')));}if(id)voice=id;asked=false;}const w=state.winds.find(w=>w.id===item.speaker_id||w.id===item.from||w.name===item.from)||(state.active?.legacyWind?state.winds.find(w=>w.id===state.active.wind):null);const row=el('article',user?'vw-message vw-user':'vw-message');if(item.id)row.dataset.messageId=item.id;// Ratxes (B1): la cara i el nom un sol cop; la cua només a l'última. Taules, codi i textos llargs es llegeixen sense bombolla.
+  if(user)asked=true;else if(!state.active?.legacyWind){const id=item.speaker_id||'';if(voice&&id&&id!==voice&&asked){const who=state.winds.find(w=>w.id===id);if(who)add(el('p','vw-handoff',t('→ '+who.name+' agafa el fil','→ '+who.name+' takes over')));}if(id)voice=id;asked=false;}const w=state.winds.find(w=>w.id===item.speaker_id||w.id===item.from||w.name===item.from)||(state.active?.legacyWind?state.winds.find(w=>w.id===state.active.wind):null);const row=el('article',user?'vw-message vw-user':'vw-message');if(item.id)row.dataset.messageId=item.id;// Ratxes (B1): la cara i el nom un sol cop; la cua només a l'última. Taules, codi i textos llargs es llegeixen sense bombolla.
   // Amb un sol vent, la seva cara és només la de dalt (108); en un grup, cada resposta diu qui parla.
   if(who(H[hi-1])===who(item))row.classList.add('vw-run-cont');if(who(H[hi+1])!==who(item))row.classList.add('vw-run-last');if(!user&&chatReadingSurface(item.text))row.classList.add('vw-reading');if(!user&&!solo)row.append(face(w));const copy=el('div'),body=el('div','vw-message-text'),text=user?item.text:choicesStrip(withoutSpeaker(item.text,w?.name||item.speaker_name));if(root.gregalMD){body.innerHTML=root.gregalMD.render(text);if(item.ts&&root.gregalMD.stamp)root.gregalMD.stamp(body,item.ts);}else body.textContent=text;copy.append(el('strong','',user?t('Tu','You'):w?.name||item.speaker_name||t('Els teus vents','Your winds')),body);
   // Desa i Comparteix (share-msg.js): desar-la com a nota; text per a WhatsApp/Telegram, a algú de l'app o enllaç públic.
@@ -1287,19 +1303,35 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   if(user&&item.steer)copy.append(el('span','vw-steer-tag',t('Ho afegeix a la feina en curs','Added to the work in progress')));
   // Un missatge proactiu (B6, amb run o resultat): «per què ho has fet?».
   const R=root.gregalResponsabilitats;if(!user&&R&&R.isProactive(item)&&item.id){const why=btn(R.whyLabel(),()=>R.openWhy(item.id),'vw-why');why.dataset.message=item.id;row.dataset.proactive='1';copy.append(why);}
-  row.append(copy);messages.append(row);}
+  row.append(copy);if(!user&&w&&hex6(w.color))row.style.setProperty('--vw-wind',w.color);
+  row.key=JSON.stringify([item.from,item.speaker_id,item.text,item.kind,item.steer,item.streaming,item.id,item.ts,item.shots?.length]);const same=reuse.get(row.key)?.shift();
+  if(same){same.className=row.className;add(same);}
+  else if(live&&!user&&hi===lastAt){live.className=row.className;for(const k of Object.keys(live.dataset))delete live.dataset[k];Object.assign(live.dataset,row.dataset,{grown:'true'});if(w&&hex6(w.color))live.style.setProperty('--vw-wind',w.color);live.key=row.key;live.replaceChildren(...row.children);add(live);live=null;}
+  else add(row);}
   // Avisos i seguiments que ha programat en aquest torn (com la targeta de l'Android), amb «Desfés».
-  if(state.turnActs?.thread===state.active?.id&&state.turnActs.list.length)messages.append(turnActsRow(state.turnActs));
+  if(state.turnActs?.thread===state.active?.id&&state.turnActs.list.length)add(turnActsRow(state.turnActs));
   // Respostes ràpides que el vent proposa al final del seu missatge.
-  if(state.suggest?.thread===state.active?.id&&!state.busy)messages.append(suggestRow(state.suggest));
+  if(state.suggest?.thread===state.active?.id&&!state.busy)add(suggestRow(state.suggest));
   // L'última resposta, saltant les notes de memòria («Ho recordaré») que hi
   // van darrere: si no, les opcions d'una resposta desapareixien.
-  const last=[...state.history].reverse().find(m=>m.kind!=='memory');if(last&&last.from!=='user'&&!state.busy){const opts=root.gregalChoices?root.gregalChoices.extract(last.text):[];if(opts.length){const row=el('div','vw-choices');for(const o of opts)row.append(btn(o,()=>{if(!input)return;state.replyOnce=last.speaker_id||null;input.value=o;composer.requestSubmit();},'vw-choice'));messages.append(row);}}
-  if(!last&&state.active?.legacyWind)emptyWindThread();
-  paintPending();
+  const last=[...state.history].reverse().find(m=>m.kind!=='memory');if(last&&last.from!=='user'&&!state.busy){const opts=root.gregalChoices?root.gregalChoices.extract(last.text):[];if(opts.length){const row=el('div','vw-choices');for(const o of opts)row.append(btn(o,()=>{if(!input)return;state.replyOnce=last.speaker_id||null;input.value=o;composer.requestSubmit();},'vw-choice'));add(row);}}
+  const empty=!last&&state.active?.legacyWind&&emptyWindThread();if(empty)add(empty);
+  if(live)add(live);
   // La targeta de permís va dins del fil, sota l'últim missatge (com a la maqueta).
-  if(asksBox)messages.append(asksBox);
+  if(asksBox)add(asksBox);
+  const keep=new Set(out);for(const n of [...messages.children])if(!keep.has(n))n.remove();
+  out.forEach((n,i)=>{const at=messages.children[i];if(at!==n){if(at)at.before(n);else messages.append(n);}});
+  paintPending();
   messages.scrollTop=follow?messages.scrollHeight:top;}
+ // 144: el torn acaba al fil obert: es posa al dia al seu lloc (la capçalera, el botó d'enviar, l'avís i el
+ // fil), sense refer la pàgina, perquè la resposta que ha crescut no es canviï per una altra.
+ function settleTurn(){
+  renderNav();paintHistory();paintMark();paintSend(composer?.querySelector('.vw-send'));
+  if(status)status.textContent=state.notice?.thread===state.active?.id?state.notice.text||'':'';
+  const host=page.querySelector('.vw-wind-corner')||page.querySelector('.vw-gregal-face');
+  if(host){host.classList.remove('vw-cheer');host.classList.remove('vw-shrug');host.querySelector('.vw-burst')?.remove();cheerOn(host);}
+  state.cheer=null;
+ }
  async function submit(){
   // Mentre el vent treballa en aquest fil, el que escrius s'hi afegeix (no espera el torn).
   if(state.busy&&steerable()){const text=input.value.trim();if(text)await steerChat(text);return;}
@@ -1348,7 +1380,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   const epoch=state.chatEpoch||0,workspace=state.active?.project?state.active.path:'';let sentTo=state.view==='chat'?state.active:null;
   state.busy=true;state.done=null;
   state.notice=null;
-  const turn={},progress={};
+  const turn={},progress={};let landed=false;
   chatTurn=turn;
   const current=()=>state.view==='chat'&&state.active?.id===sentTo?.id;
   const restore=()=>{
@@ -1369,7 +1401,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
    }
    const data=await streamChat(sentTo,text,turn,progress);
    if(data.cancelat){restore();state.notice={thread:sentTo.id,text:t('Torn aturat','Turn stopped')};}
-   else if(current()){
+   else if(current()){landed=true;
     state.history=data.history||state.history;state.done=sentTo.id;state.cheer={thread:sentTo.id,kind:data.failed?.length?'shrug':'done'};
     state.turnActs=Array.isArray(data.actions)&&data.actions.length?{thread:sentTo.id,list:data.actions}:null;
     if(voice.on){const last=[...(data.history||[])].reverse().find(m=>m.from!=='user'&&m.kind!=='memory');voiceReply(last?.text||'');}
@@ -1381,7 +1413,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   finally{
    if(chatTurn===turn)chatTurn=null;
    state.pending=null;state.busy=false;
-   if(state.view==='chat')render();
+   if(state.view==='chat'){if(landed&&messages?.dataset.thread===state.active?.id)settleTurn();else render();}
    if(sentTo){sendAfter(sentTo.id);recheckThread(sentTo);}
    // Conversa per veu: si no hi ha hagut resposta per llegir (error, aturat), es torna a escoltar.
    if(voice.on&&voice.phase==='thinking')voiceListen();

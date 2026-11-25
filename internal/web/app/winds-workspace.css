@@ -847,58 +847,48 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-wx.is-compact .vw-wx-temp b { font-size:32px; }
 @media(max-width:600px) { .vw-wx-days { grid-template-columns:repeat(7, minmax(38px,1fr)); overflow-x:auto; } .vw-wx-temp b { font-size:32px; } }
 
-/* ---- Xat nou (B1, paritat amb Android) ----
-   Assistent: bombolla suau (--surface-hi) de 22 px amb cua de 6 px només a
-   l'última de la ratxa; persona: accent a la dreta. Dins una ratxa, la cara i
-   el nom surten un sol cop i l'aire és de 3 px; entre parlants, 14 px. Taules,
-   codi i respostes llargues es llegeixen sense bombolla. Cos 16/23 px. */
-.wind-workspace { --vw-bubble:22px; --vw-tail:6px; --vw-card:15px; }
-.vw-messages .vw-message { padding:14px 0 0; gap:10px; }
-.vw-messages .vw-message.vw-run-cont { padding-top:3px; }
-.vw-messages .vw-message-text { font-size:16px; line-height:23px; }
-.vw-messages .vw-message:not(.vw-user):not(.vw-reading) > div:not(.vw-pending-copy) {
-  background:var(--surface-hi); border-radius:var(--vw-bubble); padding:10px 16px 11px;
-  max-width:min(calc(100% - 48px), 680px);
-}
-.vw-messages .vw-message:not(.vw-user):not(.vw-reading).vw-run-last > div:not(.vw-pending-copy) { border-bottom-left-radius:var(--vw-tail); }
-.vw-messages .vw-message:not(.vw-user) > div > strong { display:block; margin:0 0 2px; font-size:12px; line-height:16px; color:var(--muted); font-weight:600; }
+/* ---- Xat (144, abans B1): com Claude o ChatGPT ----
+   El vent escriu text corrent sobre la pàgina, sense bombolla, amb la cara
+   petita i el nom a l'inici de la ratxa; la persona, una bombolla discreta a
+   la dreta. Una sola amplada de lectura (70ch) i una sola escala: cos 16 px
+   amb interlineat 1.6. El color del vent només a la cara, el nom i els
+   accents (la barra de les cites). La resposta en directe té ja aquesta forma. */
+.wind-workspace { --vw-bubble:20px; --vw-card:15px; --vw-measure:70ch; }
+.vw-messages .vw-message { padding:28px 0 0; gap:0; }
+.vw-messages .vw-message.vw-run-cont { padding-top:16px; }
+.vw-messages .vw-message-text { font-size:16px; line-height:1.6; }
+.vw-messages .vw-message:not(.vw-user) { display:block; position:relative; }
+.vw-messages .vw-message:not(.vw-user) > div { max-width:min(100%, var(--vw-measure)); padding:0; background:none; border-radius:0; }
+.vw-messages .vw-message:not(.vw-user) > :is(.winds-face,.vw-shared-person) { position:absolute; left:0; top:28px; width:24px; height:24px; margin:0; font-size:11px; }
+.vw-messages .vw-message.vw-run-cont > :is(.winds-face,.vw-shared-person) { display:none; }
+.vw-messages .vw-message:not(.vw-user) > div > strong { display:block; min-height:0; margin:0 0 6px; padding:0; font-size:13px; line-height:24px; font-weight:600; letter-spacing:.005em;
+  color:color-mix(in srgb, var(--vw-wind, var(--accent)) 40%, var(--ink)); }
+.vw-messages .vw-message:not(.vw-user):has(> :is(.winds-face,.vw-shared-person)) > div > strong { padding-left:34px; }
 .vw-messages .vw-message.vw-run-cont:not(.vw-user) > div > strong { display:none; }
-.vw-messages .vw-message.vw-run-cont > :is(.winds-face,.vw-shared-person) { visibility:hidden; }
-.vw-messages .vw-message > .winds-face { width:34px; height:34px; }
-.vw-messages .vw-reading > div { max-width:min(calc(100% - 48px), 740px); padding:2px 0; }
-.vw-messages .vw-user > div {
-  background:var(--user-bubble, var(--chat-send, var(--accent))); color:var(--on-user-bubble, var(--on-accent)); border:0;
-  border-radius:var(--vw-bubble); padding:10px 16px 11px; max-width:min(72%, 620px);
-}
-.vw-messages .vw-message.vw-user.vw-run-last > div { border-bottom-right-radius:var(--vw-tail); }
-.vw-messages .vw-user .vw-message-text { font-size:16px; line-height:23px; color:var(--on-user-bubble, var(--on-accent)); }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text { color:var(--text); }
+.vw-messages .vw-user > div { background:var(--surface-hi); color:var(--ink); border:0; border-radius:var(--vw-bubble); padding:10px 16px; max-width:min(80%, 36rem); }
+.vw-messages .vw-user .vw-message-text { font-size:16px; line-height:1.5; color:var(--ink); }
 .vw-messages .vw-user .vw-message-text a { color:inherit; }
-/* La bombolla en directe té la mateixa forma que la que serà. */
-.vw-messages .vw-pending { padding-top:14px; }
-.vw-messages .vw-pending-copy { background:var(--surface-hi); border-radius:var(--vw-bubble) var(--vw-bubble) var(--vw-bubble) var(--vw-tail); padding:10px 16px 11px; max-width:min(calc(100% - 48px), 680px); }
-.vw-messages .vw-pending-copy > strong { color:var(--muted); font-size:12px; }
+/* En directe: el text creix al seu lloc. L'estat (punts, passos) només es veu mentre encara no
+   escriu: si es quedés a sota del text, en acabar marxaria i el fil, enganxat al final, baixaria. */
+.vw-messages .vw-stream-text { margin:0; }
+.vw-messages .vw-pending-copy > .vw-thinking { margin-top:4px; }
+.vw-messages .vw-stream-text ~ * { display:none; }
 .vw-messages .vw-steps { display:flex; flex-wrap:wrap; gap:4px 6px; margin-top:6px; }
 .vw-messages .vw-step { font-size:12px; line-height:18px; padding:0 8px; border-radius:999px; background:color-mix(in srgb, var(--ink) 6%, transparent); color:var(--muted); }
-.vw-messages .vw-step::before { content:"✓ "; color:#1E9E6A; }
+.vw-messages .vw-step::before { content:"✓ "; color:var(--green); }
 .vw-messages .vw-step-more::before { content:""; }
-.vw-messages .vw-pending.vw-reading .vw-pending-copy { background:transparent; padding:2px 0; border-radius:0; max-width:min(calc(100% - 48px), 740px); }
+.vw-messages .vw-choices { margin-left:0; }
 /* «Per què?» (B6), sota el text, discret. */
 .vw-messages .vw-why { display:inline-block; margin-top:6px; padding:2px 10px; border:1px solid var(--line-hi); border-radius:999px; background:transparent; color:var(--muted); font-size:12px; text-decoration:none; cursor:pointer; }
 .vw-messages .vw-why:hover { color:var(--ink); border-color:var(--ink); }
 .vw-handoff { margin-top:14px; }
 /* Compositor: 28 px de radi, text 16 px. */
 .vw-composer textarea { font-size:16px; line-height:23px; }
-@media(max-width:600px) {
-  .vw-messages .vw-message:not(.vw-user) { display:flex; position:static; }
-  .vw-messages .vw-message:not(.vw-user) > :is(.winds-face,.vw-shared-person) { position:static; width:26px; height:26px; margin-top:auto; }
-  .vw-messages .vw-message:not(.vw-user) > div > strong { min-height:0; padding-left:0; line-height:16px; margin-bottom:2px; }
-  .vw-messages .vw-message:not(.vw-user):not(.vw-reading) > div:not(.vw-pending-copy), .vw-messages .vw-pending-copy { max-width:calc(100% - 36px); }
-  .vw-messages .vw-user > div { max-width:84%; }
-}
 /* 101: el missatge nou entra amb una molla (el teu també, quan ja l'espera la bombolla del vent), la
    bombolla d'espera respira mentre el vent pensa i els panells de l'ordinador i de Docs hi llisquen. */
 @media(prefers-reduced-motion:no-preference) {
-  .vw-messages .vw-message.vw-run-last:last-of-type, .vw-messages .vw-message.vw-user:has(+ .vw-pending) { animation:vw-in .5s ease-out; }
+  .vw-messages .vw-message.vw-run-last:last-of-type:not([data-grown]), .vw-messages .vw-message.vw-user:has(+ .vw-pending) { animation:vw-in .5s ease-out; }
   .vw-messages .vw-message { transform-origin:0 100%; }
   .vw-messages .vw-message.vw-user { transform-origin:100% 100%; }
   @keyframes vw-in { 0% { opacity:0; transform:translateY(12px) scale(.94); } 55% { opacity:1; transform:translateY(-2px) scale(1.01); } 80% { transform:translateY(1px) scale(.997); } 100% { opacity:1; transform:none; } }
@@ -909,17 +899,13 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 }
 
 /* ---- La conversa d'un vent agafa el seu color (085) ----
-   Un rentat suau del color del vent a dalt i les seves bombolles tenyides:
-   --vw-wind-share (winds-workspace.js, windShare) és la part del color que
-   la bombolla admet sense que el text baixi de 4.5:1. Els grups no canvien. */
+   Un rentat suau del color del vent a dalt. Des de 144 les respostes no van
+   en bombolla: el color del vent és a la cara, al nom i als accents. */
 .wind-workspace.vw-wind-chat { position:relative; isolation:isolate; }
 .wind-workspace.vw-wind-chat::before {
   content:""; position:absolute; inset:0 0 auto 0; height:72%; z-index:-1; pointer-events:none;
   background:radial-gradient(80% 70% at 50% 0, color-mix(in srgb, var(--vw-wind) 16%, transparent), transparent 78%);
 }
-.wind-workspace.vw-wind-chat .vw-messages .vw-message:not(.vw-user):not(.vw-reading) > div:not(.vw-pending-copy),
-.wind-workspace.vw-wind-chat .vw-messages .vw-pending-copy { background:color-mix(in srgb, var(--vw-wind) calc(var(--vw-wind-share, 0) * 1%), var(--surface-hi)); }
-.wind-workspace.vw-wind-chat .vw-messages .vw-pending.vw-reading .vw-pending-copy { background:transparent; }
 .wind-workspace.vw-wind-chat .vw-top { border-bottom-color:transparent; }
 .vw-wind-mark { flex:none; padding:1px 9px; border-radius:999px; font-size:12px; line-height:18px; font-weight:600; color:var(--ink);
   background:color-mix(in srgb, var(--vw-wind, var(--accent)) 22%, transparent); border:1px solid color-mix(in srgb, var(--vw-wind, var(--accent)) 45%, transparent); }
@@ -1562,25 +1548,33 @@ dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize
 .vw-tidy-status { margin:0; color:var(--muted); font-size:13px; }
 /* «Avui» com a pàgina pròpia: sense el marge de quan anava sota el compositor. */
 .vw-today-page .vw-avui { margin-top:8px; }
-/* Llegir respostes llargues (vents): línia de lectura més curta, interlineat
-   ample, aire entre paràgrafs i elements de llista, i negretes que no
-   criden. Abans: 16/23 px, 8 px entre paràgrafs i llistes enganxades. */
-.vw-messages .vw-message:not(.vw-user) .vw-message-text { line-height:1.62; }
-.vw-messages .vw-reading > div { max-width:min(calc(100% - 48px), 680px); }
-/* Només el text de la resposta (fills directes): les targetes (receptes,
-   plans) tenen les seves llistes i no s'han de tocar. */
-.vw-messages .vw-message:not(.vw-user) .vw-message-text > p { margin:0 0 14px; }
+/* Llegir les respostes (vents, 144): un ritme en em sobre el cos de 16/1.6.
+   Paràgrafs a .75em, llistes amb aire entre elements, títols amb més aire a
+   dalt que a sota (s'enganxen al que encapçalen), codi, taules i cites amb el
+   mateix marge, i negretes que no criden. Només els fills directes del text:
+   les targetes (receptes, plans) tenen les seves llistes i no s'han de tocar. */
+.vw-messages .vw-message:not(.vw-user) .vw-message-text > p { margin:0 0 .75em; }
 /* Només les vinyetes: la llista numerada ja deixa lloc al cercle del número (ol:not([class]), més amunt). */
-.vw-messages .vw-message:not(.vw-user) .vw-message-text > :is(ul,ol) { margin:4px 0 16px; }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text > :is(ul,ol) { margin:.25em 0 1em; }
 .vw-messages .vw-message:not(.vw-user) .vw-message-text > ul { padding-left:1.35em; }
-.vw-messages .vw-message:not(.vw-user) .vw-message-text > :is(ul,ol) > li { margin:0 0 8px; }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text > :is(ul,ol) > li { margin:0 0 .4em; }
 .vw-messages .vw-message:not(.vw-user) .vw-message-text > ul > li { padding-left:.2em; }
 .vw-messages .vw-message:not(.vw-user) .vw-message-text > :is(ul,ol) > li:last-child { margin-bottom:0; }
-.vw-messages .vw-message:not(.vw-user) .vw-message-text > :is(ul,ol) > li > p { margin:0 0 6px; }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text > :is(ul,ol) > li > p { margin:0 0 .4em; }
 .vw-messages .vw-message:not(.vw-user) .vw-message-text > :is(ul,ol) > li::marker { color:var(--faint); }
-.vw-messages .vw-message:not(.vw-user) .vw-message-text :is(strong,b) { font-weight:620; color:var(--ink); }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text :is(strong,b) { font-size:inherit; font-weight:620; color:var(--ink); }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text > :is(h1,h2,h3,h4,h5,h6) { margin:1.5em 0 .5em; line-height:1.3; font-weight:650; letter-spacing:-.01em; color:var(--ink); }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text > h1 { font-size:1.375em; }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text > h2 { font-size:1.1875em; }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text > h3 { font-size:1.0625em; }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text > :is(h4,h5,h6) { font-size:1em; }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text > hr { margin:1.5em 0; border:0; border-top:1px solid var(--line-hi); }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text > :is(pre,.codeblock,.md-table-scroll,table) { margin:.5em 0 1em; }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text pre { font-size:13.5px; line-height:1.55; }
+.vw-messages .vw-message-text :not(pre) > code { font-family:var(--mono); font-size:.875em; padding:.1em .35em; border-radius:5px; background:var(--surface-hi); color:var(--ink); }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text blockquote { margin:.5em 0 1em; padding:.1em 0 .1em 1em; border-left:3px solid color-mix(in srgb, var(--vw-wind, var(--accent)) 70%, var(--line-hi)); font-style:normal; color:var(--text); }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text > :first-child { margin-top:0; }
 .vw-messages .vw-message:not(.vw-user) .vw-message-text > :last-child { margin-bottom:0; }
-.vw-messages .vw-message:not(.vw-user) .vw-message-text blockquote { margin:6px 0 16px; }
 /* Botó del navegador de l'agent a la barra de dalt: a la dreta, discret, i
    marcat quan el panell és obert. */
 .vw-top .vw-top-browser { margin-left:auto; }
