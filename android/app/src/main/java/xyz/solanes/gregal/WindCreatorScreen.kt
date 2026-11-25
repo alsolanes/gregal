@@ -213,7 +213,7 @@ internal fun WindEditor(
                 }
             }
             if (theme == "free") FaceOptions(lang, "winds.avatar", windPacks, avatar, { avatar = it },
-                ::avatarLabelKey, { face.copy(pack = it) }, color, controlsEnabled)
+                ::avatarLabelKey, { face.copy(pack = it) }, color, controlsEnabled, clay = true)
             else Text(tr(lang, "winds.avatarThemeInUse", tr(lang, avatarLabelKey(theme))), color = Muted, fontSize = 13.sp)
             // A wind drawn as a minairó picks its barretina; the first choice leaves it to the wind.
             if (windPack(theme, face) == "minairo") FaceOptions(lang, "winds.barretina", listOf("") + minairoBarretines.map { it.first }, face.barretina,
@@ -263,7 +263,9 @@ private fun EditorDisclosure(label: String, expanded: Boolean, enabled: Boolean,
 
 @Composable
 private fun FaceOptions(lang: String, label: String, options: List<String>, selected: String, pick: (String) -> Unit,
-    optionLabel: (String) -> String, face: (String) -> WindStyle, color: String, enabled: Boolean) {
+    optionLabel: (String) -> String, face: (String) -> WindStyle, color: String, enabled: Boolean,
+    /** The avatar packs show the clay ones as their 3D figure; a look's options stay drawn, where the eyes and mouth show. */
+    clay: Boolean = false) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(tr(lang, label), color = Muted, fontSize = 13.sp)
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -273,7 +275,7 @@ private fun FaceOptions(lang: String, label: String, options: List<String>, sele
                     .border(if (option == selected) 1.dp else 0.dp, Sea.copy(alpha = .45f), RoundedCornerShape(14.dp))
                     .selectable(selected = option == selected, enabled = enabled, role = Role.RadioButton, onClick = { pick(option) })
                     .padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    WindFace(size = 42, accent = Color(Wind("", "", color, "").argb), style = face(option))
+                    WindFace(size = 42, accent = Color(Wind("", "", color, "").argb), style = face(option), clay = clay)
                     Text(tr(lang, optionLabel(option)), fontSize = 12.sp, color = Ink)
                 }
             }

@@ -143,7 +143,7 @@ fun windStyleOf(code: String?): WindStyle {
 fun WindStyle.encode(): String = eyes.key + mouth.key + shape.key + barretina
 
 /** The packs a wind can be drawn with; the account theme is one of them or "free" (task 045). */
-internal val windPacks = listOf("cares", "esperit", "cap", "rosa", "mapa", "minairo")
+internal val windPacks = listOf("cares", "esperit", "cap", "rosa", "mapa", "minairo", "pelut")
 
 /** The account's avatar theme (`avatarTheme` of GET /api/winds); "free" draws each wind with its own pack. */
 val LocalAvatarTheme = compositionLocalOf { "cares" }
@@ -154,7 +154,7 @@ internal fun avatarThemeOf(raw: String): String =
 internal fun windPack(theme: String, style: WindStyle): String =
     if (theme != "free") theme else style.pack.takeIf { it in windPacks } ?: "cares"
 
-/** "winds.avatarCares", "winds.avatarEsperit", "winds.avatarCap", "winds.avatarRosa", "winds.avatarMinairo", "winds.avatarFree". */
+/** "winds.avatarCares", "winds.avatarEsperit", "winds.avatarCap", "winds.avatarRosa", "winds.avatarMinairo", "winds.avatarPelut", "winds.avatarFree". */
 internal fun avatarLabelKey(pack: String) = "winds.avatar" + pack.replaceFirstChar { it.uppercase() }
 
 private val windRose = mapOf("tramuntana" to 0, "gregal" to 45, "llevant" to 90, "xaloc" to 135,
@@ -458,11 +458,14 @@ fun WindFace(
         "rosa" -> return RosaFace(size, mood, accent, style.bearing, motion, packCued)
         "mapa" -> return MapFace(size, mood, accent, style, motion, packCued)
     }
+    // A pelut is its clay sheets at every size, without a trade kit (155); without them, the Cares face.
+    val pelut = pack == "pelut"
+    if (pelut && WindClayFace(size, mood, accent, accent, "pelut", motion, packCued)) return
     // The minairó is a Cares figure in costume: the same eyes, poses and springs, its own body.
     val minairo = pack == "minairo"
     // The clay winds have no kits yet: a face that wears its trade keeps the Canvas figure. The minairó wears none and has its own sheets (119).
     val wearsKit = !minairo && (size >= 80 || showKit) && windKits[style.kit] != null
-    if (clay && !wearsKit && WindClayFace(size, mood, accent, minairoLook(style, accent).cap,
+    if (clay && !pelut && !wearsKit && WindClayFace(size, mood, accent, minairoLook(style, accent).cap,
             if (minairo) "minairo" else style.shape.key, motion, packCued)) return
     // La forma reacciona quan el dit toca la cara i torna amb molla en deixar-la.
     val touch = if (tappable && motion) remember { MutableInteractionSource() } else null

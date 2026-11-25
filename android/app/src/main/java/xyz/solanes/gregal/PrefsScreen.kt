@@ -463,7 +463,7 @@ private fun AvatarPackChoices(selected: String, label: (String) -> String, onPic
                         CompositionLocalProvider(LocalAvatarTheme provides pack) {
                             WindFace(
                                 size = 40, accent = Color(Wind("", "", wind.color, "").argb), style = windStyleOf(wind.style).copy(bearing = windDirection("", wind.name)),
-                                modifier = Modifier.testTag("avatarSample-$pack"),
+                                modifier = Modifier.testTag("avatarSample-$pack"), clay = true,
                             )
                         }
                     }
