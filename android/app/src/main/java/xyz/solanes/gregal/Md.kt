@@ -550,6 +550,36 @@ fun renderSegs(segs: List<Seg>, codeBg: Color, activity: Boolean = false, link: 
     }
 }
 
+private val blankLineRe = Regex("\\n[ \\t]*\\n\\s*")
+
+/**
+ * Un bloc de text partit pels seus paràgrafs (línia en blanc), sense els salts
+ * de les vores: cada un es pinta com un bloc més de la resposta, amb el mateix
+ * aire que una llista o el codi.
+ */
+fun mdParagraphs(segs: List<Seg>): List<List<Seg>> {
+    // El text arriba a trossos (una línia, un salt): junts, una línia en blanc no queda partida entre dos.
+    val merged = mutableListOf<Seg>()
+    for (seg in segs) {
+        val prev = merged.lastOrNull()
+        if (seg is Seg.Text && prev is Seg.Text) merged[merged.lastIndex] = Seg.Text(prev.t + seg.t) else merged += seg
+    }
+    val out = mutableListOf(mutableListOf<Seg>())
+    for (seg in merged) {
+        if (seg !is Seg.Text) { out.last() += seg; continue }
+        seg.t.split(blankLineRe).forEachIndexed { i, part ->
+            if (i > 0) out += mutableListOf<Seg>()
+            if (part.isNotEmpty()) out.last() += Seg.Text(part)
+        }
+    }
+    return out.map { p ->
+        p.mapIndexed { i, s ->
+            if (s !is Seg.Text) s
+            else Seg.Text(s.t.let { if (i == 0) it.trimStart('\n') else it }.let { if (i == p.lastIndex) it.trimEnd('\n') else it })
+        }.filterNot { it is Seg.Text && it.t.isEmpty() }
+    }.filter { it.isNotEmpty() }
+}
+
 /** Render clàssic des de text (negreta, codi, títols, enllaços, taules). */
 fun renderMd(src: String, codeBg: Color, activity: Boolean = false): AnnotatedString {
     return renderSegs(splitMd(src), codeBg, activity)

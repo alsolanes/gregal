@@ -170,6 +170,26 @@ internal fun windWash(accent: Color, surface: Color): Color = accent.copy(alpha 
 /** Les bombolles del vent, tenyides del seu color com els punts d'escriure (16 %). */
 internal fun windBubbleColor(accent: Color, background: Color): Color = accent.copy(alpha = 0.16f).compositeOver(background)
 
+/** El nom del vent sobre les seves respostes: el seu color barrejat (40 %) amb la tinta, perquè es llegeixi en tots els temes. */
+internal fun windNameColor(accent: Color, ink: Color): Color = androidx.compose.ui.graphics.lerp(ink, accent, 0.4f)
+
+/**
+ * Qui parla, al principi d'una ratxa de respostes: el nom petit amb el color del
+ * vent i, en una conversa en grup ([face]), la seva cara al costat. Les respostes
+ * són text corrent, sense bombolla; el color del vent és aquí i als accents.
+ */
+@Composable
+internal fun WindByline(name: String, accent: Color, face: Wind? = null, onClick: (() -> Unit)? = null, modifier: Modifier = Modifier) {
+    Row(modifier.padding(top = 2.dp)
+        .then(if (onClick != null) Modifier.heightIn(min = 32.dp).clickable(onClick = onClick) else Modifier)
+        .testTag("wind-byline"),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (face != null) WindFace(size = 24, accent = Color(face.argb), style = face.faceStyle)
+        Text(name, color = windNameColor(accent, Ink), style = GregalType.bodySmall, fontWeight = FontWeight.SemiBold, maxLines = 1,
+            overflow = TextOverflow.Ellipsis)
+    }
+}
+
 /**
  * L'estat del vent a la capçalera, la mateixa regla que el web: t'espera (té
  * una pregunta per a tu, encara que el torn segueixi), treballant, fet (el torn

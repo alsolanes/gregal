@@ -293,7 +293,7 @@ internal fun WindTypingBubble(lang: String, wind: Wind, accent: Color,
                                 /** Què està fent ara («Cercant al web…»). Aquí i enlloc més. */
                                 label: String? = null) {
     Row(
-        Modifier.padding(top = 12.dp, bottom = 4.dp)
+        Modifier.padding(vertical = 4.dp)
             .semantics(mergeDescendants = true) { contentDescription = tr(lang, "app.company.windThinking", wind.name) }
             .testTag("wind-typing"),
         verticalAlignment = Alignment.CenterVertically,
