@@ -108,7 +108,7 @@ internal fun WindAskCards(vm: GregalViewModel, lang: String, accent: Color, busy
     if (asks.isEmpty() && answered.isEmpty()) return
     fun own(a: GregalApi.WindAsk) = onOwnAnswer != null && (winds.firstOrNull { it.id == a.wind } ?: wind)?.id == wind?.id
     fun faceOf(a: GregalApi.WindAsk) = if (own(a)) null else winds.firstOrNull { it.id == a.wind } ?: wind
-    // La targeta de permís és del color del vent que pregunta, també a Feina i en un grup.
+    // Les targetes (menys les preguntes, com al web) són del color del vent que les demana, també a Feina i en un grup.
     fun colourOf(a: GregalApi.WindAsk) = (winds.firstOrNull { it.id == a.wind } ?: wind)?.let { Color(it.argb) } ?: accent
     fun answer(a: GregalApi.WindAsk, ok: Boolean) {
         answered.add(a to ok)
@@ -119,11 +119,11 @@ internal fun WindAskCards(vm: GregalViewModel, lang: String, accent: Color, busy
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         answered.forEach { (a, ok) -> AnsweredLine(lang, a, ok, faceOf(a)) }
         asks.forEach { a ->
-            if (a.type == "handoff") HandoffCard(vm.conn.value, lang, a, accent,
+            if (a.type == "handoff") HandoffCard(vm.conn.value, lang, a, colourOf(a),
                 onDone = { vm.answerWindAsk(a.key, approve = true) }, onCancel = { vm.answerWindAsk(a.key, approve = false) })
-            else if (a.type == "connection") ConnexioWaitCard(vm.conn.value, lang, a, accent,
+            else if (a.type == "connection") ConnexioWaitCard(vm.conn.value, lang, a, colourOf(a),
                 onCancel = { vm.answerWindAsk(a.key, approve = false) })
-            else if (a.type == "secret") SecretCard(lang, a, accent,
+            else if (a.type == "secret") SecretCard(lang, a, colourOf(a),
                 onSave = { v -> vm.answerWindAsk(a.key, approve = true, secret = v) }, onDecline = { vm.answerWindAsk(a.key, approve = false) })
             else if (a.type == "question") QuestionCard(lang, a, accent) { ans -> vm.answerWindAsk(a.key, answer = ans) }
             else ApproveCard(lang, a, colourOf(a), faceOf(a),

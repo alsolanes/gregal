@@ -99,7 +99,13 @@ internal fun GregalGuide(lang: String, accent: Color, onTry: (String) -> Unit, o
                     modifier = Modifier.semantics { heading() })
                 Text(intro, color = Muted, fontSize = 16.sp, lineHeight = 23.sp)
                 Spacer(Modifier.height(4.dp))
-                for (topic in guideTopics(lang)) GuideCard(topic, accent) { onTry(it); onClose() }
+                // Com al web: tres targetes d'entrada perquè es llegeixi d'un cop d'ull; «Més» hi afegeix la resta.
+                val topics = guideTopics(lang)
+                var all by remember { mutableStateOf(false) }
+                for (topic in if (all) topics else topics.take(3)) GuideCard(topic, accent) { onTry(it); onClose() }
+                if (!all) androidx.compose.material3.TextButton(onClick = { all = true }, modifier = Modifier.testTag("guide-more")) {
+                    Text(tr(lang, "app.vents.more"), color = Ink, fontWeight = FontWeight.SemiBold)
+                }
                 Spacer(Modifier.height(24.dp))
             }
         }
@@ -110,7 +116,7 @@ internal fun GregalGuide(lang: String, accent: Color, onTry: (String) -> Unit, o
 private fun GuideCard(topic: GuideTopic, accent: Color, onTry: (String) -> Unit) {
     val shape = RoundedCornerShape(15.dp)
     Column(Modifier.fillMaxWidth().clip(shape).background(SuperficieAlta.copy(alpha = .6f)).border(1.dp, Line, shape)
-        .padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        .padding(16.dp).testTag("guide-card"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(accent.copy(alpha = .16f)), contentAlignment = Alignment.Center) {
                 Text(topic.icon, fontSize = 18.sp)

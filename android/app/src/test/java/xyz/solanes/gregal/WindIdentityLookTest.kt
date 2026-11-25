@@ -103,6 +103,40 @@ class WindIdentityLookTest {
     @Test fun permisGregalClar() = ask("ask-gregal-light", LightPal, gregal)
     @Test fun permisGregalFosc() = ask("ask-gregal-dark", DarkPal, gregal)
 
+    // 153: com al web, la clau, la feina a l'ordinador i el compte per connectar també són del vent que ho demana.
+    @Test fun lesAltresTargetesDEsperaSonDelVentQueLesDemana() {
+        val vm = vm()
+        flow<List<Wind>>(vm, "_winds").value = listOf(xaloc, gregal)
+        for (a in listOf(GregalApi.WindAsk("ws1", "secret", name = "spotify", query = "La clau de Spotify", wind = xaloc.id),
+            GregalApi.WindAsk("ws2", "handoff", what = "Inicia sessió a la web del concert", wind = xaloc.id),
+            GregalApi.WindAsk("ws3", "connection", what = "Connecta el calendari", wind = xaloc.id)))
+            vm.handleWindAskEvent(GregalApi.WindStreamEvent.Ask(a))
+        ui.mainClock.autoAdvance = false
+        ui.setContent {
+            CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
+                MaterialTheme(colorScheme = LightPal.scheme()) {
+                    Box(Modifier.fillMaxSize().background(LightPal.deepTop)) { WindAskCards(vm, "ca", LightPal.sea, busy = false) }
+                }
+            }
+        }
+        val bmp = frame("asks-xaloc-light")
+        // La vora d'1 dp és el color de la targeta al 45 % sobre el seu fons: més a prop del de Xaloc que de l'accent.
+        fun over(base: Color, c: Color) = Color(base.red * .55f + c.red * .45f, base.green * .55f + c.green * .45f, base.blue * .55f + c.blue * .45f)
+        fun dist(a: Color, b: Color) = abs(a.red - b.red) + abs(a.green - b.green) + abs(a.blue - b.blue)
+        for (tag in listOf("secret-card", "handoff-card", "connexio-wait-card")) {
+            val card = ui.onNodeWithTag(tag).getBoundsInRoot()
+            val y = px((card.top + card.bottom) / 2).toInt()
+            // L'etiqueta és dins els 16 dp de marge: la vora és 16 dp a l'esquerra i el fons, uns quants més cap endins.
+            val edge = Color(bmp.getPixel(px(card.left - Dp(16f)).toInt(), y))
+            val base = Color(bmp.getPixel(px(card.left - Dp(10f)).toInt(), y))
+            assertTrue("$tag: $edge", dist(edge, over(base, Color(xaloc.argb))) < dist(edge, over(base, LightPal.sea)))
+        }
+        // «Obre l'ordinador» és com el Permet: el color del vent, amb la tinta que s'hi llegeix.
+        val open = ui.onNodeWithTag("handoff-open").getBoundsInRoot()
+        near(bmp.getPixel(px(open.left + Dp(6f)).toInt(), px((open.top + open.bottom) / 2).toInt()),
+            allowPaint(Color(xaloc.argb), LightPal.ink, LightPal.deepTop).first, "open")
+    }
+
     private val long = "Dissabte hi ha tres concerts a prop. " + "El primer és a la sala petita del barri, amb entrades a deu euros i porta a les nou. ".repeat(11)
 
     private fun group(name: String, pal: GregalPalette) {
