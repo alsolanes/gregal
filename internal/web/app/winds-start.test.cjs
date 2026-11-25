@@ -1382,6 +1382,26 @@ test('a failed turn shakes the wind and shows in the thread as its bubble with a
   assert.equal(f.page.querySelector('.vw-messages').querySelectorAll('.vw-user').filter(n => n.textContent.includes('Book the jam')).length, 1, 'your message once');
 });
 
+test('a group turn that fails after a voice already answered keeps your message once and offers no resend', async () => {
+  const group = { id: 'r1', name: 'La colla del concert', members: ['xaloc', 'gregal'] };
+  const json = data => ({ ok: true, status: 200, json: async () => data });
+  const saved = [{ from: 'user', text: 'Anem-hi' }, { from: 'xaloc', speaker_id: 'xaloc', text: 'Jo hi vaig' }];
+  const f = await boot({ api: r => r.url === '/api/winds/rotllanes' ? json({ rotllanes: [group] })
+    : r.url.startsWith('/api/winds/rotllana?') ? json({ history: [] })
+    : r.url === '/api/winds/rotllana/stream' ? slowStream([['phase', { phase: 'speaker:xaloc' }], ['reply', { wind: 'xaloc', history: saved }], ['phase', { phase: 'speaker:gregal' }], ['error', { error: 'boom' }]], () => {}) : null });
+  await byText(f.nav, 'button', 'La colla del concert').click();
+  await settle();
+  f.page.querySelector('textarea').value = 'Anem-hi';
+  await f.page.querySelector('.vw-composer').requestSubmit();
+  await settle();
+  const box = f.page.querySelector('.vw-messages');
+  assert.equal(box.querySelectorAll('.vw-user').length, 1, 'your message once: the server already has it');
+  assert.match(box.textContent, /Jo hi vaig/);
+  const row = box.querySelector('.vw-failed');
+  assert.equal(row.querySelector('strong').textContent, 'Gregal', 'the voice that could not answer says so');
+  assert.ok(!byText(row, 'button', 'Try again'), 'resending would ask the whole group again');
+});
+
 test('the failed turn bubble speaks Catalan too', async () => {
   const f = await boot({ lang: 'ca', api: failing });
   await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();

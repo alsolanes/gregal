@@ -32,7 +32,8 @@
  function moreMenu(items){
   const box=el('div','vw-more'),list=el('div','vw-more-list');list.setAttribute('role','menu');list.hidden=true;
   const toggle=iconOnly('moreBtn',t('Més opcions','More options'),()=>show(list.hidden),'vw-more-btn');toggle.setAttribute('aria-haspopup','menu');toggle.setAttribute('aria-expanded','false');
-  const away=e=>{if(e.target.closest?.('.vw-more')!==box)show(false);},esc=e=>{if(e.key!=='Escape')return;e.stopPropagation();show(false);toggle.focus();};
+  // Un render amb el menú obert el treu de la pàgina: els escoltadors marxen amb ell, sense empassar-se cap tecla.
+  const away=e=>{if(!box.isConnected||e.target.closest?.('.vw-more')!==box)show(false);},esc=e=>{if(e.key!=='Escape')return;if(!box.isConnected){show(false);return;}e.stopPropagation();show(false);toggle.focus();};
   function show(open){list.hidden=!open;toggle.setAttribute('aria-expanded',String(open));
    if(open){document.addEventListener('click',away,true);document.addEventListener('keydown',esc,true);list.firstChild?.focus();}
    else{document.removeEventListener('click',away,true);document.removeEventListener('keydown',esc,true);}}
@@ -1386,7 +1387,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   const w=state.winds.find(x=>x.id===f.wind)||soloWind(),row=el('article','vw-message vw-failed');row.setAttribute('role','alert');if(w&&hex6(w.color))row.style.setProperty('--vw-wind',w.color);if(!soloWind())row.append(face(w));
   const again=btn(t('Torna-ho a provar','Try again'),async()=>{if(state.busy||state.preparing)return;state.failed=null;state.history=state.history.filter(m=>!m.optimistic);state.preparing=true;try{await submitRequest(f.text);}finally{state.preparing=false;}},'vw-retry');
   const copy=el('div'),say=el('p','vw-failed-say');say.append(icon('alert'),el('span','',t('No he pogut arribar-hi','I couldn’t get to it')));
-  copy.append(el('strong','',w?.name||t('Els teus vents','Your winds')),say,el('p','vw-failed-why',f.reason),again);row.append(copy);return row;}
+  copy.append(el('strong','',w?.name||t('Els teus vents','Your winds')),say,el('p','vw-failed-why',f.reason));if(f.retry)copy.append(again);row.append(copy);return row;}
  // 144: el torn acaba al fil obert: es posa al dia al seu lloc (la capçalera, el botó d'enviar, l'avís i el
  // fil), sense refer la pàgina, perquè la resposta que ha crescut no es canviï per una altra.
  function settleTurn(){
@@ -1475,8 +1476,9 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   }catch(error){if(sentTo)state.cheer={thread:sentTo.id,kind:'shrug'};
    if(!sentTo||!current()){restore();throw error;}
    // 128: al fil obert, el torn que no arriba el diu el vent mateix, amb «Torna-ho a provar»; el teu missatge s'hi queda.
+   // Si un vent del grup ja ha respost, el servidor ja té el missatge: tornar-lo a enviar ho tornaria a demanar a tot el grup.
    if(progress.history)state.history=progress.history;
-   state.failed={thread:sentTo.id,text,wind:state.pending?.wind,reason:error.message};}
+   state.failed={thread:sentTo.id,text,wind:state.pending?.wind,reason:error.message,retry:!progress.history};}
   finally{
    if(chatTurn===turn)chatTurn=null;
    state.pending=null;state.busy=false;
