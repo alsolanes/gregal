@@ -593,6 +593,8 @@
   const head=el('header','vw-avui-head'),title=el('div','vw-avui-title');title.append(el('h2','',t('Avui','Today')),el('span','vw-avui-date',date));
   head.append(title,iconOnly('tune',t('Ajusta Avui','Tune Today'),()=>avuiSettings(data.settings,()=>paintAvui(feed)),'vw-small'));
   const body=[head];
+  // El resum del dia (vents-avui-glance.js): una targeta lliscant per vent que ha fet o proposa alguna cosa.
+  if(root.gregalAvuiGlance){const brief=el('section');root.gregalAvuiGlance.renderBrief(brief,{data,winds:state.winds,glance:data.glance,settings:data.settings,face:w=>face(w),onRun:(c,a)=>runAvui(state.winds.find(w=>w.id===c.wind),a).catch(fail)});if(!brief.hidden)body.push(brief);}
   // D'una ullada (vents-avui-glance.js): el temps, el calendari i el que segueixes, abans de la safata.
   if(data.glance&&root.gregalAvuiGlance){const g=el('section','vw-glance');g.setAttribute('aria-label',t('D’una ullada','At a glance'));root.gregalAvuiGlance.renderGlance(g,{glance:data.glance,settings:data.settings,onChange:()=>paintAvui(feed).catch(fail)});body.push(g);
    // Mentre es busca (un seguiment nou, el temps del lloc) torna a mirar sol; si escrius al formulari, espera.
@@ -614,6 +616,8 @@
   if(resume.length){const row=el('div','vw-avui-resume');row.append(el('span','',t('Per reprendre','Pick up')));for(const r of resume){const b=btn('',r.go,'vw-crew-chip');if(r.w)b.append(face(r.w,null,26));b.append(el('span','',r.label||''));row.append(b);}body.push(row);}
   if(content!==target||!feed.isConnected)return;feed.replaceChildren(...body);
  }
+ // L'acció d'una targeta d'Avui (o del resum de dalt): un fil obert torna a aquella conversa; les altres en comencen una amb el prompt.
+ async function runAvui(w,a){if(!w)return;if(a.thread){await openThread(w,a.thread).catch(fail);return;}const thread=await call('/api/winds/sessions','POST',{wind:w.id});showWindThread(w,thread.name,[]);if(input){input.value=a.prompt;composer.requestSubmit();}}
  function avuiCard(c,feed){
   const w=state.winds.find(w=>w.id===c.wind),card=el('article','vw-avui-card');card.dataset.id=c.id;card.dataset.source=c.source;
   const copy=el('div','vw-avui-copy'),titleBtn=btn('',()=>{card.classList.toggle('is-open');titleBtn.setAttribute('aria-expanded',String(card.classList.contains('is-open')));},'vw-avui-card-title');titleBtn.append(el('strong','',c.title));titleBtn.setAttribute('aria-expanded','false');copy.append(titleBtn);
@@ -626,7 +630,7 @@
   // Una vigilància pausada sola (task 146) es reprèn amb POST resume: el xat del vent no la pot reprendre.
   if(c.source==='pausa'&&root.gregalAvuiGlance)acts.append(root.gregalAvuiGlance.resumeButton(c,status,leave));
   // Una acció amb `thread` (un fil obert, task 148) obre aquella conversa del vent; les altres en comencen una de nova.
-  else for(const a of c.actions||[])acts.append(btn(a.label,async()=>{if(!w)return;if(a.thread){await openThread(w,a.thread).catch(fail);return;}const thread=await call('/api/winds/sessions','POST',{wind:w.id});showWindThread(w,thread.name,[]);if(input){input.value=a.prompt;composer.requestSubmit();}},'vw-avui-chip'));
+  else for(const a of c.actions||[])acts.append(btn(a.label,()=>runAvui(w,a),'vw-avui-chip'));
   const side=el('div','vw-avui-decide');
   const useful=iconOnly('thumbUp',t('Útil','Useful'),act('useful',()=>{useful.setAttribute('aria-pressed',String(useful.getAttribute('aria-pressed')!=='true'));}),'vw-small');useful.setAttribute('aria-pressed',String(c.feedback==='useful'));
   side.append(useful,iconOnly('thumbDown',t('No m’interessa','Not interesting'),act('notuseful',leave),'vw-small'),iconOnly('clock',t('Més tard','Later'),act('later',leave),'vw-small'),iconOnly('close',t('Ara no','Not now'),act('dismiss',leave),'vw-small'));

@@ -377,3 +377,104 @@ test('«Torna-hi» d’una vigilància pausada la reprèn, la targeta marxa i ho
     assert.equal(b.disabled, false);
   });
 });
+
+// 134: el resum del dia, a dalt d'Avui (la mateixa regla que l'Android, task 135):
+// una targeta per vent que ha fet (feina acabada: `feina:*` o `job`) o proposa
+// (la seva primera altra targeta oberta) alguna cosa; els vents sense res no hi surten.
+const winds = [
+  { id: 'garbi', name: 'Garbí', color: '#3FA7D6' },
+  { id: 'oratge', name: 'Oratge', color: '#F2A900', specialty: 'weather' },
+  { id: 'xaloc', name: 'Xaloc', color: '#E0533F' },
+];
+const card = (id, wind, source, title, extra = {}) => ({ id, wind, wind_name: wind, source, state: 'open', title, ...extra });
+const noFace = () => document.createElement('span');
+
+test('el resum té una targeta per vent que ha fet o proposa alguna cosa, i salta el que no', async () => {
+  const data = {
+    now: [card('c1', 'garbi', 'responsabilitat', 'Preu del tren', { why: 'Ha baixat un 20 %', actions: [{ label: 'Compra’l', prompt: 'Compra el bitllet' }] })],
+    fyi: [], ahead: [],
+    // Xaloc només té una targeta tancada que no és feina: avui no ha fet ni proposa res.
+    done: [card('d1', 'garbi', 'feina:42', 'Informe enviat', { state: 'done', actions: [{ label: 'Obre', prompt: 'Obre l’informe' }] }), card('d2', 'xaloc', 'heartbeat', 'Bon dia', { state: 'done' })],
+  };
+  await withLang('ca', m => {
+    const bs = m.briefs(data, winds);
+    assert.deepEqual(bs.map(b => b.wind.id), ['garbi']);
+    assert.equal(bs[0].did.id, 'd1');
+    assert.equal(bs[0].proposes.id, 'c1');
+    assert.deepEqual(bs[0].act, [data.now[0], data.now[0].actions[0]], 'el botó és el de la proposta');
+
+    const box = document.createElement('div');
+    const ran = [];
+    m.renderBrief(box, { data, winds, face: noFace, onRun: (c, a) => ran.push([c.id, a.label]) });
+    const cards = byClass(box, 'vw-brief-card');
+    assert.equal(cards.length, 1);
+    assert.equal(cards[0].dataset.wind, 'garbi');
+    const text = textOf(cards[0]);
+    assert.match(text, /Garbí/);
+    assert.match(text, /Ha fet .*Informe enviat/);
+    assert.match(text, /Proposa .*Preu del tren/);
+    assert.match(text, /Ha baixat un 20 %/);
+    assert.doesNotMatch(textOf(box), /Xaloc|Bon dia/);
+    // Es llisca amb el paginador de la comparació (md.js): la mateixa pista i els mateixos punts.
+    assert.equal(byClass(box, 'gx-carousel').length, 1);
+    assert.equal(byClass(box, 'gx-track').length, 1);
+    assert.equal(byClass(box, 'gx-dots').length, 0, 'una sola targeta no porta punts');
+    all(cards[0], n => n.tagName === 'BUTTON' && textOf(n).includes('Compra’l'))[0].onclick();
+    assert.deepEqual(ran, [['c1', 'Compra’l']]);
+  });
+  await withLang('en', m => {
+    const box = document.createElement('div');
+    m.renderBrief(box, { data, winds, face: noFace, onRun() {} });
+    assert.match(textOf(box), /Your winds today/);
+    assert.match(textOf(box), /Done .*Informe enviat/);
+    assert.match(textOf(box), /Suggests .*Preu del tren/);
+  });
+});
+
+test('el resum: el botó salta la vigilància pausada, i sense ningú no pinta res', async () => {
+  await withLang('ca', m => {
+    const data = {
+      now: [card('p1', 'garbi', 'pausa', 'He deixat de mirar el preu', { actions: [{ label: 'Torna-hi', prompt: 'x' }] }), card('l1', 'xaloc', 'loop', 'Ahir va quedar obert', { actions: [{ label: 'Obre la conversa', thread: 's-9' }] })],
+      fyi: [], ahead: [], done: [card('j1', 'garbi', 'job', 'Resum del correu', { state: 'done', actions: [{ label: 'Llegeix-lo', prompt: 'y' }] })],
+    };
+    const bs = m.briefs(data, winds);
+    assert.deepEqual(bs.map(b => b.wind.id), ['garbi', 'xaloc'], 'l’ordre de la safata');
+    assert.equal(bs[0].act[1].label, 'Llegeix-lo', 'la pausa es reprèn a la seva targeta, no aquí');
+    assert.equal(bs[1].act[1].thread, 's-9');
+    const box = document.createElement('div');
+    m.renderBrief(box, { data, winds, face: noFace, onRun() {} });
+    assert.equal(byClass(box, 'vw-brief-card').length, 2);
+    assert.equal(all(box, n => n.dataset?.gxDot != null).length, 2, 'un punt per pàgina');
+
+    const empty = document.createElement('div');
+    m.renderBrief(empty, { data: { now: [], fyi: [], ahead: [], done: [] }, winds, face: noFace, onRun() {} });
+    assert.equal(empty.children.length, 0);
+    assert.equal(empty.hidden, true);
+  });
+});
+
+test('el temps i els partits porten el seu dibuix en comptes de la taca', async () => {
+  await withLang('ca', m => {
+    const data = {
+      now: [card('a', 'oratge', 'job', 'Pluja a la tarda'), card('b', 'xaloc', 'follow', 'Barça – Madrid dissabte')],
+      fyi: [], ahead: [], done: [],
+    };
+    const box = document.createElement('div');
+    m.renderBrief(box, { data, winds, glance, settings: { follows: [{ id: 'f1', kind: 'team', name: 'Barça', wind: 'xaloc' }] }, face: noFace, onRun() {}, now });
+    const [wx, team] = byClass(box, 'vw-brief-card');
+    assert.match(byClass(wx, 'vw-brief-art')[0].innerHTML, /vw-gi-drops/, 'el cel d’avui al vent del temps');
+    const art = byClass(team, 'vw-brief-art')[0].innerHTML;
+    assert.match(art, /vw-match-ball/, 'el partit, amb la pilota');
+    assert.match(art, /var\(--wind/, 'del color del vent');
+
+    // A la ullada: la targeta d'un equip porta el camp; la de «digues on ets», el cel.
+    const g = document.createElement('div');
+    m.renderGlance(g, { glance, settings, now });
+    assert.match(byClass(byClass(g, 'vw-glance-follow')[0], 'vw-glance-badge')[0].innerHTML, /vw-match-ball/);
+    const g2 = document.createElement('div');
+    m.renderGlance(g2, { glance: { events: [], follows: [] }, settings: {}, now });
+    assert.match(byClass(byClass(g2, 'vw-glance-invite')[0], 'vw-glance-icon')[0].innerHTML, /<svg/);
+  });
+  const css = fs.readFileSync(path.join(__dirname, 'winds-workspace.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(css, /\.vw-glance-wx::before, \.vw-glance-follow\[data-kind="team"\]::before \{ display:none; \}/, 'sense taca on hi ha dibuix');
+});

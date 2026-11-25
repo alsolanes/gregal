@@ -115,6 +115,16 @@ function weatherIcon(kind, day) {
   return '<svg viewBox="0 0 24 26" aria-hidden="true">' + inner + '</svg>';
 }
 
+// El partit: un camp i una pilota que bota, del color del vent (o del tint de la targeta).
+function matchArt() {
+  const ink = 'var(--wind, var(--gl-tint, var(--accent)))';
+  return '<svg class="vw-match" viewBox="0 0 24 24" aria-hidden="true">' +
+    '<rect x="2" y="6" width="20" height="12" rx="2" style="fill:' + ink + ';fill-opacity:.16;stroke:' + ink + ';stroke-opacity:.7;stroke-width:1.1"/>' +
+    '<path d="M12 6v12" style="stroke:' + ink + ';stroke-opacity:.7;stroke-width:1.1"/>' +
+    '<circle cx="12" cy="12" r="2.6" style="fill:none;stroke:' + ink + ';stroke-opacity:.7;stroke-width:1.1"/>' +
+    '<g class="vw-match-ball"><circle cx="17" cy="13.5" r="2.8" style="fill:var(--surface);stroke:' + ink + ';stroke-width:.8"/><circle cx="17" cy="13.5" r="1" style="fill:' + ink + '"/></g></svg>';
+}
+
 function isDay(w, now) {
   const at = s => { const c = clock(s); if (!c) return null; const [h, m] = c.split(':').map(Number); return h * 60 + m; };
   const rise = at(w.sunrise), set = at(w.sunset), t = now.getHours() * 60 + now.getMinutes();
@@ -169,7 +179,8 @@ function followCard(f, now, remove) {
   const card = el('article', 'vw-glance-card vw-glance-follow');
   card.dataset.kind = f.kind === 'team' ? 'team' : 'other';
   const head = el('div', 'vw-glance-follow-head');
-  const badge = el('span', 'vw-glance-badge', (f.name || '?').trim().charAt(0).toUpperCase());
+  const badge = el('span', 'vw-glance-badge', f.kind === 'team' ? null : (f.name || '?').trim().charAt(0).toUpperCase());
+  if (f.kind === 'team') badge.innerHTML = matchArt();
   badge.setAttribute('aria-hidden', 'true');
   const x = btn('×', remove, 'vw-glance-remove');
   x.setAttribute('aria-label', tx('Deixa de seguir ', 'Stop following ') + f.name);
@@ -197,8 +208,10 @@ function followCard(f, now, remove) {
   return card;
 }
 
-function invite(text, label, fn) {
+// [art]: el dibuix de la targeta que vindrà (el cel, el partit), petit i quiet.
+function invite(text, label, fn, art) {
   const card = el('article', 'vw-glance-card vw-glance-invite');
+  if (art) { const ic = el('span', 'vw-glance-icon'); ic.innerHTML = art; card.append(ic); }
   card.append(el('p', '', text), btn(label, fn, 'vw-glance-chip'));
   return card;
 }
@@ -255,13 +268,13 @@ export function renderGlance(box, opts = {}) {
   const row = el('div', 'vw-glance-row'), cards = [];
   const where = (st.place || '').trim();
   if (g.weather) cards.push(weatherCard(g.weather, now, open(place)));
-  else if (where) cards.push(invite(g.weather_error ? '⚠ ' + g.weather_error : tx('Buscant el temps de ', 'Looking up the weather for ') + where + '…', tx('Canvia el lloc', 'Change the place'), open(place)));
-  else cards.push(invite(tx('Digues on ets i cada matí tindràs aquí el temps que farà.', 'Tell me where you are and every morning the weather shows up here.'), tx('Digues on ets', 'Tell me where you are'), open(place)));
+  else if (where) cards.push(invite(g.weather_error ? '⚠ ' + g.weather_error : tx('Buscant el temps de ', 'Looking up the weather for ') + where + '…', tx('Canvia el lloc', 'Change the place'), open(place), weatherIcon('partly', true)));
+  else cards.push(invite(tx('Digues on ets i cada matí tindràs aquí el temps que farà.', 'Tell me where you are and every morning the weather shows up here.'), tx('Digues on ets', 'Tell me where you are'), open(place), weatherIcon('partly', true)));
   const events = upcomingEvents(g.events, now);
   if (events.length) cards.push(calendarCard(events, now));
   const fresh = new Map((g.follows || []).map(f => [f.id, f]));
   for (const f of follows) cards.push(followCard({ ...f, ...fresh.get(f.id) }, now, () => save({ unfollow: f.id })));
-  if (!follows.length) cards.push(invite(tx('Segueix el teu equip i el pròxim partit sortirà aquí, amb el compte enrere.', 'Follow your team and the next match shows up here, with a countdown.'), tx('Segueix un equip', 'Follow a team'), open(name)));
+  if (!follows.length) cards.push(invite(tx('Segueix el teu equip i el pròxim partit sortirà aquí, amb el compte enrere.', 'Follow your team and the next match shows up here, with a countdown.'), tx('Segueix un equip', 'Follow a team'), open(name), matchArt()));
   cards.forEach((c, i) => c.style.setProperty('--i', String(i)));
   row.append(...cards);
   // Sense seguiments, «Segueix un equip» ja és a la seva targeta: el xip de sota quedaria orfe.
@@ -273,6 +286,114 @@ export function renderGlance(box, opts = {}) {
   if (!reducedMotion()) {
     const id = setInterval(() => { if (!box.isConnected) clearInterval(id); else tickCountdowns(box); }, 30000);
   }
+}
+
+// --- el resum del dia (com el Daily Brief de Duet) ---
+
+/** Feina delegada acabada o una rutina que ha corregut: el que el vent ha fet. */
+const worked = c => String(c.source || '').startsWith('feina:') || c.source === 'job';
+
+/**
+ * Un per vent que ha fet o proposa alguna cosa, en l'ordre de la safata (Ara toca
+ * primer) i després els que només han fet. La mateixa regla que l'Android
+ * (AvuiBriefLogic.briefs), perquè les dues apps ensenyin el mateix resum.
+ * did: la feina acabada; proposes: la primera altra targeta oberta;
+ * act: [targeta, acció] del botó, la de la proposta o, si no, la de la feina.
+ */
+export function briefs(data, winds) {
+  const d = data || {}, open = [...(d.now || []), ...(d.fyi || []), ...(d.ahead || [])].filter(c => c.state === 'open');
+  const cards = [...open, ...(d.done || [])];
+  return [...new Set(cards.map(c => c.wind))].flatMap(id => {
+    const mine = cards.filter(c => c.wind === id);
+    const did = mine.find(worked) || null;
+    const proposes = open.find(c => c.wind === id && c !== did) || null;
+    if (!did && !proposes) return [];
+    // Una vigilància pausada no: el xat no la reprèn, ho fa «Torna-hi» a la seva targeta.
+    const withAct = [proposes, did].find(c => c && c.source !== 'pausa' && c.actions?.length);
+    const wind = (winds || []).find(w => w.id === id) || { id, name: mine[0].wind_name || '' };
+    return [{ wind, did, proposes, act: withAct ? [withAct, withAct.actions[0]] : null }];
+  });
+}
+
+function briefCard(b, label, art, face, onRun) {
+  const card = el('article', 'vw-brief-card');
+  card.dataset.wind = b.wind.id;
+  card.setAttribute('aria-label', label);
+  if (b.wind.color) card.style.setProperty('--wind', b.wind.color);
+  const head = el('div', 'vw-brief-head'), pic = el('span', 'vw-brief-face'), f = face?.(b.wind);
+  if (f) pic.append(f);
+  head.append(pic, el('strong', 'vw-brief-name', b.wind.name || ''));
+  if (art) { const a = el('span', 'vw-brief-art'); a.innerHTML = art; head.append(a); }
+  card.append(head);
+  if (b.did) {
+    const row = el('p', 'vw-brief-did'), tick = el('span', 'vw-brief-tick');
+    tick.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7"/></svg>';
+    const copy = el('span', 'vw-brief-copy');
+    copy.append(el('span', 'vw-brief-label', tx('Ha fet', 'Done')), el('span', 'vw-brief-what', b.did.title || ''));
+    row.append(tick, copy);
+    card.append(row);
+  }
+  if (b.proposes) {
+    const box = el('div', 'vw-brief-proposes');
+    box.append(el('span', 'vw-brief-label', tx('Proposa', 'Suggests')), el('strong', 'vw-brief-title', b.proposes.title || ''));
+    if (b.proposes.why) box.append(el('p', 'vw-brief-why', b.proposes.why));
+    card.append(box);
+  }
+  if (b.act) {
+    const [c, a] = b.act, go = btn('', () => onRun?.(c, a), 'vw-brief-act'), arrow = el('span', 'vw-brief-arrow');
+    arrow.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"/></svg>';
+    go.append(el('span', '', a.label || ''), arrow);
+    card.append(go);
+  }
+  return card;
+}
+
+/**
+ * El resum a dalt d'Avui: una targeta per vent que es llisca amb el paginador de
+ * les comparacions (md.js escolta `.gx-carousel` a tot el document: fletxes,
+ * punts i lliscar). Sense cap vent amb res, la caixa queda amagada.
+ * opts: {data (GET /api/winds/avui), winds, glance, settings, face(w), onRun(card, action), now}.
+ */
+export function renderBrief(box, opts = {}) {
+  const list = briefs(opts.data, opts.winds), g = opts.glance || {}, now = opts.now || new Date();
+  box.hidden = !list.length;
+  if (!list.length) { box.replaceChildren(); return; }
+  // Els dibuixos: el vent del temps porta el cel d'avui; el que segueix un equip, el partit.
+  const wx = g.weather && (opts.winds || []).find(w => w.kit === 'weather' || w.specialty === 'weather');
+  const teams = new Set([...(opts.settings?.follows || []), ...(g.follows || [])].filter(f => f.kind === 'team' && f.wind).map(f => f.wind));
+  const art = w => (wx && w.id === wx.id ? weatherIcon(weatherKind(Number(g.weather.code)), isDay(g.weather, now)) : teams.has(w.id) ? matchArt() : '');
+  const title = tx('El dia dels teus vents', 'Your winds today');
+  const track = el('div', 'gx-track');
+  track.tabIndex = 0;
+  track.setAttribute('role', 'region');
+  track.setAttribute('aria-label', title);
+  track.style.setProperty('--gx-rows', '1');
+  list.forEach((b, i) => {
+    const c = briefCard(b, b.wind.name + ' · ' + (i + 1) + ' / ' + list.length, art(b.wind), opts.face, opts.onRun);
+    c.style.setProperty('--i', String(i));
+    track.append(c);
+  });
+  // md.js mira les fletxes en passar-hi el ratolí: hi han de ser encara que només hi hagi una targeta.
+  const step = (dir, label) => { const b = btn('‹›'[dir > 0 ? 1 : 0], null, 'gx-step ' + (dir > 0 ? 'gx-next' : 'gx-prev')); b.dataset.gxStep = String(dir); b.setAttribute('aria-label', label); return b; };
+  const prev = step(-1, tx('Anterior', 'Previous')), next = step(1, tx('Següent', 'Next'));
+  prev.disabled = true;
+  next.disabled = list.length < 2;
+  const car = el('div', 'gx-carousel');
+  car.append(track, prev, next);
+  if (list.length > 1) {
+    const dots = el('div', 'gx-dots');
+    list.forEach((b, i) => {
+      const d = btn('', null);
+      d.dataset.gxDot = String(i);
+      d.setAttribute('aria-label', b.wind.name || String(i + 1));
+      if (!i) d.setAttribute('aria-current', 'true');
+      dots.append(d);
+    });
+    car.append(dots);
+  }
+  box.className = 'vw-brief gregal-compare';
+  box.setAttribute('aria-label', title);
+  box.replaceChildren(el('h3', 'vw-glance-kicker', title), car);
 }
 
 /**
@@ -294,4 +415,4 @@ export function resumeButton(card, status, onResumed) {
   return b;
 }
 
-window.gregalAvuiGlance = { renderGlance, glancePending, resumeButton };
+window.gregalAvuiGlance = { renderGlance, glancePending, resumeButton, renderBrief };
