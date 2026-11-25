@@ -63,11 +63,11 @@ func respLogNotes(r respPublic, kind string) []string {
 	return out
 }
 
-func TestAvuiThreeNoesHalveTheWatchAndFivePauseIt(t *testing.T) {
+func TestAvuiThreeNoesHalveTheWatch(t *testing.T) {
 	s := respTestServer(t)
 	page := newRespPage(t, "Horari: 8:00")
 	id := respCreateWeb(t, s, page.srv.URL)
-	cards := avuiRespCards(t, s, "responsabilitat", id, 6)
+	cards := avuiRespCards(t, s, "responsabilitat", id, 3)
 
 	avuiPost(t, s, cards[0], "dismiss")
 	avuiPost(t, s, cards[1], "notuseful")
@@ -85,10 +85,17 @@ func TestAvuiThreeNoesHalveTheWatchAndFivePauseIt(t *testing.T) {
 	if n := len(s.avuiView()["now"].([]avuiCard)); n != 0 {
 		t.Fatalf("no card before the pause: %d", n)
 	}
+}
 
-	avuiPost(t, s, cards[3], "dismiss")
-	avuiPost(t, s, cards[4], "dismiss")
-	r = respListed(t, s, id)
+func TestAvuiFiveNoesPauseTheWatchAndItsCardResumesIt(t *testing.T) {
+	s := respTestServer(t)
+	page := newRespPage(t, "Horari: 8:00")
+	id := respCreateWeb(t, s, page.srv.URL)
+	cards := avuiRespCards(t, s, "responsabilitat", id, 6)
+	for _, c := range cards[:5] {
+		avuiPost(t, s, c, "dismiss")
+	}
+	r := respListed(t, s, id)
 	if r.State != respPaused || len(respLogNotes(r, "pause")) != 1 {
 		t.Fatalf("five noes pause the watch: %+v", r)
 	}
