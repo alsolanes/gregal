@@ -1,6 +1,6 @@
 ---
 title: Vents web: treure la pàgina de vents antiga
-status: blocked
+status: done
 depends_on: ["125", "126", "127", "128", "130", "132", "134", "136"]
 ---
 
@@ -29,3 +29,4 @@ The legacy wind page (`#ventsPage .winds-page`, the «Fem lloc…» desk) is hid
 - Follow-up: wind-desk.js still carries the old desk (render, update, submit, routines dialog); only `flowFor` and `resolveTask` are used now. team.js still calls `gregalWindDesk.update` and looks for `#windsWorkApprovals`; attach.js still binds `#windWorkAttach`.
 - Follow-up: winds.css and the `winds.*` keys in i18n.js keep the styles and strings only the old page used.
 - Follow-up: onboarding.js focuses `#windChatInput` in Vents, which no longer exists; it should focus the workspace composer.
+- Approved by the person on 2026-11-25 («Yes, merge 137»): removing the 20 legacy-page tests listed above, whose UI is gone. On merge, the small `select` helper came back in winds.js because task 153's barretina picker uses it.
