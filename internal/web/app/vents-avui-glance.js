@@ -275,4 +275,23 @@ export function renderGlance(box, opts = {}) {
   }
 }
 
-window.gregalAvuiGlance = { renderGlance, glancePending };
+/**
+ * El botó d'una targeta `pausa` (una vigilància que s'ha pausat sola): la
+ * reprèn amb POST resume, no pas demanant-ho al xat del vent, que no ho pot fer.
+ * [status] diu si ha anat bé o per què no; [onResumed] treu la targeta.
+ */
+export function resumeButton(card, status, onResumed) {
+  const b = btn(tx('Torna-hi', 'Resume'), async () => {
+    b.disabled = true;
+    try { await post('/api/winds/avui', { id: card.id, action: 'resume' }); } catch (e) {
+      status.textContent = '⚠ ' + tx('No s’ha pogut reprendre: ', 'Could not resume: ') + (e.message || e);
+      b.disabled = false;
+      return;
+    }
+    status.textContent = tx('Hi torno a mirar.', 'Watching it again.');
+    onResumed?.();
+  }, 'vw-avui-chip');
+  return b;
+}
+
+window.gregalAvuiGlance = { renderGlance, glancePending, resumeButton };
