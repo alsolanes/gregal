@@ -65,7 +65,7 @@
   function draw(p, now) {
     const t = p.from && !reduced() ? Math.min(1, (now - p.fadeAt) / fade) : 1;
     if (t >= 1) p.from = null;
-    const f = frameOf(p.now, p.at, now), same = p.now.canvas === p.drawn?.canvas && f === p.drawn.f && t === p.drawn.t;
+    const f = p.still ? p.now.still : frameOf(p.now, p.at, now), same = p.now.canvas === p.drawn?.canvas && f === p.drawn.f && t === p.drawn.t;
     if (same) return;
     p.drawn = { canvas: p.now.canvas, f, t };
     const ctx = p.el.getContext('2d'), size = p.now.size;
@@ -115,15 +115,20 @@
   function remember(p) { last.set(p.spot, { look: p.letter + p.color + p.cap, sheet: p.now, mood: p.mood, at: p.at }); }
   // Takes the face winds.js drew for a large spot and returns what to put on
   // the page: the clay when a sheet for it is already here, or that face,
-  // swapped in place for the clay once its sheet loads.
-  function play(svg, w) {
-    // The clay is Cares without a trade kit, or the minairó in its own sheets; the other packs and the kits stay drawn.
+  // swapped in place for the clay once its sheet loads. A `still` face holds
+  // the sheet's still frame.
+  const handed = new WeakSet();
+  function play(svg, w, still = false) {
+    // A face already handed here (winds.js plays the pelut itself) or already clay stays as it is.
+    if (handed.has(svg) || players.has(svg)) return svg;
+    // The clay is Cares without a trade kit, or the minairó and the pelut in their own sheets; the other packs and the kits stay drawn.
     const avatar = svg.getAttribute('data-avatar');
-    if (!w || svg.getAttribute('data-kit') || (avatar && avatar !== 'minairo')) return svg;
+    if (!w || svg.getAttribute('data-kit') || (avatar && avatar !== 'minairo' && avatar !== 'pelut')) return svg;
+    handed.add(svg);
     const letter = avatar || ('ons'.includes(String(w.style || '')[2]) ? w.style[2] : 'o'), color = /^#[\da-f]{6}$/i.test(w.color || '') ? w.color : '#F5B45D';
     // The minairó's barretina colour, as winds.js picked it for this wind.
     const cap = svg.getAttribute('data-barretina') || '';
-    const p = { w, svg, letter, color, cap, mood: svg.getAttribute('data-mood') || 'idle', spot: w.id + '|' + svg.getAttribute('class') }, key = letter + '/' + p.mood + '/' + color + cap;
+    const p = { w, svg, letter, color, cap, still, mood: svg.getAttribute('data-mood') || 'idle', spot: w.id + '|' + svg.getAttribute('class') }, key = letter + '/' + p.mood + '/' + color + cap;
     const before = w.id && last.get(p.spot), same = before?.look === letter + color + cap ? before : null;
     if (ready.has(key)) return show(p, ready.get(key), clock(), same);
     const mood = p.mood;

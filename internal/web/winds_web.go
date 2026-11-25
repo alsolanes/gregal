@@ -26,7 +26,7 @@ import (
 //	POST /api/winds/chat           → {reply,wind,history}
 //	POST /api/winds                → crea/actualitza un vent {name,color,role,persona}
 //	DELETE /api/winds              → {id}
-//	POST /api/winds/avatar-theme   → {theme}: cares, esperit, cap, rosa, mapa, minairo o free
+//	POST /api/winds/avatar-theme   → {theme}: cares, esperit, cap, rosa, mapa, minairo, pelut o free
 
 // windHistoryEntry conserva l'historial en memòria i el desa al magatzem
 // durador després de cada resposta (mateix patró que les mascotes).

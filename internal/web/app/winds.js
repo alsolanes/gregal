@@ -404,7 +404,7 @@
   const num = value => +value.toFixed(2);
   // Avatar packs: the account's theme draws every wind with one pack, or 'free'
   // lets each wind use its own `avatar` (empty is Cares). The server keeps both.
-  const packs = ['cares', 'esperit', 'cap', 'rosa', 'mapa', 'minairo'];
+  const packs = ['cares', 'esperit', 'cap', 'rosa', 'mapa', 'minairo', 'pelut'];
   let theme = 'cares';
   function setAvatarTheme(value) { theme = value === 'free' || packs.includes(value) ? value : 'cares'; }
   function avatarPack(w) { return theme !== 'free' ? theme : packs.includes(w.avatar) ? w.avatar : 'cares'; }
@@ -772,6 +772,44 @@
       ['path', { d:'M-1.5-4v10', stroke:'#FFFFFF', 'stroke-width':1.2, 'stroke-linecap':'round', opacity:.45 }], ['path', { d:'M-3.4 3h6.8', stroke:mix(boxwood, '#1B1530', .2), 'stroke-width':.8 }]]);
     return svg;
   }
+  // Pelut (155): a round ball of short fur in the wind's colour, a smooth face
+  // with big eyes, small feet. It shows while its clay sheets load (characters.js)
+  // or if they cannot: swept tufts round the edge give it the fur's soft outline.
+  function pelut(svg, s, fill, ink, large, small) {
+    const full = !!large, id = 'wf' + (++faceSerial), defs = svgNode('defs', {}), url = suffix => 'url(#' + id + suffix + ')';
+    const cx = 40, cy = 45, R = 23, tuft = small ? 2.6 : 3.4, n = small ? 20 : 36, deep = mix(fill, '#1B1530', .4);
+    const at = (a, r) => num(cx + r * Math.cos(a)) + ' ' + num(cy + r * Math.sin(a)), step = 2 * Math.PI / n;
+    let outline = 'M' + at(0, R);
+    for (let i = 0; i < n; i++) {
+      const a = i * step, out = R + tuft * (i % 3 === 1 ? 1.3 : 1);
+      outline += `Q${at(a + .3 * step, R + .6 * out - .6 * R)} ${at(a + .6 * step, out)}Q${at(a + .85 * step, R + .3 * tuft)} ${at(a + step, R)}`;
+    }
+    outline += 'Z';
+    defs.append(
+      shapes(svgNode('radialGradient', { id:id + 'v', gradientUnits:'userSpaceOnUse', cx:num(cx - .38 * R), cy:num(cy - .5 * R), r:num(1.9 * R) }), stops([[0, mix(fill, '#FFFFFF', .3), 1], [.45, fill, 1], [1, deep, 1]])),
+      shapes(svgNode('radialGradient', { id:id + 'b' }), stops([[0, '#E4577A', .45], [1, '#E4577A', 0]])),
+      shapes(svgNode('clipPath', { id:id + 'c' }), [['path', { d:outline }]]));
+    svg.append(defs);
+    svg.setAttribute('data-avatar', 'pelut');
+    if (large === true) {
+      const ground = mix(fill, '#0B0C14', .72);
+      defs.append(shapes(svgNode('radialGradient', { id:id + 'g' }), stops([[0, ground, .5], [1, ground, 0]])));
+      shapes(svg, [['ellipse', { class:'wf-ground', cx:40, cy:73, rx:22, ry:4.2, fill:url('g') }]]);
+    }
+    const head = group(group(group(svg, 'wf-pose'), 'wf-figure'), '', full ? { transform:'translate(4 3) scale(.9)' } : {});
+    shapes(head, [-1, 1].map(side => ['ellipse', { class:'wf-foot wf-foot-' + (side < 0 ? 'l' : 'r'), cx:cx + side * 10, cy:cy + R + 1, rx:5.4, ry:3.2, fill:deep }]));
+    shapes(head, [['path', { class:'wf-body', d:outline, fill:url('v') }]]);
+    shapes(group(head, '', { 'clip-path':url('c') }), relief(defs, id, fill, cx, cy, R + tuft, R + tuft, small).filter(([, a]) => a.class === 'wf-shade' || a.class === 'wf-rim'));
+    // A few strands catch the light on top; the face is smoother and a little lighter.
+    if (!small) shapes(head, [['path', { d:[-2.2, -1.9, -1.6, -1.3, -1].map(a => `M${at(a, R - 6)}L${at(a - .06, R - 1)}`).join(''), fill:'none', stroke:mix(fill, '#FFFFFF', .45), 'stroke-width':1, 'stroke-linecap':'round', opacity:.6 }]]);
+    shapes(head, [['ellipse', { cx, cy:cy + 2, rx:15, ry:12.5, fill:mix(fill, '#FFFFFF', .18), opacity:.7 }]]);
+    shapes(head, [-1, 1].map(side => ['ellipse', { cx:cx + side * 14, cy:cy + 6, rx:4.6, ry:3.2, fill:url('b') }]));
+    eyePair(head, defs, id, { s, fill, ink, volume:url('v'), inset:false, small, xs:[cx - 7.5, cx + 7.5], y:cy - 3, k:.95 });
+    const line = { fill:'none', stroke:ink, 'stroke-width':small ? 2.6 : 1.9, 'stroke-linecap':'round' };
+    shapes(group(head, 'wf-mouth'), [['path', { d:`M36.4 ${cy + 8.4}q3.6 3.4 7.2 0`, ...line }]]);
+    shapes(group(head, 'wf-worry', { display:'none' }), [['path', { d:`M36.4 ${cy + 10}q1.8-1.6 3.6 0t3.6 0`, ...line }]]);
+    return svg;
+  }
   // Big glossy eyes carry the mood (110). The eye style sets their shape (tall,
   // big, a star catchlight, or calm and low); every eye has an upper lid that
   // closes and slants and a lower lid that rises into a happy arc, both in the
@@ -829,6 +867,12 @@
     // A list row and the large figure of one wind each spring from their own last pose.
     poseKeys.set(svg, key + '|' + !!large);
     if (pack === 'minairo') return setMood(minairo(svg, w, s, fill, ink, large, size < 28, seed), mood, key);
+    // The pelut is clay at every size: a large face plays its sheet, a smaller one
+    // holds its still frame. A scene's figure keeps the drawing, whose mood it changes.
+    if (pack === 'pelut') {
+      const drawn = setMood(pelut(svg, s, fill, ink, large, size < 28), mood, key);
+      return large === 'figure' || !root.gregalCharacters ? drawn : root.gregalCharacters.play(drawn, w, large !== true);
+    }
     if (kit) svg.setAttribute('data-kit', kitKey);
     const small = size < 28;
     // Volume: soft light from the top left, the wind's own deep tone below, a rim
@@ -911,7 +955,7 @@
     {name:'Migjorn', color:'#9ED3C5', style:'bss', role:'natura i escapades', persona:'Ets alegre i observador. T’agrada la natura i proposes descobertes adaptades al que l’usuari explica.'}
   ];
   // Packs by name; the first ones are the packs a wind can pick in Free mode.
-  const themeChoices = () => [['cares', tr('winds.avatarCares', 'Cares')], ['esperit', tr('winds.avatarEsperit', 'Esperit de vent')], ['cap', tr('winds.avatarCap', 'Cap de vent')], ['rosa', tr('winds.avatarRosa', 'Rosa de rellotge')], ['mapa', tr('winds.avatarMapa', 'Mapa de vent')], ['minairo', tr('winds.avatarMinairo', 'Minairons')], ['free', tr('winds.avatarFree', 'Lliure')]];
+  const themeChoices = () => [['cares', tr('winds.avatarCares', 'Cares')], ['esperit', tr('winds.avatarEsperit', 'Esperit de vent')], ['cap', tr('winds.avatarCap', 'Cap de vent')], ['rosa', tr('winds.avatarRosa', 'Rosa de rellotge')], ['mapa', tr('winds.avatarMapa', 'Mapa de vent')], ['minairo', tr('winds.avatarMinairo', 'Minairons')], ['pelut', tr('winds.avatarPelut', 'Pelut')], ['free', tr('winds.avatarFree', 'Lliure')]];
   // The editor offers a pack only in Free mode; with a theme it names the pack
   // that draws every wind, and saving leaves the wind's own choice untouched.
   function avatarField(parent, w) {
@@ -956,9 +1000,13 @@
     return select(parent, 'windBarretina', tr('winds.barretina', 'Barretina'), [['', tr('winds.barretinaAuto', 'Automàtica')], ['v', tr('winds.barretinaV', 'Vermella')], ['m', tr('winds.barretinaM', 'Morada')], ['f', tr('winds.barretinaF', 'Verd fosc')], ['o', tr('winds.barretinaO', 'Mostassa')], ['b', tr('winds.barretinaB', 'Blau marí')], ['g', tr('winds.barretinaG', 'Granat')]], barretines.some(([letter]) => letter === String(w.style || '')[3]) ? w.style[3] : '');
   }
   // A sample of one pack drawn as `w`, whatever pack the account's theme uses.
+  // The clay packs show their 3D figure (characters.js), still and without a trade kit.
   function packFace(pack, w) {
     const was = theme; theme = 'free';
-    try { return face({...w, id:undefined, avatar:pack}, false, 'idle', 40); } finally { theme = was; }
+    try {
+      const sample = {...w, id:undefined, avatar:pack, kit:undefined, specialty:undefined}, drawn = face(sample, false, 'idle', 64);
+      return ['cares', 'minairo'].includes(pack) && root.gregalCharacters ? root.gregalCharacters.play(drawn, sample, true) : drawn;
+    } finally { theme = was; }
   }
   // «Avatars» in Preferences, saved per account so every device draws the same.
   async function avatarPrefs(box) {
