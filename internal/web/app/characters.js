@@ -44,8 +44,7 @@
         const file = pattern => base + pattern.replace('<silhouette>', silhouette).replace('<mood>', mood);
         const masks = [[m.mask, color], ...(m.caps || []).includes(silhouette) ? [[m.cap, cap]] : []];
         const [body, ...shapes] = await Promise.all([image(file(m.files)), ...masks.map(([pattern]) => image(file(pattern)))]);
-        // A silhouette can have frames of its own size (155: the pelut's fur at 256 px).
-        const size = m.sizes?.[silhouette]?.[0] || m.size, full = spec.frames * size, width = still ? size : full;
+        const size = m.size, full = spec.frames * size, width = still ? size : full;
         const from = still ? -(spec.still || 0) * size : 0, out = canvas(width, size), ctx = out.getContext('2d');
         ctx.drawImage(body, from, 0);
         const pixels = ctx.getImageData(0, 0, width, size);

@@ -61,10 +61,11 @@ internal fun windClayMood(mood: WindMood): String = when (mood) {
 
 internal object WindClay {
     private val manifests = HashMap<String, JSONObject?>()
-    // Decoded once per sheet; a sheet of 24 frames is 1.5 MB of pixels, so the least used go.
-    private val sheets = object : android.util.LruCache<String, WindClaySheet>(24 shl 20) {
+    // Decoded once per sheet; at 256 px (157) a sheet of 24 frames and its mask are 8 MB of
+    // pixels, so this keeps a few winds in a few moods and the least used go.
+    private val sheets = object : android.util.LruCache<String, WindClaySheet>(48 shl 20) {
         override fun sizeOf(key: String, value: WindClaySheet) =
-            4 * (value.sheet.width * value.sheet.height + 2 * value.mask.width * value.mask.height)
+            4 * (value.sheet.width * value.sheet.height + value.mask.width * value.mask.height * (if (value.cap != null) 2 else 1))
     }
 
     private fun manifest(assets: AssetManager, dir: String): JSONObject? = manifests.getOrPut(dir) {
@@ -100,36 +101,44 @@ internal object WindClay {
             .also { sheets.put("$dir/$name", it) }
     }
 
-    // A tinted sheet is as big as the sheet: a few winds on screen in a few moods.
-    private val tints = object : android.util.LruCache<Triple<WindClaySheet, Color, Color>, ImageBitmap>(16 shl 20) {
-        override fun sizeOf(key: Triple<WindClaySheet, Color, Color>, value: ImageBitmap) = 4 * value.width * value.height
+    private data class Tint(val sheet: WindClaySheet, val accent: Color, val barretina: Color, val still: Boolean)
+
+    // A tinted sheet is as big as the sheet, up to 6 MB at 256 px: a few winds playing in a
+    // few moods. A still face tints only its still frame, 256 KB, so lists of them fit too.
+    private val tints = object : android.util.LruCache<Tint, ImageBitmap>(32 shl 20) {
+        override fun sizeOf(key: Tint, value: ImageBitmap) = 4 * value.width * value.height
     }
 
-    fun tinted(s: WindClaySheet, accent: Color, barretina: Color): ImageBitmap {
-        val key = Triple(s, accent, if (s.cap != null) barretina else Color.Unspecified)
-        return tints.get(key) ?: tintClay(s, accent, barretina).also { tints.put(key, it) }
+    /** [s] tinted, the whole sheet, or with [still] only its still frame. */
+    fun tinted(s: WindClaySheet, accent: Color, barretina: Color, still: Boolean): ImageBitmap {
+        val key = Tint(s, accent, if (s.cap != null) barretina else Color.Unspecified, still)
+        return tints.get(key) ?: tintClay(s, accent, barretina, still).also { tints.put(key, it) }
     }
 }
 
 /**
- * [s] tinted, every frame: white where the body is not, the wind's colour
+ * [s] tinted, every frame or with [still] only the still one: white where the body is not, the wind's colour
  * through the mask and the [barretina] colour through the cap mask, the clay
  * multiplied in and all of it cut to the clay's alpha. It is done once per
  * sheet and colour in a software canvas: tinting each frame in a GPU layer
  * left a dark square round the wind on phones.
  */
-private fun tintClay(s: WindClaySheet, accent: Color, barretina: Color): ImageBitmap {
+private fun tintClay(s: WindClaySheet, accent: Color, barretina: Color, still: Boolean): ImageBitmap {
     val clay = s.sheet.asAndroidBitmap()
-    val out = android.graphics.Bitmap.createBitmap(clay.width, clay.height, android.graphics.Bitmap.Config.ARGB_8888)
+    val (first, frames) = if (still) s.still to 1 else 0 to s.frames
+    val out = android.graphics.Bitmap.createBitmap(frames * s.size, s.size, android.graphics.Bitmap.Config.ARGB_8888)
     val canvas = android.graphics.Canvas(out)
-    val whole = android.graphics.Rect(0, 0, clay.width, clay.height)
+    val whole = android.graphics.Rect(0, 0, out.width, out.height)
     canvas.drawColor(android.graphics.Color.WHITE)
-    fun mask(m: ImageBitmap, tint: Color) = canvas.drawBitmap(m.asAndroidBitmap(), null, whole, android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG).apply {
-        colorFilter = android.graphics.PorterDuffColorFilter(tint.toArgb(), android.graphics.PorterDuff.Mode.SRC_IN)
-    })
+    fun mask(m: ImageBitmap, tint: Color) = canvas.drawBitmap(m.asAndroidBitmap(),
+        android.graphics.Rect(first * s.maskSize, 0, (first + frames) * s.maskSize, s.maskSize), whole,
+        android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG).apply {
+            colorFilter = android.graphics.PorterDuffColorFilter(tint.toArgb(), android.graphics.PorterDuff.Mode.SRC_IN)
+        })
     mask(s.mask, accent)
     s.cap?.let { mask(it, barretina) }
-    fun blend(mode: android.graphics.PorterDuff.Mode) = canvas.drawBitmap(clay, 0f, 0f, android.graphics.Paint().apply {
+    val frame = android.graphics.Rect(first * s.size, 0, (first + frames) * s.size, s.size)
+    fun blend(mode: android.graphics.PorterDuff.Mode) = canvas.drawBitmap(clay, frame, whole, android.graphics.Paint().apply {
         xfermode = android.graphics.PorterDuffXfermode(mode)
     })
     blend(android.graphics.PorterDuff.Mode.MULTIPLY)
@@ -137,9 +146,10 @@ private fun tintClay(s: WindClaySheet, accent: Color, barretina: Color): ImageBi
     return out.asImageBitmap()
 }
 
-private fun DrawScope.drawClay(s: WindClaySheet, frame: Int, accent: Color, barretina: Color, alpha: Float) {
+/** With [still] it draws the still frame from a tint of that frame alone. */
+private fun DrawScope.drawClay(s: WindClaySheet, frame: Int, accent: Color, barretina: Color, alpha: Float, still: Boolean) {
     if (alpha <= 0f) return
-    drawImage(WindClay.tinted(s, accent, barretina), IntOffset(frame * s.size, 0), IntSize(s.size, s.size),
+    drawImage(WindClay.tinted(s, accent, barretina, still), IntOffset(if (still) 0 else frame * s.size, 0), IntSize(s.size, s.size),
         dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()), alpha = alpha)
 }
 
@@ -189,8 +199,8 @@ internal fun WindClayFace(size: Int, mood: WindMood, accent: Color, barretina: C
         val f = frame.intValue
         shown.frame = f
         val mix = fade.value
-        if (from != null && mix < 1f) drawClay(from.first, from.second, accent, barretina, 1f - mix)
-        drawClay(sheet, f, accent, barretina, mix)
+        if (from != null && mix < 1f) drawClay(from.first, from.second, accent, barretina, 1f - mix, false)
+        drawClay(sheet, f, accent, barretina, mix, !motion)
     }
     return true
 }

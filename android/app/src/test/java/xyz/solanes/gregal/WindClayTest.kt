@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.SemanticsMatcher
@@ -93,6 +94,24 @@ class WindClayTest {
         show(dir = "no-such-folder") { WindFace(size = 96, accent = orange, clay = true) }
         anyFace().assertCountEquals(1)
         anyClay().assertCountEquals(0)
+    }
+
+    /** 157: every family is 256 px frames with a 128 px mask, read from the manifest; a still face tints one frame. */
+    @Test fun everyFamilyHas256PxFramesAndAStillFaceTintsOneFrame() {
+        val assets = ui.activity.assets
+        for (family in listOf("o", "n", "s", "minairo", "pelut")) {
+            val s = WindClay.sheet(assets, "characters", family, WindMood.SEARCHING)!!
+            assertEquals("$family frame", 256, s.size)
+            assertEquals("$family mask", 128, s.maskSize)
+            assertEquals("$family sheet", s.frames * 256 to 256, s.sheet.width to s.sheet.height)
+            assertEquals("$family mask sheet", s.frames * 128 to 128, s.mask.width to s.mask.height)
+            val still = WindClay.tinted(s, orange, orange, still = true)
+            assertEquals("$family still tint", 256 to 256, still.width to still.height)
+            val playing = WindClay.tinted(s, orange, orange, still = false)
+            assertEquals("$family playing tint", s.frames * 256, playing.width)
+            val frame = Bitmap.createBitmap(playing.asAndroidBitmap(), s.still * 256, 0, 256, 256)
+            assertTrue("$family still tint is the still frame", nearlySame(still.asAndroidBitmap(), frame))
+        }
     }
 
     @Test fun aMinairoWithoutSheetsKeepsItsDrawing() {
