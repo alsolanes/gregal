@@ -65,7 +65,6 @@
   window.addEventListener('pagehide',saveDraft);
   page=el('div','wind-workspace');page.id='windWorkspace';$('ventsPage').append(page);
   nav=el('nav','vw-nav');nav.setAttribute('aria-label',t('Espai dels vents','Winds workspace'));$('windContextNav').append(nav);
-  $('windsListCard').hidden=true;
   nav.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;closeDrawer();
   // Racó, Memòria i Comparticions són pàgines de l'app, no vistes dels vents: el menú dels vents ha de tornar-hi.
   if(!b.dataset.keepView&&root.gregal?.viewActual?.()!=='vents')root.gregal.setView('vents');});
