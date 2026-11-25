@@ -642,12 +642,20 @@ internal object WindFigure {
 internal fun windFaceBitmap(wind: Wind, theme: String, px: Int = 128): android.graphics.Bitmap {
     val accent = Color(wind.argb)
     val style = wind.faceStyle
-    val minairo = windPack(theme, style) == "minairo"
+    val pack = windPack(theme, style)
+    val minairo = pack == "minairo"
     val image = ImageBitmap(px, px)
+    val ball = WindBodyPaint(WindShape.BALL, accent)
     CanvasDrawScope().draw(Density(1f), LayoutDirection.Ltr, androidx.compose.ui.graphics.Canvas(image), Size(px.toFloat(), px.toFloat())) {
-        with(WindFigure) {
-            draw(0f, 48, WindMood.IDLE, accent, style, minairo, false, false, { windPose(WindMood.IDLE, 0f) }, emptyList(), 0f, Offset.Zero,
-                null, null, null, minairoLook(style, accent), WindBodyPaint(if (minairo) WindShape.BALL else style.shape, accent))
+        when (pack) {
+            "esperit" -> with(EsperitFigure) { draw(0f, false, WindMood.IDLE, accent, style.bearing, Offset.Zero, ball) }
+            "cap" -> with(CapFigure) { draw(0f, false, 48, WindMood.IDLE, accent, style.bearing, Offset.Zero, ball) }
+            "rosa" -> with(RosaFigure) { draw(0f, false, 48, WindMood.IDLE, accent, style.bearing, Offset.Zero, ball) }
+            "mapa" -> with(MapFigure) { draw(0f, false, WindMood.IDLE, MapPicture(style, px, accent).image, lerp(accent, Color(0xFF1B1530), .8f)) }
+            else -> with(WindFigure) {
+                draw(0f, 48, WindMood.IDLE, accent, style, minairo, false, false, { windPose(WindMood.IDLE, 0f) }, emptyList(), 0f, Offset.Zero,
+                    null, null, null, minairoLook(style, accent), WindBodyPaint(if (minairo) WindShape.BALL else style.shape, accent))
+            }
         }
     }
     return image.asAndroidBitmap()
@@ -971,19 +979,26 @@ private fun EsperitFace(size: Int, mood: WindMood, accent: Color, bearing: Int, 
             animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing)), label = "loop")
     } else null
     val seed = remember(accent, bearing) { ((accent.hashCode() * 31 + bearing) and 0xffff) / 65535f * 12f }
-    val ink = remember(accent) { windInk(accent) }
-    val tone = remember(accent) { lerp(accent, Color(0xFF1B1530), .8f) }
     // The head is a Cares ball: the same volume, and the same tilt on large faces only.
     val lean = rememberWindLean(motion && size >= 64)
     val bodyPaint = remember(accent) { WindBodyPaint(WindShape.BALL, accent) }
     Canvas(modifier.size(size.dp)) {
-        val t = loop?.let { (it.value + seed) % 12f } ?: 0f
-        val (tx, ty) = lean.value
+        with(EsperitFigure) { draw(loop?.let { (it.value + seed) % 12f } ?: 0f, loop != null, mood, accent, bearing, lean.value, bodyPaint) }
+    }
+}
+
+/** An Esperit at one instant [t]: the live face and the still avatar of a notification draw it the same way. */
+internal object EsperitFigure {
+    fun DrawScope.draw(t: Float, moving: Boolean, mood: WindMood, accent: Color, bearing: Int, lean: Offset, bodyPaint: WindBodyPaint) {
+        val busy = mood in windWorkMoods
+        val ink = windInk(accent)
+        val tone = lerp(accent, Color(0xFF1B1530), .8f)
+        val (tx, ty) = lean
         val paint = if (tx == 0f && ty == 0f) bodyPaint else WindBodyPaint(WindShape.BALL, accent, tx, ty)
         val period = if (busy) .75f else 3f
         val turn = 2f * PI.toFloat() * (t % period) / period
-        val sway = if (loop != null) sin(turn) * 5f else 0f
-        val drift = if (loop != null) (1f - cos(turn)) / 2f else 0f
+        val sway = if (moving) sin(turn) * 5f else 0f
+        val drift = if (moving) (1f - cos(turn)) / 2f else 0f
         val rad = Math.toRadians(bearing.toDouble())
         val ux = sin(rad).toFloat()
         val uy = -cos(rad).toFloat()
@@ -1010,7 +1025,7 @@ private fun EsperitFace(size: Int, mood: WindMood, accent: Color, bearing: Int, 
             drawPath(mouth, ink, style = Stroke(2.2f, cap = StrokeCap.Round))
         }
         val unit = min(this.size.width, this.size.height) / 80f
-        withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, loop != null, 1f, tone) }
+        withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, moving, 1f, tone) }
     }
 }
 
@@ -1034,14 +1049,21 @@ private fun CapFace(size: Int, mood: WindMood, accent: Color, bearing: Int, moti
             animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing)), label = "loop")
     } else null
     val seed = remember(accent, bearing) { ((accent.hashCode() * 31 + bearing) and 0xffff) / 65535f * 12f }
-    val ink = remember(accent) { windInk(accent) }
-    val tone = remember(accent) { lerp(accent, Color(0xFF1B1530), .8f) }
-    val small = size < 28
     val lean = rememberWindLean(motion && size >= 64)
     val bodyPaint = remember(accent) { WindBodyPaint(WindShape.BALL, accent) }
     Canvas(modifier.size(size.dp)) {
-        val t = loop?.let { (it.value + seed) % 12f } ?: 0f
-        val (tx, ty) = lean.value
+        with(CapFigure) { draw(loop?.let { (it.value + seed) % 12f } ?: 0f, loop != null, size, mood, accent, bearing, lean.value, bodyPaint) }
+    }
+}
+
+/** A Cap de vent at one instant [t]: the live face and the still avatar of a notification draw it the same way. */
+internal object CapFigure {
+    fun DrawScope.draw(t: Float, moving: Boolean, size: Int, mood: WindMood, accent: Color, bearing: Int, lean: Offset, bodyPaint: WindBodyPaint) {
+        val busy = mood in windWorkMoods
+        val ink = windInk(accent)
+        val tone = lerp(accent, Color(0xFF1B1530), .8f)
+        val small = size < 28
+        val (tx, ty) = lean
         val paint = if (tx == 0f && ty == 0f) bodyPaint else WindBodyPaint(WindShape.BALL, accent, tx, ty)
         val period = if (busy) .7f else 1.8f
         val rad = Math.toRadians(bearing.toDouble())
@@ -1080,7 +1102,7 @@ private fun CapFace(size: Int, mood: WindMood, accent: Color, bearing: Int, moti
             }
         }
         val unit = min(this.size.width, this.size.height) / 80f
-        withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, loop != null, 1f, tone) }
+        withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, moving, 1f, tone) }
     }
 }
 
@@ -1106,20 +1128,27 @@ private fun RosaFace(size: Int, mood: WindMood, accent: Color, bearing: Int, mot
             animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing)), label = "loop")
     } else null
     val seed = remember(accent, bearing) { ((accent.hashCode() * 31 + bearing) and 0xffff) / 65535f * 12f }
-    val tone = remember(accent) { lerp(accent, Color(0xFF1B1530), .8f) }
-    val dark = remember(accent) { lerp(accent, Color(0xFF0F0C18), .72f) }
-    val cream = Color(0xFFF3EAD8)
-    val faint = lerp(cream, dark, .45f)
-    val small = size < 28
     val lean = rememberWindLean(motion && size >= 64)
     val bodyPaint = remember(accent) { WindBodyPaint(WindShape.BALL, accent) }
-    val face = remember(accent) { lerp(accent, Color(0xFF1B1530), .3f) }
     Canvas(modifier.size(size.dp)) {
-        val t = loop?.let { (it.value + seed) % 12f } ?: 0f
-        val (tx, ty) = lean.value
+        with(RosaFigure) { draw(loop?.let { (it.value + seed) % 12f } ?: 0f, loop != null, size, mood, accent, bearing, lean.value, bodyPaint) }
+    }
+}
+
+/** A Rosa de rellotge at one instant [t]: the live face and the still avatar of a notification draw it the same way. */
+internal object RosaFigure {
+    fun DrawScope.draw(t: Float, moving: Boolean, size: Int, mood: WindMood, accent: Color, bearing: Int, lean: Offset, bodyPaint: WindBodyPaint) {
+        val busy = mood in windWorkMoods
+        val tone = lerp(accent, Color(0xFF1B1530), .8f)
+        val dark = lerp(accent, Color(0xFF0F0C18), .72f)
+        val cream = Color(0xFFF3EAD8)
+        val faint = lerp(cream, dark, .45f)
+        val small = size < 28
+        val face = lerp(accent, Color(0xFF1B1530), .3f)
+        val (tx, ty) = lean
         val paint = if (tx == 0f && ty == 0f) bodyPaint else WindBodyPaint(WindShape.BALL, accent, tx, ty)
         val period = if (busy) 1.4f else 4f
-        val swing = if (loop != null) -cos(2f * PI.toFloat() * (t % period) / period) * (if (busy) 10f else 5f) else 0f
+        val swing = if (moving) -cos(2f * PI.toFloat() * (t % period) / period) * (if (busy) 10f else 5f) else 0f
         val k = min(this.size.width, this.size.height) / 100f
         withTransform({ scale(k, k, Offset.Zero); translate(50f, 50f) }) {
             // The dial keeps its dark face, lit like a Cares ball: a bezel of light and a glint on the glass.
@@ -1146,7 +1175,7 @@ private fun RosaFace(size: Int, mood: WindMood, accent: Color, bearing: Int, mot
             drawCircle(dark, if (small) 3f else 1.8f, Offset.Zero)
         }
         val unit = min(this.size.width, this.size.height) / 80f
-        withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, loop != null, 1f, tone) }
+        withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, moving, 1f, tone) }
     }
 }
 

@@ -837,6 +837,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         // Un torn que s'ha quedat sense xarxa en segon pla segueix al servidor.
         if (_connected.value && !_sending.value) attachToRunning()
         if (_connected.value && !_conn.value.local) {
+            // The look of the winds (theme, pack, face) may have changed on the desktop meanwhile.
+            loadWinds()
             loadWindTasks()
             refreshWindNews()
         }
