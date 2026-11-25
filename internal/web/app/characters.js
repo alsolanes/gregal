@@ -39,16 +39,17 @@
         const file = pattern => base + pattern.replace('<silhouette>', silhouette).replace('<mood>', mood);
         const masks = [[m.mask, color], ...(m.caps || []).includes(silhouette) ? [[m.cap, cap]] : []];
         const [body, ...shapes] = await Promise.all([image(file(m.files)), ...masks.map(([pattern]) => image(file(pattern)))]);
-        const width = spec.frames * m.size, out = canvas(width, m.size), ctx = out.getContext('2d');
+        // A silhouette can have frames of its own size (155: the pelut's fur at 256 px).
+        const size = m.sizes?.[silhouette]?.[0] || m.size, width = spec.frames * size, out = canvas(width, size), ctx = out.getContext('2d');
         ctx.drawImage(body, 0, 0);
-        const pixels = ctx.getImageData(0, 0, width, m.size);
+        const pixels = ctx.getImageData(0, 0, width, size);
         shapes.forEach((shape, i) => {
-          const up = canvas(width, m.size).getContext('2d'), n = parseInt(masks[i][1].slice(1), 16);
-          up.drawImage(shape, 0, 0, width, m.size);
-          tint(pixels.data, up.getImageData(0, 0, width, m.size).data, [n >> 16 & 255, n >> 8 & 255, n & 255]);
+          const up = canvas(width, size).getContext('2d'), n = parseInt(masks[i][1].slice(1), 16);
+          up.drawImage(shape, 0, 0, width, size);
+          tint(pixels.data, up.getImageData(0, 0, width, size).data, [n >> 16 & 255, n >> 8 & 255, n & 255]);
         });
         ctx.putImageData(pixels, 0, 0);
-        const done = { canvas: out, size: m.size, fps: m.fps, frames: spec.frames, loop: spec.loop, still: spec.still || 0 };
+        const done = { canvas: out, size, fps: m.fps, frames: spec.frames, loop: spec.loop, still: spec.still || 0 };
         ready.set(key, done);
         return done;
       }));

@@ -18,6 +18,7 @@ type charactersManifest struct {
 	Files, Mask, Cap    string
 	Silhouettes         map[string]string
 	Caps                []string
+	Sizes               map[string][2]int
 	Moods               map[string]struct {
 		Frames, Still int
 		Loop          *bool
@@ -36,9 +37,13 @@ func TestCharactersManifestMatchesSheets(t *testing.T) {
 				t.Fatalf("%s: frames=%d loop=%v still=%d", mood, spec.Frames, spec.Loop, spec.Still)
 			}
 			names := strings.NewReplacer("<silhouette>", silhouette, "<mood>", mood)
-			sheets := map[string]int{m.Files: m.Size, m.Mask: m.MaskSize}
+			size, maskSize := m.Size, m.MaskSize
+			if own, ok := m.Sizes[silhouette]; ok {
+				size, maskSize = own[0], own[1]
+			}
+			sheets := map[string]int{m.Files: size, m.Mask: maskSize}
 			if slices.Contains(m.Caps, silhouette) {
-				sheets[m.Cap] = m.MaskSize
+				sheets[m.Cap] = maskSize
 			}
 			for pattern, size := range sheets {
 				path := "app/characters/" + names.Replace(pattern)
@@ -61,6 +66,7 @@ func TestCharactersManifestMatchesSheets(t *testing.T) {
 // El paquet minairó té la seva figura (barba fora de la màscara, la barretina
 // en una màscara pròpia perquè cada minairó la tenyeixi del seu color) i, amb
 // ella i els objectes de la feina (142), tots els fulls junts han de cabre en 2 MB.
+// El pelut (155), a 256 px, té el seu propi pressupost.
 func TestCharactersMinairoWithinBudget(t *testing.T) {
 	m := loadCharactersManifest(t)
 	if family := m.Silhouettes["minairo"]; family != "minairo" {
@@ -71,7 +77,7 @@ func TestCharactersMinairoWithinBudget(t *testing.T) {
 	}
 	total := 0
 	err := fs.WalkDir(assets, "app/characters", func(path string, d fs.DirEntry, err error) error {
-		if err == nil && !d.IsDir() {
+		if err == nil && !d.IsDir() && !strings.HasPrefix(path, "app/characters/pelut/") {
 			raw, readErr := assets.ReadFile(path)
 			total += len(raw)
 			return readErr
@@ -137,5 +143,29 @@ func checkSheet(t *testing.T, path string, frames, size int) {
 	}
 	if cfg.Width != frames*size || cfg.Height != size {
 		t.Fatalf("%s fa %dx%d, el manifest diu %d fotogrames de %d", path, cfg.Width, cfg.Height, frames, size)
+	}
+}
+
+// El pelut (155) té el pèl a 256 px perquè es vegi fi a la pantalla d'un mòbil,
+// amb la màscara a 128; tots els seus fulls junts no passen d'1,2 MB.
+func TestCharactersPelutAt256WithinBudget(t *testing.T) {
+	m := loadCharactersManifest(t)
+	if m.Silhouettes["pelut"] != "pelut" || m.Sizes["pelut"] != [2]int{256, 128} {
+		t.Fatalf("el pelut no és al manifest a 256 px: %q %v", m.Silhouettes["pelut"], m.Sizes["pelut"])
+	}
+	total := 0
+	err := fs.WalkDir(assets, "app/characters/pelut", func(path string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			raw, readErr := assets.ReadFile(path)
+			total += len(raw)
+			return readErr
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total > 1_200_000 {
+		t.Errorf("els fulls del pelut fan %d bytes, més d'1,2 MB", total)
 	}
 }

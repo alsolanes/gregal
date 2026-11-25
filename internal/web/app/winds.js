@@ -777,7 +777,7 @@
   // or if they cannot: swept tufts round the edge give it the fur's soft outline.
   function pelut(svg, s, fill, ink, large, small) {
     const full = !!large, id = 'wf' + (++faceSerial), defs = svgNode('defs', {}), url = suffix => 'url(#' + id + suffix + ')';
-    const cx = 40, cy = 45, R = 23, tuft = small ? 2.6 : 3.4, n = small ? 20 : 36, deep = mix(fill, '#1B1530', .4);
+    const cx = 40, cy = 45, R = 23, tuft = small ? 2 : 2.4, n = small ? 26 : 60, deep = mix(fill, '#1B1530', .4);
     const at = (a, r) => num(cx + r * Math.cos(a)) + ' ' + num(cy + r * Math.sin(a)), step = 2 * Math.PI / n;
     let outline = 'M' + at(0, R);
     for (let i = 0; i < n; i++) {
