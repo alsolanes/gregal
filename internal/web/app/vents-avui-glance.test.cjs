@@ -229,9 +229,32 @@ test('sense lloc ni seguiments, les targetes conviden a afegir-los', async () =>
   await withLang('en', m => {
     const box = document.createElement('div');
     m.renderGlance(box, { glance: { events: [], follows: [] }, settings: {}, now });
-    assert.match(textOf(box), /Follow…/);
+    assert.match(textOf(box), /Follow a team/);
     assert.match(textOf(box), /Tell me where you are/);
   });
+});
+
+// 127: sense seguiments, la targeta «Segueix un equip» ja ho fa; un «Segueix…» a sota quedava orfe.
+test('«Segueix…» només surt quan ja segueixes alguna cosa: si no, la targeta convida', async () => {
+  await withLang('ca', m => {
+    const empty = document.createElement('div');
+    m.renderGlance(empty, { glance: { events: [], follows: [] }, settings: { follows: [] }, now });
+    assert.equal(buttons(empty, 'Segueix…').length, 0);
+    assert.equal(buttons(empty, 'Segueix un equip').length, 1);
+    const some = document.createElement('div');
+    m.renderGlance(some, { glance, settings, now });
+    assert.equal(buttons(some, 'Segueix…').length, 1);
+  });
+});
+
+test('les targetes buides no fan taca grisa, i al mòbil la fila diu que n’hi ha més', () => {
+  const css = fs.readFileSync(path.join(__dirname, 'winds-workspace.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const rule = sel => css.match(new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ' \\{([^}]*)\\}'))?.[1] || '';
+  assert.doesNotMatch(rule('.vw-glance-card::before'), /--accent/, 'the glow takes the card’s own colour');
+  assert.match(rule('.vw-glance-invite::before'), /display:none/, 'an invitation has no glow');
+  assert.doesNotMatch(rule('.vw-glance-cal'), /--accent/);
+  const mobile = [...css.matchAll(/@media\(max-width:600px\) \{([\s\S]*?)\r?\n\}/g)].map(m => m[1]).find(b => b.includes('.vw-glance-row')) || '';
+  assert.match(mobile, /\.vw-glance-row \{[^}]*mask-image:linear-gradient\(to right/, 'the next card fades at the edge');
 });
 
 test('els comptes enrere corren sols, però no amb moviment reduït', async () => {

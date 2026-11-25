@@ -96,7 +96,7 @@ async function boot({ lang = 'en', api, storage = {}, css = () => '', extra = {}
   const requests = [];
   const json = data => ({ ok: true, status: 200, json: async () => data, text: async () => JSON.stringify(data) });
   const window = {
-    document: doc, gregalNotes: notes, addEventListener() {}, ...extra,
+    document: doc, gregalNotes: notes, addEventListener() {}, gregalGreeting: () => 'Good evening', ...extra,
     gregalWinds: { face: (w, large, mood, size) => { const n = new Element('svg', doc); n.dataset.wind = w?.name || ''; if (size) n.dataset.size = String(size); return n; }, moodOf: () => '', seen() {}, watchNews(f) { this.onNews = f; }, news: [], hasNews(id) { return this.news.includes(id); }, setAvatarTheme(theme) { this.theme = theme; },
       // winds.js draws the real picker (winds.test.js); here only Free mode gets one.
       avatarField(parent, w) { if (this.theme !== 'free') return null; const s = new Element('select', doc); s.setAttribute('id', 'windAvatar'); s.value = w?.avatar || 'cares'; parent.append(s); return s; } },
@@ -431,7 +431,7 @@ test('a turn that uses the computer opens it live beside the chat, not in a dial
   assert.ok(pane, 'the computer pane is in the workbench');
   assert.equal(f.doc.body.querySelector('dialog'), null, 'no modal dialog');
   assert.ok(f.requests.some(r => r.url === '/api/ordinador/live'), 'it polls the live view');
-  assert.match(pane.textContent, /Gregal’s browser|Gregal's browser/);
+  assert.match(pane.textContent, /Gregal’s computer/);
   await pane.querySelector('.vw-close').click();
   assert.equal(f.pane(), null, 'closed');
 });
@@ -1013,4 +1013,151 @@ test('with every wind already in the sidebar, it still links to «All winds», t
   await all.click(); await settle();
   assert.ok(byText(f.page, 'button', 'Create your own wind'));
   assert.ok(byText(byText(f.page, '.vw-member', 'Xaloc'), 'button', 'Profile'));
+});
+
+// ---- 127: coherència ----
+// L'ordre en què es llegeix la pàgina (com el DOM: pare, després fills).
+const inOrder = root => { const out = []; const walk = n => { out.push(n); n.children.forEach(walk); }; walk(root); return out; };
+// Les regles d'un full d'estil: selector → declaracions (les de dins d'una @media també hi són, amb el seu selector).
+const cssRules = file => [...fs.readFileSync(path.join(__dirname, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(m => ({ sel: m[1].trim(), body: m[2] }));
+const prop = (rule, name) => rule?.body.match(new RegExp('(?:^|;)\\s*' + name + '\\s*:\\s*([^;]+)'))?.[1].trim();
+
+test('a numbered list in a wind’s reply keeps room for the number: no later rule takes the step padding away', () => {
+  const rules = cssRules('winds-workspace.css');
+  const step = rules.findIndex(r => /ol:not\(\[class\]\) > li$/.test(r.sel) && /padding-left:36px/.test(r.body));
+  assert.ok(step >= 0, 'the numbered steps leave 36 px for the circle');
+  const later = rules.slice(step + 1).filter(r => /vw-message-text\s*>\s*(?:ol|:is\([^)]*\bol\b[^)]*\))\s*>\s*li\b/.test(r.sel) && prop(r, 'padding-left'));
+  assert.deepEqual(later.map(r => r.sel), []);
+});
+
+test('the computer has one name: the sidebar row, Gregal’s header button and the pane it opens say the same', async () => {
+  const f = await boot({ extra: { open: () => null }, api: r => r.url === '/api/ordinador/viewer' ? { ok: false, status: 404, text: async () => 'no_viewer' } : null });
+  await byText(f.nav, '.vw-nav-channel', 'Gregal').click();
+  await settle();
+  const pc = f.page.querySelector('.vw-gregal-pc');
+  const name = pc.getAttribute('aria-label');
+  assert.ok(f.nav.querySelectorAll('button').some(b => b.textContent === name), 'the sidebar row says «' + name + '»');
+  await pc.click();
+  await settle();
+  const pane = f.doc.getElementById('workbench').querySelector('.vw-computer-pane');
+  assert.ok(pane, 'the pane opens');
+  assert.equal(pane.querySelector('h2').textContent, name);
+  assert.equal(pane.getAttribute('aria-label'), name);
+});
+
+test('the sidebar computer row opens the pane over the start page, whose faces wrap instead of being cut', async () => {
+  const f = await boot({ extra: { open: () => null }, api: r => r.url === '/api/ordinador/viewer' ? { ok: false, status: 404, text: async () => 'no_viewer' } : null });
+  const row = f.nav.querySelectorAll('button').find(b => b.textContent === 'Gregal’s computer');
+  assert.ok(row, 'the sidebar row');
+  await row.click();
+  await settle();
+  assert.ok(f.doc.getElementById('workbench').querySelector('.vw-computer-pane'), 'the pane opens');
+  assert.ok(f.page.querySelector('.vw-start-faces'), 'the start page stays');
+  const wide = fs.readFileSync(path.join(__dirname, 'winds-workspace.css'), 'utf8').match(/@media\(min-width:761px\) \{([^@]*)\}/)?.[1] || '';
+  assert.match(wide, /\.vw-start-faces \{[^}]*flex-wrap:wrap/, 'on wide screens every face stays visible');
+});
+
+test('Code and Winds greet with the same words at the same hour, from one helper', async () => {
+  const { salutacio } = await import('./i18n.js');
+  assert.deepEqual([2, 7, 15, 21].map(salutacio), ['Bona nit', 'Bon dia', 'Bona tarda', 'Bon vespre']);
+  assert.match(fs.readFileSync(path.join(__dirname, 'i18n-boot.js'), 'utf8'), /window\.gregalGreeting = \(\) => salutacio\(new Date\(\)\.getHours\(\)\)/);
+  const f = await boot({ extra: { gregalGreeting: () => 'Bona tarda' } });
+  assert.equal(f.page.querySelector('.vw-welcome').querySelector('h1').textContent, 'Bona tarda');
+  // Codi: home.js amb un DOM mínim.
+  const doc = { addEventListener() {} }, ids = {};
+  for (const id of ['heroTitle', 'hero', 'homeContext', 'heroMore', 'chips']) { ids[id] = new Element('div', doc); ids[id].style.display = ''; }
+  doc.getElementById = id => ids[id] || null;
+  const window = { gregalGreeting: () => 'Bona tarda', gregalT: k => k, gregal: { api: async () => ({ ok: false }) }, gregalPanels: {} };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'home.js'), 'utf8'), { window, document: doc, setTimeout: (fn, ms) => { const h = setTimeout(fn, ms); h.unref(); return h; }, setInterval: () => 0, MutationObserver: class { observe() {} } });
+  await settle();
+  assert.equal(ids.heroTitle.textContent, 'Bona tarda');
+});
+
+test('Saved has one title: «Saved» once, as the heading above its tabs', async () => {
+  const f = await boot();
+  const ctx = { document: f.doc, api: f.window.api, URLSearchParams, setTimeout, clearTimeout, console };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'winds-notes.js'), 'utf8'), ctx);
+  f.window.gregalNotes = ctx.gregalNotes;
+  await byText(f.nav, 'button', 'Saved').click();
+  await settle();
+  const all = inOrder(f.page.querySelector('.vw-content'));
+  const saying = all.filter(n => ['H1', 'H2', 'BUTTON'].includes(n.tagName) && n.textContent.trim() === 'Saved');
+  assert.deepEqual(saying.map(n => n.tagName), ['H1'], 'one title, not a tab, an H1 and an H2');
+  assert.ok(!all.some(n => n.tagName === 'H2' && /Your saved items/.test(n.textContent)));
+  assert.ok(all.indexOf(saying[0]) < all.indexOf(f.page.querySelector('.vw-page-tabs')), 'the tabs sit under the title');
+});
+
+test('Work keeps its title on every tab, with the tabs under it and one text size for tabs, sections and their text', async () => {
+  const f = await boot();
+  await byText(f.nav, 'button', 'Work').click();
+  await settle();
+  for (const tab of ['In progress', 'Do', 'Activity']) {
+    if (tab !== 'In progress') { await byText(f.page.querySelector('.vw-page-tabs'), 'button', tab).click(); await settle(); }
+    const all = inOrder(f.page.querySelector('.vw-content'));
+    const h1 = all.find(n => n.tagName === 'H1');
+    assert.equal(h1?.textContent, 'Work', tab);
+    assert.ok(all.indexOf(h1) < all.indexOf(f.page.querySelector('.vw-page-tabs')), tab + ': tabs under the title');
+  }
+  const rules = cssRules('winds-workspace.css');
+  const size = sel => prop(rules.findLast(r => r.sel === sel && prop(r, 'font-size')), 'font-size');
+  const sizes = ['.vw-page-tab', '.vw-feina-h', '.vw-feina-sec .vw-muted', '.vw-heading p'].map(size);
+  assert.equal(new Set(sizes).size, 1, 'one size, got ' + sizes.join(', '));
+});
+
+test('the primary button wears the send button’s colours in every theme, and «Tune tomorrow» is underlined body text in both', () => {
+  const rules = cssRules('winds-workspace.css');
+  const send = rules.find(r => r.sel === '.vw-send'), primary = rules.find(r => r.sel === ':is(button,a).vw-primary');
+  assert.equal(prop(primary, 'background'), prop(send, 'background'));
+  assert.equal(prop(primary, 'color'), prop(send, 'color'));
+  const tune = rules.find(r => r.sel === '.vw-avui-tune');
+  assert.equal(prop(tune, 'color'), 'var(--text)', 'the same role in light and dark, not the accent that is a link in one and ink in the other');
+  assert.match(prop(tune, 'text-decoration') || '', /underline/);
+});
+
+test('All winds leads with your winds; tidying up is a small chip under the title', async () => {
+  const mine = { id: 'marinada', name: 'Marinada', color: '#C8A27C', role: 'Cerques', style: 'pso' };
+  const f = await boot({ api: r => r.url === '/api/winds' && r.method === 'GET' ? { ok: true, status: 200, json: async () => ({ winds: [...winds, mine] }) }
+    : r.url === '/api/winds/tidy' ? { ok: true, status: 200, json: async () => ({ total: 3, groups: [], test: [], unused: [{ id: 'xaloc', name: 'Xaloc' }] }) } : null });
+  await byText(f.nav, 'button', 'All winds').click();
+  await settle();
+  const all = inOrder(f.page.querySelector('.vw-content'));
+  const first = all.find(n => n.matches('.vw-member'));
+  assert.match(first.textContent, /Marinada/, 'your own winds first');
+  assert.ok(all.indexOf(first) < all.indexOf(f.page.querySelector('.vw-tabs')), 'before the squads');
+  assert.equal(f.page.querySelector('.vw-tidy-banner'), null, 'no banner');
+  const chip = f.page.querySelector('.vw-tidy-chip');
+  assert.ok(chip && chip.tagName === 'BUTTON', 'a chip');
+  assert.match(chip.textContent, /1 unused · Tidy up/);
+  assert.ok(chip.closest('.vw-heading'), 'under the title');
+});
+
+test('a turn that uses the computer leaves it closed when the person closed the side pane in that chat, with a dot', async () => {
+  const f = await paneChat();
+  await f.turn(['activity', { phase: 'tool', tool: 'browser' }]);
+  await f.computer().querySelector('.vw-close').click();
+  assert.equal(f.computer(), null);
+  await f.turn(['activity', { phase: 'tool', tool: 'browser' }]);
+  assert.equal(f.computer(), null, 'it does not open on its own');
+  assert.equal(f.toggle().dataset.fresh, 'true');
+  await f.toggle().click();
+  assert.ok(f.computer(), 'the toggle opens it');
+});
+
+test('switching chats closes the side pane without counting it as the person closing it', async () => {
+  const f = await paneChat();
+  f.doc.addEventListener('gregal:workpane', e => { if (e.detail !== 'docs') f.docs.hidden = true; });
+  await f.turn(letter);
+  assert.equal(f.docs.hidden, false);
+  await byText(f.nav, '.vw-nav-channel', 'Gregal').click();
+  await settle();
+  assert.equal(f.docs.hidden, true, 'Xaloc’s document does not stay open over Gregal’s chat');
+  assert.ok(!f.toggle() || f.toggle().hidden || f.toggle().getAttribute('aria-pressed') === 'false');
+  // Tornar a Xaloc: el seu fil actual és la conversa d'abans.
+  const api = f.window.api;
+  f.window.api = async (url, o) => url === '/api/winds/chat?wind=xaloc' ? { ok: true, status: 200, json: async () => ({ session: 'company-xaloc-s9', history: [] }) } : api(url, o);
+  await byText(f.nav, '.vw-nav-channel', 'Xaloc').click();
+  await settle();
+  assert.equal(f.toggle().getAttribute('aria-pressed'), 'false');
+  await f.turn(letter);
+  assert.equal(f.docs.hidden, false, 'a new version opens it again: the person never closed it');
 });

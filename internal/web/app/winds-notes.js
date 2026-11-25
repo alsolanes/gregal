@@ -493,8 +493,8 @@
   function saved(content, opts) {
     const lang = ca() ? 'ca' : 'en';
     const V = { q: '', kind: '', epoch: 0, timer: 0 };
+    // Sense títol propi: la pàgina ja es diu «Desat» (127).
     const box = el('section', 'notes-saved');
-    box.append(el('h2', '', t('Els teus desats', 'Your saved items')));
     const search = el('input', 'vw-search'); search.type = 'search';
     search.placeholder = t('Cerca als desats', 'Search saved items'); search.setAttribute('aria-label', search.placeholder);
     search.oninput = () => { V.q = search.value; clearTimeout(V.timer); V.timer = setTimeout(load, 200); };

@@ -52,13 +52,12 @@
     if (more) more.hidden = !heroVisible();
   }
 
-  // Inici: una salutació segons l'hora en comptes de «Què vols fer?».
+  // Inici: una salutació segons l'hora en comptes de «Què vols fer?»; la
+  // mateixa que Vents (i18n-boot.js la posa a window.gregalGreeting).
   function greet() {
     const h = $('heroTitle');
     if (!h) return;
-    const hour = new Date().getHours();
-    const key = hour >= 6 && hour < 14 ? 'hero.morning' : hour >= 14 && hour < 21 ? 'hero.afternoon' : 'hero.evening';
-    h.textContent = T(key, T('hero.title', 'What do you want to do?'));
+    h.textContent = window.gregalGreeting();
   }
 
   function render() {
