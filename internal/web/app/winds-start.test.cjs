@@ -189,13 +189,24 @@ test('if the new session cannot be created, the text stays in the composer and n
   assert.ok(!f.page.querySelector('.vw-messages'));
 });
 
-test('tapping a face opens a new conversation with that wind; a recent one opens through session/open', async () => {
-  const f = await boot();
+// 132 (com 133 a l'Android): tocar una cara repren el fil més nou del vent, o el seu xat de sempre; no en crea cap.
+test('tapping a face resumes that wind’s newest thread, or its usual chat; a recent one opens through session/open', async () => {
+  const f = await boot({ api: r => r.url === '/api/winds' ? { ok: true, status: 200, json: async () => ({ winds: [...winds, { id: 'mestral', name: 'Mestral', color: '#7BBF6A', style: 'pso' }] }) } : null });
   await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();
   await settle();
-  assert.deepEqual(f.requests.filter(r => r.url === '/api/winds/sessions' && r.method === 'POST').map(r => r.body), [{ wind: 'xaloc' }]);
+  assert.ok(!f.requests.some(r => r.url === '/api/winds/sessions' && r.method === 'POST'), 'no new conversation');
+  assert.deepEqual(f.requests.find(r => r.url === '/api/winds/session/open').body, { wind: 'xaloc', name: 'company-xaloc-s2' });
   assert.ok(f.page.querySelector('.vw-messages'), 'a thread is open');
   assert.match(f.page.querySelector('.vw-top').textContent, /Xaloc/);
+  assert.match(f.page.querySelector('.vw-messages').textContent, /Hi ha jazz al Born/);
+
+  await byText(f.nav, 'button', 'New conversation').click();
+  await settle();
+  await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Mestral').click();
+  await settle();
+  assert.ok(f.requests.some(r => r.url === '/api/winds/chat?wind=mestral'), 'a wind with no thread opens its usual chat');
+  assert.ok(!f.requests.some(r => r.url === '/api/winds/sessions' && r.method === 'POST'), 'still no new conversation');
+  assert.match(f.page.querySelector('.vw-top').textContent, /Mestral/);
 
   await byText(f.nav, 'button', 'New conversation').click();
   await settle();
@@ -1188,7 +1199,7 @@ test('switching chats closes the side pane without counting it as the person clo
   assert.ok(!f.toggle() || f.toggle().hidden || f.toggle().getAttribute('aria-pressed') === 'false');
   // Tornar a Xaloc: el seu fil actual és la conversa d'abans.
   const api = f.window.api;
-  f.window.api = async (url, o) => url === '/api/winds/chat?wind=xaloc' ? { ok: true, status: 200, json: async () => ({ session: 'company-xaloc-s9', history: [] }) } : api(url, o);
+  f.window.api = async (url, o) => url === '/api/winds/chat?wind=xaloc' ? { ok: true, status: 200, json: async () => ({ session: 'company-xaloc-s2', history: [] }) } : api(url, o);
   await byText(f.nav, '.vw-nav-channel', 'Xaloc').click();
   await settle();
   assert.equal(f.toggle().getAttribute('aria-pressed'), 'false');
@@ -1519,4 +1530,124 @@ test('what the winds made lives in Work › Done; Saved no longer repeats it', a
   assert.equal(galleries.length, 1, 'Work draws it once');
   assert.ok(galleries[0].closest('.vw-feina-done'), 'inside Done');
   assert.match(f.page.querySelector('.vw-feina-done').textContent, /Club rules\.md/);
+});
+
+// 132: la fila de cares de l'inici, viva: tots els vents, a lliscar amb imant al mòbil, esvaïda només
+// on queden cares amagades, cada cara respirant al seu ritme i un punt al vent que treballa.
+const crowd = [...winds, ...['Mestral', 'Garbí', 'Llebeig', 'Ponent', 'Tramuntana', 'Migjorn'].map((name, i) => ({ id: name.toLowerCase(), name, color: '#7BBF6A', style: 'pso', squad: i % 2 ? 'daily' : 'data' }))];
+const crowdApi = r => r.url === '/api/winds' ? { ok: true, status: 200, json: async () => ({ winds: crowd }) } : null;
+const css = () => fs.readFileSync(path.join(__dirname, 'winds-workspace.css'), 'utf8');
+const mediaList = (text, query) => [...text.matchAll(new RegExp('@media\\(' + query.replace(/[()]/g, '\\$&') + '\\) ?\\{', 'g'))].map(m => { let depth = 0; for (let i = m.index + m[0].length - 1; i < text.length; i++) { if (text[i] === '{') depth++; else if (text[i] === '}' && --depth === 0) return text.slice(m.index + m[0].length, i); } return ''; });
+const mediaBlocks = (text, query) => mediaList(text, query).join('\n');
+
+test('every wind is in the start row, Gregal first, each breathing out of step with the others', async () => {
+  const f = await boot({ api: crowdApi });
+  const faces = f.page.querySelector('.vw-start-faces').querySelectorAll('.vw-start-face');
+  assert.deepEqual(faces.map(b => b.querySelector('span').textContent), ['Gregal', ...crowd.filter(w => w.id !== 'gregal').map(w => w.name)]);
+  const phases = faces.map(b => b.style['--vw-breath']);
+  assert.ok(phases.every(Boolean), 'every face has a breath phase');
+  assert.equal(new Set(phases).size, phases.length, 'no two faces breathe in step');
+  const moving = mediaBlocks(css(), 'prefers-reduced-motion:no-preference');
+  assert.match(moving, /\.vw-start-face > :first-child \{[^}]*animation:vw-face-breathe [^;]*var\(--vw-breath/, 'the breath plays only with motion allowed');
+  assert.doesNotMatch(mediaList(css(), 'prefers-reduced-motion:no-preference').reduce((rest, b) => rest.replace(b, ''), css()), /animation:vw-face-breathe/, 'no breath under reduced motion');
+});
+
+test('on a phone the start row snaps face by face and fades only on the side where faces are hidden', async () => {
+  const f = await boot({ api: crowdApi });
+  const row = f.page.querySelector('.vw-start-faces');
+  const at = left => { Object.assign(row, { scrollLeft: left, clientWidth: 350, scrollWidth: 700 }); for (const g of row.listeners.scroll || []) g({ target: row }); return row.dataset.fade; };
+  assert.equal(at(0), 'end', 'at the start, only the right edge fades');
+  assert.equal(at(120), 'start end', 'in the middle, both');
+  assert.equal(at(350), 'start', 'at the end, only the left edge');
+  Object.assign(row, { scrollLeft: 0, clientWidth: 700, scrollWidth: 700 });
+  for (const g of row.listeners.scroll || []) g({ target: row });
+  assert.equal(row.dataset.fade, '', 'every face in view: no fade');
+  const phone = mediaBlocks(css(), 'max-width:760px');
+  assert.match(phone, /\.vw-start-faces \{[^}]*scroll-snap-type:x mandatory/);
+  assert.match(phone, /\.vw-start-face \{[^}]*scroll-snap-align:start/);
+  for (const side of ['start', 'end', 'start end']) assert.match(phone, new RegExp('\\.vw-start-faces\\[data-fade="' + side + '"\\] \\{[^}]*mask-image:linear-gradient'), side);
+});
+
+test('a wind answering right now has a dot on its start face, in its colour and named for screen readers; it goes when the turn ends', async () => {
+  let finish;
+  const f = await boot({ api: r => r.url === '/api/winds/chat/stream' ? new Promise(res => { finish = () => res(stream([{ from: 'user', text: r.body.message }, { from: 'assistant', text: 'Fet' }])); }) : null });
+  f.page.querySelector('textarea').value = 'Primera';
+  const first = f.page.querySelector('.vw-composer').requestSubmit();
+  await settle();
+  await byText(f.nav, 'button', 'New conversation').click();
+  await settle();
+  const faceOf = name => byText(f.page.querySelector('.vw-start-faces'), 'button', name);
+  const dot = faceOf('Gregal').querySelector('.vw-busy-dot');
+  assert.ok(dot, 'Gregal is answering: its face has the dot');
+  assert.equal(dot.style['--c'], '#8193FF');
+  assert.equal(dot.textContent, 'Working…');
+  assert.ok(!faceOf('Xaloc').querySelector('.vw-busy-dot'), 'a quiet wind has none');
+  finish();
+  await first;
+  await settle();
+  assert.ok(!faceOf('Gregal').querySelector('.vw-busy-dot'), 'the dot goes once the turn ends');
+  assert.match(mediaBlocks(css(), 'prefers-reduced-motion:no-preference'), /\.vw-busy-dot \{[^}]*animation:/, 'the dot pulses only with motion allowed');
+});
+
+test('the busy dot speaks Catalan too', async () => {
+  let finish;
+  const f = await boot({ lang: 'ca', api: r => r.url === '/api/winds/chat/stream' ? new Promise(res => { finish = () => res(stream([{ from: 'assistant', text: 'Fet' }])); }) : null });
+  f.page.querySelector('textarea').value = 'Primera';
+  const first = f.page.querySelector('.vw-composer').requestSubmit();
+  await settle();
+  await byText(f.nav, 'button', 'Nova conversa').click();
+  await settle();
+  assert.equal(byText(f.page.querySelector('.vw-start-faces'), 'button', 'Gregal').querySelector('.vw-busy-dot').textContent, 'Treballant…');
+  finish();
+  await first;
+});
+
+test('a tapped start face flies into the chat with a view transition, and just opens without one', async () => {
+  const flights = [];
+  const f = await boot();
+  f.doc.startViewTransition = paint => { const from = f.page.querySelectorAll('.vw-start-face').find(b => b.firstChild.style.viewTransitionName === 'vw-face'); const flight = { from: from?.textContent }; flights.push(flight); paint(); flight.to = f.page.querySelector('.vw-wind-corner')?.style.viewTransitionName; return { finished: Promise.resolve() }; };
+  await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();
+  await settle();
+  assert.equal(flights.length, 1);
+  assert.match(flights[0].from, /Xaloc/, 'the tapped face leaves');
+  assert.equal(flights[0].to, 'vw-face', 'and lands on the wind in the chat header');
+  assert.equal(f.page.querySelector('.vw-wind-corner').style.viewTransitionName, '', 'the name is freed after the flight');
+
+  await byText(f.nav, 'button', 'New conversation').click();
+  await settle();
+  f.window.matchMedia = q => ({ matches: /reduce/.test(q) });
+  await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Gregal').click();
+  await settle();
+  assert.equal(flights.length, 1, 'with reduced motion there is no flight');
+  assert.match(f.page.querySelector('.vw-top').textContent, /Gregal/, 'the chat still opens');
+});
+
+// 132: El pati, a primera fila: a la barra lateral i a la de baix, amb el Racó a dins; l'inici té la seva pestanya.
+test('El pati sits in the sidebar and the bottom bar, not under «Settings & more», and the Racó is folded into it', async () => {
+  const views = [];
+  const f = await boot({ extra: { gregal: { setView: v => views.push(v) } } });
+  const more = f.nav.querySelector('details');
+  assert.ok(byText(f.nav, '.vw-nav-item', 'Playground') && !byText(more, '.vw-nav-item', 'Playground'), 'the sidebar has El pati, outside the menu');
+  assert.ok(!byText(f.nav, '.vw-nav-item', 'The winds’ corner'), 'the Racó has no row of its own');
+  const bottom = f.page.querySelector('.vw-mobile-nav');
+  assert.deepEqual(bottom.querySelectorAll('button').map(b => b.textContent), ['Home', 'Today', 'Work', 'Saved', 'Playground', 'Winds']);
+  assert.equal(byText(bottom, 'button', 'Home').dataset.selected, 'true', 'the start page has its tab, highlighted');
+  assert.equal(byText(bottom, 'button', 'Home').getAttribute('aria-current'), 'page');
+  assert.match(mediaBlocks(css(), 'max-width:760px'), /\.vw-mobile-nav \{[^}]*grid-template-columns:repeat\(6,/, 'six tabs, one column each');
+
+  await byText(bottom, 'button', 'Playground').click();
+  await settle();
+  assert.equal(byText(f.page.querySelector('.vw-mobile-nav'), 'button', 'Playground').dataset.selected, 'true');
+  assert.equal(byText(f.nav, '.vw-nav-item', 'Playground').getAttribute('aria-current'), 'page');
+  assert.ok(!f.nav.querySelector('details').open, 'the menu does not open for El pati');
+  await byText(f.page.querySelector('.vw-content'), 'button', 'The winds’ corner').click();
+  assert.deepEqual(views, ['raco'], 'the Racó opens from inside El pati');
+});
+
+test('El pati and its Racó speak Catalan too; with the Racó switched off there is no way in', async () => {
+  const f = await boot({ lang: 'ca', extra: { gregal: { setView() {} }, gregalPlugins: { viewAllowed: v => v !== 'raco' } } });
+  assert.deepEqual(f.page.querySelector('.vw-mobile-nav').querySelectorAll('button').map(b => b.textContent), ['Inici', 'Avui', 'Feina', 'Desat', 'El pati', 'Vents']);
+  await byText(f.nav, '.vw-nav-item', 'El pati').click();
+  await settle();
+  assert.ok(!byText(f.page.querySelector('.vw-content'), 'button', 'El Racó dels vents'), 'no link to a switched-off Racó');
 });
