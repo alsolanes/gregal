@@ -150,7 +150,9 @@
       scene.style.setProperty('--pati-scale', scale);
     }
     fit();
-    const ro = new ResizeObserver(() => fit());
+    // 132: el pati s'esvaeix pel costat on encara n'hi ha més, com la fila de cares de l'inici.
+    const edge = () => { scene.dataset.fade = [scroller.scrollLeft > 1 && 'start', scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 1 && 'end'].filter(Boolean).join(' '); };
+    const ro = new ResizeObserver(() => { fit(); edge(); });
     ro.observe(scene);
     // Comença mirant la plaça.
     const edges = [...zones.values()].map(z => z.x);
@@ -189,7 +191,7 @@
         c.setAttribute('aria-current', String(mid >= z.x && mid < z.x + z.w));
       }
     }
-    scroller.addEventListener('scroll', () => paintBar(), { passive: true });
+    scroller.addEventListener('scroll', () => { paintBar(); edge(); }, { passive: true });
     // La roda mou el pati de costat (si hi ha on anar).
     scroller.addEventListener('wheel', e => {
       if (scroller.scrollWidth <= scroller.clientWidth + 2) return;
