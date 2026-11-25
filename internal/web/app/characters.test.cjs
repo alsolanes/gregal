@@ -276,6 +276,30 @@ test('a minairó tints its barretina with its own colour through the cap mask, i
   assert.ok(!env.fetched.some(u => u.endsWith('.cap.webp') && !u.includes('/minairo/')));
 });
 
+test('a pelut plays the pelut clay sheets in its colour, a still one holds the still frame, and a face handed twice is played once', async () => {
+  const env = load();
+  const big = svgFace(env, 'searching', { 'data-avatar': 'pelut' });
+  env.chars.play(big.svg, { ...wind, avatar: 'pelut' });
+  await settle();
+  assert.ok(env.fetched.includes('/app/characters/pelut/searching.webp') && env.fetched.includes('/app/characters/pelut/searching.mask.webp'));
+  assert.ok(!env.fetched.some(u => u.includes('/curl/')), 'not the curl of its style');
+  const canvas = big.box.children[0];
+  assert.deepEqual([...canvas.source.pixels.slice(0, 8)], [200, 100, 0, 200, 200, 200, 200, 200], 'tinted orange where the mask is');
+  env.frame(1000);
+  assert.notEqual(lastDraw(canvas).sx, 0, 'a large pelut plays');
+  const small = svgFace(env, 'reading', { 'data-avatar': 'pelut' });
+  small.svg.setAttribute('class', 'winds-face');
+  assert.ok(env.chars.play(small.svg, { ...wind, avatar: 'pelut' }, true) === small.svg);
+  assert.ok(env.chars.play(small.svg, { ...wind, avatar: 'pelut' }) === small.svg, 'already handed: left alone');
+  await settle();
+  assert.equal(env.fetched.filter(u => u.endsWith('pelut/reading.webp')).length, 1);
+  const held = small.box.children[0];
+  assert.equal(held.tag, 'canvas');
+  env.frame(1000);
+  assert.deepEqual(lastDraw(held), { sheet: 'pelut/reading.webp', sx: manifest.moods.reading.still * SIZE, alpha: 1, op: 'source-over' });
+  assert.ok(env.chars.play(held, { ...wind, avatar: 'pelut' }) === held, 'a clay face stays as it is');
+});
+
 // 142: while a turn works, the big wind handles the prop of its work kind.
 const props = { searching: 'magnifier', reading: 'book', writing: 'pencil', working: 'laptop', thinking: 'gear', done: 'confetti' };
 
