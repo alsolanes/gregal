@@ -66,9 +66,6 @@ data class GregalPalette(
     /** Enviar: en fosc, el blau suau amb el glif fosc; en clar, el cercle de mar amb el glif blau clar. */
     val sendBg: Color get() = sea
     val sendFg: Color get() = if (dark) onSea else Color(0xFFB0BCF7)
-    /** La teva bombolla: blanc trencat en fosc, mar en clar (com el tauler). */
-    val userBubble: Color get() = if (dark) Color(0xFFE9ECF2) else Color(0xFF17323D)
-    val onUserBubble: Color get() = if (dark) Color(0xFF15181D) else Color(0xFFF2F5EF)
     /** Colors de les sèries dels gràfics: vius en tots dos temes (girar el to
      *  de l'accent donava grisos amb el mar del tema clar). */
     val chart: List<Color> get() = if (dark)
@@ -231,7 +228,7 @@ object GregalType {
     /** Capçaleres de secció en majúscules. */
     val overline = TextStyle(fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp)
     /** El cos dels missatges del fil (bombolles de l'assistent i teves). */
-    val chatBody = TextStyle(fontSize = 16.sp, lineHeight = 23.sp)
+    val chatBody = TextStyle(fontSize = 16.sp, lineHeight = 26.sp)
     /** Hores, rebuts i separadors del fil. */
     val chatMeta = TextStyle(fontSize = 12.sp, lineHeight = 16.sp)
 }
@@ -281,6 +278,10 @@ object GregalChat {
     val assistantMax = 520.dp
     /** Ample màxim de la teva bombolla: 78 %. */
     const val userWidth = 0.78f
+    /** Ample màxim d'una resposta sense bombolla: unes 70 lletres del cos del fil. */
+    val readingMax = 560.dp
+    /** L'aire entre blocs d'una resposta (paràgrafs, llistes, codi, taules): un sol ritme. */
+    val blockGap = 12.dp
     val bubblePadH = 14.dp
     val bubblePadV = 10.dp
 }
@@ -512,8 +513,6 @@ val OnSea @Composable @ReadOnlyComposable get() = LocalPal.current.onSea
 val Lime = Color(0xFFB0BCF7)
 val SendBg @Composable @ReadOnlyComposable get() = LocalPal.current.sendBg
 val SendFg @Composable @ReadOnlyComposable get() = LocalPal.current.sendFg
-val UserBubble @Composable @ReadOnlyComposable get() = LocalPal.current.userBubble
-val OnUserBubble @Composable @ReadOnlyComposable get() = LocalPal.current.onUserBubble
 
 /** El diàleg de l'app: el de Compose amb la paleta opaca ([solid]). */
 @Composable

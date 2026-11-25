@@ -526,7 +526,7 @@ private fun ChecksBlock(items: List<Pair<Boolean, List<Seg>>>, link: Color) {
                 .heightIn(min = 40.dp).padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Tick(on, link)
-                Text(text, color = if (on) Muted else Ink, fontSize = 15.sp, lineHeight = 21.sp,
+                Text(text, color = if (on) Muted else Ink, style = GregalType.chatBody,
                     textDecoration = if (on) TextDecoration.LineThrough else null)
             }
         }

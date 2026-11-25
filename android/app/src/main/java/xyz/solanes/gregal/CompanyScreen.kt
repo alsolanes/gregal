@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.text.style.TextDecoration
@@ -1283,6 +1284,11 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         // Els botons d'acció de les targetes (RichCards.kt) envien el seu text al vent.
         val cardSay: (String) -> Unit = { text -> if (!busy.contains(wind.id)) { follow.send(); vm.sendWindMessage(wind.id, text) } }
         CompositionLocalProvider(LocalCardSay provides cardSay) {
+        // Un sol lloc per «què està fent»: els punts al final del fil, amb
+        // l'acció en marxa al costat («Cercant al web…»); l'humor el porta la
+        // cara del xat. La capçalera i la franja de dalt ja no en diuen res.
+        val liveNow = live[wind.id]
+        val rows = withPendingReply(msgs, busy.contains(wind.id) || resuming.contains(wind.id))
         LazyColumn(
             Modifier.fillMaxSize().fadeUnderChatHeader(),
             state = listState,
@@ -1305,25 +1311,38 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     )
                 }
             }
-            items(msgs.size, key = { idx -> idx }, contentType = { idx -> msgs[idx].from }) { idx ->
+            items(rows.size, key = { idx -> idx }, contentType = { idx -> rows[idx].from }) { idx ->
                 // Les lambdes capturen el missatge, no la llista: cada fragment del
                 // streaming crea una llista nova i, si la capturessin, totes les
                 // bombolles visibles es tornarien a compondre, no només l'última.
-                val m = msgs[idx]
+                val m = rows[idx]
                 // Aire segons bàndol: juntes les del mateix, separades en canviar.
-                val gap = if (idx > 0 && m.from != msgs[idx - 1].from) 16.dp else 4.dp
+                val firstOfRun = idx == 0 || m.from != rows[idx - 1].from
+                val gap = if (idx > 0 && firstOfRun) 16.dp else 4.dp
+                // Mentre la resposta és en directe la fila només creix: el primer fotograma del text
+                // (encara buit, que es revela a poc a poc) era més baix que els punts i el fil hi saltava.
+                var tallest by remember { mutableIntStateOf(0) }
                 if (m.kind == "memory") {
                     val facts = remember(m.text) { m.text.lines().map { it.trim() }.filter { it.isNotEmpty() } }
                     MemoryNotice(lang, facts) { vm.forgetLearned(wind.id, facts) }
                 } else if (m.kind == "doc" && m.doc != null) {
                     DocCard(m.doc, lang) { vm.openDoc(m.doc) }
-                } else Column(Modifier.padding(top = gap)) {
+                } else Column(Modifier.padding(top = gap).testTag("chat-row").then(if (!m.streaming) Modifier else Modifier
+                    .heightIn(min = with(androidx.compose.ui.platform.LocalDensity.current) { tallest.toDp() })
+                    .onSizeChanged { tallest = maxOf(tallest, it.height) })) {
                     if (idx == newFrom) ThreadDivider(threadCopy(lang, "new"), accent = true)
                     if (m.kind == "guest" && m.speakerName.isNotBlank()) GuestJoinsLine(lang, m.speakerName)
                     val cap = rememberBubbleCapture()
+                    if (m.from == "pet" && firstOfRun) WindByline(m.speakerName.ifBlank { wind.name }, accent, modifier = Modifier.padding(start = 6.dp))
                     BubbleIn("dm#$idx", animate = idx >= liveFrom, mine = m.from == "user") {
-                        Box(if (m.from != "user") cap.modifier else Modifier) {
-                        WindBubble(m, accent, lang = lang, tint = wash,
+                        // Abans del primer fragment, els punts i què fa, a la mateixa fila on creixerà el text.
+                        if (m.streaming && m.text.isBlank()) Column {
+                            WindTypingBubble(lang, wind, accent,
+                                label = liveNow?.let { l -> windVisibleWork(lang, l) ?: windStallNote(lang, l, quietNow(true)) })
+                            // Tempesta: què fa cada agent mentre treballen.
+                            liveNow?.tempesta?.let { TempestaPanel(lang, it) }
+                        } else Box(if (m.from != "user") cap.modifier else Modifier) {
+                        WindBubble(m, accent, lang = lang,
                             onCopy = {
                                 // Prémer llarg una resposta obre «Comparteix» (Share.kt); la teva, la copia.
                                 if (m.from != "user" && !m.streaming) shareTarget = ShareTarget(m.text, wind.name, cap.shot)
@@ -1360,18 +1379,6 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             if (turnActs.isNotEmpty() && msgs.lastOrNull()?.from != "user") item(key = "turn-actions") {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     for (a in turnActs) TurnActionCard(lang, a, accent) { vm.undoTurnAction(wind.id, a) }
-                }
-            }
-            // Un sol lloc per «què està fent»: els punts al final del fil, amb
-            // l'acció en marxa al costat («Cercant al web…»); l'humor el porta la
-            // cara del xat. La capçalera i la franja de dalt ja no en diuen res.
-            val liveNow = live[wind.id]
-            if ((busy.contains(wind.id) || resuming.contains(wind.id)) && msgs.lastOrNull()?.streaming != true) {
-                item(key = "typing") {
-                    WindTypingBubble(lang, wind, accent,
-                        label = liveNow?.let { l -> windVisibleWork(lang, l) ?: windStallNote(lang, l, quietNow(true)) })
-                    // Tempesta: què fa cada agent mentre treballen.
-                    liveNow?.tempesta?.let { TempestaPanel(lang, it) }
                 }
             }
             chatReserve(follow)
@@ -1978,9 +1985,7 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
     /** L'hora (i l'altaveu) només una vegada per ratxa: a l'última. */
     showMeta: Boolean = true,
     /** Per desar la resposta des del xip de proposta del vent; sense, el xip no surt. */
-    vm: GregalViewModel? = null,
-    /** Fons de la conversa d'un vent: les seves bombolles s'hi tenyeixen del seu color. */
-    tint: Color? = null) {
+    vm: GregalViewModel? = null) {
     // El bloc ```choices són botons de resposta ràpida, no text de la bombolla.
     val m = remember(raw) { if (raw.from == "user") raw else raw.copy(text = withoutChoices(raw.text)) }
     val mine = m.from == "user"
@@ -2010,11 +2015,10 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
         return
     }
     val displayName = speakerName.ifBlank { speaker?.name.orEmpty() }
-    // Bombolla pròpia plena amb l'accent de l'app: la grisa (Ink a l'11%) es
-    // confonia amb les dels vents, tenyides i fosques també. Ara el que
-    // escrius tu es veu d'una ullada, com a qualsevol missatgeria.
-    val ownBackground = UserBubble
-    val ownText = OnUserBubble
+    // La teva, una bombolla discreta: les respostes dels vents ja no en porten
+    // i no s'hi pot confondre (com a Claude o ChatGPT).
+    val ownBackground = SuperficieAlta
+    val ownText = Ink
     // L'hora arriba del backend en segons Unix; els missatges creats en aquesta
     // sessió (enviats per l'app) són en millis. Unificat a millis una sola volta.
     val tsMillis = remember(m.ts) { if (m.ts > 10_000_000_000L) m.ts else m.ts * 1000L }
@@ -2094,13 +2098,13 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
             val dark = LocalPal.current.dark
             Surface(
                 shape = if (tail) GregalShape.bubbleTail(mine = false) else GregalShape.bubble,
-                color = tint?.let { windBubbleColor(accent, it) } ?: if (reading) Color.Transparent else SuperficieAlta,
+                color = if (reading) Color.Transparent else SuperficieAlta,
                 shadowElevation = 0.dp,
                 // Prémer llarg copia la resposta en text pla (sense marques).
                 // Sense animateContentSize en directe: cada línia nova rellançava
                 // l'animació i retallava el text per baix, i amb el seguiment del
                 // final tota la resposta pujava a esgraons a 30 Hz (el tremolor).
-                modifier = (if (reading) Modifier.fillMaxWidth().widthIn(max = 640.dp) else Modifier)
+                modifier = (if (reading) Modifier.fillMaxWidth().widthIn(max = GregalChat.readingMax) else Modifier)
                     .combinedClickable(
                     onClick = {}, onLongClick = { onCopy?.invoke() },
                 ),
@@ -2117,12 +2121,8 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                 Column(
                     if (reading) Modifier.padding(horizontal = 6.dp, vertical = 6.dp)
                     else Modifier.padding(horizontal = GregalChat.bubblePadH, vertical = GregalChat.bubblePadV),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (displayName.isNotBlank()) {
-                        Text(displayName, color = link, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.then(if (onSpeakerClick != null) Modifier
-                                .heightIn(min = 32.dp).clickable(onClick = onSpeakerClick) else Modifier))
-                    }
+                    verticalArrangement = Arrangement.spacedBy(GregalChat.blockGap)) {
+                    if (displayName.isNotBlank()) WindByline(displayName, accent, speaker, onSpeakerClick)
                     // En directe el markdown parcial es trencaria: text pla net
                     // (sense marques crues) fins al done. El cursor que
                     // pampallugueja diu «ho està escrivint ara».
@@ -2132,8 +2132,8 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                     if (m.streaming && shownText.isBlank()) TypingCursor(accent)
                     run { for (b in blocks) {
                         when (b) {
-                            is Rich.Inline -> {
-                                val rich = remember(b, link, codeBg) { renderSegs(b.segs, codeBg, link = link) }
+                            // Cada paràgraf és un bloc: una línia en blanc sencera feia més aire que entre una llista i el codi.
+                            is Rich.Inline -> for (rich in remember(b, link, codeBg) { mdParagraphs(b.segs).map { renderSegs(it, codeBg, link = link) } }) {
                                 ClickableText(
                                     rich,
                                     style = MaterialTheme.typography.bodyMedium.merge(GregalType.chatBody).copy(color = Tinta),
@@ -2147,13 +2147,14 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                             is Rich.Code -> if (WebPreviewLogic.kind(b.lang, b.code).isNotEmpty()) CodePreviewBlock(WebPreviewLogic.kind(b.lang, b.code), b.code, lang) else Row(Modifier.horizontalScroll(rememberScrollState())) {
                                 Text(
                                     b.code,
-                                    fontSize = 12.sp,
+                                    fontSize = 13.sp,
+                                    lineHeight = 20.sp,
                                     fontFamily = FontFamily.Monospace,
                                     softWrap = false,
                                     color = Ink,
                                     modifier = Modifier
-                                        .background(CodeDark, RoundedCornerShape(8.dp))
-                                        .padding(8.dp),
+                                        .background(CodeDark, GregalShape.xs)
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
                                 )
                             }
                             is Rich.Table -> MdTable(b.headers, b.rows, lang)
@@ -2563,6 +2564,15 @@ internal fun BoxScope.LatestPill(lang: String, onClick: () -> Unit) {
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp))
     }
 }
+
+/**
+ * El fil amb la resposta que ve: mentre el vent treballa i encara no escriu, una
+ * fila en directe buida al lloc on creixerà el text. Els punts, el text en directe
+ * i la resposta acabada són així la mateixa fila (la clau és l'índex) i la llista
+ * no en canvia cap per una altra, que és el salt que es veia en arribar el text.
+ */
+internal fun withPendingReply(msgs: List<GregalViewModel.PetMsg>, working: Boolean): List<GregalViewModel.PetMsg> =
+    if (working && msgs.lastOrNull()?.streaming != true) msgs + GregalViewModel.PetMsg("pet", "", streaming = true) else msgs
 
 /**
  * Claus per fila de xat. La posició no val: quan el fil es torna a omplir
