@@ -86,7 +86,7 @@ async function boot({ lang = 'en', api, storage = {}, css = () => '', extra = {}
   const doc = { createElement: t => new Element(t, doc), createElementNS: (_, t) => new Element(t, doc), documentElement: { lang }, querySelector: () => null,
     addEventListener(k, f) { (events[k] ||= []).push(f); }, removeEventListener(k, f) { events[k] = (events[k] || []).filter(x => x !== f); }, dispatchEvent(e) { for (const f of events[e.type] || []) f(e); } };
   doc.root = new Element('root', doc);
-  for (const id of ['ventsPage', 'windsListCard', 'side', 'workbench']) { const n = new Element('div', doc); n.setAttribute('id', id); doc.root.append(n); }
+  for (const id of ['ventsPage', 'windsListCard', 'side', 'workbench', 'racoPage']) { const n = new Element('div', doc); n.setAttribute('id', id); doc.root.append(n); }
   // Com a index.html: la barra dels vents és dins la part que es desplaça de #side.
   const scroller = new Element('div', doc), sideNav = new Element('div', doc);
   scroller.className = 'side-scroll'; sideNav.setAttribute('id', 'windContextNav');
@@ -1696,4 +1696,15 @@ test('El pati and its Racó speak Catalan too; with the Racó switched off there
   await byText(f.nav, '.vw-nav-item', 'El pati').click();
   await settle();
   assert.ok(!byText(f.page.querySelector('.vw-content'), 'button', 'El Racó dels vents'), 'no link to a switched-off Racó');
+});
+
+test('on the Racó page the sidebar marks El pati, the way into it, and nothing else', async () => {
+  let view = 'vents';
+  const f = await boot({ extra: { gregal: { setView: v => { view = v; }, viewActual: () => view } } });
+  await byText(f.nav, '.vw-nav-item', 'Work').click(); await settle();
+  view = 'raco'; f.mutate(f.doc.getElementById('racoPage'), 'hidden');
+  assert.equal(byText(f.nav, '.vw-nav-item', 'Playground').getAttribute('aria-current'), 'page');
+  assert.equal(byText(f.nav, '.vw-nav-item', 'Work').getAttribute('aria-current'), 'false');
+  view = 'vents'; f.mutate(f.doc.getElementById('racoPage'), 'hidden');
+  assert.equal(byText(f.nav, '.vw-nav-item', 'Work').getAttribute('aria-current'), 'page', 'back on Vents, its own view again');
 });

@@ -204,3 +204,17 @@ test('una proposta de desar trencada no ensenya res', () => {
 test('un títol amb $& surt tal qual al xip de desar', () => {
   assert.ok(md.render('```gregal-keep {"title":"Preu $& més","kind":"tip"}```').includes('Save «Preu $&amp; més»?'));
 });
+
+test('el paginador de les comparacions aguanta una fila sense fletxes (el resum d\'Avui)', () => {
+  const on = {};
+  const ctx = { document: { addEventListener: (k, f) => { on[k] = f; } } };
+  require('node:vm').runInNewContext(require('node:fs').readFileSync(require('node:path').join(__dirname, 'md.js'), 'utf8'), ctx);
+  const dot = { setAttribute(k, v) { this[k] = v; }, removeAttribute() {} };
+  const kid = { getBoundingClientRect: () => ({ left: 0 }) };
+  const car = { dataset: {}, querySelectorAll: () => [dot] };
+  const track = { parentNode: car, children: [kid], classList: { contains: c => c === 'gx-track' }, getBoundingClientRect: () => ({ left: 0 }), scrollLeft: 0, scrollWidth: 300, clientWidth: 300 };
+  car.querySelector = s => (s === '.gx-track' ? track : null);
+  assert.doesNotThrow(() => on.scroll({ target: track }));
+  assert.strictEqual(dot['aria-current'], 'true', 'the dot still follows the scroll');
+  assert.doesNotThrow(() => on.pointerover({ target: { closest: () => car } }));
+});

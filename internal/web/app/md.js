@@ -402,8 +402,10 @@
       let at = 0;
       kids.forEach((k, i) => { if (Math.abs(k.getBoundingClientRect().left - left) < Math.abs(kids[at].getBoundingClientRect().left - left)) at = i; });
       car.querySelectorAll("[data-gx-dot]").forEach((d, i) => { if (i === at) d.setAttribute("aria-current", "true"); else d.removeAttribute("aria-current"); });
-      car.querySelector(".gx-prev").disabled = track.scrollLeft < 4;
-      car.querySelector(".gx-next").disabled = track.scrollLeft > track.scrollWidth - track.clientWidth - 4;
+      // Una fila reutilitzada (el resum d'Avui) pot no tenir fletxes.
+      const prev = car.querySelector(".gx-prev"), next = car.querySelector(".gx-next");
+      if (prev) prev.disabled = track.scrollLeft < 4;
+      if (next) next.disabled = track.scrollLeft > track.scrollWidth - track.clientWidth - 4;
     };
     document.addEventListener("click", (e) => {
       const b = e.target.closest && e.target.closest("[data-gx-step], [data-gx-dot]");

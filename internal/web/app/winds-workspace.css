@@ -782,8 +782,10 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 @media(max-width:600px) {
   .vw-glance-row { grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:minmax(78%, 1fr); margin:0 -16px; padding:0 16px 4px; overflow-x:auto; scroll-snap-type:x mandatory; scroll-padding:0 16px; scrollbar-width:none; }
   .vw-glance-card { scroll-snap-align:start; }
-  /* La targeta del costat es fon a la vora: n'hi ha més si llisques. */
-  .vw-glance-row { mask-image:linear-gradient(to right, black calc(100% - 40px), transparent); }
+  /* La targeta del costat es fon a la vora on n'hi ha més si llisques (data-fade, del JS). */
+  .vw-glance-row[data-fade="end"] { mask-image:linear-gradient(to right, black calc(100% - 40px), transparent); }
+  .vw-glance-row[data-fade="start"] { mask-image:linear-gradient(to left, black calc(100% - 40px), transparent); }
+  .vw-glance-row[data-fade="start end"] { mask-image:linear-gradient(to right, transparent, black 40px, black calc(100% - 40px), transparent); }
 }
 /* Viu: les targetes entren una darrere l'altra, el sol gira, les gotes cauen i els núvols passen. */
 @keyframes vw-glance-in { from { opacity:0; transform:translateY(10px) scale(.97); } to { opacity:1; transform:none; } }

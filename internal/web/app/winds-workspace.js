@@ -76,6 +76,8 @@
   let savedW=0;try{savedW=+localStorage.getItem(PANE_KEY);}catch{}if(savedW){paneW=savedW;$('workbench').style.setProperty('--work-pane-w',savedW+'px');}
   // El tema (prefs.js, palette.js, brands.js) és el data-theme de l'arrel: en canviar, el Permet de les targetes obertes es repinta
   // al seu lloc (refer-les perdria el que s'hi està escrivint).
+  // El Racó (una pàgina de l'app) s'obre des del pati: en obrir-lo o tancar-lo, la barra marca on ets.
+  const racoPage=$('racoPage');if(racoPage)new MutationObserver(renderNav).observe(racoPage,{attributes:true,attributeFilter:['hidden']});
   new MutationObserver(()=>{for(const c of page.querySelectorAll('.vw-ask-wind'))askColour(c,state.winds.find(w=>w.id===c.dataset.wind));}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
  }
  // On phones the Winds bar replaces the app rail; the menu opens both together as one drawer.
@@ -115,7 +117,9 @@
   top.append(iconBtn('plus',t('Nova conversa','New conversation'),newChat,'vw-new'));
   const search=btn('',()=>root.gregalPalette?.open?.(),'vw-nav-item vw-nav-icon vw-nav-search');search.append(navIcon('search'),el('span','',t('Cerca','Search')),el('kbd','',/Mac/.test(navigator.platform)?'⌘K':'Ctrl K'));top.append(search);
   nav.replaceChildren(top);
-  const navRow=([id,a,b],views=[id])=>{const n=btn('',()=>route(id),'vw-nav-item vw-nav-icon');n.append(navIcon(id),el('span','',t(a,b)));n.setAttribute('aria-current',views.includes(state.view)?'page':'false');return n;};
+  // Al Racó (una pàgina de l'app, no una vista dels vents) hi has entrat pel pati: és la fila marcada.
+  const here=root.gregal?.viewActual?.()==='raco'?'pati':state.view;
+  const navRow=([id,a,b],views=[id])=>{const n=btn('',()=>route(id),'vw-nav-item vw-nav-icon');n.append(navIcon(id),el('span','',t(a,b)));n.setAttribute('aria-current',views.includes(here)?'page':'false');return n;};
   nav.append(navRow(['today','Avui','Today']),navRow(['tasks','Feina','Work'],['tasks','task','fes','activitat']),navRow(['saved','Desat','Saved'],['saved','notes']),navRow(['pati','El pati','Playground']));
   // Els vents: Gregal primer i tots els especialistes (abans només cinc).
   section(t('Vents','Winds'));
@@ -129,8 +133,8 @@
   for(const th of state.solo||[])add(byId(th.wind));
   for(const c of state.chats||[])for(const id of c.members||[])add(byId(id));
   for(const w of crew())add(w);
-  for(const w of [gregal,...recent].filter(Boolean)){const n=btn('',()=>talkTo(w).catch(fail),'vw-nav-item vw-nav-channel');n.append(face(w,null,20),el('span','',w.name),...tag(w));newsDot(n,w);const role=roleName(w);if(role)n.title=w.name+' · '+role;n.setAttribute('aria-current',state.view==='chat'&&state.active?.wind===w.id?'page':'false');nav.append(n);}
-  const all=btn('',()=>route('crew'),'vw-nav-item vw-nav-icon vw-nav-more');all.append(navIcon('crew'),el('span','',t('Tots els vents','All winds')),el('small','vw-nav-count',String(state.winds.length)));all.setAttribute('aria-current',state.view==='crew'?'page':'false');nav.append(all);
+  for(const w of [gregal,...recent].filter(Boolean)){const n=btn('',()=>talkTo(w).catch(fail),'vw-nav-item vw-nav-channel');n.append(face(w,null,20),el('span','',w.name),...tag(w));newsDot(n,w);const role=roleName(w);if(role)n.title=w.name+' · '+role;n.setAttribute('aria-current',here==='chat'&&state.active?.wind===w.id?'page':'false');nav.append(n);}
+  const all=btn('',()=>route('crew'),'vw-nav-item vw-nav-icon vw-nav-more');all.append(navIcon('crew'),el('span','',t('Tots els vents','All winds')),el('small','vw-nav-count',String(state.winds.length)));all.setAttribute('aria-current',here==='crew'?'page':'false');nav.append(all);
   section(t('Converses','Conversations'),iconOnly('plus',t('Nova conversa','New conversation'),newChat,'vw-small'));
   renderThreads(nav);
   if(!state.chats.some(c=>!c.workspace)&&!(state.solo||[]).length)nav.append(el('p','vw-nav-empty',t('Aquí comencen les bones idees.','Good ideas start here.')));
@@ -148,7 +152,7 @@
   // La resta d'espais, plegats en una sola entrada al final (s'obre sola si n'hi ha un d'obert).
   const settingsViews=['apres','rules','library','wiki','memoria','publicacions'];
   const more=el('details','vw-more'),moreSum=el('summary','vw-nav-item vw-nav-icon');moreSum.append(navIcon('settings'),el('span','',t('Configuració i més','Settings & more')));more.append(moreSum);
-  const subRow=([id,a,b])=>{const n=btn('',()=>route(id),'vw-nav-item vw-nav-icon');n.append(navIcon(id),el('span','',t(a,b)));n.setAttribute('aria-current',state.view===id?'page':'false');return n;};
+  const subRow=([id,a,b])=>{const n=btn('',()=>route(id),'vw-nav-item vw-nav-icon');n.append(navIcon(id),el('span','',t(a,b)));n.setAttribute('aria-current',here===id?'page':'false');return n;};
   const shellRow=(view,a,b,ic)=>{const n=btn('',()=>root.gregal.setView(view),'vw-nav-item vw-nav-icon');n.dataset.keepView='1';n.append(navIcon(ic),el('span','',t(a,b)));return n;};
   const pc=btn('',()=>openComputer(),'vw-nav-item vw-nav-icon');pc.dataset.keepView='1';pc.append(navIcon('computer'),el('span','',computerName()));
   const prefs=btn('',()=>root.document.getElementById('prefsBtn')?.click(),'vw-nav-item vw-nav-icon');prefs.dataset.keepView='1';prefs.append(navIcon('settings'),el('span','',t('Preferències','Preferences')));

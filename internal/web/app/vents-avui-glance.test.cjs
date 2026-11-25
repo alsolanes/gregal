@@ -16,7 +16,7 @@ function fakeDocument() {
     replaceChildren(...c) { this.children = c; },
     setAttribute(k, v) { this.attrs[k] = String(v); },
     getAttribute(k) { return this.attrs[k]; },
-    addEventListener() {},
+    addEventListener(k, f) { (this.on ||= {})[k] = f; },
     focus() { this.focused = true; },
   });
   return { createElement: node };
@@ -28,6 +28,7 @@ const buttons = (n, label) => all(n, x => x.tagName === 'BUTTON' && (x.textConte
 
 global.window = {};
 let reduced = true;
+global.ResizeObserver = class { observe() {} };
 global.matchMedia = () => ({ matches: reduced });
 
 async function withLang(lang, fn) {
@@ -254,7 +255,26 @@ test('les targetes buides no fan taca grisa, i al mòbil la fila diu que n’hi 
   assert.match(rule('.vw-glance-invite::before'), /display:none/, 'an invitation has no glow');
   assert.doesNotMatch(rule('.vw-glance-cal'), /--accent/);
   const mobile = [...css.matchAll(/@media\(max-width:600px\) \{([\s\S]*?)\r?\n\}/g)].map(m => m[1]).find(b => b.includes('.vw-glance-row')) || '';
-  assert.match(mobile, /\.vw-glance-row \{[^}]*mask-image:linear-gradient\(to right/, 'the next card fades at the edge');
+  // 153: the fade follows data-fade (set on scroll), so the last card is not faded.
+  assert.doesNotMatch(mobile, /\.vw-glance-row \{[^}]*mask-image/, 'no fade while nothing is hidden');
+  assert.match(mobile, /\.vw-glance-row\[data-fade="end"\] \{[^}]*mask-image:linear-gradient\(to right/, 'the next card fades at the edge');
+  assert.match(mobile, /\.vw-glance-row\[data-fade="start"\] \{[^}]*mask-image/);
+  assert.match(mobile, /\.vw-glance-row\[data-fade="start end"\] \{[^}]*mask-image/);
+});
+
+test('al mòbil la fila de la ullada només s’esvaeix pel costat on queden targetes, no a l’última', async () => {
+  await withLang('ca', m => {
+    const box = document.createElement('div');
+    m.renderGlance(box, { glance, settings, now });
+    const row = byClass(box, 'vw-glance-row')[0];
+    Object.assign(row, { clientWidth: 300, scrollWidth: 900, scrollLeft: 0 });
+    row.on.scroll();
+    assert.equal(row.dataset.fade, 'end');
+    row.scrollLeft = 300; row.on.scroll();
+    assert.equal(row.dataset.fade, 'start end');
+    row.scrollLeft = 600; row.on.scroll();
+    assert.equal(row.dataset.fade, 'start', 'at the last card nothing is left to the right');
+  });
 });
 
 test('els comptes enrere corren sols, però no amb moviment reduït', async () => {
