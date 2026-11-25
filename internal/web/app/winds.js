@@ -1000,7 +1000,8 @@
     return select(parent, 'windBarretina', tr('winds.barretina', 'Barretina'), [['', tr('winds.barretinaAuto', 'Automàtica')], ['v', tr('winds.barretinaV', 'Vermella')], ['m', tr('winds.barretinaM', 'Morada')], ['f', tr('winds.barretinaF', 'Verd fosc')], ['o', tr('winds.barretinaO', 'Mostassa')], ['b', tr('winds.barretinaB', 'Blau marí')], ['g', tr('winds.barretinaG', 'Granat')]], barretines.some(([letter]) => letter === String(w.style || '')[3]) ? w.style[3] : '');
   }
   // A sample of one pack drawn as `w`, whatever pack the account's theme uses.
-  // The clay packs show their 3D figure (characters.js), still and without a trade kit.
+  // The clay packs show their 3D figure (characters.js), still and without a trade kit;
+  // face() already hands the pelut to the player.
   function packFace(pack, w) {
     const was = theme; theme = 'free';
     try {

@@ -28,10 +28,15 @@
     }
     return pixels;
   }
-  // One tinted sheet per silhouette, mood and colours, shared by every face.
-  function sheet(letter, mood, color, cap) {
-    const key = letter + '/' + mood + '/' + color + cap;
+  // One tinted sheet per silhouette, mood and colours, shared by every face; a
+  // `still` one is only the still frame (155: a 256 px sheet is megabytes once
+  // tinted). The faces keep theirs: the cache forgets the oldest past `kept`,
+  // so dragging the editor's colour picker does not pile up sheets.
+  const kept = 24;
+  function sheet(letter, mood, color, cap, still = false) {
+    const key = letter + '/' + mood + '/' + color + cap + (still ? '/still' : '');
     if (!sheets.has(key)) {
+      for (const old of sheets.keys()) { if (sheets.size < kept) break; sheets.delete(old); ready.delete(old); }
       manifest ||= root.fetch(base + 'manifest.json').then(r => { if (!r.ok) throw new Error('characters-manifest'); return r.json(); });
       sheets.set(key, manifest.then(async m => {
         const spec = m.moods[mood], silhouette = Object.keys(m.silhouettes).find(k => m.silhouettes[k] === letter);
@@ -40,16 +45,18 @@
         const masks = [[m.mask, color], ...(m.caps || []).includes(silhouette) ? [[m.cap, cap]] : []];
         const [body, ...shapes] = await Promise.all([image(file(m.files)), ...masks.map(([pattern]) => image(file(pattern)))]);
         // A silhouette can have frames of its own size (155: the pelut's fur at 256 px).
-        const size = m.sizes?.[silhouette]?.[0] || m.size, width = spec.frames * size, out = canvas(width, size), ctx = out.getContext('2d');
-        ctx.drawImage(body, 0, 0);
+        const size = m.sizes?.[silhouette]?.[0] || m.size, full = spec.frames * size, width = still ? size : full;
+        const from = still ? -(spec.still || 0) * size : 0, out = canvas(width, size), ctx = out.getContext('2d');
+        ctx.drawImage(body, from, 0);
         const pixels = ctx.getImageData(0, 0, width, size);
         shapes.forEach((shape, i) => {
           const up = canvas(width, size).getContext('2d'), n = parseInt(masks[i][1].slice(1), 16);
-          up.drawImage(shape, 0, 0, width, size);
+          up.drawImage(shape, from, 0, full, size);
           tint(pixels.data, up.getImageData(0, 0, width, size).data, [n >> 16 & 255, n >> 8 & 255, n & 255]);
         });
         ctx.putImageData(pixels, 0, 0);
-        const done = { canvas: out, size, fps: m.fps, frames: spec.frames, loop: spec.loop, still: spec.still || 0 };
+        const done = still ? { canvas: out, size, fps: m.fps, frames: 1, loop: false, still: 0 }
+          : { canvas: out, size, fps: m.fps, frames: spec.frames, loop: spec.loop, still: spec.still || 0 };
         ready.set(key, done);
         return done;
       }));
@@ -66,7 +73,7 @@
   function draw(p, now) {
     const t = p.from && !reduced() ? Math.min(1, (now - p.fadeAt) / fade) : 1;
     if (t >= 1) p.from = null;
-    const f = p.still ? p.now.still : frameOf(p.now, p.at, now), same = p.now.canvas === p.drawn?.canvas && f === p.drawn.f && t === p.drawn.t;
+    const f = frameOf(p.now, p.at, now), same = p.now.canvas === p.drawn?.canvas && f === p.drawn.f && t === p.drawn.t;
     if (same) return;
     p.drawn = { canvas: p.now.canvas, f, t };
     const ctx = p.el.getContext('2d'), size = p.now.size;
@@ -103,8 +110,10 @@
     for (const name of ['class', 'data-wind', 'data-mood', 'aria-hidden', 'role', 'aria-label']) if (p.svg.getAttribute(name) !== null) c.setAttribute(name, p.svg.getAttribute(name));
     c.setAttribute('class', c.getAttribute('class') + ' winds-clay');
     p.now = s; p.at = at; p.visible = true;
-    if (from && from.sheet !== s && !reduced()) Object.assign(p, { from: from.sheet, fromAt: from.at, fadeAt: clock() });
-    players.set(c, p); running.add(p); seen?.observe(c);
+    if (from && from.sheet !== s && !reduced() && !p.still) Object.assign(p, { from: from.sheet, fromAt: from.at, fadeAt: clock() });
+    // A still face is drawn once (and again on a mood change): no animation loop for it.
+    players.set(c, p);
+    if (!p.still) { running.add(p); seen?.observe(c); }
     remember(p);
     draw(p, clock());
     schedule();
@@ -113,7 +122,7 @@
   // The sheet each wind showed last in each spot (the chat corner, a start
   // face): a face drawn again there goes on from it instead of popping.
   const last = new Map();
-  function remember(p) { last.set(p.spot, { look: p.letter + p.color + p.cap, sheet: p.now, mood: p.mood, at: p.at }); }
+  function remember(p) { last.set(p.spot, { look: p.letter + p.color + p.cap + p.still, sheet: p.now, mood: p.mood, at: p.at }); }
   // Takes the face winds.js drew for a large spot and returns what to put on
   // the page: the clay when a sheet for it is already here, or that face,
   // swapped in place for the clay once its sheet loads. A `still` face holds
@@ -129,12 +138,12 @@
     const letter = avatar || ('ons'.includes(String(w.style || '')[2]) ? w.style[2] : 'o'), color = /^#[\da-f]{6}$/i.test(w.color || '') ? w.color : '#F5B45D';
     // The minairó's barretina colour, as winds.js picked it for this wind.
     const cap = svg.getAttribute('data-barretina') || '';
-    const p = { w, svg, letter, color, cap, still, mood: svg.getAttribute('data-mood') || 'idle', spot: w.id + '|' + svg.getAttribute('class') }, key = letter + '/' + p.mood + '/' + color + cap;
-    const before = w.id && last.get(p.spot), same = before?.look === letter + color + cap ? before : null;
+    const p = { w, svg, letter, color, cap, still, mood: svg.getAttribute('data-mood') || 'idle', spot: w.id + '|' + svg.getAttribute('class') }, key = letter + '/' + p.mood + '/' + color + cap + (still ? '/still' : '');
+    const before = w.id && last.get(p.spot), same = before?.look === letter + color + cap + still ? before : null;
     if (ready.has(key)) return show(p, ready.get(key), clock(), same);
     const mood = p.mood;
     if (same) { p.mood = same.mood; return change(show(p, same.sheet, same.at), mood); }
-    sheet(letter, mood, color, cap).then(s => {
+    sheet(letter, mood, color, cap, still).then(s => {
       if (!svg.isConnected) return;
       const c = show(p, s);
       svg.replaceWith(c);
@@ -152,9 +161,9 @@
     for (const name of ['data-mood', 'aria-hidden', 'role', 'aria-label']) {
       if (p.svg.getAttribute(name) === null) el.removeAttribute(name); else el.setAttribute(name, p.svg.getAttribute(name));
     }
-    sheet(p.letter, mood, p.color, p.cap).then(s => {
+    sheet(p.letter, mood, p.color, p.cap, p.still).then(s => {
       if (p.mood !== mood) return;
-      if (!reduced()) { p.from = p.now; p.fromAt = p.at; p.fadeAt = clock(); }
+      if (!reduced() && !p.still) { p.from = p.now; p.fromAt = p.at; p.fadeAt = clock(); }
       p.now = s; p.at = clock();
       remember(p);
       draw(p, p.at);

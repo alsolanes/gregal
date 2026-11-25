@@ -88,6 +88,7 @@ function load({ files = null, reduced = false, winds = {} } = {}) {
     // One animation frame `ms` later.
     frame(ms = 16) { now += ms; for (const f of frames.splice(0)) f(now); },
     see(target, visible) { observer.f([{ target, isIntersecting: visible }]); },
+    watched: target => observer.targets.includes(target),
   };
 }
 // The fake images load on setImmediate; a few turns let the manifest, both images and the tint finish.
@@ -299,8 +300,27 @@ test('a pelut plays the pelut clay sheets in its colour, a still one holds the s
   assert.equal(held.tag, 'canvas');
   env.frame(1000);
   assert.equal(held.width, 256, 'the pelut has frames of its own size');
-  assert.deepEqual(lastDraw(held), { sheet: 'pelut/reading.webp', sx: manifest.moods.reading.still * 256, alpha: 1, op: 'source-over' });
+  assert.equal(held.source.width, 256, 'a still face tints only its still frame, not the whole sheet');
+  assert.deepEqual(lastDraw(held), { sheet: 'pelut/reading.webp', sx: 0, alpha: 1, op: 'source-over' });
+  assert.ok(env.watched(canvas) && !env.watched(held), 'the large one animates while on screen; the still one is drawn once');
   assert.ok(env.chars.play(held, { ...wind, avatar: 'pelut' }) === held, 'a clay face stays as it is');
+});
+
+test('the tinted sheets kept for later are bounded: many colours do not pile up, the oldest is tinted again', async () => {
+  const env = load();
+  const colours = Array.from({ length: 30 }, (_, i) => '#' + (0x102030 + i * 0x010101).toString(16).toUpperCase());
+  for (const color of colours) {
+    env.chars.play(svgFace(env, 'idle', { 'data-avatar': 'pelut' }).svg, { ...wind, id: undefined, color, avatar: 'pelut' }, true);
+    await settle();
+  }
+  const loads = () => env.fetched.filter(u => u.endsWith('pelut/idle.webp')).length;
+  assert.equal(loads(), 30);
+  env.chars.play(svgFace(env, 'idle', { 'data-avatar': 'pelut' }).svg, { ...wind, id: undefined, color: colours.at(-1), avatar: 'pelut' }, true);
+  await settle();
+  assert.equal(loads(), 30, 'a recent colour is still kept');
+  env.chars.play(svgFace(env, 'idle', { 'data-avatar': 'pelut' }).svg, { ...wind, id: undefined, color: colours[0], avatar: 'pelut' }, true);
+  await settle();
+  assert.equal(loads(), 31, 'the oldest was let go');
 });
 
 // 142: while a turn works, the big wind handles the prop of its work kind.
