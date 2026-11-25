@@ -200,9 +200,12 @@ private fun KindBadge(lang: String, kind: String) {
     }
 }
 
-/** Una fila: cara del vent, què farà, quan, i les accions a mà. */
+/**
+ * Una fila: cara del vent, què farà, quan, i les accions a mà. La cara surt de
+ * [winds] perquè GET /api/winds/automations no porta el paquet propi del vent.
+ */
 @Composable
-fun WindAutomationRow(lang: String, a: WindAutomation, showWind: Boolean, onAction: (WindAutomation, String) -> Unit,
+fun WindAutomationRow(lang: String, a: WindAutomation, showWind: Boolean, winds: List<Wind>, onAction: (WindAutomation, String) -> Unit,
                       extra: @Composable (WindAutomation) -> Unit = {}) {
     var open by remember(a.id) { mutableStateOf(false) }
     var confirmDelete by remember(a.id) { mutableStateOf(false) }
@@ -211,7 +214,9 @@ fun WindAutomationRow(lang: String, a: WindAutomation, showWind: Boolean, onActi
         modifier = Modifier.fillMaxWidth().clickable { open = !open }) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (showWind) WindFace(size = 36, accent = accent, style = windStyleOf(a.windStyle))
+                if (showWind) WindFace(size = 36, accent = accent,
+                    style = winds.firstOrNull { it.id == a.wind }?.faceStyle ?: windStyleOf(a.windStyle),
+                    modifier = Modifier.testTag("automation-face"))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(a.title, color = if (a.enabled) Ink else Muted, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
                         maxLines = if (open) 6 else 2, overflow = TextOverflow.Ellipsis)
@@ -275,6 +280,7 @@ fun WindAutomationSummary(lang: String, c: WindAutomationCounts) {
 @Composable
 fun WindAutomationList(vm: GregalViewModel, lang: String, wind: String = "", showSummary: Boolean = true) {
     val data by vm.automations.collectAsState()
+    val winds by vm.winds.collectAsState()
     LaunchedEffect(wind) { vm.loadAutomations(wind) }
     var filter by remember { mutableStateOf("all") }
     val got = data[wind]
@@ -315,7 +321,7 @@ fun WindAutomationList(vm: GregalViewModel, lang: String, wind: String = "", sho
         val shown = filterAutomations(got.items, filter)
         if (shown.isEmpty()) Text(tr(lang, "act.noneHere"), color = Muted, fontSize = 13.sp)
         for (a in shown) {
-            key(a.id) { WindAutomationRow(lang, a, showWind = wind.isBlank(), onAction = { item, action -> vm.automationAction(item, action, wind) },
+            key(a.id) { WindAutomationRow(lang, a, showWind = wind.isBlank(), winds = winds, onAction = { item, action -> vm.automationAction(item, action, wind) },
                 extra = { AutomationB8Actions(vm, lang, it) }) }
         }
     }

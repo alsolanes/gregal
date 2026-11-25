@@ -215,7 +215,7 @@ private fun SimpleVentsDrawer(
                 }
                 var savedOpen by rememberSaveable { mutableStateOf(false) }
                 DrawerGroup(if (en) "Saved" else "Desat", Icons.Rounded.Bookmark, savedOpen || screen in setOf(Screen.Desat, Screen.Notes, Screen.Webs), { savedOpen = !savedOpen }) {
-                    DrawerRow(if (en) "Saved" else "Desat", screen == Screen.Desat, { nav(Screen.Desat) }, Icons.Rounded.Bookmark)
+                    DrawerRow(tr(lang, "saved.tab.replies"), screen == Screen.Desat, { nav(Screen.Desat) }, Icons.Rounded.Bookmark)
                     DrawerRow(tr(lang, "nav.notes"), screen == Screen.Notes, { nav(Screen.Notes); vm.loadNotes() }, Icons.Rounded.EditNote)
                     DrawerRow(webCopy(lang, "title"), screen == Screen.Webs, { nav(Screen.Webs); vm.loadWebs() }, Icons.Rounded.Language)
                 }
@@ -248,7 +248,7 @@ private fun SimpleVentsDrawer(
                 var moreOpen by rememberSaveable { mutableStateOf(false) }
                 DrawerGroup(if (en) "Settings & more" else "Configuració i més", Icons.Rounded.Settings, moreOpen || showCode || screen == Screen.Prefs, { moreOpen = !moreOpen }) {
                     DrawerRow(tr(lang, "prefs.title"), screen == Screen.Prefs, { nav(Screen.Prefs); vm.openPreferences() }, Icons.Rounded.Settings)
-                    DrawerRow(if (en) "Computer" else "Ordinador", false, { close(); vm.openVentsPanel("computer") }, Icons.Rounded.Computer)
+                    DrawerRow(tr(lang, "app.computer.name"), false, { close(); vm.openVentsPanel("computer") }, Icons.Rounded.Computer)
                     DrawerRow(tr(lang, "app.local.title"), false, { vm.openVentsPanel("local"); nav(Screen.Automatitzacions) }, Icons.Rounded.Place)
                     DrawerRow(guideIntro(lang).first, false, { close(); vm.openVentsPanel("guide") }, Icons.Rounded.AutoAwesome)
                     DrawerRow(tr(lang, "app.vents.myWinds"), home && panel == "directory", { close(); vm.openVentsPanel("directory") }, Icons.Rounded.Groups)

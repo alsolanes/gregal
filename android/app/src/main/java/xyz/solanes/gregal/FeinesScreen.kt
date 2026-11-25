@@ -99,6 +99,7 @@ internal fun FeinesDialog(vm: GregalViewModel, lang: String, onOpenThread: (Stri
     val tasksError by vm.windTasksError.collectAsState()
     val asks by vm.windAsks.collectAsState()
     val autos by vm.automations.collectAsState()
+    val winds by vm.winds.collectAsState()
     var file by remember { mutableStateOf<Pair<WindTask, String>?>(null) }
     LaunchedEffect(Unit) { vm.loadWindTasks(); vm.loadWindAsks(); vm.loadAutomations("") }
     GregalDialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -145,7 +146,7 @@ internal fun FeinesDialog(vm: GregalViewModel, lang: String, onOpenThread: (Stri
                             item(key = "h-sched") { FeinesSection(tr(lang, "app.feines.sec.scheduled"), programat.size) }
                             items(programat, key = { "a-" + it.id }) { a ->
                                 Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                                    WindAutomationRow(lang, a, showWind = true, onAction = { item, action -> vm.automationAction(item, action, "") })
+                                    WindAutomationRow(lang, a, showWind = true, winds = winds, onAction = { item, action -> vm.automationAction(item, action, "") })
                                 }
                             }
                         }
