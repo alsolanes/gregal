@@ -5,6 +5,12 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.lazy.LazyListLayoutInfo
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameMillis
+import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.delay
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.TransformOrigin
@@ -191,6 +197,79 @@ internal fun windPresenceMood(state: String?, live: WindMood?): WindMood = when 
     else -> WindMood.IDLE
 }
 
+/** Quant (ms) es manté com a mínim un humor de feina: canviar d'eina cada pocs segons no reinicia la cara. */
+internal const val WindMoodHoldMs = 1200L
+
+/** L'humor que es veu: un de feina es queda [WindMoodHoldMs] abans de deixar pas al següent. El rellotge és qui el crida. */
+internal class WindMoodHold(private var shown: WindMood, private var since: Long) {
+    private var wanted = shown
+
+    fun at(now: Long, want: WindMood): WindMood {
+        wanted = want
+        if (want != shown && (shown !in windWorkMoods || now - since >= WindMoodHoldMs)) { shown = want; since = now }
+        return shown
+    }
+
+    /** Quant falta perquè surti l'humor que espera; 0 si no n'espera cap. */
+    fun waitFor(now: Long): Long = if (wanted == shown) 0L else (since + WindMoodHoldMs - now).coerceAtLeast(0L)
+}
+
+@Composable
+private fun rememberHeldMood(mood: WindMood): WindMood {
+    val hold = remember { WindMoodHold(mood, 0L) }
+    var shown by remember { mutableStateOf(mood) }
+    LaunchedEffect(mood) {
+        // El temps dels fotogrames: a les proves és el rellotge virtual.
+        var now = withFrameMillis { it }
+        shown = hold.at(now, mood)
+        while (hold.waitFor(now) > 0L) {
+            delay(hold.waitFor(now))
+            now = withFrameMillis { it }
+            shown = hold.at(now, mood)
+        }
+    }
+    return shown
+}
+
+/**
+ * El vent puja a la capçalera quan t'has allunyat clarament del final (200 dp) i
+ * només torna a baix quan hi tornes a ser a prop (40 dp); entremig es queda on és.
+ * Que el final s'allunyi sol (la resposta creix) no el mou: cal que t'hagis desplaçat.
+ */
+internal fun windFliesUp(up: Boolean, fromEndDp: Float, scrolled: Boolean): Boolean = when {
+    fromEndDp <= 40f -> false
+    scrolled && fromEndDp >= 200f -> true
+    else -> up
+}
+
+/**
+ * Quants px falten per arribar al final de la llista. Els elements de sota que no
+ * es veuen no tenen mida encara: compten com el més petit dels visibles, per
+ * quedar curt i que el vent no pugi abans d'hora.
+ */
+internal fun LazyListLayoutInfo.pxFromEnd(): Int {
+    val last = visibleItemsInfo.lastOrNull() ?: return 0
+    val unseen = (totalItemsCount - 1 - last.index) * visibleItemsInfo.minOf { it.size }
+    return (last.offset + last.size - (viewportEndOffset - afterContentPadding) + unseen).coerceAtLeast(0)
+}
+
+/** [windFliesUp] seguint la llista del xat. */
+@Composable
+internal fun rememberWindUp(list: LazyListState): Boolean {
+    val density = LocalDensity.current.density
+    var up by remember(list) { mutableStateOf(false) }
+    LaunchedEffect(list) {
+        var at = -1 to -1
+        snapshotFlow { Triple(list.firstVisibleItemIndex, list.firstVisibleItemScrollOffset, list.layoutInfo.pxFromEnd()) }
+            .collect { (index, offset, px) ->
+                val moved = (index to offset) != at
+                at = index to offset
+                up = windFliesUp(up, px / density, moved)
+            }
+    }
+    return up
+}
+
 /** On pot seure el vent al seu xat (a l'arrel): la conversa, la cantonada i el forat de la capçalera. */
 internal class WindPerch {
     var root by mutableStateOf(Offset.Unspecified)
@@ -213,7 +292,7 @@ internal fun BoxScope.WindPresence(perch: WindPerch, up: Boolean, mood: WindMood
     val motion = windMotionEnabled()
     val flight = animateFloatAsState(if (up) 1f else 0f,
         if (motion) spring(dampingRatio = .72f, stiffness = Spring.StiffnessMediumLow) else snap(), label = "wind-flight")
-    WindFace(size = WindPresenceSize, mood = mood, accent = accent, style = style, showKit = true, tappable = true,
+    WindFace(size = WindPresenceSize, mood = rememberHeldMood(mood), accent = accent, style = style, showKit = true, tappable = true,
         onClick = onClick, clay = true,
         modifier = Modifier.align(Alignment.TopStart).graphicsLayer {
             val root = perch.root

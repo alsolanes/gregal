@@ -10,11 +10,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.unit.Density
@@ -211,6 +213,59 @@ private fun DrawScope.drawBreath(size: Int, accent: Color, blow: Float) {
     for ((d, width) in windBreathLines(size)) drawPath(windBreathPaths.getValue(d), brush, style = Stroke(width, cap = StrokeCap.Round, pathEffect = dash))
 }
 
+/** [block] amb opacitat [alpha]: en passar d'un humor a l'altre, les marques es fonen en lloc de canviar de cop. */
+private fun DrawScope.faded(alpha: Float, block: DrawScope.() -> Unit) {
+    if (alpha <= .01f) return
+    if (alpha >= .99f) return block()
+    drawContext.canvas.saveLayer(Rect(-size.width, -size.height, 2f * size.width, 2f * size.height), Paint().apply { this.alpha = alpha })
+    block()
+    drawContext.canvas.restore()
+}
+
+/**
+ * L'espurna de cada feina al voltant del cos (espai de 80, fora de la insígnia de
+ * dalt a la dreta), del color del vent: pensant, bombolles que pugen; buscant, un
+ * estel que li dona la volta; llegint, ratlles que passen; escrivint, gotes de
+ * tinta; treballant (l'ordinador), guspires; discutint, ones cap a fora.
+ */
+internal fun DrawScope.drawWorkTrail(mood: WindMood, t: Float, accent: Color) {
+    fun cycle(period: Float, shift: Float = 0f) = ((t + shift) % period + period) % period / period
+    fun swell(f: Float) = sin(PI.toFloat() * f)
+    when (mood) {
+        WindMood.THINKING -> for (i in 0 until 3) {
+            val f = cycle(2.4f, i * .8f)
+            drawCircle(accent, 1.2f + 2f * f, Offset(13f - 4f * f, 30f - 24f * f), alpha = .75f * swell(f))
+        }
+        WindMood.SEARCHING -> for (i in 0 until 5) {
+            val a = 2f * PI.toFloat() * (cycle(1.8f) - i * .035f)
+            drawCircle(accent, 2.4f - i * .35f, Offset(40f + 38f * cos(a), 42f + 34f * sin(a)), alpha = .8f * (1f - i / 5f))
+        }
+        WindMood.READING -> for (i in 0 until 3) {
+            val f = cycle(2.1f, i * .7f)
+            val y = 70f - 36f * f
+            drawLine(accent, Offset(1f, y), Offset(9f - 3f * (i % 2), y), strokeWidth = 1.8f, cap = StrokeCap.Round, alpha = .8f * swell(f))
+        }
+        WindMood.WRITING -> for (i in 0 until 3) {
+            val f = cycle(1.2f, i * .4f)
+            drawCircle(accent, 1.8f * (1f - .5f * f), Offset(63f + 3f * i, 64f + 14f * f * f), alpha = .85f * (1f - f))
+        }
+        WindMood.WORKING -> for (i in 0 until 5) {
+            val f = cycle(.9f, i * .18f)
+            val a = (200f + i * 34f) * PI.toFloat() / 180f
+            val from = 34f + 10f * f
+            drawLine(accent, Offset(40f + from * cos(a), 44f + from * sin(a)), Offset(40f + (from + 3.5f) * cos(a), 44f + (from + 3.5f) * sin(a)),
+                strokeWidth = 2f, cap = StrokeCap.Round, alpha = .9f * (1f - f))
+        }
+        WindMood.DISCUSSING -> for (i in 0 until 2) {
+            val f = cycle(1.6f, i * .8f)
+            val r = 34f + 8f * f
+            drawArc(accent, startAngle = 155f, sweepAngle = 50f, useCenter = false, topLeft = Offset(40f - r, 44f - r), size = Size(2f * r, 2f * r),
+                alpha = .8f * (1f - f), style = Stroke(1.8f, cap = StrokeCap.Round))
+        }
+        else -> {}
+    }
+}
+
 /**
  * Quan parpelleja (s dins el rellotge de 12 s): cada 2–4,5 s, a l'atzar però
  * sempre igual per al mateix vent. Un metrònom es nota; això sembla viu.
@@ -286,7 +341,7 @@ internal fun windPose(mood: WindMood, t: Float, glances: List<Pair<Float, Offset
     // wf-breathe: every calm face, and the figure under the other loops too.
     val breathe = track(at(4f), 0f to 0f, .5f to 1f)
     val calm = WindPose(sx = 1f - .01f * breathe, sy = 1f + .025f * breathe)
-    return when (mood) {
+    val pose = when (mood) {
         WindMood.IDLE, WindMood.TALKING -> windGlanceAt(t, glances).let { g -> calm.copy(gx = g.x * 4f, gy = g.y * 1.2f, lid = .07f) }
         // Android's own «content» (profiles, games): idle with a little smile.
         WindMood.HAPPY -> windGlanceAt(t, glances).let { g -> calm.copy(gx = g.x * 4f, gy = g.y * 1.2f, lid = .07f, smile = .15f) }
@@ -331,6 +386,28 @@ internal fun windPose(mood: WindMood, t: Float, glances: List<Pair<Float, Offset
                 sy = .92f * track(f, 0f to 1f, .4f to .97f, .55f to 1.015f), gx = -.6f, gy = 2.6f, lid = .42f, brow = -16f)
         }
         WindMood.NEWS -> calm.copy(x = .5f, y = -.5f - 3f * hello(at(4f)), tilt = -4f, gx = 2f, gy = -1.6f, smile = .22f)
+    }
+    // Treballant ja bota fort (wf-busy); les altres feines no paren mai del tot:
+    // suren i es gronxen a poc a poc, amb uns períodes que no casen amb cap altre
+    // bucle (ni amb la cara de la capçalera).
+    if (mood !in windWorkMoods || mood == WindMood.WORKING) return pose
+    return pose.copy(y = pose.y + 1.1f * sin(2f * PI.toFloat() * t / 2.3f), tilt = pose.tilt + 1.6f * sin(2f * PI.toFloat() * t / 3.7f))
+}
+
+/**
+ * Quant pesa cada humor mentre la cara passa d'un a l'altre ([f] 0..1 del pas en
+ * marxa). Canviar a mig camí parteix dels pesos d'aquell moment: la cara no salta.
+ */
+internal class WindMoodBlend(mood: WindMood) {
+    private val from = FloatArray(WindMood.entries.size).also { it[mood.ordinal] = 1f }
+    var to = mood
+        private set
+
+    fun weight(m: WindMood, f: Float): Float = from[m.ordinal] * (1f - f) + if (m == to) f else 0f
+
+    fun retarget(mood: WindMood, f: Float) {
+        for (m in WindMood.entries) from[m.ordinal] = weight(m, f)
+        to = mood
     }
 }
 
@@ -428,20 +505,30 @@ fun WindFace(
         LaunchedEffect(hop) { hop.animateTo(1f, tween(1100, easing = LinearEasing)) }
         hop
     } else null
-    // D'un estat a l'altre la postura passa amb una molla, sense saltar (la del
-    // web: ζ .55, 1,55 Hz, ~12 % de rebot). L'estat d'on ve no és estat de
-    // Compose: el llegeix només el dibuix.
+    // D'un estat a l'altre la postura, la insígnia i l'espurna passen en 300 ms
+    // amb sortida suau, sense saltar ni reiniciar els bucles (el rellotge és el
+    // mateix). Els pesos no són estat de Compose: els llegeix només el dibuix.
     val moodMix = remember { Animatable(1f) }
-    val moods = remember { arrayOf(mood, mood) }
+    val blend = remember { WindMoodBlend(mood) }
     LaunchedEffect(mood) {
-        if (moods[1] == mood) return@LaunchedEffect
-        moods[0] = moods[1]
-        moods[1] = mood
+        if (blend.to == mood) return@LaunchedEffect
+        blend.retarget(mood, moodMix.value)
         moodMix.snapTo(0f)
-        moodMix.animateTo(1f, spring(dampingRatio = .55f, stiffness = 95f))
+        moodMix.animateTo(1f, tween(300, easing = FastOutSlowInEasing))
     }
-    fun pose(t: Float) = if (!motion) windPose(mood, 0f)
-        else windPoseBetween(windPose(moods[0], t, glances), windPose(moods[1], t, glances), moodMix.value)
+    fun fade(m: WindMood) = if (!motion) (if (m == mood) 1f else 0f) else blend.weight(m, moodMix.value)
+    fun pose(t: Float): WindPose {
+        if (!motion) return windPose(mood, 0f)
+        var mixed: WindPose? = null
+        var total = 0f
+        for (m in WindMood.entries) {
+            val w = fade(m).takeIf { it > .001f } ?: continue
+            total += w
+            val p = windPose(m, t, glances)
+            mixed = mixed?.let { windPoseBetween(it, p, w / total) } ?: p
+        }
+        return mixed ?: windPose(mood, t, glances)
+    }
     // The large figure (profile, creator, a crew strip with tools) wears its kit
     // and is drawn a little smaller to make room for it, as `full` on the web;
     // the stored specialty stays intact when a small avatar does not show it.
@@ -471,7 +558,7 @@ fun WindFace(
         else if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
     Canvas(cued.then(tap).then(motionLayer).size(size.dp)) {
         with(WindFigure) {
-            draw(time(), size, mood, accent, style, minairo, full, motion, ::pose, blinks, aura, lean.value, cheer?.value, doneHop?.value, blow?.value, look, bodyPaint)
+            draw(time(), size, mood, accent, style, minairo, full, motion, ::pose, blinks, aura, lean.value, cheer?.value, doneHop?.value, blow?.value, look, bodyPaint, ::fade)
         }
     }
 }
@@ -484,13 +571,15 @@ internal object WindFigure {
         t: Float, size: Int, mood: WindMood, accent: Color, style: WindStyle, minairo: Boolean, full: Boolean, motion: Boolean,
         pose: (Float) -> WindPose, blinks: List<Float>, aura: Float, lean: Offset,
         cheer: Float?, doneHop: Float?, blow: Float?, look: MinairoLook, bodyPaint: WindBodyPaint,
+        /** Quant es veu cada humor mentre passa d'un a l'altre. */
+        fade: (WindMood) -> Float = { if (it == mood) 1f else 0f },
     ) {
         val kit = if (full && !minairo) windKits[style.kit] else null
         val ink = windInk(accent)
         // Eines i insígnies es dibuixen amb la tinta del mateix vent, no amb un lila fix.
         val tone = lerp(accent, Color(0xFF1B1530), .8f)
         val handEdge = lerp(accent, Color(0xFF1B1530), .45f)
-        val breathing = mood in windBreathMoods
+        val breath = windBreathMoods.sumOf { fade(it).toDouble() }.toFloat()
         fun phase(period: Float) = t % period / period
         val talkOpen = motion && mood == WindMood.TALKING && phase(.4f) < .5f
         val twinkle = if (motion && (mood == WindMood.HAPPY || mood == WindMood.TALKING)) (wave(t, 2f) + 1f) / 2f else 0f
@@ -514,6 +603,16 @@ internal object WindFigure {
         val r = 33f * u
         fun hx(x: Float) = cx + (x - 40f) * u
         fun hy(y: Float) = cy + (y - 40.5f) * u
+        // Una espurna per feina, del color del vent: només a les cares grans que es mouen.
+        fun trails() {
+            if (motion && size >= 64) withTransform({ scale(unit, unit, Offset.Zero) }) {
+                for (m in windWorkMoods) faded(fade(m)) { drawWorkTrail(m, t, accent) }
+            }
+        }
+        // La insígnia de cada humor que es veu, amb el seu pes.
+        fun badges(skip: WindMood?) {
+            for (m in WindMood.entries) if (m != skip) faded(fade(m)) { drawBadge(m, t, motion, doneHop ?: 1f, tone) }
+        }
 
         // Inclinació del mòbil (−1..1), llegida aquí perquè només redibuixi.
         val (tx, ty) = lean
@@ -542,8 +641,9 @@ internal object WindFigure {
             withTransform({ scale(unit, unit, Offset.Zero) }) {
                 drawMinairo(look, style.eyes, eyePose, mood, t, motion, moved, size, accent, ink, paint, tx, ty, talkOpen)
                 // The badge goes to the corner the barretina does not fold over.
-                withTransform({ translate(if (look.fold == 1) -54f else 0f, 0f) }) { drawBadge(mood, t, motion, doneHop ?: 1f, tone) }
+                withTransform({ translate(if (look.fold == 1) -54f else 0f, 0f) }) { badges(null) }
             }
+            trails()
             return
         }
         drawWindBody(style.shape, paint, cx, cy, r, if (motion) .5f + wave(t, 6f) * 5.5f else 0f,
@@ -630,11 +730,12 @@ internal object WindFigure {
             sparkle(cx + r * 1.05f, cy - r * 0.75f, r * 0.13f, twinkle)
             sparkle(cx - r * 1.10f, cy - r * 0.45f, r * 0.10f, 1f - twinkle)
         }
-        if (breathing) withTransform({ scale(unit, unit, Offset.Zero); translate(40f, 40f); rotate(style.bearing + 90f, Offset.Zero) }) {
-            drawBreath(size, accent, blow ?: 0f)
+        if (breath > 0f) withTransform({ scale(unit, unit, Offset.Zero); translate(40f, 40f); rotate(style.bearing + 90f, Offset.Zero) }) {
+            faded(breath) { drawBreath(size, accent, blow ?: 0f) }
         }
         // In Cares the breath replaces the working cog; the other marks stay.
-        if (mood != WindMood.WORKING) withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, motion, doneHop ?: 1f, tone) }
+        withTransform({ scale(unit, unit, Offset.Zero) }) { badges(skip = WindMood.WORKING) }
+        trails()
     }
 }
 

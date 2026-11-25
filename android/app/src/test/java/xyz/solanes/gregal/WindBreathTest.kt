@@ -154,7 +154,8 @@ class WindBreathTest {
         assertTrue(below(still).sameAs(below(image("still"))))
         assertTrue("a list face shows it but keeps still, like the rest of Cares in lists", ink(below(list), 0, 0, Int.MAX_VALUE, Int.MAX_VALUE) > 0 && below(list).sameAs(below(image("list"))))
         mood.value = WindMood.IDLE
-        ui.mainClock.advanceTimeBy(100)
+        // 139: en canviar d'estat l'alè es fon en 300 ms en lloc de desaparèixer de cop.
+        ui.mainClock.advanceTimeBy(400)
         assertEquals("back to idle, no breath", 0, ink(below(image("face")), 0, 0, Int.MAX_VALUE, Int.MAX_VALUE))
     }
 }
