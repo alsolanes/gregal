@@ -5,7 +5,6 @@
 body.shell-winds, :root[data-product="vents"] body { --vw-accent:var(--accent); --vw-ink:var(--on-accent, var(--bg)); --vw-accent-text:var(--accent); }
 body.shell-winds #ventsPage { overflow:hidden; min-height:0; padding:0; }
 body.shell-winds #top { display:none; }
-body.shell-winds #ventsPage > .winds-page,body.shell-winds #windsListCard { display:none!important; }
 body:is(.shell-winds,.winds-side) #side > .brand,body:is(.shell-winds,.winds-side) #side .side-quick { display:none; }
 body:is(.shell-winds,.winds-side) #side { background:var(--panel); width:230px; min-width:230px; }
 body:is(.shell-winds,.winds-side) #windContextNav { border:0; padding:0; min-height:0; }
