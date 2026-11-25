@@ -499,10 +499,11 @@ func (s *Server) executeLocalInfo(ctx context.Context, job jobs.Job, _ runs.Run)
 	av := s.avuiSettings()
 	now := time.Now().In(loc)
 	quiet := inQuietHours(now, av.QuietFrom, av.QuietTo) || av.Level == "calm"
-	s.localCards(w, job.ID, items, quiet)
+	cards := s.localCards(w, job.ID, items, quiet)
 	text := s.localVoiceText(st, items)
 	if st.Voice {
-		postWindMessageLinked(s, w, localSourceName, job.ID, text, windMessageLinks{Hold: quiet})
+		// Una sola veu per a totes les targetes: porta la primera, la del primer que diu.
+		postWindMessageLinked(s, w, localSourceName, job.ID, text, windMessageLinks{Hold: quiet, Card: cards[0]})
 	}
 	return finish("ok", text, "")
 }

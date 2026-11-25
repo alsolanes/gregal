@@ -4,11 +4,15 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"gregal/internal/companion"
+	"gregal/internal/config"
+	"gregal/internal/jobs"
 	"gregal/internal/llm"
 	"gregal/internal/session"
 )
@@ -156,5 +160,59 @@ func TestAvuiLoopsAtMostThreeTurnsPerNight(t *testing.T) {
 	}
 	if len(*briefs) != 3 || len(loopCards(t, s)) != 3 {
 		t.Fatalf("at most 3 model turns per night: %d turns, %d cards", len(*briefs), len(loopCards(t, s)))
+	}
+}
+
+// TestAvuiNightJobsAreThereOnServerStart: un compte amb vents té les feines de
+// la nit en engegar el servidor, sense obrir «Avui»; una d'apagada no s'encén.
+func TestAvuiNightJobsAreThereOnServerStart(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := goalTestServer(t)
+	js, err := jobs.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.jobs = js
+	s.users = NewUsers(&config.Config{Users: map[string]config.UserCfg{
+		"anna": {Password: HashPassword("clau-anna-01")},
+		"bert": {Password: HashPassword("clau-bert-01")},
+	}}, "")
+	s.users.path = filepath.Join(t.TempDir(), "tokens.json")
+	anna := s.Hub().SessionFor(s.users.Usuari("anna"), "t")
+	bert := s.Hub().SessionFor(s.users.Usuari("bert"), "t")
+	if _, err := anna.winds.Save(companion.Wind{Name: "Xaloc"}); err != nil {
+		t.Fatal(err)
+	}
+	fakeICSServer(t, icsWith())
+	if w := connPost(t, anna, `{"add_calendar":{"name":"Feina","url":"https://calendar.example.org/private-anna.ics"}}`); w.Code != 200 {
+		t.Fatalf("add calendar: %s", w.Body.String())
+	}
+	start := func() {
+		t.Helper()
+		ctx, cancel := context.WithCancel(context.Background())
+		done := s.StartBackground(ctx)
+		cancel()
+		<-done
+	}
+	start()
+	job, ok := anna.ownWindJob(loopsJobID("anna"))
+	if !ok || !job.Enabled || job.Wind != "xaloc" || job.Kind != "daily" {
+		t.Fatalf("an account with winds gets its open-threads job on start: %+v %v", job, ok)
+	}
+	if prep, ok := anna.ownWindJob(prepJobID("anna")); !ok || !prep.Enabled {
+		t.Fatalf("with a calendar it also gets the prep job: %+v %v", prep, ok)
+	}
+	if _, ok := bert.ownWindJob(loopsJobID("bert")); ok {
+		t.Fatal("an account without winds gets no job")
+	}
+
+	job.Enabled = false
+	if _, err := s.jobs.Save(job); err != nil {
+		t.Fatal(err)
+	}
+	avuiSettingsPost(t, anna, `{"quiet_from":"23:00","quiet_to":"09:30"}`)
+	start()
+	if job, _ := anna.ownWindJob(loopsJobID("anna")); job.Enabled {
+		t.Fatalf("a job turned off stays off: %+v", job)
 	}
 }

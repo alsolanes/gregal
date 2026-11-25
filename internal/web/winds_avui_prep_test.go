@@ -133,3 +133,18 @@ func TestAvuiPrepDuringQuietHoursIsHeldAndSilent(t *testing.T) {
 		t.Fatalf("it does not ring: %+v", n)
 	}
 }
+
+func TestAvuiPrepNovetatCarriesItsCard(t *testing.T) {
+	now := time.Now().Truncate(time.Minute)
+	s, run := prepServer(t, icsEvent("a@x", "Revisió de pressupost", now.Add(60*time.Minute)))
+	stubPrepLoop(t, "La Marta va enviar el full de càlcul dilluns.")
+	cards := run()
+	n := loadNovetats(s)
+	if len(cards) != 1 || len(n) != 1 || n[0].Card != cards[0].ID {
+		t.Fatalf("the prep novetat carries its Today card: %+v %+v", cards, n)
+	}
+	avuiPost(t, s, cards[0].ID, "done")
+	if n := loadNovetats(s); !n[0].Read {
+		t.Fatalf("deciding the card marks the novetat read: %+v", n)
+	}
+}

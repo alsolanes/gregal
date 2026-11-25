@@ -194,6 +194,6 @@ func (s *Server) prepCard(w companion.Wind, job, name, title, body string) error
 	if err != nil {
 		return err
 	}
-	postWindMessageLinked(s, w, avuiPrepSource, job, title+"\n\n"+body, windMessageLinks{Hold: quiet})
+	postWindMessageLinked(s, w, avuiPrepSource, job, title+"\n\n"+body, windMessageLinks{Hold: quiet, Card: c.ID})
 	return nil
 }

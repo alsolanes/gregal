@@ -289,3 +289,30 @@ func TestLocalNothingFoundStaysSilent(t *testing.T) {
 		}
 	}
 }
+
+func TestLocalNovetatCarriesItsCard(t *testing.T) {
+	s := localTestServer(t)
+	stubLocalLoop(t, localReply)
+	if rec := localPost(t, s, `{"enabled":true,"consent":true,"place":{"label":"Gràcia, Barcelona"},"topics":["concerts","news","openings"],"voice":true}`); rec.Code != 200 {
+		t.Fatalf("enable: %d %s", rec.Code, rec.Body.String())
+	}
+	job, _ := s.ownWindJob(localJobID(""))
+	if run, err := s.executeLocalInfo(context.Background(), job, runsZero()); err != nil || run.Status != "ok" {
+		t.Fatalf("run: %+v %v", run, err)
+	}
+	var first string
+	for _, c := range loadAvui(s) {
+		if c.Source == localSourceName {
+			first = c.ID
+			break
+		}
+	}
+	n := loadNovetats(s)
+	if first == "" || len(n) != 1 || n[0].Card != first {
+		t.Fatalf("the local novetat carries its first Today card: %q %+v", first, n)
+	}
+	avuiPost(t, s, first, "dismiss")
+	if n := loadNovetats(s); !n[0].Read {
+		t.Fatalf("deciding the card marks the novetat read: %+v", n)
+	}
+}

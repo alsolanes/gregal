@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -93,18 +94,42 @@ func (s *Server) syncLoopsJob() error {
 	serverTime := time.Date(nowU.Year(), nowU.Month(), nowU.Day(), m/60, m%60, 0, 0, loc).In(time.Local).Format("15:04")
 	id := loopsJobID(s.localOwner())
 	now := time.Now()
-	last := &now
+	last, enabled := &now, true
 	if j, ok := s.ownWindJob(id); ok {
 		if j.Time == serverTime && j.Wind == w.ID {
 			return nil
 		}
-		last = j.LastAt
+		// Si la persona l'ha apagada, moure-la no l'encén.
+		last, enabled = j.LastAt, j.Enabled
 	}
 	_, err := s.jobs.Save(jobs.Job{
 		ID: id, Name: s.tr("Fils oberts", "Open threads"), Prompt: "Follow up the conversations left open",
-		Kind: "daily", Time: serverTime, Enabled: true, Wind: w.ID, WindOwner: s.localOwner(), LastAt: last,
+		Kind: "daily", Time: serverTime, Enabled: enabled, Wind: w.ID, WindOwner: s.localOwner(), LastAt: last,
 	})
 	return err
+}
+
+// ensureNightJobs posa en engegar el servidor les feines nocturnes de cada
+// compte amb vents (fils oberts i, amb un calendari connectat, preparació),
+// sense esperar que obri «Avui».
+func (s *Server) ensureNightJobs() {
+	accounts := []*Server{s}
+	if s.users != nil {
+		for _, name := range s.users.Noms() {
+			accounts = append(accounts, s.Hub().SessionFor(s.users.Usuari(name), "wind-routines"))
+		}
+	}
+	for _, a := range accounts {
+		if err := a.syncLoopsJob(); err != nil {
+			log.Printf("avui loops %s: %v", a.usuari(), err)
+		}
+		if len(a.calendarSecrets()) == 0 {
+			continue
+		}
+		if err := a.ensurePrepJob(); err != nil {
+			log.Printf("avui prep %s: %v", a.usuari(), err)
+		}
+	}
 }
 
 // loopOpen: l'última frase del vent és una pregunta a la persona o una cosa pendent.

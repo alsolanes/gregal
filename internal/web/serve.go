@@ -444,6 +444,7 @@ func (s *Server) StartBackground(ctx context.Context) <-chan struct{} {
 	// dir-ho al fil ara, no quedar en silenci.
 	if gregalBackground() {
 		s.crewRecoverInterrupted()
+		s.ensureNightJobs()
 	}
 	return done
 }

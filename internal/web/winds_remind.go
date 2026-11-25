@@ -311,7 +311,7 @@ var remindEditToolSpec = llm.ToolSpec{
 	Name:        "remind_edit",
 	Description: "Edita o elimina un recordatori o automatització ja existent de l'usuari. Fes-la servir quan l'usuari vulgui treure, ajornar, pausar o reprendre un pendent: primer llista els ids amb remind_list i després aplica l'operació sobre l'id exacte. Operacions: «cancel» (l'esborra definitivament), «reschedule» (li posa una hora nova, mateix text), «snooze» (l'ajorna minutes minuts des d'ara), «edit» (canvia el text i, si passes at, l'hora), «pause» (el desactiva sense esborrar-lo) i «resume» (el reactiva). L'id no canvia mai. Sempre confirma a l'usuari què has tocat i com queda.",
 	Parameters: map[string]any{"type": "object", "properties": map[string]any{
-		"id": map[string]any{"type": "string", "description": "id del recordatori (el dóna remind_list)"},
+		"id":      map[string]any{"type": "string", "description": "id del recordatori (el dóna remind_list)"},
 		"op":      map[string]any{"type": "string", "enum": []string{"cancel", "reschedule", "snooze", "edit", "pause", "resume"}, "description": "operació"},
 		"at":      map[string]any{"type": "string", "description": "amb reschedule (o edit): la nova hora (RFC3339, «2006-01-02 15:04», «+2h»…)"},
 		"text":    map[string]any{"type": "string", "description": "només amb edit: el text nou"},
@@ -449,6 +449,8 @@ type windMessageLinks struct {
 	Refs  []string
 	Learn bool
 	Hold  bool
+	// Card: la targeta d'«Avui» que la veu ja ha posat (prep, local).
+	Card string
 }
 
 // postWindMessageLinked fa parlar el vent amb el missatge lligat al seu run i
@@ -468,7 +470,7 @@ func postWindMessageLinked(s *Server, w companion.Wind, source, job, text string
 	}
 	// Registre per a l'app (notificació local): el missatge és proactiu,
 	// l'usuari pot tenir l'app en segon pla. Best-effort, mai no bloqueja.
-	recordNovetatMsgHold(s, w, source, job, msg.ID, text, l.Hold)
+	recordNovetatMsgHold(s, w, source, job, msg.ID, text, l.Card, l.Hold)
 	return msg.ID
 }
 
