@@ -51,9 +51,9 @@ internal val LocalWindClay = staticCompositionLocalOf { "characters" }
 /** Which sheet a clay face plays, `<silhouette>/<mood>`. */
 internal val WindClayKey = SemanticsPropertyKey<String>("WindClay")
 
-/** [cap]: the minairó's barretina, tinted with its own colour (`caps` in the manifest). */
+/** [cap]: the minairó's barretina, tinted with its own colour (`caps` in the manifest). [still]: the frame shown without motion (142: one with the prop in view). */
 internal class WindClaySheet(val name: String, val sheet: ImageBitmap, val mask: ImageBitmap, val cap: ImageBitmap?,
-    val size: Int, val maskSize: Int, val frames: Int, val loop: Boolean, val fps: Int)
+    val size: Int, val maskSize: Int, val frames: Int, val loop: Boolean, val fps: Int, val still: Int)
 
 /** Android's own moods have no sheet: content is idle, talking is the talking turn of discussing. */
 internal fun windClayMood(mood: WindMood): String = when (mood) {
@@ -99,7 +99,7 @@ internal object WindClay {
         val capped = m.optJSONArray("caps")?.let { caps -> (0 until caps.length()).any { caps.optString(it) == silhouette } } == true
         val cap = if (capped) decode("$name.cap.webp") ?: return null else null
         return WindClaySheet(name, sheet, mask, cap, m.optInt("size", 128), m.optInt("maskSize", 64),
-            spec.optInt("frames", 1), spec.optBoolean("loop", true), m.optInt("fps", 12))
+            spec.optInt("frames", 1), spec.optBoolean("loop", true), m.optInt("fps", 12), spec.optInt("still", 0))
             .also { sheets.put("$dir/$name", it) }
     }
 }
@@ -129,7 +129,7 @@ private fun DrawScope.drawClay(s: WindClaySheet, frame: Int, accent: Color, barr
  * sheet is missing, so the caller draws the Canvas face. The frame number is
  * a state read only while drawing: the sheet plays at its 12 fps without
  * recomposing anything, stops while the screen is not started, and with
- * [motion] off shows the first frame. A new mood crossfades over the last
+ * [motion] off holds the sheet's still frame. A new mood crossfades over the last
  * frame of the old one. [barretina] tints the minairó's barretina.
  */
 @Composable
@@ -146,7 +146,7 @@ internal fun WindClayFace(size: Int, mood: WindMood, accent: Color, barretina: C
     }
     val (from, fade) = change
     if (from != null) LaunchedEffect(change) { fade.animateTo(1f, tween(220)) }
-    val frame = remember(sheet) { mutableIntStateOf(0) }
+    val frame = remember(sheet) { mutableIntStateOf(if (motion) 0 else sheet.still) }
     var started by remember { mutableStateOf(true) }
     val owner = androidx.compose.ui.platform.LocalLifecycleOwner.current
     DisposableEffect(owner) {

@@ -131,6 +131,54 @@ class WindClayTest {
         assertTrue("and it is the sheet's first frame", f.getValue("still").sameAs(f.getValue("playing")))
     }
 
+    private fun moodsOfManifest() = org.json.JSONObject(ui.activity.assets.open("characters/manifest.json").bufferedReader().use { it.readText() })
+        .getJSONObject("moods")
+
+    /** 142: while a turn works, the big wind handles the prop of its work kind, then goes back to talk and idle. */
+    @Test fun eachWorkKindPlaysTheSheetWithItsProp() {
+        val moods = moodsOfManifest()
+        var mood by mutableStateOf(WindMood.IDLE)
+        show { WindFace(size = 96, mood = mood, accent = orange, clay = true) }
+        for ((kind, prop) in listOf(
+            windMoodOf(state = "working", activity = "grep") to "magnifier", windMoodOf(phase = "searching") to "magnifier",
+            windMoodOf(state = "working", activity = "read") to "book", windMoodOf(state = "working", activity = "edit") to "pencil",
+            windMoodOf(writing = true) to "pencil", windMoodOf(state = "working", activity = "bash") to "laptop",
+            windMoodOf(state = "working", activity = "plan") to "gear", windMoodOf(phase = "thinking") to "gear",
+            windMoodOf(state = "completed") to "confetti",
+        )) {
+            mood = kind
+            ui.waitForIdle()
+            val name = windClayMood(kind)
+            clay("pebble/$name").assertExists()
+            assertEquals("$kind holds its prop", prop, moods.getJSONObject(name).optString("prop"))
+        }
+        for ((back, sheet) in listOf(WindMood.TALKING to "pebble/discussing", WindMood.IDLE to "pebble/idle")) {
+            mood = back
+            ui.waitForIdle()
+            clay(sheet).assertExists()
+            assertEquals("", moods.getJSONObject(sheet.substringAfter('/')).optString("prop"))
+        }
+    }
+
+    @Test fun motionOffHoldsTheStillFrameWithTheProp() {
+        val still = moodsOfManifest().getJSONObject("searching").getInt("still")
+        assertTrue("the still frame is not the first", still > 0)
+        ui.mainClock.autoAdvance = false
+        show {
+            Row {
+                WindFace(size = 96, mood = WindMood.SEARCHING, accent = orange, clay = true, modifier = Modifier.testTag("still"))
+                CompositionLocalProvider(LocalWindMotion provides true) {
+                    WindFace(size = 96, mood = WindMood.SEARCHING, accent = orange, clay = true, modifier = Modifier.testTag("playing"))
+                }
+            }
+        }
+        ui.mainClock.advanceTimeByFrame()
+        val first = pixels("playing")
+        assertFalse("motion off is not on the first frame", pixels("still").sameAs(first))
+        ui.mainClock.advanceTimeBy(still * 1000L / 12 + 40)
+        assertTrue("it is the still frame the playing face reaches", pixels("still").sameAs(pixels("playing")))
+    }
+
     /** Average colour of the body: the opaque pixels of the face. */
     private fun body(accent: Color): FloatArray {
         show { WindFace(size = 96, accent = accent, clay = true, modifier = Modifier.testTag("f")) }
