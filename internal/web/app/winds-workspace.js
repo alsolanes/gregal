@@ -849,17 +849,36 @@
   const live=(state.tasks||[]).filter(x=>['started','working','running'].includes(x.status)),done=(state.tasks||[]).filter(x=>!live.includes(x));
   if(state.busy||live.length){
    const now=section('vw-feina-now',t('Ara','Now'));now.set((state.busy?1:0)+live.length);
-   if(state.busy){const row=btn('',()=>route('task',state.liveActive||{name:state.liveSnapshot?.task||'',live:true}),'vw-task-row vw-feina-live');
-    const w=state.winds.find(x=>x.id==='gregal');if(w)row.append(face(w));
-    row.append(el('strong','',t('Gregal hi està treballant','Gregal is working on it')),el('span','vw-task-state is-running',t('Mira-ho ›','See it ›')));now.s.append(row);}
-   if(live.length)taskList(live);
+   if(state.busy){const w=state.winds.find(x=>x.id===(state.pending?.wind||'gregal'))||state.winds.find(x=>x.id==='gregal');
+    const steps=state.pending?workSteps(state.pending.steps).map(x=>x.label):(state.liveEvents||[]).map(logLine).filter(Boolean).map(([,what,detail])=>detail?what+' · '+detail:what);
+    now.s.append(workCard(w,t((w?.name||'Gregal')+' hi està treballant',(w?.name||'Gregal')+' is working on it'),steps,[btn(t('Mira-ho ›','See it ›'),()=>route('task',state.liveActive||{name:state.liveSnapshot?.task||'',live:true}),'vw-button')]));}
+   for(const task of live){const owner=Object.values(task.agents||{})[0],w=state.winds.find(x=>x.name===owner)||{name:owner,color:'#BFC7DF',style:'psn'};
+    const steps=(task.events||[]).map(logLine).filter(Boolean).map(([,what,detail])=>detail?what+' · '+detail:what);
+    const paths=[...new Set((task.events||[]).filter(e=>e.type==='tool_result'&&e.path).map(e=>e.path))];
+    const links=paths.slice(0,4).map(p=>{const b=iconBtn('open',p.split(/[\\/]/).pop(),async()=>{await switchFolder(task.workspace||state.workspace);await root.gregalWindRunner.openResult('',task.task,p);},'vw-button');b.title=p;return b;});
+    links.push(btn(t('Obre la feina','Open the task'),()=>{state.events=task.events||[];state.snapshot=null;route('task',{...task,name:task.task});},'vw-button'));
+    now.s.append(workCard(w,task.task,steps,links));}
   }
   const sch=section('vw-feina-sched',t('Programat','Scheduled')),box=el('div','vw-feina-auto');sch.s.append(box);
   if(root.gregalVentsActivity?.renderAutomations)root.gregalVentsActivity.renderAutomations(box,{compact:true,onCount:n=>sch.set(n)}).catch(fail);
   sch.s.append(iconBtn('plus',t('Una nova rutina','New routine'),newRoutine,'vw-button vw-add'));
   const fet=section('vw-feina-done',t('Fet','Done'));fet.set(done.length);
-  if(done.length)taskList(done);else fet.s.append(el('p','vw-muted',t('Quan Gregal o un grup acabin una feina llarga, el resultat quedarà aquí per obrir-lo.','When Gregal or a group finish a long task, the result stays here for you to open.')));
+  if(done.length)taskList(done,fet.s);
+  // 136: el que han fet els vents (documents, webs, gràfics) és feina acabada: viu aquí, no a Desat.
+  const made=el('div','vw-saved');fet.s.append(made);
+  if(root.gregalVentsActivity)root.gregalVentsActivity.renderSaved(made,{onCard:it=>{const w=state.winds.find(x=>x.id===it.wind);if(w)windCards(w);}});else made.append(el('p','vw-muted',t('Carregant…','Loading…')));
  }
+ // 136: una feina en marxa és una targeta amb la cara de qui la porta que s'obre al lloc amb els passos i els enllaços.
+ function workCard(w,title,steps,links){const card=el('article','vw-feina-card'),head=el('button','vw-feina-card-head'),body=el('div','vw-feina-card-body'),inner=el('div','vw-feina-card-inner');
+  if(w?.color)card.style.setProperty('--vw-card',w.color);
+  head.type='button';head.setAttribute('aria-expanded','false');
+  const chev=el('span','vw-feina-chev');chev.setAttribute('aria-hidden','true');
+  head.append(face(w,null,36),el('strong','',title),el('span','vw-task-state is-running',statusName('working')),chev);
+  const list=el('ol','vw-feina-steps');for(const s of steps.slice(-5))list.append(el('li','',s));
+  if(!steps.length)list.append(el('li','',t('S’hi està posant…','Getting started…')));
+  const row=el('div','vw-feina-links');row.append(...links);inner.append(list,row);body.append(inner);body.inert=true;
+  head.onclick=()=>{const open=card.classList.toggle('open');head.setAttribute('aria-expanded',String(open));body.inert=!open;};
+  card.append(head,body);return card;}
  // Activitat (vents-activity.js): el que els vents han fet pel seu compte, de més nou a més vell.
  function activityView(){heading(t('Feina','Work'),t('El que els vents han fet mentre no hi eres: feines, novetats, rutines i recordatoris.','What your winds did while you were away: work, news, routines and reminders.'));pageTabs(WORK_TABS);const box=el('div','act-list');content.append(box);root.gregalVentsActivity?.renderActivity(box,{winds:state.winds,onOpen:(it,k)=>openActivity(it,k).catch(fail)});}
  // Una novetat, un cor o un recordatori han parlat al xat del vent; una feina s'obre com des de Feina.
@@ -935,12 +954,12 @@ async function summarizeToWiki(){
 async function showRoutines(container){container.replaceChildren(el('h2','vw-subtitle',t('Rutines','Routines')),el('p','vw-muted',t('Cerques i resums recurrents. Mantén Gregal obert perquè s’executin.','Recurring searches and summaries. Keep Gregal open for them to run.')),iconBtn('plus',t('Una nova rutina','New routine'),newRoutine,'vw-button vw-add'));const data=await call('/api/jobs');if(!container.isConnected)return;for(const job of (data.jobs||[]).filter(j=>j.wind)){const row=el('article','vw-routine');row.append(el('strong','',job.name),el('span','vw-muted',(job.enabled?t('Activa','Active'):t('Pausada','Paused'))+' · '+(job.next_due||job.time||'')),btn(job.enabled?t('Pausa','Pause'):t('Activa','Enable'),async()=>{await call('/api/jobs/save','POST',{...job,enabled:!job.enabled});await showRoutines(container);}));row.append(btn(t('Resultats','Results'),async()=>{const data=await call('/api/jobs/runs?job='+encodeURIComponent(job.id));const d=dialog(job.name);for(const run of data.runs||[]){const body=el('div','vw-result-text');const shown=run.output||(run.error?root.gregalFriendlyRunError(run.error):'');if(root.gregalMD)body.innerHTML=root.gregalMD.render(shown||'');else body.textContent=shown||'';d.append(el('p','vw-muted',new Date(run.finished_at).toLocaleString()),body);}if(!(data.runs||[]).length)d.append(el('p','vw-muted',t('Encara no s’ha executat.','No runs yet.')));}));container.append(row);}}
  async function newRoutine(){if(!crew().length)await activate(state.squad);const d=dialog(t('Una petita ajuda, cada dia.','A little help, every day.'));const name=field(d,t('Nom de la rutina','Routine name')),prompt=field(d,t('Què vols que cerqui o resumeixi?','What should it research or summarize?'),state.draft,true),time=field(d,t('Cada dia a les','Every day at'),'09:00');time.type='time';const select=el('select');select.setAttribute('aria-label',t('Vent responsable','Responsible wind'));for(const w of state.winds)select.append(new Option(w.name+' · '+roleName(w),w.id));select.value=crew()[0]?.id||state.winds[0]?.id;d.append(select,el('p','vw-muted',t('Fa servir la memòria i el coneixement actuals del vent. És una rutina de lectura i cerca; Gregal ha d’estar obert.','Uses the wind’s current memory and knowledge. This is a reading and research routine; Gregal must stay open.')),btn(t('Desa la rutina','Save routine'),async()=>{if(!name.value.trim()||!prompt.value.trim()){(!name.value.trim()?name:prompt).focus();return;}await call('/api/jobs/save','POST',{name:name.value,prompt:prompt.value,kind:'daily',time:time.value,enabled:true,notify:false,wind:select.value});d.close();route('tasks');},'vw-primary'));}
  // Cada feina diu qui hi ha treballat, quan, en quin projecte i què ha deixat.
- function taskList(items){for(const task of items){const row=btn('',()=>{state.events=task.events||[];state.snapshot=null;route('task',{...task,name:task.task});},'vw-task-row');
+ function taskList(items,parent=content){for(const task of items){const row=btn('',()=>{state.events=task.events||[];state.snapshot=null;route('task',{...task,name:task.task});},'vw-task-row');
    const who=el('span','vw-task-faces');for(const name of Object.values(task.agents||{}))who.append(face(state.winds.find(w=>w.name===name)||{name,color:'#BFC7DF',style:'psn'},null,26));
    const files=[...new Set((task.events||[]).filter(e=>e.type==='tool_result'&&e.path).map(e=>e.path.split(/[\\/]/).pop()))];
    const head=el('div','vw-task-head');head.append(who,el('strong','',task.task),el('span','vw-task-state is-'+(['done','completed'].includes(task.status)?'done':['failed','cancelled'].includes(task.status)?'stopped':'running'),statusName(task.status)));
    const meta=[(task.workspace||'').replace(/[\\/]+$/,'').split(/[\\/]/).pop(),task.created?new Date(task.created).toLocaleString(document.documentElement.lang||undefined,{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'',files.slice(0,3).join(', ')].filter(Boolean).join(' · ');
-   row.append(head,el('small','',meta));content.append(row);}
+   row.append(head,el('small','',meta));parent.append(row);}
   if(!items.length)content.append(el('p','vw-empty',t('Encara no hi ha cap feina. Demana-la des de l’inici («Prepara’m una web per al club», «Analitza aquest CSV») i els vents s’hi posaran; aquí en veuràs el progrés i el resultat.','No work yet. Ask from home (“Build a website for the club”, “Analyze this CSV”) and your winds get on it; you will see the progress and the result here.')));}
  // Icones de la navegació dels vents: traç fi com les del rail, no caràcters Unicode.
  // Notes: el quadern de l'usuari (winds-notes.js); «Pregunta a un vent» obre el xat amb el text a punt.
@@ -1035,7 +1054,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  }
  // Una resposta desada és una nota amb tipus (winds-notes.js): s'obre a Notes, on les targetes es pinten com al xat.
  function openSaved(id){state.openNote=id;route('notes');}
- function savedView(){heading(t('Desat','Saved'));pageTabs(SAVED_TABS);root.gregalNotes?.saved(content,{open:openSaved});const made=el('div','vw-saved-made');made.append(el('h2','',t('El que han fet els vents','What the winds made')),el('p','vw-muted',t('Tot el que els vents han fet per a tu: documents, webs, gràfics, imatges i fitxes, amb qui ho va fer i quan.','Everything the winds made for you: documents, websites, charts, images and cards, with who made it and when.')));content.append(made);const box=el('div','vw-saved');content.append(box);if(root.gregalVentsActivity)root.gregalVentsActivity.renderSaved(box,{onCard:it=>{const w=state.winds.find(x=>x.id===it.wind);if(w)windCards(w);}});else box.append(el('p','vw-muted',t('Carregant…','Loading…')));}
+ function savedView(){heading(t('Desat','Saved'));pageTabs(SAVED_TABS);root.gregalNotes?.saved(content,{open:openSaved});}
  // Racó i Automatitzacions també són de Vents: al telèfon porten la mateixa barra de baix, que torna a Vents.
  function pageNavs(){for(const id of ['racoPage','automatitzacionsPage']){const page=document.getElementById(id);if(!page)continue;page.querySelector(':scope > .vw-page-nav')?.remove();const bottom=el('nav','vw-mobile-nav vw-page-nav');bottom.setAttribute('aria-label',t('Seccions dels vents','Winds sections'));for(const [view,a,b]of MOBILE_NAV){const n=btn('',()=>{root.gregal?.setView?.('vents');route(view);});n.append(navIcon(view),el('span','',t(a,b)));bottom.append(n);}page.append(bottom);}}
  function navIcon(id){const paths={search:'M7 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z M10 10l3.5 3.5',settings:'M8 5.6a2.4 2.4 0 1 0 0 4.8 2.4 2.4 0 0 0 0-4.8Z M8 1.8v1.6 M8 12.6v1.6 M1.8 8h1.6 M12.6 8h1.6 M3.6 3.6l1.1 1.1 M11.3 11.3l1.1 1.1 M3.6 12.4l1.1-1.1 M11.3 4.7l1.1-1.1',today:'M8 4.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8Z M8 1.6v1.5 M8 12.9v1.5 M1.6 8h1.5 M12.9 8h1.5',computer:'M2.5 3.5h11v7.5h-11Z M6 13.5h4 M8 11v2.5',home:'M3 7.5 8 3.5l5 4V13H3Z M6.5 13V9.5h3V13',pati:'M8 2.6a3.1 3.1 0 0 1 3.1 3.1c0 1.8-1.4 3.2-3.1 3.2S4.9 7.5 4.9 5.7A3.1 3.1 0 0 1 8 2.6Z M8 8.9V13.4 M5.2 13.4h5.6 M11.6 11.6a1.3 1.3 0 1 0 0 .01',tasks:'M8 2.75a5.25 5.25 0 1 0 0 10.5 5.25 5.25 0 0 0 0-10.5Z M8 5v3.2l2.2 1.3',crew:'M5.5 7.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z M10.8 7.2a1.7 1.7 0 1 0 0-3.4 M2.5 13c.4-2.2 1.6-3.4 3-3.4s2.6 1.2 3 3.4 M10 9.7c1.4.1 2.6 1.2 3 3.3',library:'M3 3.5h3v9H3Z M7 3.5h3v9H7Z M11 4.2l2.4-.6 1.9 8.4-2.4.6Z',wiki:'M4 2.75h5.5L12 5.25v8H4Z M9.5 2.75v2.5H12 M6 8h4 M6 10.5h4',saved:'M4 2.75h8v10.5L8 10.5 4 13.25Z',apres:'M8 2.75a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z M3.5 13.25c.5-2.4 2.3-3.75 4.5-3.75s4 1.35 4.5 3.75 M12.4 2.6l.5 1 1 .5-1 .5-.5 1-.5-1-1-.5 1-.5Z',fes:'M8.6 2.5 4 9h3.6l-.8 4.5L12 7H8.3Z',rules:'M8 2.5 3.5 4.3v3.5c0 2.8 1.9 4.9 4.5 5.7 2.6-.8 4.5-2.9 4.5-5.7V4.3Z M6 8l1.4 1.4L10.2 6.6',notes:'M4.5 2.75h7v10.5h-7Z M6.5 5.5h3 M6.5 8h3 M6.5 10.5h2 M3.2 4.5h1.3 M3.2 7h1.3 M3.2 9.5h1.3',more:'M3.4 8a.8.8 0 1 0 1.6 0 .8.8 0 1 0-1.6 0 M7.2 8a.8.8 0 1 0 1.6 0 .8.8 0 1 0-1.6 0 M11 8a.8.8 0 1 0 1.6 0 .8.8 0 1 0-1.6 0'};return strokeIcon(paths[id]||'','vw-nav-svg');}
