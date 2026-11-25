@@ -269,4 +269,19 @@ class WindVidaTest {
         ui.mainClock.advanceTimeBy(500)
         assertTrue("and settles", shot("stage").sameAs(end))
     }
+
+    // 153: el vent de la cantonada (WindPresence) fa que no amb el cap en fallar, com al web; no s'arronsa a més.
+    @Test fun aFaceThatDoesNotShrugStaysStillOnAFailedTurn() {
+        var mood by mutableStateOf(WindMood.WORKING)
+        show(motion = true) {
+            Box(Modifier.testTag("stage").background(Color.White).padding(24.dp)) { WindFace(size = 40, mood = mood, accent = accent, shrugs = false) }
+        }
+        ui.mainClock.advanceTimeBy(400)
+        mood = WindMood.FAILED
+        androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
+        ui.mainClock.advanceTimeBy(400)
+        val mid = shot("stage")
+        ui.mainClock.advanceTimeBy(1700)
+        assertTrue("no droop", shot("stage").sameAs(mid))
+    }
 }

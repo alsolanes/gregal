@@ -88,13 +88,14 @@ fun WindHalo(
 
 /**
  * El gest d'un vent en acabar un torn: confeti del seu color quan ha anat bé
- * (DONE), una arronsada d'espatlles trista quan ha fallat (FAILED). Només en
+ * (DONE), una arronsada d'espatlles trista quan ha fallat (FAILED, si [shrugs]:
+ * el vent de la cantonada del xat fa que no amb el cap, com al web). Només en
  * el canvi d'humor, mai per a una cara que ja es mostra feta, i res amb el
  * moviment apagat. Tot es llegeix al dibuixat i a la capa: cap fotograma
  * recompon la cara ni la llista on viu.
  */
 @Composable
-internal fun windTurnCue(mood: WindMood, accent: Color): Modifier {
+internal fun windTurnCue(mood: WindMood, accent: Color, shrugs: Boolean): Modifier {
     if (!windMotionEnabled()) return Modifier
     // 1 = acabat: res a dibuixar.
     val burst = remember { Animatable(1f) }
@@ -108,7 +109,7 @@ internal fun windTurnCue(mood: WindMood, accent: Color): Modifier {
         if (before == mood) return@LaunchedEffect
         when (mood) {
             WindMood.DONE -> scope.launch { burst.snapTo(0f); burst.animateTo(1f, tween(950, easing = LinearEasing)) }
-            WindMood.FAILED -> scope.launch { shrug.snapTo(0f); shrug.animateTo(1f, tween(900, easing = LinearEasing)) }
+            WindMood.FAILED -> if (shrugs) scope.launch { shrug.snapTo(0f); shrug.animateTo(1f, tween(900, easing = LinearEasing)) }
             else -> {}
         }
     }

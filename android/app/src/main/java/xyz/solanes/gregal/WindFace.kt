@@ -442,12 +442,14 @@ fun WindFace(
     onClick: (() -> Unit)? = null,
     /** A large face (the chat's, a profile, the home strip) is the clay wind (114) when its sheet is in the APK. */
     clay: Boolean = false,
+    /** False for the chat's corner wind, which shakes its head on a failed turn instead (WindPresence), as on the web. */
+    shrugs: Boolean = true,
 ) {
     val compact = size < 64
     val motionAllowed = windMotionEnabled()
     val motion = (!compact || tappable) && motionAllowed
     // Celebrar o arronsar-se és un sol gest en acabar el torn: també als avatars petits.
-    val cued = modifier.semantics { set(WindFaceKey, accent) }.then(windTurnCue(mood, accent))
+    val cued = modifier.semantics { set(WindFaceKey, accent) }.then(windTurnCue(mood, accent, shrugs))
     val packCued = if (onClick != null) cued.clickable(onClick = onClick) else cued
     val pack = windPack(LocalAvatarTheme.current, style)
     when (pack) {
