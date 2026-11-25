@@ -19,8 +19,8 @@ type charactersManifest struct {
 	Silhouettes         map[string]string
 	Caps                []string
 	Moods               map[string]struct {
-		Frames int
-		Loop   *bool
+		Frames, Still int
+		Loop          *bool
 	}
 }
 
@@ -32,8 +32,8 @@ func TestCharactersManifestMatchesSheets(t *testing.T) {
 	expected := map[string]bool{"app/characters/manifest.json": true}
 	for silhouette := range m.Silhouettes {
 		for mood, spec := range m.Moods {
-			if spec.Frames <= 0 || spec.Loop == nil {
-				t.Fatalf("%s: frames=%d loop=%v", mood, spec.Frames, spec.Loop)
+			if spec.Frames <= 0 || spec.Loop == nil || spec.Still < 0 || spec.Still >= spec.Frames {
+				t.Fatalf("%s: frames=%d loop=%v still=%d", mood, spec.Frames, spec.Loop, spec.Still)
 			}
 			names := strings.NewReplacer("<silhouette>", silhouette, "<mood>", mood)
 			sheets := map[string]int{m.Files: m.Size, m.Mask: m.MaskSize}
@@ -60,7 +60,7 @@ func TestCharactersManifestMatchesSheets(t *testing.T) {
 
 // El paquet minairó té la seva figura (barba fora de la màscara, la barretina
 // en una màscara pròpia perquè cada minairó la tenyeixi del seu color) i, amb
-// ella, tots els fulls junts han de cabre en 1,5 MB.
+// ella i els objectes de la feina (142), tots els fulls junts han de cabre en 2 MB.
 func TestCharactersMinairoWithinBudget(t *testing.T) {
 	m := loadCharactersManifest(t)
 	if family := m.Silhouettes["minairo"]; family != "minairo" {
@@ -81,8 +81,8 @@ func TestCharactersMinairoWithinBudget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if total > 1_500_000 {
-		t.Errorf("els personatges fan %d bytes, més d'1,5 MB", total)
+	if total > 2_000_000 {
+		t.Errorf("els personatges fan %d bytes, més de 2 MB", total)
 	}
 }
 

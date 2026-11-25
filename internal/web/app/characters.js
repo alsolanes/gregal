@@ -48,7 +48,7 @@
           tint(pixels.data, up.getImageData(0, 0, width, m.size).data, [n >> 16 & 255, n >> 8 & 255, n & 255]);
         });
         ctx.putImageData(pixels, 0, 0);
-        const done = { canvas: out, size: m.size, fps: m.fps, frames: spec.frames, loop: spec.loop };
+        const done = { canvas: out, size: m.size, fps: m.fps, frames: spec.frames, loop: spec.loop, still: spec.still || 0 };
         ready.set(key, done);
         return done;
       }));
@@ -56,8 +56,9 @@
     return sheets.get(key);
   }
 
+  // Reduced motion holds one frame: the sheet's still (142: one with the prop in view), or the first.
   function frameOf(s, since, now) {
-    if (reduced()) return 0;
+    if (reduced()) return s.still;
     const f = Math.floor((now - since) * s.fps / 1000);
     return s.loop ? f % s.frames : Math.min(f, s.frames - 1);
   }

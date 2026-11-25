@@ -41,7 +41,9 @@ rendering: it checks that `manifest.json` and the sheets agree.
   `cloud`, `curl`, with the letter of the wind style each one stands for, as
   in `winds.js`; and `minairo`, which stands for the minairó avatar pack
   whatever the wind's style), and per mood the number of `frames` and whether it `loop`s
-  or plays once and holds the last frame (`done`, `failed`).
+  or plays once and holds the last frame (`done`, `failed`). The work moods also
+  name the `prop` the wind handles in them and the `still` frame a player shows
+  with reduced motion (one with the prop in view; the first frame otherwise).
 
 To tint, `multiply` the sheet by the wind's colour where the mask is, scaling
 the mask up to `size` (canvas: draw the mask scaled, fill with the colour
@@ -68,11 +70,20 @@ the same in every sheet, with room above for hops and the curl.
   dithering change pixels on every run). A few pixels of some frames can
   still differ by one level in 255 between two runs (inside Blender, even on
   one thread), which changes those WebP files' bytes but not what you see.
+- Props (task 142): in the work moods the wind grows two clay hands (in the
+  mask, so they take its colour) and handles an object that keeps its own
+  colours: `searching` sweeps a magnifier and peeks through it with one big
+  eye, `reading` turns a page of a book, `writing` scribbles on a pad with a
+  pencil, `working` types on a laptop and hits enter, `thinking` pushes two
+  cogs round with a hand on its chin, `done` pops a party popper whose
+  confetti lands on its head. `PROPS` names each one and its still frame,
+  `props()` builds them and `handle()` moves them and the hands frame by
+  frame, from the same curves `pose()` uses for the body and the eyes.
 - Look: `material()` (clay with subsurface, sheen and a seeded grain bump),
   the pink cheek blush and contact shadow (`glow_material()`), `scene()`
   (camera, a warm key, a dim fill and a cool rim light), `SIZE` and `QUALITY`.
 
-Keep all the sheets together under 1.5 MB (`TestCharactersMinairoWithinBudget`).
+Keep all the sheets together under 2 MB (`TestCharactersMinairoWithinBudget`).
 
 ## Licence
 

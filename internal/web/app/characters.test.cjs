@@ -276,18 +276,58 @@ test('a minairó tints its barretina with its own colour through the cap mask, i
   assert.ok(!env.fetched.some(u => u.endsWith('.cap.webp') && !u.includes('/minairo/')));
 });
 
-test('reduced motion shows the first frame and switches moods without a crossfade', async () => {
+// 142: while a turn works, the big wind handles the prop of its work kind.
+const props = { searching: 'magnifier', reading: 'book', writing: 'pencil', working: 'laptop', thinking: 'gear', done: 'confetti' };
+
+test('every work mood has a sheet with its prop, and talk and idle have none', () => {
+  for (const [mood, prop] of Object.entries(props)) assert.equal(manifest.moods[mood].prop, prop, mood);
+  for (const mood of ['idle', 'discussing', 'waiting', 'news', 'failed']) assert.equal(manifest.moods[mood].prop, undefined, mood);
+});
+
+test('the clay wind plays the prop sheet of the work kind, loops it while the kind lasts and blends back to talk and idle', async () => {
+  const env = load();
+  const { svg, box } = svgFace(env);
+  env.chars.play(svg, wind);
+  await settle();
+  const canvas = box.children[0], step = 1000 / manifest.fps;
+  for (const mood of ['searching', 'reading', 'writing', 'working', 'thinking']) {
+    env.chars.mood(canvas, mood);
+    await settle();
+    env.frame(1000);
+    const shown = lastDraw(canvas);
+    assert.equal(shown.sheet, `curl/${mood}.webp`);
+    env.frame(manifest.moods[mood].frames * step + 1);
+    assert.deepEqual(lastDraw(canvas), shown, `${mood} loops on its own frames`);
+  }
+  for (const [mood, sheet] of [['discussing', 'curl/discussing.webp'], ['idle', 'curl/idle.webp']]) {
+    const before = lastDraw(canvas).sheet;
+    env.chars.mood(canvas, mood);
+    await settle();
+    env.frame(60);
+    const [from, to] = canvas.draws;
+    assert.deepEqual([from.sheet, to.sheet], [before, sheet], `${mood} blends in over the prop sheet`);
+    assert.ok(from.alpha > 0 && from.alpha < 1);
+    env.frame(1000);
+  }
+});
+
+test('reduced motion holds each sheet on its still frame, with the prop in view, and switches without a crossfade', async () => {
   const env = load({ reduced: true });
   const { svg, box } = svgFace(env);
   env.chars.play(svg, wind);
   await settle();
   const canvas = box.children[0];
   env.frame(500);
-  assert.deepEqual(canvas.draws, [{ sheet: 'curl/idle.webp', sx: 0, alpha: 1, op: 'source-over' }]);
-  env.chars.mood(canvas, 'done');
-  await settle();
-  env.frame(500);
-  assert.deepEqual(canvas.draws, [{ sheet: 'curl/done.webp', sx: 0, alpha: 1, op: 'source-over' }]);
+  assert.deepEqual(canvas.draws, [{ sheet: 'curl/idle.webp', sx: 0, alpha: 1, op: 'source-over' }], 'no prop: the first frame');
+  for (const mood of Object.keys(props)) {
+    const still = manifest.moods[mood].still;
+    assert.ok(still > 0 && still < manifest.moods[mood].frames, `${mood} picks a frame of its own`);
+    env.chars.mood(canvas, mood);
+    await settle();
+    env.frame(500);
+    assert.deepEqual(canvas.draws, [{ sheet: `curl/${mood}.webp`, sx: still * SIZE, alpha: 1, op: 'source-over' }], mood);
+  }
+  assert.equal(manifest.moods.done.still, manifest.moods.done.frames - 1, 'done stills on its last frame: the confetti has landed');
 });
 
 test('the player pauses off screen and while the tab is hidden', async () => {

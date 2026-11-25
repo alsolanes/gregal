@@ -110,6 +110,20 @@ test('moods come only from observed chat phases and live step state', () => {
   for (const [work, mood] of cases) assert.equal(winds.moodOf(work), mood, JSON.stringify(work));
 });
 
+// 142: the clay sheet a work kind plays shows the wind handling that kind's prop.
+test('each work kind of a live turn plays the clay sheet with its prop', () => {
+  const { winds } = load();
+  const { moods } = JSON.parse(fs.readFileSync(path.join(__dirname, 'characters', 'manifest.json'), 'utf8'));
+  const cases = [
+    [{ state:'working', activity:'grep' }, 'magnifier'], [{ phase:'searching' }, 'magnifier'],
+    [{ state:'working', activity:'read' }, 'book'], [{ state:'working', activity:'edit' }, 'pencil'], [{ phase:'thinking', text:'Hola' }, 'pencil'],
+    [{ state:'working', activity:'bash' }, 'laptop'], [{ phase:'scheduling' }, 'laptop'],
+    [{ state:'working', activity:'plan' }, 'gear'], [{ phase:'thinking' }, 'gear'], [{ state:'completed' }, 'confetti'],
+    [{ state:'working', activity:'discussion' }, undefined], [{}, undefined],
+  ];
+  for (const [work, prop] of cases) assert.equal(moods[winds.moodOf(work)].prop, prop, JSON.stringify(work));
+});
+
 test('a redrawn face keeps its loop phase and plays the done hop once per transition', () => {
   const { winds, tick } = load();
   const w = { id:'front', specialty:'frontend', color:'#A8D8EA', style:'bss' };
