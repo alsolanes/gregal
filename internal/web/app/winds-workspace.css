@@ -421,6 +421,14 @@ input.vw-ask-free:focus { border-color:color-mix(in srgb, var(--accent) 55%, var
 .vw-ask-preview[data-kind="command"] { padding:0; border:0; }
 .vw-ask-preview code { margin:0; max-height:12em; }
 .vw-ask-plan .vw-ask-actions button { min-height:40px; border-radius:12px; font-weight:600; }
+/* 130: la targeta és del vent que pregunta: la seva cara, la vora i un tint del seu color, el perquè en una
+   línia i Permet del seu color amb la tinta del tema que s'hi llegeix (--vw-allow*, winds-workspace.js). */
+.vw-ask.vw-ask-wind, .vw-messages .vw-asks-inline .vw-ask.vw-ask-wind { border-color:color-mix(in srgb, var(--vw-wind) 45%, var(--line-hi)); background:color-mix(in srgb, var(--vw-wind) 5%, var(--surface)); box-shadow:inset 3px 0 0 var(--vw-wind); }
+.vw-ask-head > div { min-width:0; }
+.vw-ask-head > .winds-face { flex:none; width:28px; height:28px; margin-top:-2px; }
+.vw-ask-why { display:block; color:var(--muted); font-size:12.5px; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.vw-ask-wind .vw-ask-actions .vw-ask-allow, .vw-ask-wind .vw-ask-actions .vw-ask-allow:hover { background:var(--vw-allow, var(--accent)); color:var(--vw-allow-ink, var(--on-accent, var(--bg))); }
+.vw-ask-wind .vw-ask-actions .vw-ask-allow:hover { box-shadow:inset 0 0 0 2px color-mix(in srgb, var(--vw-allow-ink, var(--bg)) 22%, transparent); }
 /* Respost: la targeta queda en una línia, i el vent de la cantonada assenteix (Permet) o fa que no (No),
    per sobre de la postura «t'espera» si encara n'hi ha d'altres. */
 .vw-ask-done { margin:4px 0 8px 58px; color:var(--muted); font-size:13px; overflow-wrap:anywhere; }
@@ -893,11 +901,10 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-messages .vw-message-text { font-size:16px; line-height:1.6; }
 .vw-messages .vw-message:not(.vw-user) { display:block; position:relative; }
 .vw-messages .vw-message:not(.vw-user) > div { max-width:min(100%, var(--vw-measure)); padding:0; background:none; border-radius:0; }
-.vw-messages .vw-message:not(.vw-user) > :is(.winds-face,.vw-shared-person) { position:absolute; left:0; top:28px; width:24px; height:24px; margin:0; font-size:11px; }
-.vw-messages .vw-message.vw-run-cont > :is(.winds-face,.vw-shared-person) { display:none; }
+.vw-messages .vw-message:not(.vw-user) > :is(.winds-face,.vw-shared-person) { position:absolute; left:0; top:30px; width:20px; height:20px; margin:0; font-size:10px; }
 .vw-messages .vw-message:not(.vw-user) > div > strong { display:block; min-height:0; margin:0 0 6px; padding:0; font-size:13px; line-height:24px; font-weight:600; letter-spacing:.005em;
   color:color-mix(in srgb, var(--vw-wind, var(--accent)) 40%, var(--ink)); }
-.vw-messages .vw-message:not(.vw-user):has(> :is(.winds-face,.vw-shared-person)) > div > strong { padding-left:34px; }
+.vw-messages .vw-message:not(.vw-user):has(> :is(.winds-face,.vw-shared-person)) > div > strong { padding-left:28px; }
 .vw-messages .vw-message.vw-run-cont:not(.vw-user) > div > strong { display:none; }
 .vw-messages .vw-message:not(.vw-user) .vw-message-text { color:var(--text); }
 .vw-messages .vw-user > div { background:var(--surface-hi); color:var(--ink); border:0; border-radius:var(--vw-bubble); padding:10px 16px; max-width:min(80%, 36rem); }
@@ -926,7 +933,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
   .vw-messages .vw-message { transform-origin:0 100%; }
   .vw-messages .vw-message.vw-user { transform-origin:100% 100%; }
   @keyframes vw-in { 0% { opacity:0; transform:translateY(12px) scale(.94); } 55% { opacity:1; transform:translateY(-2px) scale(1.01); } 80% { transform:translateY(1px) scale(.997); } 100% { opacity:1; transform:none; } }
-  .vw-messages .vw-pending:not(.vw-reading):not(:has(.vw-stream-text)) .vw-pending-copy { animation:vw-bubble 2.4s ease-in-out infinite; transform-origin:0 100%; }
+  .vw-messages .vw-pending:not(:has(.vw-stream-text)) .vw-pending-copy { animation:vw-bubble 2.4s ease-in-out infinite; transform-origin:0 100%; }
   @keyframes vw-bubble { 0%,100% { transform:scale(1); } 50% { transform:scale(1.02); } }
   #workbench > :is(.vw-computer-pane, #docsPanel) { animation:vw-pane-in .38s cubic-bezier(.2,.9,.3,1); }
   @keyframes vw-pane-in { from { opacity:0; transform:translateX(36px); } to { opacity:1; transform:none; } }
