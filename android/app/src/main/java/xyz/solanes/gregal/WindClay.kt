@@ -17,14 +17,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
@@ -102,26 +99,48 @@ internal object WindClay {
             spec.optInt("frames", 1), spec.optBoolean("loop", true), m.optInt("fps", 12), spec.optInt("still", 0))
             .also { sheets.put("$dir/$name", it) }
     }
+
+    // A tinted sheet is as big as the sheet: a few winds on screen in a few moods.
+    private val tints = object : android.util.LruCache<Triple<WindClaySheet, Color, Color>, ImageBitmap>(16 shl 20) {
+        override fun sizeOf(key: Triple<WindClaySheet, Color, Color>, value: ImageBitmap) = 4 * value.width * value.height
+    }
+
+    fun tinted(s: WindClaySheet, accent: Color, barretina: Color): ImageBitmap {
+        val key = Triple(s, accent, if (s.cap != null) barretina else Color.Unspecified)
+        return tints.get(key) ?: tintClay(s, accent, barretina).also { tints.put(key, it) }
+    }
 }
 
 /**
- * One frame of [s], tinted: in its own layer, white where the body is not,
- * the wind's colour through the mask and the [barretina] colour through the
- * cap mask, then the clay multiplied in
- * (Modulate keeps the clay's alpha and is the same blend on every API level).
+ * [s] tinted, every frame: white where the body is not, the wind's colour
+ * through the mask and the [barretina] colour through the cap mask, the clay
+ * multiplied in and all of it cut to the clay's alpha. It is done once per
+ * sheet and colour in a software canvas: tinting each frame in a GPU layer
+ * left a dark square round the wind on phones.
  */
+private fun tintClay(s: WindClaySheet, accent: Color, barretina: Color): ImageBitmap {
+    val clay = s.sheet.asAndroidBitmap()
+    val out = android.graphics.Bitmap.createBitmap(clay.width, clay.height, android.graphics.Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(out)
+    val whole = android.graphics.Rect(0, 0, clay.width, clay.height)
+    canvas.drawColor(android.graphics.Color.WHITE)
+    fun mask(m: ImageBitmap, tint: Color) = canvas.drawBitmap(m.asAndroidBitmap(), null, whole, android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG).apply {
+        colorFilter = android.graphics.PorterDuffColorFilter(tint.toArgb(), android.graphics.PorterDuff.Mode.SRC_IN)
+    })
+    mask(s.mask, accent)
+    s.cap?.let { mask(it, barretina) }
+    fun blend(mode: android.graphics.PorterDuff.Mode) = canvas.drawBitmap(clay, 0f, 0f, android.graphics.Paint().apply {
+        xfermode = android.graphics.PorterDuffXfermode(mode)
+    })
+    blend(android.graphics.PorterDuff.Mode.MULTIPLY)
+    blend(android.graphics.PorterDuff.Mode.DST_IN)
+    return out.asImageBitmap()
+}
+
 private fun DrawScope.drawClay(s: WindClaySheet, frame: Int, accent: Color, barretina: Color, alpha: Float) {
     if (alpha <= 0f) return
-    val dst = IntSize(size.width.roundToInt(), size.height.roundToInt())
-    val canvas = drawContext.canvas
-    canvas.saveLayer(Rect(Offset.Zero, size), Paint().apply { this.alpha = alpha })
-    drawRect(Color.White)
-    drawImage(s.mask, IntOffset(frame * s.maskSize, 0), IntSize(s.maskSize, s.maskSize), dstSize = dst,
-        colorFilter = ColorFilter.tint(accent, BlendMode.SrcIn))
-    if (s.cap != null) drawImage(s.cap, IntOffset(frame * s.maskSize, 0), IntSize(s.maskSize, s.maskSize), dstSize = dst,
-        colorFilter = ColorFilter.tint(barretina, BlendMode.SrcIn))
-    drawImage(s.sheet, IntOffset(frame * s.size, 0), IntSize(s.size, s.size), dstSize = dst, blendMode = BlendMode.Modulate)
-    canvas.restore()
+    drawImage(WindClay.tinted(s, accent, barretina), IntOffset(frame * s.size, 0), IntSize(s.size, s.size),
+        dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()), alpha = alpha)
 }
 
 /**

@@ -160,6 +160,18 @@ class WindClayTest {
         }
     }
 
+    private fun nearlySame(a: Bitmap, b: Bitmap): Boolean {
+        if (a.width != b.width || a.height != b.height) return false
+        var off = 0
+        for (y in 0 until a.height) for (x in 0 until a.width) {
+            val p = a.getPixel(x, y); val q = b.getPixel(x, y)
+            if (p == q) continue
+            if ((0..24 step 8).any { Math.abs((p ushr it and 255) - (q ushr it and 255)) > 2 }) return false
+            off++
+        }
+        return off <= 4
+    }
+
     @Test fun motionOffHoldsTheStillFrameWithTheProp() {
         val still = moodsOfManifest().getJSONObject("searching").getInt("still")
         assertTrue("the still frame is not the first", still > 0)
@@ -176,7 +188,8 @@ class WindClayTest {
         val first = pixels("playing")
         assertFalse("motion off is not on the first frame", pixels("still").sameAs(first))
         ui.mainClock.advanceTimeBy(still * 1000L / 12 + 40)
-        assertTrue("it is the still frame the playing face reaches", pixels("still").sameAs(pixels("playing")))
+        // The tinted sheet is scaled at two places on screen: a stray pixel may round one level apart.
+        assertTrue("it is the still frame the playing face reaches", nearlySame(pixels("still"), pixels("playing")))
     }
 
     /** Average colour of the body: the opaque pixels of the face. */
@@ -203,6 +216,18 @@ class WindClayTest {
     @Test fun aBlueWindIsBlue() {
         val blue = body(Color(0xFF3A6FE0))
         assertTrue("a blue wind is blue: ${blue.toList()}", blue[2] > blue[0] + 40f)
+    }
+
+    @Test fun aClayFaceHasNoBoxAroundIt() {
+        val bg = 0xFF15171C.toInt()
+        show {
+            Box(Modifier.testTag("f").background(Color(bg))) {
+                WindFace(size = 96, accent = orange, clay = true)
+            }
+        }
+        val bmp = pixels("f")
+        val corners = listOf(0 to 0, bmp.width - 1 to 0, 0 to bmp.height - 1, bmp.width - 1 to bmp.height - 1, 3 to 3, bmp.width / 2 to 0)
+        for ((x, y) in corners) assertEquals("the background shows at ($x,$y)", Integer.toHexString(bg), Integer.toHexString(bmp.getPixel(x, y)))
     }
 
     /** Opaque pixels of a clay minairó in an orange wind wearing the barretina of [style]'s fourth letter that are far bluer or greener than red. */
