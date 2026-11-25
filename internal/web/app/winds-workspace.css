@@ -963,6 +963,59 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
   .vw-wind-corner[data-mood="waiting"] > .winds-face { animation:vw-corner-wait 3s ease-in-out infinite; }
 }
 @keyframes vw-corner-wait { 0%,70%,100% { transform:rotate(-8deg); } 78% { transform:rotate(-8deg) translateY(-5px); } 86% { transform:rotate(-8deg); } }
+/* 138: canviar d'humor fon la cara vella amb la nova (winds-workspace.js, swapIn): la vella queda a sota
+   mentre s'esvaeix. L'estri de la feina (.vw-prop) el té a tocar, davant del cos, del color del vent
+   barrejat amb el text del tema perquè es vegi en clar i en fosc. La plastilina ja porta els seus estris,
+   i on hi ha estri la marca petita de la cara (.wf-badge) sobra. */
+.vw-wind-corner > .vw-fade-out { position:absolute; left:0; top:0; }
+.vw-wind-corner > .vw-prop { --vp-ink:color-mix(in srgb, var(--vw-wind, var(--accent)) 50%, var(--text)); --vp-tint:color-mix(in srgb, var(--vw-wind, var(--accent)) 70%, var(--surface)); --vp-paper:var(--surface-hi);
+  position:absolute; left:-4px; bottom:0; z-index:2; width:44px; height:44px; overflow:visible; pointer-events:none; filter:drop-shadow(0 1px 1px color-mix(in srgb, var(--text) 18%, transparent)); }
+/* Pensant, els engranatges són a dalt, on se li'n van els ulls (winds.js poses); la resta d'estris, a baix
+   davant seu, i els ulls hi miren. */
+.vw-wind-corner > .vw-prop[data-kind="thinking"] { left:auto; right:-10px; bottom:auto; top:-4px; width:38px; height:38px; }
+.vw-wind-corner:is([data-mood="searching"],[data-mood="reading"],[data-mood="writing"],[data-mood="working"]):has(> .vw-prop) > .winds-face .wf-aim { translate:-2.4px 1.4px; }
+.vw-wind-corner:has(> .winds-clay) > .vw-prop { display:none; }
+.vw-wind-corner:has(> .vw-prop:not(.vw-fade-out)) > .winds-face .wf-badge { display:none; }
+.vw-prop :is(.vp-move, .vp-turn, .vp-gear, .vp-key) { transform-box:fill-box; transform-origin:50% 50%; }
+.vw-prop .vp-ink { stroke:var(--vp-ink); stroke-width:1.8; stroke-linejoin:round; stroke-linecap:round; }
+.vw-prop .vp-tint { fill:var(--vp-tint); }
+.vw-prop .vp-paper { fill:var(--vp-paper); }
+.vw-prop .vp-thick { fill:none; stroke-width:4.4; }
+.vw-prop :is(.vp-line, .vp-trail, .vp-shine, .vp-code) { fill:none; stroke-width:1.6; stroke-linecap:round; }
+.vw-prop :is(.vp-line, .vp-trail) { stroke:var(--vp-ink); }
+.vw-prop .vp-line { opacity:.6; }
+.vw-prop .vp-shine { stroke:var(--vp-paper); }
+.vw-prop .vp-nib { fill:var(--vp-ink); }
+.vw-prop .vp-screen { fill:var(--vp-paper); }
+.vw-prop .vp-code { stroke:var(--vw-wind, var(--accent)); stroke-width:2; }
+.vw-prop .vp-teeth { fill:none; stroke:var(--vp-ink); stroke-width:4; stroke-dasharray:3.5 3.57; }
+.vw-prop .vp-teeth-b { stroke-dasharray:2.9 2.87; }
+.vw-prop .vp-turn { transform-origin:0 50%; }
+/* Mentre treballa es mou sempre una mica, amb un compàs (3 s) que no va amb els punts de «Treballant…»
+   de la capçalera (1,4 s); l'estri fa la seva feina al compàs de la cara (winds.css): la lupa escombra
+   mentre els ulls escanegen, la pàgina gira mentre llegeix, el llapis gargoteja, les tecles piquen i els
+   engranatges giren. Amb menys moviment, tot quiet: l'estri hi és, però no es mou. */
+@media(prefers-reduced-motion:no-preference) {
+  .vw-wind-corner:is([data-mood="thinking"],[data-mood="searching"],[data-mood="reading"],[data-mood="writing"],[data-mood="working"],[data-mood="discussing"]) > .winds-face { animation:vw-busy 3s ease-in-out var(--vw-phase,0s) infinite; }
+  .vw-prop[data-kind="searching"] .vp-move { transform-origin:30% 100%; animation:vw-prop-sweep 2.4s ease-in-out var(--vw-phase,0s) infinite; }
+  .vw-prop[data-kind="reading"] .vp-turn { animation:vw-prop-page 3s ease-in-out var(--vw-phase,0s) infinite; }
+  .vw-prop[data-kind="writing"] .vp-move { transform-origin:0 100%; animation:vw-prop-pencil 1.2s ease-in-out var(--vw-phase,0s) infinite; }
+  .vw-prop[data-kind="writing"] .vp-trail { stroke-dasharray:1; animation:vw-prop-trail 1.2s ease-in-out var(--vw-phase,0s) infinite; }
+  .vw-prop[data-kind="working"] .vp-key { animation:vw-prop-tap .75s ease-in-out var(--vw-phase,0s) infinite; }
+  .vw-prop[data-kind="working"] .vp-key-b { animation-delay:calc(var(--vw-phase,0s) + .25s); }
+  .vw-prop[data-kind="working"] .vp-key-c { animation-delay:calc(var(--vw-phase,0s) + .5s); }
+  .vw-prop[data-kind="working"] .vp-code { animation:vw-prop-code 1.5s steps(3, end) var(--vw-phase,0s) infinite; }
+  .vw-prop[data-kind="thinking"] .vp-gear { animation:vw-prop-gear 6s linear var(--vw-phase,0s) infinite; }
+  .vw-prop[data-kind="thinking"] .vp-gear-b { animation-direction:reverse; animation-duration:4s; }
+}
+@keyframes vw-busy { 0%,100% { translate:0 0; rotate:0deg; scale:1 1; } 25% { rotate:-1.6deg; } 50% { translate:0 -3px; rotate:0deg; scale:.985 1.02; } 75% { rotate:1.6deg; } }
+@keyframes vw-prop-sweep { 0%,100% { transform:translate(-3px,0) rotate(-14deg); } 50% { transform:translate(4px,-2px) rotate(10deg); } }
+@keyframes vw-prop-page { 0%,40% { transform:scaleX(1); opacity:1; } 72% { transform:scaleX(-1); opacity:1; } 88%,94% { transform:scaleX(-1); opacity:0; } 95% { transform:scaleX(1); opacity:0; } }
+@keyframes vw-prop-pencil { 0%,100% { transform:translate(-13px,1px) rotate(-4deg); } 22% { transform:translate(-9px,-1.5px) rotate(3deg); } 44% { transform:translate(-5px,1px) rotate(-4deg); } 66% { transform:translate(-1px,-1.5px) rotate(3deg); } 82% { transform:translate(0,0) rotate(0deg); } }
+@keyframes vw-prop-trail { 0% { stroke-dashoffset:1; opacity:1; } 82% { stroke-dashoffset:0; opacity:1; } 100% { stroke-dashoffset:0; opacity:0; } }
+@keyframes vw-prop-tap { 0%,60%,100% { transform:translateY(0); opacity:.45; } 20% { transform:translateY(.8px); opacity:1; } }
+@keyframes vw-prop-code { 0% { opacity:.35; } 50% { opacity:1; } 100% { opacity:.7; } }
+@keyframes vw-prop-gear { to { transform:rotate(360deg); } }
 /* 101: un torn que surt bé, el vent (o la cara de Gregal) fa un saltiró amb un esclat d'espurnes del
    seu color (winds-workspace.js, cheerOn); un que falla, una arronsada d'espatlles. L'esclat vola amb
    el vent. Les espurnes són invisibles fins que es mouen: amb menys moviment no hi ha res a veure. */
