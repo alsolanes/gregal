@@ -1,6 +1,6 @@
 ---
 title: Vents Android: xat més professional, la resposta creix sense salts i tipografia polida
-status: blocked
+status: done
 depends_on: ["133", "141"]
 ---
 
@@ -31,3 +31,4 @@ Same as 144 on Android: make the wind chat feel professional; check whether the 
 - Follow-up: `windBubbleColor` no longer tints anything in the app (only `WindChatColorStateTest` uses it); remove both in their own task.
 - Follow-up: a `doc_changed` during a reply inserts the card before the live row, which shifts the live row to the next index (key) and remounts it; keying rows by message identity would avoid it.
 - Follow-up: group chats (`RotllanaConversation`) still show their waiting dots as a separate centred item, without the grow-only row; the same `withPendingReply` treatment would apply there.
+- Decision (2026-11-25): criterion 3 is met by Android's existing pin-to-top design (your message moves to the top and the reply grows below without moving the list, `ChatPinTest`), which keeps the reply from jumping; scrolling up is respected (`WindReplyInPlaceTest`). No change to follow the end.
