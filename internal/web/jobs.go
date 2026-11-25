@@ -227,6 +227,10 @@ func (s *Server) executeJob(ctx context.Context, job jobs.Job, queued runs.Run) 
 	if isFollowJob(job.ID) {
 		return s.executeFollow(jobCtx, job)
 	}
+	// La preparació de les reunions (winds_avui_prep.go): targetes «Prep».
+	if isPrepJob(job.ID) {
+		return s.executePrep(jobCtx, job)
+	}
 	// Els jobs de vent (id wind-<vent>) tenen consigna pròpia: el vent vigila
 	// el seu tema amb cerques web i només parla si troba algo que valgui la
 	// pena. El missatge entra al seu xat (company-<vent>).

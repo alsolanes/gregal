@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/url"
 	"strings"
 	"sync"
@@ -101,6 +102,12 @@ func (s *Server) glanceCached(place string) (*glanceWeather, string, []glanceEve
 func (s *Server) refreshGlance(slot *glanceSlot) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	// Amb un calendari connectat, la preparació de les reunions es posa en marxa.
+	if len(s.calendarSecrets()) > 0 {
+		if err := s.ensurePrepJob(); err != nil {
+			log.Printf("avui prep: %v", err)
+		}
+	}
 	events := s.glanceEvents(ctx)
 	weather, err := s.glanceWeatherFor(slot.place)
 	glanceMu.Lock()
