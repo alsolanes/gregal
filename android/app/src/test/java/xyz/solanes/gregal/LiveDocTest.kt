@@ -488,7 +488,7 @@ class LiveDocTest {
         assertFalse("clau-secreta" in page)
         assertEquals(mapOf("Authorization" to "Bearer clau-secreta"), docPageHeaders("clau-secreta"))
         assertEquals(emptyMap<String, String>(), docPageHeaders(""))
-        assertEquals("clau-secreta", DocPageBridge { "clau-secreta" }.token())
+        assertEquals("clau-secreta", DocPageBridge({ "clau-secreta" }) { "en" }.token())
         // Només els documents de text; les presentacions i els fulls tenen la seva pantalla.
         assertTrue(doc.inWebEditor)
         assertFalse(deck.inWebEditor)
@@ -509,9 +509,19 @@ class LiveDocTest {
     @Test
     fun theBridgeGivesTheCurrentKeyAfterTheConnectionChangesIt() {
         var key = "clau-vella"
-        val bridge = DocPageBridge { key }
+        val bridge = DocPageBridge({ key }) { "en" }
         key = "clau-nova"
         assertEquals("clau-nova", bridge.token())
+    }
+
+    // doc-page.js no té cap idioma desat al WebView: el pren del pont, i la barra de l'editor surt en el de l'app.
+    @Test
+    fun theBridgeGivesThePageTheAppLanguage() {
+        var lang = "en"
+        val bridge = DocPageBridge({ "k" }) { lang }
+        assertEquals("en", bridge.lang())
+        lang = "ca"
+        assertEquals("ca", bridge.lang())
     }
 
     // --- el que faltava a Android (notes de 063-083) ---

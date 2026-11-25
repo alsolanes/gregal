@@ -130,7 +130,7 @@ fun DocScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     }) { pad ->
         if (open != null && open.inWebEditor) {
             Column(Modifier.fillMaxSize().padding(pad).imePadding().testTag("doc-screen")) {
-                DocWebPage(open, conn.api()) { vm.conn.value.token }
+                DocWebPage(open, conn.api(), { vm.conn.value.token }) { vm.idioma.value }
             }
             return@Scaffold
         }
@@ -487,13 +487,13 @@ private fun LazyListScope.docSection(vm: GregalViewModel, lang: String, key: Str
  * mai a la URL; per això la pàgina no navega enlloc més i els enllaços s'obren fora.
  */
 @Composable
-private fun ColumnScope.DocWebPage(d: LiveDoc, api: GregalApi, key: () -> String) {
+private fun ColumnScope.DocWebPage(d: LiveDoc, api: GregalApi, key: () -> String, lang: () -> String) {
     val page = docPageUrl(api.base, DocRef(d.id, d.title, d.kind, d.scope), sessioApp)
     val ctx = LocalContext.current
     var web by remember { mutableStateOf<WebView?>(null) }
     DisposableEffect(Unit) { onDispose { web?.stopLoading(); web?.destroy() } }
     AndroidView(modifier = Modifier.fillMaxWidth().weight(1f), factory = { c ->
-        docWebView(c, page, key) { url -> runCatching { ContextCompat.startActivity(ctx, Intent(Intent.ACTION_VIEW, Uri.parse(url)), null) } }
+        docWebView(c, page, key, lang) { url -> runCatching { ContextCompat.startActivity(ctx, Intent(Intent.ACTION_VIEW, Uri.parse(url)), null) } }
             .also { web = it }
     }, update = { view ->
         if (view.tag != page) {
@@ -507,7 +507,7 @@ private fun ColumnScope.DocWebPage(d: LiveDoc, api: GregalApi, key: () -> String
  *  porta, i aleshores el WebView mesura la pàgina pel contingut: amb html,body{height:100%}
  *  la pàgina feia 0 px d'alt i el document es veia en negre. */
 @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
-internal fun docWebView(c: Context, page: String, key: () -> String, openOutside: (String) -> Unit): WebView =
+internal fun docWebView(c: Context, page: String, key: () -> String, lang: () -> String, openOutside: (String) -> Unit): WebView =
     WebView(c).apply {
         layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         settings.javaScriptEnabled = true
@@ -523,7 +523,7 @@ internal fun docWebView(c: Context, page: String, key: () -> String, openOutside
                 return true
             }
         }
-        addJavascriptInterface(DocPageBridge(key), "GregalAndroid")
+        addJavascriptInterface(DocPageBridge(key, lang), "GregalAndroid")
     }
 
 /** La targeta del xat quan l'agent escriu un document: l'obre a DocScreen. */

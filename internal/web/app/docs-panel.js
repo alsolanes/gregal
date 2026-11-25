@@ -181,7 +181,7 @@ const withScope = (url, scope) => (scope ? url + (url.includes('?') ? '&' : '?')
 $('docsWindow').onclick = () => {
   const s = window.gregalSession || 'default';
   if (window.gregalDesktop?.openDocWindow) window.gregalDesktop.openDocWindow(state.id, s, state.scope);
-  else window.open(withScope('/app/doc/' + encodeURIComponent(state.id) + '?session=' + encodeURIComponent(s), state.scope), 'gregal-doc-' + (state.scope ? state.scope + '-' : '') + state.id);
+  else window.open(withScope('/app/doc/' + encodeURIComponent(state.id) + '?session=' + encodeURIComponent(s) + '&lang=' + idioma(), state.scope), 'gregal-doc-' + (state.scope ? state.scope + '-' : '') + state.id);
   $('docsClose').click();
 };
 

@@ -2,7 +2,12 @@
 // documents a pàgina sencera, amb la mateixa vista, el mateix stream i la
 // mateixa edició. Aquí no hi ha index.html: window.gregal és el mínim que
 // docs-panel.js en fa servir.
+import { defineixPerDefecte } from './i18n.js';
+
 const query = new URLSearchParams(location.search);
+// L'idioma de l'app (el pont d'Android o el panell que obre la finestra): sense
+// cap de desat al navegador, la barra de l'editor sortia sempre en català.
+defineixPerDefecte(window.GregalAndroid?.lang?.() || query.get('lang'));
 const session = query.get('session') || 'default';
 // scope=mine: un document de «Els meus documents» (els dels vents), no del projecte.
 const scope = query.get('scope') === 'mine' ? 'mine' : '';

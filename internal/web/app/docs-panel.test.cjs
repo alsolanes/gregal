@@ -83,7 +83,7 @@ test('a wind document opens in the panel and every call carries scope=mine', asy
   }
   assert.match(urls.at(-1), /^\/api\/docs\/w1\/export\?format=docx&name=Carta\.docx&scope=mine$/);
   for (const u of urls) assert.match(u, /[?&]scope=mine(&|$)/, u);
-  assert.equal(win, '/app/doc/w1?session=default&scope=mine', '«Open in a window» opens the personal document');
+  assert.equal(win, '/app/doc/w1?session=default&lang=en&scope=mine', '«Open in a window» opens the personal document, in the app language');
   assert.equal(opened[0][1], 'gregal-doc-mine-w1', 'the personal document has its own window, apart from a project one with the same id');
 });
 
@@ -91,7 +91,7 @@ test('a Codi document never asks for scope=mine', async () => {
   const { urls, window: win } = await urlsOf({ id: 'p1', title: 'Pla' });
   assert.ok(urls.includes('/api/docs/p1/stream') && urls.includes('/api/docs/p1/blocks'), urls.join(' '));
   for (const u of urls) assert.doesNotMatch(u, /scope=/, u);
-  assert.equal(win, '/app/doc/p1?session=default');
+  assert.equal(win, '/app/doc/p1?session=default&lang=en');
 });
 
 test('the same wind document already open is only brought forward', async () => {

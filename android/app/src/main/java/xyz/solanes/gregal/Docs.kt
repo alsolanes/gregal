@@ -361,10 +361,14 @@ fun docPageUrl(base: String, d: DocRef, session: String): String =
 fun docPageHeaders(token: String): Map<String, String> = if (token.isBlank()) emptyMap() else mapOf("Authorization" to "Bearer $token")
 
 /** Les crides de la pàgina: doc-page.js llegeix la clau d'aquest pont (window.GregalAndroid), com a l'escriptori de window.gregalDesktop.
- *  Es llegeix a cada crida: si la connexió canvia de clau, la pàgina ja oberta fa servir la nova. */
-class DocPageBridge(private val key: () -> String) {
+ *  Es llegeix a cada crida: si la connexió canvia de clau, la pàgina ja oberta fa servir la nova.
+ *  L'idioma de l'app també: el WebView no en té cap de desat i la barra de l'editor sortia en català. */
+class DocPageBridge(private val key: () -> String, private val appLang: () -> String) {
     @JavascriptInterface
     fun token(): String = key()
+
+    @JavascriptInterface
+    fun lang(): String = appLang()
 }
 
 /** Només la pàgina mateixa es carrega al WebView (la pàgina, amb el pont i la clau, no navega enlloc més). */

@@ -82,3 +82,19 @@ test('an unknown scope opens the project document, with the browser key', async 
     assert.deepEqual(headers, { 'X-Gregal-Session': 'default', Authorization: 'Bearer clau-del-navegador' }, url);
   }
 });
+
+// Sense idioma desat al navegador (el WebView d'Android, o un servidor en anglès), la barra sortia en català.
+test('the document window speaks the app language: the Android bridge’s, else the one in the URL', async () => {
+  const { idioma } = await import(pathToFileURL(path.join(__dirname, 'i18n.js')).href);
+  globalThis.localStorage = { getItem: k => (k === 'gregal_token' ? 'clau' : null), setItem() {} };
+  document.documentElement = {};
+  document.querySelectorAll = () => [];
+  globalThis.CustomEvent = class { constructor(type, o) { this.type = type; this.detail = o?.detail; } };
+  globalThis.location = { search: '?session=tab-1&lang=en', pathname: '/app/doc/w1', href: 'http://127.0.0.1:8097/app/doc/w1?session=tab-1&lang=en' };
+  await import(pathToFileURL(path.join(__dirname, 'doc-page.js')).href + '?web-en');
+  assert.equal(idioma(), 'en', 'the web window takes the language from the panel’s URL');
+  globalThis.GregalAndroid = { token: () => 'k', lang: () => 'ca' };
+  await import(pathToFileURL(path.join(__dirname, 'doc-page.js')).href + '?android-ca');
+  assert.equal(idioma(), 'ca', 'on Android the bridge says which language the app is in');
+  delete globalThis.GregalAndroid;
+});
