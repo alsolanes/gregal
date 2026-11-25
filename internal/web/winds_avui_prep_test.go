@@ -64,6 +64,9 @@ func TestAvuiPrepCardForTheNextMeeting(t *testing.T) {
 		icsEvent("d@x", "", now.Add(70*time.Minute)),
 		icsAllDay("e@x", "Vacances", now.Add(60*time.Minute).In(time.Local)),
 	)
+	// The default quiet hours (22-08) would hold the card when the test runs at night.
+	local := time.Now().In(s.loadConnections().zone())
+	avuiSettingsPost(t, s, `{"quiet_from":"`+local.Add(3*time.Hour).Format("15:04")+`","quiet_to":"`+local.Add(4*time.Hour).Format("15:04")+`"}`)
 	briefs := stubPrepLoop(t, "La Marta va enviar el full de càlcul dilluns.\nPorta les xifres del Q3.")
 	cards := run()
 	hhmm := now.Add(60 * time.Minute).In(s.loadConnections().zone()).Format("15:04")
