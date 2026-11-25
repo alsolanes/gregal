@@ -21,6 +21,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
@@ -106,6 +108,8 @@ internal fun WindAskCards(vm: GregalViewModel, lang: String, accent: Color, busy
     if (asks.isEmpty() && answered.isEmpty()) return
     fun own(a: GregalApi.WindAsk) = onOwnAnswer != null && (winds.firstOrNull { it.id == a.wind } ?: wind)?.id == wind?.id
     fun faceOf(a: GregalApi.WindAsk) = if (own(a)) null else winds.firstOrNull { it.id == a.wind } ?: wind
+    // La targeta de permís és del color del vent que pregunta, també a Feina i en un grup.
+    fun colourOf(a: GregalApi.WindAsk) = (winds.firstOrNull { it.id == a.wind } ?: wind)?.let { Color(it.argb) } ?: accent
     fun answer(a: GregalApi.WindAsk, ok: Boolean) {
         answered.add(a to ok)
         if (own(a)) onOwnAnswer?.invoke(ok)
@@ -122,16 +126,17 @@ internal fun WindAskCards(vm: GregalViewModel, lang: String, accent: Color, busy
             else if (a.type == "secret") SecretCard(lang, a, accent,
                 onSave = { v -> vm.answerWindAsk(a.key, approve = true, secret = v) }, onDecline = { vm.answerWindAsk(a.key, approve = false) })
             else if (a.type == "question") QuestionCard(lang, a, accent) { ans -> vm.answerWindAsk(a.key, answer = ans) }
-            else ApproveCard(lang, a, accent, faceOf(a),
+            else ApproveCard(lang, a, colourOf(a), faceOf(a),
                 onAllow = { answer(a, true) }, onDecline = { answer(a, false) })
         }
     }
 }
 
 @Composable
-private fun AskShell(accent: Color, tag: String, content: @Composable ColumnScope.() -> Unit) {
+private fun AskShell(accent: Color, tag: String, edge: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(accent.copy(alpha = .10f).compositeOverSafe(SuperficieAlta.copy(alpha = .6f)))
+            .then(if (edge) Modifier.drawBehind { drawRect(accent, size = Size(3.dp.toPx(), size.height)) } else Modifier)
             .border(1.dp, accent.copy(alpha = .45f), RoundedCornerShape(22.dp)).padding(16.dp).testTag(tag),
         verticalArrangement = Arrangement.spacedBy(10.dp), content = content,
     )
@@ -162,16 +167,15 @@ private fun askPath(s: String): String {
 }
 
 /** Pura i provada (ApprovePlanTest): la mateixa lògica que askPlan a la web. */
-internal fun approvePlan(lang: String, kind: String, what: String, name: String = "", reason: String = ""): ApprovePlan {
+internal fun approvePlan(lang: String, kind: String, what: String, name: String = ""): ApprovePlan {
     val en = lang == "en"
     fun t(ca: String, e: String) = if (en) e else ca
     val w = what.trim()
     Regex("^(write|edit|patch)\\s+(.+)$").find(w)?.let { m ->
         val (file, dir) = askWhere(m.groupValues[2], en)
         val where = if (dir.isNotEmpty()) t("És a $dir.", "It is in $dir.") else ""
-        val sub = if (kind == "rule" && reason.isNotBlank()) listOf(where, reason).filter { it.isNotEmpty() }.joinToString(" ") else where
-        return if (m.groupValues[1] == "write") ApprovePlan(t("Vols que escrigui $file?", "Shall I write $file?"), sub)
-        else ApprovePlan(t("Vols que modifiqui $file?", "Shall I edit $file?"), sub)
+        return if (m.groupValues[1] == "write") ApprovePlan(t("Vols que escrigui $file?", "Shall I write $file?"), where)
+        else ApprovePlan(t("Vols que modifiqui $file?", "Shall I edit $file?"), where)
     }
     return when (kind) {
         "delete" -> {
@@ -184,7 +188,7 @@ internal fun approvePlan(lang: String, kind: String, what: String, name: String 
         "download" -> ApprovePlan(t("Vols que baixi un paquet o un fitxer?", "Shall I download a package or file?"), t("De fora, a l'ordinador.", "From outside, onto the computer."))
         "system" -> ApprovePlan(t("Vols que canviï un servei del sistema?", "Shall I change a system service?"), t("Afecta tot l'ordinador, no només el projecte.", "It affects the whole computer, not just the project."))
         "publish_public" -> ApprovePlan(t("Vols que publiqui la web?", "Shall I publish the site?"), t("Serà pública: qualsevol que tingui l'enllaç la veurà.", "It will be public: anyone with the link can see it."))
-        // Una regla teva («Pregunta'm abans»): la targeta diu quina.
+        // Una regla teva («Pregunta'm abans»): la targeta diu quina a la línia del perquè.
         "rule" -> ApprovePlan(when (name) {
             "mail" -> t("Vols que enviï aquest correu?", "Shall I send this email?")
             "browser" -> t("Vols que faci aquest pas al navegador?", "Shall I take this step in the browser?")
@@ -193,7 +197,7 @@ internal fun approvePlan(lang: String, kind: String, what: String, name: String 
             "calendar" -> t("Vols que canviï el calendari?", "Shall I change the calendar?")
             "remind" -> t("Vols que programi l'avís?", "Shall I set the reminder?")
             else -> t("Vols que ho faci?", "Shall I do it?")
-        }, reason)
+        }, "")
         // «other» i els tipus que no coneixem: el títol genèric. (askUi("other") és el
         // camp lliure de les preguntes, «Una altra cosa…»: sortia com a títol.)
         else -> ApprovePlan(askUi(lang, "approve"), "")
@@ -272,19 +276,22 @@ private fun AnsweredLine(lang: String, a: GregalApi.WindAsk, ok: Boolean, face: 
  */
 @Composable
 private fun ApproveCard(lang: String, a: GregalApi.WindAsk, accent: Color, face: Wind?, onAllow: () -> Unit, onDecline: () -> Unit) {
-    val plan = remember(a.key, lang) { approvePlan(lang, a.kind, a.what, a.name, a.reason) }
+    val plan = remember(a.key, lang) { approvePlan(lang, a.kind, a.what, a.name) }
     val preview = remember(a.key, lang) { askPreview(lang, a) }
     var showCmd by remember(a.key) { mutableStateOf(false) }
     val full = a.detail.ifBlank { a.what }
     Box(Modifier.fillMaxWidth().padding(top = if (face != null) 16.dp else 0.dp)) {
-        AskShell(accent, "approve-card") {
+        AskShell(accent, "approve-card", edge = true) {
             Text(askStep(lang, a), color = Muted, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(start = if (face != null) 42.dp else 0.dp).testTag("ask-step"))
             Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Icon(Icons.Rounded.Shield, null, tint = accent, modifier = Modifier.size(22.dp))
+                // La cara del vent ja és a la targeta; l'escut, per a un vent que no coneixem (o el del xat, que és a la cantonada).
+                if (face == null) Icon(Icons.Rounded.Shield, null, tint = accent, modifier = Modifier.size(22.dp).testTag("ask-shield"))
                 Column {
                     Text(plan.question, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     if (plan.sub.isNotEmpty()) Text(plan.sub, color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
+                    if (a.reason.isNotBlank()) Text(a.reason, color = Muted, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("ask-why"))
                 }
             }
             if (preview != null) AskPreviewBox(preview, accent)
@@ -342,14 +349,34 @@ private fun QuestionCard(lang: String, a: GregalApi.WindAsk, accent: Color, onAn
     }
 }
 
+/**
+ * Permet en el color del vent (com allowPaint al web): de les dues tintes del tema
+ * ([ink] i [bg]), la que deixa més color del vent; el fons es barreja cap a l'altra
+ * només fins que el text arriba a 4.5:1. Torna el fons i la tinta del text.
+ */
+internal fun allowPaint(color: Color, ink: Color, bg: Color): Pair<Color, Color> {
+    var best: Triple<Color, Color, Int>? = null
+    for ((text, other) in listOf(ink to bg, bg to ink)) for (p in 100 downTo 0 step 2) {
+        val f = p / 100f
+        val fill = if (p == 100) color else Color(other.red + (color.red - other.red) * f, other.green + (color.green - other.green) * f,
+            other.blue + (color.blue - other.blue) * f)
+        if (contrastWith(fill, text) >= 4.5) {
+            if (best == null || p > best.third) best = Triple(fill, text, p)
+            break
+        }
+    }
+    return best!!.let { it.first to it.second }
+}
+
 @Composable
 private fun AskButton(label: String, primary: Boolean, modifier: Modifier = Modifier, accent: Color = Color.Unspecified, onClick: () -> Unit) {
-    val bg = if (primary) (if (accent != Color.Unspecified) accent else Sea) else Color.Transparent
+    val pal = LocalPal.current
+    val (bg, fg) = if (primary) remember(accent, pal) { allowPaint(accent, pal.ink, pal.deepTop) } else Color.Transparent to Ink
     Box(
         modifier.heightIn(min = 46.dp).clip(RoundedCornerShape(14.dp)).background(bg)
             .then(if (primary) Modifier else Modifier.border(1.dp, Line, RoundedCornerShape(14.dp))).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { Text(label, color = if (primary) OnSea else Ink, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold) }
+    ) { Text(label, color = fg, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold) }
 }
 
 /** Respostes ràpides: sota l'últim missatge del vent; un toc les envia com a resposta. */

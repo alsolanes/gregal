@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -87,9 +88,9 @@ class WindIdentityLookTest {
         val bmp = frame(name)
         val c = Color(wind.argb)
         ui.onNodeWithTag("ask-face", useUnmergedTree = true).assert(SemanticsMatcher.expectValue(WindFaceKey, c))
-        // La vora esquerra de 3 dp, del color del vent.
+        // La vora esquerra de 3 dp, del color del vent (l'etiqueta és dins els 16 dp de marge de la targeta).
         val card = ui.onNodeWithTag("approve-card").getBoundsInRoot()
-        near(bmp.getPixel(px(card.left + Dp(2f)).toInt(), px((card.top + card.bottom) / 2).toInt()), c, "edge")
+        near(bmp.getPixel(px(card.left - Dp(14f)).toInt(), px((card.top + card.bottom) / 2).toInt()), c, "edge")
         // Permet: el color del vent (o tant a prop com permeti el 4.5:1) i la tinta que hi llegeix.
         val (fill, ink) = allowPaint(c, pal.ink, pal.deepTop)
         val allow = ui.onNodeWithTag("ask-allow").getBoundsInRoot()
