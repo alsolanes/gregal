@@ -161,6 +161,7 @@ internal fun AvuiTray(
             Icon(Icons.Rounded.Bedtime, null, tint = Muted, modifier = Modifier.size(14.dp))
             Text(tr(lang, "app.avui.held", view.held), color = Muted, style = GregalType.caption)
         }
+        AvuiBrief(lang, view, winds, onRun)
         AvuiGlanceSection(lang, view, winds, onFollow, onUnfollow, onPlace, windWeather = weather)
         val open = view.openCount
         listOf("now" to view.now, "fyi" to view.fyi, "ahead" to view.ahead).forEach { (key, cards) ->

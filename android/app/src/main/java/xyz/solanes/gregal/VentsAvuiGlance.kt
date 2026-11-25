@@ -24,7 +24,6 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.NightsStay
 import androidx.compose.material.icons.rounded.Place
-import androidx.compose.material.icons.rounded.SportsSoccer
 import androidx.compose.material.icons.rounded.Umbrella
 import androidx.compose.material.icons.rounded.WbTwilight
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -341,7 +340,7 @@ private fun SunTime(icon: androidx.compose.ui.graphics.vector.ImageVector, label
 
 /** El cel que es mou: el sol gira a poc a poc, els núvols suren, la pluja i la neu cauen, el llamp parpelleja. */
 @Composable
-private fun GlanceSky(sky: Sky, night: Boolean, size: Dp, motion: Boolean) {
+internal fun GlanceSky(sky: Sky, night: Boolean, size: Dp, motion: Boolean) {
     val sun = Sand
     val rain = Onada
     val dark = LocalPal.current.dark
@@ -426,6 +425,26 @@ private fun DrawScope.cloud(c: Offset, w: Float, color: Color) {
     drawCircle(color, w * .26f, Offset(c.x + w * .04f, c.y - w * .06f))
     drawCircle(color, w * .17f, Offset(c.x + w * .27f, c.y + w * .05f))
     drawRoundRect(color, Offset(c.x - w * .4f, c.y), Size(w * .84f, w * .22f), CornerRadius(w * .11f))
+}
+
+/** Un partit en petit: el camp amb les ratlles del color del vent i la pilota que bota. */
+@Composable
+internal fun MatchArt(accent: Color, size: Dp, motion: Boolean, modifier: Modifier = Modifier) {
+    val bounce = phase(motion, 1200, "match-bounce")
+    val ball = if (LocalPal.current.dark) Color.White else Color(0xFFFDFBF6)
+    Canvas(modifier.size(size)) {
+        val s = this.size.minDimension
+        val line = androidx.compose.ui.graphics.drawscope.Stroke(s * .045f)
+        drawRoundRect(accent.copy(alpha = .16f), Offset(s * .08f, s * .24f), Size(s * .84f, s * .56f), CornerRadius(s * .08f))
+        drawRoundRect(accent.copy(alpha = .7f), Offset(s * .08f, s * .24f), Size(s * .84f, s * .56f), CornerRadius(s * .08f), style = line)
+        drawLine(accent.copy(alpha = .7f), Offset(s * .5f, s * .24f), Offset(s * .5f, s * .8f), s * .045f)
+        drawCircle(accent.copy(alpha = .7f), s * .11f, Offset(s * .5f, s * .52f), style = line)
+        val up = kotlin.math.abs(kotlin.math.sin(bounce.value * Math.PI)).toFloat() * s * .12f
+        val c = Offset(s * .7f, s * .56f - up)
+        drawCircle(ball, s * .12f, c)
+        drawCircle(accent, s * .12f, c, style = androidx.compose.ui.graphics.drawscope.Stroke(s * .03f))
+        drawCircle(accent, s * .045f, c)
+    }
 }
 
 @Composable
@@ -560,8 +579,9 @@ private fun FollowCard(lang: String, f: AvuiFollow, accent: Color, now: ZonedDat
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(Modifier.size(26.dp).clip(CircleShape).background(accent.copy(alpha = .2f)), contentAlignment = Alignment.Center) {
-                Icon(if (f.kind == "team") Icons.Rounded.SportsSoccer else Icons.Rounded.AutoAwesome, null, tint = accent, modifier = Modifier.size(15.dp))
+            if (f.kind == "team") MatchArt(accent, 30.dp, motion, Modifier.testTag("glance-match-art"))
+            else Box(Modifier.size(26.dp).clip(CircleShape).background(accent.copy(alpha = .2f)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.AutoAwesome, null, tint = accent, modifier = Modifier.size(15.dp))
             }
             Text(f.name, color = Muted, style = GregalType.caption, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             Box(

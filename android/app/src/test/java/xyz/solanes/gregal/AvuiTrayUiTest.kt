@@ -122,7 +122,8 @@ class AvuiTrayUiTest {
         assertEquals("c1" to "done", acts.single())
         ui.onNodeWithText("Truca al dentista abans de les 12").assertDoesNotExist()
         ui.onNodeWithText("2 fetes avui").assertExists()
-        ui.onNodeWithText("Explica'm el resultat").performClick()
+        // El resum de dalt també el porta: aquí es prova el de la targeta de la safata.
+        ui.onNode(hasText("Explica'm el resultat") and hasAnyAncestor(hasTestTag("avui-card-c2"))).performClick()
         assertEquals(listOf("garbi:Explica'm"), runs)
     }
 
