@@ -628,13 +628,15 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 @media(prefers-reduced-motion:reduce) { .vw-avui-card { animation:none; transition:none; } }
 /* Avui d’una ullada (vents-avui-glance.js): el temps, el calendari i el que segueixes, a dalt de la safata.
    Els colors del cel viuen aquí com a tokens; la resta, var(--…) del tema. */
-.vw-glance { --gl-sun:#FFC857; --gl-moon:#C9D2FF; --gl-cloud-light:#E7ECF5; --gl-cloud-mid:#C3CAD8; --gl-cloud-dark:#9EA8BC; --gl-rain:#5AA2F0; --gl-snow:#FFFFFF; --gl-match:#FF7A6B; --gl-other:#B79CFF; margin:0 0 22px; }
-:root[data-theme="light"] .vw-glance { --gl-sun:#F2A900; --gl-moon:#7C88D8; --gl-cloud-light:#B9C3D6; --gl-cloud-mid:#9AA6BC; --gl-cloud-dark:#76839C; --gl-rain:#2F7FD0; --gl-snow:#8FB4E0; --gl-match:#E0533F; --gl-other:#7A5CE0; }
+.vw-glance, .vw-brief { --gl-sun:#FFC857; --gl-moon:#C9D2FF; --gl-cloud-light:#E7ECF5; --gl-cloud-mid:#C3CAD8; --gl-cloud-dark:#9EA8BC; --gl-rain:#5AA2F0; --gl-snow:#FFFFFF; --gl-match:#FF7A6B; --gl-other:#B79CFF; margin:0 0 22px; }
+:root[data-theme="light"] :is(.vw-glance, .vw-brief) { --gl-sun:#F2A900; --gl-moon:#7C88D8; --gl-cloud-light:#B9C3D6; --gl-cloud-mid:#9AA6BC; --gl-cloud-dark:#76839C; --gl-rain:#2F7FD0; --gl-snow:#8FB4E0; --gl-match:#E0533F; --gl-other:#7A5CE0; }
 .vw-glance-row { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:10px; }
 .vw-glance-card { position:relative; display:flex; flex-direction:column; gap:6px; min-width:0; padding:14px 14px 12px; border:1px solid var(--line); border-radius:20px; background:var(--surface); overflow:hidden; }
 /* La lluïssor és del color de la targeta; sense color (una invitació) no n'hi ha: en clar l'accent és gairebé tinta i feia una taca grisa. */
 .vw-glance-card::before { content:""; position:absolute; inset:-40% -30% auto auto; width:150px; height:150px; border-radius:50%; background:radial-gradient(circle, color-mix(in srgb, var(--gl-tint) 30%, transparent), transparent 70%); pointer-events:none; }
 .vw-glance-invite::before { display:none; }
+/* El temps i el partit ja porten el seu dibuix: la lluïssor sobra. */
+.vw-glance-wx::before, .vw-glance-follow[data-kind="team"]::before { display:none; }
 .vw-glance-card > * { position:relative; }
 .vw-glance-kicker { margin:0; color:var(--faint); font-size:10.5px; font-weight:650; letter-spacing:.11em; text-transform:uppercase; }
 /* El temps: el color del cel tenyeix la targeta. */
@@ -689,7 +691,9 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-glance-follow-head { display:flex; align-items:center; gap:8px; }
 .vw-glance-follow-head .vw-glance-kicker { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .vw-glance-badge { display:grid; place-items:center; flex:none; width:26px; height:26px; border-radius:50%; background:var(--gl-tint); color:var(--bg); font-size:13px; font-weight:750; }
-.vw-glance-follow[data-kind="team"] .vw-glance-badge { border-radius:8px 8px 13px 13px; }
+.vw-glance-follow[data-kind="team"] .vw-glance-badge { width:34px; height:34px; border-radius:0; background:none; }
+.vw-glance-badge svg, .vw-brief-art svg { display:block; width:100%; height:100%; overflow:visible; }
+.vw-match-ball { transform-box:fill-box; transform-origin:center; }
 .vw-glance-remove { display:grid; place-items:center; width:26px; height:26px; margin:-4px -6px -4px 0; padding:0; border:0; border-radius:50%; background:transparent; color:var(--faint); font-size:17px; line-height:1; cursor:pointer; }
 .vw-glance-remove:hover { background:var(--hover); color:var(--ink); }
 .vw-glance-title { color:var(--ink); font-size:17px; font-weight:680; line-height:1.25; letter-spacing:-.01em; }
@@ -704,6 +708,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-glance-link:hover { text-decoration:underline; }
 /* Convits, i el control «Segueix…». */
 .vw-glance-invite { justify-content:space-between; border-style:dashed; border-color:var(--line-hi); background:transparent; }
+.vw-glance-invite .vw-glance-icon { width:40px; height:40px; }
 .vw-glance-invite p { margin:0; color:var(--text); font-size:13.5px; line-height:1.45; }
 .vw-glance-chip { align-self:flex-start; min-height:30px; padding:3px 13px; border:1px solid var(--line-hi); border-radius:999px; background:transparent; color:var(--ink); font:inherit; font-size:12.5px; font-weight:600; cursor:pointer; }
 .vw-glance-chip:hover { background:var(--hover); }
@@ -720,6 +725,30 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-glance-add, .vw-glance-placeform { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
 .vw-glance-placeform { margin-top:4px; padding-top:10px; border-top:1px solid var(--line); }
 .vw-glance-add input, .vw-glance-placeform input { flex:1; min-width:150px; min-height:34px; padding:4px 12px; border:1px solid var(--line-hi); border-radius:10px; background:var(--bg); color:var(--ink); font:inherit; font-size:13.5px; }
+/* El resum del dia (vents-avui-glance.js renderBrief): una targeta per vent del seu color, que llisca amb el
+   paginador de les comparacions (.gregal-compare .gx-carousel, md.js); la següent treu el nas a la vora. */
+.vw-brief { display:flex; flex-direction:column; gap:6px; }
+.vw-brief.gregal-compare .gx-carousel { margin:0 -16px; }
+.vw-brief.gregal-compare .gx-track { grid-auto-columns:min(400px, 86%); gap:0 12px; padding:2px 16px 6px; scrollbar-width:none; }
+.vw-brief-card { --wind:var(--accent); display:flex; flex-direction:column; gap:10px; min-width:0; padding:16px; scroll-snap-align:start; border:1px solid color-mix(in srgb, var(--wind) 32%, transparent); border-radius:20px; background:linear-gradient(155deg, color-mix(in srgb, var(--wind) 18%, var(--surface)), var(--surface) 70%); }
+.vw-brief-head { display:flex; align-items:center; gap:12px; }
+.vw-brief-face { display:grid; place-items:center; flex:none; width:40px; height:40px; border-radius:12px; background:var(--surface); }
+.vw-brief-face > * { width:34px; height:34px; }
+.vw-brief-name { flex:1; min-width:0; overflow:hidden; color:var(--ink); font-size:16px; font-weight:680; text-overflow:ellipsis; white-space:nowrap; }
+.vw-brief-art { display:block; flex:none; width:52px; height:52px; }
+.vw-brief-label { color:var(--muted); font-size:11.5px; }
+.vw-brief-did { display:flex; align-items:flex-start; gap:8px; margin:0; }
+.vw-brief-tick svg { display:block; width:15px; height:15px; margin-top:2px; fill:none; stroke:var(--wind); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.vw-brief-copy, .vw-brief-proposes { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.vw-brief-what, .vw-brief-why { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; margin:0; font-size:13.5px; line-height:1.4; }
+.vw-brief-what { color:var(--ink); }
+.vw-brief-why { color:var(--muted); font-size:13px; }
+.vw-brief-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden; color:var(--ink); font-size:16px; font-weight:650; line-height:1.3; }
+.vw-brief-act { align-self:flex-start; display:inline-flex; align-items:center; gap:6px; max-width:100%; min-height:36px; margin-top:auto; padding:0 14px; border:0; border-radius:999px; background:var(--ink); color:var(--surface); font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
+.vw-brief-act > span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.vw-brief-act:hover { background:color-mix(in srgb, var(--ink) 86%, var(--wind)); }
+.vw-brief-arrow svg { display:block; width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.vw-brief :is(button, .gx-track):focus-visible { outline:2px solid var(--accent-hi); outline-offset:2px; }
 .vw-glance :is(button, input, a):focus-visible { outline:2px solid var(--accent-hi); outline-offset:2px; }
 @media(max-width:600px) {
   .vw-glance-row { grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:minmax(78%, 1fr); margin:0 -16px; padding:0 16px 4px; overflow-x:auto; scroll-snap-type:x mandatory; scroll-padding:0 16px; scrollbar-width:none; }
@@ -734,6 +763,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 @keyframes vw-glance-drop { 0% { opacity:0; transform:translateY(-2px); } 30% { opacity:1; } 100% { opacity:0; transform:translateY(3px); } }
 @keyframes vw-glance-flash { 0%,86%,100% { opacity:1; } 90%,96% { opacity:.2; } }
 @keyframes vw-glance-tick { 0%,100% { opacity:1; } 50% { opacity:.7; } }
+@keyframes vw-match-bounce { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-3px); } }
 @media (prefers-reduced-motion: no-preference) {
   .vw-glance-card { animation:vw-glance-in .45s cubic-bezier(.2,.8,.2,1.1) both; animation-delay:calc(var(--i, 0) * 70ms); }
   .vw-gi-sun { animation:vw-glance-spin 28s linear infinite; }
@@ -745,6 +775,8 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
   .vw-gi-bolt { animation:vw-glance-flash 4s linear infinite; }
   .vw-glance-hour.is-rain { animation:vw-glance-tick 3s ease-in-out infinite; animation-delay:calc(var(--d, 0) * 180ms); }
   .vw-glance-count { animation:vw-glance-tick 2.4s ease-in-out infinite; }
+  .vw-brief-card { animation:vw-glance-in .45s cubic-bezier(.2,.8,.2,1.1) both; animation-delay:calc(var(--i, 0) * 70ms); }
+  .vw-match-ball { animation:vw-match-bounce 1.2s cubic-bezier(.4,0,.6,1) infinite; }
 }
 /* fi Avui d’una ullada */
 /* Amb la safata plena, la portada no necessita suggeriments: el que toca ja hi és. */
