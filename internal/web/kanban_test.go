@@ -137,6 +137,24 @@ func resetKanbanBoards() {
 	kanbanBoardsMu.Unlock()
 }
 
+// kanbanTermForTest conserva el watcher d'una targeta encara que l'esborrat
+// ja l'hagi tret del tauler; cal esperar-lo abans de netejar el seu DataDir.
+func kanbanTermForTest(id string) (*kanbanBoard, *kanbanTerm) {
+	kanbanBoardsMu.Lock()
+	defer kanbanBoardsMu.Unlock()
+	for _, b := range kanbanBoards {
+		b.mu.Lock()
+		c := b.find(id)
+		if c != nil {
+			term := c.term
+			b.mu.Unlock()
+			return b, term
+		}
+		b.mu.Unlock()
+	}
+	return nil, nil
+}
+
 func (f *kanbanFixture) pty(i int) (*fakePTY, pty.Spec) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -324,7 +342,20 @@ func TestKanbanCardLifecycle(t *testing.T) {
 		t.Fatal("no s'ha reengegat")
 	}
 
+	b, term := kanbanTermForTest(id)
+	if b == nil || term == nil {
+		t.Fatal("no s'ha trobat el terminal després de reengegar")
+	}
 	f.call((*Server).handleKanbanCard, "POST", "/api/kanban/card", `{"id":"`+id+`","action":"delete"}`)
+	select {
+	case <-term.done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("el watcher del terminal esborrat no s'ha aturat")
+	}
+	// done es tanca mentre el watcher encara té b.mu: esperar el lock evita
+	// que TempDir esborri el directori abans de l'últim saveLocked.
+	b.mu.Lock()
+	b.mu.Unlock()
 	board := f.call((*Server).handleKanban, "GET", "/api/kanban", "")
 	if len(board["cards"].([]any)) != 0 {
 		t.Fatalf("no s'ha esborrat: %v", board)
