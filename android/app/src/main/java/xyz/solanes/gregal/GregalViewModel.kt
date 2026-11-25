@@ -1072,7 +1072,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 val v = withContext(Dispatchers.IO) { c.api().avui() }
-                if (_conn.value == c) { _avui.value = v; _avuiError.value = false }
+                if (_conn.value == c) { _avui.value = v; _avuiError.value = false; pollAvuiWhilePending(v) }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 if (_conn.value == c) _avuiError.value = true
@@ -1145,6 +1145,20 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             glance = v.glance.copy(follows = v.glance.follows.filterNot { it.id == id }))
     }) { it.avuiUnfollow(id) }
 
+    private val _avuiGlanceMsg = MutableStateFlow<String?>(null)
+    /** Per què no s'ha pogut desar el lloc o un seguiment; null si l'últim canvi ha anat bé. */
+    val avuiGlanceMsg: StateFlow<String?> = _avuiGlanceMsg.asStateFlow()
+    private var avuiPoll: Job? = null
+    private var avuiPolls = 0
+
+    // Mentre es busca (un seguiment nou, el temps del lloc) la safata torna a mirar sola, uns minuts com a molt.
+    private fun pollAvuiWhilePending(v: AvuiView) {
+        if (!GlanceLogic.pending(v)) { avuiPolls = 0; return }
+        if (avuiPoll?.isActive == true || avuiPolls >= 20) return
+        avuiPolls++
+        avuiPoll = viewModelScope.launch { delay(15_000); loadAvui() }
+    }
+
     /** Desa el canvi i torna a llegir la safata: la ullada nova (el temps del lloc, el que segueixes) la fa el servidor. */
     private fun avuiGlanceChange(optimistic: (AvuiView) -> AvuiView, call: (GregalApi) -> AvuiSettings) {
         val c = _conn.value
@@ -1154,11 +1168,15 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val saved = withContext(Dispatchers.IO) { call(c.api()) }
                 if (_conn.value != c) return@launch
+                _avuiGlanceMsg.value = null
+                avuiPolls = 0
                 _avui.value?.let { _avui.value = it.copy(settings = saved) }
                 loadAvui()
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                if (_conn.value == c && before != null) _avui.value = before
+                if (_conn.value != c) return@launch
+                if (before != null) _avui.value = before
+                _avuiGlanceMsg.value = LocalLogic.serverMessage(e).ifBlank { tr(_idioma.value, "app.avui.glance.saveError") }
             }
         }
     }

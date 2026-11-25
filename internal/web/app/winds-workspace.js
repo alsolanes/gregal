@@ -527,7 +527,9 @@
   head.append(title,iconOnly('tune',t('Ajusta Avui','Tune Today'),()=>avuiSettings(data.settings,()=>paintAvui(feed)),'vw-small'));
   const body=[head];
   // D'una ullada (vents-avui-glance.js): el temps, el calendari i el que segueixes, abans de la safata.
-  if(data.glance&&root.gregalAvuiGlance){const g=el('section','vw-glance');g.setAttribute('aria-label',t('D’una ullada','At a glance'));root.gregalAvuiGlance.renderGlance(g,{glance:data.glance,settings:data.settings,onChange:()=>paintAvui(feed).catch(fail)});body.push(g);}
+  if(data.glance&&root.gregalAvuiGlance){const g=el('section','vw-glance');g.setAttribute('aria-label',t('D’una ullada','At a glance'));root.gregalAvuiGlance.renderGlance(g,{glance:data.glance,settings:data.settings,onChange:()=>paintAvui(feed).catch(fail)});body.push(g);
+   // Mentre es busca (un seguiment nou, el temps del lloc) torna a mirar sol; si escrius al formulari, espera.
+   if(root.gregalAvuiGlance.glancePending(data.glance,data.settings)){const poll=()=>setTimeout(()=>{if(!g.isConnected)return;if(!g.querySelector('.vw-glance-form')?.hidden||g.contains(document.activeElement))poll();else paintAvui(feed).catch(fail);},15000);poll();}}
   const wxWind=!data.glance?.weather&&state.winds.find(w=>w.specialty==='weather'||/\b(el temps|meteo|weather)\b/i.test(w.role||''));
   if(wxWind){const wx=el('div','vw-wx-host');body.push(wx);weatherCard(wx,wxWind,true).catch(()=>wx.remove());}
   if(data.held>0)body.push(el('p','vw-avui-held',t(data.held===1?'1 cosa ha esperat a la safata en hores tranquil·les.':data.held+' coses han esperat a la safata en hores tranquil·les.',data.held+' waited here during quiet hours.')));

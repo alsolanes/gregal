@@ -16,6 +16,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Add
@@ -51,6 +53,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -83,13 +86,21 @@ data class AvuiWeather(
 /** Una cita del calendari, en RFC 3339; [end] buit si no té durada. */
 data class AvuiEvent(val start: String, val end: String, val title: String, val calendar: String)
 
-/** Una cosa que segueixes; [title] buit: el vent encara no l'ha buscada. [at]: RFC 3339 o buit. */
+/**
+ * Una cosa que segueixes; [title] buit: el vent encara no l'ha buscada. [at]: RFC 3339 o buit.
+ * [none]: la cerca no ha trobat res; [error]: per què ha fallat l'última mirada.
+ */
 data class AvuiFollow(
     val id: String, val kind: String, val name: String, val wind: String = "",
     val title: String = "", val at: String = "", val detail: String = "", val url: String = "",
+    val none: Boolean = false, val error: String = "",
 )
 
-data class AvuiGlance(val weather: AvuiWeather? = null, val events: List<AvuiEvent> = emptyList(), val follows: List<AvuiFollow> = emptyList())
+/** [weatherError]: per què no hi ha el temps del lloc. */
+data class AvuiGlance(
+    val weather: AvuiWeather? = null, val events: List<AvuiEvent> = emptyList(), val follows: List<AvuiFollow> = emptyList(),
+    val weatherError: String = "",
+)
 
 @Serializable
 internal class AvuiWeatherDto(
@@ -105,15 +116,17 @@ internal class AvuiWeatherDto(
 internal class AvuiFollowDto(
     val id: String = "", val kind: String = "", val name: String = "", val wind: String = "",
     val title: String = "", @SerialName("when") val at: String = "", val detail: String = "", val url: String = "",
+    val none: Boolean = false, val error: String = "",
 )
 
 @Serializable
 internal class AvuiGlanceDto(
     val weather: AvuiWeatherDto? = null, val events: List<AvuiEventDto> = emptyList(), val follows: List<AvuiFollowDto> = emptyList(),
+    @SerialName("weather_error") val weatherError: String = "",
 )
 
 internal fun glanceFollow(j: AvuiFollowDto) = AvuiFollow(
-    j.id, if (j.kind == "team") "team" else "other", j.name, j.wind, j.title, j.at, j.detail, j.url,
+    j.id, if (j.kind == "team") "team" else "other", j.name, j.wind, j.title, j.at, j.detail, j.url, j.none, j.error,
 )
 
 internal fun glance(o: AvuiGlanceDto?): AvuiGlance {
@@ -122,6 +135,7 @@ internal fun glance(o: AvuiGlanceDto?): AvuiGlance {
         weather = o.weather?.let { AvuiWeather(it.place, it.nowC, it.minC, it.maxC, it.rainMm, it.rainHours, it.code, it.sunrise, it.sunset) },
         events = o.events.filter { it.start.isNotBlank() && it.title.isNotBlank() }.map { AvuiEvent(it.start, it.end, it.title, it.calendar) },
         follows = o.follows.map(::glanceFollow).filter { it.id.isNotBlank() },
+        weatherError = o.weatherError,
     )
 }
 
@@ -208,6 +222,11 @@ object GlanceLogic {
         val g = v.glance.follows
         return v.settings.follows.map { s -> g.firstOrNull { it.id == s.id } ?: s } + g.filter { f -> v.settings.follows.none { it.id == f.id } }
     }
+
+    /** Encara s'està buscant alguna cosa (un seguiment sense resposta, el temps del lloc): cal tornar a mirar. */
+    fun pending(v: AvuiView): Boolean =
+        follows(v).any { it.title.isBlank() && !it.none && it.error.isBlank() } ||
+            (v.settings.place.isNotBlank() && v.glance.weather == null && v.glance.weatherError.isBlank())
 }
 
 /** Entra pujant, amb molla, una mica després de la d'abans. Sense moviment, quieta. */
@@ -241,7 +260,7 @@ private fun phase(motion: Boolean, millis: Int, label: String): State<Float> =
 internal fun AvuiGlanceSection(
     lang: String, view: AvuiView, winds: List<Wind>,
     onFollow: (String, String) -> Unit, onUnfollow: (String) -> Unit, onPlace: (String) -> Unit,
-    windWeather: (@Composable () -> Unit)?,
+    windWeather: (@Composable () -> Unit)?, message: String? = null,
 ) {
     val motion = windMotionEnabled()
     // Els comptes enrere corren; sense moviment es queden on eren en obrir.
@@ -253,13 +272,15 @@ internal fun AvuiGlanceSection(
     val g = view.glance
     Column(Modifier.padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         val w = g.weather
+        if (!message.isNullOrBlank()) Text("⚠ $message", color = Red, style = GregalType.bodySmall,
+            modifier = Modifier.padding(start = 4.dp).testTag("glance-message"))
         if (placeOpen) GlanceEditor(
             lang, tr(lang, "app.avui.glance.placeTitle"), tr(lang, "app.avui.glance.placeHint"), view.settings.place,
             tr(lang, "app.avui.glance.save"), "glance-place", kinds = false, onDismiss = { placeOpen = false },
         ) { _, place -> placeOpen = false; onPlace(place) }
         if (w != null) Box(Modifier.springIn(0, motion)) { GlanceWeather(lang, w, now, motion) { placeOpen = true } }
         else {
-            PlaceInvite(lang, view.settings.place, Modifier.springIn(0, motion)) { placeOpen = true }
+            PlaceInvite(lang, view.settings.place, g.weatherError, Modifier.springIn(0, motion)) { placeOpen = true }
             windWeather?.invoke()
         }
         if (g.events.isNotEmpty()) Box(Modifier.springIn(1, motion)) { GlanceEvents(lang, g.events, now) }
@@ -448,7 +469,7 @@ internal fun MatchArt(accent: Color, size: Dp, motion: Boolean, modifier: Modifi
 }
 
 @Composable
-private fun PlaceInvite(lang: String, place: String, modifier: Modifier, onPlace: () -> Unit) {
+private fun PlaceInvite(lang: String, place: String, error: String, modifier: Modifier, onPlace: () -> Unit) {
     val p = LocalPal.current
     Row(
         modifier.fillMaxWidth().clip(GregalShape.lg).background(SuperficieAlta.copy(alpha = .45f))
@@ -457,8 +478,12 @@ private fun PlaceInvite(lang: String, place: String, modifier: Modifier, onPlace
     ) {
         GlanceSky(Sky.PARTLY, false, 40.dp, false)
         Text(
-            if (place.isBlank()) tr(lang, "app.avui.glance.placeAsk") else tr(lang, "app.avui.glance.placeMissing", place),
-            color = Ink, style = GregalType.bodySmall, modifier = Modifier.weight(1f),
+            when {
+                place.isBlank() -> tr(lang, "app.avui.glance.placeAsk")
+                error.isNotBlank() -> "⚠ $error"
+                else -> tr(lang, "app.avui.glance.placeMissing", place)
+            },
+            color = if (place.isNotBlank() && error.isNotBlank()) Red else Ink, style = GregalType.bodySmall, modifier = Modifier.weight(1f),
         )
         Text(
             tr(lang, if (place.isBlank()) "app.avui.glance.placeSet" else "app.avui.glance.placeChange"),
@@ -591,6 +616,15 @@ private fun FollowCard(lang: String, f: AvuiFollow, accent: Color, now: ZonedDat
             ) { Icon(Icons.Rounded.Close, null, tint = Muted.copy(alpha = .8f), modifier = Modifier.size(15.dp)) }
         }
         Column(Modifier.padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (f.title.isBlank() && f.error.isNotBlank()) {
+                Text("⚠ ${f.error}", color = Red, style = GregalType.bodySmall, maxLines = 4, overflow = TextOverflow.Ellipsis)
+                return@Column
+            }
+            if (f.title.isBlank() && f.none) {
+                Text(tr(lang, if (f.kind == "team") "app.avui.glance.noneTeam" else "app.avui.glance.noneOther", f.name),
+                    color = Muted, style = GregalType.bodySmall)
+                return@Column
+            }
             if (f.title.isBlank()) {
                 val breathe = phase(motion, 1800, "follow-pending")
                 Text(tr(lang, "app.avui.glance.pending"), color = Muted, style = GregalType.bodySmall,
@@ -641,6 +675,9 @@ private fun GlanceEditor(
         Text(title, color = Ink, style = GregalType.bodySmall.copy(fontWeight = FontWeight.SemiBold))
         OutlinedTextField(
             text, { text = it }, singleLine = true,
+            // La tecla del teclat també desa: abans només tancava el teclat i semblava que no feia res.
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { if (text.isNotBlank()) onSave(kind, text.trim()) }),
             placeholder = { Text(hint, fontSize = 13.sp, color = Muted) },
             textStyle = GregalType.bodySmall.copy(color = Ink, fontSize = 14.sp), shape = GregalShape.sm,
             colors = OutlinedTextFieldDefaults.colors(

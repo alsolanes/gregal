@@ -698,6 +698,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-glance-count { display:inline-block; padding:2px 9px; border-radius:999px; background:color-mix(in srgb, var(--gl-tint) 20%, transparent); color:var(--ink); font-size:11.5px; font-weight:650; font-variant-numeric:tabular-nums; }
 .vw-glance-detail { margin:0; color:var(--muted); font-size:12.5px; }
 .vw-glance-pending { margin:2px 0 0; color:var(--muted); font-size:13px; line-height:1.45; }
+.vw-glance-error { margin:2px 0 0; color:var(--red); font-size:13px; line-height:1.45; }
 .vw-glance-link { align-self:flex-start; margin-top:auto; color:var(--accent-hi); font-size:12.5px; font-weight:600; text-decoration:none; }
 .vw-glance-link::after { content:" →"; }
 .vw-glance-link:hover { text-decoration:underline; }

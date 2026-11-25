@@ -79,6 +79,13 @@ function eventWhen(e, now) {
 // El que es desa d'un seguiment (sense la resposta fresca del vent).
 const stored = f => { const o = { id: f.id, kind: f.kind, name: f.name }; if (f.wind) o.wind = f.wind; return o; };
 
+/** Encara s'està buscant alguna cosa (un seguiment sense resposta, el temps del lloc): cal tornar a mirar. */
+export function glancePending(glance, settings) {
+  const g = glance || {}, st = settings || {}, fresh = new Map((g.follows || []).map(f => [f.id, f]));
+  const waiting = (st.follows || g.follows || []).some(f => { const n = fresh.get(f.id) || {}; return !n.title && !n.none && !n.error; });
+  return waiting || (!!(st.place || '').trim() && !g.weather && !g.weather_error);
+}
+
 /** Actualitza els comptes enrere ja pintats. */
 export function tickCountdowns(box, now = new Date()) {
   const walk = n => { if (n.dataset?.when) n.textContent = countdown(n.dataset.when, now); for (const c of n.children || []) walk(c); };
@@ -169,7 +176,9 @@ function followCard(f, now, remove) {
   head.append(badge, el('span', 'vw-glance-kicker', f.name || ''), x);
   card.append(head);
   if (!f.title) {
-    card.append(el('p', 'vw-glance-pending', tx('Gregal ho buscarà i t’ho dirà aquí.', 'Gregal will look it up and tell you here.')));
+    if (f.error) card.append(el('p', 'vw-glance-error', '⚠ ' + f.error));
+    else if (f.none) card.append(el('p', 'vw-glance-pending', f.kind === 'team' ? tx('No he trobat partits per a ', 'No upcoming matches found for ') + f.name + '.' : tx('No he trobat res sobre ', 'Nothing found about ') + f.name + '.'));
+    else card.append(el('p', 'vw-glance-pending', tx('Gregal ho buscarà i t’ho dirà aquí.', 'Gregal will look it up and tell you here.')));
     return card;
   }
   card.append(el('strong', 'vw-glance-title', f.title));
@@ -244,7 +253,9 @@ export function renderGlance(box, opts = {}) {
   toggle.setAttribute('aria-expanded', 'false');
 
   const row = el('div', 'vw-glance-row'), cards = [];
+  const where = (st.place || '').trim();
   if (g.weather) cards.push(weatherCard(g.weather, now, open(place)));
+  else if (where) cards.push(invite(g.weather_error ? '⚠ ' + g.weather_error : tx('Buscant el temps de ', 'Looking up the weather for ') + where + '…', tx('Canvia el lloc', 'Change the place'), open(place)));
   else cards.push(invite(tx('Digues on ets i cada matí tindràs aquí el temps que farà.', 'Tell me where you are and every morning the weather shows up here.'), tx('Digues on ets', 'Tell me where you are'), open(place)));
   const events = upcomingEvents(g.events, now);
   if (events.length) cards.push(calendarCard(events, now));
@@ -264,4 +275,4 @@ export function renderGlance(box, opts = {}) {
   }
 }
 
-window.gregalAvuiGlance = { renderGlance };
+window.gregalAvuiGlance = { renderGlance, glancePending };

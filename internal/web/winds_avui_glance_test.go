@@ -269,3 +269,74 @@ func TestAvuiFollowRoutineKeepsTheLastGoodAnswer(t *testing.T) {
 		t.Fatal("unfollowing removes its routine")
 	}
 }
+
+func TestAvuiGlanceSaysWhyThereIsNoWeather(t *testing.T) {
+	s := localTestServer(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"results":[]}`))
+	}))
+	t.Cleanup(srv.Close)
+	old := openMeteoGeoURL
+	openMeteoGeoURL = srv.URL
+	t.Cleanup(func() { openMeteoGeoURL = old })
+	avuiSettingsPost(t, s, `{"place":"Llocquenoexisteix"}`)
+
+	rec := httptest.NewRecorder()
+	s.handleWindsAvui(rec, httptest.NewRequest(http.MethodGet, "/api/winds/avui", nil))
+	var body struct {
+		Glance struct {
+			Weather      *glanceWeather `json:"weather"`
+			WeatherError string         `json:"weather_error"`
+		} `json:"glance"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Glance.Weather != nil || !strings.Contains(body.Glance.WeatherError, "Llocquenoexisteix") {
+		t.Fatalf("a place with no forecast says why: %s", rec.Body.String())
+	}
+}
+
+func TestAvuiFollowSaysWhenItFoundNothingOrFailed(t *testing.T) {
+	s := localTestServer(t)
+	reply := `{"none":true}`
+	stubFollowLoop(t, &reply)
+	avuiSettingsPost(t, s, `{"follow":{"kind":"team","name":"Barça"}}`)
+	job, _ := s.ownWindJob(followJobID("", "barca"))
+	follow := func() map[string]any {
+		rec := httptest.NewRecorder()
+		s.handleWindsAvui(rec, httptest.NewRequest(http.MethodGet, "/api/winds/avui", nil))
+		var body struct {
+			Glance struct {
+				Follows []map[string]any `json:"follows"`
+			} `json:"glance"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || len(body.Glance.Follows) != 1 {
+			t.Fatalf("GET avui: %v %s", err, rec.Body.String())
+		}
+		return body.Glance.Follows[0]
+	}
+
+	if run, err := s.executeJob(context.Background(), job, runsZero()); err != nil || run.Status != "ok" {
+		t.Fatalf("finding nothing is a good answer: %+v %v", run, err)
+	}
+	if f := follow(); f["none"] != true || f["title"] != nil || f["error"] != nil {
+		t.Fatalf("nothing found: %+v", f)
+	}
+
+	reply = "no és JSON"
+	if run, _ := s.executeJob(context.Background(), job, runsZero()); run.Status != "error" {
+		t.Fatalf("a malformed answer is an error: %+v", run)
+	}
+	if f := follow(); f["error"] == nil || f["error"] == "" {
+		t.Fatalf("a failed look says so in the glance: %+v", f)
+	}
+
+	reply = `{"title":"Barça – Madrid","when":"2026-11-28T21:00:00+01:00"}`
+	if _, err := s.executeJob(context.Background(), job, runsZero()); err != nil {
+		t.Fatal(err)
+	}
+	if f := follow(); f["title"] != "Barça – Madrid" || f["error"] != nil || f["none"] != nil {
+		t.Fatalf("a good answer clears the failure: %+v", f)
+	}
+}
