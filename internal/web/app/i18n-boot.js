@@ -4,7 +4,8 @@
 // index.html el carrega al <head> amb blocking="render": el navegador no
 // pinta res fins que aquest mòdul ha corregut (just després de llegir el
 // document). És el mateix mòdul que importa panels.js, no una còpia.
-import { aplica, t } from './i18n.js';
+import { aplica, salutacio, t } from './i18n.js';
 
 window.gregalT = window.gregalT || t;
+window.gregalGreeting = () => salutacio(new Date().getHours());
 aplica();

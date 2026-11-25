@@ -90,6 +90,6 @@
 
 /* «Els teus desats» a la pàgina Desat (winds-notes.js, saved()). */
 .notes-saved { display:flex; flex-direction:column; gap:10px; margin:0 0 28px; }
-.notes-saved h2, .vw-saved-made h2 { margin:0; font-size:17px; color:var(--ink); }
+.vw-saved-made h2 { margin:0; font-size:17px; color:var(--ink); }
 .notes-saved .notes-row-head .vw-ic { width:15px; height:15px; flex:none; color:var(--muted); }
 .vw-saved-made { margin-bottom:10px; }

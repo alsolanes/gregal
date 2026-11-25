@@ -37,7 +37,7 @@ body.shell-winds .side-scroll { overflow:auto; }
 .vw-content { flex:1; min-height:0; overflow:auto; width:100%; padding:44px max(28px,calc((100% - 940px)/2)); scrollbar-width:thin; scrollbar-color:var(--line-hi) transparent; overscroll-behavior:contain; }
 .vw-heading { margin-bottom:30px; }
 .vw-heading h1 { color:var(--ink); font-weight:600; font-size:clamp(24px,2.3vw,30px); line-height:1.2; font-family:inherit; margin:0 0 8px; letter-spacing:-.025em; overflow-wrap:anywhere; }
-.vw-heading p { color:var(--muted); margin:0; max-width:650px; }
+.vw-heading p { color:var(--muted); margin:0; max-width:650px; font-size:var(--t3); }
 .vw-home { display:flex; flex-direction:column; align-items:stretch; padding-top:clamp(36px,9vh,115px); }
 .vw-welcome { text-align:center; margin:0 auto 30px; }
 .vw-welcome > .winds-face { width:65px; height:65px; margin-bottom:7px; }
@@ -103,7 +103,8 @@ button.vw-button:hover { border-color:var(--accent); background:var(--surface-hi
 .wind-workspace :is(.vw-button,.vw-top-action,.vw-crew-chip,.vw-prompt,.vw-choice):active:not(:disabled) {
   box-shadow:inset 0 0 0 2px var(--line-hi); transition:none;
 }
-:is(button,a).vw-primary { min-height:36px; background:var(--accent); color:var(--on-accent, var(--bg)); border:1px solid transparent; border-radius:8px; padding:6px 14px; font-size:14px!important; font-weight:600; line-height:1.4; }
+/* El mateix parell que enviar: en fosc, el blau del logo; en clar, el mar amb el blau del logo a sobre. */
+:is(button,a).vw-primary { min-height:36px; background:var(--send-bg, var(--accent)); color:var(--send-fg, var(--on-accent, var(--bg))); border:1px solid transparent; border-radius:8px; padding:6px 14px; font-size:14px!important; font-weight:600; line-height:1.4; }
 :is(button,a).vw-primary:not(:disabled):hover { background:var(--accent-hi); }
 :is(button,a).vw-primary:disabled { opacity:.5; cursor:default; }
 .vw-subtitle { color:var(--muted); font-size:12px; font-weight:500; margin:26px 0 12px; }
@@ -365,6 +366,8 @@ button.vw-choice { white-space:normal; text-align:left; }
 .vw-card-copy span { color:var(--muted); font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 /* Portada d'inici: les cares dels vents a dalt i les converses recents sota el compositor. */
 .vw-start-faces { display:flex; justify-content:safe center; gap:6px; margin:0 0 26px; overflow-x:auto; scrollbar-width:none; }
+/* Amb un lateral obert (l'ordinador, un document) la portada s'estreny: les cares baixen de fila en lloc de quedar tallades. */
+@media(min-width:761px) { .vw-start-faces { flex-wrap:wrap; overflow-x:visible; } }
 button.vw-start-face { display:flex; flex-direction:column; align-items:center; gap:5px; min-width:68px; max-width:148px; flex:none; padding:6px 4px; background:transparent; border:0; border-radius:12px; color:var(--muted); font-size:12px; }
 button.vw-start-face:hover { background:var(--hover); color:var(--ink); }
 .vw-start-face .winds-face { width:40px; height:40px; }
@@ -611,8 +614,9 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-avui-card.is-leaving { opacity:0; transform:translateX(14px); max-height:0; padding-top:0; padding-bottom:0; margin-bottom:0; border-width:0; }
 .vw-avui-end { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin:18px 2px 0; padding-top:14px; border-top:1px dashed var(--line); }
 .vw-avui-fin { margin:0; color:var(--muted); font-size:13.5px; }
-.vw-avui-tune { min-height:30px; padding:0 4px; border:0; background:transparent; color:var(--accent-hi); font-size:13px!important; font-weight:500; }
-.vw-avui-tune:hover { text-decoration:underline; }
+/* Text del cos subratllat: --accent-hi és un enllaç blau en fosc però gairebé tinta en clar. */
+.vw-avui-tune { min-height:30px; padding:0 4px; border:0; background:transparent; color:var(--text); text-decoration:underline; text-decoration-color:var(--line-hi); text-underline-offset:3px; font-size:13px!important; font-weight:500; }
+.vw-avui-tune:hover { text-decoration-color:currentColor; }
 .vw-avui-cta { display:inline-flex; align-items:center; gap:8px; }
 .vw-avui-resume { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:22px 2px 0; }
 .vw-avui-resume > span { color:var(--faint); font-size:12px; margin-right:4px; }
@@ -628,7 +632,9 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 :root[data-theme="light"] .vw-glance { --gl-sun:#F2A900; --gl-moon:#7C88D8; --gl-cloud-light:#B9C3D6; --gl-cloud-mid:#9AA6BC; --gl-cloud-dark:#76839C; --gl-rain:#2F7FD0; --gl-snow:#8FB4E0; --gl-match:#E0533F; --gl-other:#7A5CE0; }
 .vw-glance-row { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:10px; }
 .vw-glance-card { position:relative; display:flex; flex-direction:column; gap:6px; min-width:0; padding:14px 14px 12px; border:1px solid var(--line); border-radius:20px; background:var(--surface); overflow:hidden; }
-.vw-glance-card::before { content:""; position:absolute; inset:-40% -30% auto auto; width:150px; height:150px; border-radius:50%; background:radial-gradient(circle, color-mix(in srgb, var(--gl-tint, var(--accent)) 30%, transparent), transparent 70%); pointer-events:none; }
+/* La lluïssor és del color de la targeta; sense color (una invitació) no n'hi ha: en clar l'accent és gairebé tinta i feia una taca grisa. */
+.vw-glance-card::before { content:""; position:absolute; inset:-40% -30% auto auto; width:150px; height:150px; border-radius:50%; background:radial-gradient(circle, color-mix(in srgb, var(--gl-tint) 30%, transparent), transparent 70%); pointer-events:none; }
+.vw-glance-invite::before { display:none; }
 .vw-glance-card > * { position:relative; }
 .vw-glance-kicker { margin:0; color:var(--faint); font-size:10.5px; font-weight:650; letter-spacing:.11em; text-transform:uppercase; }
 /* El temps: el color del cel tenyeix la targeta. */
@@ -670,7 +676,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-glance-rise::before, .vw-glance-set::before { content:""; display:inline-block; width:8px; height:8px; margin-right:5px; border-radius:50%; background:var(--gl-sun); vertical-align:1px; }
 .vw-glance-set::before { background:transparent; box-shadow:inset 0 -4px 0 var(--gl-sun); }
 /* El calendari: l'hora a l'esquerra, com una agenda de paper. */
-.vw-glance-cal { --gl-tint:var(--accent); }
+.vw-glance-cal { --gl-tint:var(--gl-other); }
 .vw-glance-events { display:flex; flex-direction:column; gap:8px; margin:2px 0 0; padding:0; list-style:none; }
 .vw-glance-event { display:grid; grid-template-columns:auto minmax(0, 1fr); gap:10px; align-items:baseline; padding-left:9px; border-left:3px solid color-mix(in srgb, var(--accent) 55%, transparent); }
 .vw-glance-time { color:var(--accent-hi); font-size:12.5px; font-weight:650; font-variant-numeric:tabular-nums; white-space:nowrap; }
@@ -696,7 +702,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-glance-link::after { content:" →"; }
 .vw-glance-link:hover { text-decoration:underline; }
 /* Convits, i el control «Segueix…». */
-.vw-glance-invite { justify-content:space-between; border-style:dashed; background:transparent; }
+.vw-glance-invite { justify-content:space-between; border-style:dashed; border-color:var(--line-hi); background:transparent; }
 .vw-glance-invite p { margin:0; color:var(--text); font-size:13.5px; line-height:1.45; }
 .vw-glance-chip { align-self:flex-start; min-height:30px; padding:3px 13px; border:1px solid var(--line-hi); border-radius:999px; background:transparent; color:var(--ink); font:inherit; font-size:12.5px; font-weight:600; cursor:pointer; }
 .vw-glance-chip:hover { background:var(--hover); }
@@ -717,6 +723,8 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 @media(max-width:600px) {
   .vw-glance-row { grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:minmax(78%, 1fr); margin:0 -16px; padding:0 16px 4px; overflow-x:auto; scroll-snap-type:x mandatory; scroll-padding:0 16px; scrollbar-width:none; }
   .vw-glance-card { scroll-snap-align:start; }
+  /* La targeta del costat es fon a la vora: n'hi ha més si llisques. */
+  .vw-glance-row { mask-image:linear-gradient(to right, black calc(100% - 40px), transparent); }
 }
 /* Viu: les targetes entren una darrere l'altra, el sol gira, les gotes cauen i els núvols passen. */
 @keyframes vw-glance-in { from { opacity:0; transform:translateY(10px) scale(.97); } to { opacity:1; transform:none; } }
@@ -1132,7 +1140,8 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 /* Feina, com la pantalla de tasques de Duet: seccions amb un comptador. */
 .vw-feina-sec { margin:26px 0 0; max-width:820px; }
 .vw-feina-sec[hidden] { display:none; }
-.vw-feina-h { display:flex; align-items:center; gap:8px; margin:0 0 10px; font-size:13px; font-weight:600; color:var(--muted); }
+.vw-feina-sec .vw-muted { font-size:var(--t3); }
+.vw-feina-h { display:flex; align-items:center; gap:8px; margin:0 0 10px; font-size:var(--t3); font-weight:600; color:var(--muted); }
 .vw-feina-n { font-size:11.5px; font-weight:700; color:var(--on-accent, var(--bg)); background:var(--accent); border-radius:999px; padding:1px 7px; }
 .vw-feina-n[hidden] { display:none; }
 .vw-feina-asks { margin:0; }
@@ -1486,8 +1495,9 @@ dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize
 .vw-nav-search { color:var(--muted); }
 .vw-nav-search kbd { margin-left:auto; font:inherit; font-size:11px; color:var(--faint); border:1px solid var(--line); border-radius:6px; padding:1px 6px; }
 /* Pestanyes dins d'un grup (Feina, Desat). */
-.vw-page-tabs { display:flex; gap:4px; margin:0 0 14px; padding:3px; border-radius:999px; background:var(--surface); border:1px solid var(--line); width:max-content; max-width:100%; overflow-x:auto; }
-.vw-page-tab { border:0; background:transparent; color:var(--muted); font:inherit; font-size:13px; padding:6px 14px; border-radius:999px; cursor:pointer; white-space:nowrap; }
+.vw-heading:has(+ .vw-page-tabs) { margin-bottom:16px; }
+.vw-page-tabs { display:flex; gap:4px; margin:0 0 24px; padding:3px; border-radius:999px; background:var(--surface); border:1px solid var(--line); width:max-content; max-width:100%; overflow-x:auto; }
+.vw-page-tab { border:0; background:transparent; color:var(--muted); font:inherit; font-size:var(--t3); padding:6px 14px; border-radius:999px; cursor:pointer; white-space:nowrap; }
 .vw-page-tab:hover { color:var(--ink); background:var(--hover); }
 .vw-page-tab.on { background:var(--surface-hi); color:var(--ink); font-weight:600; }
 /* A Vents, les entrades de la carcassa (Vents · Racó · Automatitzacions) ja són
@@ -1538,7 +1548,8 @@ dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize
 .vw-nav-count { margin-left:auto; color:var(--faint); font-size:12px; }
 
 /* «Posa ordre» (winds_tidy.go): avís a la pàgina dels vents i el diàleg. */
-.vw-tidy-banner { display:flex; align-items:center; gap:14px; justify-content:space-between; margin:0 0 18px; padding:12px 16px; border:1px solid var(--line-hi); border-radius:14px; background:var(--surface); color:var(--text); }
+.vw-tidy-chip { display:inline-flex; align-items:center; margin-top:10px; min-height:28px; padding:2px 12px; border:1px solid var(--line-hi); border-radius:999px; background:transparent; color:var(--muted); font:inherit; font-size:12.5px; cursor:pointer; }
+.vw-tidy-chip:hover { background:var(--hover); color:var(--ink); }
 .vw-dialog.vw-tidy { width:min(640px, calc(100vw - 32px)); }
 .vw-tidy-body { display:flex; flex-direction:column; gap:16px; }
 .vw-tidy-group { border:1px solid var(--line); border-radius:14px; padding:12px 14px; display:flex; flex-direction:column; gap:8px; }
@@ -1559,8 +1570,11 @@ dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize
 /* Només el text de la resposta (fills directes): les targetes (receptes,
    plans) tenen les seves llistes i no s'han de tocar. */
 .vw-messages .vw-message:not(.vw-user) .vw-message-text > p { margin:0 0 14px; }
-.vw-messages .vw-message:not(.vw-user) .vw-message-text > :is(ul,ol) { margin:4px 0 16px; padding-left:1.35em; }
-.vw-messages .vw-message:not(.vw-user) .vw-message-text > :is(ul,ol) > li { margin:0 0 8px; padding-left:.2em; }
+/* Només les vinyetes: la llista numerada ja deixa lloc al cercle del número (ol:not([class]), més amunt). */
+.vw-messages .vw-message:not(.vw-user) .vw-message-text > :is(ul,ol) { margin:4px 0 16px; }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text > ul { padding-left:1.35em; }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text > :is(ul,ol) > li { margin:0 0 8px; }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text > ul > li { padding-left:.2em; }
 .vw-messages .vw-message:not(.vw-user) .vw-message-text > :is(ul,ol) > li:last-child { margin-bottom:0; }
 .vw-messages .vw-message:not(.vw-user) .vw-message-text > :is(ul,ol) > li > p { margin:0 0 6px; }
 .vw-messages .vw-message:not(.vw-user) .vw-message-text > :is(ul,ol) > li::marker { color:var(--faint); }

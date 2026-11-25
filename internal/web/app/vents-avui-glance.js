@@ -253,8 +253,10 @@ export function renderGlance(box, opts = {}) {
   if (!follows.length) cards.push(invite(tx('Segueix el teu equip i el pròxim partit sortirà aquí, amb el compte enrere.', 'Follow your team and the next match shows up here, with a countdown.'), tx('Segueix un equip', 'Follow a team'), open(name)));
   cards.forEach((c, i) => c.style.setProperty('--i', String(i)));
   row.append(...cards);
+  // Sense seguiments, «Segueix un equip» ja és a la seva targeta: el xip de sota quedaria orfe.
   const bar = el('div', 'vw-glance-bar');
-  bar.append(toggle, status);
+  if (follows.length) bar.append(toggle);
+  bar.append(status);
   box.replaceChildren(row, bar, form);
 
   if (!reducedMotion()) {

@@ -1126,10 +1126,10 @@ const CA = {
   'act.tasca.fent': 'Tasca iniciada',
 
   'hero.kicker': 'PROJECTE ACTIU',
-  'hero.title': 'Què vols fer?',
   'hero.morning': 'Bon dia',
   'hero.afternoon': 'Bona tarda',
-  'hero.evening': 'Bona nit',
+  'hero.evening': 'Bon vespre',
+  'hero.night': 'Bona nit',
   'prefs.theme.calma': 'Calma (càlid)',
   'menu.preview': 'Previsualització',
   'ui.copy': 'Copia',
@@ -3284,10 +3284,10 @@ const EN = {
   'act.tasca.fent': 'Task started',
 
   'hero.kicker': 'ACTIVE PROJECT',
-  'hero.title': 'What do you want to do?',
   'hero.morning': 'Good morning',
   'hero.afternoon': 'Good afternoon',
   'hero.evening': 'Good evening',
+  'hero.night': 'Good night',
   'prefs.theme.calma': 'Calm (warm)',
   'menu.preview': 'Preview',
   'ui.copy': 'Copy',
@@ -4906,6 +4906,13 @@ export function defineixPerDefecte(l) {
 export function tEn(clau, sino) {
   if (clau in EN) return EN[clau];
   return sino == null ? clau : sino;
+}
+
+// La salutació de la portada, la mateixa a Codi (home.js) i a Vents
+// (winds-workspace.js): abans cadascú tallava les hores a la seva manera i a
+// les 13 h Codi deia «Bon dia» i Vents «Bona tarda».
+export function salutacio(hora) {
+  return t(hora < 6 ? 'hero.night' : hora < 13 ? 'hero.morning' : hora < 20 ? 'hero.afternoon' : 'hero.evening');
 }
 
 export function t(clau, sino) {
