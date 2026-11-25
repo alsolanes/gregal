@@ -1255,6 +1255,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     ThreadReadEffect(chatConn, wind.id, openNewsTs)
     FocusMessageEffect("wind:${wind.id}", listState, msgs.map { it.id })
     val follow = rememberChatFollow(listState, wind.id, msgs.indexOfLast { it.from == "user" }.takeIf { it >= 0 })
+    // Amb marge: el vent no salta entre la cantonada i la capçalera a la mínima.
+    val windUp = rememberWindUp(listState)
     var liveFrom by remember(wind.id) { mutableIntStateOf(Int.MAX_VALUE) }
     LaunchedEffect(wind.id, msgs.size) { if (msgs.isNotEmpty() && liveFrom == Int.MAX_VALUE) liveFrom = msgs.size }
 
@@ -1450,7 +1452,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             faceSlot = if (present || landFrom != null) Modifier.onGloballyPositioned { perch.header = it.positionInRoot() } else null,
             modifier = Modifier.align(Alignment.TopCenter))
         // Mentre la cara de la portada hi vola, la del xat l'espera amagada al forat i després baixa al seu lloc.
-        if (present) WindPresence(perch, up = follow.behind || landFrom != null, mood = turnMood, accent = accent, style = wind.faceStyle,
+        if (present) WindPresence(perch, up = windUp || landFrom != null, mood = turnMood, accent = accent, style = wind.faceStyle,
             label = tr(lang, "app.vents.profile"), hidden = landFrom != null) { profile = true }
         if (landFrom != null) FaceLanding(perch, landFrom, accent, wind.faceStyle, onLanded)
     }
