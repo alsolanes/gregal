@@ -1093,13 +1093,19 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (e is CancellationException) throw e
                 false
             }
-            if (!ok && _conn.value == c) _avui.value = AvuiLogic.revert(_avui.value ?: before, before, id)
+            if (_conn.value != c) return@launch
+            if (!ok) _avui.value = AvuiLogic.revert(_avui.value ?: before, before, id)
+            if (action == "resume") notify(appText(if (ok) "app.avui.resumed" else "app.avui.resumeError"))
         }
     }
 
-    /** Una acció de la targeta: obre la conversa amb el vent i li diu el que demana. */
+    /**
+     * Una acció de la targeta: obre la conversa amb el vent i li diu el que demana.
+     * Si porta [AvuiAction.thread] (un fil obert, task 148), reprèn aquell fil i no hi envia res.
+     */
     fun avuiRun(card: AvuiCard, action: AvuiAction) {
         if (card.wind.isBlank()) return
+        if (action.thread.isNotBlank()) { resumeWindThread(card.wind, action.thread); return }
         openVentsChat("wind:" + card.wind)
         if (action.prompt.isNotBlank()) sendWindMessage(card.wind, avuiPrompt(card, action))
     }

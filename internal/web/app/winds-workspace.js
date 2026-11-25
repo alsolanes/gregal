@@ -607,9 +607,12 @@
   const meta=el('p','vw-avui-meta');meta.append(el('span','',c.wind_name||w?.name||''));if(c.days)meta.append(el('span','vw-avui-age',c.days===1?t('des d’ahir','since yesterday'):t('fa '+c.days+' dies','for '+c.days+' days')));copy.append(meta);
   if(c.body){const more=el('div','vw-avui-body vw-message-text');more.innerHTML=root.gregalMD?root.gregalMD.render(c.body):'';if(!root.gregalMD)more.textContent=c.body;copy.append(more);}
   const acts=el('div','vw-avui-acts');
-  for(const a of c.actions||[])acts.append(btn(a.label,async()=>{if(!w)return;const thread=await call('/api/winds/sessions','POST',{wind:w.id});showWindThread(w,thread.name,[]);if(input){input.value=a.prompt;composer.requestSubmit();}},'vw-avui-chip'));
   const act=(action,after)=>async()=>{try{await call('/api/winds/avui','POST',{id:c.id,action});}catch(e){fail(e);return;}after();};
   const leave=()=>{card.classList.add('is-leaving');setTimeout(()=>paintAvui(feed).catch(()=>{}),matchMedia('(prefers-reduced-motion: reduce)').matches?0:260);};
+  // Una vigilància pausada sola (task 146) es reprèn amb POST resume: el xat del vent no la pot reprendre.
+  if(c.source==='pausa'&&root.gregalAvuiGlance)acts.append(root.gregalAvuiGlance.resumeButton(c,status,leave));
+  // Una acció amb `thread` (un fil obert, task 148) obre aquella conversa del vent; les altres en comencen una de nova.
+  else for(const a of c.actions||[])acts.append(btn(a.label,async()=>{if(!w)return;if(a.thread){await openThread(w,a.thread).catch(fail);return;}const thread=await call('/api/winds/sessions','POST',{wind:w.id});showWindThread(w,thread.name,[]);if(input){input.value=a.prompt;composer.requestSubmit();}},'vw-avui-chip'));
   const side=el('div','vw-avui-decide');
   const useful=iconOnly('thumbUp',t('Útil','Useful'),act('useful',()=>{useful.setAttribute('aria-pressed',String(useful.getAttribute('aria-pressed')!=='true'));}),'vw-small');useful.setAttribute('aria-pressed',String(c.feedback==='useful'));
   side.append(useful,iconOnly('thumbDown',t('No m’interessa','Not interesting'),act('notuseful',leave),'vw-small'),iconOnly('clock',t('Més tard','Later'),act('later',leave),'vw-small'),iconOnly('close',t('Ara no','Not now'),act('dismiss',leave),'vw-small'));

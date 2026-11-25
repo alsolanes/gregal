@@ -336,8 +336,8 @@ data class WindNovetat(val ts: Long, val wind: String, val name: String, val sou
     /** Ja llegida (en aquest o en un altre dispositiu). */
     val read: Boolean = false)
 
-/** Una decisió d'una targeta d'«Avui»: obre la conversa amb el vent i li diu [prompt]. */
-data class AvuiAction(val label: String, val prompt: String)
+/** Una decisió d'una targeta d'«Avui»: obre la conversa amb el vent i li diu [prompt], o reprèn el fil [thread] si en porta. */
+data class AvuiAction(val label: String, val prompt: String, val thread: String = "")
 
 /**
  * Una targeta de la safata «Avui»: tot el que un vent diu pel seu compte

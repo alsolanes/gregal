@@ -34,9 +34,12 @@ import java.time.LocalTime
 
 /** [did]: la feina que ha acabat; [proposes]: la primera targeta oberta que encara demana alguna cosa. */
 data class WindBrief(val wind: Wind, val did: AvuiCard?, val proposes: AvuiCard?) {
-    /** El botó de la targeta: l'acció del que proposa o, si no, la del que ha fet. */
+    /**
+     * El botó de la targeta: l'acció del que proposa o, si no, la del que ha fet.
+     * Una vigilància pausada (`pausa`) no: el xat no la reprèn, ho fa «Torna-hi» a la seva targeta.
+     */
     val act: Pair<AvuiCard, AvuiAction>? get() =
-        listOfNotNull(proposes, did).firstNotNullOfOrNull { c -> c.actions.firstOrNull()?.let { c to it } }
+        listOfNotNull(proposes, did).filter { it.source != "pausa" }.firstNotNullOfOrNull { c -> c.actions.firstOrNull()?.let { c to it } }
 }
 
 object AvuiBriefLogic {

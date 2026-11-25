@@ -253,6 +253,62 @@ class AvuiGlanceTest {
         }
     }
 
+    /** Una safata amb la targeta d'una vigilància pausada (task 146); [fails] fa que el servidor no accepti el resume. */
+    private fun pausaServer(fails: Boolean) = FakeServer({ request, _ -> if (fails && request.startsWith("POST")) 400 else 200 }) { request, _ ->
+        if (request.startsWith("POST")) (if (fails) "resume only applies to a pausa card\n" else """{"ok":true}""")
+        else JSONObject().put("date", "2026-11-24").put("now", org.json.JSONArray().put(JSONObject()
+            .put("id", "p1").put("wind", "xaloc").put("source", "pausa").put("section", "now").put("state", "open")
+            .put("title", "He deixat de mirar: preus del lloguer"))).toString()
+    }
+
+    @Test fun tornaHiReprenLaVigilanciaIHoDiu() {
+        pausaServer(fails = false).use { server ->
+            val vm = loaded(server)
+            vm.avuiAct("p1", "resume")
+            assertEquals("done", vm.avui.value!!.now.single().state)
+            waitUntil { vm.notice.value.isNotEmpty() }
+            val (request, body) = server.requests.single()
+            assertTrue(request, request.startsWith("POST /api/winds/avui "))
+            assertEquals("resume", JSONObject(body).getString("action"))
+            assertEquals("p1", JSONObject(body).getString("id"))
+            assertEquals("Watching it again.", vm.notice.value)
+            assertEquals("done", vm.avui.value!!.now.single().state)
+        }
+    }
+
+    @Test fun siNoEsPotRependreLaTargetaTornaIHoDiu() {
+        pausaServer(fails = true).use { server ->
+            val vm = loaded(server)
+            vm.avuiAct("p1", "resume")
+            waitUntil { vm.notice.value.isNotEmpty() }
+            assertEquals("Could not resume the watch.", vm.notice.value)
+            assertEquals("open", vm.avui.value!!.now.single().state)
+        }
+    }
+
+    @Test fun unaAccioAmbFilObreAquellaConversa() {
+        FakeServer { request, _ ->
+            if (!request.startsWith("GET /api/winds/avui ")) """{"history":[]}"""
+            else JSONObject().put("date", "2026-11-24").put("fyi", org.json.JSONArray().put(JSONObject()
+                .put("id", "l1").put("wind", "xaloc").put("source", "loop").put("section", "fyi").put("state", "open")
+                .put("title", "Ja hi ha entrades")
+                .put("actions", org.json.JSONArray().put(JSONObject().put("label", "Obre la conversa").put("thread", "company-xaloc-s2"))))).toString()
+        }.use { server ->
+            val vm = loaded(server)
+            val card = vm.avui.value!!.fyi.single()
+            assertEquals("company-xaloc-s2", card.actions.single().thread)
+            vm.avuiRun(card, card.actions.single())
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals("wind:xaloc", vm.ventsOpen.value)
+            // Com la pantalla: en obrir-se la conversa, en carrega el fil.
+            vm.loadWindChat("xaloc")
+            waitUntil { server.requests.any { it.first.startsWith("GET /api/winds/chat?") } }
+            val history = server.requests.first { it.first.startsWith("GET /api/winds/chat?") }.first
+            assertTrue(history, history.contains("session=company-xaloc-s2"))
+            assertTrue("no s'envia res: ${server.requests}", server.requests.none { it.first.startsWith("POST") })
+        }
+    }
+
     @Test fun posaElLloc() {
         avuiServer().use { server ->
             val vm = loaded(server)

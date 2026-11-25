@@ -352,3 +352,28 @@ test('les animacions són de transform/opacity i s’apaguen amb moviment reduï
   const outside = block.replace(/@media\s*\(prefers-reduced-motion:\s*no-preference\)\s*\{(?:[^{}]*\{[^}]*\})*\s*\}/g, '');
   assert.doesNotMatch(outside, /animation\s*:/, 'cap animació fora de no-preference');
 });
+
+test('«Torna-hi» d’una vigilància pausada la reprèn, la targeta marxa i ho diu', async () => {
+  await withLang('ca', async m => {
+    const calls = fakeApi();
+    const status = document.createElement('p');
+    let left = 0;
+    const b = m.resumeButton({ id: 'p1', source: 'pausa' }, status, () => left++);
+    assert.equal(b.textContent, 'Torna-hi');
+    await b.onclick();
+    assert.deepEqual(calls, [{ path: '/api/winds/avui', body: { id: 'p1', action: 'resume' } }]);
+    assert.equal(left, 1);
+    assert.equal(status.textContent, 'Hi torno a mirar.');
+  });
+  await withLang('en', async m => {
+    window.gregal = { api: async () => ({ ok: false, status: 400, text: async () => 'not a paused watch\n' }) };
+    const status = document.createElement('p');
+    let left = 0;
+    const b = m.resumeButton({ id: 'p1', source: 'pausa' }, status, () => left++);
+    assert.equal(b.textContent, 'Resume');
+    await b.onclick();
+    assert.equal(left, 0);
+    assert.match(status.textContent, /Could not resume: not a paused watch/);
+    assert.equal(b.disabled, false);
+  });
+});
