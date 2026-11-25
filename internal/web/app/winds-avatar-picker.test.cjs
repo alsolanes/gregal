@@ -121,3 +121,19 @@ test('the account theme the server sends for minairons draws every wind as a min
   assert.equal(winds.avatarField(parent, { id:'brisa', color:'#123456' }), null);
   assert.match(parent.textContent, /Minairons/);
 });
+
+test('the barretina field offers Automàtica and the six colours, starts on the wind’s fourth style letter, and avatarPack says when a wind is a minairó', () => {
+  const { winds, document } = load('free');
+  winds.setAvatarTheme('free');
+  const parent = new El('div', document);
+  const hat = winds.barretinaField(parent, { id:'brisa', color:'#123456', style:'psom' });
+  assert.equal(hat.getAttribute('id'), 'windBarretina');
+  assert.deepEqual(hat.children.map(o => o.getAttribute('value')), ['', 'v', 'm', 'f', 'o', 'b', 'g']);
+  assert.match(parent.textContent, /Barretina.*Automàtica.*Morada/);
+  assert.equal(hat.value, 'm');
+  assert.equal(winds.barretinaField(new El('div', document), { style:'pso' }).value, '', 'no letter is automatic');
+  assert.equal(winds.avatarPack({ avatar:'minairo' }), 'minairo');
+  assert.equal(winds.avatarPack({ avatar:'rosa' }), 'rosa');
+  winds.setAvatarTheme('minairo');
+  assert.equal(winds.avatarPack({ avatar:'rosa' }), 'minairo', 'the theme draws every wind');
+});

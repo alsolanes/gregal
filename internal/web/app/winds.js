@@ -1275,6 +1275,10 @@
     pick(packs.includes(w?.avatar) ? w.avatar : 'cares');
     return group;
   }
+  // The Vents workspace editors' barretina picker; empty is the automatic colour.
+  function barretinaField(parent, w) {
+    return select(parent, 'windBarretina', tr('winds.barretina', 'Barretina'), [['', tr('winds.barretinaAuto', 'Automàtica')], ['v', tr('winds.barretinaV', 'Vermella')], ['m', tr('winds.barretinaM', 'Morada')], ['f', tr('winds.barretinaF', 'Verd fosc')], ['o', tr('winds.barretinaO', 'Mostassa')], ['b', tr('winds.barretinaB', 'Blau marí')], ['g', tr('winds.barretinaG', 'Granat')]], barretines.some(([letter]) => letter === String(w.style || '')[3]) ? w.style[3] : '');
+  }
   // A sample of one pack drawn as `w`, whatever pack the account's theme uses.
   function packFace(pack, w) {
     const was = theme; theme = 'free';
@@ -1368,6 +1372,6 @@
     return startingCrew;
   }};
   // The person's avatar in the sidebar foot (user-avatar.js) wears these too.
-  root.gregalWinds={palette:presetDefaults.map(p => ({name:p.name, color:p.color})), inkOn, face, create:windGallery, mood:setMood, moodOf, watchNews, hasNews:id => news.has(id), seen:seenNews, messageFromHash, direction, mapStart, mapStep, setAvatarTheme, avatarTheme:() => theme, avatarField, avatarPrefs};
+  root.gregalWinds={palette:presetDefaults.map(p => ({name:p.name, color:p.color})), inkOn, face, create:windGallery, mood:setMood, moodOf, watchNews, hasNews:id => news.has(id), seen:seenNews, messageFromHash, direction, mapStart, mapStep, setAvatarTheme, avatarTheme:() => theme, avatarField, avatarPrefs, avatarPack, barretinaField};
   root.loadWindsPage = function () { bind(); return load(); };
 })(window);

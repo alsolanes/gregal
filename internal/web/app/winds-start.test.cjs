@@ -97,9 +97,11 @@ async function boot({ lang = 'en', api, storage = {}, css = () => '', extra = {}
   const json = data => ({ ok: true, status: 200, json: async () => data, text: async () => JSON.stringify(data) });
   const window = {
     document: doc, gregalNotes: notes, addEventListener() {}, gregalGreeting: () => 'Good evening', ...extra,
-    gregalWinds: { face: (w, large, mood, size) => { const n = new Element('svg', doc); n.dataset.wind = w?.name || ''; if (size) n.dataset.size = String(size); return n; }, moodOf: () => '', seen() {}, watchNews(f) { this.onNews = f; }, news: [], hasNews(id) { return this.news.includes(id); }, setAvatarTheme(theme) { this.theme = theme; },
-      // winds.js draws the real picker (winds.test.js); here only Free mode gets one.
-      avatarField(parent, w) { if (this.theme !== 'free') return null; const s = new Element('select', doc); s.setAttribute('id', 'windAvatar'); s.value = w?.avatar || 'cares'; parent.append(s); return s; } },
+    gregalWinds: { face: (w, large, mood, size) => { const n = new Element('svg', doc); n.dataset.wind = w?.name || ''; n.dataset.style = w?.style || ''; if (size) n.dataset.size = String(size); return n; }, moodOf: () => '', seen() {}, watchNews(f) { this.onNews = f; }, news: [], hasNews(id) { return this.news.includes(id); }, setAvatarTheme(theme) { this.theme = theme; },
+      // winds.js draws the real pickers (winds-avatar-picker.test.cjs); here only Free mode gets a pack one.
+      avatarField(parent, w) { if (this.theme !== 'free') return null; const s = new Element('select', doc); s.setAttribute('id', 'windAvatar'); s.value = w?.avatar || 'cares'; parent.append(s); return s; },
+      avatarPack(w) { return this.theme !== 'free' ? this.theme : w.avatar || 'cares'; },
+      barretinaField(parent, w) { const wrap = new Element('label', doc), s = new Element('select', doc); s.setAttribute('id', 'windBarretina'); s.value = String(w.style || '')[3] || ''; wrap.append(s); parent.append(wrap); return s; } },
     api: async (url, opts = {}) => {
       const req = { url, method: opts.method || 'GET', body: opts.body ? JSON.parse(opts.body) : undefined };
       requests.push(req);
@@ -310,6 +312,50 @@ test('with a theme set, neither the profile nor the create dialog offers a pack,
   dialog.querySelector('input').value = 'Lupa';
   await byText(dialog, 'button', 'Create wind').click();
   assert.equal('avatar' in lastWindPost(f), false);
+});
+
+const changed = n => { for (const f of n.listeners.change || []) f({ target: n }); };
+const headStyle = f => f.doc.body.querySelector('.vw-profile-head').querySelector('svg').dataset.style;
+
+test('a wind’s profile picks its barretina while it is drawn as a minairó, saved as the fourth letter of its style', async () => {
+  const f = await avatarBoot('free');
+  await byText(f.nav, 'button', 'All winds').click(); await settle();
+  await byText(byText(f.page, '.vw-member', 'Xaloc'), 'button', 'Profile').click(); await settle();
+  const hat = f.doc.body.querySelector('#windBarretina'), pick = f.doc.body.querySelector('#windAvatar');
+  assert.equal(hat.parentNode.hidden, true, 'hidden while Xaloc is a wind spirit');
+  pick.value = 'minairo'; await pick.onchange();
+  assert.equal(hat.parentNode.hidden, false, 'shown once it is a minairó');
+  hat.value = 'm'; await hat.onchange();
+  assert.deepEqual([lastWindPost(f).id, lastWindPost(f).style], ['xaloc', 'psom']);
+  assert.equal(headStyle(f), 'psom', 'the profile face wears it');
+  hat.value = ''; await hat.onchange();
+  assert.equal(lastWindPost(f).style, 'pso', 'Automàtica keeps the three letters');
+});
+
+test('with the Minairons theme the profile shows the barretina picker, and the create dialog saves and previews it', async () => {
+  const f = await avatarBoot('minairo');
+  await byText(f.nav, 'button', 'All winds').click(); await settle();
+  await byText(byText(f.page, '.vw-member', 'Xaloc'), 'button', 'Profile').click(); await settle();
+  assert.equal(f.doc.body.querySelector('#windBarretina').parentNode.hidden, false);
+  f.doc.body.querySelector('dialog').close();
+  await byText(f.page, 'button', 'Create your own wind').click(); await settle();
+  const dialog = f.doc.body.children.at(-1), hat = dialog.querySelector('#windBarretina');
+  assert.equal(hat.parentNode.hidden, false);
+  hat.value = 'o'; changed(hat);
+  assert.equal(dialog.querySelector('.vw-wind-preview').querySelector('svg').dataset.style, 'psno', 'the preview follows');
+  dialog.querySelector('input').value = 'Lupa';
+  await byText(dialog, 'button', 'Create wind').click();
+  assert.deepEqual([lastWindPost(f).name, lastWindPost(f).style], ['Lupa', 'psno']);
+});
+
+test('in the create dialog the barretina picker shows only with the Minairons pack', async () => {
+  const f = await avatarBoot('free');
+  await byText(f.nav, 'button', 'All winds').click(); await settle();
+  await byText(f.page, 'button', 'Create your own wind').click(); await settle();
+  const dialog = f.doc.body.children.at(-1), hat = dialog.querySelector('#windBarretina'), pick = dialog.querySelector('#windAvatar');
+  assert.equal(hat.parentNode.hidden, true);
+  pick.value = 'minairo'; changed(pick);
+  assert.equal(hat.parentNode.hidden, false);
 });
 
 test('the start page header just says Winds, not Today', async () => {
