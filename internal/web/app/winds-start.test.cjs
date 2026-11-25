@@ -1448,3 +1448,75 @@ test('the failed turn bubble speaks Catalan too', async () => {
   assert.match(row.textContent, /No he pogut arribar-hi/);
   assert.ok(byText(row, 'button', 'Torna-ho a provar'));
 });
+
+// 136: Feina. Una feina en marxa és una targeta amb la cara de qui la porta que s'obre al lloc;
+// el que han fet els vents és dins Fet, i Desat ja no ho repeteix.
+const running = { id: 't1', task: 'Build the club site', status: 'working', agents: { builder: 'Xaloc' }, workspace: 'C:/ws/club',
+  events: [{ type: 'tool', agent: 'builder', activity: 'write', message: '{"file_path":"C:/ws/club/index.html"}' }, { type: 'tool_result', agent: 'builder', path: 'C:/ws/club/index.html' }] };
+const withTasks = list => r => r.url === '/api/winds/tasks' ? { ok: true, status: 200, json: async () => ({ tasks: list }) } : null;
+
+test('a running task in Work is a card with its owner’s face that opens in place to its steps and links', async () => {
+  const f = await boot({ api: withTasks([running]) });
+  await byText(f.nav, 'button', 'Work').click();
+  await settle();
+  const card = f.page.querySelector('.vw-feina-now').querySelector('.vw-feina-card');
+  assert.ok(card, 'the running task is a card under Now');
+  const head = card.querySelector('.vw-feina-card-head'), body = card.querySelector('.vw-feina-card-body');
+  assert.equal(head.querySelector('svg').dataset.wind, 'Xaloc', 'the owner’s face');
+  assert.match(head.textContent, /Build the club site/);
+  assert.equal(head.getAttribute('aria-expanded'), 'false');
+  assert.equal(body.inert, true, 'closed, its links are out of reach');
+  await head.click();
+  assert.equal(head.getAttribute('aria-expanded'), 'true');
+  assert.ok(card.classList.contains('open'));
+  assert.equal(body.inert, false);
+  assert.match(body.querySelector('.vw-feina-steps').textContent, /Writing files/, 'its steps');
+  assert.ok(byText(body, 'button', 'index.html'), 'a link to the file it made');
+  assert.equal(f.page.querySelector('h1').textContent, 'Work', 'it opened in place');
+  await head.click();
+  assert.equal(head.getAttribute('aria-expanded'), 'false', 'and closes again');
+  await byText(body, 'button', 'Open the task').click();
+  await settle();
+  assert.equal(f.page.querySelector('h1').textContent, 'Build the club site', 'the link opens the whole task');
+});
+
+test('the task card speaks Catalan too', async () => {
+  const f = await boot({ lang: 'ca', api: withTasks([running]) });
+  await byText(f.nav, 'button', 'Feina').click();
+  await settle();
+  const card = f.page.querySelector('.vw-feina-card');
+  await card.querySelector('.vw-feina-card-head').click();
+  assert.match(card.textContent, /Escrivint fitxers/);
+  assert.ok(byText(card, 'button', 'Obre la feina'));
+});
+
+test('a task card opens with a short transition on its height that only plays with motion allowed', () => {
+  const css = fs.readFileSync(path.join(__dirname, 'winds-workspace.css'), 'utf8');
+  const block = at => { let depth = 0; const start = css.indexOf('{', at); for (let i = start; i < css.length; i++) { if (css[i] === '{') depth++; else if (css[i] === '}' && --depth === 0) return css.slice(start + 1, i); } return ''; };
+  const blocks = [...css.matchAll(/@media ?\(prefers-reduced-motion: ?no-preference\)/g)].map(m => block(m.index)), motion = blocks.join('\n');
+  const still = blocks.reduce((rest, b) => rest.replace(b, ''), css);
+  assert.match(motion, /\.vw-feina-card-body \{ transition:grid-template-rows \.\d+s/);
+  assert.doesNotMatch(still, /\.vw-feina-card-body \{[^}]*transition/);
+  const rules = cssRules('winds-workspace.css');
+  const rows = sel => prop(rules.findLast(r => r.sel === sel && prop(r, 'grid-template-rows')), 'grid-template-rows');
+  assert.equal(rows('.vw-feina-card-body'), '0fr', 'closed');
+  assert.equal(rows('.vw-feina-card.open .vw-feina-card-body'), '1fr', 'open');
+});
+
+test('what the winds made lives in Work › Done; Saved no longer repeats it', async () => {
+  const galleries = [];
+  const activity = { renderSaved: async box => { galleries.push(box); const p = box.doc.createElement('p'); p.textContent = 'Club rules.md'; box.append(p); }, renderAutomations: async () => {} };
+  const f = await boot({ extra: { gregalVentsActivity: activity } });
+  const ctx = { document: f.doc, api: f.window.api, URLSearchParams, setTimeout, clearTimeout, console };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'winds-notes.js'), 'utf8'), ctx);
+  f.window.gregalNotes = ctx.gregalNotes;
+  await byText(f.nav, 'button', 'Saved').click();
+  await settle();
+  assert.doesNotMatch(f.page.querySelector('.vw-content').textContent, /What the winds made/);
+  assert.equal(galleries.length, 0, 'Saved does not draw the gallery');
+  await byText(f.nav, 'button', 'Work').click();
+  await settle();
+  assert.equal(galleries.length, 1, 'Work draws it once');
+  assert.ok(galleries[0].closest('.vw-feina-done'), 'inside Done');
+  assert.match(f.page.querySelector('.vw-feina-done').textContent, /Club rules\.md/);
+});

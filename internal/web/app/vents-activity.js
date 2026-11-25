@@ -263,7 +263,7 @@ export async function renderSaved(box, opts = {}) {
     box.replaceChildren();
     if (!items.length) {
       box.append(el('p', 'auto-empty', wind ? tx('Aquest vent encara no t’ha fet cap document, web ni gràfic.', "This wind hasn't made you any document, website or chart yet.")
-        : tx('Encara no hi ha res desat. Quan un vent et faci un document, una web o un gràfic, sortirà aquí.', 'Nothing saved yet. When a wind makes you a document, a website or a chart, it shows up here.')));
+        : tx('Quan un vent et faci un document, una web o un gràfic, també sortirà aquí.', 'When a wind makes you a document, a website or a chart, it shows up here too.')));
       return;
     }
     const kinds = new Set(items.map(i => i.kind));

@@ -57,7 +57,8 @@
     const head = el('header', 'vw-guide-head');
     head.append(el('h2', '', title), el('p', '', lead));
     const grid = el('div', 'vw-guide-grid');
-    topics().forEach(([icon, name, how, examples], i) => {
+    // 136: tres targetes d'entrada perquè el full es llegeixi d'un cop d'ull; «Més» porta la resta.
+    const add = list => list.forEach(([icon, name, how, examples], i) => {
       const card = el('section', 'vw-guide-card'); card.style.setProperty('--i', String(i));
       const top = el('div', 'vw-guide-top'); top.append(el('span', 'vw-guide-icon', icon), el('h3', '', name));
       card.append(top, el('p', 'vw-guide-how', how));
@@ -68,7 +69,11 @@
       }
       grid.append(card);
     });
-    d.append(close, head, grid);
+    const all = topics();
+    add(all.slice(0, 3));
+    const more = el('button', 'vw-guide-more', t('Més', 'More')); more.type = 'button';
+    more.onclick = () => { more.remove(); add(all.slice(3)); grid.children[3]?.querySelector('button')?.focus(); };
+    d.append(close, head, grid, more);
     d.addEventListener('close', () => { try { localStorage.setItem(SEEN, '1'); } catch (_) {} d.remove(); });
     document.body.append(d);
     d.showModal();

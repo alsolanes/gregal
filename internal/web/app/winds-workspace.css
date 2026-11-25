@@ -1075,18 +1075,25 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 
 /* ---- «Què pot fer Gregal» (la guia) ---- */
 @keyframes vw-gregal-bloom { 0% { opacity:0; transform:scale(.55); } 33% { opacity:1; transform:scale(1.08); } 100% { opacity:.24; transform:scale(1); } }
-.vw-dialog.vw-guide { width:min(960px, calc(100vw - 32px)); max-height:min(88vh, 900px); padding:32px 32px 28px; border-radius:24px; overflow:auto; position:relative; isolation:isolate;
+/* 136: un full lleuger: tres targetes en una fila (en columna al mòbil, on puja des de baix) i «Més». */
+.vw-dialog.vw-guide { width:min(880px, calc(100vw - 32px)); max-height:min(88dvh, 860px); padding:28px 28px 24px; border-radius:24px; overflow:auto; position:relative; isolation:isolate;
   background:var(--bg); border:1px solid var(--line-hi); }
-.vw-dialog.vw-guide::before { content:""; position:absolute; inset:0 0 auto 0; height:260px; z-index:-1; pointer-events:none;
-  background:radial-gradient(48% 70% at 50% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 75%);
-  animation:vw-gregal-bloom 2.1s cubic-bezier(.2,.7,.2,1) both; }
+.vw-dialog.vw-guide::before { content:""; position:absolute; inset:0 0 auto 0; height:220px; z-index:-1; pointer-events:none; opacity:.24;
+  background:radial-gradient(48% 70% at 50% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 75%); }
 .vw-guide-close { position:absolute; top:14px; right:16px; width:36px; height:36px; border:0; border-radius:50%; background:transparent; color:var(--muted); font-size:24px; line-height:1; cursor:pointer; }
 .vw-guide-close:hover { background:var(--hover); color:var(--ink); }
-.vw-guide-head h2 { margin:0 0 8px; font-size:28px; line-height:1.2; color:var(--ink); letter-spacing:-.01em; }
-.vw-guide-head p { margin:0 0 22px; max-width:640px; color:var(--muted); font-size:16px; line-height:1.5; }
-.vw-guide-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(270px, 1fr)); gap:14px; }
-.vw-guide-card { display:flex; flex-direction:column; gap:8px; padding:16px; border-radius:15px; border:1px solid var(--line); background:color-mix(in srgb, var(--surface-hi) 60%, transparent);
-  animation:vw-guide-in .45s ease-out both; animation-delay:calc(var(--i) * 45ms); }
+.vw-guide-head h2 { margin:0 0 6px; font-size:24px; line-height:1.2; color:var(--ink); letter-spacing:-.01em; }
+.vw-guide-head p { margin:0 0 18px; max-width:620px; color:var(--muted); font-size:15px; line-height:1.5; }
+.vw-guide-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:12px; }
+.vw-guide-card { display:flex; flex-direction:column; gap:8px; padding:14px; border-radius:15px; border:1px solid var(--line); background:color-mix(in srgb, var(--surface-hi) 60%, transparent); }
+.vw-guide-more { display:block; margin:16px auto 0; padding:8px 18px; border-radius:999px; border:1px solid var(--line-hi); background:transparent; color:var(--ink); font-size:14px; font-weight:550; }
+.vw-guide-more:hover { background:var(--hover-alt); }
+@media(prefers-reduced-motion:no-preference) {
+  .vw-dialog.vw-guide[open] { animation:vw-guide-sheet .2s cubic-bezier(.2,.8,.2,1); }
+  .vw-dialog.vw-guide::before { animation:vw-gregal-bloom .25s ease-out both; }
+  .vw-guide-card { animation:vw-guide-in .17s ease-out both; animation-delay:calc(var(--i) * 40ms); }
+}
+@keyframes vw-guide-sheet { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:none; } }
 @keyframes vw-guide-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
 .vw-guide-top { display:flex; align-items:center; gap:10px; }
 .vw-guide-top h3 { margin:0; font-size:16px; color:var(--ink); }
@@ -1094,8 +1101,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-guide-how { margin:0; color:var(--muted); font-size:14px; line-height:1.45; }
 .vw-guide-try { text-align:left; padding:9px 13px; border-radius:14px; border:1px solid var(--line-hi); background:transparent; color:var(--ink); font:inherit; font-size:14px; line-height:1.4; cursor:pointer; }
 .vw-guide-try:hover { background:var(--hover-alt); border-color:var(--accent); }
-@media(prefers-reduced-motion:reduce) { .vw-guide-card, .vw-dialog.vw-guide::before { animation:none; } }
-@media(max-width:600px) { .vw-dialog.vw-guide { padding:24px 18px; border-radius:20px; } .vw-guide-head h2 { font-size:23px; } }
+@media(max-width:600px) { .vw-dialog.vw-guide { width:100%; max-width:100%; margin:auto 0 0; padding:24px 18px calc(18px + env(safe-area-inset-bottom)); border-radius:20px 20px 0 0; border-bottom:0; } .vw-guide-head h2 { font-size:22px; } }
 .vw-dialog.vw-guide header.vw-guide-head { display:block; padding:0 40px 0 0; margin:0; border:0; }
 
 /* Ordinador en mode local: el navegador de Gregal en directe, en un panell al costat del xat (#workbench) com Gregal Docs. */
@@ -1202,7 +1208,29 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-feina-n { font-size:11.5px; font-weight:700; color:var(--on-accent, var(--bg)); background:var(--accent); border-radius:999px; padding:1px 7px; }
 .vw-feina-n[hidden] { display:none; }
 .vw-feina-asks { margin:0; }
-.vw-feina-live { display:flex; align-items:center; gap:10px; }
+/* 136: una feina en marxa és una targeta amb la cara de qui la porta, tenyida del seu color, que s'obre al lloc. */
+.vw-feina-card { margin:0 0 10px; border:1px solid color-mix(in srgb, var(--vw-card, var(--accent)) 22%, var(--line)); border-radius:16px; overflow:hidden;
+  background:color-mix(in srgb, var(--vw-card, var(--accent)) 5%, var(--surface)); }
+.vw-feina-card-head { display:flex; align-items:center; gap:12px; width:100%; padding:12px 14px; border:0; background:transparent; color:var(--ink); text-align:left; }
+.vw-feina-card-head:hover { background:var(--hover); }
+.vw-feina-card-head .winds-face { flex:none; width:36px; height:36px; }
+.vw-feina-card-head strong { flex:1; min-width:0; font-size:14px; font-weight:550; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.vw-feina-chev { flex:none; width:7px; height:7px; margin:0 4px 3px 2px; border:solid var(--muted); border-width:0 1.5px 1.5px 0; transform:rotate(45deg); }
+.vw-feina-card.open .vw-feina-chev { transform:translateY(3px) rotate(-135deg); }
+.vw-feina-card-body { display:grid; grid-template-rows:0fr; }
+.vw-feina-card.open .vw-feina-card-body { grid-template-rows:1fr; }
+.vw-feina-card-inner { min-height:0; overflow:hidden; padding:0 14px 0 62px; }
+.vw-feina-card.open .vw-feina-card-inner { padding-bottom:14px; }
+.vw-feina-steps { display:flex; flex-direction:column; gap:6px; margin:0; padding:0; list-style:none; }
+.vw-feina-steps li { display:flex; align-items:baseline; gap:8px; font-size:13px; line-height:1.45; color:var(--text); overflow-wrap:anywhere; }
+.vw-feina-steps li::before { content:""; flex:none; width:6px; height:6px; border-radius:50%; background:var(--line-hi); transform:translateY(-1px); }
+.vw-feina-steps li:last-child::before { background:var(--vw-card, var(--accent)); }
+.vw-feina-links { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+@media(prefers-reduced-motion:no-preference) {
+  .vw-feina-card-body { transition:grid-template-rows .22s cubic-bezier(.2,.8,.2,1); }
+  .vw-feina-chev, .vw-feina-card-inner { transition:transform .22s, padding .22s; }
+}
+@media(max-width:600px) { .vw-feina-card-inner { padding-left:14px; } }
 .vw-feina-auto .auto-status:empty { display:none; }
 
 /* Captures del torn sota la resposta («Ho he fet així») */
