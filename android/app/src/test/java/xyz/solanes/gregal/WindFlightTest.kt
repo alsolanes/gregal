@@ -9,6 +9,7 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.unit.DpRect
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -106,7 +107,10 @@ class WindFlightTest {
         show { RotllanaConversation(vm, "ca", Rotllana("colla", "Colla", listOf("xaloc")), listOf(xaloc), onBack = {}) }
         ui.onNodeWithText("Colla 3").assertExists()
         ui.onNodeWithTag("wind-presence").assertDoesNotExist()
-        facesOf(xaloc).assertCountEquals(1)
+        // Una a la capçalera i, en grup, la petita al costat del nom a cada ratxa de respostes (145).
+        val faces = facesOf(xaloc).fetchSemanticsNodes()
+        assertEquals(1, faces.count { it.boundsInRoot.top < with(ui.density) { ChatHeaderInset.toPx() } })
+        assertEquals(ui.onAllNodesWithTag("wind-byline", useUnmergedTree = true).fetchSemanticsNodes().size, faces.size - 1)
     }
 
     @Test fun theListMovesTheFaceBetweenTheCornerAndTheHeader() {
