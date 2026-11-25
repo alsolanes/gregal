@@ -84,7 +84,7 @@ async function boot({ lang = 'en', api, storage = {}, css = () => '', extra = {}
   class MutationObserver { constructor(f) { this.f = f; } observe(target, opts) { observers.push({ f: this.f, target, opts }); } }
   const mutate = (target, attr) => { for (const o of observers) if (o.target === target && o.opts.attributeFilter?.includes(attr)) o.f([{ type: 'attributes', attributeName: attr }]); };
   const doc = { createElement: t => new Element(t, doc), createElementNS: (_, t) => new Element(t, doc), documentElement: { lang }, querySelector: () => null,
-    addEventListener(k, f) { (events[k] ||= []).push(f); }, dispatchEvent(e) { for (const f of events[e.type] || []) f(e); } };
+    addEventListener(k, f) { (events[k] ||= []).push(f); }, removeEventListener(k, f) { events[k] = (events[k] || []).filter(x => x !== f); }, dispatchEvent(e) { for (const f of events[e.type] || []) f(e); } };
   doc.root = new Element('root', doc);
   for (const id of ['ventsPage', 'windsListCard', 'side', 'workbench']) { const n = new Element('div', doc); n.setAttribute('id', id); doc.root.append(n); }
   // Com a index.html: la barra dels vents és dins la part que es desplaça de #side.
@@ -713,24 +713,23 @@ async function turnInXaloc(api) {
   await settle();
   return f;
 }
-const cheered = (f, cls) => f.page.querySelector('.vw-wind-corner').classList.contains(cls);
+const reacted = f => f.page.querySelector('.vw-wind-corner').dataset.react;
 
-test('a turn that ends well makes the wind celebrate, once', async () => {
+// 128: la celebració és ara el vent que s'hi acosta (lean) amb l'esclat, i l'arronsada, fer que no (shake).
+test('a turn that ends well makes the wind lean in with a burst, once', async () => {
   const f = await turnInXaloc();
-  assert.ok(cheered(f, 'vw-cheer'), 'the wind celebrates');
-  assert.ok(!cheered(f, 'vw-shrug'));
+  assert.equal(reacted(f), 'lean', 'the wind leans in');
   assert.equal(f.page.querySelectorAll('.vw-burst').length, 1, 'one sparkle burst');
   await f.window.loadWindsPage();
   await settle();
   assert.equal(f.page.querySelector('.vw-wind-mark').textContent, 'Done', 'still the same finished turn');
-  assert.ok(!cheered(f, 'vw-cheer'), 'a redraw does not celebrate again');
+  assert.equal(reacted(f), undefined, 'a redraw does not react again');
   assert.equal(f.page.querySelectorAll('.vw-burst').length, 0);
 });
 
-test('a turn that fails gets a shrug, not a celebration', async () => {
+test('a turn that fails gets a shake, not a burst', async () => {
   const f = await turnInXaloc(r => r.url === '/api/winds/chat/stream' ? { ok: false, status: 502, text: async () => 'boom', json: async () => ({}) } : null);
-  assert.ok(cheered(f, 'vw-shrug'));
-  assert.ok(!cheered(f, 'vw-cheer'));
+  assert.equal(reacted(f), 'shake');
   assert.equal(f.page.querySelectorAll('.vw-burst').length, 0);
 });
 
@@ -741,7 +740,7 @@ test('new messages spring in, the waiting bubble breathes and side panes slide i
   const block = at => { let depth = 0; const start = css.indexOf('{', at); for (let i = start; i < css.length; i++) { if (css[i] === '{') depth++; else if (css[i] === '}' && --depth === 0) return css.slice(start + 1, i); } return ''; };
   const blocks = [...css.matchAll(/@media\(prefers-reduced-motion:no-preference\)/g)].map(m => block(m.index)), motion = blocks.join('\n');
   const still = blocks.reduce((rest, b) => rest.replace(b, ''), css);
-  for (const name of ['vw-in', 'vw-bubble', 'vw-pane-in', 'vw-cheer', 'vw-spark', 'vw-ring', 'vw-shrug']) {
+  for (const name of ['vw-in', 'vw-bubble', 'vw-pane-in', 'vw-spark', 'vw-ring']) {
     assert.match(motion, new RegExp('animation:' + name + ' '), name + ' plays with motion allowed');
     assert.doesNotMatch(still, new RegExp('animation:' + name + ' '), name + ' never plays under reduced motion');
     const at = css.indexOf('@keyframes ' + name + ' ');
@@ -1030,12 +1029,12 @@ test('a numbered list in a wind’s reply keeps room for the number: no later ru
   assert.deepEqual(later.map(r => r.sel), []);
 });
 
-test('the computer has one name: the sidebar row, Gregal’s header button and the pane it opens say the same', async () => {
+test('the computer has one name: the sidebar row, the header menu entry and the pane it opens say the same', async () => {
   const f = await boot({ extra: { open: () => null }, api: r => r.url === '/api/ordinador/viewer' ? { ok: false, status: 404, text: async () => 'no_viewer' } : null });
   await byText(f.nav, '.vw-nav-channel', 'Gregal').click();
   await settle();
-  const pc = f.page.querySelector('.vw-gregal-pc');
-  const name = pc.getAttribute('aria-label');
+  const pc = byText(f.page.querySelector('.vw-more-list'), 'button', 'computer');
+  const name = pc.textContent;
   assert.ok(f.nav.querySelectorAll('button').some(b => b.textContent === name), 'the sidebar row says «' + name + '»');
   await pc.click();
   await settle();
@@ -1265,4 +1264,152 @@ test('a Today card action with a thread opens that conversation instead of sendi
   assert.ok(!f.requests.some(r => r.url === '/api/winds/sessions' && r.method === 'POST'), 'no new conversation');
   assert.ok(!f.requests.some(r => r.url === '/api/winds/chat/stream'), 'nothing is sent');
   assert.match(f.page.querySelector('.vw-messages').textContent, /Hi ha jazz al Born/);
+});
+
+// 128: un sol capçal per a tots els vents. La forma del capçal (classes, sense textos) i el menú «⋯».
+const shape = n => n.getAttribute('role') === 'menu' ? [n.className] : [n.className, ...n.children.filter(c => c.tagName !== 'TEXT').map(shape)];
+const menuOf = f => f.page.querySelector('.vw-top').querySelector('.vw-more-list').children.map(b => b.textContent);
+async function headerOf(f, open) {
+  await open();
+  await settle();
+  const top = f.page.querySelector('.vw-top');
+  return { top, shape: shape(top), menu: menuOf(f) };
+}
+test('every wind, Gregal included, has the same header: its face, name, a role chip in its colour and one ⋯ menu', async () => {
+  const f = await boot();
+  const gregal = await headerOf(f, () => byText(f.nav, '.vw-nav-channel', 'Gregal').click());
+  const xaloc = await headerOf(f, () => byText(f.nav, '.vw-nav-channel', 'Xaloc').click());
+  assert.deepEqual(gregal.shape, xaloc.shape, 'the same structure');
+  assert.deepEqual(xaloc.menu, ['Profile', 'Threads', 'Save to wiki', 'Gregal’s computer']);
+  assert.deepEqual(gregal.menu.slice(0, 4), xaloc.menu, 'Gregal’s menu has the same entries, then its guide');
+  const who = xaloc.top.querySelector('.vw-owner-who');
+  assert.ok(who.querySelector('.vw-wind-corner'), 'the face with its mood is in the header');
+  assert.equal(who.querySelector('strong').textContent, 'Xaloc');
+  assert.equal(xaloc.top.querySelector('.vw-tag').style['--c'], '#F5B45D', 'the role chip takes the wind’s colour');
+  assert.equal(xaloc.top.querySelectorAll('button').filter(b => /^(Threads|Save to wiki)$/.test(b.textContent) && !b.closest('.vw-more-list')).length, 0, 'no loose actions next to the menu');
+});
+
+test('tapping the face opens the wind’s profile; the ⋯ menu opens, runs an entry and closes', async () => {
+  const json = data => ({ ok: true, status: 200, json: async () => data });
+  const f = await boot({ api: r => r.url.startsWith('/api/winds/profile?') ? json({}) : null });
+  await byText(f.nav, '.vw-nav-channel', 'Gregal').click();
+  await settle();
+  await f.page.querySelector('.vw-owner-who').click();
+  await settle();
+  assert.ok(f.requests.some(r => r.url === '/api/winds/profile?wind=gregal'), 'the profile opens');
+  const toggle = f.page.querySelector('.vw-more-btn'), list = f.page.querySelector('.vw-more-list');
+  assert.equal(toggle.getAttribute('aria-haspopup'), 'menu');
+  assert.ok(list.hidden);
+  await toggle.click();
+  assert.ok(!list.hidden);
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+  f.doc.dispatchEvent({ type: 'keydown', key: 'Escape', stopPropagation() {} });
+  assert.ok(list.hidden, 'Escape closes it');
+  await toggle.click();
+  f.requests.length = 0;
+  await byText(list, 'button', 'Profile').click();
+  await settle();
+  assert.ok(list.hidden, 'choosing an entry closes it');
+  assert.ok(f.requests.some(r => r.url === '/api/winds/profile?wind=gregal'));
+});
+
+test('the header and its menu speak Catalan too', async () => {
+  const f = await boot({ lang: 'ca' });
+  const x = await headerOf(f, () => byText(f.nav, '.vw-nav-channel', 'Xaloc').click());
+  assert.deepEqual(x.menu, ['Perfil', 'Fils', 'Desa a la wiki', 'L’ordinador de Gregal']);
+  assert.equal(x.top.querySelector('.vw-more-btn').getAttribute('aria-label'), 'Més opcions');
+});
+
+// 128: el vent reacciona amb el cos: assenteix quan envies, s'hi acosta amb un esclat del seu color quan
+// arriba la resposta i fa que no quan falla.
+test('the wind nods when you send, leans in with a burst in its colour when the reply lands, once', async () => {
+  const saved = [{ from: 'user', text: 'Hola' }, { from: 'assistant', text: 'Fet' }];
+  let sent;
+  const f = await boot({ api: r => r.url === '/api/winds/chat/stream' ? slowStream([['done', { history: saved }]], i => { if (!i) sent = f.page.querySelector('.vw-wind-corner')?.dataset.react; }) : null });
+  await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();
+  await settle();
+  f.page.querySelector('textarea').value = 'Hola';
+  await f.page.querySelector('.vw-composer').requestSubmit();
+  await settle();
+  assert.equal(sent, 'nod', 'a nod as the message goes');
+  const corner = f.page.querySelector('.vw-wind-corner');
+  assert.equal(corner.dataset.react, 'lean', 'it leans in when the reply arrives');
+  assert.equal(corner.querySelectorAll('.vw-burst').length, 1, 'with one burst');
+  await f.window.loadWindsPage();
+  await settle();
+  assert.equal(f.page.querySelector('.vw-wind-corner').dataset.react, undefined, 'a redraw does not react again');
+  assert.equal(f.page.querySelectorAll('.vw-burst').length, 0);
+});
+
+test('reactions are short transform animations that only play with motion allowed', () => {
+  const css = fs.readFileSync(path.join(__dirname, 'winds-workspace.css'), 'utf8');
+  const block = at => { let depth = 0; const start = css.indexOf('{', at); for (let i = start; i < css.length; i++) { if (css[i] === '{') depth++; else if (css[i] === '}' && --depth === 0) return css.slice(start + 1, i); } return ''; };
+  const blocks = [...css.matchAll(/@media ?\(prefers-reduced-motion: ?no-preference\)/g)].map(m => block(m.index)), motion = blocks.join('\n');
+  const still = blocks.reduce((rest, b) => rest.replace(b, ''), css);
+  for (const [react, name] of [['nod', 'vw-corner-nod'], ['lean', 'vw-corner-lean'], ['shake', 'vw-corner-shake']]) {
+    assert.match(motion, new RegExp('\\.vw-wind-corner\\[data-react="' + react + '"\\] > \\.winds-face \\{ animation:' + name + ' '), react + ' plays with motion allowed');
+    assert.doesNotMatch(still, new RegExp('animation:' + name + ' '), react + ' never plays under reduced motion');
+    const props = [...block(css.indexOf('@keyframes ' + name + ' ')).matchAll(/([a-z-]+)\s*:/g)].map(m => m[1]).filter(p => p !== 'transform');
+    assert.deepEqual(props, [], name + ' moves with transform only');
+  }
+});
+
+const failing = r => r.url === '/api/winds/chat/stream' ? { ok: false, status: 502, text: async () => 'boom', json: async () => ({}) } : null;
+test('a failed turn shakes the wind and shows in the thread as its bubble with a retry, not as red text under the composer', async () => {
+  let fail = true;
+  const f = await boot({ api: r => fail ? failing(r) : null });
+  await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();
+  await settle();
+  f.page.querySelector('textarea').value = 'Book the jam';
+  await f.page.querySelector('.vw-composer').requestSubmit();
+  await settle();
+  assert.equal(f.page.querySelector('.vw-wind-corner').dataset.react, 'shake');
+  const status = f.page.querySelector('.vw-status');
+  assert.equal(status.textContent, '', 'nothing under the composer');
+  assert.notEqual(status.getAttribute('role'), 'alert');
+  const box = f.page.querySelector('.vw-messages'), row = box.querySelector('.vw-failed');
+  assert.ok(row, 'the failure is in the thread');
+  assert.equal(row.querySelector('strong').textContent, 'Xaloc', 'spoken by the wind');
+  assert.match(row.textContent, /I couldn’t get to it/);
+  assert.equal(row.getAttribute('role'), 'alert');
+  assert.ok(box.querySelectorAll('.vw-user').some(n => n.textContent.includes('Book the jam')), 'your message stays in the thread');
+  assert.equal(f.page.querySelector('textarea').value, '', 'and is not put back in the composer');
+  fail = false;
+  await byText(row, 'button', 'Try again').click();
+  await settle();
+  assert.deepEqual(f.requests.filter(r => r.url === '/api/winds/chat/stream').map(r => r.body.message), ['Book the jam', 'Book the jam']);
+  assert.equal(f.page.querySelector('.vw-failed'), null, 'gone once it works');
+  assert.equal(f.page.querySelector('.vw-messages').querySelectorAll('.vw-user').filter(n => n.textContent.includes('Book the jam')).length, 1, 'your message once');
+});
+
+test('a group turn that fails after a voice already answered keeps your message once and offers no resend', async () => {
+  const group = { id: 'r1', name: 'La colla del concert', members: ['xaloc', 'gregal'] };
+  const json = data => ({ ok: true, status: 200, json: async () => data });
+  const saved = [{ from: 'user', text: 'Anem-hi' }, { from: 'xaloc', speaker_id: 'xaloc', text: 'Jo hi vaig' }];
+  const f = await boot({ api: r => r.url === '/api/winds/rotllanes' ? json({ rotllanes: [group] })
+    : r.url.startsWith('/api/winds/rotllana?') ? json({ history: [] })
+    : r.url === '/api/winds/rotllana/stream' ? slowStream([['phase', { phase: 'speaker:xaloc' }], ['reply', { wind: 'xaloc', history: saved }], ['phase', { phase: 'speaker:gregal' }], ['error', { error: 'boom' }]], () => {}) : null });
+  await byText(f.nav, 'button', 'La colla del concert').click();
+  await settle();
+  f.page.querySelector('textarea').value = 'Anem-hi';
+  await f.page.querySelector('.vw-composer').requestSubmit();
+  await settle();
+  const box = f.page.querySelector('.vw-messages');
+  assert.equal(box.querySelectorAll('.vw-user').length, 1, 'your message once: the server already has it');
+  assert.match(box.textContent, /Jo hi vaig/);
+  const row = box.querySelector('.vw-failed');
+  assert.equal(row.querySelector('strong').textContent, 'Gregal', 'the voice that could not answer says so');
+  assert.ok(!byText(row, 'button', 'Try again'), 'resending would ask the whole group again');
+});
+
+test('the failed turn bubble speaks Catalan too', async () => {
+  const f = await boot({ lang: 'ca', api: failing });
+  await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();
+  await settle();
+  f.page.querySelector('textarea').value = 'Reserva-ho';
+  await f.page.querySelector('.vw-composer').requestSubmit();
+  await settle();
+  const row = f.page.querySelector('.vw-failed');
+  assert.match(row.textContent, /No he pogut arribar-hi/);
+  assert.ok(byText(row, 'button', 'Torna-ho a provar'));
 });
