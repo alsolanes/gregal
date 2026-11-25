@@ -137,6 +137,8 @@ internal fun AvuiTray(
     onFollow: (String, String) -> Unit = { _, _ -> },
     onUnfollow: (String) -> Unit = {},
     onPlace: (String) -> Unit = {},
+    /** Per què no s'ha pogut desar el lloc o un seguiment (el que diu el servidor). */
+    glanceMessage: String? = null,
 ) {
     val p = LocalPal.current
     Column(
@@ -162,7 +164,7 @@ internal fun AvuiTray(
             Text(tr(lang, "app.avui.held", view.held), color = Muted, style = GregalType.caption)
         }
         AvuiBrief(lang, view, winds, onRun)
-        AvuiGlanceSection(lang, view, winds, onFollow, onUnfollow, onPlace, windWeather = weather)
+        AvuiGlanceSection(lang, view, winds, onFollow, onUnfollow, onPlace, windWeather = weather, message = glanceMessage)
         val open = view.openCount
         listOf("now" to view.now, "fyi" to view.fyi, "ahead" to view.ahead).forEach { (key, cards) ->
             AvuiSection(lang, key, cards, winds, onAct, onRun)

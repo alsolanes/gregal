@@ -38,13 +38,17 @@ type avuiFollow struct {
 	Wind string `json:"wind,omitempty"`
 }
 
-// followNews és l'última resposta bona de la rutina d'un seguiment.
+// followNews és l'última resposta bona de la rutina d'un seguiment. None: la
+// cerca no ha trobat res; Error: per què ha fallat l'última mirada (la resposta
+// bona d'abans es queda).
 type followNews struct {
 	Title   string `json:"title,omitempty"`
 	When    string `json:"when,omitempty"`
 	Detail  string `json:"detail,omitempty"`
 	URL     string `json:"url,omitempty"`
 	Updated int64  `json:"updated,omitempty"`
+	None    bool   `json:"none,omitempty"`
+	Error   string `json:"error,omitempty"`
 }
 
 type glanceFollow struct {
@@ -246,7 +250,7 @@ func (s *Server) followBrief(w companion.Wind, f avuiFollow, now time.Time) stri
 	return companion.WindIdentity(w) +
 		fmt.Sprintf("\n\nYOU KEEP THE USER UP TO DATE on %s: %s.\nIt is now %s (%s).\n", what, f.Name, now.Format("Monday 2 January 2006, 15:04"), now.Location().String()) +
 		"Use web_search and web_fetch to find " + look + ". Only facts you read on a page; never invent a date or a URL.\n" +
-		`ANSWER with only one JSON object and nothing else: {"title": "short, e.g. Barça – Madrid", "when": "RFC 3339 date-time with the offset, or empty if there is no date", "detail": "one short line, e.g. the competition", "url": "the page where you read it"}. Write title and detail in the user's language.` +
+		`ANSWER with only one JSON object and nothing else: {"title": "short, e.g. Barça – Madrid", "when": "RFC 3339 date-time with the offset, or empty if there is no date", "detail": "one short line, e.g. the competition", "url": "the page where you read it"}. Write title and detail in the user's language. If you find nothing coming up, answer {"none": true}.` +
 		"\n\n" + config.LanguageDirective(s.cfg.Lang())
 }
 
@@ -256,6 +260,9 @@ func parseFollowAnswer(out string) (followNews, bool) {
 	i, j := strings.Index(out, "{"), strings.LastIndex(out, "}")
 	if i < 0 || j < i || json.Unmarshal([]byte(out[i:j+1]), &n) != nil {
 		return n, false
+	}
+	if n.None {
+		return followNews{None: true}, true
 	}
 	n.Title, n.Detail, n.URL, n.When = oneLine(n.Title, 110), oneLine(n.Detail, 200), strings.TrimSpace(n.URL), strings.TrimSpace(n.When)
 	if n.Title == "" {
@@ -292,17 +299,28 @@ func (s *Server) executeFollow(ctx context.Context, job jobs.Job) (jobs.Run, err
 	if f.ID == "" {
 		return finish("ok", "", "")
 	}
+	// fail deixa a «Avui» per què no hi ha novetat; la resposta bona d'abans es queda.
+	fail := func(errMsg, shown string) (jobs.Run, error) {
+		n := s.loadFollowNews()[f.ID]
+		n.Error = shown
+		if err := s.saveFollowNews(f.ID, n); err != nil {
+			errMsg += "; " + err.Error()
+		}
+		return finish("error", "", errMsg)
+	}
 	w, ok := s.followWind(f)
 	if !ok {
-		return finish("error", "", "the wind for this follow is not available")
+		return fail("the wind for this follow is not available", s.tr("El vent que ho seguia ja no hi és.", "The wind that followed it is gone."))
 	}
 	res, err := followLoop(s, ctx, s.followBrief(w, f, start.In(s.loadConnections().zone())))
 	if err != nil {
-		return finish("error", "", friendlyRunError(err.Error()))
+		msg := friendlyRunError(err.Error())
+		return fail(msg, s.tr("No ho he pogut buscar: ", "Could not look it up: ")+msg)
 	}
 	n, ok := parseFollowAnswer(res.text)
 	if !ok {
-		return finish("error", "", "the answer was not the expected JSON; the previous one stays")
+		return fail("the answer was not the expected JSON; the previous one stays",
+			s.tr("La cerca no ha donat una resposta clara; ho tornaré a provar.", "The search gave no clear answer; I will try again."))
 	}
 	n.Updated = start.Unix()
 	if err := s.saveFollowNews(f.ID, n); err != nil {

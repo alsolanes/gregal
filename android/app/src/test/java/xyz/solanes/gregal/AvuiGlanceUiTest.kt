@@ -127,6 +127,43 @@ class AvuiGlanceUiTest {
         assertEquals(listOf("Olot"), places)
     }
 
+    @Test fun laTeclaDelTecladoTambeDesa() {
+        show(view(glance(weather = false, events = false, follows = false), place = ""))
+        ui.onNodeWithTag("glance-add").performScrollTo().performClick()
+        ui.onNodeWithTag("glance-follow-name").performTextInput("Barça")
+        ui.onNodeWithTag("glance-follow-name").performImeAction()
+        assertEquals(listOf("team" to "Barça"), follows)
+        ui.onNodeWithTag("glance-place").performClick()
+        ui.onNodeWithTag("glance-place-name").performTextInput("Girona")
+        ui.onNodeWithTag("glance-place-name").performImeAction()
+        assertEquals(listOf("Girona"), places)
+    }
+
+    @Test fun senseResultatsOAmbErrorHoDiu() {
+        val g = AvuiGlance(follows = listOf(
+            AvuiFollow("f1", "team", "Barça", none = true),
+            AvuiFollow("f2", "other", "Eclipsi", none = true),
+            AvuiFollow("f3", "team", "Girona FC", error = "No ho he pogut buscar: sense xarxa"),
+        ), weatherError = "no he trobat el temps de «Xyz»")
+        show(view(g, place = "Xyz"))
+        ui.onNodeWithText("No he trobat partits per a Barça.").assertExists()
+        ui.onNodeWithText("No he trobat res sobre Eclipsi.").assertExists()
+        ui.onNodeWithText("⚠ No ho he pogut buscar: sense xarxa").assertExists()
+        ui.onNodeWithText("⚠ no he trobat el temps de «Xyz»").assertExists()
+    }
+
+    @Test fun unErrorEnDesarEsVeu() {
+        ui.setContent {
+            CompositionLocalProvider(LocalWindMotion provides false, LocalPal provides DarkPal) {
+                MaterialTheme(colorScheme = DarkPal.scheme()) {
+                    AvuiTray("ca", view(glance()), winds, false, { _, _ -> }, { _, _ -> }, { _, _ -> }, {},
+                        glanceMessage = "digues què vols seguir")
+                }
+            }
+        }
+        ui.onNodeWithText("⚠ digues què vols seguir").assertExists()
+    }
+
     @Test fun senseMovimentTotQuiet() {
         show(view(glance()))
         // Sense moviment no hi ha cap animació infinita: la prova arriba a repòs.
@@ -153,8 +190,8 @@ class AvuiGlanceUiTest {
         return bitmap
     }
 
-    private fun save(shot: Bitmap, name: String) {
-        java.io.File("../../output/ui-review/107/$name.png").also { it.parentFile!!.mkdirs() }.outputStream().use {
+    private fun save(shot: Bitmap, name: String, dir: String = "107") {
+        java.io.File("../../output/ui-review/$dir/$name.png").also { it.parentFile!!.mkdirs() }.outputStream().use {
             shot.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
     }
@@ -173,6 +210,20 @@ class AvuiGlanceUiTest {
     @Test fun fotogramaClar() {
         show(view(glance()), LightPal)
         save(capture("shot"), "glance-light")
+    }
+
+    /** Tasca 140: un seguiment amb partit, un sense, un que ha fallat i el temps, a output/ui-review/140/. */
+    private val glance140 get() = glance(events = false).let { it.copy(follows = listOf(it.follows[0],
+        AvuiFollow("f4", "team", "Girona FC", none = true), AvuiFollow("f5", "other", "Eclipsi", error = "No ho he pogut buscar: sense xarxa"))) }
+
+    @Test fun fotogramaSeguimentsITempsClar() {
+        show(view(glance140), LightPal)
+        save(capture("shot"), "android-avui-light", "140")
+    }
+
+    @Test fun fotogramaSeguimentsITempsFosc() {
+        show(view(glance140), DarkPal)
+        save(capture("shot"), "android-avui-dark", "140")
     }
 
     @Test fun fotogramaBuit() {

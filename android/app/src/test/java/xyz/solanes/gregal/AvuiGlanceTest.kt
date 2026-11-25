@@ -48,6 +48,19 @@ class AvuiGlanceTest {
         assertEquals(listOf("f1", "f2", "f3"), v.settings.follows.map { it.id })
     }
 
+    @Test fun llegeixPerQueNoHiHaRes() {
+        val v = AvuiJson.view("""{"settings":{"place":"Xyz","follows":[{"id":"f1","kind":"team","name":"Barça"},{"id":"f2","kind":"team","name":"Girona FC"},{"id":"f3","kind":"team","name":"Nou"}]},
+            "glance":{"weather_error":"no he trobat el temps de «Xyz»","follows":[{"id":"f1","kind":"team","name":"Barça","none":true},
+            {"id":"f2","kind":"team","name":"Girona FC","error":"sense xarxa"}]}}""")
+        assertEquals("no he trobat el temps de «Xyz»", v.glance.weatherError)
+        assertTrue(v.glance.follows[0].none)
+        assertEquals("sense xarxa", v.glance.follows[1].error)
+        // Encara es busca el «Nou»; el temps ja ha dit que no.
+        assertTrue(GlanceLogic.pending(v))
+        assertFalse(GlanceLogic.pending(v.copy(settings = v.settings.copy(follows = v.settings.follows.take(2)))))
+        assertTrue(GlanceLogic.pending(AvuiJson.view("""{"settings":{"place":"Girona"},"glance":{}}""")))
+    }
+
     @Test fun senseUlladaTotBuit() {
         val v = AvuiJson.view("{}")
         assertNull(v.glance.weather)
@@ -110,7 +123,7 @@ class AvuiGlanceTest {
     }
 
     /** Servidor de proves: apunta cada petició («POST /api/… » + cos) i respon el que digui `reply`. */
-    private class FakeServer(val reply: (String, String) -> String) : java.io.Closeable {
+    private class FakeServer(val status: (String, String) -> Int = { _, _ -> 200 }, val reply: (String, String) -> String) : java.io.Closeable {
         val requests: MutableList<Pair<String, String>> = Collections.synchronizedList(mutableListOf())
         val socket = ServerSocket(0)
         val worker = thread(isDaemon = true) {
@@ -131,9 +144,10 @@ class AvuiGlanceTest {
                     }
                     val body = String(input.readNBytes(length), Charsets.UTF_8)
                     requests += request to body
+                    val code = status(request, body)
                     val bytes = reply(request, body).toByteArray(Charsets.UTF_8)
                     s.getOutputStream().apply {
-                        write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                        write("HTTP/1.1 $code X\r\nContent-Type: application/json\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
                         write(bytes); flush()
                     }
                 }
@@ -201,6 +215,41 @@ class AvuiGlanceTest {
             assertTrue(vm.avui.value!!.settings.follows.isEmpty())
             waitUntil { server.requests.isNotEmpty() }
             assertEquals("f1", JSONObject(server.requests.first().second).getString("unfollow"))
+        }
+    }
+
+    @Test fun siElServidorDiuQueNoElMissatgeSurt() {
+        FakeServer({ request, _ -> if (request.startsWith("POST")) 400 else 200 }) { request, _ ->
+            if (request.startsWith("POST")) "digues què vols seguir\n"
+            else JSONObject().put("date", "2026-11-24").put("settings", JSONObject().put("follows", org.json.JSONArray())).toString()
+        }.use { server ->
+            val vm = loaded(server)
+            vm.avuiFollow("team", "?!")
+            waitUntil { vm.avuiGlanceMsg.value != null }
+            assertEquals("digues què vols seguir", vm.avuiGlanceMsg.value)
+            assertTrue(vm.avui.value!!.settings.follows.isEmpty())
+        }
+    }
+
+    @Test fun mentreEsBuscaTornaAMirarSol() {
+        var answered = false
+        FakeServer { _, _ ->
+            val f = JSONObject().put("id", "barca").put("kind", "team").put("name", "Barça")
+            JSONObject().put("date", "2026-11-24")
+                .put("settings", JSONObject().put("follows", org.json.JSONArray().put(f)))
+                .put("glance", JSONObject().put("follows", org.json.JSONArray().put(
+                    if (answered) JSONObject(f.toString()).put("title", "Sabah – Barça") else f))).toString()
+        }.use { server ->
+            val vm = loaded(server)
+            vm.loadAvui()
+            waitUntil { server.requests.size == 1 && vm.avui.value != null }
+            answered = true
+            shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(16))
+            waitUntil { vm.avui.value?.glance?.follows?.firstOrNull()?.title == "Sabah – Barça" }
+            // Amb la resposta ja no cal tornar-hi.
+            val asked = server.requests.size
+            shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(40))
+            assertEquals(asked, server.requests.size)
         }
     }
 

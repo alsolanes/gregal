@@ -183,6 +183,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     // (per a la insígnia de la pestanya), en arribar veus noves i en entrar-hi.
     val avui by vm.avui.collectAsState()
     val avuiError by vm.avuiError.collectAsState()
+    val avuiGlanceMsg by vm.avuiGlanceMsg.collectAsState()
     val weatherMap by vm.weather.collectAsState()
     LaunchedEffect(conn, news, tab) { vm.loadAvui() }
     // Amb la llista ja llegida, un plugin que el servidor no té no hi és: els
@@ -506,6 +507,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                     onFollow = { kind, name -> vm.avuiFollow(kind, name) },
                     onUnfollow = { vm.avuiUnfollow(it) },
                     onPlace = { vm.setAvuiPlace(it) },
+                    glanceMessage = avuiGlanceMsg,
                 )
             } else LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(bottom = 24.dp)) {
                 if (manage) {

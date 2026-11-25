@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"strings"
 	"sync"
@@ -15,7 +16,7 @@ import (
 // (winds_avui_follows.go). GET /api/winds/avui no espera mai la xarxa més
 // d'un moment: serveix el que té desat i, si és vell, ho refresca de fons.
 //
-//	glance: {weather?, events:[{start, end?, title, calendar}], follows:[…]}
+//	glance: {weather?, weather_error?, events:[{start, end?, title, calendar}], follows:[…]}
 
 type glanceWeather struct {
 	Place     string   `json:"place"`
@@ -38,8 +39,10 @@ type glanceEvent struct {
 
 type avuiGlanceOut struct {
 	Weather *glanceWeather `json:"weather,omitempty"`
-	Events  []glanceEvent  `json:"events"`
-	Follows []glanceFollow `json:"follows"`
+	// WeatherError: per què no hi ha el temps del lloc (lloc no trobat, Open-Meteo no respon).
+	WeatherError string         `json:"weather_error,omitempty"`
+	Events       []glanceEvent  `json:"events"`
+	Follows      []glanceFollow `json:"follows"`
 }
 
 // glanceSlot és el que s'ha portat de fora per a un compte i un lloc.
@@ -47,6 +50,7 @@ type glanceSlot struct {
 	place   string
 	at      time.Time
 	weather *glanceWeather
+	err     string
 	events  []glanceEvent
 	// busy no és nil mentre es refresca; es tanca en acabar.
 	busy chan struct{}
@@ -62,14 +66,14 @@ var (
 
 func (s *Server) avuiGlance() avuiGlanceOut {
 	st := s.avuiSettings()
-	weather, events := s.glanceCached(st.Place)
+	weather, werr, events := s.glanceCached(st.Place)
 	if events == nil {
 		events = []glanceEvent{}
 	}
-	return avuiGlanceOut{Weather: weather, Events: events, Follows: s.glanceFollows(st)}
+	return avuiGlanceOut{Weather: weather, WeatherError: werr, Events: events, Follows: s.glanceFollows(st)}
 }
 
-func (s *Server) glanceCached(place string) (*glanceWeather, []glanceEvent) {
+func (s *Server) glanceCached(place string) (*glanceWeather, string, []glanceEvent) {
 	key := avuiSettingsPath(s)
 	glanceMu.Lock()
 	slot := glanceSlots[key]
@@ -91,7 +95,7 @@ func (s *Server) glanceCached(place string) (*glanceWeather, []glanceEvent) {
 	}
 	glanceMu.Lock()
 	defer glanceMu.Unlock()
-	return slot.weather, slot.events
+	return slot.weather, slot.err, slot.events
 }
 
 func (s *Server) refreshGlance(slot *glanceSlot) {
@@ -101,9 +105,12 @@ func (s *Server) refreshGlance(slot *glanceSlot) {
 	weather, err := s.glanceWeatherFor(slot.place)
 	glanceMu.Lock()
 	defer glanceMu.Unlock()
-	// Si Open-Meteo falla, es queda la previsió d'abans: millor que res.
+	// Si Open-Meteo falla, es queda la previsió d'abans (millor que res) i es diu per què.
+	slot.err = ""
 	if err == nil {
 		slot.weather = weather
+	} else {
+		slot.err = err.Error()
 	}
 	slot.events, slot.at = events, time.Now()
 	close(slot.busy)
@@ -173,11 +180,11 @@ func (s *Server) glanceWeatherFor(place string) (*glanceWeather, error) {
 	}
 	g, err := geocodePlace(place, s.cfg.Lang())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf(s.tr("no he trobat el temps de «%s» (%w)", "could not find the weather for «%s» (%w)"), place, err)
 	}
 	data, err := forecast(g.lat, g.lon, s.loadConnections().zone().String())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf(s.tr("no he pogut portar el temps de «%s» (%w)", "could not get the weather for «%s» (%w)"), place, err)
 	}
 	return weatherToday(g.name, data)
 }

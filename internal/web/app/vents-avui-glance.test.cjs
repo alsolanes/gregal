@@ -256,6 +256,68 @@ test('els comptes enrere corren sols, però no amb moviment reduït', async () =
   });
 });
 
+test('si el temps del lloc no arriba, ho diu (i mentre el busca, també)', async () => {
+  await withLang('ca', m => {
+    const box = document.createElement('div');
+    m.renderGlance(box, { glance: { events: [], follows: [], weather_error: 'no he trobat el temps de «Xyz»' }, settings: { place: 'Xyz', follows: [] }, now });
+    const card = byClass(box, 'vw-glance-invite')[0];
+    assert.match(textOf(card), /no he trobat el temps de «Xyz»/);
+    assert.equal(buttons(card, 'Canvia el lloc').length, 1);
+    const wait = document.createElement('div');
+    m.renderGlance(wait, { glance: { events: [], follows: [] }, settings: { place: 'Girona', follows: [] }, now });
+    assert.match(textOf(byClass(wait, 'vw-glance-invite')[0]), /Buscant el temps de Girona/);
+  });
+  await withLang('en', m => {
+    const box = document.createElement('div');
+    m.renderGlance(box, { glance: { events: [], follows: [] }, settings: { place: 'Girona', follows: [] }, now });
+    assert.match(textOf(box), /Looking up the weather for Girona/);
+  });
+});
+
+test('un seguiment sense partits o amb la cerca fallida ho diu', async () => {
+  await withLang('ca', m => {
+    const box = document.createElement('div');
+    const follows = [{ id: 'f1', kind: 'team', name: 'Barça', none: true }, { id: 'f2', kind: 'other', name: 'Eclipsi', none: true }, { id: 'f3', kind: 'team', name: 'Girona FC', error: 'No ho he pogut buscar: sense xarxa' }];
+    m.renderGlance(box, { glance: { events: [], follows }, settings: { follows: follows.map(({ id, kind, name }) => ({ id, kind, name })) }, now });
+    const cards = byClass(box, 'vw-glance-follow');
+    assert.match(textOf(cards[0]), /No he trobat partits per a Barça/);
+    assert.match(textOf(cards[1]), /No he trobat res sobre Eclipsi/);
+    assert.match(textOf(cards[2]), /No ho he pogut buscar: sense xarxa/);
+    assert.equal(byClass(cards[2], 'vw-glance-error').length, 1);
+  });
+  await withLang('en', m => {
+    const box = document.createElement('div');
+    m.renderGlance(box, { glance: { events: [], follows: [{ id: 'f1', kind: 'team', name: 'Barça', none: true }] }, settings: { follows: [{ id: 'f1', kind: 'team', name: 'Barça' }] }, now });
+    assert.match(textOf(box), /No upcoming matches found for Barça/);
+  });
+});
+
+test('mentre alguna cosa s’està buscant, la ullada demana tornar-hi', async () => {
+  await withLang('ca', m => {
+    assert.equal(m.glancePending(glance, settings), true, 'f2 encara sense resposta');
+    const done = { ...glance, follows: [glance.follows[0], { id: 'f2', kind: 'other', name: 'Llançament', none: true }] };
+    assert.equal(m.glancePending(done, settings), false);
+    assert.equal(m.glancePending({ follows: [] }, { place: 'Girona', follows: [] }), true, 'el temps encara no hi és');
+    assert.equal(m.glancePending({ follows: [], weather_error: 'x' }, { place: 'Girona', follows: [] }), false);
+    assert.equal(m.glancePending({ follows: [{ id: 'f1', error: 'x' }] }, { follows: [{ id: 'f1' }] }), false);
+    assert.equal(m.glancePending({ follows: [] }, { follows: [] }), false);
+  });
+});
+
+test('si desar falla, el missatge del servidor surt a la ullada', async () => {
+  await withLang('ca', async m => {
+    window.gregal = { api: async () => ({ ok: false, status: 400, text: async () => 'digues què vols seguir\n' }) };
+    let changed = 0;
+    const box = document.createElement('div');
+    m.renderGlance(box, { glance, settings, now, onChange: () => changed++ });
+    const form = byClass(box, 'vw-glance-form')[0];
+    byClass(form, 'vw-glance-name')[0].value = '?!';
+    await byClass(form, 'vw-glance-add')[0].onsubmit({ preventDefault() {} });
+    assert.match(byClass(box, 'vw-glance-status')[0].textContent, /digues què vols seguir/);
+    assert.equal(changed, 0);
+  });
+});
+
 test('les animacions són de transform/opacity i s’apaguen amb moviment reduït', () => {
   const css = fs.readFileSync(path.join(__dirname, 'winds-workspace.css'), 'utf8');
   const block = css.slice(css.indexOf('/* Avui d’una ullada'), css.indexOf('/* fi Avui d’una ullada */'));
