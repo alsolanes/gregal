@@ -140,18 +140,20 @@
   // the page: the clay when a sheet for it is already here, or that face,
   // swapped in place for the clay once its sheet loads. A `still` face holds
   // the sheet's still frame.
-  const handed = new WeakSet();
+  const handed = new WeakMap();
   function play(svg, w, still = false) {
-    // A face already handed here (winds.js plays the pelut itself) or already clay stays as it is.
-    if (handed.has(svg) || players.has(svg)) return svg;
+    // A face already handed here (winds.js plays the pelut and small Cares itself) or already clay stays as it is,
+    // except that a caller playing it moves a face handed out still (167: the start faces call face(w) and play it).
+    const known = handed.get(svg) || players.get(svg);
+    if (known) { if (!still) animate(known); return svg; }
     // The clay is Cares, with its trade as a badge (159), or the minairó and the pelut in their own sheets; the other packs stay drawn.
     const avatar = svg.getAttribute('data-avatar');
     if (!w || (avatar && avatar !== 'minairo' && avatar !== 'pelut')) return svg;
-    handed.add(svg);
     const letter = avatar || ('ons'.includes(String(w.style || '')[2]) ? w.style[2] : 'o'), color = /^#[\da-f]{6}$/i.test(w.color || '') ? w.color : '#F5B45D';
     // The minairó's barretina colour, as winds.js picked it for this wind.
     const cap = svg.getAttribute('data-barretina') || '';
     const p = { w, svg, letter, color, cap, still, badge: root.gregalWinds.kitIcon(svg.getAttribute('data-kit')), mood: svg.getAttribute('data-mood') || 'idle', spot: w.id + '|' + svg.getAttribute('class') }, key = letter + '/' + p.mood + '/' + color + cap + (still ? '/still' : '');
+    handed.set(svg, p);
     const before = w.id && last.get(p.spot), same = before?.look === letter + color + cap + still ? before : null;
     if (ready.has(key)) return show(p, ready.get(key), clock(), same);
     const mood = p.mood;
@@ -160,9 +162,28 @@
       if (!svg.isConnected) return;
       const c = show(p, s);
       svg.replaceWith(c);
+      if (still && !p.still) moving(p);
       if (svg.getAttribute('data-mood') !== mood) change(c, svg.getAttribute('data-mood'));
     }, error => root.console?.warn('clay wind: the drawn face stays', error));
     return svg;
+  }
+  // A still face that starts moving: into the loop, on its mood's whole sheet. One not shown yet does it in play().
+  function animate(p) {
+    if (!p.still) return;
+    p.still = false;
+    if (!p.el) return;
+    running.add(p); seen?.observe(p.el);
+    moving(p);
+  }
+  function moving(p) {
+    const mood = p.mood;
+    sheet(p.letter, mood, p.color, p.cap).then(s => {
+      if (p.mood !== mood) return;
+      p.now = s; p.at = clock();
+      remember(p);
+      draw(p, p.at);
+      schedule();
+    }, error => root.console?.warn('clay wind: the still frame stays', error));
   }
   function change(el, mood) {
     const p = players.get(el);
@@ -174,8 +195,10 @@
     for (const name of ['data-mood', 'aria-hidden', 'role', 'aria-label']) {
       if (p.svg.getAttribute(name) === null) el.removeAttribute(name); else el.setAttribute(name, p.svg.getAttribute(name));
     }
-    sheet(p.letter, mood, p.color, p.cap, p.still).then(s => {
-      if (p.mood !== mood) return;
+    // A still face that a caller set moving meanwhile (animate) has its whole sheet on the way: this one is stale.
+    const still = p.still;
+    sheet(p.letter, mood, p.color, p.cap, still).then(s => {
+      if (p.mood !== mood || p.still !== still) return;
       if (!reduced() && !p.still) { p.from = p.now; p.fromAt = p.at; p.fadeAt = clock(); }
       p.now = s; p.at = clock();
       remember(p);

@@ -79,7 +79,7 @@ class WindClayTest {
         anyFace().assertCountEquals(3)
     }
 
-    @Test fun smallAvatarsAndMissingSheetsKeepTheCanvasFace() {
+    @Test fun withoutTheSheetsASmallAvatarKeepsTheCanvasFace() {
         show(dir = "no-such-folder") {
             Row {
                 WindFace(size = 40, accent = orange)

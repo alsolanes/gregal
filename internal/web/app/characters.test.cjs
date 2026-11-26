@@ -10,13 +10,18 @@ const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'characters', '
 const SIZE = manifest.size;
 
 class Node {
-  constructor(tag, doc) { this.tag = tag; this.doc = doc; this.attrs = {}; this.children = []; this.parent = null; }
+  constructor(tag, doc) { this.tag = tag; this.doc = doc; this.attrs = {}; this.children = []; this.parent = null; this.style = { setProperty() {} }; }
   setAttribute(k, v) { this.attrs[k] = String(v); }
   getAttribute(k) { return this.attrs[k] ?? null; }
   removeAttribute(k) { delete this.attrs[k]; }
   append(...nodes) { for (const n of nodes) { n.parent = this; this.children.push(n); } }
   remove() { if (this.parent) this.parent.children = this.parent.children.filter(c => c !== this); this.parent = null; }
   replaceWith(n) { const p = this.parent; if (!p) return; p.children[p.children.indexOf(this)] = n; n.parent = p; this.parent = null; }
+  // Enough for winds.js's face(): a tag or one of a few classes.
+  querySelector(sel) {
+    const all = n => n.children.flatMap(c => [c, ...all(c)]), hit = (n, one) => one.startsWith('.') ? (n.attrs.class || '').split(' ').includes(one.slice(1)) : n.tag === one;
+    return all(this).find(n => sel.split(',').some(one => hit(n, one.trim()))) || null;
+  }
   get isConnected() { let n = this; while (n.parent) n = n.parent; return n === this.doc.root; }
 }
 // A canvas whose pixels are plain arrays: drawImage copies an image's pixels
@@ -43,12 +48,14 @@ class Canvas extends Node {
   getContext() { return this.ctx; }
 }
 
-function load({ files = null, reduced = false, winds = {} } = {}) {
+// `real` runs the real winds.js too, so its face() hands faces to the player as the app does.
+function load({ files = null, reduced = false, winds = {}, real = false } = {}) {
   let now = 0;
   const frames = [], fetched = [], events = {};
   const doc = {
     hidden: false,
     createElement: tag => tag === 'canvas' ? new Canvas(doc) : new Node(tag, doc),
+    createElementNS: (_, tag) => new Node(tag, doc),
     addEventListener(k, f) { (events[k] ||= []).push(f); },
   };
   doc.root = new Node('root', doc);
@@ -84,9 +91,10 @@ function load({ files = null, reduced = false, winds = {} } = {}) {
       mood(svg, mood) { moods.push(mood); svg.setAttribute('data-mood', mood); return svg; },
     },
   };
+  if (real) { delete window.gregalWinds; vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'winds.js'), 'utf8'), { window }); }
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'characters.js'), 'utf8'), { window });
   return {
-    chars: window.gregalCharacters, doc, fetched, moods, events,
+    chars: window.gregalCharacters, doc, fetched, moods, events, face: (...args) => window.gregalWinds.face(...args),
     // One animation frame `ms` later.
     frame(ms = 16) { now += ms; for (const f of frames.splice(0)) f(now); },
     see(target, visible) { observer.f([{ target, isIntersecting: visible }]); },
@@ -309,7 +317,7 @@ test('a pelut plays the pelut clay sheets in its colour, a still one holds the s
   const small = svgFace(env, 'reading', { 'data-avatar': 'pelut' });
   small.svg.setAttribute('class', 'winds-face');
   assert.ok(env.chars.play(small.svg, { ...wind, avatar: 'pelut' }, true) === small.svg);
-  assert.ok(env.chars.play(small.svg, { ...wind, avatar: 'pelut' }) === small.svg, 'already handed: left alone');
+  assert.ok(env.chars.play(small.svg, { ...wind, avatar: 'pelut' }, true) === small.svg, 'already handed: left alone');
   await settle();
   assert.equal(env.fetched.filter(u => u.endsWith('pelut/reading.webp')).length, 1);
   const held = small.box.children[0];
@@ -443,4 +451,61 @@ test('a small Cares face holds its tinted still frame with the trade badge, and 
   bare.chars.play(drawn.svg, wind, true);
   await settle();
   assert.equal(drawn.box.children[0], drawn.svg, 'no sheet: the drawn face stays');
+});
+
+// 167: face() hands a small Cares face to the player still; a large spot that draws it with face(w) and plays
+// it (the start faces, the Avui card: clay(w, face(w)) in winds-workspace.js) still animates, as in 113.
+test('a face from face() that its caller plays animates, whether its still frame is loaded yet or not', async () => {
+  const env = load({ real: true });
+  const box = new Node('span', env.doc); env.doc.root.append(box);
+  const row = env.face(wind);
+  box.append(row);
+  await settle();
+  const held = box.children[0];
+  assert.equal(held.tag, 'canvas');
+  assert.ok(!env.watched(held), 'a list row holds still');
+  const start = env.face(wind);
+  assert.equal(start.tag, 'canvas', 'the still frame is ready now: face() hands back the clay at once');
+  assert.equal(env.chars.play(start, wind), start);
+  box.append(start);
+  await settle();
+  env.frame(1000);
+  assert.ok(env.watched(start), 'the start face is in the loop');
+  assert.equal(start.source.width, manifest.moods.idle.frames * SIZE, 'on the whole sheet');
+  assert.notEqual(lastDraw(start).sx, 0, 'and it plays');
+  assert.ok(!env.watched(held), 'the row stays still');
+  const fresh = load({ real: true });
+  const card = fresh.face({ ...wind, id: 'ponent' });
+  assert.equal(card.tag, 'svg', 'no sheet yet: the drawn face');
+  assert.equal(fresh.chars.play(card, { ...wind, id: 'ponent' }), card);
+  const spot = new Node('span', fresh.doc); fresh.doc.root.append(spot); spot.append(card);
+  await settle();
+  fresh.frame(1000);
+  const clay = spot.children[0];
+  assert.equal(clay.tag, 'canvas');
+  assert.ok(fresh.watched(clay), 'played before its still frame loaded, it animates too');
+  assert.notEqual(lastDraw(clay).sx, 0);
+});
+
+// A still face drawn again where its wind was (the `same` path) loads its new mood's still frame; a caller
+// that plays it before that lands gets the whole sheet, and the late still frame does not take it back.
+test('a still face played while its new mood\'s still frame loads keeps the whole sheet', async () => {
+  const env = load();
+  const big = svgFace(env, 'reading');
+  env.chars.play(big.svg, { ...wind, id: 'garbi' });
+  const first = svgFace(env);
+  first.svg.setAttribute('class', 'winds-face');
+  env.chars.play(first.svg, wind, true);
+  await settle();
+  const again = svgFace(env, 'reading');
+  again.svg.setAttribute('class', 'winds-face');
+  const clay = env.chars.play(again.svg, wind, true);
+  assert.equal(clay.tag, 'canvas', 'it goes on from the still it showed there');
+  again.svg.replaceWith(clay);
+  env.chars.play(clay, wind);
+  await settle();
+  env.frame(1000);
+  assert.equal(clay.source.width, manifest.moods.reading.frames * SIZE, 'on the whole reading sheet');
+  assert.ok(env.watched(clay));
+  assert.notEqual(lastDraw(clay).sx, 0, 'and it plays');
 });
