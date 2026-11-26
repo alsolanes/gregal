@@ -1852,14 +1852,14 @@ test('El pati sits in the sidebar and the bottom bar, not under «Settings & mor
   assert.ok(byText(f.nav, '.vw-nav-item', 'Playground') && !byText(more, '.vw-nav-item', 'Playground'), 'the sidebar has El pati, outside the menu');
   assert.ok(!byText(f.nav, '.vw-nav-item', 'The winds’ corner'), 'the Racó has no row of its own');
   const bottom = f.page.querySelector('.vw-mobile-nav');
-  assert.deepEqual(bottom.querySelectorAll('button').map(b => b.textContent), ['Home', 'Today', 'Work', 'Saved', 'Playground', 'Winds']);
+  assert.deepEqual(bottom.querySelectorAll('button').map(b => b.textContent), ['Home', 'Today', 'Work', 'Saved', 'Play', 'Winds']);
   assert.equal(byText(bottom, 'button', 'Home').dataset.selected, 'true', 'the start page has its tab, highlighted');
   assert.equal(byText(bottom, 'button', 'Home').getAttribute('aria-current'), 'page');
   assert.match(mediaBlocks(css(), 'max-width:760px'), /\.vw-mobile-nav \{[^}]*grid-template-columns:repeat\(6,/, 'six tabs, one column each');
 
-  await byText(bottom, 'button', 'Playground').click();
+  await byText(bottom, 'button', 'Play').click();
   await settle();
-  assert.equal(byText(f.page.querySelector('.vw-mobile-nav'), 'button', 'Playground').dataset.selected, 'true');
+  assert.equal(byText(f.page.querySelector('.vw-mobile-nav'), 'button', 'Play').dataset.selected, 'true');
   assert.equal(byText(f.nav, '.vw-nav-item', 'Playground').getAttribute('aria-current'), 'page');
   assert.ok(!f.nav.querySelector('details').open, 'the menu does not open for El pati');
   await byText(f.page.querySelector('.vw-content'), 'button', 'The winds’ corner').click();
@@ -1872,6 +1872,38 @@ test('El pati and its Racó speak Catalan too; with the Racó switched off there
   await byText(f.nav, '.vw-nav-item', 'El pati').click();
   await settle();
   assert.ok(!byText(f.page.querySelector('.vw-content'), 'button', 'El Racó dels vents'), 'no link to a switched-off Racó');
+});
+
+// 175: a 375 px cada columna de la barra de baix deixa uns 54 px per a l'etiqueta
+// d'11 px (repeat(6,…), 6 px de vora i 2 px d'espai): hi caben unes 8 lletres;
+// «Playground» (10) sortia «Playgro…».
+test('at 375 px no bottom-bar label is cut short, in English or Catalan', async () => {
+  assert.match(mediaBlocks(css(), 'max-width:760px'), /\.vw-mobile-nav button \{[^}]*font-size:11px/, 'the width estimate assumes 11 px labels');
+  for (const lang of ['en', 'ca']) {
+    const f = await boot({ lang });
+    const labels = f.page.querySelector('.vw-mobile-nav').querySelectorAll('button').map(b => b.textContent);
+    assert.equal(labels.length, 6);
+    for (const label of labels) assert.ok(label.length <= 8, `«${label}» (${lang}) fits its column`);
+  }
+  const f = await boot();
+  assert.ok(byText(f.nav, '.vw-nav-item', 'Playground'), 'the sidebar keeps the full name');
+});
+
+// 175: quan el nom del model no hi cap sencer, el botó queda en icona: el nom salta
+// a una segona línia que el botó (d'una sola línia d'alt) retalla, en lloc de «G…».
+test('the composer’s model button shows its whole name or none of it, and always says the model to a screen reader', async () => {
+  const rules = cssRules('winds-workspace.css');
+  const button = rules.find(r => r.sel === 'button.vw-model'), name = rules.find(r => r.sel === '.vw-model-name');
+  assert.equal(prop(button, 'flex-wrap'), 'wrap', 'a name that does not fit drops to a second line');
+  assert.equal(prop(button, 'overflow'), 'hidden', 'and the second line is not shown');
+  assert.equal(prop(button, 'height'), '32px', 'the button is one line tall');
+  assert.equal(prop(name, 'flex'), 'none', 'the name never shrinks');
+  assert.ok(!rules.some(r => /vw-model-name/.test(r.sel) && /text-overflow/.test(r.body)), 'the name is never cut with an ellipsis');
+  const f = await boot({ api: r => r.url === '/api/models' ? { ok: true, status: 200, json: async () => ({ models: { openai: ['openai/gpt-4.1-mini'] }, current: 'openai/gpt-4.1-mini' }) } : null });
+  await settle();
+  const model = f.page.querySelector('.vw-model');
+  assert.match(model.title, /gpt-4\.1-mini/);
+  assert.equal(model.getAttribute('aria-label'), model.title, 'the accessible name carries the model when only the icon shows');
 });
 
 test('on the Racó page the sidebar marks El pati, the way into it, and nothing else', async () => {

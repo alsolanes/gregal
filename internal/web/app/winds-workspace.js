@@ -49,7 +49,8 @@
  const linkRow=(label,action)=>{const b=btn('',action,'vw-recent');b.append(el('span','',label),icon('open'));return b;};
  const squadName=id=>{const s=state.squads.find(s=>s.id===id);return s?(ca()?s.ca:s.en):t('Els teus vents','Your winds');};
  const crew=()=>state.winds.filter(w=>w.squad===state.squad);
- const MOBILE_NAV=[['home','Inici','Home'],['today','Avui','Today'],['tasks','Feina','Work'],['saved','Desat','Saved'],['pati','El pati','Playground'],['crew','Vents','Winds']];
+ // Etiquetes curtes: a 375 px cada pestanya té uns 54 px («Playground» sortia «Playgro…»; la barra lateral el diu sencer).
+ const MOBILE_NAV=[['home','Inici','Home'],['today','Avui','Today'],['tasks','Feina','Work'],['saved','Desat','Saved'],['pati','El pati','Play'],['crew','Vents','Winds']];
  // Group replies are stored as "Name: text" for the model's context; the face and name already say who speaks.
  const withoutSpeaker=(text,name)=>{let out=String(text||'');const prefix=String(name||'').trim().toLowerCase()+':';if(prefix.length<2)return out;while(out.slice(0,prefix.length).toLowerCase()===prefix)out=out.slice(prefix.length).trimStart();return out;};
  const roleName=w=>{const specialist=state.squads.find(s=>s.id===w.squad)?.members?.find(m=>m.key===w.specialty);return specialist?(ca()?specialist.ca:specialist.en):w.role||'';};
