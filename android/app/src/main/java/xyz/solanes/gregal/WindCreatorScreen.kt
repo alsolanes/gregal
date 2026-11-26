@@ -47,7 +47,8 @@ internal fun WindCreatorScreen(vm: GregalViewModel, lang: String, edit: Wind?) {
     WindEditor(lang, edit, themed = themed,
         onBack = { vm.showWindCreator(false) },
         onSuggest = { name, role, error, done -> vm.suggestWind(name, role, error, done) },
-        onSave = { draft, done -> vm.createWind(draft.name, draft.color, draft.role, draft.style, draft.persona, draft.id, draft.avatar, done) })
+        onSave = { draft, done -> vm.createWind(draft.name, draft.color, draft.role, draft.style, draft.persona, draft.id, draft.avatar, done) },
+        onDescribe = { description, error, done -> vm.describeWind(description, error, done) })
 }
 
 /** A visual editor first; templates and personality are optional second-level choices. */
@@ -61,13 +62,21 @@ internal fun WindEditor(
     onSave: (WindDraft, (Boolean) -> Unit) -> Unit,
     /** Noms proposats al gust del col·lectiu (buit = els de la plantilla). */
     themed: List<String> = emptyList(),
+    /** Only a new wind: one sentence and the AI proposes the whole wind, which fills the fields and creates nothing. */
+    onDescribe: (String, () -> Unit, (SuggestDto) -> Unit) -> Unit = { _, error, _ -> error() },
 ) {
     var name by rememberSaveable(edit?.id) { mutableStateOf(edit?.name.orEmpty()) }
     var color by rememberSaveable(edit?.id) { mutableStateOf(edit?.color ?: windEditorColors.first()) }
-    val colorChoices = remember(edit?.id) { (windEditorColors + listOfNotNull(edit?.color)).distinct() }
+    // The AI's colour joins the palette, so it stays selectable after picking another one.
+    var describedColor by rememberSaveable(edit?.id) { mutableStateOf<String?>(null) }
+    val colorChoices = remember(edit?.id, describedColor) { (windEditorColors + listOfNotNull(edit?.color, describedColor)).distinct() }
     var role by rememberSaveable(edit?.id) { mutableStateOf(edit?.role.orEmpty()) }
     var style by rememberSaveable(edit?.id) { mutableStateOf(windStyleOf(edit?.style).encode()) }
     var persona by rememberSaveable(edit?.id) { mutableStateOf(edit?.persona.orEmpty()) }
+    var description by rememberSaveable(edit?.id) { mutableStateOf("") }
+    // The preview wears the proposed trade while the role is still the proposed one, as on the web.
+    var kit by rememberSaveable(edit?.id) { mutableStateOf("") }
+    var kitRole by rememberSaveable(edit?.id) { mutableStateOf("") }
     val theme = LocalAvatarTheme.current
     var avatar by rememberSaveable(edit?.id) { mutableStateOf(edit?.avatar.takeIf { it in windPacks } ?: "cares") }
     var gallery by rememberSaveable(edit?.id) { mutableStateOf(false) }
@@ -167,8 +176,28 @@ internal fun WindEditor(
             TextButton(onClick = { gallery = false }, modifier = Modifier.fillMaxWidth()) { Text(tr(lang, "app.vents.startFromScratch")) }
             } else {
             // The face owns the canvas: no halo, duplicate title, or preset wall before creation.
-            val face = windStyleOf(style).copy(pack = avatar, bearing = windDirection(edit?.id.orEmpty(), name), windId = windId(edit?.id.orEmpty(), name))
+            val face = windStyleOf(style).copy(pack = avatar, bearing = windDirection(edit?.id.orEmpty(), name), windId = windId(edit?.id.orEmpty(), name),
+                kit = if (role == kitRole) kit else "")
             val controlsEnabled = !saving && !suggesting
+            if (edit == null) {
+                OutlinedTextField(description, { description = it }, enabled = controlsEnabled,
+                    label = { Text(tr(lang, "app.vents.describe")) }, placeholder = { Text(tr(lang, "app.vents.describeHint")) }, maxLines = 3,
+                    shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
+                OutlinedButton(onClick = {
+                    suggesting = true; error = null
+                    onDescribe(description.trim(), { suggesting = false; error = tr(lang, "app.vents.suggestError") }) { w ->
+                        name = w.name; role = w.role; persona = w.persona
+                        color = w.color.uppercase(); describedColor = color
+                        style = windStyleOf(w.style).copy(barretina = face.barretina).encode()
+                        kit = w.kit; kitRole = w.role
+                        suggesting = false
+                    }
+                }, enabled = description.isNotBlank() && controlsEnabled, modifier = Modifier.fillMaxWidth().testTag("wind-describe-go")) {
+                    if (suggesting) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    else Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp)); Text(tr(lang, "app.vents.describeGo"))
+                }
+            }
             Surface(
                 shape = RoundedCornerShape(24.dp),
                 color = Color(Wind("", "", color, "").argb).copy(alpha = .10f),
