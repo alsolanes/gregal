@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+## v1.97.0 - 2026-11-26 - Vents que es pregunten, plastilina a tot arreu i negre de debò
+
+- **Els vents es pregunten entre ells, i es veu (web, escriptori i Android).**
+  Quan un vent demana una feina a un altre, el fil del que la rep diu
+  «Encàrrec de X» amb la cara de qui la demana. Quan un vent consulta altres
+  vents, el xat diu a qui pregunta i plega el que li han respost com un debat
+  que pots obrir.
+- **Crea un vent amb una frase.** Al creador, «Descriu el teu vent» omple el
+  nom, el rol, la persona, el color, la cara i l'ofici; ho revises abans de
+  crear-lo.
+- **Plastilina a totes les mides.** Les files de llista i la capçalera del xat
+  també mostren el vent de plastilina, quiet, amb la insígnia del seu ofici.
+- **El vent que t'espera ho diu a la figura.** Si un vent espera la teva
+  resposta, a l'inici, a l'equip i a la capçalera porta una bombolla amb «?».
+- **Et mira.** Un vent gran de plastilina en repòs gira els ulls cap al ratolí
+  (web) o cap al dit (Android).
+- **Tres formes noves: gota, sol i onada.** Es trien al creador i també surten
+  als suggeriments.
+- **Mode fosc negre de debò.** El tema fosc és negre pur, pensat per a
+  pantalles AMOLED, al web, l'escriptori, el terminal i Android.
+
 ## v1.96.0 - 2026-11-26 - Pelut, vents nítids i un capçal per a tots
 
 - **Pelut, un paquet d'avatars nou (web, escriptori i Android).** Cada vent
