@@ -14,6 +14,26 @@
     schedule();
   });
   doc.addEventListener('visibilitychange', schedule);
+  // 169: a large idle face looks toward the pointer, one listener for every face. A look is a
+  // still frame, so the faces only draw when the pointer moves; 2 s still or out of the window, back to idle.
+  let pointer = null;
+  doc.addEventListener('pointermove', e => {
+    pointer = { x: e.clientX, y: e.clientY, at: clock() };
+    for (const p of running) look(p, pointer);
+  });
+  doc.addEventListener('pointerout', e => { if (!e.relatedTarget) pointer = null; });
+  function look(p, at) {
+    if (reduced() || !p.visible || p.mood !== 'idle' || !p.el.isConnected) return;
+    const r = p.el.getBoundingClientRect(), dx = at.x - r.left - r.width / 2, dy = at.y - r.top - r.height / 2;
+    // The look sheet is 3 rows (up, level, down) of 3 columns (left, ahead, right); over the face it looks ahead.
+    const a = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * Math.PI / 4;
+    const f = Math.hypot(dx, dy) < r.width / 4 ? 4 : 3 * (Math.round(Math.sin(a)) + 1) + Math.round(Math.cos(a)) + 1;
+    sheet(p.letter, 'look', p.color, p.cap).then(s => {
+      if (pointer !== at) return;
+      p.look = { sheet: s, f };
+      schedule();
+    }, error => root.console?.warn('clay wind: it does not look round', error));
+  }
 
   function canvas(width, height) { const c = doc.createElement('canvas'); c.width = width; c.height = height; return c; }
   function image(src) {
@@ -72,9 +92,10 @@
   function draw(p, now) {
     const t = p.from && !reduced() ? Math.min(1, (now - p.fadeAt) / fade) : 1;
     if (t >= 1) p.from = null;
-    const f = frameOf(p.now, p.at, now), same = p.now.canvas === p.drawn?.canvas && f === p.drawn.f && t === p.drawn.t;
+    const shown = p.look ? p.look.sheet : p.now, f = p.look ? p.look.f : frameOf(p.now, p.at, now);
+    const same = shown.canvas === p.drawn?.canvas && f === p.drawn.f && t === p.drawn.t;
     if (same) return;
-    p.drawn = { canvas: p.now.canvas, f, t };
+    p.drawn = { canvas: shown.canvas, f, t };
     const ctx = p.el.getContext('2d'), size = p.now.size;
     ctx.clearRect(0, 0, size, size);
     // The two sheets add up, so the figure never thins out half way.
@@ -84,7 +105,7 @@
       ctx.globalCompositeOperation = 'lighter';
     }
     ctx.globalAlpha = t;
-    ctx.drawImage(p.now.canvas, f * size, 0, size, size, 0, 0, size, size);
+    ctx.drawImage(shown.canvas, f * size, 0, size, size, 0, 0, size, size);
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
     if (p.badge) badge(ctx, size, p.badge, p.color);
     if (p.mood === 'waiting') waiting(ctx, size, p.color);
@@ -127,6 +148,7 @@
     if (doc.hidden) return;
     for (const p of running) {
       // A face handed out but not on the page yet keeps its place; one that left the page is done.
+      if (p.look && (!pointer || clock() - pointer.at > 2000 || p.mood !== 'idle')) p.look = null;
       if (p.el.isConnected) { p.placed = true; if (p.visible) draw(p, now); }
       else if (p.placed) { running.delete(p); seen?.unobserve(p.el); }
     }
@@ -205,7 +227,7 @@
     if (!p) return root.gregalWinds.mood(el, mood);
     if (mood === 'idle' && root.gregalWinds.hasNews(p.w.id)) mood = 'news';
     if (p.mood === mood) return el;
-    p.mood = mood;
+    p.mood = mood; p.look = null;
     root.gregalWinds.mood(p.svg, mood);
     for (const name of ['data-mood', 'aria-hidden', 'role', 'aria-label']) {
       if (p.svg.getAttribute(name) === null) el.removeAttribute(name); else el.setAttribute(name, p.svg.getAttribute(name));

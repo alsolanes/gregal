@@ -35,7 +35,12 @@ import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.VectorPainter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import androidx.compose.ui.semantics.SemanticsPropertyKey
 import androidx.compose.ui.semantics.semantics
@@ -89,12 +94,11 @@ internal object WindClay {
         }
     }
 
-    /** The sheet of the silhouette that stands for [family] (a shape's key, or the minairó) in [mood], or null when the manifest or the files are not there. */
-    fun sheet(assets: AssetManager, dir: String, family: String, mood: WindMood): WindClaySheet? {
+    /** The sheet of the silhouette that stands for [family] (a shape's key, or the minairó) in [moodName] ([windClayMood], or `look`), or null when the manifest or the files are not there. */
+    fun sheet(assets: AssetManager, dir: String, family: String, moodName: String): WindClaySheet? {
         val m = manifest(assets, dir) ?: return null
         val shapes = m.optJSONObject("silhouettes") ?: return null
         val silhouette = shapes.keys().asSequence().firstOrNull { shapes.optString(it) == family } ?: return null
-        val moodName = windClayMood(mood)
         val spec = m.optJSONObject("moods")?.optJSONObject(moodName) ?: return null
         val name = "$silhouette/$moodName"
         sheets.get("$dir/$name")?.let { return it }
@@ -193,6 +197,26 @@ private fun DrawScope.drawWaiting(accent: Color) {
     }
 }
 
+/** 169: where a finger is down on the screen, in root coordinates; a large idle clay face looks toward it. */
+internal val windTouch = mutableStateOf<Offset?>(null)
+
+/** On the app's root: follows the finger without taking the touch from what it lands on. */
+internal fun Modifier.windTouch(): Modifier = pointerInput(Unit) {
+    awaitPointerEventScope {
+        while (true) {
+            val e = awaitPointerEvent(PointerEventPass.Initial)
+            windTouch.value = e.changes.firstOrNull { it.pressed }?.position
+        }
+    }
+}
+
+/** The frame of the look sheet (3 rows up, level, down of 3 columns left, ahead, right) toward ([dx], [dy]); within [near] it looks ahead. */
+internal fun windLookFrame(dx: Float, dy: Float, near: Float): Int {
+    if (kotlin.math.hypot(dx, dy) < near) return 4
+    val a = kotlin.math.round(kotlin.math.atan2(dy, dx) / (Math.PI / 4)) * Math.PI / 4
+    return 3 * (kotlin.math.sin(a).roundToInt() + 1) + kotlin.math.cos(a).roundToInt() + 1
+}
+
 /**
  * The clay wind of [shape] in [mood]; false (and nothing drawn) when its
  * sheet is missing, so the caller draws the Canvas face. The frame number is
@@ -206,7 +230,14 @@ internal fun WindClayFace(size: Int, mood: WindMood, accent: Color, barretina: C
     badge: ImageVector? = null): Boolean {
     val assets = LocalContext.current.assets
     val dir = LocalWindClay.current
-    val sheet = remember(dir, family, mood) { WindClay.sheet(assets, dir, family, mood) } ?: return false
+    val sheet = remember(dir, family, mood) { WindClay.sheet(assets, dir, family, windClayMood(mood)) } ?: return false
+    // 169: a large idle face with motion looks toward the finger while it is down.
+    // Its sheet is decoded at the first touch, not for every face that nobody touches.
+    val touch = if (motion && mood == WindMood.IDLE && size >= 64) windTouch.value else null
+    val look = if (touch != null) remember(dir, family) { WindClay.sheet(assets, dir, family, "look") } else null
+    val centre = remember { object { var at = Offset.Zero } }
+    val near = size * LocalDensity.current.density / 4
+    val gaze = if (look != null && touch != null) windLookFrame(touch.x - centre.at.x, touch.y - centre.at.y, near) else null
     val icon = badge?.let { rememberVectorPainter(it) }
     val shown = remember { object { var sheet: WindClaySheet? = null; var frame = 0 } }
     // Built in composition so the first frame of the new mood already fades in over the old one.
@@ -237,12 +268,14 @@ internal fun WindClayFace(size: Int, mood: WindMood, accent: Color, barretina: C
             if (!sheet.loop && n >= sheet.frames - 1) break
         }
     }
-    Canvas(modifier.semantics { set(WindClayKey, sheet.name) }.size(size.dp)) {
+    Canvas(modifier.semantics { set(WindClayKey, if (gaze != null) "${look?.name}/$gaze" else sheet.name) }.size(size.dp)
+        .onGloballyPositioned { centre.at = it.positionInRoot() + Offset(it.size.width / 2f, it.size.height / 2f) }) {
         val f = frame.intValue
         shown.frame = f
         val mix = fade.value
         if (from != null && mix < 1f) drawClay(from.first, from.second, accent, barretina, 1f - mix, false)
-        drawClay(sheet, f, accent, barretina, mix, !motion)
+        if (look != null && gaze != null) drawClay(look, gaze, accent, barretina, 1f, false)
+        else drawClay(sheet, f, accent, barretina, mix, !motion)
         if (icon != null) drawBadge(icon, accent)
         if (mood == WindMood.WAITING) drawWaiting(accent)
     }

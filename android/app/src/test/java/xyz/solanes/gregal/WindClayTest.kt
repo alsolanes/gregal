@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.MaterialTheme
@@ -12,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.testTag
@@ -20,6 +22,8 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performTouchInput
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -193,7 +197,7 @@ class WindClayTest {
     @Test fun everyFamilyHas256PxFramesAndAStillFaceTintsOneFrame() {
         val assets = ui.activity.assets
         for (family in listOf("o", "n", "s", "minairo", "pelut")) {
-            val s = WindClay.sheet(assets, "characters", family, WindMood.SEARCHING)!!
+            val s = WindClay.sheet(assets, "characters", family, "searching")!!
             assertEquals("$family frame", 256, s.size)
             assertEquals("$family mask", 128, s.maskSize)
             assertEquals("$family sheet", s.frames * 256 to 256, s.sheet.width to s.sheet.height)
@@ -230,6 +234,27 @@ class WindClayTest {
         val now = mapOf("still" to pixels("still"), "playing" to pixels("playing"))
         ui.mainClock.advanceTimeBy(500)
         return now + mapOf("still later" to pixels("still"), "playing later" to pixels("playing"))
+    }
+
+    /** 169: a large idle clay face looks toward the finger while it is down (3 rows up, level, down of 3 columns left, ahead, right), then idles again; without motion it does not follow. */
+    @Test fun aLargeIdleFaceLooksTowardTheFinger() {
+        show(motion = true) {
+            Box(Modifier.fillMaxSize().windTouch(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                Column {
+                    WindFace(size = 96, accent = orange, clay = true)
+                    CompositionLocalProvider(LocalWindMotion provides false) { WindFace(size = 96, accent = orange, style = windStyleOf("psn"), clay = true) }
+                }
+            }
+        }
+        val root = ui.onRoot()
+        val face = clay("pebble/idle").fetchSemanticsNode().boundsInRoot.center
+        for ((at, frame) in listOf(Offset(0f, face.y) to 3, Offset(face.x, 0f) to 1, Offset(face.x + 80f, face.y + 80f) to 8, face to 4)) {
+            root.performTouchInput { down(at) }
+            clay("pebble/look/$frame").assertExists()
+            clay("cloud/idle").assertExists()
+            root.performTouchInput { up() }
+            clay("pebble/idle").assertExists()
+        }
     }
 
     @Test fun withMotionTheSheetPlays() {

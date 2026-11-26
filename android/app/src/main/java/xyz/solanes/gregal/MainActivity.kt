@@ -317,7 +317,7 @@ class MainActivity : ComponentActivity() {
                 val st by vm.state.collectAsState()
                 // L'avis d'actualització viu per sobre de qualsevol pantalla:
                 // si l'has silenciada o no n'hi ha, no es veu res.
-                Box(Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxSize().windTouch()) {
                 if (!connected) {
                     PairingScreen(vm, prefs)
                 } else {
