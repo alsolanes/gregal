@@ -45,29 +45,17 @@ SILHOUETTES = {
     "minairo": ("minairo", 1.7, 0.96, [((0, 0, 0.8), 1.25, (1, 0.9, 0.9)), ((0, 0, 1.15), 0.95, (0.95, 0.9, 0.88))]),
     # Not a style letter either: every wind in the pelut pack, a round ball of short fur.
     "pelut": ("pelut", 1.7, 1.02, [((0, 0, 0.95), 1.3, (1, 0.95, 1.08))]),
-    # Candidates for task 170 (temporary letters): a raindrop whose tip leans into the wind.
+    # Task 170: a raindrop whose tip leans into the wind.
     "gota": ("g", 2.0, 0.95, [((0, 0, 0.95), 1.3, (1.05, 0.9, 1.0))] + [
-        ((0.4 * s ** 2, 0, 1.55 + 0.6 * s), 0.78 - 0.7 * s, (1, 0.9, 1)) for s in [k / 8 for k in range(9)]]),
-    # A kite: a rounded diamond on a blunt foot, with a tail that flicks out over the ground.
-    "estel": ("e", 2.2, 1.15, [((0, 0, 0.35 + 1.85 * s), 0.25 + 0.85 * (1 - abs(2 * s - 1)) + 0.3 * max(0.0, 1 - 2 * s), (1.3, 0.8, 1))
-                              for s in [k / 10 for k in range(11)]] + [
-        ((0.3 + 0.9 * s, 0, 0.3 + 0.4 * math.sin(math.pi * 1.4 * s)), 0.32 - 0.08 * s, (1, 1, 1)) for s in [k / 8 for k in range(1, 9)]]),
+        ((0.4 * s ** 2, 0, 1.5 + 0.5 * s), 0.78 - 0.7 * s, (1, 0.9, 1)) for s in [k / 8 for k in range(9)]]),
     # A sun: a round body with a ring of soft bumps for rays over its top half.
     "sol": ("u", 2.2, 1.0, [((0, 0, 1.0), 1.3, (1, 0.9, 1))] + [
         ((0.95 * math.cos(a), 0, 1.0 + 0.95 * math.sin(a)), 0.42, (1, 0.9, 1))
         for a in [math.radians(-20 + 220 * k / 6) for k in range(7)]]),
-    # Bufet: puffed cheeks blowing, the round body swollen on both sides and a puff of breath rising beside it.
-    "bufet": ("b", 2.3, 1.0, [((0, 0, 1.1), 1.3, (1.0, 0.9, 1.6)), ((-0.85, 0, 1.0), 0.75, (1, 0.9, 1)),
-                                ((0.85, 0, 1.0), 0.75, (1, 0.9, 1)), ((1.2, 0, 2.35), 0.36, (1, 1, 1)),
-                                ((1.47, 0, 2.55), 0.4, (1, 1, 1)), ((1.7, 0, 2.3), 0.3, (1, 1, 1))]),
-    # A flame or spark: a round base with a tall tongue and a short one beside it.
-    "flama": ("l", 1.9, 0.95, [((0, 0, 0.9), 1.25, (1.05, 0.9, 1))] + [
-        ((-0.1 + 0.35 * math.sin(math.pi * 1.2 * s), 0, 1.55 + 0.85 * s), 0.78 - 0.66 * s, (1, 0.9, 1)) for s in [k / 8 for k in range(9)]] + [
-        ((0.75 + 0.2 * s, 0, 1.35 + 0.45 * s), 0.45 - 0.35 * s, (1, 0.9, 1)) for s in [k / 4 for k in range(5)]]),
-    # A wave: a long low back that rises into a crest curling over in front.
+    # A wave: a long low back that rises into a crest curling over, clear of the eyes.
     "onada": ("w", 2.4, 0.86, [((0.15, 0, 0.75), 1.15, (1.35, 0.85, 0.8)), ((-0.5, 0, 1.25), 0.95, (1, 0.9, 1))] + [
-        ((0.1 + 0.7 * math.cos(a), 0, 1.5 + 0.7 * math.sin(a)), 0.5 - 0.36 * s, (1, 0.9, 1))
-        for s, a in [(k / 24, math.pi - (math.pi + 0.5) * k / 24) for k in range(25)]]),
+        ((0.1 + 0.62 * math.cos(a), 0, 1.42 + 0.62 * math.sin(a)), 0.5 - 0.36 * s, (1, 0.9, 1))
+        for s, a in [(k / 24, math.pi - (math.pi + 0.1) * k / 24) for k in range(25)]]),
 }
 # Silhouettes with a barretina in its own mask (<mood>.cap.webp), tinted per wind.
 CAPS = ("minairo",)

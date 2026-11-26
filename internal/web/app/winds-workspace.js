@@ -809,7 +809,7 @@
   const appearance=el('div','vw-wind-appearance');d.append(appearance);
   const tint=field(appearance,t('Color','Color'),'#c1cda9');tint.type='color';
   function choice(label,options,value){const wrap=el('label','vw-field',label),select=el('select');for(const [key,caLabel,enLabel] of options){const option=el('option','',t(caLabel,enLabel));option.value=key;select.append(option);}select.value=value;wrap.append(select);appearance.append(wrap);return select;}
-  const shape=choice(t('Forma','Shape'),[['o','Bola','Ball'],['n','Núvol','Cloud'],['s','Rínxol','Curl']],'n');
+  const shape=choice(t('Forma','Shape'),[['o','Bola','Ball'],['n','Núvol','Cloud'],['s','Rínxol','Curl'],['g','Gota','Drop'],['u','Sol','Sun'],['w','Onada','Wave']],'n');
   const eyes=choice(t('Ulls','Eyes'),[['p','Punts','Dots'],['b','Ben oberts','Wide'],['e','Estrellats','Starry'],['m','Mig tancats','Sleepy']],'p');
   const mouth=choice(t('Boca','Mouth'),[['s','Somriure','Smile'],['o','Oberta','Open'],['n','Tranquil·la','Relaxed'],['t','Llengua','Tongue']],'s');
   const avatar=root.gregalWinds.avatarField?.(appearance),hat=root.gregalWinds.barretinaField?.(appearance,{});

@@ -83,6 +83,39 @@ class WindClayTest {
         anyFace().assertCountEquals(3)
     }
 
+    /** 170: the drop, the sun and the wave play their own clay sheets, large and small. */
+    @Test fun theDropTheSunAndTheWavePlayTheirOwnSilhouettes() {
+        show {
+            Column {
+                Row { for (shape in "guw") WindFace(size = 96, accent = orange, style = windStyleOf("ps$shape"), clay = true) }
+                Row { for (shape in "guw") WindFace(size = 40, mood = WindMood.THINKING, accent = orange, style = windStyleOf("ps$shape")) }
+            }
+        }
+        for (silhouette in listOf("gota", "sol", "onada")) {
+            clay("$silhouette/idle").assertExists()
+            clay("$silhouette/thinking").assertExists()
+        }
+    }
+
+    /** 170: without the sheets a drop, sun or wave is drawn as the nearest drawn shape, never empty. */
+    @Test fun withoutTheSheetsTheNewShapesDrawAsTheNearestDrawnShape() {
+        val pairs = listOf("g" to "o", "u" to "n", "w" to "s")
+        show(dir = "no-such-folder") {
+            Column {
+                for ((shape, nearest) in pairs) Row {
+                    WindFace(size = 96, accent = orange, style = windStyleOf("ps$shape"), clay = true, modifier = Modifier.testTag("new-$shape"))
+                    WindFace(size = 96, accent = orange, style = windStyleOf("ps$nearest"), clay = true, modifier = Modifier.testTag("old-$nearest"))
+                }
+            }
+        }
+        anyClay().assertCountEquals(0)
+        for ((shape, nearest) in pairs) {
+            val drawn = pixels("new-$shape")
+            assertTrue("$shape draws as $nearest", nearlySame(drawn, pixels("old-$nearest")))
+            assertTrue("$shape is not an empty face", (0 until drawn.width).any { x -> (0 until drawn.height).any { y -> drawn.getPixel(x, y) != drawn.getPixel(0, 0) } })
+        }
+    }
+
     @Test fun withoutTheSheetsASmallAvatarKeepsTheCanvasFace() {
         show(dir = "no-such-folder") {
             Row {

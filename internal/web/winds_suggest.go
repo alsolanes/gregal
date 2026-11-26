@@ -39,7 +39,7 @@ func windSuggestSystem(name, role string, collective ...string) string {
 	}
 	b.WriteString("Reply ONLY with a compact JSON object, no prose, no markdown fences, with two keys:\n")
 	b.WriteString(`{"persona": "<3-5 sentences in Catalan: who this wind is, how it talks (warm, curt, playful or calm — pick a coherent voice), what it cares about>", "style": "<exactly 3 letters: eyes+mouth+shape>"}`)
-	b.WriteString("\nstyle letters: eyes p=punts, b=badalls, e=estrellats, m=mig tancats; mouth s=somriure, o=oberta, n=neutra, t=llengua; shape o=bola, n=núvol, s=espiral. ")
+	b.WriteString("\nstyle letters: eyes p=punts, b=badalls, e=estrellats, m=mig tancats; mouth s=somriure, o=oberta, n=neutra, t=llengua; shape o=bola, n=núvol, s=espiral, g=gota, u=sol, w=onada. ")
 	b.WriteString("Pick the style that matches the persona you wrote (a playful wind gets a tongue or open mouth; a calm night wind gets sleepy eyes). ")
 	b.WriteString("Write the persona in Catalan, playful but never fake. Never invent facts about the user.")
 	return b.String()
@@ -112,7 +112,7 @@ func windDescribeSystem(plural, nameRule string, taken []string) string {
 		b.WriteString("\nThese names are taken, never use them: " + strings.Join(taken, ", ") + ".")
 	}
 	b.WriteString("\nrole says what it helps with and names its field with a plain word when one fits: cuina, música, viatges, esport, salut, finances, llibres, cinema, el temps, seguretat, programació, recerca, organització, compres.")
-	b.WriteString("\nstyle letters: eyes p=punts, b=badalls, e=estrellats, m=mig tancats; mouth s=somriure, o=oberta, n=neutra, t=llengua; shape o=bola, n=núvol, s=espiral. ")
+	b.WriteString("\nstyle letters: eyes p=punts, b=badalls, e=estrellats, m=mig tancats; mouth s=somriure, o=oberta, n=neutra, t=llengua; shape o=bola, n=núvol, s=espiral, g=gota, u=sol, w=onada. ")
 	b.WriteString("Pick the style that matches the persona you wrote. Write the persona in Catalan, playful but never fake. Never invent facts about the user.")
 	return b.String()
 }
@@ -215,7 +215,7 @@ func parseWindSuggest(out, name string) (persona, style string) {
 func normalizeWindStyle(style string) string {
 	eyes := map[string]string{"p": "p", "b": "b", "e": "e", "m": "m"}
 	mouth := map[string]string{"s": "s", "o": "o", "n": "n", "t": "t"}
-	shape := map[string]string{"o": "o", "n": "n", "s": "s"}
+	shape := map[string]string{"o": "o", "n": "n", "s": "s", "g": "g", "u": "u", "w": "w"}
 	get := func(m map[string]string, ch byte, def string) string {
 		if v, ok := m[strings.ToLower(string(ch))]; ok {
 			return v

@@ -392,6 +392,22 @@ test('describing a wind fills the creator and its preview, and nothing is create
   assert.deepEqual(lastWindPost(f), { name: 'Fogó', role: 'Cuina de temporada', persona: 'Cuino amb calma.', color: '#e8a040', style: 'etn' });
 });
 
+// 170: three more clay shapes, each shown live in the preview as it is picked.
+test('the shape control offers the drop, the sun and the wave, and the preview and the new wind take the one picked', async () => {
+  const f = await creatorBoot(() => null);
+  const d = await openCreator(f), c = creatorFields(d);
+  assert.deepEqual(c.shape.children.map(o => [o.value, o.textContent]),
+    [['o', 'Ball'], ['n', 'Cloud'], ['s', 'Curl'], ['g', 'Drop'], ['u', 'Sun'], ['w', 'Wave']]);
+  c.name.value = 'Onada';
+  for (const letter of ['g', 'u', 'w']) {
+    c.shape.value = letter;
+    for (const fn of c.shape.listeners.change) fn();
+    assert.equal(d.querySelector('.vw-wind-preview').querySelector('svg').dataset.style, 'ps' + letter, 'the preview shows ' + letter);
+  }
+  await byText(d, 'button', 'Create wind').click();
+  assert.equal(lastWindPost(f).style, 'psw');
+});
+
 test('if the suggestion fails, an error line shows and the creator keeps what it had', async () => {
   const f = await creatorBoot(() => ({ ok: false, status: 502, text: async () => 'model down' }));
   const d = await openCreator(f), c = creatorFields(d);
