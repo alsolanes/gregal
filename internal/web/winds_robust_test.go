@@ -340,14 +340,17 @@ func TestWindToolAskDiuQuiEncarrega(t *testing.T) {
 	t.Cleanup(func() { waitBackground(); windLoopStream = old })
 	ask := `{"action":"ask","wind":"` + garbi + `","task":"Fes un joc de la serp"}`
 	cases := []struct {
-		ctx            context.Context
-		tag, shown, by string
+		ctx                  context.Context
+		lang, tag, shown, by string
 	}{
-		{s.withWindSteerKey(context.Background(), "wind", "xaloc"), "Task handed over by Xaloc]", "Xaloc: Fes un joc de la serp", "xaloc"},
-		{s.withWindSteerKey(context.Background(), "wind", gregalWindID), "Task handed over by the main agent]", "Gregal: Fes un joc de la serp", gregalWindID},
-		{context.Background(), "Task handed over by the main agent]", "Gregal: Fes un joc de la serp", gregalWindID},
+		{s.withWindSteerKey(context.Background(), "wind", "xaloc"), "ca", "Task handed over by Xaloc]", "Encàrrec de Xaloc: Fes un joc de la serp", "xaloc"},
+		{s.withWindSteerKey(context.Background(), "wind", "xaloc"), "en", "Task handed over by Xaloc]", "Task from Xaloc: Fes un joc de la serp", "xaloc"},
+		{s.withWindSteerKey(context.Background(), "wind", gregalWindID), "ca", "Task handed over by the main agent]", "Encàrrec de Gregal: Fes un joc de la serp", gregalWindID},
+		{context.Background(), "en", "Task handed over by the main agent]", "Task from Gregal: Fes un joc de la serp", gregalWindID},
 	}
 	for i, c := range cases {
+		waitBackground()
+		s.cfg.Language = c.lang
 		if _, err := s.runWindTool(c.ctx, ask); err != nil {
 			t.Fatal(err)
 		}
@@ -369,7 +372,7 @@ func TestWindToolAskDiuQuiEncarrega(t *testing.T) {
 			t.Fatalf("%d: fil: %+v", i, h)
 		}
 		task, reply := h[len(h)-2], h[len(h)-1]
-		if !strings.HasSuffix(task.Text, c.shown) || task.By == nil || task.By.ID != c.by || task.By.Name == "" {
+		if task.Text != c.shown || task.By == nil || task.By.ID != c.by || task.By.Name == "" {
 			t.Fatalf("%d: encàrrec al fil: %q by=%+v", i, task.Text, task.By)
 		}
 		if reply.By != nil {

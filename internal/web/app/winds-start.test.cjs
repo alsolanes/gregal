@@ -219,6 +219,21 @@ test('tapping a face resumes that wind’s newest thread, or its usual chat; a r
   assert.match(f.page.querySelector('.vw-messages').textContent, /Hi ha jazz al Born/);
 });
 
+// 160: un encàrrec d'un altre vent (by) surt al fil com a fila d'encàrrec amb qui el demana, no com a bombolla teva.
+test('a task handed over by another wind is drawn as a hand-off row with the asker, not as your bubble', async () => {
+  const history = [{ id: 'm1', from: 'user', text: 'Task from Gregal: Find a concert', by: { id: 'gregal', name: 'Gregal' } }, { id: 'm2', from: 'assistant', text: 'Jazz at the Born' }];
+  const f = await boot({ api: r => r.url === '/api/winds/session/open' ? { ok: true, status: 200, json: async () => ({ wind: 'xaloc', name: r.body.name, history }) } : null });
+  await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();
+  await settle();
+  const thread = f.page.querySelector('.vw-messages');
+  const rows = thread.querySelectorAll('.vw-handoff-task');
+  assert.equal(rows.length, 1);
+  assert.match(rows[0].textContent, /^Task from Gregal/);
+  assert.equal(rows[0].querySelector('svg').dataset.wind, 'Gregal', 'the asker’s face');
+  assert.ok(!thread.querySelectorAll('.vw-user').some(n => n.textContent.includes('Find a concert')), 'not drawn as your bubble');
+  assert.match(thread.textContent, /Jazz at the Born/);
+});
+
 test('while a wind is answering, the start page opens the running conversation and keeps the text', async () => {
   let finish;
   const f = await boot({ api: r => r.url === '/api/winds/chat/stream' ? new Promise(res => { finish = () => res(stream([{ from: 'user', text: r.body.message }, { from: 'assistant', text: 'Fet' }])); }) : null });
