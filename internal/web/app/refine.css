@@ -147,6 +147,9 @@ body.shell-winds .vw-home {
      que no lligava amb la llima. */
   background:linear-gradient(100deg, var(--ink) 10%, var(--accent-hi) 95%);
   -webkit-background-clip:text; background-clip:text; color:transparent;
+  /* El fons només es pinta dins la caixa: sense aquest marge sota la línia base,
+     la cua de la g queda fora i no es veu. */
+  padding-bottom:.12em;
 }
 /* La salutació de Vents va de la tinta a l'accent del tema, a tots els temes; l'amplada ajustada
    al text fa que el degradat el recorri sencer. */

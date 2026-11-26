@@ -1871,3 +1871,19 @@ test('on the Racó page the sidebar marks El pati, the way into it, and nothing 
   view = 'vents'; f.mutate(f.doc.getElementById('racoPage'), 'hidden');
   assert.equal(byText(f.nav, '.vw-nav-item', 'Work').getAttribute('aria-current'), 'page', 'back on Vents, its own view again');
 });
+
+// ---- 172: les lletres amb cua ----
+test('a role tag leaves room for the tail of g, p and q: its text gets a taller line than the glyphs, in the same 20 px tag', () => {
+  const rules = cssRules('winds-workspace.css');
+  const tag = rules.filter(r => r.sel === '.vw-tag');
+  assert.equal(prop(tag.at(-1), 'height'), '20px', 'the tag stays 20 px tall');
+  const lh = [...tag, ...rules.filter(r => r.sel === '.vw-tag > span')].map(r => prop(r, 'line-height')).filter(Boolean).at(-1);
+  assert.ok(Number(lh) >= 1.3, 'the clipped span is tall enough for descenders, got line-height ' + lh);
+  assert.ok(Number(lh) * 11.5 <= 20, 'and still fits in the tag, got line-height ' + lh);
+});
+
+test('the gradient greeting paints the tail of its g: the text-clipped box reaches below the baseline', () => {
+  const clipped = cssRules('refine.css').filter(r => /background-clip\s*:\s*text/.test(r.body) && /\.vw-welcome h1/.test(r.sel));
+  assert.ok(clipped.length, 'the greeting is clipped to its text');
+  for (const r of clipped) assert.match(prop(r, 'padding-bottom') || '', /^\d*\.?\d+em$/, 'padding below the baseline on «' + r.sel + '»');
+});
