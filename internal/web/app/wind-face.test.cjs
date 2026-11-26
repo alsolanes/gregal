@@ -142,6 +142,21 @@ test('a redrawn face keeps its loop phase and plays the done hop once per transi
   assert.equal(winds.face(w, false, 'idle').querySelector('.wf-badge'), null);
 });
 
+// 168: a waiting face has no text next to it everywhere, so it says it is waiting for you, in both languages.
+test('a waiting face says the wind is waiting for you, in Catalan and English, and stops saying it once it is not', async () => {
+  const { CLAUS } = await import('./i18n.js');
+  for (const lang of ['ca', 'en']) {
+    const { winds } = load({ gregalWindI18n:{ text:(key, fallback) => CLAUS[lang][key] ?? fallback } });
+    const svg = winds.face({ id:'xaloc', color:'#F5B45D', style:'pso' }, false, 'waiting');
+    assert.equal(svg.getAttribute('role'), 'img');
+    assert.equal(svg.getAttribute('aria-label'), { ca:'T\'espera', en:'Waiting for you' }[lang]);
+    assert.equal(svg.getAttribute('aria-hidden'), null);
+    winds.mood(svg, 'idle');
+    assert.equal(svg.getAttribute('aria-label'), null);
+    assert.equal(svg.getAttribute('aria-hidden'), 'true');
+  }
+});
+
 test('a proactive voice marks its wind until its chat is opened', async () => {
   const ts = Math.floor(Date.now() / 1000), store = {}, calls = [];
   const api = async url => { calls.push(url); return { ok:true, json:async () => ({ novetats:[{ ts, wind:'marinada', name:'Marinada', source:'remind', text:'Beu aigua' }] }) }; };

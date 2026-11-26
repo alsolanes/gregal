@@ -71,11 +71,13 @@ internal fun VentsStartPage(
     bounce: WindArrival? = null,
     /** Els vents que treballen ara: porten un punt a la cara. */
     working: Set<String> = emptySet(),
+    /** 168: els vents que t'esperen (una pregunta o un permís pendents): cara d'espera, amb la seva marca. */
+    waiting: Set<String> = emptySet(),
 ) {
     VentsOpening(
         lang, name, text, onText, busy, onPhoto = null, onDoc = null, onSend = onSend,
         modifier = modifier, halo = false,
-        top = { StartFaces(lang, winds, news, bounce, working, onWind) },
+        top = { StartFaces(lang, winds, news, bounce, working, waiting, onWind) },
         below = {
             if (threads.isNotEmpty()) StartRecents(lang) {
                 threads.forEach { t ->
@@ -100,7 +102,7 @@ internal const val StartFaceBreathPeriod = 3.6f
 
 @Composable
 private fun StartFaces(lang: String, winds: List<Wind>, news: Map<String, Int>, bounce: WindArrival?, working: Set<String>,
-    onWind: (Wind, Rect) -> Unit) {
+    waiting: Set<String>, onWind: (Wind, Rect) -> Unit) {
     val clock = if (windMotionEnabled()) rememberInfiniteTransition(label = "start-breath").animateFloat(0f, StartFaceBreathPeriod,
         infiniteRepeatable(tween((StartFaceBreathPeriod * 1000).toInt(), easing = LinearEasing)), label = "t") else null
     val list = rememberLazyListState()
@@ -123,7 +125,8 @@ private fun StartFaces(lang: String, winds: List<Wind>, news: Map<String, Int>, 
         itemsIndexed(winds, key = { _, w -> w.id }) { i, w ->
             var face by remember { mutableStateOf(Rect.Zero) }
             val busy = w.id in working
-            val state = if (busy) tr(lang, "winds.state.working") else ""
+            val waits = w.id in waiting
+            val state = if (waits) tr(lang, "winds.state.waiting") else if (busy) tr(lang, "winds.state.working") else ""
             Column(
                 // Creix fins a 96 dp per la pastilla de l'ofici: a 60 dp només hi cabien dues lletres.
                 Modifier.widthIn(min = 60.dp, max = 96.dp).clip(RoundedCornerShape(12.dp)).clickable(role = Role.Button) { onWind(w, face) }
@@ -136,7 +139,7 @@ private fun StartFaces(lang: String, winds: List<Wind>, news: Map<String, Int>, 
                     Box(Modifier.onGloballyPositioned { face = it.boundsInRoot() }.graphicsLayer {
                         clock?.let { c -> startFaceBreath(c.value, i).let { scaleX = it; scaleY = it } }
                     }) {
-                        WindHalo(Color(w.argb), w.faceStyle, size = 40, online = false, showKit = false, clay = true)
+                        WindHalo(Color(w.argb), w.faceStyle, size = 40, mood = if (waits) WindMood.WAITING else WindMood.IDLE, online = false, showKit = false, clay = true)
                         NewsBadge(news[w.id] ?: 0, Modifier.align(Alignment.TopEnd).testTag("start-wind-badge-" + w.id))
                         if (busy) Box(Modifier.align(Alignment.BottomEnd).padding(4.dp).size(12.dp)
                             .border(2.dp, Superficie, CircleShape).padding(2.dp).background(Color(w.argb), CircleShape)

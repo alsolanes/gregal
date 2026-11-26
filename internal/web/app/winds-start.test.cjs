@@ -97,7 +97,7 @@ async function boot({ lang = 'en', api, storage = {}, css = () => '', extra = {}
   const json = data => ({ ok: true, status: 200, json: async () => data, text: async () => JSON.stringify(data) });
   const window = {
     document: doc, gregalNotes: notes, addEventListener() {}, gregalGreeting: () => 'Good evening', ...extra,
-    gregalWinds: { kitIcon: kit => ({ music: 'M6 11.5v-8', weather: 'M4.75 12.25h7' })[kit] || null, face: (w, large, mood, size) => { const n = new Element('svg', doc); n.dataset.wind = w?.name || ''; n.dataset.style = w?.style || ''; if (w?.kit) n.dataset.kit = w.kit; n.dataset.large = String(large); if (size) n.dataset.size = String(size); return n; }, moodOf: () => '', seen() {}, watchNews(f) { this.onNews = f; }, news: [], hasNews(id) { return this.news.includes(id); }, setAvatarTheme(theme) { this.theme = theme; },
+    gregalWinds: { kitIcon: kit => ({ music: 'M6 11.5v-8', weather: 'M4.75 12.25h7' })[kit] || null, face: (w, large, mood, size) => { const n = new Element('svg', doc); if (w?.id) n.setAttribute('data-wind', w.id); n.setAttribute('data-mood', mood || 'idle'); n.dataset.wind = w?.name || ''; n.dataset.style = w?.style || ''; if (w?.kit) n.dataset.kit = w.kit; n.dataset.large = String(large); if (size) n.dataset.size = String(size); return n; }, moodOf: () => '', mood(svg, mood) { svg.setAttribute('data-mood', mood); return svg; }, seen() {}, watchNews(f) { this.onNews = f; }, news: [], hasNews(id) { return this.news.includes(id); }, setAvatarTheme(theme) { this.theme = theme; },
       // winds.js draws the real pickers (winds-avatar-picker.test.cjs); here only Free mode gets a pack one.
       avatarField(parent, w) { if (this.theme !== 'free') return null; const s = new Element('select', doc); s.setAttribute('id', 'windAvatar'); s.value = w?.avatar || 'cares'; parent.append(s); return s; },
       avatarPack(w) { return this.theme !== 'free' ? this.theme : w.avatar || 'cares'; },
@@ -680,6 +680,28 @@ test('only one work pane at a time: the computer pane tells the docs pane to clo
   assert.ok(f.pane(), 'its own announcement keeps it');
   f.doc.dispatchEvent(new CustomEvent('gregal:workpane', { detail: 'docs' }));
   assert.equal(f.pane(), null, 'the docs pane takes its place');
+});
+
+// 168: l'espera es veu a la cara del vent allà on surt, no només al seu xat, i en respondre torna a la d'abans.
+test('a wind with a pending ask waits on its faces on the start page, the crew list and a group header, and goes back once answered', async () => {
+  const group = { id: 'r1', name: 'La colla del concert', members: ['xaloc', 'gregal'] };
+  const json = data => ({ ok: true, status: 200, json: async () => data });
+  let pending = [{ key: 'k1', type: 'approve', wind: 'xaloc', kind: 'rule', name: 'write', what: 'write /tmp/informe.md', detail: '/tmp/informe.md' }];
+  const f = await boot({ api: r => r.url === '/api/winds/pending' ? json({ pending })
+    : r.url === '/api/winds/answer' ? (pending = [], json({}))
+    : r.url === '/api/winds/tidy' ? json({ groups: [], test: [], unused: [] })
+    : r.url === '/api/winds/rotllanes' ? json({ rotllanes: [group] })
+    : r.url.startsWith('/api/winds/rotllana?') ? json({ history: [{ from: 'user', text: 'Anem-hi' }] }) : null });
+  const moods = sel => Object.fromEntries(f.page.querySelector(sel).querySelectorAll('svg').map(s => [s.getAttribute('data-wind'), s.getAttribute('data-mood')]));
+  assert.deepEqual(moods('.vw-start-faces'), { gregal: 'idle', xaloc: 'waiting' }, 'the start page');
+  await byText(f.nav, 'button', 'All winds').click(); await settle();
+  assert.deepEqual(f.page.querySelectorAll('.vw-member').map(r => r.firstChild.getAttribute('data-mood')), ['waiting', 'idle'], 'the crew list');
+  await byText(f.nav, 'button', 'La colla del concert').click(); await settle();
+  assert.deepEqual(moods('.vw-owner-faces'), { xaloc: 'waiting', gregal: 'idle' }, 'the group header');
+  await byText(f.page.querySelector('.vw-ask'), 'button', 'Allow').click(); await settle();
+  assert.deepEqual(moods('.vw-owner-faces'), { xaloc: 'idle', gregal: 'idle' }, 'answered: back to the mood it had');
+  await byText(f.nav, 'button', 'All winds').click(); await settle();
+  assert.deepEqual(f.page.querySelectorAll('.vw-member').map(r => r.firstChild.getAttribute('data-mood')), ['idle', 'idle']);
 });
 
 test('a wind’s conversation shows its state in the header: done after a turn, gone once you leave', async () => {

@@ -26,8 +26,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.VectorPainter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -173,6 +177,22 @@ private fun DrawScope.drawBadge(icon: VectorPainter, accent: Color) {
     }
 }
 
+private val waitBubble = PathParser().parsePathString("M4 1h8a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3H7l-3 3v-3a3 3 0 0 1-3-3V4a3 3 0 0 1 3-3Z").toPath()
+private val waitAsk = PathParser().parsePathString("M6.2 5a1.9 1.9 0 1 1 2.6 1.8c-.6.3-.8.7-.8 1.3M8 10.2h.01").toPath()
+
+/** 168: a wind waiting for you says so on the figure, a «?» bubble at the top-right corner, white with the wind's colour like [drawBadge], which keeps the bottom (as on the web). */
+private fun DrawScope.drawWaiting(accent: Color) {
+    val unit = size.width * .26f / 16f
+    val edge = size.width * .012f / unit
+    translate(size.width * .7f, size.height * .04f) {
+        scale(unit, unit, Offset.Zero) {
+            drawPath(waitBubble, Color.White)
+            drawPath(waitBubble, accent, style = Stroke(edge, join = StrokeJoin.Round))
+            drawPath(waitAsk, Color(0xFF262040), style = Stroke(1.6f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        }
+    }
+}
+
 /**
  * The clay wind of [shape] in [mood]; false (and nothing drawn) when its
  * sheet is missing, so the caller draws the Canvas face. The frame number is
@@ -224,6 +244,7 @@ internal fun WindClayFace(size: Int, mood: WindMood, accent: Color, barretina: C
         if (from != null && mix < 1f) drawClay(from.first, from.second, accent, barretina, 1f - mix, false)
         drawClay(sheet, f, accent, barretina, mix, !motion)
         if (icon != null) drawBadge(icon, accent)
+        if (mood == WindMood.WAITING) drawWaiting(accent)
     }
     return true
 }
