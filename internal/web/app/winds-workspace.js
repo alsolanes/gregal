@@ -767,15 +767,15 @@
   if(!rep.groups.length&&!rep.test.length&&!rep.unused.length)body.append(el('p','',t('Tot en ordre: no hi ha duplicats ni vents de prova.','All tidy: no duplicates or test winds.')));
   body.append(status);
  }
- // 174: la pastilla arriba tard; va a un lloc ja reservat perquè no empenyi les files on ja s'està tocant.
- async function tidyBanner(slot){
+ // 174: la pastilla arriba tard; va al final, sota l'última fila, perquè no empenyi les files on ja s'està tocant.
+ async function tidyBanner(){
   const rep=await call('/api/winds/tidy').catch(()=>null);if(!rep||state.view!=='crew')return;
   const n=rep.groups.reduce((a,g)=>a+g.winds.length-1,0),tst=rep.test.length,un=rep.unused.length;if(!n&&!tst&&!un)return;
   const bits=[];if(n)bits.push(t(n===1?'1 vent duplicat':n+' vents duplicats',n===1?'1 duplicate wind':n+' duplicate winds'));if(tst)bits.push(t(tst===1?'1 de prova':tst+' de prova',tst+' test'));if(un)bits.push(t(un===1?'1 sense ús':un+' sense ús',un+' unused'));
   const chip=btn(bits.join(', ')+' · '+t('Posa ordre','Tidy up'),()=>tidyDialog(rep),'vw-tidy-chip');chip.title=t('Tens ','You have ')+rep.total+t(' vents',' winds');
-  slot.append(chip);
+  content.append(chip);
  }
- function team(){heading(t('Tothom té alguna cosa a aportar.','Everyone brings something.'),t('Especialistes amb memòria pròpia i coneixement que pots conservar.','Specialists with their own memory and knowledge you can keep.'));const slot=el('div','vw-tidy-slot');content.querySelector('.vw-heading').append(slot);tidyBanner(slot);loadAsks();
+ function team(){heading(t('Tothom té alguna cosa a aportar.','Everyone brings something.'),t('Especialistes amb memòria pròpia i coneixement que pots conservar.','Specialists with their own memory and knowledge you can keep.'));tidyBanner();loadAsks();
   // 127: primer els teus vents; els equips (plantilles per activar) van després.
   const personal=state.winds.filter(w=>!w.squad);if(personal.length){content.append(el('h2','vw-subtitle',t('Els teus vents','Your winds')));for(const w of personal){const row=el('article','vw-member'),copy=el('div');copy.append(el('h2','',w.name),...tag(w));row.append(root.gregalWinds.face(w,'figure',waitMood(w)),copy,btn(t('Parla','Talk'),()=>talkTo(w)),btn(t('Perfil','Profile'),()=>profile(w)));content.append(row);}}
   content.append(iconBtn('plus',t('Crea un vent propi','Create your own wind'),createWind,'vw-button vw-add'));

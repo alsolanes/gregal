@@ -1648,8 +1648,7 @@ dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize
 .vw-nav-count { margin-left:auto; color:var(--faint); font-size:12px; }
 
 /* «Posa ordre» (winds_tidy.go): avís a la pàgina dels vents i el diàleg. */
-.vw-tidy-slot { height:38px; }
-.vw-tidy-chip { display:inline-block; box-sizing:border-box; vertical-align:top; margin-top:10px; height:28px; line-height:22px; max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding:2px 12px; border:1px solid var(--line-hi); border-radius:999px; background:transparent; color:var(--muted); font:inherit; font-size:12.5px; cursor:pointer; }
+.vw-tidy-chip { display:inline-flex; align-items:center; margin-top:10px; min-height:28px; padding:2px 12px; border:1px solid var(--line-hi); border-radius:999px; background:transparent; color:var(--muted); font:inherit; font-size:12.5px; cursor:pointer; }
 .vw-tidy-chip:hover { background:var(--hover); color:var(--ink); }
 .vw-dialog.vw-tidy { width:min(640px, calc(100vw - 32px)); }
 .vw-tidy-body { display:flex; flex-direction:column; gap:16px; }

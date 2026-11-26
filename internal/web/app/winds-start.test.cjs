@@ -1368,7 +1368,7 @@ test('the primary button wears the send button’s colours in every theme, and �
   assert.match(prop(tune, 'text-decoration') || '', /underline/);
 });
 
-test('All winds leads with your winds; tidying up is a small chip under the title', async () => {
+test('All winds leads with your winds; tidying up is a small chip', async () => {
   const mine = { id: 'marinada', name: 'Marinada', color: '#C8A27C', role: 'Cerques', style: 'pso' };
   const f = await boot({ api: r => r.url === '/api/winds' && r.method === 'GET' ? { ok: true, status: 200, json: async () => ({ winds: [...winds, mine] }) }
     : r.url === '/api/winds/tidy' ? { ok: true, status: 200, json: async () => ({ total: 3, groups: [], test: [], unused: [{ id: 'xaloc', name: 'Xaloc' }] }) } : null });
@@ -1382,29 +1382,32 @@ test('All winds leads with your winds; tidying up is a small chip under the titl
   const chip = f.page.querySelector('.vw-tidy-chip');
   assert.ok(chip && chip.tagName === 'BUTTON', 'a chip');
   assert.match(chip.textContent, /1 unused · Tidy up/);
-  assert.ok(chip.closest('.vw-heading'), 'under the title');
 });
 
-// 174: la pastilla arriba després de les files; no les ha d'empènyer avall.
-test('the tidy chip fills a slot kept for it, so the wind rows do not move when it arrives', async () => {
-  let answer;
-  const late = new Promise(r => { answer = r; });
-  const f = await boot({ api: r => r.url === '/api/winds/tidy' ? late : null });
-  await byText(f.nav, 'button', 'All winds').click();
-  await settle();
-  const slot = f.page.querySelector('.vw-heading').querySelector('.vw-tidy-slot');
-  assert.ok(slot, 'the heading keeps room for the chip before the report arrives');
-  assert.equal(slot.children.length, 0);
-  const blocks = () => [...f.page.querySelector('.vw-content').children, ...slot.parentNode.children];
-  const before = blocks();
-  answer({ ok: true, status: 200, json: async () => ({ total: 2, groups: [], test: [], unused: [{ id: 'xaloc', name: 'Xaloc' }] }) });
-  await settle();
-  assert.equal(f.page.querySelector('.vw-tidy-chip').parentNode, slot, 'the chip goes into the slot');
-  assert.deepEqual(blocks(), before, 'nothing new in the page or the heading, above the rows');
-  const rules = cssRules('winds-workspace.css');
-  const px = (sel, name) => parseFloat(prop(rules.find(r => r.sel === sel), name));
-  assert.equal(px('.vw-tidy-slot', 'height'), px('.vw-tidy-chip', 'margin-top') + px('.vw-tidy-chip', 'height'), 'the slot is as tall as the chip');
-  assert.equal(prop(rules.find(r => r.sel === '.vw-tidy-chip'), 'white-space'), 'nowrap', 'one line, so it never grows taller than the slot');
+// 174: la pastilla arriba després de les files; no les ha d'empènyer avall, i
+// quan no hi ha res a endreçar no deixa cap forat.
+test('the tidy chip arrives after the last wind row, so no row moves; with nothing to tidy nothing is added', async () => {
+  const tidyAfter = async rep => {
+    let answer;
+    const late = new Promise(r => { answer = r; });
+    const f = await boot({ api: r => r.url === '/api/winds/tidy' ? late : null });
+    await byText(f.nav, 'button', 'All winds').click();
+    await settle();
+    const all = () => inOrder(f.page.querySelector('.vw-content'));
+    const before = all();
+    answer({ ok: true, status: 200, json: async () => rep });
+    await settle();
+    return { before, after: all() };
+  };
+  const some = await tidyAfter({ total: 2, groups: [], test: [], unused: [{ id: 'xaloc', name: 'Xaloc' }] });
+  const chip = some.after.find(n => n.matches('.vw-tidy-chip'));
+  assert.ok(chip, 'the chip shows up');
+  assert.ok(some.before.some(n => n.matches('.vw-member')), 'the rows were already there');
+  assert.deepEqual(some.after.slice(0, some.before.length), some.before, 'every row keeps its place');
+  assert.ok(some.after.indexOf(chip) > some.after.findLastIndex(n => n.matches('.vw-member')), 'after the last row');
+  const none = await tidyAfter({ total: 2, groups: [], test: [], unused: [] });
+  assert.deepEqual(none.after, none.before, 'no chip and no empty space kept for it');
+  assert.ok(!none.after.some(n => /tidy/.test(n.className)));
 });
 
 test('a turn that uses the computer leaves it closed when the person closed the side pane in that chat, with a dot', async () => {
