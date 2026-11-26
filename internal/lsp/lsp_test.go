@@ -27,11 +27,13 @@ func ambServidorFals(t *testing.T) *Manager {
 	vell := lookPath
 	lookPath = func(string) (string, error) { return exe, nil }
 	Configure([]Server{{Lang: "go", LanguageID: "go", Commands: [][]string{{"fake-gopls"}}, Extensions: []string{".go"}}}, false)
+	oblidaDisponibles()
 	m := &Manager{}
 	t.Cleanup(func() {
 		m.Close()
 		lookPath = vell
 		Configure(nil, false)
+		oblidaDisponibles()
 	})
 	return m
 }
@@ -97,7 +99,8 @@ func TestSenseServidor(t *testing.T) {
 	vell := lookPath
 	lookPath = func(string) (string, error) { return "", os.ErrNotExist }
 	Configure(nil, false)
-	t.Cleanup(func() { lookPath = vell; Configure(nil, false) })
+	oblidaDisponibles()
+	t.Cleanup(func() { lookPath = vell; Configure(nil, false); oblidaDisponibles() })
 	if len(Disponibles()) != 0 {
 		t.Fatal("sense binaris no hi ha servidors")
 	}
@@ -116,5 +119,40 @@ func TestUTF16(t *testing.T) {
 	}
 	if p := Path(URI(filepath.Join(t.TempDir(), "a b.go"))); !strings.HasSuffix(p, "a b.go") {
 		t.Fatalf("URI/Path: %q", p)
+	}
+}
+
+// oblidaDisponibles fa que la propera consulta torni a buscar els servidors:
+// per als tests que canvien lookPath sense canviar la configuració.
+func oblidaDisponibles() {
+	mu.Lock()
+	disponiblesCalc = false
+	mu.Unlock()
+}
+
+// Tornar a aplicar la mateixa configuració (cada servidor nou ho fa) no ha de
+// tornar a recórrer el PATH: a Windows són uns 250 ms cada vegada.
+func TestConfigureIgualNoTornaABuscar(t *testing.T) {
+	vell := lookPath
+	cerques := 0
+	lookPath = func(string) (string, error) { cerques++; return "", os.ErrNotExist }
+	t.Cleanup(func() { lookPath = vell; Configure(nil, false); oblidaDisponibles() })
+	un := []Server{{Lang: "x", LanguageID: "x", Commands: [][]string{{"x-ls"}}, Extensions: []string{".x"}}}
+
+	Configure(un, false)
+	Disponibles()
+	primera := cerques
+	if primera == 0 {
+		t.Fatal("la primera consulta ha de buscar els servidors")
+	}
+	Configure([]Server{{Lang: "x", LanguageID: "x", Commands: [][]string{{"x-ls"}}, Extensions: []string{".x"}}}, false)
+	Disponibles()
+	if cerques != primera {
+		t.Fatalf("la mateixa configuració ha tornat a buscar (%d cerques, n'eren %d)", cerques, primera)
+	}
+	Configure(append(un, Server{Lang: "y", LanguageID: "y", Commands: [][]string{{"y-ls"}}, Extensions: []string{".y"}}), false)
+	Disponibles()
+	if cerques == primera {
+		t.Fatal("una configuració diferent ha de tornar a buscar")
 	}
 }
