@@ -221,6 +221,9 @@ label.vw-pick-card > span:last-child { min-width:0; overflow:hidden; text-overfl
 .vw-pending { padding-top:14px; padding-bottom:24px; }
 .vw-pending-copy > strong { display:block; margin-bottom:3px; }
 .vw-thinking { display:flex; align-items:center; gap:10px; color:var(--muted); font-size:13px; min-height:22px; }
+/* 162: la cara del vent a qui es pregunta, al costat del pas. */
+.vw-asking { display:inline-flex; gap:2px; }
+.vw-asking > * { width:20px; height:20px; }
 .vw-thinking-dots { display:inline-flex; align-items:center; gap:4px; height:16px; }
 .vw-thinking-dots i { display:block; width:4px; height:4px; border-radius:50%; background:var(--vw-accent); animation:vw-thinking 1.4s ease-in-out infinite; }
 .vw-thinking-dots i:nth-child(2) { animation-delay:.15s; }

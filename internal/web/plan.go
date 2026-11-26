@@ -156,11 +156,11 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 		rawEmit(kind, text)
 	}
 	var step atomic.Int32
-	activity := func(phase, tool string) {
+	activity := func(phase, tool string, winds ...string) {
 		if !stream {
 			return
 		}
-		b, _ := json.Marshal(windActivity{Phase: phase, Tool: tool, Step: int(step.Load())})
+		b, _ := json.Marshal(windActivity{Phase: phase, Tool: tool, Step: int(step.Load()), Winds: winds})
 		emit("activity", string(b))
 	}
 	modelContext := func(ctx context.Context) context.Context {
@@ -261,8 +261,17 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			if tools.EsNativa(name) && len(name) <= 64 {
 				tool = name
 			}
-			activity("tool", tool)
+			// A qui pregunta l'eina wind només ho sap runWindTool, un cop resolts
+			// els vents (winds_consult.go); si no n'arriba a resoldre cap, el pas
+			// surt igualment, sense vents.
+			var announced sync.Once
+			if name == "wind" && windIsMainCtx(ctx) {
+				ctx = withWindAsking(ctx, func(ids []string) { announced.Do(func() { activity("tool", tool, ids...) }) })
+			} else {
+				announced.Do(func() { activity("tool", tool) })
+			}
 			defer activity("tool_done", tool) // returned, not necessarily succeeded
+			defer announced.Do(func() { activity("tool", tool) })
 			// Una pregunta del vent, amb opcions que la persona toca (o text lliure).
 			if name == "question" && canAsk {
 				if _, _, err := tools.ParseQuestion(argsJSON); err != nil {
