@@ -90,6 +90,28 @@ class WindClayTest {
         anyClay().assertCountEquals(0)
     }
 
+    /** 159: a wind with a trade is its clay figure too, the trade's icon on a white badge at the bottom-right corner. */
+    @Test fun aWindWithATradeIsClayWithItsBadge() {
+        show {
+            Row {
+                Box(Modifier.background(Color(0xFF15171C)).testTag("trade")) { WindFace(size = 96, accent = orange, style = WindStyle(kit = "frontend"), clay = true) }
+                Box(Modifier.background(Color(0xFF15171C)).testTag("plain")) { WindFace(size = 96, accent = orange, clay = true) }
+            }
+        }
+        anyClay().assertCountEquals(2)
+        // Inside the disc, left of the icon at its centre.
+        fun badgeDisc(tag: String) = pixels(tag).let { it.getPixel((it.width * .70).toInt(), (it.height * .80).toInt()) }
+        val white = { p: Int -> android.graphics.Color.red(p) > 235 && android.graphics.Color.green(p) > 235 && android.graphics.Color.blue(p) > 235 }
+        assertTrue("the trade's badge is there", white(badgeDisc("trade")))
+        assertFalse("a wind without a trade has none", white(badgeDisc("plain")))
+    }
+
+    @Test fun withoutItsSheetsAWindWithATradeKeepsItsCanvasFigure() {
+        show(dir = "no-such-folder") { WindFace(size = 96, accent = orange, style = WindStyle(kit = "frontend"), clay = true) }
+        anyFace().assertCountEquals(1)
+        anyClay().assertCountEquals(0)
+    }
+
     @Test fun aMissingSheetFallsBackToTheCanvasFace() {
         show(dir = "no-such-folder") { WindFace(size = 96, accent = orange, clay = true) }
         anyFace().assertCountEquals(1)

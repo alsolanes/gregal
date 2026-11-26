@@ -22,7 +22,15 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.VectorPainter
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import androidx.compose.ui.semantics.SemanticsPropertyKey
@@ -153,6 +161,18 @@ private fun DrawScope.drawClay(s: WindClaySheet, frame: Int, accent: Color, barr
         dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()), alpha = alpha)
 }
 
+/** 159: a wind's trade on its clay figure, the trade chip's icon on a white disc at the bottom-right corner, beside its feet (as on the web). */
+private fun DrawScope.drawBadge(icon: VectorPainter, accent: Color) {
+    val r = size.width * .15f
+    val centre = Offset(size.width * .82f, size.height * .8f)
+    drawCircle(Color.White, r, centre)
+    drawCircle(accent, r, centre, style = Stroke(size.width * .012f))
+    val side = r * 1.25f
+    translate(centre.x - side / 2, centre.y - side / 2) {
+        with(icon) { draw(Size(side, side), colorFilter = ColorFilter.tint(Color(0xFF262040))) }
+    }
+}
+
 /**
  * The clay wind of [shape] in [mood]; false (and nothing drawn) when its
  * sheet is missing, so the caller draws the Canvas face. The frame number is
@@ -162,10 +182,12 @@ private fun DrawScope.drawClay(s: WindClaySheet, frame: Int, accent: Color, barr
  * frame of the old one. [barretina] tints the minairó's barretina.
  */
 @Composable
-internal fun WindClayFace(size: Int, mood: WindMood, accent: Color, barretina: Color, family: String, motion: Boolean, modifier: Modifier): Boolean {
+internal fun WindClayFace(size: Int, mood: WindMood, accent: Color, barretina: Color, family: String, motion: Boolean, modifier: Modifier,
+    badge: ImageVector? = null): Boolean {
     val assets = LocalContext.current.assets
     val dir = LocalWindClay.current
     val sheet = remember(dir, family, mood) { WindClay.sheet(assets, dir, family, mood) } ?: return false
+    val icon = badge?.let { rememberVectorPainter(it) }
     val shown = remember { object { var sheet: WindClaySheet? = null; var frame = 0 } }
     // Built in composition so the first frame of the new mood already fades in over the old one.
     val change = remember(sheet) {
@@ -201,6 +223,7 @@ internal fun WindClayFace(size: Int, mood: WindMood, accent: Color, barretina: C
         val mix = fade.value
         if (from != null && mix < 1f) drawClay(from.first, from.second, accent, barretina, 1f - mix, false)
         drawClay(sheet, f, accent, barretina, mix, !motion)
+        if (icon != null) drawBadge(icon, accent)
     }
     return true
 }

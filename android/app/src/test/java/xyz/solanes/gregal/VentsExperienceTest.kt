@@ -122,6 +122,24 @@ class VentsExperienceTest {
         ui.onNodeWithText("Brisa tardana").assertExists()
     }
 
+    /** 159: a wind's empty chat shows it large in clay, as the web does, its trade on a badge. */
+    @Test fun anEmptyWindChatShowsTheWindInClay() {
+        val vm = GregalViewModel(ApplicationProvider.getApplicationContext())
+        vm.openVentsChat("wind:tram")
+        ui.setContent {
+            CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
+                MaterialTheme(colorScheme = LightPal.scheme()) { CompanyScreen(vm, {}) }
+            }
+        }
+        ui.runOnIdle {
+            (GregalViewModel::class.java.getDeclaredField("_winds").apply { isAccessible = true }.get(vm)
+                as kotlinx.coroutines.flow.MutableStateFlow<List<Wind>>).value = listOf(Wind("tram", "Tramuntana", "#A8CDE2", "webs i codi", kit = "frontend"))
+        }
+        ui.waitUntil(5_000) { ui.onAllNodesWithText(tr(vm.idioma.value, "app.vents.emptyChatTitle")).fetchSemanticsNodes().isNotEmpty() }
+        ui.onAllNodes(androidx.compose.ui.test.SemanticsMatcher.keyIsDefined(WindClayKey), useUnmergedTree = true)
+            .fetchSemanticsNodes().let { org.junit.Assert.assertTrue("the empty chat's large face is clay", it.isNotEmpty()) }
+    }
+
     @Test fun libraryEntryOpensTheRealRecoveryDialog() {
         val vm = vm()
         ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {

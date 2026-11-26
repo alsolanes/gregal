@@ -33,6 +33,9 @@ class Canvas extends Node {
         self.source = src;
         self.draws.push({ sheet: src.sheet, sx: args[0], alpha: this.globalAlpha, op: this.globalCompositeOperation });
       },
+      // The trade badge: a disc and the icon's path, recorded after the frame they are drawn over.
+      save() {}, restore() {}, translate() {}, scale() {}, beginPath() {}, arc() {}, fill() {},
+      stroke(shape) { if (shape) self.draws.push({ icon: shape.d }); },
       getImageData() { return { data: self.pixels || new Uint8ClampedArray(self.width * self.height * 4) }; },
       putImageData(image) { self.pixels = image.data; },
     };
@@ -70,13 +73,14 @@ function load({ files = null, reduced = false, winds = {} } = {}) {
   }
   const moods = [];
   const window = {
-    document: doc, Image, IntersectionObserver,
+    document: doc, Image, IntersectionObserver, Path2D: class { constructor(d) { this.d = d; } },
     performance: { now: () => now },
     requestAnimationFrame: f => frames.push(f),
     matchMedia: () => ({ matches: reduced }),
     fetch: async url => { fetched.push(url); return { ok: true, json: async () => manifest }; },
     gregalWinds: {
       hasNews: id => (winds.news || []).includes(id),
+      kitIcon: kit => ({ books: 'M8 4.5v9' })[kit] || null,
       mood(svg, mood) { moods.push(mood); svg.setAttribute('data-mood', mood); return svg; },
     },
   };
@@ -228,14 +232,28 @@ test('a missing sheet keeps the code-drawn face', async () => {
   assert.equal(other.svg.getAttribute('data-mood'), 'working');
 });
 
-test('kits and the other avatar packs stay code-drawn', async () => {
+// 159: a wind with a trade is clay too, its trade a badge over every frame.
+test('a wind with a trade plays its clay sheet with the trade badge over every frame', async () => {
   const env = load();
   const kit = svgFace(env, 'idle', { 'data-kit': 'books' });
-  assert.equal(env.chars.play(kit.svg, wind), kit.svg);
+  env.chars.play(kit.svg, wind);
+  await settle();
+  const canvas = kit.box.children[0];
+  assert.equal(canvas.tag, 'canvas');
+  assert.deepEqual(canvas.draws.at(-1), { icon: 'M8 4.5v9' }, 'the badge is drawn over the frame');
+  env.frame(1000);
+  assert.deepEqual(canvas.draws.at(-1), { icon: 'M8 4.5v9' }, 'and over the next one');
+  // The same sheet is ready now: play hands the clay back straight away.
+  const plain = env.chars.play(svgFace(env).svg, { ...wind, id: 'mestral' });
+  assert.equal(plain.tag, 'canvas');
+  assert.ok(!plain.draws.some(d => d.icon), 'no trade, no badge');
+});
+
+test('the other avatar packs stay code-drawn', async () => {
+  const env = load();
   const cap = svgFace(env, 'idle', { 'data-avatar': 'cap' });
   assert.equal(env.chars.play(cap.svg, { ...wind, avatar: 'cap' }), cap.svg);
   await settle();
-  assert.equal(kit.box.children[0], kit.svg);
   assert.equal(cap.box.children[0], cap.svg);
   assert.equal(env.fetched.length, 0);
 });

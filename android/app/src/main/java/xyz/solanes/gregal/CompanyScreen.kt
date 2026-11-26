@@ -1309,7 +1309,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                 item {
                     if (wind.id in loadingChat) ChatSkeleton(accent)
                     else ChatEmptyState(
-                        face = { WindHalo(size = 88, accent = accent, style = wind.faceStyle, mood = WindMood.HAPPY, tappable = true) },
+                        face = { WindHalo(size = 88, accent = accent, style = wind.faceStyle, mood = WindMood.HAPPY, tappable = true, clay = true) },
                         title = tr(lang, "app.vents.emptyChatTitle"),
                         hint = tr(lang, "app.company.windHello", wind.name),
                         // Com al Grok: tres primeres frases a un toc, segons l'ofici del vent.

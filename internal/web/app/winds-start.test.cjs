@@ -97,7 +97,7 @@ async function boot({ lang = 'en', api, storage = {}, css = () => '', extra = {}
   const json = data => ({ ok: true, status: 200, json: async () => data, text: async () => JSON.stringify(data) });
   const window = {
     document: doc, gregalNotes: notes, addEventListener() {}, gregalGreeting: () => 'Good evening', ...extra,
-    gregalWinds: { face: (w, large, mood, size) => { const n = new Element('svg', doc); n.dataset.wind = w?.name || ''; n.dataset.style = w?.style || ''; if (size) n.dataset.size = String(size); return n; }, moodOf: () => '', seen() {}, watchNews(f) { this.onNews = f; }, news: [], hasNews(id) { return this.news.includes(id); }, setAvatarTheme(theme) { this.theme = theme; },
+    gregalWinds: { kitIcon: kit => ({ music: 'M6 11.5v-8', weather: 'M4.75 12.25h7' })[kit] || null, face: (w, large, mood, size) => { const n = new Element('svg', doc); n.dataset.wind = w?.name || ''; n.dataset.style = w?.style || ''; if (size) n.dataset.size = String(size); return n; }, moodOf: () => '', seen() {}, watchNews(f) { this.onNews = f; }, news: [], hasNews(id) { return this.news.includes(id); }, setAvatarTheme(theme) { this.theme = theme; },
       // winds.js draws the real pickers (winds-avatar-picker.test.cjs); here only Free mode gets a pack one.
       avatarField(parent, w) { if (this.theme !== 'free') return null; const s = new Element('select', doc); s.setAttribute('id', 'windAvatar'); s.value = w?.avatar || 'cares'; parent.append(s); return s; },
       avatarPack(w) { return this.theme !== 'free' ? this.theme : w.avatar || 'cares'; },
@@ -460,7 +460,7 @@ test('the pill shows the kit’s icon when the wind has one, no icon without a k
   ];
   const f = await boot({ api: r => r.url === '/api/winds' ? { ok: true, status: 200, json: async () => ({ winds: list }) } : null });
   for (const root of [f.nav, f.page.querySelector('.vw-start-faces')]) {
-    assert.ok(pillOf(root, 'Xaloc')?.querySelector('svg'), 'a kit gives the pill its icon');
+    assert.equal(pillOf(root, 'Xaloc')?.querySelector('path')?.getAttribute('d'), 'M6 11.5v-8', 'a kit gives the pill its icon, the one the clay badge draws (159)');
     assert.ok(pillOf(root, 'Gregal'), 'a wind without a kit still has its pill');
     assert.equal(pillOf(root, 'Gregal').querySelector('svg'), null, '…with no icon');
     assert.ok(byText(root, 'button', 'Oreig'), 'the wind is listed');
@@ -959,6 +959,14 @@ test('large faces play the clay winds: start faces, the chat corner, Today and t
   f.played.length = 0;
   await byText(byText(f.page, '.vw-member', 'Xaloc'), 'button', 'Profile').click(); await settle();
   assert.deepEqual(f.played, ['xaloc'], 'the profile plays it; the roster rows stay drawn');
+});
+
+test('an empty chat with one wind shows that wind large in clay (159)', async () => {
+  const empty = { ok: true, status: 200, json: async () => ({ name: 's1', session: 's1', history: [] }) };
+  const f = await clayBoot(r => r.url.startsWith('/api/winds/chat?') || r.url === '/api/winds/session/open' ? empty : null);
+  await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();
+  await settle();
+  assert.deepEqual(clayOf(f.page.querySelector('.vw-orb')), ['Xaloc']);
 });
 
 test('the clay corner changes mood in place, so it can crossfade, and still nods', async () => {

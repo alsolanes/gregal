@@ -86,6 +86,20 @@
     ctx.globalAlpha = t;
     ctx.drawImage(p.now.canvas, f * size, 0, size, size, 0, 0, size, size);
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    if (p.badge) badge(ctx, size, p.badge, p.color);
+  }
+  // 159: a wind's trade on its clay figure, the trade chip's icon on a disc at
+  // the bottom-right corner, where the figure leaves room beside its feet.
+  function badge(ctx, size, icon, color) {
+    const r = size * .15, cx = size * .82, cy = size * .8, unit = r * 1.25 / 16;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+    ctx.fillStyle = '#FFFFFF'; ctx.fill();
+    ctx.lineWidth = size * .012; ctx.strokeStyle = color; ctx.stroke();
+    ctx.translate(cx - 8 * unit, cy - 8 * unit); ctx.scale(unit, unit);
+    ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#262040';
+    ctx.stroke(new root.Path2D(icon));
+    ctx.restore();
   }
   let ticking = false;
   function schedule() {
@@ -130,14 +144,14 @@
   function play(svg, w, still = false) {
     // A face already handed here (winds.js plays the pelut itself) or already clay stays as it is.
     if (handed.has(svg) || players.has(svg)) return svg;
-    // The clay is Cares without a trade kit, or the minairó and the pelut in their own sheets; the other packs and the kits stay drawn.
+    // The clay is Cares, with its trade as a badge (159), or the minairó and the pelut in their own sheets; the other packs stay drawn.
     const avatar = svg.getAttribute('data-avatar');
-    if (!w || svg.getAttribute('data-kit') || (avatar && avatar !== 'minairo' && avatar !== 'pelut')) return svg;
+    if (!w || (avatar && avatar !== 'minairo' && avatar !== 'pelut')) return svg;
     handed.add(svg);
     const letter = avatar || ('ons'.includes(String(w.style || '')[2]) ? w.style[2] : 'o'), color = /^#[\da-f]{6}$/i.test(w.color || '') ? w.color : '#F5B45D';
     // The minairó's barretina colour, as winds.js picked it for this wind.
     const cap = svg.getAttribute('data-barretina') || '';
-    const p = { w, svg, letter, color, cap, still, mood: svg.getAttribute('data-mood') || 'idle', spot: w.id + '|' + svg.getAttribute('class') }, key = letter + '/' + p.mood + '/' + color + cap + (still ? '/still' : '');
+    const p = { w, svg, letter, color, cap, still, badge: root.gregalWinds.kitIcon(svg.getAttribute('data-kit')), mood: svg.getAttribute('data-mood') || 'idle', spot: w.id + '|' + svg.getAttribute('class') }, key = letter + '/' + p.mood + '/' + color + cap + (still ? '/still' : '');
     const before = w.id && last.get(p.spot), same = before?.look === letter + color + cap + still ? before : null;
     if (ready.has(key)) return show(p, ready.get(key), clock(), same);
     const mood = p.mood;
