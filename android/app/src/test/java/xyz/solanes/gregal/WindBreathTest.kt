@@ -93,7 +93,8 @@ class WindBreathTest {
     @Test fun `a working Cares face blows toward where its wind goes, as on the web`() {
         ui.mainClock.autoAdvance = false
         ui.setContent {
-            CompositionLocalProvider(LocalWindMotion provides false) {
+            // The Canvas face, without the clay sheets (167: with them a small Cares face is clay).
+            CompositionLocalProvider(LocalWindMotion provides false, LocalWindClay provides "no-such-folder") {
                 Row {
                     framed("tramuntana", "Tramuntana", WindMood.WORKING)
                     framed("ponent", "Ponent", WindMood.WORKING)
@@ -126,10 +127,12 @@ class WindBreathTest {
         ui.mainClock.autoAdvance = false
         val mood = mutableStateOf(WindMood.WORKING)
         ui.setContent {
-            Row {
-                framed("face", "Tramuntana", mood.value, tappable = true)
-                framed("list", "Tramuntana", WindMood.WORKING)
-                CompositionLocalProvider(LocalWindMotion provides false) { framed("still", "Tramuntana", WindMood.WORKING) }
+            CompositionLocalProvider(LocalWindClay provides "no-such-folder") {
+                Row {
+                    framed("face", "Tramuntana", mood.value, tappable = true)
+                    framed("list", "Tramuntana", WindMood.WORKING)
+                    CompositionLocalProvider(LocalWindMotion provides false) { framed("still", "Tramuntana", WindMood.WORKING) }
+                }
             }
         }
         ui.mainClock.advanceTimeBy(100)

@@ -832,3 +832,35 @@ test('each minairó has its own brows, moustache and now and then round glasses,
   const neighbours = Array.from({ length:9 }, (_, i) => look('minairo-' + (i + 1)));
   assert.ok(neighbours.every((l, i) => !i || l !== neighbours[i - 1]), 'ids one letter apart look different: ' + neighbours.join(' | '));
 });
+
+// 167: a small Cares face is clay too, holding its sheet's still frame; the other packs stay drawn.
+test('a small Cares face is handed to the clay player as a still face; large ones and the other packs are not', () => {
+  const played = [];
+  const gregalCharacters = { play(svg, w, still) { played.push({ svg, w, still }); return 'clay'; } };
+  // Mapa de vent paints on a canvas it watches: a context and an observer that do nothing.
+  const document = { addEventListener() {}, createElementNS:(_, tag) => new El(tag), createElement:tag => Object.assign(new El(tag), { getContext:() => ({}) }) };
+  const IntersectionObserver = class { observe() {} };
+  const { winds } = load({ gregalCharacters, document, IntersectionObserver });
+  const w = { id:'xaloc', name:'Xaloc', color:'#EFA68F', style:'pso', kit:'books' };
+  assert.equal(winds.face(w), 'clay', 'a list row');
+  assert.equal(winds.face(w, false, 'reading', 30), 'clay', 'the chat header');
+  assert.deepEqual(played.map(p => [p.w.id, p.still, p.svg.getAttribute('data-mood'), p.svg.getAttribute('data-kit')]), [['xaloc', true, 'idle', 'books'], ['xaloc', true, 'reading', 'books']]);
+  played.length = 0;
+  assert.notEqual(winds.face(w, true), 'clay', 'a large face is played by its caller, as before');
+  assert.notEqual(winds.face(w, 'figure'), 'clay', 'a scene keeps its drawing');
+  for (const pack of ['cap', 'rosa', 'mapa', 'esperit']) {
+    winds.setAvatarTheme(pack);
+    for (const size of [undefined, 24, 48]) assert.notEqual(winds.face(w, false, 'idle', size), 'clay', pack + ' stays drawn at ' + size);
+    assert.notEqual(winds.face(w, true), 'clay', pack + ' stays drawn large');
+  }
+  assert.deepEqual(played, []);
+});
+
+test('below 28 px a small Cares face carries no trade badge: it would be a dot', () => {
+  const played = [];
+  const { winds } = load({ gregalCharacters:{ play(svg) { played.push(svg); return svg; } } });
+  const w = { id:'xaloc', name:'Xaloc', color:'#EFA68F', style:'pso', kit:'books' };
+  winds.face(w, false, 'idle', 26);
+  winds.face(w, false, 'idle', 28);
+  assert.deepEqual(played.map(svg => svg.getAttribute('data-kit')), [null, 'books']);
+});

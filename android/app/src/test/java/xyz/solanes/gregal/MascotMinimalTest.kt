@@ -333,7 +333,8 @@ class MascotMinimalTest {
 
     @Test fun smallSpecialistKeepsItsUnclutteredSilhouette() {
         ui.setContent {
-            CompositionLocalProvider(LocalWindMotion provides false) {
+            // The Canvas face, without the clay sheets (167: with them a small Cares face is clay, its trade a badge).
+            CompositionLocalProvider(LocalWindMotion provides false, LocalWindClay provides "no-such-folder") {
                 Row(Modifier.background(Color.White)) {
                     Box(Modifier.testTag("plain")) { WindFace(size = 48, accent = accent) }
                     Box(Modifier.testTag("specialist")) {

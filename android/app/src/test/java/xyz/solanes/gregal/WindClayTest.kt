@@ -79,8 +79,8 @@ class WindClayTest {
         anyFace().assertCountEquals(3)
     }
 
-    @Test fun smallAvatarsAndMissingSheetsKeepTheCanvasFace() {
-        show {
+    @Test fun withoutTheSheetsASmallAvatarKeepsTheCanvasFace() {
+        show(dir = "no-such-folder") {
             Row {
                 WindFace(size = 40, accent = orange)
                 WindHalo(orange, WindStyle(), size = 40)
@@ -88,6 +88,58 @@ class WindClayTest {
         }
         anyFace().assertCountEquals(2)
         anyClay().assertCountEquals(0)
+    }
+
+    /** 167: a list row or the chat header is the clay wind too, holding its mood's still frame, so a wind looks the same at every size. */
+    @Test fun aSmallCaresFaceHoldsItsStillFrameAndSwitchesMood() {
+        var mood by mutableStateOf(WindMood.IDLE)
+        ui.mainClock.autoAdvance = false
+        show(motion = true) {
+            Row {
+                WindFace(size = 40, mood = mood, accent = orange, tappable = true, modifier = Modifier.testTag("row"))
+                WindFace(size = 30, mood = mood, accent = orange, style = windStyleOf("pss"))
+            }
+        }
+        ui.mainClock.advanceTimeByFrame()
+        clay("pebble/idle").assertExists()
+        clay("curl/idle").assertExists()
+        anyFace().assertCountEquals(2)
+        val now = pixels("row")
+        ui.mainClock.advanceTimeBy(500)
+        assertTrue("a small face holds still, even with motion on", now.sameAs(pixels("row")))
+        mood = WindMood.READING
+        androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
+        ui.mainClock.advanceTimeBy(100)
+        clay("pebble/reading").assertExists()
+        clay("pebble/idle").assertDoesNotExist()
+    }
+
+    @Test fun theOtherPacksStayDrawnAtEverySize() {
+        show {
+            Row {
+                for (pack in listOf("cap", "rosa", "mapa", "esperit")) CompositionLocalProvider(LocalAvatarTheme provides pack) {
+                    WindFace(size = 30, accent = orange)
+                    WindFace(size = 96, accent = orange, clay = true)
+                }
+            }
+        }
+        anyFace().assertCountEquals(8)
+        anyClay().assertCountEquals(0)
+    }
+
+    /** A small wind with a trade carries its badge; below 28 dp it would be a dot, so it has none. */
+    @Test fun theBadgeIsDrawnOnSmallFacesFrom28Dp() {
+        show {
+            Row {
+                for (size in listOf(24, 40)) {
+                    Box(Modifier.background(Color(0xFF15171C)).testTag("trade$size")) { WindFace(size = size, accent = orange, style = WindStyle(kit = "frontend")) }
+                    Box(Modifier.background(Color(0xFF15171C)).testTag("plain$size")) { WindFace(size = size, accent = orange) }
+                }
+            }
+        }
+        anyClay().assertCountEquals(4)
+        assertTrue("no badge at 24 dp", pixels("trade24").sameAs(pixels("plain24")))
+        assertFalse("a badge at 40 dp", pixels("trade40").sameAs(pixels("plain40")))
     }
 
     /** 159: a wind with a trade is its clay figure too, the trade's icon on a white badge at the bottom-right corner. */

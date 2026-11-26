@@ -470,6 +470,9 @@ fun WindFace(
     val wearsKit = !minairo && (size >= 80 || showKit) && windKits[style.kit] != null
     if (clay && !pelut && WindClayFace(size, mood, accent, minairoLook(style, accent).cap,
             if (minairo) "minairo" else style.shape.key, motion, packCued, badge = if (wearsKit) windKitIcon(style.kit) else null)) return
+    // A smaller Cares face (a list row, the chat header) holds its sheet's still frame, like the pelut (167); below 28 dp the badge would be a dot.
+    if (!clay && compact && pack == "cares" && WindClayFace(size, mood, accent, accent, style.shape.key, false, packCued,
+            badge = if (size >= 28 && windKits[style.kit] != null) windKitIcon(style.kit) else null)) return
     // La forma reacciona quan el dit toca la cara i torna amb molla en deixar-la.
     val touch = if (tappable && motion) remember { MutableInteractionSource() } else null
     val pressScale = if (touch != null) {
