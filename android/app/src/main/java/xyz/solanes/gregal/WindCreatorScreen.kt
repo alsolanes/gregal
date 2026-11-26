@@ -28,6 +28,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -196,19 +197,22 @@ internal fun WindEditor(
                 { "app.company.windShape_$it" }, { face.copy(shape = WindShape.entries.first { e -> e.key == it }) }, color, controlsEnabled)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(tr(lang, "app.company.windColor"), color = Muted, fontSize = 13.sp)
-                // Two short rows keep every swatch reachable, without horizontal scrolling.
-                colorChoices.chunked(4).forEachIndexed { row, colors ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                // Two rows of five fixed columns: the palette plus a wind's own colour fits, and a short row lines up under the full one.
+                colorChoices.chunked(5).forEachIndexed { row, colors ->
+                    Row(Modifier.fillMaxWidth()) {
                         colors.forEachIndexed { index, c ->
-                            Box(Modifier.size(48.dp).clip(CircleShape)
-                                .selectable(selected = color == c, enabled = controlsEnabled, role = Role.RadioButton, onClick = { color = c })
-                                .semantics { contentDescription = tr(lang, "app.vents.colorChoice", (row * 4 + index + 1).toString()) },
-                                contentAlignment = Alignment.Center) {
-                                // Vora fina sempre: un color fosc no desapareix sobre el fons fosc.
-                                Box(Modifier.size(34.dp).background(Color(Wind("", "", c, "").argb), CircleShape)
-                                    .border(if (color == c) 2.dp else 1.dp, if (color == c) Ink else LineHi, CircleShape))
+                            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                                Box(Modifier.size(48.dp).clip(CircleShape)
+                                    .selectable(selected = color == c, enabled = controlsEnabled, role = Role.RadioButton, onClick = { color = c })
+                                    .semantics { contentDescription = tr(lang, "app.vents.colorChoice", (row * 5 + index + 1).toString()) },
+                                    contentAlignment = Alignment.Center) {
+                                    // Vora fina sempre: un color fosc no desapareix sobre el fons fosc.
+                                    Box(Modifier.size(34.dp).background(Color(Wind("", "", c, "").argb), CircleShape)
+                                        .border(if (color == c) 2.dp else 1.dp, if (color == c) Ink else LineHi, CircleShape))
+                                }
                             }
                         }
+                        repeat(5 - colors.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
             }
@@ -268,15 +272,18 @@ private fun FaceOptions(lang: String, label: String, options: List<String>, sele
     clay: Boolean = false) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(tr(lang, label), color = Muted, fontSize = 13.sp)
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // One card width and height for every option, so a long name does not make its card stand out.
+        Row(Modifier.horizontalScroll(rememberScrollState()).height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             options.forEach { option ->
-                Column(Modifier.clip(RoundedCornerShape(14.dp))
+                Column(Modifier.width(92.dp).fillMaxHeight().clip(RoundedCornerShape(14.dp))
                     .background(if (option == selected) SeaSoft(.16f) else Color.Transparent)
                     .border(if (option == selected) 1.dp else 0.dp, Sea.copy(alpha = .45f), RoundedCornerShape(14.dp))
                     .selectable(selected = option == selected, enabled = enabled, role = Role.RadioButton, onClick = { pick(option) })
                     .padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    WindFace(size = 42, accent = Color(Wind("", "", color, "").argb), style = face(option), clay = clay)
-                    Text(tr(lang, optionLabel(option)), fontSize = 12.sp, color = Ink)
+                    Box(Modifier.size(42.dp), contentAlignment = Alignment.Center) {
+                        WindFace(size = windPackSample(windPack(LocalAvatarTheme.current, face(option)), 42), accent = Color(Wind("", "", color, "").argb), style = face(option), clay = clay)
+                    }
+                    Text(tr(lang, optionLabel(option)), fontSize = 12.sp, lineHeight = 15.sp, color = Ink, textAlign = TextAlign.Center, maxLines = 2)
                 }
             }
         }

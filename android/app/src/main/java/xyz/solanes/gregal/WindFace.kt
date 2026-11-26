@@ -145,6 +145,9 @@ fun WindStyle.encode(): String = eyes.key + mouth.key + shape.key + barretina
 /** The packs a wind can be drawn with; the account theme is one of them or "free" (task 045). */
 internal val windPacks = listOf("cares", "esperit", "cap", "rosa", "mapa", "minairo", "pelut")
 
+/** A pack's sample in a picker at [size]: a dial or a map fills its whole square, so it is drawn smaller to weigh as much as a figure. */
+internal fun windPackSample(pack: String, size: Int): Int = if (pack == "rosa" || pack == "mapa") size * 5 / 6 else size
+
 /** The account's avatar theme (`avatarTheme` of GET /api/winds); "free" draws each wind with its own pack. */
 val LocalAvatarTheme = compositionLocalOf { "cares" }
 
