@@ -227,6 +227,16 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
      */
     private val otaUrl: String get() = androidOtaUrl(appContext.packageName)
 
+    private var lastUpdateCheckMs = 0L
+
+    /** Comprovació silenciosa en passar a primer pla (també a l'arrencada), com a molt un cop per hora. */
+    fun checkUpdateIfStale() {
+        val ara = System.currentTimeMillis()
+        if (!tocaComprovarDeNou(lastUpdateCheckMs, ara)) return
+        lastUpdateCheckMs = ara
+        checkUpdate(silent = true)
+    }
+
     fun checkUpdate(silent: Boolean = false) {
         if (otaUrl.isBlank()) return
         viewModelScope.launch {
@@ -356,7 +366,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     val expressiveMotion: StateFlow<Boolean> = _expressiveMotion
 
     /**
-     * L'arrencada (reconnexió automàtica + comprovar actualitzacions) ja s'ha
+     * L'arrencada (reconnexió automàtica) ja s'ha
      * fet amb aquest ViewModel: girar la pantalla recrea l'activitat però no
      * l'ha de repetir (ni treure't al Pairing si la reconnexió fallés).
      */

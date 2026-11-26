@@ -274,9 +274,6 @@ class MainActivity : ComponentActivity() {
             // Per defecte, Gregal en aquest dispositiu; si havies triat un
             // servidor remot, aquell.
             vm.startSaved(prefs)
-            // Comprovació silenciosa d'actualitzacions a l'arrencada: si n'hi ha
-            // i no l'has silenciada, surt la targeta; si no, no diu res.
-            vm.checkUpdate(silent = true)
         }
         setContent {
             val tema by vm.tema.collectAsState()
@@ -428,6 +425,9 @@ class MainActivity : ComponentActivity() {
         vm.onForegrounded()
         // «A prop teu» amb la ubicació del mòbil: si t'has mogut, el servidor ho sap.
         vm.refreshDeviceLocation(applicationContext)
+        // Comprovació silenciosa d'actualitzacions (arrencada inclosa): si n'hi
+        // ha i no l'has silenciada, surt la targeta; si no, no diu res.
+        vm.checkUpdateIfStale()
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {

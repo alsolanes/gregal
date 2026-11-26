@@ -162,6 +162,13 @@ fun manifestPlausible(info: UpdateInfo): Boolean {
 /** `latest <= skipped` amaga l'avís; `skipped == 0` no amaga res. */
 fun avisAmagat(latest: Int, skipped: Int): Boolean = skipped > 0 && latest <= skipped
 
+/**
+ * En tornar a primer pla: Android pot mantenir l'app viva dies, i sense això
+ * una release nova no sortia fins a tancar-la del tot. Una hora d'espera
+ * perquè cada tornada no truqui el servidor.
+ */
+fun tocaComprovarDeNou(ultimaMs: Long, araMs: Long): Boolean = araMs - ultimaMs >= 60 * 60 * 1000L
+
 
 /** ABIs del mòbil per ordre de preferència, per triar l'APK del manifest. */
 fun abisDelMobil(): List<String> = Build.SUPPORTED_ABIS?.toList().orEmpty()
