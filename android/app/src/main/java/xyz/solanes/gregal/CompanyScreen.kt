@@ -445,8 +445,9 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                 val gregalBusy = gregalWind.id in windBusy
                 var gregalProfile by remember { mutableStateOf(false) }
                 val arrival by vm.windArrival.collectAsState()
-                // Recents al dia en tornar a primer pla; les novetats i els torns acabats ja les rellegeixen al ViewModel.
-                LifecyclePoll(conn) { vm.loadWindThreads() }
+                val asks by vm.windAsks.collectAsState()
+                // Recents i el que t'espera al dia en tornar a primer pla; les novetats i els torns acabats ja les rellegeixen al ViewModel.
+                LifecyclePoll(conn) { vm.loadWindThreads(); vm.loadWindAsks() }
                 Column(Modifier.fillMaxSize().padding(pad)) {
                     // Si Gregal encara treballa en una conversa, la cara ho diu.
                     GregalFloatingHeader(lang, Color(gregalWind.argb), gregalWind.faceStyle,
@@ -460,7 +461,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                         onWind = { w, face -> landing = w.id to face; vm.openWindFromHome(w.id) },
                         onThread = { t -> vm.resumeWindThread(t.wind, t.name) },
                         modifier = Modifier.weight(1f),
-                        news = newsCount, bounce = arrival, working = windBusy,
+                        news = newsCount, bounce = arrival, working = windBusy, waiting = asks.map { it.wind }.toSet(),
                     )
                 }
                 WindArrivalBanner(vm, lang, winds, Modifier.padding(pad))

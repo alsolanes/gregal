@@ -87,6 +87,7 @@
     ctx.drawImage(p.now.canvas, f * size, 0, size, size, 0, 0, size, size);
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
     if (p.badge) badge(ctx, size, p.badge, p.color);
+    if (p.mood === 'waiting') waiting(ctx, size, p.color);
   }
   // 159: a wind's trade on its clay figure, the trade chip's icon on a disc at
   // the bottom-right corner, where the figure leaves room beside its feet.
@@ -99,6 +100,20 @@
     ctx.translate(cx - 8 * unit, cy - 8 * unit); ctx.scale(unit, unit);
     ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#262040';
     ctx.stroke(new root.Path2D(icon));
+    ctx.restore();
+  }
+  // 168: a wind waiting for you says so on the figure, a speech bubble with «?» at the
+  // top-right corner, white with the wind's colour like the badge, which keeps the bottom.
+  function waiting(ctx, size, color) {
+    const unit = size * .26 / 16;
+    ctx.save();
+    ctx.translate(size * .7, size * .04); ctx.scale(unit, unit);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const bubble = new root.Path2D('M4 1h8a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3H7l-3 3v-3a3 3 0 0 1-3-3V4a3 3 0 0 1 3-3Z');
+    ctx.fillStyle = '#FFFFFF'; ctx.fill(bubble);
+    ctx.lineWidth = size * .012 / unit; ctx.strokeStyle = color; ctx.stroke(bubble);
+    ctx.lineWidth = 1.6; ctx.strokeStyle = '#262040';
+    ctx.stroke(new root.Path2D('M6.2 5a1.9 1.9 0 1 1 2.6 1.8c-.6.3-.8.7-.8 1.3M8 10.2h.01'));
     ctx.restore();
   }
   let ticking = false;

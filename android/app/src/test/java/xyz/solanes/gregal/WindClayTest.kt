@@ -158,6 +158,25 @@ class WindClayTest {
         assertFalse("a wind without a trade has none", white(badgeDisc("plain")))
     }
 
+    /** 168: a wind waiting for you carries a «?» bubble at the top-right corner, large or small; other moods have none, and the badge keeps the bottom. */
+    @Test fun aWaitingFaceCarriesItsBubbleAboveTheBadge() {
+        show {
+            Row {
+                Box(Modifier.background(Color(0xFF15171C)).testTag("waiting")) { WindFace(size = 96, mood = WindMood.WAITING, accent = orange, style = WindStyle(kit = "frontend"), clay = true) }
+                Box(Modifier.background(Color(0xFF15171C)).testTag("idle")) { WindFace(size = 96, accent = orange, style = WindStyle(kit = "frontend"), clay = true) }
+                Box(Modifier.background(Color(0xFF15171C)).testTag("small")) { WindFace(size = 40, mood = WindMood.WAITING, accent = orange) }
+            }
+        }
+        anyClay().assertCountEquals(3)
+        val white = { p: Int -> android.graphics.Color.red(p) > 235 && android.graphics.Color.green(p) > 235 && android.graphics.Color.blue(p) > 235 }
+        // Inside the bubble, left of its «?».
+        fun bubble(tag: String) = pixels(tag).let { it.getPixel((it.width * .75).toInt(), (it.height * .17).toInt()) }
+        assertTrue("a waiting wind has its bubble", white(bubble("waiting")))
+        assertTrue("a small one too", white(bubble("small")))
+        assertFalse("an idle wind has none", white(bubble("idle")))
+        assertTrue("the trade's badge is still there", white(pixels("waiting").let { it.getPixel((it.width * .70).toInt(), (it.height * .80).toInt()) }))
+    }
+
     @Test fun withoutItsSheetsAWindWithATradeKeepsItsCanvasFigure() {
         show(dir = "no-such-folder") { WindFace(size = 96, accent = orange, style = WindStyle(kit = "frontend"), clay = true) }
         anyFace().assertCountEquals(1)
