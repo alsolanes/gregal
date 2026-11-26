@@ -86,7 +86,7 @@ internal fun guideTopics(lang: String): List<GuideTopic> {
 internal fun GregalGuide(lang: String, accent: Color, onTry: (String) -> Unit, onClose: () -> Unit) {
     val pal = LocalPal.current
     GregalDialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(Modifier.fillMaxSize().background(Superficie).openingBloom(accent, pal.lila, working = false).testTag("gregal-guide")) {
+        Box(Modifier.fillMaxSize().background(Pagina).openingBloom(accent, pal.lila, working = false).testTag("gregal-guide")) {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {

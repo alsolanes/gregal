@@ -253,7 +253,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // El tema real es pinta al setContent; aquí `fons` (#13151B) per al
+        // El tema real es pinta al setContent; aquí `fons` (negre) per al
         // flaix inicial.
         window.statusBarColor = DarkPal.deepTop.toArgb()
         window.navigationBarColor = DarkPal.deepTop.toArgb()
@@ -291,7 +291,7 @@ class MainActivity : ComponentActivity() {
             // sobre el tema clar (abans quedaven blanques sobre blanc).
             SideEffect {
                 // El color del fil (direcció visual §2): cap franja entre la barra d'estat i la capçalera flotant.
-                window.statusBarColor = pal.surface.compositeOver(pal.deepTop).toArgb()
+                window.statusBarColor = pal.page.compositeOver(pal.deepTop).toArgb()
                 window.navigationBarColor = pal.deepTop.toArgb()
                 WindowCompat.getInsetsController(window, view).apply {
                     isAppearanceLightStatusBars = !dark

@@ -315,7 +315,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                     wikiFromChat = ChatTarget(wind.name, wind.id, null)
                 }
                 rot != null -> RotllanaConversation(vm, lang, rot, winds, { vm.openVentsChat(null) }) { wikiFromChat = ChatTarget(rot.name, null, rot.id) }
-                else -> Column(Modifier.fillMaxSize().background(Superficie).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                else -> Column(Modifier.fillMaxSize().background(Pagina).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     TextButton(onClick = { vm.openVentsChat(null) }) { Text(tr(lang, "app.vents.back")) }
                     Text(if (lang == "en") "Waiting for the conversation data" else "Esperant les dades de la conversa", color = Ink)
                     Text(if (lang == "en") "The notification's conversation will open when its data arrives. You can reload without sending the work again." else "El fil de l'avís s'obrirà quan arribin les dades. Pots recarregar sense tornar a enviar la feina.", color = Muted, fontSize = 13.sp)
@@ -329,7 +329,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
         val homeThread = !manage && !searching && tab == "home" && winds.isNotEmpty()
         // Amb un servidor antic, sense Gregal, el Ventet de sempre.
         val gregalWind = winds.firstOrNull { it.id == "gregal" }
-        Scaffold(containerColor = Superficie,
+        Scaffold(containerColor = Pagina,
             topBar = {
                 if (homeThread && gregalWind != null) Unit
                 else if (homeThread) {
@@ -1277,7 +1277,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         if (isBusy) done = false
         wasBusy = isBusy
     }
-    val wash = windWash(accent, Superficie)
+    val wash = windWash(accent, Pagina)
     val chatState = windChatState(wind.id, busy, asks, done, failed = msgs.lastOrNull()?.kind == "error")
     // El vent present a la cantonada; amb el fil buit ja hi ha la cara gran de benvinguda.
     val present = msgs.isNotEmpty()
@@ -1598,7 +1598,7 @@ internal fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotlla
     // El debat de la colla (discussió i progrés) es plega: cada tirada és una
     // línia que s'obre amb un toc. Clau: l'índex del primer missatge de la tirada.
     val openDebates = remember(rot.id) { mutableStateListOf<Int>() }
-    Box(Modifier.fillMaxSize().background(Superficie)) {
+    Box(Modifier.fillMaxSize().background(Pagina)) {
         Column(Modifier.fillMaxSize()) {
         val crewSteps by vm.crewStep.collectAsState()
         val crewStep = crewSteps[rot.id]

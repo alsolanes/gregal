@@ -197,7 +197,7 @@ internal fun SharedChatConversation(vm: GregalViewModel, lang: String, chat: Sha
         }
     }
     androidx.activity.compose.BackHandler(onBack = onBack)
-    Column(Modifier.fillMaxSize().background(Superficie).imePadding()) {
+    Column(Modifier.fillMaxSize().background(Pagina).imePadding()) {
         VentsChatHeader(lang, chat.name,
             (chat.humans + chat.winds.map { it.name }).joinToString(", "),
             accent, chat.winds.firstOrNull()?.faceStyle ?: WindStyle(),

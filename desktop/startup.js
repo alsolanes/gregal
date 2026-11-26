@@ -14,7 +14,7 @@ const FILE = 'startup-theme.json';
 
 // Els de calma.css (fosc) i index.html (clar): docs/identitat.md.
 const FALLBACK = {
-    dark: { bg: '#131518', bar: '#0E1012', ink: '#F2F4F7', accent: '#8A9BF0' },
+    dark: { bg: '#000000', bar: '#000000', ink: '#F2F4F7', accent: '#8A9BF0' },
     light: { bg: '#EEF1EC', bar: '#E4E9E3', ink: '#10202A', accent: '#17323D' },
 };
 // Temes de Preferències → Tema que són clars; la resta són foscos.

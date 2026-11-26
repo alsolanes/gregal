@@ -75,7 +75,7 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
     // Primer el que sap de tu; el caràcter és a «Instruccions i ofici». Amb
     // quatre pestanyes caben totes; amb el calaix, la fila llisca.
     val tabs = listOf("memory", "scheduled", "saved", "shelf") + if (profile?.trade != null || !shelves.isNullOrEmpty()) listOf("calaix") else emptyList()
-    Scaffold(containerColor = Superficie, modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(),
+    Scaffold(containerColor = Pagina, modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(),
         bottomBar = {
             Surface(color = Superficie) {
                 // Dins d'un diàleg els insets del sistema arriben a zero i el
@@ -96,7 +96,7 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                 IconButton(onClick = { onDismiss(); vm.openWindActivity(wind.id) }, enabled = !saving) { Icon(Icons.Rounded.History, tr(lang, "winds.activity.title")) }
                 IconButton(onClick = onEdit, enabled = !busy && !saving && profile != null) { Icon(Icons.Rounded.Edit, tr(lang, "app.company.windEdit")) }
             },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie)) }) { padding ->
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = Pagina)) }) { padding ->
         // Tot en una llista: la cara i el nom s'emporten mitja pantalla i, si
         // es queden fixes, la informació del vent no té lloc. Ara el hero
         // llisca i les pestanyes es queden enganxades a dalt.
@@ -147,7 +147,7 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
             }
             stickyHeader(key = "tabs") {
             // Amb calaix, cinc pestanyes: es poden fer lliscar.
-            if (tabs.size > 4) ScrollableTabRow(selectedTabIndex = tab, containerColor = Superficie, contentColor = Ink, edgePadding = 8.dp,
+            if (tabs.size > 4) ScrollableTabRow(selectedTabIndex = tab, containerColor = Pagina, contentColor = Ink, edgePadding = 8.dp,
                 indicator = { positions ->
                     positions.getOrNull(tab)?.let { pos ->
                         with(TabRowDefaults) {
@@ -160,7 +160,7 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                         modifier = Modifier.testTag("profile-tab-$key"))
                 }
             } else
-            TabRow(selectedTabIndex = tab, containerColor = Superficie, contentColor = Ink,
+            TabRow(selectedTabIndex = tab, containerColor = Pagina, contentColor = Ink,
                 indicator = { positions ->
                     positions.getOrNull(tab)?.let { pos ->
                         with(TabRowDefaults) {

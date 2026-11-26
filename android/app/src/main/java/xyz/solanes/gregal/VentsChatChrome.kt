@@ -427,7 +427,7 @@ private fun CenteredChatHeader(
     compact: Boolean = false,
 ) {
     Row(
-        Modifier.fillMaxWidth().then(if (compact) Modifier else Modifier.background(Superficie))
+        Modifier.fillMaxWidth().then(if (compact) Modifier else Modifier.background(Pagina))
             .padding(horizontal = 8.dp, vertical = if (compact) 2.dp else 6.dp).testTag("chat-header-centered"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -522,7 +522,7 @@ internal fun VentsComposer(
     val hasTools = onAttachDoc != null || onAttachImage != null || onPerm != null || onWorkspace != null || onPreview != null || onVoiceTalk != null
     var showPlus by remember { mutableStateOf(false) }
     val ringColor = if (accent != Color.Unspecified) accent else Sea
-    Column(Modifier.fillMaxWidth().background(Superficie)) {
+    Column(Modifier.fillMaxWidth().background(Pagina)) {
         if (workCount > 0 && onWork != null) WorkStrip(lang, workCount, onWork)
         if (st != null && onWorkspace != null && st.project.isNotBlank()) {
             Row(
