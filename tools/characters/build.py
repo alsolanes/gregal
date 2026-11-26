@@ -24,6 +24,8 @@ OUT = ROOT / "internal/web/app/characters"
 # 256 px frames: a phone draws a wind at 72-96 dp, 190 to 340 px.
 SIZE, FPS, QUALITY = 256, 12, 82
 FUR_QUALITY = 75
+# 169: the look sheets at a lower quality, which does not show at 256 px, keep every family within its budget.
+LOOK_QUALITY = 65
 NEUTRAL = (0.8, 0.8, 0.8, 1)
 INK = (0.012, 0.011, 0.02, 1)
 # Each wind family (the third letter of a wind's style, as in winds.js) keeps one
@@ -49,7 +51,7 @@ CAPS = ("minairo",)
 # Moods of winds.js; frames at FPS, loop or play once and hold the last frame.
 MOODS = {"idle": (24, True), "thinking": (16, True), "searching": (16, True), "reading": (20, True),
          "writing": (12, True), "working": (12, True), "discussing": (16, True), "waiting": (24, True),
-         "failed": (20, False), "done": (20, False), "news": (16, True)}
+         "failed": (20, False), "done": (20, False), "news": (16, True), "look": (9, False)}
 # Moods where the wind handles a prop with its two clay hands (task 142), and the frame a
 # still face shows (reduced motion): one where the prop reads best.
 PROPS = {"searching": ("magnifier", 4), "reading": ("book", 13), "writing": ("pencil", 3), "working": ("laptop", 8),
@@ -171,6 +173,9 @@ def pose(mood, i, n):
         u = (2 * t) % 1
         p.update(hop=0.12 * math.sin(math.pi * u), sq=0.1 * max(0.0, math.cos(2 * math.pi * u)) ** 3,
                  wide=1.1, smile=1.0, tilt=7 * w(1))
+    elif mood == "look":  # 169: still frames looking at a spot, 3 * row + column, row 0 up and column 0 left
+        x, y = i % 3 - 1, 1 - i // 3
+        p.update(gx=0.09 * x, gz=0.07 * y, turn=10 * x, lean=-6 * y)
     return p
 
 
@@ -179,6 +184,8 @@ def follow(mood, i, n):
     motion up to frame i (loops run twice first, so they start settled). sway: degrees the
     beard and the cap swing sideways; flop: how far the cap's tip flies up (+) or droops."""
     loop = MOODS[mood][1]
+    if mood == "look":  # each frame stands on its own: nothing swings from the one before
+        return dict(sway=0.0, flop=0.0)
     sway = vsway = flop = vflop = 0.0
     top = lambda q: q["hop"] - 1.8 * q["sq"]  # height of the top of the head
     last = [pose(mood, 0, n)] * 2
@@ -883,7 +890,7 @@ def build(silhouettes, moods):
             colour = np.concatenate(sheets[None], axis=1)
             # WebP keeps alpha lossless: 32 levels look the same and halve what it costs.
             # The fur's fringe is noisy anyway: 8 levels and a lower quality keep it in budget.
-            levels, quality = (7, FUR_QUALITY) if "fur" in parts else (31, QUALITY)
+            levels, quality = (7, FUR_QUALITY) if "fur" in parts else (31, LOOK_QUALITY if mood == "look" else QUALITY)
             colour[..., 3] = np.round(colour[..., 3] * levels) / levels
             save(colour, OUT / silhouette / f"{mood}.webp", quality)
             for mask in ("mask", "cap"):

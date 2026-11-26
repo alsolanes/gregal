@@ -22,6 +22,7 @@ class Node {
     const all = n => n.children.flatMap(c => [c, ...all(c)]), hit = (n, one) => one.startsWith('.') ? (n.attrs.class || '').split(' ').includes(one.slice(1)) : n.tag === one;
     return all(this).find(n => sel.split(',').some(one => hit(n, one.trim()))) || null;
   }
+  getBoundingClientRect() { return this.rect || { left: 0, top: 0, width: SIZE, height: SIZE }; }
   get isConnected() { let n = this; while (n.parent) n = n.parent; return n === this.doc.root; }
 }
 // A canvas whose pixels are plain arrays: drawImage copies an image's pixels
@@ -543,4 +544,63 @@ test('a still face played while its new mood\'s still frame loads keeps the whol
   assert.equal(clay.source.width, manifest.moods.reading.frames * SIZE, 'on the whole reading sheet');
   assert.ok(env.watched(clay));
   assert.notEqual(lastDraw(clay).sx, 0, 'and it plays');
+});
+
+// 169: the look sheet is 3 rows (up, level, down) of 3 columns (left, ahead, right).
+test('a large idle clay face looks toward the pointer, and back to idle 2 s after it stops or once it leaves the window', async () => {
+  const env = load();
+  const { svg, box } = svgFace(env);
+  env.chars.play(svg, wind);
+  await settle();
+  const canvas = box.children[0];
+  canvas.rect = { left: 100, top: 100, width: 100, height: 100 };
+  const move = async (x, y) => { for (const f of env.events.pointermove) f({ clientX: x, clientY: y }); await settle(); env.frame(16); };
+  for (const [x, y, f] of [[400, 150, 5], [0, 0, 0], [150, 400, 7], [150, 0, 1], [0, 160, 3], [400, 390, 8], [160, 140, 4]]) {
+    await move(x, y);
+    assert.deepEqual(lastDraw(canvas), { sheet: 'curl/look.webp', sx: f * SIZE, alpha: 1, op: 'source-over' }, `${x},${y}`);
+  }
+  env.frame(1900);
+  assert.equal(lastDraw(canvas).sheet, 'curl/look.webp', 'still looking before 2 s');
+  env.frame(200);
+  assert.equal(lastDraw(canvas).sheet, 'curl/idle.webp', '2 s still: idle again');
+  await move(400, 150);
+  assert.equal(lastDraw(canvas).sheet, 'curl/look.webp');
+  for (const f of env.events.pointerout) f({ relatedTarget: null });
+  env.frame(16);
+  assert.equal(lastDraw(canvas).sheet, 'curl/idle.webp', 'out of the window: idle again');
+  env.chars.mood(canvas, 'working');
+  await settle();
+  env.frame(1000);
+  await move(400, 150);
+  assert.equal(lastDraw(canvas).sheet, 'curl/working.webp', 'only idle follows the pointer');
+});
+
+test('with reduced motion, and on a small face, the clay does not follow the pointer', async () => {
+  for (const [reduced, still] of [[true, false], [false, true]]) {
+    const env = load({ reduced });
+    const { svg, box } = svgFace(env);
+    env.chars.play(svg, wind, still);
+    await settle();
+    for (const f of env.events.pointermove) f({ clientX: 1000, clientY: 0 });
+    await settle();
+    env.frame(16);
+    assert.ok(!env.fetched.some(u => u.includes('/look.')), `reduced=${reduced} still=${still}: no look sheet`);
+    assert.equal(lastDraw(box.children[0]).sheet, 'curl/idle.webp');
+  }
+});
+
+test('one pointer listener serves every face, and nothing is drawn while the pointer is still', async () => {
+  const env = load();
+  const faces = [svgFace(env), svgFace(env), svgFace(env)];
+  for (const { svg } of faces) env.chars.play(svg, wind);
+  await settle();
+  assert.equal((env.events.pointermove || []).length, 1, 'one listener, not one per face');
+  let drawn = 0;
+  for (const { box } of faces) { const ctx = box.children[0].ctx, clear = ctx.clearRect; ctx.clearRect = () => { drawn++; clear(); }; }
+  for (const f of env.events.pointermove) f({ clientX: 1000, clientY: 0 });
+  await settle();
+  env.frame(16);
+  assert.equal(drawn, 3, 'each face draws its look once');
+  for (let i = 0; i < 10; i++) env.frame(150);
+  assert.equal(drawn, 3, 'a still pointer draws nothing');
 });

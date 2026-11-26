@@ -41,7 +41,10 @@ rendering: it checks that `manifest.json` and the sheets agree.
   `cloud`, `curl`, with the letter of the wind style each one stands for, as
   in `winds.js`; and `minairo` and `pelut`, which stand for the minairó and
   pelut avatar packs whatever the wind's style), and per mood the number of `frames` and whether it `loop`s
-  or plays once and holds the last frame (`done`, `failed`). The work moods also
+  or plays once and holds the last frame (`done`, `failed`). `look` (task 169) is not a
+  mood of winds.js: 9 still frames looking at a spot, `3 * row + column` with row 0 up
+  and column 0 left (4 looks straight ahead), which a large idle face shows toward the
+  pointer or the finger; it is saved at `LOOK_QUALITY` to stay in budget. The work moods also
   name the `prop` the wind handles in them and the `still` frame a player shows
   with reduced motion (one with the prop in view; the first frame otherwise).
 
