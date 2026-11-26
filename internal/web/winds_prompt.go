@@ -83,7 +83,7 @@ func windChatTurns(previous []llm.Message) []llm.Message {
 	}
 	var all []cand
 	for _, m := range previous {
-		if m.Role != "user" && m.Role != "assistant" || m.Kind == memoryKind {
+		if m.Role != "user" && m.Role != "assistant" || m.Kind == memoryKind || m.Kind == consultKind {
 			continue
 		}
 		text := strings.TrimSpace(m.Content)

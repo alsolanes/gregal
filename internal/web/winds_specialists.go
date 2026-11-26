@@ -199,6 +199,7 @@ func (s *Server) runWindTool(ctx context.Context, argsJSON string) (string, erro
 		if len(ws) == 0 {
 			return "The user has no winds yet.", nil
 		}
+		announceWindAsking(ctx, ws)
 		type answer struct {
 			wind companion.Wind
 			text string
@@ -241,6 +242,7 @@ func (s *Server) runWindTool(ctx context.Context, argsJSON string) (string, erro
 				continue
 			}
 			b.WriteString(r.text + "\n")
+			noteWindConsult(ctx, r.wind, r.text)
 		}
 		return strings.TrimRight(b.String(), "\n"), nil
 	case "ask":
@@ -267,10 +269,12 @@ func (s *Server) runWindTool(ctx context.Context, argsJSON string) (string, erro
 			}
 			wind, _ = s.winds.ByID(cards[0].ID)
 		}
+		announceWindAsking(ctx, []companion.Wind{wind})
 		reply, folder, err := s.windDelegate(ctx, wind, task, s.windAsker(ctx))
 		if err != nil {
 			return "", err
 		}
+		noteWindConsult(ctx, wind, reply)
 		out := wind.Name + " (" + wind.ID + ") answered:\n" + reply
 		if folder != "" {
 			out += "\n\nWorking folder: " + folder

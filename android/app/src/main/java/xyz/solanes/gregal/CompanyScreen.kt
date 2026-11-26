@@ -1260,6 +1260,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     val windUp = rememberWindUp(listState)
     var liveFrom by remember(wind.id) { mutableIntStateOf(Int.MAX_VALUE) }
     LaunchedEffect(wind.id, msgs.size) { if (msgs.isNotEmpty() && liveFrom == Int.MAX_VALUE) liveFrom = msgs.size }
+    // Tirades de respostes consultades obertes; clau: l'índex del primer missatge.
+    val openConsults = remember(wind.id) { mutableStateListOf<Int>() }
 
     val isBusy = busy.contains(wind.id)
     val asks by vm.windAsks.collectAsState()
@@ -1324,10 +1326,26 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                 // streaming crea una llista nova i, si la capturessin, totes les
                 // bombolles visibles es tornarien a compondre, no només l'última.
                 val m = rows[idx]
+                // El que han respost els vents consultats (163) es plega com un debat de colla.
+                val fold = if (m.kind == "consult") debateRunStart(rows, idx) else -1
+                if (fold >= 0 && fold != idx && fold !in openConsults) return@items
+                if (fold == idx) {
+                    val open = fold in openConsults
+                    // La ratlla «Nous» no pot quedar amagada dins d'una tirada plegada.
+                    if (newFrom != null && (newFrom == idx || !open && newFrom in idx..debateRunEnd(rows, idx)))
+                        ThreadDivider(threadCopy(lang, "new"), accent = true)
+                    DebateHeader(lang, rows, idx, winds, open) {
+                        if (open) openConsults.remove(fold) else openConsults.add(fold)
+                    }
+                    if (!open) return@items
+                }
+                val consulted = if (m.kind == "consult") winds.firstOrNull { it.id == m.speakerId } else null
                 // Aire segons bàndol: juntes les del mateix, separades en canviar. Un encàrrec
                 // d'un altre vent és del vent que el demana, no teu.
                 val side = { r: GregalViewModel.PetMsg -> r.by?.let { "by:" + it.id } ?: r.from }
-                val firstOfRun = idx == 0 || side(m) != side(rows[idx - 1])
+                val prev = rows.getOrNull(idx - 1)
+                val firstOfRun = prev == null || side(m) != side(prev) ||
+                    (m.kind == "consult" || prev.kind == "consult") && (m.kind != prev.kind || m.speakerId != prev.speakerId)
                 val gap = if (idx > 0 && firstOfRun) 16.dp else 4.dp
                 // Mentre la resposta és en directe la fila només creix: el primer fotograma del text
                 // (encara buit, que es revela a poc a poc) era més baix que els punts i el fil hi saltava.
@@ -1346,20 +1364,23 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                 } else Column(Modifier.padding(top = gap).testTag("chat-row").then(if (!m.streaming) Modifier else Modifier
                     .heightIn(min = with(androidx.compose.ui.platform.LocalDensity.current) { tallest.toDp() })
                     .onSizeChanged { tallest = maxOf(tallest, it.height) })) {
-                    if (idx == newFrom) ThreadDivider(threadCopy(lang, "new"), accent = true)
+                    if (idx == newFrom && fold != idx) ThreadDivider(threadCopy(lang, "new"), accent = true)
                     if (m.kind == "guest" && m.speakerName.isNotBlank()) GuestJoinsLine(lang, m.speakerName)
                     val cap = rememberBubbleCapture()
                     // Un torn que no ha arribat també el diu el vent (WindBubble).
-                    if ((m.from == "pet" || m.kind == "error") && firstOfRun) WindByline(m.speakerName.ifBlank { wind.name }, accent, modifier = Modifier.padding(start = 6.dp))
+                    if ((m.from == "pet" || m.kind == "error") && m.kind != "consult" && firstOfRun) WindByline(m.speakerName.ifBlank { wind.name }, accent, modifier = Modifier.padding(start = 6.dp))
                     BubbleIn("dm#$idx", animate = idx >= liveFrom, mine = m.from == "user") {
                         // Abans del primer fragment, els punts i què fa, a la mateixa fila on creixerà el text.
                         if (m.streaming && m.text.isBlank()) Column {
                             WindTypingBubble(lang, wind, accent,
-                                label = liveNow?.let { l -> windVisibleWork(lang, l) ?: windStallNote(lang, l, quietNow(true)) })
+                                label = liveNow?.let { l -> windVisibleWork(lang, l) ?: windStallNote(lang, l, quietNow(true)) },
+                            asking = liveNow?.takeIf { it.phase == "tool" && it.tool.lowercase() == "wind" && !it.writing }?.asking?.firstOrNull())
                             // Tempesta: què fa cada agent mentre treballen.
                             liveNow?.tempesta?.let { TempestaPanel(lang, it) }
                         } else Box(if (m.from != "user") cap.modifier else Modifier) {
-                        WindBubble(m, accent, lang = lang,
+                        WindBubble(m, consulted?.let { Color(it.argb) } ?: accent, lang = lang,
+                            speaker = if (firstOfRun) consulted else null,
+                            speakerName = if (firstOfRun && m.kind == "consult") consulted?.name ?: m.speakerName else "",
                             onCopy = {
                                 // Prémer llarg una resposta obre «Comparteix» (Share.kt); la teva, la copia.
                                 if (m.from != "user" && !m.streaming) shareTarget = ShareTarget(m.text, wind.name, cap.shot)
@@ -2444,29 +2465,42 @@ private fun CrewError(lang: String, detail: String) {
     }
 }
 
-/** On comença la tirada de debat on és idx (-1 si no és debat). */
+/** On comença la tirada plegada on és idx: debat d'una colla o respostes consultades (163); -1 si no n'és. */
 internal fun debateRunStart(msgs: List<GregalViewModel.PetMsg>, idx: Int): Int {
-    if (msgs.getOrNull(idx)?.kind != "debate") return -1
+    val kind = msgs.getOrNull(idx)?.kind
+    if (kind != "debate" && kind != "consult") return -1
     var i = idx
-    while (i > 0 && msgs[i - 1].kind == "debate") i--
+    while (i > 0 && msgs[i - 1].kind == kind) i--
     return i
+}
+
+private fun debateRunEnd(msgs: List<GregalViewModel.PetMsg>, start: Int): Int {
+    var end = start
+    while (end + 1 < msgs.size && msgs[end + 1].kind == msgs[start].kind) end++
+    return end
 }
 
 /** La línia d'un debat plegat: qui hi ha parlat, quantes intervencions i l'última. */
 @Composable
 private fun DebateHeader(lang: String, msgs: List<GregalViewModel.PetMsg>, start: Int, faces: List<Wind>, open: Boolean, onToggle: () -> Unit) {
-    var end = start
-    while (end + 1 < msgs.size && msgs[end + 1].kind == "debate") end++
-    val run = msgs.subList(start, end + 1)
+    val run = msgs.subList(start, debateRunEnd(msgs, start) + 1)
     val who = run.mapNotNull { m -> faces.firstOrNull { it.id == m.speakerId } }.distinctBy { it.id }
-    val last = stripMdInline(run.last().text.substringAfter(": ")).replace(Regex("\\s+"), " ").trim()
+    val consult = run[0].kind == "consult"
+    val asked = run.map { it.speakerId }.distinct()
+    val title = when {
+        !consult -> tr(lang, "app.crew.debate", run.size)
+        asked.size == 1 -> tr(lang, "app.vents.askedWind", who.firstOrNull()?.name ?: run[0].speakerName)
+        else -> tr(lang, "app.vents.askedWinds", asked.size)
+    }
+    // Al debat cada missatge porta «Nom: »; la resposta consultada, no.
+    val last = stripMdInline(if (consult) run.last().text else run.last().text.substringAfter(": ")).replace(Regex("\\s+"), " ").trim()
     Surface(onClick = onToggle, shape = RoundedCornerShape(14.dp), color = SuperficieAlta.copy(alpha = .45f),
         modifier = Modifier.fillMaxWidth().padding(top = 10.dp).testTag("crew-debate")) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             who.take(4).forEach { WindFace(size = 22, accent = Color(it.argb), style = it.faceStyle) }
             Column(Modifier.weight(1f)) {
-                Text(tr(lang, "app.crew.debate", run.size), color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text(title, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 if (!open) Text(last, color = Muted, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             Text(if (open) "▴" else "▾", color = Muted, fontSize = 16.sp)

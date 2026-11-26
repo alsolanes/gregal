@@ -545,6 +545,62 @@ test('other steps of a turn do not open the computer', async () => {
   assert.ok(!f.requests.some(r => r.url === '/api/ordinador/live'));
 });
 
+// 162: el pas de l'eina wind diu a quin vent es pregunta, amb la seva cara, mentre el torn continua.
+async function pausedTurn(lang, ...events) {
+  const frame = ([k, d]) => new TextEncoder().encode('event: ' + k + '\ndata: ' + JSON.stringify(d) + '\n\n');
+  let release, n = 0;
+  const wait = new Promise(r => { release = r; });
+  const f = await boot({ lang, api: r => r.url === '/api/winds/chat/stream' ? { ok: true, status: 200, body: { getReader: () => ({ read: async () => {
+    n++;
+    if (n === 1) return { done: false, value: new Uint8Array(events.flatMap(e => [...frame(e)])) };
+    if (n === 2) { await wait; return { done: false, value: frame(['done', { history: [{ from: 'assistant', text: 'Fet' }] }]) }; }
+    return { done: true };
+  }, cancel: async () => {}, releaseLock() {} }) } } : null });
+  f.page.querySelector('textarea').value = 'Com faig l’arròs?';
+  const sent = f.page.querySelector('.vw-composer').requestSubmit();
+  await settle();
+  return { ...f, pending: () => f.page.querySelector('.vw-pending'), finish: async () => { release(); await sent; await settle(); } };
+}
+
+test('asking another wind reads «Asking Xaloc» with Xaloc’s face, and «Asking 2 winds» for several', async () => {
+  const one = await pausedTurn('en', ['activity', { phase: 'tool', tool: 'wind', winds: ['xaloc'] }]);
+  const step = one.pending().querySelector('.vw-thinking');
+  assert.match(step.textContent, /Asking Xaloc/);
+  assert.doesNotMatch(step.textContent, /specialist/);
+  assert.deepEqual(step.querySelectorAll('svg').map(s => s.dataset.wind), ['Xaloc']);
+  await one.finish();
+  const ca = await pausedTurn('ca', ['activity', { phase: 'tool', tool: 'wind', winds: ['xaloc'] }]);
+  assert.match(ca.pending().querySelector('.vw-thinking').textContent, /Preguntant a Xaloc/);
+  await ca.finish();
+  const all = await pausedTurn('en', ['activity', { phase: 'tool', tool: 'wind', winds: ['xaloc', 'gregal'] }]);
+  assert.match(all.pending().querySelector('.vw-thinking').textContent, /Asking 2 winds/);
+  await all.finish();
+});
+
+// 162: el que han respost els vents consultats queda plegat al fil, com una discussió, amb cara i nom.
+test('the answers of the consulted winds fold into one line with each wind’s face and name', async () => {
+  const json = data => ({ ok: true, status: 200, json: async () => data });
+  const consult = (id, name, text) => ({ from: 'pet', kind: 'consult', speaker_id: id, speaker_name: name, text });
+  const open = async history => {
+    const f = await boot({ api: r => r.url === '/api/winds/session/open' ? json({ wind: 'gregal', name: r.body.name, history }) : null });
+    await byText(f.page.querySelector('.vw-start-recent'), 'button', 'Un concert per dissabte').click();
+    await settle();
+    return f;
+  };
+  const f = await open([{ from: 'user', text: 'Com faig l’arròs?' }, consult('xaloc', 'Xaloc', 'Arròs bomba, 18 minuts'), { from: 'pet', text: 'Diu que 18 minuts' }]);
+  const fold = f.page.querySelector('.vw-messages').querySelector('.vw-debate');
+  assert.ok(fold, 'the answer is folded');
+  assert.match(fold.querySelector('.vw-debate-head').textContent, /Asked Xaloc/);
+  assert.deepEqual(fold.querySelector('.vw-debate-faces').querySelectorAll('svg').map(s => s.dataset.wind), ['Xaloc']);
+  assert.match(fold.querySelector('.vw-debate-voice').textContent, /Xaloc/);
+  assert.ok(byText(f.page.querySelector('.vw-messages'), 'article', 'Diu que 18 minuts'), 'the reply stays a message of its own');
+  const g = await open([{ from: 'user', text: 'Què en penseu?' }, consult('xaloc', 'Xaloc', 'Jazz'), consult('gregal', 'Gregal', 'Rock'), { from: 'pet', text: 'Jazz o rock' }]);
+  const both = g.page.querySelector('.vw-messages').querySelectorAll('.vw-debate');
+  assert.equal(both.length, 1, 'one fold for the run');
+  assert.match(both[0].querySelector('.vw-debate-head').textContent, /Asked 2 winds/);
+  assert.equal(both[0].querySelectorAll('.vw-debate-voice').length, 2);
+});
+
 test('the handoff card opens the computer pane too', async () => {
   const f = await turnWith(['approve_request', { key: 'h1', type: 'handoff', what: 'Inicia sessió al banc' }]);
   assert.ok(f.pane());

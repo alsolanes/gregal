@@ -27,7 +27,7 @@ import (
 //   reply: {"wind":"id","history":[...]}     (rotllana: una veu acabada i ja desada)
 //   done:  {"reply":..., "history":..., ...}  (mateix payload que el clàssic)
 //   error: {"error":"..."}
-//   activity: {"phase":"waiting|choosing|preparing|model|thinking|responding|tool|tool_done|retry|fallback", "tool":"name"?, "step":N?}
+//   activity: {"phase":"waiting|choosing|preparing|model|thinking|responding|tool|tool_done|retry|fallback", "tool":"name"?, "step":N?, "winds":["id"]?}
 //   ping: {} (transport keepalive, NOT progress)
 // Els tokens especulatius d'un pas que acaba en eines es retiren: el
 // client els descarta quan arriba una fase (poden ser JSON d'eina, no
@@ -39,6 +39,8 @@ type windActivity struct {
 	Phase string `json:"phase"`
 	Tool  string `json:"tool,omitempty"`
 	Step  int    `json:"step,omitempty"`
+	// Winds: a quins vents pregunta l'eina wind (ids del magatzem, winds_consult.go).
+	Winds []string `json:"winds,omitempty"`
 }
 
 func emitWindActivity(emit func(string, any), text string) {
@@ -377,6 +379,8 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 	// El que faci al navegador torna al fil amb la resposta (captures).
 	turnShots := &tools.TurnShots{}
 	ctx = tools.WithTurnShots(ctx, turnShots)
+	consults := &windConsults{}
+	ctx = withWindConsults(ctx, consults)
 	isContinue := req.Continue && len(previous) > 0
 	s.mu.Lock()
 	_, logRole := s.windRoleRef()
@@ -502,6 +506,7 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 	}
 	// El que has escrit mentre treballava, abans de la resposta que ja ho té en compte.
 	history = append(history, windSteerTaken(steerKey)...)
+	history = append(history, consults.taken()...)
 	replyID := newMessageID()
 	history = append(history, llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix(), ID: replyID, Shots: s.turnShotsFor(turnShots)})
 	history, err = s.commitWindTurn(wind, hist, gotGen, history)

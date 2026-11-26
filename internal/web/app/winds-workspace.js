@@ -455,7 +455,7 @@
  }
  // Superfície de lectura (B1): una taula, un bloc de codi o un text llarg no van dins d'una bombolla.
  // Nom d'eina → què fa, en llenguatge pla (el mateix que windProgressLabel a Android).
- const stepLabel=tool=>{const n=String(tool||'').toLowerCase();
+ const stepLabel=(tool,winds)=>{const n=String(tool||'').toLowerCase();
   if(/^(read|glob|grep|files|symbols|lsp|ls|read_file|search_files|read_image)$/.test(n))return t('Llegint fitxers','Reading files');
   if(/^(write|edit|patch|write_file)$/.test(n))return t('Escrivint fitxers','Writing files');
   if(/^(bash|terminal|shell|bash_background|bash_output)$/.test(n))return t('Executant una ordre','Running a command');
@@ -466,12 +466,15 @@
   if(n==='watch')return t('Preparant una vigilància','Setting up a watch');
   if(n==='calendar')return t('Mirant el calendari','Checking the calendar');
   if(n==='mail')return t('Mirant el correu','Checking mail');
+  // 162: el servidor diu a quins vents pregunta (ids del magatzem, mai els arguments de l'eina).
+  if(n==='wind'&&winds?.length===1){const w=state.winds.find(x=>x.id===winds[0]);if(w)return t('Preguntant a '+w.name,'Asking '+w.name);}
+  if(n==='wind'&&winds?.length>1)return t('Preguntant a '+winds.length+' vents','Asking '+winds.length+' winds');
   if(n==='wind'||n==='delegate')return t('Consultant un especialista','Asking a specialist');
   if(/^(notes|knowledge_)/.test(n))return t('Mirant les notes','Checking notes');
   if(/^(pdf_|office_)/.test(n))return t('Treballant amb un document','Working on a document');
   return t('Fent servir una eina','Using a tool');};
  // Passos seguits iguals es compten un cop («Llegint fitxers ×3»).
- const workSteps=list=>{const out=[];for(const x of list||[]){const label=stepLabel(x.tool),last=out[out.length-1];if(last&&last.label===label&&last.done&&x.done)last.n++;else out.push({label,done:!!x.done,n:1});}return out;};
+ const workSteps=list=>{const out=[];for(const x of list||[]){const label=stepLabel(x.tool,x.winds),last=out[out.length-1];if(last&&last.label===label&&last.done&&x.done)last.n++;else out.push({label,done:!!x.done,n:1,winds:x.winds});}return out;};
  const nearChatEnd=box=>box.scrollHeight-box.clientHeight-box.scrollTop<64;
  // 144: la resposta en directe és un sol node que creix al seu lloc. Abans es refeia sencer a cada tanda de
  // tokens (la cara i els punts tornaven a començar i l'alçada saltava). El que només hi és mentre treballa
@@ -496,6 +499,10 @@
   const writing=!!pending.text&&!already;
   const steps=workSteps(pending.steps),live=steps.find(x=>!x.done);
   activity.firstChild.textContent=writing?phases.writing:live?live.label:phases[pending.phase]||phases.thinking;
+  // A qui pregunta: la seva cara al costat del pas.
+  for(const old of activity.querySelectorAll('.vw-asking'))old.remove();
+  const asked=writing?[]:(live?.winds||[]).map(id=>state.winds.find(w=>w.id===id)).filter(Boolean);
+  if(asked.length){const box=el('span','vw-asking');box.setAttribute('aria-hidden','true');for(const w of asked.slice(0,4))box.append(face(w,null,20));activity.lastChild.before(box);}
   for(const old of copy.querySelectorAll('.vw-tempesta'))old.remove();
   for(const old of copy.querySelectorAll('.vw-steps'))old.remove();
   // Streamed text is formatted as it arrives, like the finished message it becomes; only its own body changes.
@@ -553,7 +560,7 @@
     else if(kind==='tempesta'){pending.tempesta=data.agents||[];}
     else if(kind==='token')pending.text+=data.token||'';
     // Passos de feina (només el nom de l'eina: el servidor no envia arguments ni rutes).
-    else if(kind==='activity'){const steps=pending.steps||(pending.steps=[]);if(data.phase==='tool'&&data.tool)steps.push({tool:data.tool,done:false});else if(data.phase==='tool_done'){const open=steps.find(x=>!x.done&&(!data.tool||x.tool===data.tool));if(open)open.done=true;}else continue;}
+    else if(kind==='activity'){const steps=pending.steps||(pending.steps=[]);if(data.phase==='tool'&&data.tool)steps.push({tool:data.tool,winds:data.winds,done:false});else if(data.phase==='tool_done'){const open=steps.find(x=>!x.done&&(!data.tool||x.tool===data.tool));if(open)open.done=true;}else continue;}
     schedulePending();
    }
    if(buffer.length>1000000)throw new Error(t('La resposta és massa gran.','The response is too large.'));
@@ -1409,11 +1416,11 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  }
  // Un grup que ha treballat alhora (winds_stream.go): les veus queden plegades
  // en una línia («3 vents hi han dit la seva») i a sota hi ha la resposta conjunta.
- function debateRun(run){
+ function debateRun(run,head){
   const d=el('details','vw-debate'),sum=el('summary','vw-debate-head'),faces=el('span','vw-debate-faces');
   const ws=[...new Set(run.map(m=>m.speaker_id))].map(id=>state.winds.find(w=>w.id===id)).filter(Boolean);
   for(const w of ws.slice(0,4))faces.append(face(w));
-  sum.append(faces,el('span','',t(run.length===1?'1 vent hi ha dit la seva':run.length+' vents hi han dit la seva',run.length===1?'1 wind had a say':run.length+' winds had their say')),el('small','',ws.map(w=>w.name).join(' · ')));
+  sum.append(faces,el('span','',head||t(run.length===1?'1 vent hi ha dit la seva':run.length+' vents hi han dit la seva',run.length===1?'1 wind had a say':run.length+' winds had their say')),el('small','',ws.map(w=>w.name).join(' · ')));
   d.append(sum);
   for(const m of run){const w=state.winds.find(x=>x.id===m.speaker_id);const v=el('div','vw-debate-voice'),head=el('div','vw-debate-who');if(w)head.append(face(w));head.append(el('strong','',w?.name||m.speaker_name||''));const body=el('div','vw-message-text');const txt=withoutSpeaker(m.text,w?.name||m.speaker_name);if(root.gregalMD)body.innerHTML=root.gregalMD.render(txt);else body.textContent=txt;v.append(head,body);d.append(v);}
   return d;
@@ -1421,6 +1428,8 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  // 144: el fil es posa al dia al seu lloc. Els missatges que ja hi són es queden (el mateix node, sense
  // tornar a entrar) i la resposta en directe es converteix en el missatge que arriba, en lloc de canviar-la per una altra.
  function paintHistory(){const top=messages.scrollTop,follow=nearChatEnd(messages),out=[],add=n=>out.push(n),reuse=new Map();for(const n of [...messages.children])if(n.key)reuse.set(n.key,[...(reuse.get(n.key)||[]),n]);let live=messages.querySelector('.vw-pending');let voice='',asked=false;const solo=soloWind(),H=state.history,lastAt=H.findLastIndex(m=>m.kind!=='memory'),who=m=>m?(m.from==='user'?'user':(m.speaker_id||m.from||'')):null;for(let hi=0;hi<H.length;hi++){const item=H[hi];if(item.kind==='memory'){add(memoryRow(item));continue;}if(item.by){asked=true;add(handoffRow(item));continue;}if(item.kind==='debate'){let end=hi;while(end+1<H.length&&H[end+1].kind==='debate')end++;add(debateRun(H.slice(hi,end+1)));hi=end;continue;}const user=item.from==='user';
+  // 162: el que han respost els vents que aquest ha consultat, plegat com una discussió.
+  if(item.kind==='consult'){let end=hi;while(end+1<H.length&&H[end+1].kind==='consult')end++;const run=H.slice(hi,end+1),ids=[...new Set(run.map(m=>m.speaker_id))],one=state.winds.find(w=>w.id===ids[0])?.name||run[0].speaker_name;add(debateRun(run,ids.length===1?t('Ha preguntat a '+one,'Asked '+one):t('Ha preguntat a '+ids.length+' vents','Asked '+ids.length+' winds')));hi=end;continue;}
   // Un vent convidat amb «Pregunta-li»: una línia diu que s'hi afegeix.
   if(item.kind==='guest'){const g=state.winds.find(x=>x.id===item.speaker_id);const n=g?.name||item.speaker_name||'';if(n)add(el('p','vw-handoff',t('→ '+n+" s'hi afegeix",'→ '+n+' joins in')));}
   // Un altre vent agafa el fil després d'un missatge teu: una línia ho diu, en lloc que el vent ho expliqui.

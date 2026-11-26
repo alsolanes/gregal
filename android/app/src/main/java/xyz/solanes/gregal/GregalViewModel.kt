@@ -6267,7 +6267,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                                     dropStreamingBubble(windId)
                                 }
                                 is GregalApi.WindStreamEvent.Activity -> {
-                                    live(windId) { it.copy(phase = e.phase, tool = e.tool, step = e.step, writing = false) }
+                                    val asking = e.winds.mapNotNull { id -> _winds.value.firstOrNull { it.id == id } }
+                                    live(windId) { it.copy(phase = e.phase, tool = e.tool, step = e.step, writing = false, asking = asking) }
                                 }
                                 is GregalApi.WindStreamEvent.Token -> {
                                     buf.append(e.token)?.let { text ->
@@ -6374,7 +6375,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                                     dropStreamingBubble(windId)
                                 }
                                 is GregalApi.WindStreamEvent.Activity -> {
-                                    live(windId) { it.copy(phase = e.phase, tool = e.tool, step = e.step, writing = false) }
+                                    val asking = e.winds.mapNotNull { id -> _winds.value.firstOrNull { it.id == id } }
+                                    live(windId) { it.copy(phase = e.phase, tool = e.tool, step = e.step, writing = false, asking = asking) }
                                 }
                                 is GregalApi.WindStreamEvent.Token -> {
                                     buf.append(e.token)?.let { text ->

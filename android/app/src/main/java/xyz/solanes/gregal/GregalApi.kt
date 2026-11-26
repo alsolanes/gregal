@@ -1007,7 +1007,8 @@ class GregalApi(val base: String, val token: String) {
     /** Resposta d'un torn amb streaming (SSE per POST). */
     sealed interface WindStreamEvent {
         data class Phase(val phase: String) : WindStreamEvent
-        data class Activity(val phase: String, val tool: String = "", val step: Int = 0) : WindStreamEvent
+        /** [winds]: els vents que l'eina wind consulta (ids ja resolts pel servidor). */
+        data class Activity(val phase: String, val tool: String = "", val step: Int = 0, val winds: List<String> = emptyList()) : WindStreamEvent
         data class Token(val token: String) : WindStreamEvent
         /** Tempesta: l'estat de cada agent (winds_tempesta.go). */
         data class Tempesta(val agents: List<TempestaAgent>) : WindStreamEvent
@@ -1137,7 +1138,7 @@ class GregalApi(val base: String, val token: String) {
             "phase" -> WindStreamEvent.Phase(if (o.containsKey("phase")) o.str("phase") else "working")
             "activity" -> {
                 val a = GregalJson.decodeFromJsonElement<ActivityDto>(o)
-                WindStreamEvent.Activity(a.phase, a.tool.take(48), a.step.coerceAtLeast(0))
+                WindStreamEvent.Activity(a.phase, a.tool.take(48), a.step.coerceAtLeast(0), a.winds)
             }
             "token" -> WindStreamEvent.Token(o.str("token"))
             "tempesta" -> WindStreamEvent.Tempesta(TempestaAgent.listOf(data))
@@ -1809,7 +1810,7 @@ internal class TurnActionDto(
 @Serializable
 internal class WindReplyDto(val reply: String = "", val parcial: Boolean = false, val actions: List<TurnActionDto> = emptyList())
 
-@Serializable internal class ActivityDto(val phase: String = "working", val tool: String = "", val step: Int = 0)
+@Serializable internal class ActivityDto(val phase: String = "working", val tool: String = "", val step: Int = 0, val winds: List<String> = emptyList())
 
 @Serializable internal class AskOptionDto(val label: String = "", val description: String = "")
 
