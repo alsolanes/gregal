@@ -130,7 +130,7 @@ p.vw-empty { max-width:560px; margin-inline:auto; line-height:1.6; }
 .vw-thread-empty { min-height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:24px 12px; }
 .vw-thread-empty h1 { font-size:clamp(22px,3vw,34px); margin:0; }
 .vw-thread-empty p { color:var(--muted); margin:6px 0 0; }
-.vw-error { color:var(--red); font-size:12px; overflow-wrap:anywhere; }
+.vw-error,.vw-describe-error { color:var(--red); font-size:12px; overflow-wrap:anywhere; }
 /* Diàlegs: la finestra de les modals de Codi (#prefsModal): radi, capçalera, botó de tancar i teló. */
 .vw-dialog { margin:auto; border:1px solid var(--line-hi); background:var(--surface); color:var(--text); padding:20px; border-radius:var(--r-md,12px); width:min(600px,calc(100vw - 32px)); max-height:85dvh; overflow:auto; box-shadow:var(--lift), 0 30px 80px -24px var(--ombra); font-size:13px; }
 .vw-dialog::backdrop { background:color-mix(in srgb, var(--bg) 55%, rgba(0,0,0,.5)); backdrop-filter:blur(2px); }

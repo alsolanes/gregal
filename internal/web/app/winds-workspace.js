@@ -788,6 +788,16 @@
    ['Gràfica','Dades i gràfics','Data and charts','Analitza dades amb rigor i explica els resultats de manera entenedora.','Analyze data carefully and explain results clearly.','#91c7ac','psn'],
    ['Teca','Cuina i àpats','Cooking and meals','Proposa receptes i menús adaptats als gustos i al temps disponible.','Suggest recipes and meal plans suited to tastes and available time.','#eebc78','pso']
   ];
+  // 165: una frase i la IA proposa el vent sencer; omple els camps i no crea res.
+  const describe=field(d,t('Descriu el teu vent','Describe your wind'),'',true);describe.rows=2;describe.placeholder=t('Per exemple: un vent que m’ajudi amb receptes de temporada','For example: a wind that helps me with seasonal recipes');
+  // Classe pròpia: fail() escriu al primer .vw-error del diàleg, i els errors de «Crea el vent» van a baix.
+  const describeError=el('p','vw-describe-error');
+  const ask=btn(t('Proposa','Suggest'),async()=>{if(!describe.value.trim()){describe.focus();return;}ask.disabled=true;describeError.textContent='';
+   try{const w=await call('/api/winds/suggest','POST',{description:describe.value.trim()});name.value=w.name;role.value=w.role;persona.value=w.persona;tint.value=w.color;eyes.value=w.style[0];mouth.value=w.style[1];shape.value=w.style[2];kit=w.kit||'';kitRole=w.role;update();}
+   catch(e){describeError.textContent=t('No s’ha pogut proposar un vent: ','Could not suggest a wind: ')+e.message;describeError.setAttribute('role','alert');}
+   finally{ask.disabled=false;}});
+  d.append(ask,describeError);
+  let kit='',kitRole=null;
   const list=el('div','vw-wind-suggestions');list.setAttribute('aria-label',t('Vents suggerits','Suggested winds'));d.append(list);
   const preview=el('div','vw-wind-preview');d.append(preview);
   const name=field(d,t('Nom','Name')),role=field(d,t('Com et pot ajudar?','How can they help?')),persona=field(d,t('Manera de ser i instruccions','Personality and instructions'),'',true);persona.rows=3;
@@ -799,8 +809,8 @@
   const mouth=choice(t('Boca','Mouth'),[['s','Somriure','Smile'],['o','Oberta','Open'],['n','Tranquil·la','Relaxed'],['t','Llengua','Tongue']],'s');
   const avatar=root.gregalWinds.avatarField?.(appearance),hat=root.gregalWinds.barretinaField?.(appearance,{});
   const style=()=>eyes.value+mouth.value+shape.value+(hat?.value||'');
-  const update=()=>{if(hat)hat.parentNode.hidden=root.gregalWinds.avatarPack({avatar:avatar?.value})!=='minairo';preview.replaceChildren(root.gregalWinds.face({name:name.value,color:tint.value,style:style(),avatar:avatar?.value},true));};
-  for(const control of [name,tint,shape,eyes,mouth,avatar,hat].filter(Boolean)){control.addEventListener('input',update);control.addEventListener('change',update);}
+  const update=()=>{if(hat)hat.parentNode.hidden=root.gregalWinds.avatarPack({avatar:avatar?.value})!=='minairo';preview.replaceChildren(root.gregalWinds.face({name:name.value,color:tint.value,style:style(),avatar:avatar?.value,kit:role.value===kitRole?kit:''},true));};
+  for(const control of [name,role,tint,shape,eyes,mouth,avatar,hat].filter(Boolean)){control.addEventListener('input',update);control.addEventListener('change',update);}
   // Amb un nom propi per als ajudants (fullets, pirates…), els noms
   // suggerits vénen del servidor i hi encaixen; el rol i la persona es queden.
   const labels=[];

@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 // (com parla, què li importa) i proposa la cara (ulls, boca, forma).
 //
 //	POST /api/winds/suggest  {name, role} → {persona, style}
+//	POST /api/winds/suggest  {description} → {name, role, persona, style, color, kit}
 //
 // La persona i la cara són una proposta: l'usuari les veu al creador i hi
 // pot tocar el que vulgui abans de crear el vent.
@@ -52,11 +54,17 @@ func (s *Server) handleWindSuggest(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name string `json:"name"`
 		Role string `json:"role"`
+		// Sense nom, una descripció basta: la IA proposa el vent sencer.
+		Description string `json:"description"`
 	}
 	if !decodeSmall(w, r, &req) {
 		return
 	}
 	name := strings.TrimSpace(req.Name)
+	if desc := strings.TrimSpace(req.Description); name == "" && desc != "" {
+		s.suggestWindFromDescription(w, desc)
+		return
+	}
 	if name == "" {
 		http.Error(w, "nom obligatori", http.StatusBadRequest)
 		return
@@ -85,6 +93,90 @@ func (s *Server) handleWindSuggest(w http.ResponseWriter, r *http.Request) {
 	}
 	persona, style := parseWindSuggest(out, name)
 	writeJSON(w, map[string]string{"persona": persona, "style": style})
+}
+
+// windDescribeSystem: d'una frase, el vent sencer. El nom segueix el
+// col·lectiu i evita els que ja es fan servir; el rol diu l'ofici amb una
+// paraula que la regla rol→kit (winds_kit.go) reconeix.
+func windDescribeSystem(plural, nameRule string, taken []string) string {
+	var b strings.Builder
+	if isWindCollective(plural) {
+		b.WriteString("You invent a wind companion for an app called Gregal. ")
+	} else {
+		b.WriteString("You invent a helper companion for an app called Gregal. The user calls these helpers \"" + plural + "\": give it a name and a personality that fit that idea. ")
+	}
+	b.WriteString("The user describes in one sentence the helper they want; you propose the rest. ")
+	b.WriteString("Reply ONLY with a compact JSON object, no prose, no markdown fences, with five keys:\n")
+	b.WriteString(`{"name": "<` + nameRule + `>", "role": "<2-5 words in Catalan>", "persona": "<3-5 sentences in Catalan: who it is, how it talks (warm, curt, playful or calm — pick a coherent voice), what it cares about>", "style": "<exactly 3 letters: eyes+mouth+shape>", "color": "<a soft pastel colour as #rrggbb that suits it>"}`)
+	if len(taken) > 0 {
+		b.WriteString("\nThese names are taken, never use them: " + strings.Join(taken, ", ") + ".")
+	}
+	b.WriteString("\nrole says what it helps with and names its field with a plain word when one fits: cuina, música, viatges, esport, salut, finances, llibres, cinema, el temps, seguretat, programació, recerca, organització, compres.")
+	b.WriteString("\nstyle letters: eyes p=punts, b=badalls, e=estrellats, m=mig tancats; mouth s=somriure, o=oberta, n=neutra, t=llengua; shape o=bola, n=núvol, s=espiral. ")
+	b.WriteString("Pick the style that matches the persona you wrote. Write the persona in Catalan, playful but never fake. Never invent facts about the user.")
+	return b.String()
+}
+
+// suggestWindFromDescription respon {name, role, persona, style, color, kit}:
+// tot és una proposta que l'usuari revisa al creador abans de crear el vent.
+func (s *Server) suggestWindFromDescription(w http.ResponseWriter, desc string) {
+	p, roleRef, ok := s.sideRoleRef()
+	if !ok {
+		http.Error(w, "no side role available", http.StatusServiceUnavailable)
+		return
+	}
+	s.mu.Lock()
+	cfg, client := s.cfg, s.client
+	s.mu.Unlock()
+
+	used, usedColors := map[string]bool{}, map[string]bool{}
+	var taken []string
+	if s.winds != nil {
+		ws, err := s.winds.List()
+		if err != nil {
+			log.Printf("wind suggest: list winds: %v", err)
+		}
+		for _, x := range ws {
+			used[strings.ToLower(strings.TrimSpace(x.Name))] = true
+			usedColors[strings.ToUpper(x.Color)] = true
+			taken = append(taken, x.Name)
+		}
+	}
+	collective := s.loadCollective()
+	msgs := []llm.Message{
+		{Role: "system", Content: windDescribeSystem(collective.Plural, s.collectiveNameRule("Catalan"), taken)},
+		{Role: "user", Content: "Description: " + oneLine(desc, 600)},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	out, err := windSuggestLoop(s, ctx, client, cfg, p, roleRef, msgs)
+	if err != nil {
+		http.Error(w, redactError(err), http.StatusBadGateway)
+		return
+	}
+	var parsed struct {
+		Name  string `json:"name"`
+		Role  string `json:"role"`
+		Color string `json:"color"`
+	}
+	if err := json.Unmarshal([]byte(firstJSONObject(out)), &parsed); err != nil {
+		log.Printf("wind suggest: unparsable reply, using defaults")
+	}
+	name := cleanCrewName(parsed.Name)
+	if name == "" || used[strings.ToLower(name)] {
+		name = nextCrewName(used, s.freshNames(s.collectiveNames(ctx, collective, "ca"))...)
+	}
+	// Sense rol, la descripció mateixa: la regla rol→kit hi troba l'ofici.
+	role := oneLine(parsed.Role, 60)
+	if role == "" {
+		role = oneLine(desc, 60)
+	}
+	color := strings.ToLower(strings.TrimSpace(parsed.Color))
+	if !transferColorPattern.MatchString(color) {
+		color = strings.ToLower(nextCrewColor(usedColors))
+	}
+	persona, style := parseWindSuggest(out, name)
+	writeJSON(w, map[string]string{"name": name, "role": role, "persona": persona, "style": style, "color": color, "kit": inferKit(role)})
 }
 
 // windSuggestLoop és la via de generació; els tests la substitueixen.
