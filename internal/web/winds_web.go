@@ -67,7 +67,7 @@ func windHistoryFor(s *Server, name string) *windHistoryEntry {
 			// l'etiqueta per al model: es mostren com els d'ara, sense reescriure el fitxer.
 			for i, m := range entry.messages {
 				if task, ok := strings.CutPrefix(m.Content, handoffTag); ok && m.Role == "user" {
-					entry.messages[i].Content = handoffShown(s.cfg.Lang(), task)
+					entry.messages[i].Content = handoffShown(s.cfg.Lang(), "Gregal", task)
 				}
 			}
 		}

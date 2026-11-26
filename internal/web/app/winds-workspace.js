@@ -1027,6 +1027,15 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   const copy=el('div','vw-memory-copy');copy.append(el('strong','',t('Ho recordaré','I will remember')),el('span','',facts.join(' · ')));row.append(copy);
   const wind=item.speaker_id||state.active?.wind||'';
   const undo=btn(t('Oblida-ho','Forget it'),async()=>{undo.disabled=true;try{await call('/api/winds/apres','POST',{wind,all:facts});row.classList.add('is-forgot');copy.lastChild.textContent=t('Oblidat.','Forgotten.');undo.remove();}catch(e){undo.disabled=false;fail(e);}},'vw-memory-undo');row.append(undo);return row;}
+ // 160: un encàrrec d'un altre vent (o de Gregal) amb l'eina wind: la cara de qui el demana i «Encàrrec de X», no una bombolla teva.
+ // El text desat ja porta «Encàrrec de X: » en l'idioma del servidor; es treu per no dir-ho dos cops.
+ function handoffRow(item){const name=item.by.name||'',w=state.winds.find(x=>x.id===item.by.id)||{id:item.by.id,name,color:accent(),style:'psn'};
+  let text=String(item.text||'');for(const p of ['Encàrrec de '+name+': ','Task from '+name+': '])if(text.startsWith(p))text=text.slice(p.length);
+  const row=el('article','vw-message vw-handoff-task'),head=el('p','vw-handoff'),body=el('div','vw-message-text');if(item.id)row.dataset.messageId=item.id;
+  head.append(face(w,null,20),el('span','',t('Encàrrec de '+name,'Task from '+name)));
+  if(root.gregalMD){body.innerHTML=root.gregalMD.render(text);if(item.ts&&root.gregalMD.stamp)root.gregalMD.stamp(body,item.ts);}else body.textContent=text;
+  row.append(head,body);return row;}
+ root.gregalWindChat.handoffRow=handoffRow;
  // Un cop acabat el torn, la memòria s'aprèn en segon pla: es torna a mirar el fil per ensenyar «Ho recordaré».
  function recheckThread(chat,delay=9000){setTimeout(async()=>{if(state.busy||state.view!=='chat'||state.active?.id!==chat.id)return;try{const url=chat.legacyWind?'/api/winds/chat?'+new URLSearchParams(chat.id?{wind:chat.wind,session:chat.id}:{wind:chat.wind}):'/api/winds/rotllana?rotlla='+encodeURIComponent(chat.id);const data=await call(url);if(state.busy||state.active?.id!==chat.id)return;const h=data.history||[];if(h[h.length-1]?.kind==='memory'&&state.history[state.history.length-1]?.kind!=='memory'){state.history=h;paintHistory();return;}if(delay<30000)recheckThread(chat,delay+9000);}catch{}},delay);}
  // Què sap de tu: la memòria personal i la de cada vent, en un sol lloc, i oblidar-ne cada cosa.
@@ -1395,7 +1404,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  }
  // 144: el fil es posa al dia al seu lloc. Els missatges que ja hi són es queden (el mateix node, sense
  // tornar a entrar) i la resposta en directe es converteix en el missatge que arriba, en lloc de canviar-la per una altra.
- function paintHistory(){const top=messages.scrollTop,follow=nearChatEnd(messages),out=[],add=n=>out.push(n),reuse=new Map();for(const n of [...messages.children])if(n.key)reuse.set(n.key,[...(reuse.get(n.key)||[]),n]);let live=messages.querySelector('.vw-pending');let voice='',asked=false;const solo=soloWind(),H=state.history,lastAt=H.findLastIndex(m=>m.kind!=='memory'),who=m=>m?(m.from==='user'?'user':(m.speaker_id||m.from||'')):null;for(let hi=0;hi<H.length;hi++){const item=H[hi];if(item.kind==='memory'){add(memoryRow(item));continue;}if(item.kind==='debate'){let end=hi;while(end+1<H.length&&H[end+1].kind==='debate')end++;add(debateRun(H.slice(hi,end+1)));hi=end;continue;}const user=item.from==='user';
+ function paintHistory(){const top=messages.scrollTop,follow=nearChatEnd(messages),out=[],add=n=>out.push(n),reuse=new Map();for(const n of [...messages.children])if(n.key)reuse.set(n.key,[...(reuse.get(n.key)||[]),n]);let live=messages.querySelector('.vw-pending');let voice='',asked=false;const solo=soloWind(),H=state.history,lastAt=H.findLastIndex(m=>m.kind!=='memory'),who=m=>m?(m.from==='user'?'user':(m.speaker_id||m.from||'')):null;for(let hi=0;hi<H.length;hi++){const item=H[hi];if(item.kind==='memory'){add(memoryRow(item));continue;}if(item.by){asked=true;add(handoffRow(item));continue;}if(item.kind==='debate'){let end=hi;while(end+1<H.length&&H[end+1].kind==='debate')end++;add(debateRun(H.slice(hi,end+1)));hi=end;continue;}const user=item.from==='user';
   // Un vent convidat amb «Pregunta-li»: una línia diu que s'hi afegeix.
   if(item.kind==='guest'){const g=state.winds.find(x=>x.id===item.speaker_id);const n=g?.name||item.speaker_name||'';if(n)add(el('p','vw-handoff',t('→ '+n+" s'hi afegeix",'→ '+n+' joins in')));}
   // Un altre vent agafa el fil després d'un missatge teu: una línia ho diu, en lloc que el vent ho expliqui.
