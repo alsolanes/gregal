@@ -271,6 +271,17 @@ class OtaTest {
     }
 
     @Test
+    fun tornarAPrimerPlaComprovaNomesSiFaUnaHora() {
+        val ara = 10 * 60 * 60 * 1000L
+        // Mai comprovada (arrencada): sí.
+        assertTrue(tocaComprovarDeNou(ultimaMs = 0L, araMs = ara))
+        // Fa deu minuts: no, que cada tornada no truqui GitHub.
+        assertFalse(tocaComprovarDeNou(ultimaMs = ara - 10 * 60_000L, araMs = ara))
+        // Fa més d'una hora: sí, una release nova surt sense tancar l'app.
+        assertTrue(tocaComprovarDeNou(ultimaMs = ara - 61 * 60_000L, araMs = ara))
+    }
+
+    @Test
     fun cacheDelManifestCaduca() {
         val dir = java.io.File(System.getProperty("java.io.tmpdir"), "gregal-test-cache").apply {
             deleteRecursively(); mkdirs()
