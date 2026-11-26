@@ -194,7 +194,8 @@ class WindCaresTest {
     @Test fun smallFacesKeepTwoLargeCrispEyes() {
         ui.mainClock.autoAdvance = false
         ui.setContent {
-            CompositionLocalProvider(LocalWindMotion provides false) {
+            // The Canvas face, without the clay sheets (167: with them a small Cares face is clay).
+            CompositionLocalProvider(LocalWindMotion provides false, LocalWindClay provides "no-such-folder") {
                 Column {
                     for ((i, bg) in listOf(light, dark).withIndex()) Row(Modifier.background(bg)) {
                         for (w in six) Box(Modifier.testTag("${w.id}-$i")) {

@@ -417,3 +417,30 @@ test('the player pauses off screen and while the tab is hidden', async () => {
   env.frame(5 * step);
   assert.equal(lastDraw(canvas).sx, 4 * SIZE);
 });
+
+// 167: a small Cares face (list rows, the chat header) holds the still frame of its mood's sheet.
+test('a small Cares face holds its tinted still frame with the trade badge, and a mood change swaps the still without a loop', async () => {
+  const env = load();
+  const rows = [svgFace(env, 'idle', { 'data-kit': 'books' }), svgFace(env, 'idle', { 'data-kit': 'books' })];
+  for (const { svg } of rows) { svg.setAttribute('class', 'winds-face'); assert.equal(env.chars.play(svg, wind, true), svg, 'the drawn face shows until the sheet loads'); }
+  await settle();
+  assert.equal(env.fetched.filter(u => u.endsWith('curl/idle.webp')).length, 1, 'one still per wind and mood, however many rows');
+  const held = rows[0].box.children[0];
+  assert.equal(held.tag, 'canvas');
+  assert.equal(held.source, rows[1].box.children[0].source, 'the rows share one tinted still');
+  assert.equal(held.source.width, SIZE, 'only the still frame is tinted');
+  assert.deepEqual([...held.source.pixels.slice(0, 8)], [200, 100, 0, 200, 200, 200, 200, 200], 'in the wind colour');
+  assert.deepEqual(held.draws, [{ sheet: 'curl/idle.webp', sx: 0, alpha: 1, op: 'source-over' }, { icon: 'M8 4.5v9' }]);
+  assert.ok(!env.watched(held), 'a still face is drawn once, outside the animation loop');
+  env.chars.mood(held, 'reading');
+  await settle();
+  assert.deepEqual(held.draws, [{ sheet: 'curl/reading.webp', sx: 0, alpha: 1, op: 'source-over' }, { icon: 'M8 4.5v9' }], 'the new mood\'s still, at once');
+  assert.ok(!env.watched(held), 'still no loop');
+  env.frame(1000);
+  assert.deepEqual(held.draws.map(d => d.sheet || d.icon), ['curl/reading.webp', 'M8 4.5v9']);
+  const bare = load({ files: [] });
+  const drawn = svgFace(bare);
+  bare.chars.play(drawn.svg, wind, true);
+  await settle();
+  assert.equal(drawn.box.children[0], drawn.svg, 'no sheet: the drawn face stays');
+});
