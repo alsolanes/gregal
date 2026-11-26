@@ -30,7 +30,10 @@ func TestWindCreatedKeptOnEdit(t *testing.T) {
 			t.Fatalf("l'edició (enviant %q) ha canviat la data: %q → %q", sent, w.Created, e.Created)
 		}
 	}
-	got, _ := ws.ByID(w.ID)
+	got, ok := ws.ByID(w.ID)
+	if !ok {
+		t.Fatalf("el vent %s no hi és", w.ID)
+	}
 	if got.Created != w.Created {
 		t.Fatalf("desat: %q, volia %q", got.Created, w.Created)
 	}

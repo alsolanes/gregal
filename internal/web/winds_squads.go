@@ -130,7 +130,7 @@ func (s *Server) handleWindSquads(w http.ResponseWriter, r *http.Request) {
 			name = nextCrewName(used)
 		}
 		used[strings.ToLower(name)] = true
-		wind := companion.Wind{ID: "w-" + windRecordID(), Name: name, Role: role, Squad: template.ID, Specialty: member.Key, Color: member.Color, Style: member.Style, Persona: "You are " + name + ", a warm, direct and practical helper. Respond in the user's language. " + member.Mission + " Never claim actions or checks you did not perform."}
+		wind := companion.Wind{ID: "w-" + windRecordID(), Name: name, Role: role, Squad: template.ID, Specialty: member.Key, Color: member.Color, Style: member.Style, Created: time.Now().UTC().Format(time.RFC3339), Persona: "You are " + name + ", a warm, direct and practical helper. Respond in the user's language. " + member.Mission + " Never claim actions or checks you did not perform."}
 		if err := s.winds.Restore(wind); err != nil {
 			http.Error(w, "could not prepare squad", 500)
 			return

@@ -631,7 +631,7 @@ func (s *Server) handleCapGo(w http.ResponseWriter, r *http.Request) {
 	for _, c := range p.Create {
 		wind := companion.Wind{
 			ID: "w-" + windRecordID(), Name: c.Name, Role: c.Role, Specialty: c.Kit,
-			Color: c.Color, Style: c.Style,
+			Color: c.Color, Style: c.Style, Created: time.Now().UTC().Format(time.RFC3339),
 			Persona: c.Persona + " Respond in the user's language. Never claim actions or checks you did not perform.",
 		}
 		if err := s.winds.Restore(wind); err != nil {

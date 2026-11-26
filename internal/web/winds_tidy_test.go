@@ -44,6 +44,23 @@ func TestTidyUnusedSkipsNewWinds(t *testing.T) {
 	}
 }
 
+// Activar un equip crea vents nous: tampoc surten com a «sense ús».
+func TestTidyUnusedSkipsNewSquad(t *testing.T) {
+	s, _ := companionTestServer(t)
+	if rec := postJSON(t, s.handleWindSquads, `{"id":"data","lang":"en"}`); rec.Code != 200 {
+		t.Fatal(rec.Body.String())
+	}
+	rec := httptest.NewRecorder()
+	s.handleWindTidy(rec, httptest.NewRequest(http.MethodGet, "/api/winds/tidy", nil))
+	var rep tidyReport
+	if err := json.Unmarshal(rec.Body.Bytes(), &rep); err != nil {
+		t.Fatalf("%v: %s", err, rec.Body.String())
+	}
+	if rep.Total < 5 || len(rep.Unused) != 0 {
+		t.Fatalf("l'equip acabat d'activar (%d vents) surt sense ús: %+v", rep.Total, rep.Unused)
+	}
+}
+
 func tidySeedThread(t *testing.T, s *Server, windID, text string) {
 	t.Helper()
 	if _, err := session.SaveSession(s.sessDir(), session.Session{Name: "company-" + windID, Title: "Company — x", Convo: []llm.Message{
