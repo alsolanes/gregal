@@ -1,14 +1,48 @@
 package web
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"gregal/internal/companion"
 	"gregal/internal/jobs"
 	"gregal/internal/llm"
 	"gregal/internal/session"
 )
+
+// Un vent acabat de crear no surt com a «sense ús»: encara no has tingut temps
+// de fer-lo servir. Un de fa més de 7 dies, o un de desat abans que hi hagués
+// data de creació, sí.
+func TestTidyUnusedSkipsNewWinds(t *testing.T) {
+	s := remindTestServer(t)
+	if _, err := s.winds.Save(companion.Wind{Name: "Marinada"}); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-8 * 24 * time.Hour).UTC().Format(time.RFC3339)
+	if err := s.winds.Restore(companion.Wind{ID: "garbi", Name: "Garbí", Created: old}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.winds.Restore(companion.Wind{ID: "llebeig", Name: "Llebeig"}); err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	s.handleWindTidy(rec, httptest.NewRequest(http.MethodGet, "/api/winds/tidy", nil))
+	var rep tidyReport
+	if err := json.Unmarshal(rec.Body.Bytes(), &rep); err != nil {
+		t.Fatalf("%v: %s", err, rec.Body.String())
+	}
+	var ids []string
+	for _, w := range rep.Unused {
+		ids = append(ids, w.ID)
+	}
+	if strings.Join(ids, ",") != "garbi,llebeig" {
+		t.Fatalf("sense ús: %v, volia garbi i llebeig (Xaloc i Marinada són nous)", ids)
+	}
+}
 
 func tidySeedThread(t *testing.T, s *Server, windID, text string) {
 	t.Helper()
