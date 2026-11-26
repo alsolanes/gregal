@@ -112,6 +112,8 @@ data class WindLive(
     val tool: String = "", val step: Int = 0, val receivedText: Boolean = false, val speaker: String = "",
     /** Tempesta: l'estat de cada agent mentre treballen (buit en un torn normal). */
     val tempesta: List<TempestaAgent> = emptyList(),
+    /** Els vents que l'eina wind consulta ara (163); buit si no en pregunta cap de concret. */
+    val asking: List<Wind> = emptyList(),
 ) {
     val mood: WindMood get() = if (phase == "tool" && tool.isNotBlank()) {
         windMoodOf(state = "working", activity = tool, writing = writing, voices = voices)
@@ -122,6 +124,10 @@ data class WindLive(
 internal fun windProgressLabel(lang: String, live: WindLive): String {
     val en = lang == "en"
     if (live.writing) return if (en) "Receiving the reply" else "Rebent la resposta"
+    if (live.phase == "tool" && live.tool.lowercase() == "wind" && live.asking.isNotEmpty()) {
+        return if (live.asking.size == 1) tr(lang, "app.vents.askingWind", live.asking[0].name)
+        else tr(lang, "app.vents.askingWinds", live.asking.size)
+    }
     if (live.phase == "tool") return when (live.tool.lowercase()) {
         "bash", "shell" -> if (en) "Running a command" else "Executant una ordre"
         "read", "read_file", "ls" -> if (en) "Reading the project" else "Llegint el projecte"
