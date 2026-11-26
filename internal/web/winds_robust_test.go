@@ -322,6 +322,62 @@ func TestWindToolAskTriaIDesa(t *testing.T) {
 	}
 }
 
+// Un vent que encarrega feina a un altre des del seu xat hi surt pel nom: el
+// vent que la rep ho sap i el fil desa qui l'ha demanat (by).
+func TestWindToolAskDiuQuiEncarrega(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s, _ := companionTestServer(t)
+	s.cwd = t.TempDir()
+	makeRotllanaTrio(t, s)
+	postJSON(t, s.handleWinds, `{"name":"Garbí","color":"#AA3377","role":"Webs i jocs per al navegador"}`)
+	garbi := windIDByName(t, s, "Garbí")
+	old := windLoopStream
+	var brief string
+	windLoopStream = func(_ *Server, _ context.Context, b string, _ func(kind, text string), _ ...*routedRole) (exploracio, error) {
+		brief = b
+		return exploracio{text: "Fet"}, nil
+	}
+	t.Cleanup(func() { waitBackground(); windLoopStream = old })
+	ask := `{"action":"ask","wind":"` + garbi + `","task":"Fes un joc de la serp"}`
+	cases := []struct {
+		ctx            context.Context
+		tag, shown, by string
+	}{
+		{s.withWindSteerKey(context.Background(), "wind", "xaloc"), "Task handed over by Xaloc]", "Xaloc: Fes un joc de la serp", "xaloc"},
+		{s.withWindSteerKey(context.Background(), "wind", gregalWindID), "Task handed over by the main agent]", "Gregal: Fes un joc de la serp", gregalWindID},
+		{context.Background(), "Task handed over by the main agent]", "Gregal: Fes un joc de la serp", gregalWindID},
+	}
+	for i, c := range cases {
+		if _, err := s.runWindTool(c.ctx, ask); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(brief, c.tag) {
+			t.Fatalf("%d: el vent no sap qui li encarrega:\n%s", i, brief)
+		}
+		var got struct {
+			History []struct {
+				Text string `json:"text"`
+				By   *struct {
+					ID   string `json:"id"`
+					Name string `json:"name"`
+				} `json:"by"`
+			} `json:"history"`
+		}
+		getJSON(t, s.handleWindChat, "/api/winds/chat?wind="+garbi, &got)
+		h := got.History
+		if len(h) != 2*(i+1) {
+			t.Fatalf("%d: fil: %+v", i, h)
+		}
+		task, reply := h[len(h)-2], h[len(h)-1]
+		if !strings.HasSuffix(task.Text, c.shown) || task.By == nil || task.By.ID != c.by || task.By.Name == "" {
+			t.Fatalf("%d: encàrrec al fil: %q by=%+v", i, task.Text, task.By)
+		}
+		if reply.By != nil {
+			t.Fatalf("%d: la resposta no és un encàrrec: %+v", i, reply.By)
+		}
+	}
+}
+
 func windIDByName(t *testing.T, s *Server, name string) string {
 	t.Helper()
 	ws, _ := s.winds.List()

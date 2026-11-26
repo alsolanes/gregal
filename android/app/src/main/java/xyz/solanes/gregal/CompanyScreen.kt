@@ -1324,8 +1324,10 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                 // streaming crea una llista nova i, si la capturessin, totes les
                 // bombolles visibles es tornarien a compondre, no només l'última.
                 val m = rows[idx]
-                // Aire segons bàndol: juntes les del mateix, separades en canviar.
-                val firstOfRun = idx == 0 || m.from != rows[idx - 1].from
+                // Aire segons bàndol: juntes les del mateix, separades en canviar. Un encàrrec
+                // d'un altre vent és del vent que el demana, no teu.
+                val side = { r: GregalViewModel.PetMsg -> r.by?.let { "by:" + it.id } ?: r.from }
+                val firstOfRun = idx == 0 || side(m) != side(rows[idx - 1])
                 val gap = if (idx > 0 && firstOfRun) 16.dp else 4.dp
                 // Mentre la resposta és en directe la fila només creix: el primer fotograma del text
                 // (encara buit, que es revela a poc a poc) era més baix que els punts i el fil hi saltava.
@@ -1335,6 +1337,12 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     MemoryNotice(lang, facts) { vm.forgetLearned(wind.id, facts) }
                 } else if (m.kind == "doc" && m.doc != null) {
                     DocCard(m.doc, lang) { vm.openDoc(m.doc) }
+                } else if (m.by != null) Column(Modifier.padding(top = gap)) {
+                    if (idx == newFrom) ThreadDivider(threadCopy(lang, "new"), accent = true)
+                    HandoffRow(m, m.by, winds.firstOrNull { it.id == m.by.id }, lang) {
+                        clipboard.setText(AnnotatedString(stripMdInline(handoffBody(m.text, m.by.name))))
+                        scope.launch { vm.notify(tr(lang, "app.vents.copied")) }
+                    }
                 } else Column(Modifier.padding(top = gap).testTag("chat-row").then(if (!m.streaming) Modifier else Modifier
                     .heightIn(min = with(androidx.compose.ui.platform.LocalDensity.current) { tallest.toDp() })
                     .onSizeChanged { tallest = maxOf(tallest, it.height) })) {

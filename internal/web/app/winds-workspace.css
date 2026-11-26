@@ -587,6 +587,10 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-address > button[aria-checked="true"] { opacity:1; border-color:color-mix(in srgb, var(--accent) 60%, var(--line)); background:var(--accent-soft); color:var(--ink); }
 /* Un altre vent agafa el fil: una línia discreta, no un missatge. */
 .vw-handoff { margin:6px 0 0 51px; color:var(--faint); font-size:12px; letter-spacing:.01em; }
+/* Un encàrrec d'un altre vent: la seva cara i «Encàrrec de X» damunt del text. */
+.vw-handoff-task { flex-direction:column; gap:4px; }
+.vw-handoff-task > .vw-handoff { display:flex; align-items:center; gap:8px; margin:0; }
+.vw-handoff-task .winds-face { width:20px; height:20px; flex:none; }
 /* «La Marinada en sap més de compres»: la tria és teva. */
 .vw-suggest { display:flex; align-items:center; gap:10px; margin:6px 0 4px 51px; padding:8px 8px 8px 10px; max-width:560px; border:1px solid var(--line); border-radius:var(--r-md,12px); background:var(--surface); animation:vw-suggest-in .25s ease-out; }
 .vw-suggest > .winds-face { width:28px; height:28px; flex:none; }

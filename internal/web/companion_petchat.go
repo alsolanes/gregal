@@ -73,6 +73,10 @@ func petHistoryJSON(history []llm.Message) []map[string]any {
 			row["kind"] = guestKind
 			row["speaker_id"], row["speaker_name"] = m.SpeakerID, m.SpeakerName
 		}
+		// Un encàrrec d'un altre vent (o de Gregal) amb l'eina wind.
+		if m.Role == "user" && m.SpeakerID != "" {
+			row["by"] = map[string]string{"id": m.SpeakerID, "name": m.SpeakerName}
+		}
 		if m.Ts > 0 {
 			row["ts"] = m.Ts
 		}
