@@ -912,7 +912,7 @@ func ClassifyWith(cmd string, extraAllow, extraDeny []string) (string, string) {
 	// vegeu caminsCritics). Cap mode ni cap override del config les relaxa.
 	// Els patrons «deny» del config continuen sent subcadenes.
 	if d := ordreDenegada(strings.TrimSpace(cmd)); d != "" {
-		return "deny", "patró bloquejat: " + d
+		return "deny", motiuOrdreDenegada(d)
 	}
 	for _, d := range extraDeny {
 		if strings.Contains(lower, strings.ToLower(d)) {
@@ -929,6 +929,18 @@ func ClassifyWith(cmd string, extraAllow, extraDeny []string) (string, string) {
 	// `cat` o `git status` en una escriptura: composta() parteix la comanda
 	// i exigeix que TOTES les etapes siguin segures.
 	return composta(cmd, extraAllow)
+}
+
+// motiuOrdreDenegada: amb només «patró bloquejat: curl», el model tornava a
+// provar el mateix curl. Per a curl i wget li diem quina sortida té.
+func motiuOrdreDenegada(patro string) string {
+	switch patro {
+	case "curl", "wget":
+		return "patró bloquejat: " + patro + ". To read web pages, use the web_fetch tool. curl and wget only work against localhost, and a localhost curl or wget must be its own command, without inline code (python -c, a heredoc <<EOF, bash -c) in the same command."
+	case "curl | sh":
+		return "patró bloquejat: curl | sh. Downloading something and piping it to a shell is never allowed."
+	}
+	return "patró bloquejat: " + patro
 }
 
 // ClassifyServer és la classificació amb PODERS DE SERVIDOR (l'administrador
@@ -952,7 +964,7 @@ func ClassifyServer(cmd, home string, extraDeny []string) (string, string) {
 		}
 	}
 	if d := ordreDenegadaAmb(strings.TrimSpace(cmd), true); d != "" {
-		return "deny", "patró bloquejat: " + d
+		return "deny", motiuOrdreDenegada(d)
 	}
 	for _, d := range extraDeny {
 		if strings.Contains(lower, strings.ToLower(d)) {

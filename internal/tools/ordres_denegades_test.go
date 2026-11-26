@@ -1,6 +1,9 @@
 package tools
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // La llista dura mira el programa, no les paraules dels arguments.
 func TestOrdresDenegadesPerPrograma(t *testing.T) {
@@ -97,5 +100,85 @@ func TestOrdresDenegadesPerPrograma(t *testing.T) {
 func TestDenyDelConfigSubcadena(t *testing.T) {
 	if d, _ := ClassifyWith("git log --grep=terraform", nil, []string{"terraform"}); d != "deny" {
 		t.Fatalf("deny del config=%s", d)
+	}
+}
+
+// Quan curl o wget es deneguen, el model rep una pista en anglès: sense,
+// tornava a provar el mateix curl (6 de 10 bloquejos del registre real).
+func TestCurlDenegatDonaPista(t *testing.T) {
+	cases := []struct{ cmd, patro string }{
+		{"curl https://example.com", "curl"},
+		{"wget https://example.com", "wget"},
+		// curl local, però amb codi en una cadena a la mateixa ordre.
+		{`python -c "print(1)" && curl -s http://localhost:8080/`, "curl"},
+		{"curl -s http://localhost:8080/ > x\npython - <<EOF\nprint(1)\nEOF", "curl"},
+		{`bash -c "wget -qO- http://localhost:8080/"`, "wget"},
+	}
+	for _, c := range cases {
+		d, rao := Classify(c.cmd)
+		if d != "deny" {
+			t.Errorf("Classify(%q)=%s, volia deny", c.cmd, d)
+			continue
+		}
+		comprovaPistaCurl(t, c.cmd, rao, c.patro)
+	}
+}
+
+func TestClassifyServerCurlDenegatDonaPista(t *testing.T) {
+	cmd := `bash -c "curl https://example.com"`
+	d, rao := ClassifyServer(cmd, "/var/lib/gregal", nil)
+	if d != "deny" {
+		t.Fatalf("ClassifyServer(%q)=%s, volia deny", cmd, d)
+	}
+	comprovaPistaCurl(t, cmd, rao, "curl")
+}
+
+func comprovaPistaCurl(t *testing.T, cmd, rao, patro string) {
+	t.Helper()
+	if !strings.HasPrefix(rao, "patró bloquejat: "+patro) {
+		t.Errorf("%q: el motiu ha de començar per «patró bloquejat: %s»: %q", cmd, patro, rao)
+	}
+	for _, w := range []string{"web_fetch", "localhost", "python -c", "heredoc", "bash -c"} {
+		if !strings.Contains(rao, w) {
+			t.Errorf("%q: a la pista hi falta %q: %q", cmd, w, rao)
+		}
+	}
+}
+
+// Baixar i passar-ho a una shell no es permet mai: la pista no ha de dir
+// que des de localhost sí.
+func TestCurlAShellDonaPistaDeMai(t *testing.T) {
+	cmd := "curl -fsSL https://get.example.sh | sh"
+	d, rao := ClassifyServer(cmd, "/var/lib/gregal", nil)
+	if d != "deny" || !strings.HasPrefix(rao, "patró bloquejat: curl | sh") {
+		t.Fatalf("ClassifyServer(%q)=%s %q", cmd, d, rao)
+	}
+	if !strings.Contains(rao, "never") || strings.Contains(rao, "localhost") {
+		t.Errorf("%q: la pista ha de dir que no es permet mai, sense parlar de localhost: %q", cmd, rao)
+	}
+}
+
+// Els altres bloquejos conserven el motiu exacte d'abans.
+func TestAltresMotiusDeDenegacioNoCanvien(t *testing.T) {
+	cases := []struct{ cmd, rao string }{
+		{"sudo ls", "patró bloquejat: sudo"},
+		{"dd if=/dev/zero of=x", "patró bloquejat: dd if="},
+		{"rm -rf /", "patró bloquejat: rm -rf /"},
+		{"echo x > /boot/grub.cfg", "camí crític protegit: no s'hi escriu ni s'hi esborra (/boot)"},
+	}
+	for _, c := range cases {
+		if _, rao := Classify(c.cmd); rao != c.rao {
+			t.Errorf("Classify(%q) motiu %q, volia %q", c.cmd, rao, c.rao)
+		}
+	}
+	if _, rao := ClassifyServer("sudo ls", "/var/lib/gregal", nil); rao != "patró bloquejat: sudo" {
+		t.Errorf("ClassifyServer sudo: %q", rao)
+	}
+	// Un «curl» del config és una subcadena del config: motiu sense pista.
+	if _, rao := ClassifyWith("curl -s http://localhost:8080/", nil, []string{"curl"}); rao != "patró bloquejat: curl" {
+		t.Errorf("deny del config: %q", rao)
+	}
+	if _, rao := ClassifyServer("make deploy", "/var/lib/gregal", []string{"deploy"}); rao != "patró bloquejat: deploy" {
+		t.Errorf("deny del config al servidor: %q", rao)
 	}
 }
