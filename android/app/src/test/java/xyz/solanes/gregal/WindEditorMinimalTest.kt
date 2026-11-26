@@ -225,6 +225,25 @@ class WindEditorMinimalTest {
         }
     }
 
+    /** 170: the drop, the sun and the wave are shapes too, each chip with its clay sample, named in both languages. */
+    @Test fun theDropTheSunAndTheWaveAreShapesWithTheirClaySample() {
+        assertEquals(listOf("Gota", "Sol", "Onada"), "guw".map { tr("ca", "app.company.windShape_$it") })
+        assertEquals(listOf("Drop", "Sun", "Wave"), "guw".map { tr("en", "app.company.windShape_$it") })
+        var saved: WindDraft? = null
+        ui.setContent {
+            CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
+                MaterialTheme(colorScheme = LightPal.scheme()) {
+                    WindEditor("ca", null, {}, { _, _, _, _ -> error("Unexpected suggestion") }, { draft, _ -> saved = draft })
+                }
+            }
+        }
+        for (silhouette in listOf("gota", "sol", "onada")) ui.onNode(SemanticsMatcher.expectValue(WindClayKey, "$silhouette/idle"), useUnmergedTree = true).assertExists()
+        ui.onNodeWithText(tr("ca", "app.company.windName")).performTextInput("Ruixat")
+        ui.onNodeWithText(tr("ca", "app.company.windShape_w")).performScrollTo().performClick().assertIsSelected()
+        ui.onNodeWithText(tr("ca", "app.company.windSave")).performClick()
+        ui.runOnIdle { assertEquals("w", windStyleOf(saved?.style).shape.key) }
+    }
+
     @Test fun opensDirectlyWithVisualControlsAndCreatesWithoutChoosingATemplate() {
         var saved: WindDraft? = null
         ui.setContent {

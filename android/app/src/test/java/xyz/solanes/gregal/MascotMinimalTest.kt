@@ -108,7 +108,7 @@ class MascotMinimalTest {
         val styles = WindEyes.entries.flatMap { eyes -> WindMouth.entries.flatMap { mouth ->
             WindShape.entries.map { shape -> WindStyle(eyes, mouth, shape) }
         } }
-        assertEquals(48, styles.map { it.encode() }.toSet().size)
+        assertEquals(96, styles.map { it.encode() }.toSet().size)
         styles.forEach { assertEquals(it, windStyleOf(it.encode())) }
         ui.setContent {
             CompositionLocalProvider(LocalWindMotion provides false, LocalPal provides palette) {

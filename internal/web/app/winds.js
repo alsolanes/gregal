@@ -24,7 +24,8 @@
   function color(value) { return /^#[\da-f]{6}$/i.test(value || '') ? value : '#F5B45D'; }
   function style(value) {
     const s = String(value || 'pso');
-    return ('pbem'.includes(s[0]) ? s[0] : 'p') + ('sont'.includes(s[1]) ? s[1] : 's') + ('ons'.includes(s[2]) ? s[2] : 'o');
+    // The drop, sun and wave (170) are clay only: drawn, they take the nearest drawn shape.
+    return ('pbem'.includes(s[0]) ? s[0] : 'p') + ('sont'.includes(s[1]) ? s[1] : 's') + ({ g:'o', u:'n', w:'s' }[s[2]] || ('ons'.includes(s[2]) ? s[2] : 'o'));
   }
   // Squad specialists are small mascots with the tool of their trade; winds
   // without a specialty keep the plain face. Shapes are [tag, attrs] in the

@@ -349,6 +349,53 @@ func TestWindSuggestFromDescriptionDefaults(t *testing.T) {
 	}
 }
 
+// TestWindStyleNewShapes: les formes de la tasca 170 (g gota, u sol, w onada)
+// són lletres vàlides: el model les coneix, la proposta les manté i un vent
+// creat amb una d'elles la conserva.
+func TestWindStyleNewShapes(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s, _ := companionTestServer(t)
+
+	out, system, _ := suggestFromDescription(t, s, `{"name":"Ruixat","persona":"Sóc el ruixat.","style":"ETG"}`)
+	if out.Style != "etg" {
+		t.Errorf("la gota s'ha perdut a la proposta: %q", out.Style)
+	}
+	for _, letter := range []string{"g=gota", "u=sol", "w=onada"} {
+		if !strings.Contains(system, letter) || !strings.Contains(windSuggestSystem("Xaloc", "cuina"), letter) {
+			t.Errorf("el model no coneix la forma %s:\n%s", letter, system)
+		}
+	}
+	for _, style := range []string{"psg", "mou", "btw"} {
+		if got := normalizeWindStyle(style); got != style {
+			t.Errorf("normalizeWindStyle(%q) = %q", style, got)
+		}
+	}
+
+	if rec := postJSON(t, s.handleWinds, `{"name":"Onada","color":"#4A90D9","style":"ptw"}`); rec.Code != 200 {
+		t.Fatalf("crear: %d %s", rec.Code, rec.Body.String())
+	}
+	rec := httptest.NewRecorder()
+	s.handleWinds(rec, httptest.NewRequest(http.MethodGet, "/api/winds", nil))
+	var list struct {
+		Winds []struct{ Name, Style string } `json:"winds"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, w := range list.Winds {
+		if w.Name == "Onada" {
+			found = true
+			if w.Style != "ptw" {
+				t.Errorf("el vent ha perdut l'onada: %q", w.Style)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("el vent creat no és a la llista: %s", rec.Body.String())
+	}
+}
+
 // TestWindSuggestRoleCarriesTrade: el rol proposat porta l'ofici que la regla
 // rol→kit reconeix, també quan el model falla i el rol és la descripció.
 func TestWindSuggestRoleCarriesTrade(t *testing.T) {

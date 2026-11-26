@@ -111,7 +111,7 @@ internal fun windMotionEnabled(): Boolean {
  * WindStyle — les peces triables de la cara:
  *  - eyes: punts, badalls (ovals grossos), estrellats, mig tancats
  *  - mouth: somriure, oberta (parlant), neutra, llengua
- *  - shape: bola, núvol, espiral
+ *  - shape: bola, núvol, espiral, gota, sol, onada
  * Desat com a tres lletres al backend (p.ex. "pso" = punts/somriure/bola),
  * i una quarta si la persona tria el color de la barretina del minairó.
  * `kit` és l'especialitat d'un vent de colla ("shopping", "frontend"…): li dona
@@ -127,7 +127,13 @@ data class WindStyle(val eyes: WindEyes = WindEyes.DOTS, val mouth: WindMouth = 
 
 enum class WindEyes(val key: String) { DOTS("p"), WIDE("b"), STARRY("e"), SLEEPY("m") }
 enum class WindMouth(val key: String) { SMILE("s"), OPEN("o"), NEUTRAL("n"), TONGUE("t") }
-enum class WindShape(val key: String) { BALL("o"), CLOUD("n"), SPIRAL("s") }
+enum class WindShape(val key: String) {
+    BALL("o"), CLOUD("n"), SPIRAL("s"),
+    /** 170: shapes with a clay sheet only; drawn (no sheets, other packs' fallbacks) they take the nearest drawn shape. */
+    DROP("g"), SUN("u"), WAVE("w");
+
+    val drawn: WindShape get() = when (this) { DROP -> BALL; SUN -> CLOUD; WAVE -> SPIRAL; else -> this }
+}
 
 /** Del codi de tres lletres del backend ("pso") a l'estil. */
 fun windStyleOf(code: String?): WindStyle {
@@ -547,7 +553,7 @@ fun WindFace(
     // Paral·laxi de volum només a les cares grans (perfil, creador, xat buit):
     // a les llistes petites seria soroll i sensor per a res.
     val lean = rememberWindLean(motion && !compact)
-    val bodyPaint = remember(style.shape, accent, minairo) { WindBodyPaint(if (minairo) WindShape.BALL else style.shape, accent) }
+    val bodyPaint = remember(style.shape, accent, minairo) { WindBodyPaint(if (minairo) WindShape.BALL else style.shape.drawn, accent) }
     val look = remember(style, accent) { minairoLook(style, accent) }
     // L'aura entra i surt amb un fos quan el vent comença o acaba la feina.
     val aura by animateFloatAsState(if (windShowsAura(mood, size)) 1f else 0f, tween(450), label = "wind-aura")
@@ -605,7 +611,7 @@ internal object WindFigure {
         // (2, 3.6) to fit its curl. [u] turns head units into pixels.
         val (headScale, headX, headY) = when {
             full -> Triple(.9f, 4f, 3f)
-            style.shape == WindShape.SPIRAL -> Triple(.95f, 2f, 3.6f)
+            style.shape.drawn == WindShape.SPIRAL -> Triple(.95f, 2f, 3.6f)
             else -> Triple(1f, 0f, 0f)
         }
         val u = unit * headScale
@@ -627,7 +633,7 @@ internal object WindFigure {
 
         // Inclinació del mòbil (−1..1), llegida aquí perquè només redibuixi.
         val (tx, ty) = lean
-        val paint = if (tx == 0f && ty == 0f) bodyPaint else WindBodyPaint(if (minairo) WindShape.BALL else style.shape, accent, tx, ty)
+        val paint = if (tx == 0f && ty == 0f) bodyPaint else WindBodyPaint(if (minairo) WindShape.BALL else style.shape.drawn, accent, tx, ty)
         if (aura > 0f) {
             // Darrere el cos: un halo suau i un anell que gira, tots dos del color del vent.
             val (spin, pulse) = windAuraSway(t)
@@ -657,7 +663,7 @@ internal object WindFigure {
             trails()
             return
         }
-        drawWindBody(style.shape, paint, cx, cy, r, if (motion) .5f + wave(t, 6f) * 5.5f else 0f,
+        drawWindBody(style.shape.drawn, paint, cx, cy, r, if (motion) .5f + wave(t, 6f) * 5.5f else 0f,
             ground = full, stepL = windStep(mood, t, false) / 33f, stepR = windStep(mood, t, true) / 33f)
         // A single small tool on large profiles, never a costume over the eyes.
         // El 'head' del kit (auriculars, gorres...) es dibuixa com al web, en
@@ -766,7 +772,7 @@ internal fun windFaceBitmap(wind: Wind, theme: String, px: Int = 128): android.g
             "mapa" -> with(MapFigure) { draw(0f, false, WindMood.IDLE, MapPicture(style, px, accent).image, lerp(accent, Color(0xFF1B1530), .8f)) }
             else -> with(WindFigure) {
                 draw(0f, 48, WindMood.IDLE, accent, style, minairo, false, false, { windPose(WindMood.IDLE, 0f) }, emptyList(), 0f, Offset.Zero,
-                    null, null, null, minairoLook(style, accent), WindBodyPaint(if (minairo) WindShape.BALL else style.shape, accent))
+                    null, null, null, minairoLook(style, accent), WindBodyPaint(if (minairo) WindShape.BALL else style.shape.drawn, accent))
             }
         }
     }

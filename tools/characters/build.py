@@ -45,6 +45,17 @@ SILHOUETTES = {
     "minairo": ("minairo", 1.7, 0.96, [((0, 0, 0.8), 1.25, (1, 0.9, 0.9)), ((0, 0, 1.15), 0.95, (0.95, 0.9, 0.88))]),
     # Not a style letter either: every wind in the pelut pack, a round ball of short fur.
     "pelut": ("pelut", 1.7, 1.02, [((0, 0, 0.95), 1.3, (1, 0.95, 1.08))]),
+    # Task 170: a raindrop whose tip leans into the wind.
+    "gota": ("g", 2.0, 0.95, [((0, 0, 0.95), 1.3, (1.05, 0.9, 1.0))] + [
+        ((0.4 * s ** 2, 0, 1.5 + 0.5 * s), 0.78 - 0.7 * s, (1, 0.9, 1)) for s in [k / 8 for k in range(9)]]),
+    # A sun: a round body with a ring of soft bumps for rays over its top half.
+    "sol": ("u", 2.2, 1.0, [((0, 0, 1.0), 1.3, (1, 0.9, 1))] + [
+        ((0.95 * math.cos(a), 0, 1.0 + 0.95 * math.sin(a)), 0.42, (1, 0.9, 1))
+        for a in [math.radians(-20 + 220 * k / 6) for k in range(7)]]),
+    # A wave: a long low back that rises into a crest curling over, clear of the eyes.
+    "onada": ("w", 2.4, 0.86, [((0.15, 0, 0.75), 1.15, (1.35, 0.85, 0.8)), ((-0.5, 0, 1.25), 0.95, (1, 0.9, 1))] + [
+        ((0.1 + 0.62 * math.cos(a), 0, 1.42 + 0.62 * math.sin(a)), 0.5 - 0.36 * s, (1, 0.9, 1))
+        for s, a in [(k / 24, math.pi - (math.pi + 0.1) * k / 24) for k in range(25)]]),
 }
 # Silhouettes with a barretina in its own mask (<mood>.cap.webp), tinted per wind.
 CAPS = ("minairo",)
@@ -930,12 +941,13 @@ def preview(folder, silhouettes=tuple(SILHOUETTES), motion=False, title=None,
     barretina colour with a few frames per mood, or with motion every frame of one
     silhouette, one mood per row."""
     rows = []
+    # Only the moods every silhouette has, so the rows line up when some are rendered in part.
+    moods = [m for m in MOODS if all((OUT / s / f"{m}.webp").exists() for s in silhouettes)]
     for silhouette in silhouettes:
         for tint, cap in tints:
             cells = []
-            for mood, (n, _) in MOODS.items():
-                if not (OUT / silhouette / f"{mood}.webp").exists():
-                    continue
+            for mood in moods:
+                n = MOODS[mood][0]
                 colour = pixels(OUT / silhouette / f"{mood}.webp")
                 masks = [(pixels(OUT / silhouette / f"{mood}.mask.webp"), tint)]
                 if silhouette in CAPS:
@@ -968,7 +980,7 @@ def preview(folder, silhouettes=tuple(SILHOUETTES), motion=False, title=None,
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--only", default=",".join(SILHOUETTES))
+    parser.add_argument("--only", default=",".join(SILHOUETTES), help="silhouettes to render and preview")
     parser.add_argument("--moods", default=",".join(MOODS))
     parser.add_argument("--preview", help="also write contact sheets to this folder")
     args = parser.parse_args(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])
@@ -976,10 +988,12 @@ def main():
     manifest()
     if args.preview:
         Path(args.preview).mkdir(parents=True, exist_ok=True)
-        preview(args.preview)
-        for silhouette in SILHOUETTES:
+        only = tuple(args.only.split(","))
+        preview(args.preview, only)
+        for silhouette in only:
             preview(args.preview, (silhouette,), True, tints=(((0.36, 0.55, 0.94), hex_rgb("#C9342C")),))
-        preview(args.preview, ("minairo",), title="minairons", tints=MINAIRONS)
+        if "minairo" in only:
+            preview(args.preview, ("minairo",), title="minairons", tints=MINAIRONS)
 
 
 main()

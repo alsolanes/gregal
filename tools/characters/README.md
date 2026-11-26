@@ -17,7 +17,8 @@ the second only some sheets, the third only writes contact sheets of what is
 already rendered: every silhouette tinted in two wind colours with a few
 frames per mood (`contact-*`), every frame of every mood per silhouette
 (`motion-*`), and six minairons each in its own barretina colour
-(`minairons-*`), at 128 and 40 px, on light and dark.
+(`minairons-*`), at 128 and 40 px, on light and dark. With `--only` the
+contact sheets show only those silhouettes, in the moods all of them have.
 
 Run `go test ./internal/web -run TestCharactersManifestMatchesSheets` after
 rendering: it checks that `manifest.json` and the sheets agree.
@@ -38,7 +39,7 @@ rendering: it checks that `manifest.json` and the sheets agree.
   (`minairo`): the same kind of mask for the barretina (its tube and crown,
   not the black band), which the sheet shows in the neutral clay too.
 - `manifest.json`: `size`, `maskSize`, `fps`, the silhouettes (`pebble`,
-  `cloud`, `curl`, with the letter of the wind style each one stands for, as
+  `cloud`, `curl`, and `gota`, `sol` and `onada` from task 170, with the letter of the wind style each one stands for, as
   in `winds.js`; and `minairo` and `pelut`, which stand for the minairó and
   pelut avatar packs whatever the wind's style), and per mood the number of `frames` and whether it `loop`s
   or plays once and holds the last frame (`done`, `failed`). `look` (task 169) is not a

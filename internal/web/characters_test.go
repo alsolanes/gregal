@@ -66,8 +66,9 @@ func TestCharactersManifestMatchesSheets(t *testing.T) {
 // El paquet minairó té la seva figura (barba fora de la màscara, la barretina
 // en una màscara pròpia perquè cada minairó la tenyeixi del seu color) i, amb
 // ella i els objectes de la feina (142), els fulls de les famílies de plastilina
-// a 256 px (157) han de cabre en 3,7 MB: en fan 3,55. El pelut (155) té el seu
-// propi pressupost.
+// a 256 px (157), amb les tres formes de la tasca 170 (gota, sol i onada, que
+// hi sumen 2,8 MB amb el vistiplau de l'usuari), han de cabre en 6,6 MB: en fan
+// 6,5. El pelut (155) té el seu propi pressupost.
 func TestCharactersMinairoWithinBudget(t *testing.T) {
 	m := loadCharactersManifest(t)
 	if family := m.Silhouettes["minairo"]; family != "minairo" {
@@ -88,8 +89,8 @@ func TestCharactersMinairoWithinBudget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if total > 3_700_000 {
-		t.Errorf("els personatges fan %d bytes, més de 3,7 MB", total)
+	if total > 6_600_000 {
+		t.Errorf("els personatges fan %d bytes, més de 6,6 MB", total)
 	}
 }
 

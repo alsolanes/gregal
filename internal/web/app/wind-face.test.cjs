@@ -85,6 +85,19 @@ test('the gust shape curls on top instead of wearing a fringe', () => {
   }
 });
 
+// 170: without its clay sheets, a drop, sun or wave wind is drawn as the
+// nearest drawn shape (ball, cloud, curl), never as an empty face.
+test('a new clay shape draws as the nearest drawn shape', () => {
+  const { winds } = load();
+  const drawn = (style, large) => JSON.stringify(winds.face({ id:'a', color:'#A8D8EA', style }, large).all().map(n => [n.tag, n.attrs]))
+    .replaceAll(/"data-style":"[a-z]+"/g, '').replaceAll(/wf\d+/g, 'wf');
+  for (const large of [false, true, 'figure']) {
+    for (const [shape, nearest] of [['g', 'o'], ['u', 'n'], ['w', 's']]) {
+      assert.equal(drawn('bs' + shape, large), drawn('bs' + nearest, large), shape + ' draws as ' + nearest);
+    }
+  }
+});
+
 test('Android draws the same specialties as the web', () => {
   const kotlin = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'android', 'app', 'src', 'main', 'java', 'xyz', 'solanes', 'gregal', 'WindFace.kt'), 'utf8');
   const android = [...kotlin.matchAll(/^\s+"([a-z]+)" to MascotKit\(/gm)].map(m => m[1]).sort();

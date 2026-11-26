@@ -186,7 +186,7 @@
     // The clay is Cares, with its trade as a badge (159), or the minairó and the pelut in their own sheets; the other packs stay drawn.
     const avatar = svg.getAttribute('data-avatar');
     if (!w || (avatar && avatar !== 'minairo' && avatar !== 'pelut')) return svg;
-    const letter = avatar || ('ons'.includes(String(w.style || '')[2]) ? w.style[2] : 'o'), color = /^#[\da-f]{6}$/i.test(w.color || '') ? w.color : '#F5B45D';
+    const letter = avatar || ('onsguw'.includes(String(w.style || '')[2]) ? w.style[2] : 'o'), color = /^#[\da-f]{6}$/i.test(w.color || '') ? w.color : '#F5B45D';
     // The minairó's barretina colour, as winds.js picked it for this wind.
     const cap = svg.getAttribute('data-barretina') || '';
     const p = { w, svg, letter, color, cap, still, badge: root.gregalWinds.kitIcon(svg.getAttribute('data-kit')), mood: svg.getAttribute('data-mood') || 'idle', spot: w.id + '|' + svg.getAttribute('class') }, key = letter + '/' + p.mood + '/' + color + cap + (still ? '/still' : '');

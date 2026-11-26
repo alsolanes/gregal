@@ -293,6 +293,18 @@ test('a waiting clay face carries a «?» bubble in the wind colour over every f
   }
 });
 
+// 170: the drop, the sun and the wave have their own clay sheets.
+test('a gota, sol or onada wind plays the sheet of its own silhouette', async () => {
+  for (const [letter, silhouette] of [['g', 'gota'], ['u', 'sol'], ['w', 'onada']]) {
+    const env = load();
+    const { svg, box } = svgFace(env);
+    env.chars.play(svg, { ...wind, style: 'ps' + letter });
+    await settle();
+    assert.ok(env.fetched.includes(`/app/characters/${silhouette}/idle.webp`) && env.fetched.includes(`/app/characters/${silhouette}/idle.mask.webp`), letter + ' is the ' + silhouette);
+    assert.deepEqual(lastDraw(box.children[0]), { sheet: silhouette + '/idle.webp', sx: 0, alpha: 1, op: 'source-over' });
+  }
+});
+
 test('the other avatar packs stay code-drawn', async () => {
   const env = load();
   const cap = svgFace(env, 'idle', { 'data-avatar': 'cap' });
