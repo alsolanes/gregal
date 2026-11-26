@@ -1769,11 +1769,15 @@ internal class PetMsgDto(
     val ts: Long = 0L, val kind: String = "", val id: String = "",
     val relatedRunId: Long = 0L, val resultRefs: List<String> = emptyList(),
     val shots: List<MsgShotDto> = emptyList(),
+    val by: MsgByDto? = null,
 ) {
     fun toPetMsg() = GregalViewModel.PetMsg(from, text, speakerId, speakerName, ts = msgMillis(ts), kind = kind, id = id,
-        relatedRunId = relatedRunId, resultRefs = resultRefs,
+        relatedRunId = relatedRunId, resultRefs = resultRefs, by = by?.let { MsgBy(it.id, it.name) },
         shots = shots.filter { it.shotUrl.startsWith("/api/ordinador/accions/captura?id=") }.map { MsgShot(it.id, it.title, it.url, it.shotUrl) })
 }
+
+/** El vent que ha passat l'encàrrec (task 160). */
+@Serializable internal class MsgByDto(val id: String = "", val name: String = "")
 
 /** Una captura del que el vent ha fet a l'ordinador en aquell torn. */
 @Serializable

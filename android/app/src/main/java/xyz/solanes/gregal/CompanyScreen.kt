@@ -1334,6 +1334,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     MemoryNotice(lang, facts) { vm.forgetLearned(wind.id, facts) }
                 } else if (m.kind == "doc" && m.doc != null) {
                     DocCard(m.doc, lang) { vm.openDoc(m.doc) }
+                } else if (m.by != null) {
+                    HandoffRow(m, winds.firstOrNull { it.id == m.by.id }, lang)
                 } else Column(Modifier.padding(top = gap).testTag("chat-row").then(if (!m.streaming) Modifier else Modifier
                     .heightIn(min = with(androidx.compose.ui.platform.LocalDensity.current) { tallest.toDp() })
                     .onSizeChanged { tallest = maxOf(tallest, it.height) })) {

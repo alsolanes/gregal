@@ -6639,7 +6639,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                       /** Captures del que ha fet a l'ordinador en aquest torn («Ho he fet així»). */
                       val shots: List<MsgShot> = emptyList(),
                       /** kind "doc": el document que el vent ha escrit, per a la targeta. */
-                      val doc: DocRef? = null) {
+                      val doc: DocRef? = null,
+                      /** Un encàrrec que un altre vent ha passat a aquest: qui el demana. */
+                      val by: MsgBy? = null) {
         val proactive: Boolean get() = from != "user" && id.isNotBlank() && (relatedRunId > 0 || resultRefs.isNotEmpty())
     }
 
