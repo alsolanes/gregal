@@ -61,9 +61,6 @@ function prefsNow() {
 // llavors que s'aturi no és cap error que calgui ensenyar.
 let backendStopping = false;
 let backendRestarts = [];
-// Producte que ha demanat una segona instància («Gregal Vents») mentre l'app
-// encara arrencava: es carrega aquest en lloc del de la línia d'ordres.
-let requestedPath = null;
 let ipcWired = false;
 // Últims colors desats a startup-theme.json, per no reescriure'l igual.
 let lastThemeSaved = '';
@@ -615,17 +612,13 @@ function wireIPC(getWin = () => mainWin) {
 }
 
 // Dos productes al mateix servidor: Gregal Codi (/) i Gregal Vents (/vents/).
-// La drecera «Gregal Vents» obre l'app amb --vents; la finestra és la mateixa
-// i el desplegable del peu passa d'un producte a l'altre.
+// L'app obre Codi i el desplegable del peu passa d'un producte a l'altre.
 // Aquest repositori només empaqueta Gregal (Codi i Vents). Gregal Jocs viu a
 // alsolanes/gregal-jocs, amb una còpia d'aquesta app que posa
 // gregalEdition = "jocs" al package.json; sense, és Gregal.
 const EDITION = (() => { try { return require("./package.json").gregalEdition === "jocs" ? "jocs" : "gregal"; } catch (e) { return "gregal"; } })();
 const PRODUCT = EDITION === "jocs" ? "Gregal Jocs" : "Gregal";
-const wantsVents = argv => EDITION === "gregal" && (argv || []).includes("--vents");
-const pathFor = argv => EDITION === "jocs" ? "/jocs/" : wantsVents(argv) ? "/vents/" : "/";
-const startPath = () => pathFor(process.argv);
-const appPath = () => requestedPath || startPath();
+const appPath = () => EDITION === "jocs" ? "/jocs/" : "/";
 
 // La finestra principal no pot ser més gran que la pantalla on surt: en un
 // portàtil de 1366×768 al 125 % l'àrea útil fa menys de 600 d'alt.
@@ -965,15 +958,15 @@ function prepareChromeExtension() {
     }
 }
 
-// Una sola instància: obrir «Gregal Vents» amb l'app ja oberta no ha
-// d'engegar un segon backend; porta la finestra que hi ha al producte demanat.
+// Una sola instància: tornar a obrir Gregal amb l'app ja oberta no ha
+// d'engegar un segon backend; porta al davant la finestra que hi ha.
 // La segona instància no ha de fer res més: abans el whenReady de sota
 // corria igualment i creava una finestra (i un backend) mentre sortia.
 const gotLock = typeof app.requestSingleInstanceLock !== "function" || app.requestSingleInstanceLock();
 if (!gotLock) {
     app.quit();
 } else {
-    app.on("second-instance", (_event, argv) => {
+    app.on("second-instance", () => {
         const win = mainWin;
         if (!win || win.isDestroyed()) {
             if (app.isReady()) void createWindow();
@@ -985,10 +978,6 @@ if (!gotLock) {
             win.show();
             win.focus();
         }
-        if (!wantsVents(argv)) return;
-        // Encara arrencant (loading.html): es carregarà Vents quan toqui.
-        if (sameOrigin(win.webContents.getURL(), BASE)) win.loadURL(BASE + pathFor(argv)).catch(() => {});
-        else requestedPath = pathFor(argv);
     });
 }
 

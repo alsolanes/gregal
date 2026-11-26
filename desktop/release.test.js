@@ -34,3 +34,30 @@ test('desktop, lockfile and backend version agree', () => {
   const main = fs.readFileSync(path.join(__dirname, '..', 'main.go'), 'utf8');
   assert.ok(main.includes(`var version = "v${pkg.version}"`));
 });
+
+test('the Windows installer adds no separate Vents shortcut and removes the old ones', () => {
+  // Codi i Vents es trien al desplegable de la mateixa finestra: una segona icona sobra.
+  const nsh = fs.readFileSync(path.join(__dirname, 'build', 'installer.nsh'), 'utf8');
+  const install = nsh.slice(nsh.indexOf('!macro customInstall'), nsh.indexOf('!macroend'));
+  assert.doesNotMatch(nsh, /CreateShortCut[^\n]*Vents/);
+  assert.ok(install.includes(String.raw`Delete "$SMPROGRAMS\Gregal Vents.lnk"`));
+  assert.ok(install.includes(String.raw`Delete "$DESKTOP\Gregal Vents.lnk"`));
+});
+
+test('the app opens Codi even when started with the old --vents switch', () => {
+  const vm = require('node:vm');
+  const { createRequire } = require('node:module');
+  const electron = {
+    app: { getPath: () => path.join(require('node:os').tmpdir(), 'gregal-vents-test-no-profile'), whenReady: () => ({ then() {} }), on() {} },
+    ipcMain: { on() {}, handle() {} },
+    nativeTheme: { shouldUseDarkColors: false },
+  };
+  const localRequire = createRequire(path.join(__dirname, 'main.js'));
+  const context = {
+    require: name => name === 'electron' ? electron : localRequire(name),
+    process: { env: {}, platform: process.platform, argv: ['Gregal.exe', '--vents'] },
+    __dirname, URL, console, setTimeout, clearTimeout,
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8') + '\nthis.testAppPath = appPath;', context);
+  assert.equal(context.testAppPath(), '/');
+});
