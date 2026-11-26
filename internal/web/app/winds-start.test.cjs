@@ -97,7 +97,7 @@ async function boot({ lang = 'en', api, storage = {}, css = () => '', extra = {}
   const json = data => ({ ok: true, status: 200, json: async () => data, text: async () => JSON.stringify(data) });
   const window = {
     document: doc, gregalNotes: notes, addEventListener() {}, gregalGreeting: () => 'Good evening', ...extra,
-    gregalWinds: { kitIcon: kit => ({ music: 'M6 11.5v-8', weather: 'M4.75 12.25h7' })[kit] || null, face: (w, large, mood, size) => { const n = new Element('svg', doc); n.dataset.wind = w?.name || ''; n.dataset.style = w?.style || ''; if (size) n.dataset.size = String(size); return n; }, moodOf: () => '', seen() {}, watchNews(f) { this.onNews = f; }, news: [], hasNews(id) { return this.news.includes(id); }, setAvatarTheme(theme) { this.theme = theme; },
+    gregalWinds: { kitIcon: kit => ({ music: 'M6 11.5v-8', weather: 'M4.75 12.25h7' })[kit] || null, face: (w, large, mood, size) => { const n = new Element('svg', doc); n.dataset.wind = w?.name || ''; n.dataset.style = w?.style || ''; if (w?.kit) n.dataset.kit = w.kit; n.dataset.large = String(large); if (size) n.dataset.size = String(size); return n; }, moodOf: () => '', seen() {}, watchNews(f) { this.onNews = f; }, news: [], hasNews(id) { return this.news.includes(id); }, setAvatarTheme(theme) { this.theme = theme; },
       // winds.js draws the real pickers (winds-avatar-picker.test.cjs); here only Free mode gets a pack one.
       avatarField(parent, w) { if (this.theme !== 'free') return null; const s = new Element('select', doc); s.setAttribute('id', 'windAvatar'); s.value = w?.avatar || 'cares'; parent.append(s); return s; },
       avatarPack(w) { return this.theme !== 'free' ? this.theme : w.avatar || 'cares'; },
@@ -356,6 +356,52 @@ test('in the create dialog the barretina picker shows only with the Minairons pa
   assert.equal(hat.parentNode.hidden, true);
   pick.value = 'minairo'; changed(pick);
   assert.equal(hat.parentNode.hidden, false);
+});
+
+// 165: una frase omple el vent sencer; es revisa abans de crear-lo.
+function creatorBoot(suggest) {
+  const ok = data => ({ ok: true, status: 200, json: async () => data });
+  return boot({ api: r => r.url === '/api/winds/suggest' ? suggest(r) : r.url === '/api/winds' && r.method === 'POST' ? ok({ wind: r.body })
+    : r.url === '/api/winds/tidy' ? ok({ groups: [], test: [], unused: [] }) : null });
+}
+async function openCreator(f) {
+  await byText(f.nav, 'button', 'All winds').click(); await settle();
+  await byText(f.page, 'button', 'Create your own wind').click(); await settle();
+  return f.doc.body.children.at(-1);
+}
+const creatorFields = d => { const [name, role, tint] = d.querySelectorAll('input'), [describe, persona] = d.querySelectorAll('textarea'), [shape, eyes, mouth] = d.querySelectorAll('select'); return { name, role, tint, describe, persona, shape, eyes, mouth }; };
+
+test('describing a wind fills the creator and its preview, and nothing is created until «Create wind»', async () => {
+  let answer;
+  const f = await creatorBoot(() => new Promise(r => { answer = r; }));
+  const d = await openCreator(f), c = creatorFields(d);
+  assert.match(d.textContent, /Describe your wind/);
+  c.describe.value = 'un vent que m’ajudi amb receptes de temporada';
+  const go = byText(d, 'button', 'Suggest');
+  const pending = go.click(); await settle();
+  assert.equal(go.disabled, true, 'disabled while the suggestion runs');
+  assert.deepEqual(f.requests.find(r => r.url === '/api/winds/suggest').body, { description: 'un vent que m’ajudi amb receptes de temporada' });
+  answer({ ok: true, status: 200, json: async () => ({ name: 'Fogó', role: 'Cuina de temporada', persona: 'Cuino amb calma.', style: 'etn', color: '#e8a040', kit: 'cooking' }) });
+  await pending; await settle();
+  assert.equal(go.disabled, false);
+  assert.deepEqual([c.name.value, c.role.value, c.persona.value, c.tint.value, c.eyes.value, c.mouth.value, c.shape.value], ['Fogó', 'Cuina de temporada', 'Cuino amb calma.', '#e8a040', 'e', 't', 'n']);
+  const preview = d.querySelector('.vw-wind-preview').querySelector('svg');
+  assert.deepEqual([preview.dataset.wind, preview.dataset.style, preview.dataset.kit, preview.dataset.large], ['Fogó', 'etn', 'cooking', 'true'], 'the large clay face, with its trade');
+  assert.ok(!f.requests.some(r => r.url === '/api/winds' && r.method === 'POST'), 'nothing created yet');
+  await byText(d, 'button', 'Create wind').click();
+  assert.deepEqual(lastWindPost(f), { name: 'Fogó', role: 'Cuina de temporada', persona: 'Cuino amb calma.', color: '#e8a040', style: 'etn' });
+});
+
+test('if the suggestion fails, an error line shows and the creator keeps what it had', async () => {
+  const f = await creatorBoot(() => ({ ok: false, status: 502, text: async () => 'model down' }));
+  const d = await openCreator(f), c = creatorFields(d);
+  c.name.value = 'Lupa'; c.role.value = 'Revisió';
+  c.describe.value = 'un vent que revisi textos';
+  const go = byText(d, 'button', 'Suggest');
+  await go.click(); await settle();
+  assert.match(d.querySelector('.vw-describe-error').textContent, /Could not suggest a wind: model down/);
+  assert.deepEqual([c.name.value, c.role.value, c.eyes.value], ['Lupa', 'Revisió', 'p']);
+  assert.equal(go.disabled, false, 'it can be tried again');
 });
 
 test('the start page header just says Winds, not Today', async () => {
