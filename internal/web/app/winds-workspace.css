@@ -573,9 +573,10 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-owner-faces > .winds-face:last-child { margin-right:2px; }
 /* La pastilla de l'ofici (la `.tag` de mockups/vents-layout.html): el fons és el
    color del vent i les lletres el barregen amb la tinta del tema, perquè els
-   colors pastel es llegeixin tant en clar com en fosc. Un rol llarg s'escurça. */
+   colors pastel es llegeixin tant en clar com en fosc. Un rol llarg s'escurça; la
+   línia del text és més alta que la lletra perquè l'overflow no talli la cua de la g. */
 .vw-tag { display:inline-flex; align-items:center; gap:4px; box-sizing:border-box; height:20px; max-width:100%; min-width:0; flex:0 1 auto; padding:0 7px; border-radius:6px; font-size:11.5px; font-weight:500; line-height:1; white-space:nowrap; background:color-mix(in srgb,var(--c) 18%,transparent); color:color-mix(in srgb,var(--c) 50%,var(--ink)); }
-.vw-tag > span { overflow:hidden; text-overflow:ellipsis; }
+.vw-tag > span { overflow:hidden; text-overflow:ellipsis; line-height:1.4; }
 .vw-tag-ic { width:12px; height:12px; flex:none; }
 .vw-tag-ic path { stroke-width:1.6; }
 .vw-nav-channel > .vw-tag { margin-left:auto; }
