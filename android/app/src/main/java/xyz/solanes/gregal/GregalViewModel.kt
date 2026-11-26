@@ -5257,6 +5257,18 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    internal fun describeWind(description: String, onError: () -> Unit, onDone: (SuggestDto) -> Unit) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val wind = withContext(Dispatchers.IO) { source.api().describeWind(description) }
+                if (isCompanionOrigin(source, epoch)) onDone(wind)
+            } catch (e: Exception) {
+                if (isCompanionOrigin(source, epoch)) { companyError(e); onError() }
+            }
+        }
+    }
+
     /** Memòria del vent sobre l'usuari + els seus coneixements (perfil). */
     private val _ventDetall = MutableStateFlow<Map<String, Pair<String, List<GregalApi.Coneixement>>>>(emptyMap())
     val ventDetall: StateFlow<Map<String, Pair<String, List<GregalApi.Coneixement>>>> = _ventDetall.asStateFlow()

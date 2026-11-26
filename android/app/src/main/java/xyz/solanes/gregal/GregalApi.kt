@@ -651,6 +651,10 @@ class GregalApi(val base: String, val token: String) {
         return Pair(o.persona, o.style.ifBlank { "pso" })
     }
 
+    /** El vent sencer d'una frase: una proposta que l'usuari revisa al creador; no es crea res. */
+    internal fun describeWind(description: String): SuggestDto =
+        postAs("/api/winds/suggest", JSONObject().put("description", description))
+
     fun getRotllanes(): List<Rotllana> = RotllanaRequests.parse(read("/api/winds/rotllanes"))
 
     fun saveRotllana(name: String, members: List<String>, id: String = ""): JSONObject {
@@ -1658,7 +1662,7 @@ internal class ModelsDto(
 @Serializable internal class NomDto(val nom: String? = null)
 @Serializable internal class NameDto(val name: String = "")
 @Serializable internal class NamesDto(val names: List<String> = emptyList())
-@Serializable internal class SuggestDto(val persona: String = "", val style: String = "")
+@Serializable internal class SuggestDto(val persona: String = "", val style: String = "", val name: String = "", val role: String = "", val color: String = "", val kit: String = "")
 @Serializable internal class GithubDto(val output: String = "")
 @Serializable internal class JobRefDto(val job: JsonElement? = null)
 @Serializable internal class CursorDto(val cursor: Long? = null)
