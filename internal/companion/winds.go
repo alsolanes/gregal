@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Els companions de Gregal són vents: Tramuntana, Xaloc, Mistral… Com el
@@ -32,6 +33,8 @@ type Wind struct {
 	// Avatar: el pack amb què es dibuixa quan el tema del compte és «free».
 	// Buit = cares; buit en desar = no canviar (els editors antics no l'envien).
 	Avatar string `json:"avatar,omitempty"`
+	// Created: quan es va crear (RFC 3339). Buit als vents desats abans que hi fos.
+	Created string `json:"created,omitempty"`
 }
 
 // ValidAvatar diu si p és un pack d'avatars que els clients saben dibuixar.
@@ -258,8 +261,10 @@ func (ws *WindStore) save(w Wind, create bool) (Wind, error) {
 		if w.Avatar == "" {
 			w.Avatar = d.Winds[index].Avatar
 		}
+		w.Created = d.Winds[index].Created
 		d.Winds[index] = w
 	} else {
+		w.Created = time.Now().UTC().Format(time.RFC3339)
 		d.Winds = append(d.Winds, w)
 	}
 	return w, ws.writeDisc(d)

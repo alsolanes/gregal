@@ -1385,6 +1385,28 @@ test('All winds leads with your winds; tidying up is a small chip under the titl
   assert.ok(chip.closest('.vw-heading'), 'under the title');
 });
 
+// 174: la pastilla arriba després de les files; no les ha d'empènyer avall.
+test('the tidy chip fills a slot kept for it, so the wind rows do not move when it arrives', async () => {
+  let answer;
+  const late = new Promise(r => { answer = r; });
+  const f = await boot({ api: r => r.url === '/api/winds/tidy' ? late : null });
+  await byText(f.nav, 'button', 'All winds').click();
+  await settle();
+  const slot = f.page.querySelector('.vw-heading').querySelector('.vw-tidy-slot');
+  assert.ok(slot, 'the heading keeps room for the chip before the report arrives');
+  assert.equal(slot.children.length, 0);
+  const blocks = () => [...f.page.querySelector('.vw-content').children, ...slot.parentNode.children];
+  const before = blocks();
+  answer({ ok: true, status: 200, json: async () => ({ total: 2, groups: [], test: [], unused: [{ id: 'xaloc', name: 'Xaloc' }] }) });
+  await settle();
+  assert.equal(f.page.querySelector('.vw-tidy-chip').parentNode, slot, 'the chip goes into the slot');
+  assert.deepEqual(blocks(), before, 'nothing new in the page or the heading, above the rows');
+  const rules = cssRules('winds-workspace.css');
+  const px = (sel, name) => parseFloat(prop(rules.find(r => r.sel === sel), name));
+  assert.equal(px('.vw-tidy-slot', 'height'), px('.vw-tidy-chip', 'margin-top') + px('.vw-tidy-chip', 'height'), 'the slot is as tall as the chip');
+  assert.equal(prop(rules.find(r => r.sel === '.vw-tidy-chip'), 'white-space'), 'nowrap', 'one line, so it never grows taller than the slot');
+});
+
 test('a turn that uses the computer leaves it closed when the person closed the side pane in that chat, with a dot', async () => {
   const f = await paneChat();
   await f.turn(['activity', { phase: 'tool', tool: 'browser' }]);

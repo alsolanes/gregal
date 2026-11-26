@@ -5,8 +5,36 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 )
 
+// Un vent nou guarda quan es va crear; editar-lo (encara que el client enviï
+// una altra data o cap) no la canvia.
+func TestWindCreatedKeptOnEdit(t *testing.T) {
+	ws := NewWindStore(t.TempDir())
+	before := time.Now().Add(-time.Second)
+	w, err := ws.Save(Wind{Name: "Marinada"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, err := time.Parse(time.RFC3339, w.Created)
+	if err != nil || created.Before(before.Truncate(time.Second)) || created.After(time.Now()) {
+		t.Fatalf("data de creació: %q (%v)", w.Created, err)
+	}
+	for _, sent := range []string{"", "2020-01-01T00:00:00Z"} {
+		e, err := ws.Save(Wind{ID: w.ID, Name: "Marinada", Role: "calma", Created: sent})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if e.Created != w.Created {
+			t.Fatalf("l'edició (enviant %q) ha canviat la data: %q → %q", sent, w.Created, e.Created)
+		}
+	}
+	got, _ := ws.ByID(w.ID)
+	if got.Created != w.Created {
+		t.Fatalf("desat: %q, volia %q", got.Created, w.Created)
+	}
+}
 
 // TestWindStoreFlockDosProcessos: dues instàncies del store (com el servidor
 // i l'escriptori) que escriuen alhora no es perden els canvis: el flock

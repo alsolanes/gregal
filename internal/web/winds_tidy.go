@@ -189,10 +189,13 @@ func (s *Server) windTidyReport() (tidyReport, error) {
 			continue
 		}
 		t := stats[w.ID]
+		// Un vent de fa menys d'una setmana encara no ha tingut temps de fer-se servir.
+		created, err := time.Parse(time.RFC3339, w.Created)
+		recent := err == nil && time.Since(created) < 7*24*time.Hour
 		switch {
 		case tidyLooksTest(w.Name) && t.Msgs < 6:
 			rep.Test = append(rep.Test, t)
-		case t.Msgs == 0 && t.Memory == 0 && t.Knowledge == 0 && t.Jobs == 0 && t.Skills == 0:
+		case !recent && t.Msgs == 0 && t.Memory == 0 && t.Knowledge == 0 && t.Jobs == 0 && t.Skills == 0:
 			rep.Unused = append(rep.Unused, t)
 		}
 	}
