@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+## v1.96.0 - 2026-11-26 - Pelut, vents nítids i un capçal per a tots
+
+- **Pelut, un paquet d'avatars nou (web, escriptori i Android).** Cada vent
+  és una bola de pèl curt en 3D del seu color, amb ulls grossos i brillants.
+  Es tria a Preferències › Avatars («Pelut» / «Furry») o, en mode Lliure, a
+  l'editor de cada vent.
+- **Vents de plastilina nítids al mòbil.** Totes les figures de plastilina
+  (còdol, núvol, rínxol, minairó i pelut) es renderitzen al doble de
+  resolució: ulls, boca i vores ja no es veuen borrosos. A Android ja no
+  tenen un requadre fosc al voltant.
+- **Selectors d'avatars ben repartits.** Els colors i els paquets queden en
+  files i columnes iguals, sense cap opció sola en una fila ni noms tallats,
+  i les mostres són més grans, les de plastilina en 3D.
+- **Un capçal per a tots els vents.** Gregal inclòs, tots tenen la mateixa
+  capçalera amb un menú «⋯»; el vent assenteix, s'hi acosta o fa que no amb
+  el cos, i si un torn falla t'ho diu ell al fil amb «Torna-ho a provar».
+- **Permisos amb la cara de qui demana.** La targeta de permís porta la cara
+  i el color del vent que pregunta i el perquè en una línia.
+- **Inici i Feina (Android).** La fila de cares de l'inici hi té tots els
+  vents, llisca amb imant i el vent que respon porta un punt; en tocar-ne una
+  vola al xat i en repren el fil. A Feina, cada feina en marxa és una
+  targeta amb la cara de qui la porta, i «Què pot fer Gregal» s'obre amb tres
+  targetes i «Més». La resposta del vent creix al seu lloc, com al web.
+- **Avui.** Al web comença amb el resum del dia, una targeta per vent amb el
+  que ha fet i el que proposa. Després d'un xat sobre una cosa que canvia, el
+  vent ofereix «Vols que ho vigili?». Les feines nocturnes funcionen des que
+  s'engega el servidor.
+- **Correccions.** La barra de l'editor de documents parla l'idioma de l'app;
+  Android anomena l'ordinador i les respostes desades com el web; la pàgina
+  de vents antiga ja no es carrega; la primera paraula d'una resposta surt de
+  seguida.
+
 ## v1.95.0 - 2026-11-25 - Xat més pro, vents que es mouen amb calma i proactius
 
 - **Un xat més professional (web i escriptori).** La resposta d'un vent creix
