@@ -42,8 +42,9 @@ class HandoffTaskTest {
         assertEquals("mira el preu", handoffBody("Encàrrec de Lluerna: mira el preu", "Lluerna"))
         assertEquals("check the price", handoffBody("Task from Lluerna: check the price", "Lluerna"))
         assertEquals("sense prefix", handoffBody("sense prefix", "Lluerna"))
-        val m = GregalViewModel.PetMsg("user", "Encàrrec de Lluerna: mira el preu", by = MsgBy("lluerna", "Lluerna"))
-        rule.setContent { HandoffRow(m, null, lang = "ca") }
+        val by = MsgBy("lluerna", "Lluerna")
+        val m = GregalViewModel.PetMsg("user", "Encàrrec de Lluerna: mira el preu", by = by)
+        rule.setContent { HandoffRow(m, by, null, "ca") }
         rule.onNodeWithTag("handoff-from").assertTextEquals("Encàrrec de Lluerna")
         rule.onNodeWithText("mira el preu", substring = true).assertExists()
         rule.onNodeWithText("Encàrrec de Lluerna: mira el preu", substring = true).assertDoesNotExist()

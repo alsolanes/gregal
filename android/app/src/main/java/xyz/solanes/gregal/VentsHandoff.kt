@@ -24,16 +24,15 @@ internal fun handoffBody(text: String, name: String): String {
 
 /** Un encàrrec d'un altre vent: la seva cara i «Encàrrec de A», no una bombolla teva (handoffRow a la web). */
 @Composable
-internal fun HandoffRow(m: GregalViewModel.PetMsg, asker: Wind?, lang: String) {
-    val by = m.by ?: return
+internal fun HandoffRow(m: GregalViewModel.PetMsg, by: MsgBy, asker: Wind?, lang: String, onCopy: (() -> Unit)? = null) {
     val w = asker ?: Wind(by.id, by.name, "", "")
     val accent = Color(w.argb)
-    Column(Modifier.padding(top = 16.dp)) {
+    Column {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier.padding(start = 6.dp, bottom = 2.dp)) {
             WindFace(size = 20, accent = accent, style = w.faceStyle)
             Text(tr(lang, "app.vents.handoffFrom", by.name), color = Muted, fontSize = 12.sp, modifier = Modifier.testTag("handoff-from"))
         }
-        WindBubble(m.copy(from = "pet", text = handoffBody(m.text, by.name), by = null), accent, lang = lang)
+        WindBubble(m.copy(from = "pet", text = handoffBody(m.text, by.name), by = null), accent, lang = lang, onCopy = onCopy)
     }
 }
