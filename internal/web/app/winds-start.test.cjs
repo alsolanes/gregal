@@ -791,6 +791,19 @@ test('a wind with a pending ask waits on its faces on the start page, the crew l
   assert.deepEqual(f.page.querySelectorAll('.vw-member').map(r => r.firstChild.getAttribute('data-mood')), ['idle', 'idle']);
 });
 
+// 173: the crew rows are list faces, so winds.js hands Cares to the clay player still, in its own silhouette.
+test('the rows of your winds and of a squad are list faces with their waiting mood, not the scene figure', async () => {
+  const json = data => ({ ok: true, status: 200, json: async () => data });
+  const own = { id: 'garbi', name: 'Garbí', color: '#9ED3C5', style: 'psg', kit: 'weather' };
+  const f = await boot({ api: r => r.url === '/api/winds' && r.method === 'GET' ? json({ winds: [...winds, own] })
+    : r.url === '/api/winds/pending' ? json({ pending: [{ key: 'k1', type: 'approve', wind: 'garbi', kind: 'rule', name: 'write', what: 'write /tmp/a.md', detail: '/tmp/a.md' }] })
+    : r.url === '/api/winds/tidy' ? json({ groups: [], test: [], unused: [] }) : null });
+  await byText(f.nav, 'button', 'All winds').click(); await settle();
+  const rows = f.page.querySelectorAll('.vw-member').map(r => r.firstChild);
+  assert.deepEqual(rows.map(s => [s.dataset.wind, s.dataset.large, s.getAttribute('data-mood')]),
+    [['Garbí', 'false', 'waiting'], ['Xaloc', 'false', 'idle'], ['Gregal', 'false', 'idle']]);
+});
+
 test('a wind’s conversation shows its state in the header: done after a turn, gone once you leave', async () => {
   const f = await boot();
   await byText(f.page.querySelector('.vw-start-faces'), 'button', 'Xaloc').click();

@@ -99,7 +99,7 @@ function load({ files = null, reduced = false, winds = {}, real = false } = {}) 
   if (real) { delete window.gregalWinds; vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'winds.js'), 'utf8'), { window }); }
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'characters.js'), 'utf8'), { window });
   return {
-    chars: window.gregalCharacters, doc, fetched, moods, events, face: (...args) => window.gregalWinds.face(...args),
+    chars: window.gregalCharacters, doc, fetched, moods, events, face: (...args) => window.gregalWinds.face(...args), kitIcon: kit => window.gregalWinds.kitIcon(kit),
     // One animation frame `ms` later.
     frame(ms = 16) { now += ms; for (const f of frames.splice(0)) f(now); },
     see(target, visible) { observer.f([{ target, isIntersecting: visible }]); },
@@ -533,6 +533,26 @@ test('a face from face() that its caller plays animates, whether its still frame
   assert.equal(clay.tag, 'canvas');
   assert.ok(fresh.watched(clay), 'played before its still frame loaded, it animates too');
   assert.notEqual(lastDraw(clay).sx, 0);
+});
+
+// 173: a crew row (face(w, false, mood)) is the still clay of its own silhouette, with the trade badge and its
+// waiting mood; a scene that draws its ground ('figure', the pati) keeps the drawing.
+test('a list face of a gota, sol or onada wind holds the still of its silhouette; a scene figure stays drawn', async () => {
+  for (const [letter, silhouette] of [['g', 'gota'], ['u', 'sol'], ['w', 'onada']]) {
+    const env = load({ real: true });
+    const w = { ...wind, style: 'ps' + letter, kit: 'books' };
+    const figure = env.face(w, 'figure');
+    const box = new Node('span', env.doc); env.doc.root.append(box);
+    box.append(env.face(w, false, 'waiting'), figure);
+    await settle();
+    const [row, scene] = box.children;
+    assert.equal(row.tag, 'canvas', letter + ': the row is clay');
+    assert.ok(!env.watched(row), 'held still');
+    assert.equal(row.draws[0].sheet, silhouette + '/waiting.webp', letter + ' is the ' + silhouette + ', waiting');
+    assert.ok(row.shapes.some(s => s.d === env.kitIcon('books')), 'with the trade badge');
+    assert.equal(scene, figure, 'the scene keeps its drawn figure');
+    assert.equal(scene.tag, 'svg');
+  }
 });
 
 // A still face drawn again where its wind was (the `same` path) loads its new mood's still frame; a caller
