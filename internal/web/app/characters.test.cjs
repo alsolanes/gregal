@@ -22,25 +22,30 @@ class Node {
     const all = n => n.children.flatMap(c => [c, ...all(c)]), hit = (n, one) => one.startsWith('.') ? (n.attrs.class || '').split(' ').includes(one.slice(1)) : n.tag === one;
     return all(this).find(n => sel.split(',').some(one => hit(n, one.trim()))) || null;
   }
+  getBoundingClientRect() { return this.rect || { left: 0, top: 0, width: SIZE, height: SIZE }; }
   get isConnected() { let n = this; while (n.parent) n = n.parent; return n === this.doc.root; }
 }
 // A canvas whose pixels are plain arrays: drawImage copies an image's pixels
 // (or records a frame drawn from another canvas), getImageData reads them back.
 class Canvas extends Node {
   constructor(doc) {
-    super('canvas', doc); this.width = 300; this.height = 150; this.draws = [];
+    super('canvas', doc); this.width = 300; this.height = 150; this.draws = []; this.shapes = [];
     const self = this;
+    // Where each stroked shape lands: its 0..16 icon box moved and scaled, and its colour.
+    let at = { x: 0, y: 0, k: 1 }; const saved = [];
     this.ctx = {
       globalAlpha: 1, globalCompositeOperation: 'source-over',
-      clearRect() { self.draws = []; },
+      clearRect() { self.draws = []; self.shapes = []; },
       drawImage(src, ...args) {
         if (src.tag !== 'canvas') { self.pixels = Uint8ClampedArray.from(src.pixels); self.sheet = src.sheet; return; }
         self.source = src;
         self.draws.push({ sheet: src.sheet, sx: args[0], alpha: this.globalAlpha, op: this.globalCompositeOperation });
       },
       // The trade badge: a disc and the icon's path, recorded after the frame they are drawn over.
-      save() {}, restore() {}, translate() {}, scale() {}, beginPath() {}, arc() {}, fill() {},
-      stroke(shape) { if (shape) self.draws.push({ icon: shape.d }); },
+      save() { saved.push(at); }, restore() { at = saved.pop(); },
+      translate(x, y) { at = { ...at, x: at.x + x * at.k, y: at.y + y * at.k }; }, scale(k) { at = { ...at, k: at.k * k }; },
+      beginPath() {}, arc() {}, fill() {},
+      stroke(shape) { if (shape) { self.draws.push({ icon: shape.d }); self.shapes.push({ d: shape.d, ...at, color: this.strokeStyle }); } },
       getImageData() { return { data: self.pixels || new Uint8ClampedArray(self.width * self.height * 4) }; },
       putImageData(image) { self.pixels = image.data; },
     };
@@ -255,6 +260,37 @@ test('a wind with a trade plays its clay sheet with the trade badge over every f
   const plain = env.chars.play(svgFace(env).svg, { ...wind, id: 'mestral' });
   assert.equal(plain.tag, 'canvas');
   assert.ok(!plain.draws.some(d => d.icon), 'no trade, no badge');
+});
+
+// 168: a face waiting for you says so on the figure, a speech bubble with «?» at the top-right corner.
+test('a waiting clay face carries a «?» bubble in the wind colour over every frame, above the trade badge; other moods have none', async () => {
+  const env = load();
+  const face = svgFace(env, 'waiting', { 'data-kit': 'books' });
+  env.chars.play(face.svg, wind);
+  await settle();
+  const canvas = face.box.children[0];
+  const badge = () => canvas.shapes.find(s => s.d === 'M8 4.5v9'), mark = () => canvas.shapes.filter(s => s !== badge());
+  for (const when of ['the first frame', 'the next one']) {
+    assert.ok(mark().length, 'the mark is drawn over ' + when);
+    assert.ok(mark().some(s => s.color === wind.color), 'tinted with the wind colour, like the badge');
+    for (const s of mark()) {
+      assert.ok(s.x >= SIZE / 2 && s.x + 16 * s.k <= SIZE, 'on the right');
+      assert.ok(s.y >= 0 && s.y + 16 * s.k <= SIZE / 2, 'at the top');
+    }
+    assert.ok(badge().y >= SIZE / 2, 'the badge keeps the bottom, so they do not overlap');
+    env.frame(1000);
+  }
+  env.chars.mood(canvas, 'reading');
+  await settle();
+  env.frame(1000);
+  assert.ok(badge(), 'the badge stays');
+  assert.deepEqual(mark(), [], 'reading has no mark');
+  for (const mood of ['idle', 'done', 'failed']) {
+    const other = svgFace(env, mood, { 'data-kit': 'books' });
+    env.chars.play(other.svg, { ...wind, id: mood });
+    await settle();
+    assert.deepEqual(other.box.children[0].shapes.map(s => s.d), ['M8 4.5v9'], mood + ' has the badge only');
+  }
 });
 
 test('the other avatar packs stay code-drawn', async () => {
@@ -508,4 +544,63 @@ test('a still face played while its new mood\'s still frame loads keeps the whol
   assert.equal(clay.source.width, manifest.moods.reading.frames * SIZE, 'on the whole reading sheet');
   assert.ok(env.watched(clay));
   assert.notEqual(lastDraw(clay).sx, 0, 'and it plays');
+});
+
+// 169: the look sheet is 3 rows (up, level, down) of 3 columns (left, ahead, right).
+test('a large idle clay face looks toward the pointer, and back to idle 2 s after it stops or once it leaves the window', async () => {
+  const env = load();
+  const { svg, box } = svgFace(env);
+  env.chars.play(svg, wind);
+  await settle();
+  const canvas = box.children[0];
+  canvas.rect = { left: 100, top: 100, width: 100, height: 100 };
+  const move = async (x, y) => { for (const f of env.events.pointermove) f({ clientX: x, clientY: y }); await settle(); env.frame(16); };
+  for (const [x, y, f] of [[400, 150, 5], [0, 0, 0], [150, 400, 7], [150, 0, 1], [0, 160, 3], [400, 390, 8], [160, 140, 4]]) {
+    await move(x, y);
+    assert.deepEqual(lastDraw(canvas), { sheet: 'curl/look.webp', sx: f * SIZE, alpha: 1, op: 'source-over' }, `${x},${y}`);
+  }
+  env.frame(1900);
+  assert.equal(lastDraw(canvas).sheet, 'curl/look.webp', 'still looking before 2 s');
+  env.frame(200);
+  assert.equal(lastDraw(canvas).sheet, 'curl/idle.webp', '2 s still: idle again');
+  await move(400, 150);
+  assert.equal(lastDraw(canvas).sheet, 'curl/look.webp');
+  for (const f of env.events.pointerout) f({ relatedTarget: null });
+  env.frame(16);
+  assert.equal(lastDraw(canvas).sheet, 'curl/idle.webp', 'out of the window: idle again');
+  env.chars.mood(canvas, 'working');
+  await settle();
+  env.frame(1000);
+  await move(400, 150);
+  assert.equal(lastDraw(canvas).sheet, 'curl/working.webp', 'only idle follows the pointer');
+});
+
+test('with reduced motion, and on a small face, the clay does not follow the pointer', async () => {
+  for (const [reduced, still] of [[true, false], [false, true]]) {
+    const env = load({ reduced });
+    const { svg, box } = svgFace(env);
+    env.chars.play(svg, wind, still);
+    await settle();
+    for (const f of env.events.pointermove) f({ clientX: 1000, clientY: 0 });
+    await settle();
+    env.frame(16);
+    assert.ok(!env.fetched.some(u => u.includes('/look.')), `reduced=${reduced} still=${still}: no look sheet`);
+    assert.equal(lastDraw(box.children[0]).sheet, 'curl/idle.webp');
+  }
+});
+
+test('one pointer listener serves every face, and nothing is drawn while the pointer is still', async () => {
+  const env = load();
+  const faces = [svgFace(env), svgFace(env), svgFace(env)];
+  for (const { svg } of faces) env.chars.play(svg, wind);
+  await settle();
+  assert.equal((env.events.pointermove || []).length, 1, 'one listener, not one per face');
+  let drawn = 0;
+  for (const { box } of faces) { const ctx = box.children[0].ctx, clear = ctx.clearRect; ctx.clearRect = () => { drawn++; clear(); }; }
+  for (const f of env.events.pointermove) f({ clientX: 1000, clientY: 0 });
+  await settle();
+  env.frame(16);
+  assert.equal(drawn, 3, 'each face draws its look once');
+  for (let i = 0; i < 10; i++) env.frame(150);
+  assert.equal(drawn, 3, 'a still pointer draws nothing');
 });

@@ -356,10 +356,11 @@
       root.requestAnimationFrame(() => root.requestAnimationFrame(() => { if (svg.getAttribute('data-mood') === mood) pose(svg, mood); }));
     } else pose(svg, mood);
     if (maps.has(svg)) mapWake(maps.get(svg), mood);
-    // News has no text next to it in every row, so it carries its own label.
+    // News and waiting (168) have no text next to them in every row, so they carry their own label.
     svg.querySelector('title')?.remove();
-    if (mood === 'news') {
-      const label = String(tr('winds.hasNews', 'Té una novetat per explicar-te'));
+    const said = { news:['winds.hasNews', 'Té una novetat per explicar-te'], waiting:['winds.waitingForYou', "T'espera"] }[mood];
+    if (said) {
+      const label = String(tr(...said));
       svg.removeAttribute('aria-hidden'); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', label);
       const title = doc.createElementNS(SVG, 'title'); title.textContent = label; svg.append(title);
     } else if (svg.getAttribute('role')) {
