@@ -65,7 +65,7 @@ internal fun VentetConversation(vm: GregalViewModel, lang: String, winds: List<W
         ui.pending != null -> WindMood.HAPPY
         else -> WindMood.IDLE
     }
-    Box(Modifier.fillMaxSize().background(Superficie).testTag("ventet-chat")) {
+    Box(Modifier.fillMaxSize().background(Pagina).testTag("ventet-chat")) {
         Column(Modifier.fillMaxSize()) {
             // El subtítol només diu feina de debò: res de «coordinador» permanent.
             VentsChatHeader(lang, st.name,

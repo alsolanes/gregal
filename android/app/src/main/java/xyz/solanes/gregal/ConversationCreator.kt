@@ -58,11 +58,11 @@ internal fun ConversationPicker(lang: String, winds: List<Wind>, group: Boolean,
     var name by rememberSaveable { mutableStateOf("") }
     var members by rememberSaveable { mutableStateOf(setOf<String>()) }
     androidx.activity.compose.BackHandler { if (!busy) onDismiss() }
-    Scaffold(containerColor = Superficie,
+    Scaffold(containerColor = Pagina,
         topBar = { TopAppBar(
             title = { Text(tr(lang, if (group) "app.company.rotllanaNew" else "app.vents.newChat")) },
             navigationIcon = { TextButton(onClick = onDismiss, enabled = !busy) { Text(tr(lang, "app.vents.back")) } },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie)) },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = Pagina)) },
         bottomBar = {
             Surface(color = Superficie) {
                 Button(onClick = { onCreate(name.trim(), members.toList()) },

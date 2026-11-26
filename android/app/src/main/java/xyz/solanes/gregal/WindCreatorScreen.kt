@@ -82,11 +82,11 @@ internal fun WindEditor(
         }
     }
     BackHandler { navigateBack() }
-    Scaffold(containerColor = Superficie,
+    Scaffold(containerColor = Pagina,
         topBar = { TopAppBar(
             title = { Text(tr(lang, if (edit == null) "app.company.windNewTitle" else "app.company.windEditTitle")) },
             navigationIcon = { IconButton(onClick = navigateBack, enabled = !saving) { Icon(Icons.Rounded.ArrowBack, tr(lang, "app.vents.back")) } },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie)) },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = Pagina)) },
         bottomBar = {
             if (!gallery) Surface(color = Superficie) {
                 Column(Modifier.navigationBarsPadding().imePadding().padding(horizontal = 20.dp, vertical = 12.dp)) {

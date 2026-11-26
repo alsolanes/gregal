@@ -70,7 +70,8 @@ type Tema struct {
 	Sintaxi Sintaxi
 }
 
-// Fosc és el tema de casa: grafit neutre i un accent blau suau (el del logo,
+// Fosc és el tema de casa: negre de debò (a les pantalles AMOLED el negre
+// apaga el píxel), superfícies a penes aixecades i un accent blau suau (el del logo,
 // una mica més apagat) que només surt on hi ha acció (enviar, botons, focus,
 // navegació activa i enllaços). Abans era llima, i cridava massa. El préssec (arena) i l'aigua (onada) són els tocs
 // càlid i juganer, i surten poc.
@@ -79,10 +80,10 @@ type Tema struct {
 func Fosc() Tema {
 	return Tema{
 		Nom:            "fosc",
-		Fons:           "#131518",
-		Abisme:         "#0E1012",
-		Night:          "#1A1D21",
-		SuperficieAlta: "#24282D",
+		Fons:           "#000000",
+		Abisme:         "#000000",
+		Night:          "#121417",
+		SuperficieAlta: "#1C1F23",
 		Ink:            "#F2F4F7",
 		Text:           "#DEE2E7",
 		Slate:          "#A7AEB8",

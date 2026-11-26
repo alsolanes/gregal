@@ -592,7 +592,7 @@ test('the approval card speaks Catalan too', async () => {
 // 130: la targeta és del vent que pregunta: la seva cara, la vora del seu color, el perquè en una línia
 // i Permet amb el color del vent, amb la tinta del tema que s'hi llegeix (wind-chat-color.test.cjs).
 const themeInks = {
-  dark: { '--ink': '#F2F4F7', '--bg': '#131518' },
+  dark: { '--ink': '#F2F4F7', '--bg': '#000000' },
   light: { '--ink': '#10202A', '--bg': '#F4F6F3' },
 };
 test('an approval card carries the asking wind: its face, its colour, one line of why and Allow in its colour', async () => {
@@ -601,7 +601,7 @@ test('an approval card carries the asking wind: its face, its colour, one line o
   assert.ok(f.card.classList.contains('vw-ask-wind'));
   assert.equal(f.card.style['--vw-wind'], '#F5B45D');
   assert.equal(f.card.querySelector('.vw-ask-why').textContent, 'Asking because of your rule: «Ask me before deleting».');
-  const { fill, ink } = f.window.gregalWindChat.allow('#F5B45D', ['#F2F4F7', '#131518']);
+  const { fill, ink } = f.window.gregalWindChat.allow('#F5B45D', ['#F2F4F7', '#000000']);
   assert.equal(f.card.style['--vw-allow'], fill);
   assert.equal(f.card.style['--vw-allow-ink'], ink);
 });
@@ -611,7 +611,7 @@ test('switching between dark and light with an approval card open repaints its A
   const f = await askIn({ kind: 'install', name: 'bash', what: 'npm install -g serve' }, 'en', undefined, n => themeInks[theme][n] || '');
   f.card.querySelector('.vw-ask-actions').append(f.doc.createElement('i'));
   const { allow } = f.window.gregalWindChat;
-  assert.equal(f.card.style['--vw-allow-ink'], allow('#F5B45D', ['#F2F4F7', '#131518']).ink);
+  assert.equal(f.card.style['--vw-allow-ink'], allow('#F5B45D', ['#F2F4F7', '#000000']).ink);
   theme = 'light';
   f.mutate(f.doc.documentElement, 'data-theme');
   assert.equal(f.card.style['--vw-allow-ink'], allow('#F5B45D', ['#10202A', '#F4F6F3']).ink);

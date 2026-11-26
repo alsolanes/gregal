@@ -4,7 +4,7 @@
   "start_url": "/vents/",
   "scope": "/vents/",
   "display": "standalone",
-  "background_color": "#13151B",
-  "theme_color": "#13151B",
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "icons": [{ "src": "/app/app-icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }]
 }

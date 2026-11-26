@@ -22,7 +22,7 @@ const contrast = (a, b) => { const [x, y] = [luminance(a), luminance(b)].sort((p
 const winds = ['#EFC69A', '#EFA68F', '#A8CDE2', '#BFCFA4', '#E8AEC2', '#C1B4DE', '#EACF87', '#9ED3C5', '#3D7BFF'];
 // Les dues tintes del tema per al botó Permet: --ink i --bg (una clara i una fosca).
 const themes = {
-  dark: ['#F2F4F7', '#131518'],
+  dark: ['#F2F4F7', '#000000'],
   light: ['#10202A', '#F4F6F3'],
 };
 

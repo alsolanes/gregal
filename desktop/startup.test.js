@@ -11,6 +11,9 @@ test('sense res desat, el fosc o el clar de la marca segons el tema o el sistema
   const dir = tmp();
   assert.deepEqual(loadStartupTheme(dir, { systemDark: true }), { ...FALLBACK.dark, scheme: 'dark' });
   assert.deepEqual(loadStartupTheme(dir, { tema: 'sistema', systemDark: false }), { ...FALLBACK.light, scheme: 'light' });
+  // El fosc és negre de debò (AMOLED): ni la finestra ni la barra fan un flaix gris.
+  assert.equal(FALLBACK.dark.bg, '#000000');
+  assert.equal(FALLBACK.dark.bar, '#000000');
   // Un tema clar triat mana sobre el sistema fosc, i a l'inrevés.
   assert.equal(loadStartupTheme(dir, { tema: 'claude', systemDark: true }).scheme, 'light');
   assert.equal(loadStartupTheme(dir, { tema: 'grok', systemDark: false }).scheme, 'dark');

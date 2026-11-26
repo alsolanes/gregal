@@ -178,7 +178,7 @@ fun PreviewSheet(req: PreviewReq, conn: Conn, lang: String, published: Published
         try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) {}
     }
     GregalDialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(Modifier.fillMaxSize().background(Superficie)) {
+        Column(Modifier.fillMaxSize().background(Pagina)) {
             Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 4.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onClose) { Text("✕", color = Ink, fontSize = 18.sp) }
