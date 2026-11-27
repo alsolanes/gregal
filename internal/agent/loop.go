@@ -69,9 +69,10 @@ func Specs() []llm.ToolSpec {
 				"command": str,
 				"bet":     betParam,
 			}, "required": []string{"command"}}},
-		{Name: "write", Description: "Write a whole file with the given content: for NEW files. To change an existing file use edit or patch: rewriting it whole is slow (every line is written again) and you can lose code you have not read.",
+		{Name: "write", Description: "Write a whole file with the given content: for NEW files. To change an existing file use edit or patch: rewriting it whole is slow (every line is written again) and you can lose code you have not read. Write a file of more than ~300 lines in parts: the first part with write, then the rest with write and append: true (adds content to the end of the file), each call under ~8,000 tokens.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"path": str, "content": str,
+				"append": map[string]any{"type": "boolean"},
 			}, "required": []string{"path", "content"}}},
 		{Name: "edit", Description: "Replace ONE exact block (it must be unique) in a file. For several changes to the same file use patch: with separate edits, if one fails the file is left half-changed. replace_all=true replaces every occurrence instead (renaming an identifier, a repeated literal).",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
@@ -1133,6 +1134,7 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		var a struct {
 			Path    string  `json:"path"`
 			Content *string `json:"content"`
+			Append  bool    `json:"append"`
 		}
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "", nil, err
@@ -1141,18 +1143,24 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		// sortida de la qual només ha arribat el path: escriure-la buidaria
 		// el fitxer i el model ho tornaria a provar igual.
 		if a.Content == nil {
-			return "", nil, fmt.Errorf("write %s: the content argument did not arrive, most likely because your reply was cut off by the output token limit; nothing was written. Write the file in parts: a short skeleton with write, then add the rest with edit", a.Path)
+			return "", nil, fmt.Errorf("write %s: the content argument did not arrive, most likely because your reply was cut off by the output token limit; nothing was written. Write the file in parts: the first part with write, then the rest with write and append: true, each call under ~8,000 tokens", a.Path)
 		}
 		if err := seg.GuardaEscriptura(a.Path); err != nil {
 			return "", nil, err
 		}
-		n, err := tools.Write(a.Path, []byte(*a.Content))
+		// «escrit …» també per a append: els clients hi reconeixen un write
+		// que ha anat bé.
+		escriu, nota := tools.Write, ""
+		if a.Append {
+			escriu, nota = tools.Append, " afegits al final"
+		}
+		n, err := escriu(a.Path, []byte(*a.Content))
 		if err != nil {
 			return "", nil, err
 		}
 		apendix := apendixEdicio(ctx, a.Path)
 		seg.Coneix(a.Path)
-		return fmt.Sprintf("escrit %s (%d bytes)", a.Path, n) + apendix, nil, nil
+		return fmt.Sprintf("escrit %s (%d bytes%s)", a.Path, n, nota) + apendix, nil, nil
 	case "edit":
 		var a struct {
 			Path string `json:"path"`

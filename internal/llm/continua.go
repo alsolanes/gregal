@@ -60,8 +60,23 @@ func argsComplets(raw string) bool {
 
 const promptContinua = "Your previous reply was cut off by the output token limit. Continue exactly where you stopped: do not repeat anything you already wrote and do not add any preamble."
 
-func promptCridaTallada(tool string) string {
-	return fmt.Sprintf("Your previous reply hit the output token limit while you were writing a call to the tool `%s`. The call was cut off and was NOT executed; no tool call from that reply was executed. Do not repeat the text you already wrote. Issue the tool call again, and if its arguments are large (for example a long file), split the work into several smaller calls (e.g. write a first part, then add the rest with further edits or appends) so each call fits in the output limit.", tool)
+func promptCridaTallada(tool string, raonat bool) string {
+	p := fmt.Sprintf("Your previous reply hit the output token limit while you were writing a call to the tool `%s`. The call was cut off and was NOT executed; no tool call from that reply was executed. Do not repeat the text you already wrote. Issue the tool call again, and if its arguments are large (for example a long file), split the work into several smaller calls so each call fits in the output limit: write the first part with `write`, then the rest with `write` and `append: true`, each call under ~8,000 tokens.", tool)
+	if raonat {
+		p += " Most of that output went into your thinking: do not draft the file (or any large argument) in your thinking. Write the first part now with `write` and continue with `append: true`."
+	}
+	return p
+}
+
+// raonatSobretot diu si el tall s'ha menjat el pressupost pensant: el
+// pensament passa de tot el que ha arribat de text i arguments. És el cas
+// del model que redacta el fitxer sencer dins del raonament.
+func (e *LengthError) raonatSobretot() bool {
+	sortida := len([]rune(e.Text))
+	for _, c := range e.Calls {
+		sortida += len([]rune(c.Function.Arguments))
+	}
+	return e.Reasoned > sortida
 }
 
 // continuaTallat embolcalla una crida al model perquè una resposta tallada
@@ -147,7 +162,7 @@ func continuaTallat(ctx context.Context, msgs []Message, maxTokens int, onToken 
 		}
 		prompt := promptContinua
 		if trencada != "" {
-			prompt = promptCridaTallada(trencada)
+			prompt = promptCridaTallada(trencada, le.raonatSobretot())
 			if d := dobla(budget); d > budget {
 				budget = d
 			}

@@ -139,6 +139,26 @@ func Write(path string, content []byte) (int, error) {
 	return len(content), nil
 }
 
+// Append afegeix contingut al final del fitxer (el crea, i el directori
+// pare, si no hi és). Retorna bytes.
+func Append(path string, content []byte) (int, error) {
+	Active.SnapOp(path, "write")
+	if dir := filepath.Dir(path); dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return 0, err
+		}
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return 0, err
+	}
+	n, err := f.Write(content)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	return n, err
+}
+
 // Edit substitueix un bloc; exigeix que casi en UN sol lloc.
 //
 // Els finals de línia no compten. Un fitxer sortit d'un git amb

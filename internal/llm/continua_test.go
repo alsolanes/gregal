@@ -207,6 +207,47 @@ func TestTallPressupostExhauritSenseLengthNoExecutaCrides(t *testing.T) {
 	}
 }
 
+// El tall real de DeepSeek via zen: el pressupost se'l menja el pensament
+// (el model hi redacta el fitxer sencer) i de la crida només arriba el path.
+// El reintent diu que no redacti el fitxer pensant i que n'escrigui ja el
+// primer tros i continuï amb append. Si el tall ve dels arguments (poc
+// pensament), aquesta frase no hi és. Sempre es diu com continuar:
+// append: true.
+func TestTallRaonatDemanaNoRedactarElFitxerPensant(t *testing.T) {
+	pensament := `{"choices":[{"delta":{"reasoning_content":"` + strings.Repeat("<div>esborrany</div>", 200) + `"}}]}`
+	for _, cas := range []struct {
+		nom     string
+		primer  []string
+		pensant bool
+	}{
+		{"raonat", []string{pensament, deltaCall("bad", "write", `{"path":"web/index.html"}`), fi("tool_calls"),
+			`{"choices":[],"usage":{"prompt_tokens":10,"completion_tokens":1000,"total_tokens":1010}}`}, true},
+		{"arguments", []string{deltaCall("bad", "write", `{"path":"web/index.html","content":"`+strings.Repeat("<p>x</p>", 400)), fi("length")}, false},
+	} {
+		t.Run(cas.nom, func(t *testing.T) {
+			srv := nouServidorTall(t, func(w http.ResponseWriter, n int) {
+				if n == 1 {
+					sse(w, cas.primer...)
+					return
+				}
+				sse(w, deltaCall("good", "write", `{"path":"web/index.html","content":"<p>hola</p>"}`), fi("tool_calls"))
+			})
+			_, calls, err := New().ChatStreamWithTools(context.Background(), srv.URL, "", "m", []Message{{Role: "user", Content: "fes la web"}}, 0, 1000, specsProva, nil, nil)
+			if err != nil || len(calls) != 1 || calls[0].ID != "good" || srv.n() != 2 {
+				t.Fatalf("calls=%+v n=%d err=%v", calls, srv.n(), err)
+			}
+			seg := srv.req(1).Messages
+			last := seg[len(seg)-1].Content
+			if !strings.Contains(last, "append: true") {
+				t.Fatalf("el reintent no diu com continuar: %s", last)
+			}
+			if strings.Contains(last, "in your thinking") != cas.pensant {
+				t.Fatalf("indicació sobre el pensament=%v, volia %v: %s", !cas.pensant, cas.pensant, last)
+			}
+		})
+	}
+}
+
 // Si cada intent torna una crida tallada, al sostre es lliura el text amb
 // una nota i cap crida: mai s'executa res a mitges.
 func TestTallCridaSempreTalladaAlSostre(t *testing.T) {
