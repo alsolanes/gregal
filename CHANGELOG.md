@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## v1.103.1 - 2026-11-27 - Sortides d'eines arxivades per accelerar les respostes
+
+- **Respostes més ràpides i enfocades en torns llargs (*observation masking*).** `MaskOldToolOutputs` arxiva les sortides d'eina antigues i molt llargues (`> 3000` bytes) ja vistes pel model —mantenint intactes les 4 més recents i una capçalera breu de les anteriors—, reduint la mida del *prefill* i millorant l'atenció dels models ràpids.
+
 ## v1.103.0 - 2026-11-27 - Vents discrets a la capçalera, síntesi en streaming i polits visuals
 
 - **Avatar dels Vents tranquil a la capçalera.** A l'escriptori, el ninot del vent es queda ancorat al costat del seu nom a la capçalera sense baixar a la cantonada, sense volar per sobre del text en fer scroll ni ballar contínuament mentre treballa o espera.

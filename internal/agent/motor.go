@@ -414,9 +414,9 @@ func (t *Torn) histAmbSys() []llm.Message {
 	if t.notaDocs != "" {
 		sys = strings.TrimSpace(sys + "\n\n" + t.notaDocs)
 	}
-	// Les imatges d'eines que el model ja ha vist no es tornen a enviar:
-	// amb models locals el seu prefill a cada pas acabava en HTTP 524.
-	base := DropSeenToolImages(llm.SanitizeHist(t.Hist))
+	// Les imatges d'eines que el model ja ha vist i les sortides antigues molt
+	// llargues s' alleugereixen abans d'enviar el pas al model.
+	base := MaskOldToolOutputs(DropSeenToolImages(llm.SanitizeHist(t.Hist)))
 	if sys == "" {
 		return append([]llm.Message{}, base...)
 	}
