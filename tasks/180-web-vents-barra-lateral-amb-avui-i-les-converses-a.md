@@ -14,6 +14,7 @@ A la barra lateral de Vents les converses queden a sota de Avui, Feina, Desat, E
 - [x] La fila «Configuració» és un botó normal, no un `details`: no desplega res a la barra i porta a la vista `settings` (la pàgina és la tasca 181; fins llavors pot obrir Preferències com ara). Queda marcada (`aria-current`) quan ets en qualsevol de les vistes de configuració (`apres`, `rules`, `library`, `wiki`, `memoria`, `publicacions`, `settings`). Test node.
 - [x] La clau `gregal_vw_more` de localStorage deixa d'existir al codi. Test node o grep al test.
 - [x] Comprovat al navegador a 1280 px: amb 6 converses, totes es veuen sense fer scroll.
+- [x] (Afegit per l'usuari durant la feina) Sota «Converses», després dels preferits i les seccions (sense canvis), només les 5 converses més noves (a soles i grups lliures); si n'hi ha més, una fila «Mostra'n més (N)» / «Show more (N)» les desplega al lloc i llavors diu «Mostra'n menys» / «Show less». La conversa oberta sempre es veu. Test node.
 
 ## Out of scope
 
@@ -28,3 +29,7 @@ La pàgina de configuració (181). Android (182). La barra de baix del mòbil.
 - `gregal_vw_more` també s'ha tret de `profileKeys` (`internal/web/profile.go`).
 - Comprovat al navegador a 1280×800 amb 6 converses: abans les tres últimes quedaven sota la vora (fins a 874 px), ara l'última acaba a 540 px.
 - Follow-up: l'Android encara té «Configuració i més» (`Drawer.kt:249`, `VentsWebParityTest.kt`); és la 182.
+- «Mostra'n més»: els grups (`/api/winds/rotllanes`, `{id,name,members}`) no porten cap data, així que no es barregen per data amb les converses a soles: van després d'elles, en l'ordre de sempre; les converses a soles ja arriben de la més nova a la més vella (`/api/winds/threads`). Desplegat es mostra tota la llista (abans es tallava a 8 i 12). L'estat desplegat no es desa: en tornar a carregar torna a estar plegat.
+- Follow-up: per barrejar bé grups i converses a soles caldria una data als grups (p. ex. `/api/winds/summaries`, que ja té `ts` per `rot:<id>`).
+- Follow-up: l'Android no té encara el «Mostra'n més» de les converses (182 o una tasca nova).
+- Comprovat al navegador amb 10 converses: plegat en surten 5 i «Show more (5)»; desplegat, les 10 i «Show less».

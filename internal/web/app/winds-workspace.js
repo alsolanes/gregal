@@ -3,7 +3,7 @@
  'use strict';
  const $=id=>document.getElementById(id), ca=()=>document.documentElement.lang==='ca', t=(a,b)=>{const v=ca()?a:b;return window.gregalCollective?window.gregalCollective.apply(v):v;};
  const state={asks:[],winds:[],squads:[],chats:[],tasks:[],projects:[],workspace:'',view:'home',squad:'daily',active:null,history:[],busy:false,draft:'',snapshot:null,events:[],library:[],filter:'all',meta:null};
- let mounted=false, page, nav, content, messages, asksBox=null, composer, input, status, loadVersion=0, chatTurn=null, pendingTimer=0, flyFrom=null;
+ let mounted=false, threadsOpen=false, page, nav, content, messages, asksBox=null, composer, input, status, loadVersion=0, chatTurn=null, pendingTimer=0, flyFrom=null;
  const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;};
  const accent=()=>{const v=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();return /^#[0-9a-f]{6}$/i.test(v)?v:'#8193FF';};
  const btn=(label,action,cls='vw-button')=>{const n=el('button',cls,label);n.type='button';n.onclick=()=>Promise.resolve().then(action).catch(fail);return n;};
@@ -107,9 +107,15 @@
   const rest=free.filter(c=>!claimed.has('rot:'+c.id));
   for(const chat of favRows)nav.append(threadRow(chat,true));
   for(const {s,rows} of secRows){section(s.name);for(const chat of rows)nav.append(threadButton(chat));}
-  // Les converses a soles (el que fa «Automàtic») primer: són les de cada dia.
-  for(const th of (state.solo||[]).slice(0,8))nav.append(soloButton(th));
-  for(const chat of rest.slice(0,12))nav.append(threadRow(chat,false));
+  // Les cinc darreres a la vista i la resta darrere «Mostra'n més»; l'oberta hi és sempre.
+  // Els grups no porten data: van després de les converses a soles (ja de la més nova a la més vella), com abans.
+  const all=[...(state.solo||[]).map(th=>({id:th.name,row:()=>soloButton(th)})),...rest.map(chat=>({id:chat.id,row:()=>threadRow(chat,false)}))];
+  const open=x=>state.view==='chat'&&state.active?.id===x.id;
+  const shown=threadsOpen?all:all.filter((x,i)=>i<5||open(x));
+  for(const x of shown)nav.append(x.row());
+  if(all.length>5){const n=el('button','vw-nav-item vw-threads-more',threadsOpen?t('Mostra’n menys','Show less'):t('Mostra’n més','Show more')+' ('+(all.length-shown.length)+')');n.type='button';n.setAttribute('aria-expanded',String(threadsOpen));
+   // No passa pel clic de la barra: desplegar no tanca el calaix ni canvia de pàgina.
+   n.onclick=e=>{e.stopPropagation();threadsOpen=!threadsOpen;renderNav();};nav.append(n);}
  }
  function renderNav(){
   // Un sol nivell, com Claude o Grok: començar o cercar i Avui; les converses,

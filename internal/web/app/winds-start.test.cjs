@@ -532,6 +532,46 @@ test('Settings is one plain row that opens the settings view, marked on every se
   for (const file of ['winds-workspace.js', '../profile.go']) assert.ok(!fs.readFileSync(path.join(__dirname, file), 'utf8').includes('gregal_vw_more'), file + ' has no folded-menu key');
 });
 
+// Sota «Converses», les cinc darreres; la resta, darrere «Mostra'n més».
+const manyThreads = Array.from({ length: 7 }, (_, i) => ({ wind: i % 2 ? 'xaloc' : 'gregal', name: 'company-s' + i, title: 'Solo ' + i, at: new Date(Date.now() - i * 3600000).toISOString(), msgs: 2 }));
+const manyGroups = [{ id: 'fav', name: 'Favourite group', members: ['xaloc'] }, { id: 'g1', name: 'Group one', members: ['xaloc'] }, { id: 'g2', name: 'Group two', members: ['gregal'] }];
+const manyApi = r => r.url === '/api/winds/threads' ? { ok: true, status: 200, json: async () => ({ threads: manyThreads }) }
+  : r.url === '/api/winds/rotllanes' ? { ok: true, status: 200, json: async () => ({ rotllanes: manyGroups }) }
+  : r.url === '/api/winds/meta' ? { ok: true, status: 200, json: async () => ({ meta: { favorites: ['rot:fav'] } }) } : null;
+const threadNames = f => f.nav.querySelectorAll('.vw-thread').map(n => n.textContent);
+
+test('Conversations shows the favourites and the five latest threads, and «Show more (N)» unfolds the rest in place', async () => {
+  const f = await boot({ api: manyApi });
+  assert.deepEqual(threadNames(f), ['Favourite group', 'Solo 0', 'Solo 1', 'Solo 2', 'Solo 3', 'Solo 4'], 'favourites as before, then the latest five');
+  const more = byText(f.nav, 'button', 'Show more');
+  assert.equal(more.textContent, 'Show more (4)');
+  assert.equal(more.getAttribute('aria-expanded'), 'false');
+  let bubbled = true;
+  await more.onclick({ stopPropagation() { bubbled = false; } }); await settle();
+  assert.ok(!bubbled, 'the click stops here: unfolding does not close the drawer or leave the page');
+  assert.deepEqual(threadNames(f), ['Favourite group', 'Solo 0', 'Solo 1', 'Solo 2', 'Solo 3', 'Solo 4', 'Solo 5', 'Solo 6', 'Group one', 'Group two']);
+  const less = byText(f.nav, 'button', 'Show less');
+  assert.equal(less.getAttribute('aria-expanded'), 'true');
+  assert.ok(navOrder(f.nav).indexOf('Show less') < navOrder(f.nav).indexOf('§Winds'), 'the toggle stays under the conversations');
+  await less.click(); await settle();
+  assert.equal(threadNames(f).length, 6, 'folded again');
+  const few = await boot();
+  assert.ok(!byText(few.nav, 'button', 'Show more'), 'with five or fewer there is nothing to unfold');
+  const ca = await boot({ lang: 'ca', api: manyApi });
+  await byText(ca.nav, 'button', 'Mostra’n més (4)').click(); await settle();
+  assert.ok(byText(ca.nav, 'button', 'Mostra’n menys'));
+});
+
+test('the open conversation stays in the sidebar when it is older than the latest five', async () => {
+  const f = await boot({ api: manyApi });
+  await byText(f.nav, 'button', 'Show more').click(); await settle();
+  await byText(f.nav, '.vw-thread', 'Group two').click(); await settle();
+  await byText(f.nav, 'button', 'Show less').click(); await settle();
+  assert.deepEqual(threadNames(f), ['Favourite group', 'Solo 0', 'Solo 1', 'Solo 2', 'Solo 3', 'Solo 4', 'Group two']);
+  assert.equal(byText(f.nav, '.vw-thread', 'Group two').getAttribute('aria-current'), 'page');
+  assert.equal(byText(f.nav, 'button', 'Show more').textContent, 'Show more (3)', 'the count leaves out the one on show');
+});
+
 // La pastilla de l'ofici: el rol del vent, tenyit amb el seu color.
 const pillOf = (root, name) => byText(root, 'button', name)?.querySelector('.vw-tag');
 
