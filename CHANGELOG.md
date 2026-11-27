@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v1.101.0 - 2026-11-27 - Missatges, eines i raonament més polits al xat
+
+- **Missatges, eines, raonament i tasques més polits al xat (web i escriptori).**
+  - **Grup de feina amb guia lateral:** desapareix la caixa exterior rígida; ara mostra una capçalera lleugera amb anell giratori mentre treballa, píndola d'estat en viu i una línia vertical discreta per als passos.
+  - **Pastilles d'eines netes:** les pastilles surten en el seu propi bloc sota el text, amb comptador de repeticions en píndola, estat actiu en obrir-les, calaix d'inspecció amb capçalera pròpia i marcadors d'estat dibuixats amb CSS/SVG.
+  - **Raonament (*thinking*) serè:** el raonament en viu té capçalera pròpia i esvaïment suau en lloc de tallar-se amb `…`; els blocs plegats tenen estil propi diferenciable de les eines.
+  - **Missatges i llista de tasques:** bombolles d'usuari amb espaiat net (`white-space: normal`), cites i blocs de codi més cuidats, botó «Ves al final» translúcid i llista de tasques unificada en una sola targeta amb barra de progrés i indicadors dibuixats.
+
 ## v1.100.0 - 2026-11-27 - El xat més llegible i el terminal al lateral
 
 - **Les converses d'un projecte, sota el projecte (web).** El chevron de la barra lateral desplega les converses d'un projecte i, mentre és obert, surten sota seu en lloc de repetir-se a la llista per dates.

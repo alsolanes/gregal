@@ -2721,8 +2721,13 @@ function paintThinkTail(text) {
   if (!body) return;
   let el = body.querySelector(':scope > .wg-think');
   if (!text) { if (el) el.remove(); return; }
-  if (!el) { el = document.createElement('div'); el.className = 'wg-think'; }
-  el.textContent = '…' + text.trim();
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'wg-think';
+    el.innerHTML = '<div class="wg-think-head"><span class="wg-think-ico" aria-hidden="true"></span><span></span></div><div class="wg-think-body"></div>';
+  }
+  el.querySelector('.wg-think-head span:last-child').textContent = gregalT('act.now.thinking');
+  el.querySelector('.wg-think-body').textContent = text.trim();
   body.appendChild(el); // sempre l'últim, per sota de les eines ja fetes
 }
 function endWorkGroup(o = {}) {
@@ -2879,11 +2884,9 @@ function stepChips(node) {
   let box = owner.querySelector('.step-chips');
   if (!box) {
     const body = owner.querySelector('.body');
-    let line = body.lastElementChild;
-    if (!line || line.tagName !== 'P') { line = document.createElement('p'); body.appendChild(line); }
-    box = document.createElement('span');
+    box = document.createElement('div');
     box.className = 'step-chips';
-    line.appendChild(box);
+    body.appendChild(box);
   }
   // Una pastilla per fila d'eina, però la mateixa crida repetida (un script
   // rellançat sis cops seguits) es compta en una sola pastilla, i les menys
@@ -2920,7 +2923,16 @@ function stepChips(node) {
     b.type = 'button';
     b.className = 'step-chip ' + g.state;
     b.dataset.icon = g.icon;
-    b.textContent = g.text + (g.reps > 1 ? ' ×' + g.reps : '');
+    const txt = document.createElement('span');
+    txt.className = 'chip-txt';
+    txt.textContent = g.text;
+    b.appendChild(txt);
+    if (g.reps > 1) {
+      const rep = document.createElement('span');
+      rep.className = 'chip-rep';
+      rep.textContent = '×' + g.reps;
+      b.appendChild(rep);
+    }
     b.title = g.title + (g.reps > 1 ? ' ×' + g.reps : '');
     b.setAttribute('aria-expanded', String(g.units.some(u => u.querySelector(':scope > .body > details.tool')?.open)));
     b.units = g.units;
@@ -2938,6 +2950,20 @@ function stepChips(node) {
     box.appendChild(b);
   }
 }
+main.addEventListener('toggle', e => {
+  const d = e.target;
+  if (!d || !d.matches || !d.matches('details.tool')) return;
+  const unit = d.closest('.explore-fold') || d.closest('.msg.t');
+  if (!unit) return;
+  let owner = unit.previousElementSibling;
+  while (owner && isToolUnit(owner)) owner = owner.previousElementSibling;
+  if (!owner) return;
+  owner.querySelectorAll('.step-chip[aria-expanded]').forEach(b => {
+    if (Array.isArray(b.units) && b.units.includes(unit)) {
+      b.setAttribute('aria-expanded', String(b.units.some(u => u.querySelector(':scope > .body > details.tool')?.open)));
+    }
+  });
+}, true);
 main.addEventListener('click', e => {
   const b = e.target.closest('.step-chip');
   if (!b) return;
@@ -4215,7 +4241,7 @@ async function doAgent(task, resumed) {
         // paintLiveNow: el pintat diferit (120ms) no s'executa un cop tancada
         // la bombolla, i en perdia la cua.
         if(live && acc.trim()===d.text.trim()){ paintLiveNow(); live.classList.add('working'); intoWorkGroup(live); live=null; acc=''; }
-        else add('t','', '<details class="tool"><summary>'+escapeHTML(gregalT('ui.thinking'))+'</summary><div class="out">'+md(d.text.slice(0,2000))+'</div></details>');
+        else add('t','', '<details class="tool thinking"><summary><span class="tspin" aria-hidden="true"></span><b>'+escapeHTML(gregalT('ui.thinking'))+'</b></summary><div class="out">'+md(d.text.slice(0,2000))+'</div></details>');
       } else if(ev==='speed'){
         speedAdd(d); pintaTurnBar();
       } else if(ev==='budget'){
@@ -4708,8 +4734,9 @@ function pintaTodo() {
   box.hidden = false;
   box.innerHTML =
     '<button class="todo-cap" id="todoCap" aria-expanded="' + todoObert + '">' +
-    '<span class="todo-fletxa">' + (todoObert ? '▾' : '▸') + '</span>' +
+    '<span class="todo-fletxa" aria-hidden="true">' + (todoObert ? '▾' : '▸') + '</span>' +
     '<b>' + escapeHTML(gregalT('todo.title')) + '</b><span class="todo-comptador">' + fetes + '/' + todoActual.length + '</span>' +
+    '<span class="todo-bar" aria-hidden="true"><i style="width:' + Math.round(fetes * 100 / todoActual.length) + '%"></i></span>' +
     // Plegat ensenya el pas en curs: és l'única línia que vols veure
     // mentre treballa, i evita haver-lo d'obrir cada dos per tres.
     (todoObert ? '' : '<span class="todo-ara">' + escapeHTML(encurs ? encurs.text : (fetes === todoActual.length ? gregalT('todo.allDone') : '')) + '</span>') +

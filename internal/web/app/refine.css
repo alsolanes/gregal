@@ -633,3 +633,379 @@ body:has(#main .work-group.running) #composer:not(:has(#in:not(:placeholder-show
    sense tenyir-la. */
 /* «Autonomia total»: avís amb el punt ambre; el text, del to de la resta. */
 #composer #permBtn.obert { color:var(--text) !important; }
+
+/* ---------- Quarta passada: missatges, eines, raonament i tasques ----------
+   Substitueix les caixes planes i les piles de pastilles per una jerarquia
+   calma: bombolles d'usuari nítides, grup de feina amb guia lateral sense
+   marc feixuc, pastilles d'eines netes, raonament serè i llista de tasques
+   integrada en una sola targeta. Només tokens del tema. */
+
+:root {
+  --ico-check:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7'/%3E%3C/svg%3E");
+  --ico-sparkle:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z'/%3E%3C/svg%3E");
+  --ico-stop:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black'%3E%3Crect x='7' y='7' width='10' height='10' rx='2'/%3E%3C/svg%3E");
+  --ico-dash:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M6 12h12'/%3E%3C/svg%3E");
+}
+@keyframes wgSpin { to { transform:rotate(360deg); } }
+
+/* --- Missatges --- */
+html body:not(.shell-winds) #main { gap:20px; padding-bottom:44px; }
+html body:not(.shell-winds) #main > .msg.u { margin-top:4px; }
+html body:not(.shell-winds) #main > .msg.u .msg-inner {
+  max-width:min(76%, 620px); padding:11px 17px; white-space:normal;
+  border-radius:20px 20px 6px 20px;
+  background:color-mix(in srgb, var(--surface-hi) 86%, var(--accent) 14%);
+  border:1px solid color-mix(in srgb, var(--line-hi) 75%, transparent);
+  box-shadow:0 2px 10px -4px var(--ombra), inset 0 1px 0 color-mix(in srgb, var(--ink) 5%, transparent);
+  color:var(--ink); line-height:1.58;
+}
+html:is([data-theme="light"], [data-theme="gpt"], [data-theme="claude"], [data-theme="mistral"], [data-theme="gemini"])
+  body:not(.shell-winds) #main > .msg.u .msg-inner {
+  background:color-mix(in srgb, var(--surface-hi) 74%, var(--accent) 10%);
+  box-shadow:0 2px 8px -4px color-mix(in srgb, var(--ombra) 45%, transparent);
+}
+html body:not(.shell-winds) #main > .msg.u .body { color:var(--ink); }
+html body:not(.shell-winds) #main > .msg.u .body p:last-child { margin-bottom:0; }
+html body:not(.shell-winds) #main .msg-acts { gap:4px; margin-top:8px; transition:opacity .15s var(--ease-out); }
+html body:not(.shell-winds) #main .msg.u .msg-acts { top:calc(100% + 4px); right:2px; margin-top:0; }
+html body:not(.shell-winds) #main .msg-act { width:30px; height:30px; border-radius:8px; color:var(--muted); }
+html body:not(.shell-winds) #main .msg-act:hover { background:var(--hover-alt); color:var(--ink); border-color:var(--line); }
+
+html body:not(.shell-winds) #main > .msg.a .body blockquote {
+  margin:.6em 0 .9em; padding:8px 14px; border-left:3px solid var(--accent);
+  border-radius:0 8px 8px 0; background:color-mix(in srgb, var(--accent) 5%, transparent); color:var(--text);
+}
+html body:not(.shell-winds) #main > .msg.a .body .codeblock,
+html body:not(.shell-winds) #main > .msg.a .body pre.codeblock {
+  border:1px solid var(--line-hi); border-radius:12px; box-shadow:0 4px 18px -10px var(--ombra);
+}
+html body:not(.shell-winds) #main > .msg.a .body .codehead {
+  height:32px; padding:0 12px; opacity:1; color:var(--muted);
+  border-bottom:1px solid var(--line); background:color-mix(in srgb, var(--surface) 65%, transparent);
+}
+html body:not(.shell-winds) #main > .msg.a .body code.fref {
+  padding:.12em .45em; border-radius:6px; transition:background-color .14s, color .14s;
+}
+html body:not(.shell-winds) #main > .msg.a .body code.fref:hover {
+  background:var(--accent-soft); color:var(--accent-hi);
+}
+html body:not(.shell-winds) #main .msg.sys.err {
+  width:min(var(--lectura, 820px), 100%); padding:10px 14px; border-radius:12px;
+  border:1px solid color-mix(in srgb, var(--red) 35%, transparent);
+  background:var(--red-soft); color:var(--red); text-align:left; font-family:inherit; font-size:13px; opacity:1;
+}
+
+/* Botó flotant «Ves al final» */
+#toBottom {
+  top:-44px; padding:6px 14px; border:1px solid var(--line-hi); border-radius:999px;
+  background:color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+  color:var(--text); font-size:12.5px; font-weight:500; box-shadow:0 8px 24px var(--ombra);
+  transition:transform .15s var(--ease-out), border-color .15s, color .15s;
+}
+#toBottom:hover { transform:translateX(-50%) translateY(-1px); border-color:var(--accent); color:var(--ink); }
+
+/* --- Grup de feina (sense caixa feixuga: capçalera neta + guia lateral) --- */
+html body:not(.shell-winds) #main .work-group {
+  border:0; border-radius:0; background:transparent;
+}
+html body:not(.shell-winds) #main .work-group > summary {
+  min-height:36px; padding:7px 12px; gap:9px; border:1px solid transparent; border-radius:12px;
+  background:transparent; color:var(--muted); font-size:13px;
+  transition:background-color .15s, border-color .15s, color .15s;
+}
+html body:not(.shell-winds) #main .work-group.running > summary {
+  background:color-mix(in srgb, var(--surface) 74%, transparent);
+  border-color:var(--line); color:var(--text);
+}
+html body:not(.shell-winds) #main .work-group.failed > summary {
+  background:color-mix(in srgb, var(--red) 6%, var(--surface));
+  border-color:color-mix(in srgb, var(--red) 28%, transparent);
+}
+html body:not(.shell-winds) #main .work-group > summary:hover {
+  background:var(--hover); border-color:var(--line); color:var(--ink);
+}
+html body:not(.shell-winds) #main .work-group[open] > summary {
+  border-bottom-color:var(--line); border-radius:12px;
+}
+html body:not(.shell-winds) #main .work-group:not(.running):not(.failed)[open] > summary {
+  border-bottom-color:transparent;
+}
+html body:not(.shell-winds) #main .work-group .wg-label { color:var(--muted); font-weight:540; }
+html body:not(.shell-winds) #main .work-group.running .wg-label { color:var(--ink); font-weight:580; }
+html body:not(.shell-winds) #main .work-group > summary:hover .wg-label { color:var(--ink); }
+html body:not(.shell-winds) #main .work-group .wg-dot {
+  width:8px; height:8px; background:var(--green); box-shadow:0 0 0 3px var(--ok-soft);
+}
+html body:not(.shell-winds) #main .work-group.running .wg-dot {
+  width:13px; height:13px; background:transparent; box-shadow:none;
+  border:1.8px solid color-mix(in srgb, var(--accent) 26%, transparent);
+  border-top-color:var(--accent-hi); animation:wgSpin .85s linear infinite;
+}
+html body:not(.shell-winds) #main .work-group.failed .wg-dot {
+  background:var(--red); box-shadow:0 0 0 3px var(--red-soft);
+}
+html body:not(.shell-winds) #main .work-group .wg-now {
+  margin-left:auto; padding:2px 10px; border-radius:999px;
+  background:var(--accent-soft); color:var(--accent-hi);
+  font-size:11.5px; font-weight:500; line-height:1.45; max-width:46%;
+}
+html body:not(.shell-winds) #main .work-group.stalled .wg-now {
+  background:var(--amber-soft); color:var(--amber);
+}
+html body:not(.shell-winds) #main .work-group .wg-body {
+  margin:4px 0 2px 17px; padding:8px 0 4px 16px;
+  border-left:1.5px solid var(--line); display:flex; flex-direction:column; gap:10px;
+}
+html body:not(.shell-winds) #main .work-group.running .wg-body {
+  border-left-color:color-mix(in srgb, var(--accent) 34%, var(--line));
+}
+html body:not(.shell-winds) #main .wg-body > .msg.a .body {
+  font-size:14px; line-height:1.6; color:color-mix(in srgb, var(--text) 90%, var(--muted));
+}
+html body:not(.shell-winds) #main .wg-body > .msg.a.working .body {
+  color:color-mix(in srgb, var(--text) 88%, var(--muted));
+}
+html body:not(.shell-winds) #main .wg-body > .msg.t + .msg.t,
+html body:not(.shell-winds) #main .wg-body > .msg.a.working + .msg.t,
+html body:not(.shell-winds) #main .wg-body > .msg.t + .msg.a.working { margin-top:0; }
+
+/* --- Eines (pastilles netes i calaix d'inspecció polit) --- */
+#main .step-auto .body { font-size:13px; line-height:1.5; color:var(--muted); }
+#main .step-auto .step-text { font-weight:500; color:var(--muted); }
+#main .step-chips {
+  display:flex; flex-wrap:wrap; gap:6px; margin:7px 0 1px; margin-left:0; vertical-align:baseline;
+}
+#main .step-chip {
+  display:inline-flex; align-items:center; gap:6px; height:26px; max-width:min(290px, 100%);
+  padding:0 10px; border:1px solid color-mix(in srgb, var(--line-hi) 65%, transparent);
+  border-radius:8px; background:color-mix(in srgb, var(--surface) 84%, transparent);
+  color:var(--text); font:12px/1 var(--mono, ui-monospace, monospace);
+  overflow:visible;
+  transition:background-color .14s, border-color .14s, color .14s, transform .14s;
+}
+#main .step-chip::before { width:13px; height:13px; opacity:.78; transition:opacity .14s, color .14s; }
+#main .step-chip:hover {
+  background:var(--surface-hi); border-color:var(--line-hi); color:var(--ink); transform:translateY(-.5px);
+}
+#main .step-chip:hover::before { opacity:1; }
+#main .step-chip[aria-expanded="true"] {
+  background:var(--accent-soft); border-color:color-mix(in srgb, var(--accent) 55%, transparent); color:var(--ink);
+}
+#main .step-chip[aria-expanded="true"]::before { color:var(--accent-hi); opacity:1; }
+#main .step-chip .chip-txt { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#main .step-chip .chip-rep {
+  flex:none; padding:2px 5px; border-radius:999px; background:var(--hover-alt);
+  color:var(--muted); font:600 10.5px/1 var(--sans, system-ui);
+}
+#main .step-chip[data-icon="edit"]::before { color:var(--accent-hi); }
+#main .step-chip[data-icon="search"]::before,
+#main .step-chip[data-icon="read"]::before { color:var(--onada); }
+#main .step-chip[data-icon="test"]::before { color:var(--green); }
+#main .step-chip.pending {
+  background:color-mix(in srgb, var(--amber) 9%, var(--surface));
+  border-color:color-mix(in srgb, var(--amber) 42%, transparent); color:var(--ink);
+}
+#main .step-chip.pending::before { color:var(--amber); opacity:1; }
+#main .step-chip.failed {
+  background:var(--red-soft); border-color:color-mix(in srgb, var(--red) 40%, transparent); color:var(--red);
+}
+#main .step-chip.failed::before { color:var(--red); opacity:1; }
+#main .step-chip.quiet, #main .step-chip.interrupted { color:var(--muted); opacity:.82; }
+#main .step-chip.more {
+  border-style:dashed; border-color:var(--line-hi); background:transparent;
+  color:var(--muted); font-family:inherit; font-weight:500;
+}
+#main .step-chip.more:hover { background:var(--hover); color:var(--ink); border-style:solid; }
+
+/* Calaix d'una eina oberta (en clicar una pastilla o en mode detallat) */
+#main :is(.msg.t[data-call], .explore-fold):not(.explore-list > .msg.t) > .body > details.tool[open],
+html body:not(.shell-winds) #main .wg-body > :is(.msg.t[data-call], .explore-fold) > .body > details.tool[open] {
+  margin:2px 0 6px; padding:0; border:1px solid var(--line-hi); border-radius:12px;
+  background:var(--surface); overflow:hidden; box-shadow:0 6px 20px -10px var(--ombra);
+}
+#main :is(.msg.t[data-call], .explore-fold):not(.explore-list > .msg.t) > .body > details.tool[open] > summary {
+  display:flex !important; align-items:center; gap:8px; padding:8px 12px;
+  border-bottom:1px solid var(--line); background:color-mix(in srgb, var(--surface-hi) 45%, transparent);
+  font-size:12.5px; cursor:pointer;
+}
+#main details.tool[open] > .tool-args { padding:10px 12px 0; margin:0; border-top:0; }
+#main details.tool[open] > .tool-args .tool-copy { top:17px; right:18px; opacity:.75; }
+#main details.tool[open] > .tool-args:hover .tool-copy { opacity:1; }
+#main details.tool[open] > .out {
+  padding:10px 12px 12px; margin:0; border-top:0; max-height:340px; font-size:12.5px; line-height:1.55;
+}
+#main details.tool[open] > .tool-args + .out {
+  margin-top:8px; padding-top:10px; border-top:1px solid var(--line);
+}
+#main details.tool .out pre.tool-term {
+  padding:10px 12px; border:1px solid var(--line); border-radius:8px;
+  background:var(--codi-fons); font:12px/1.55 var(--mono);
+}
+#main .explore-fold > .body > .tool[open] .explore-list {
+  margin:0; padding:8px 10px 10px 14px; border-left:0; gap:4px;
+}
+
+/* Marcadors d'estat (.tspin) dibuixats amb CSS/SVG en lloc de glifs Unicode */
+#main details.tool .tspin {
+  font-size:0; width:14px; height:14px; flex:none; display:inline-grid; place-items:center; position:relative;
+}
+#main details.tool .tspin::before,
+#main .explore-fold > .body > .tool > summary .tspin::before {
+  content:''; width:13px; height:13px; background:var(--faint);
+  -webkit-mask:var(--ico-check) center/contain no-repeat; mask:var(--ico-check) center/contain no-repeat;
+}
+#main details.tool.pending .tspin::before,
+#main .explore-fold:has(.explore-list .tool.pending) > .body > .tool > summary .tspin::before {
+  width:11px; height:11px; background:transparent; -webkit-mask:none; mask:none;
+  border:1.8px solid color-mix(in srgb, var(--amber) 28%, transparent);
+  border-top-color:var(--amber); border-radius:50%; animation:wgSpin .85s linear infinite;
+}
+#main details.tool.done .tspin::before { background:var(--green); }
+#main details.tool.failed .tspin::before,
+#main .explore-fold:has(.explore-list .tool.failed) > .body > .tool > summary .tspin::before {
+  background:var(--red); -webkit-mask:var(--ico-x) center/contain no-repeat; mask:var(--ico-x) center/contain no-repeat;
+}
+#main details.tool.quiet .tspin::before {
+  background:var(--faint); -webkit-mask:var(--ico-dash) center/contain no-repeat; mask:var(--ico-dash) center/contain no-repeat;
+}
+#main details.tool.interrupted .tspin::before,
+#main .explore-fold:has(.explore-list .tool.interrupted) > .body > .tool > summary .tspin::before {
+  background:var(--faint); -webkit-mask:var(--ico-stop) center/contain no-repeat; mask:var(--ico-stop) center/contain no-repeat;
+}
+
+/* --- Raonament (en viu i plegat) --- */
+html body:not(.shell-winds) #main .wg-think {
+  margin:2px 0; padding:10px 14px;
+  border:1px solid color-mix(in srgb, var(--lila) 24%, var(--line));
+  border-radius:12px; background:color-mix(in srgb, var(--lila) 6%, var(--surface));
+  border-left-width:1px; font-style:normal; max-height:none; overflow:visible;
+}
+#main .wg-think-head {
+  display:flex; align-items:center; gap:7px; margin-bottom:6px;
+  font-size:11.5px; font-weight:600; color:var(--lila); letter-spacing:.01em;
+}
+#main .wg-think-ico {
+  width:13px; height:13px; flex:none; background:currentColor;
+  -webkit-mask:var(--ico-sparkle) center/contain no-repeat; mask:var(--ico-sparkle) center/contain no-repeat;
+  animation:pulse 1.5s ease-in-out infinite;
+}
+#main .wg-think-body {
+  color:var(--muted); font-size:12.5px; line-height:1.58; white-space:pre-wrap; overflow-wrap:anywhere;
+  max-height:8.5em; overflow:hidden;
+  -webkit-mask-image:linear-gradient(to bottom, #000 68%, transparent);
+  mask-image:linear-gradient(to bottom, #000 68%, transparent);
+}
+html body:not(.shell-winds) #main details.tool.thinking {
+  border:1px solid color-mix(in srgb, var(--lila) 20%, var(--line)) !important;
+  border-radius:10px !important; background:color-mix(in srgb, var(--lila) 4%, transparent) !important;
+  padding:0 !important;
+}
+html body:not(.shell-winds) #main details.tool.thinking:hover {
+  background:color-mix(in srgb, var(--lila) 8%, transparent) !important;
+}
+html body:not(.shell-winds) #main details.tool.thinking > summary {
+  display:flex !important; align-items:center; gap:8px; padding:7px 12px; min-height:32px;
+  color:var(--muted); font-size:12.5px; cursor:pointer;
+}
+html body:not(.shell-winds) #main details.tool.thinking > summary::before { content:none; }
+html body:not(.shell-winds) #main details.tool.thinking > summary::after {
+  content:''; margin-left:auto; width:5px; height:5px; flex:none;
+  border:solid var(--faint); border-width:0 1.5px 1.5px 0; transform:rotate(-45deg);
+  transition:transform .15s ease;
+}
+html body:not(.shell-winds) #main details.tool.thinking[open] > summary::after {
+  transform:rotate(45deg) translate(-1px,-1px);
+}
+html body:not(.shell-winds) #main details.tool.thinking .tspin::before {
+  width:13px; height:13px; background:var(--lila);
+  -webkit-mask:var(--ico-sparkle) center/contain no-repeat; mask:var(--ico-sparkle) center/contain no-repeat;
+}
+html body:not(.shell-winds) #main details.tool.thinking summary b {
+  color:color-mix(in srgb, var(--lila) 65%, var(--text)); font-weight:550;
+}
+html body:not(.shell-winds) #main details.tool.thinking[open] > .out {
+  padding:10px 14px 12px; border-top:1px solid color-mix(in srgb, var(--lila) 16%, var(--line));
+  font-family:inherit; font-size:13px; line-height:1.62; color:var(--muted); max-height:340px;
+}
+
+/* --- Checklist de tasques (#todoBox i .todo al fil) --- */
+#todoBox {
+  border:1px solid var(--line-hi); border-radius:16px; background:var(--surface);
+  box-shadow:0 6px 20px -10px var(--ombra); overflow:hidden;
+}
+#todoBox .todo-cap {
+  padding:9px 14px; border:0; border-radius:0; background:transparent;
+  color:var(--text); font-size:13px; gap:9px; transition:background-color .14s;
+}
+#todoBox .todo-cap:hover { background:var(--hover); }
+#todoBox .todo-fletxa {
+  font-size:0; width:12px; height:12px; flex:none; display:inline-grid; place-items:center;
+}
+#todoBox .todo-fletxa::before {
+  content:''; width:5px; height:5px; border:solid var(--muted); border-width:0 1.6px 1.6px 0;
+  transform:rotate(-45deg); transition:transform .15s ease;
+}
+#todoBox .todo-cap[aria-expanded="true"] .todo-fletxa::before {
+  transform:rotate(45deg) translate(-1px,-1px);
+}
+#todoBox .todo-comptador {
+  padding:2px 7px; border-radius:999px; background:var(--accent-soft);
+  color:var(--accent-hi); font:600 11px/1.3 var(--mono); font-variant-numeric:tabular-nums;
+}
+.todo-bar {
+  width:54px; height:4px; border-radius:999px; background:var(--surface-hi); overflow:hidden; flex:none;
+}
+.todo-bar > i {
+  display:block; height:100%; border-radius:999px; background:var(--accent); transition:width .25s var(--ease-out);
+}
+#todoBox .todo-ara { color:var(--text); font-size:12.5px; }
+#todoBox .todo-llista {
+  margin-top:0; padding:8px 14px 12px; border:0; border-top:1px solid var(--line);
+  border-radius:0; background:transparent; max-height:220px; display:flex; flex-direction:column; gap:3px;
+}
+#todoBox .todo-llista .trow, #main .todo .trow {
+  align-items:flex-start; gap:9px; padding:4px 6px; border-radius:7px; line-height:1.48; font-size:13px;
+}
+#todoBox .todo-llista .trow.working, #main .todo .trow.working {
+  background:color-mix(in srgb, var(--amber) 8%, transparent); color:var(--ink); font-weight:500;
+}
+#todoBox .todo-llista .trow.done, #main .todo .trow.done { color:var(--faint); }
+#todoBox .todo-llista .tmark, #main .todo .tmark {
+  flex:none; width:15px; height:15px; margin-top:2px; font-size:0; position:relative;
+  display:inline-grid; place-items:center; border-radius:4px; border:1.5px solid var(--line-hi);
+}
+#todoBox .todo-llista .tmark.working, #main .todo .tmark.working {
+  border-radius:50%; border:1.8px solid color-mix(in srgb, var(--amber) 28%, transparent);
+  border-top-color:var(--amber); animation:wgSpin .85s linear infinite;
+}
+#todoBox .todo-llista .tmark.done, #main .todo .tmark.done {
+  border-color:var(--green); background:var(--green);
+}
+#todoBox .todo-llista .tmark.done::after, #main .todo .tmark.done::after {
+  content:''; width:11px; height:11px; background:var(--bg);
+  -webkit-mask:var(--ico-check) center/contain no-repeat; mask:var(--ico-check) center/contain no-repeat;
+}
+#main .todo {
+  border:1px solid var(--line-hi); border-radius:14px; padding:12px 14px; background:var(--surface);
+  display:flex; flex-direction:column; gap:3px;
+}
+#main .todo > b { margin-bottom:4px; font-size:13px; color:var(--ink); }
+
+/* --- Targetes d'aprovació, preguntes i veredicte --- */
+#main .approve, #main .qcard, #main .verdict { border-radius:14px; padding:14px 16px; }
+#main .verdict.ok { background:color-mix(in srgb, var(--green) 6%, var(--surface)); }
+#main .verdict.no { background:color-mix(in srgb, var(--red) 6%, var(--surface)); }
+
+@media (max-width:760px) {
+  html body:not(.shell-winds) #main > .msg.u .msg-inner { max-width:90%; padding:10px 14px; }
+  html body:not(.shell-winds) #main .work-group .wg-body { margin-left:10px; padding-left:12px; }
+  html body:not(.shell-winds) #main .work-group .wg-now { display:none; }
+}
+@media (prefers-reduced-motion:reduce) {
+  html body:not(.shell-winds) #main .work-group.running .wg-dot,
+  #main details.tool.pending .tspin::before,
+  #todoBox .todo-llista .tmark.working, #main .todo .tmark.working,
+  #main .wg-think-ico { animation:none; }
+  #main .step-chip, #toBottom, #todoBox .todo-fletxa::before { transition:none; }
+}

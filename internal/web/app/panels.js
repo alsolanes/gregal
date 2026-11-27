@@ -116,7 +116,7 @@ function renderActiveRunEvents(events) {
     if (e.kind === 'thinking') {
       const text = String(d.text || e.text || '').replace(/^💭\s*/, '').trim();
       if (text) {
-        const row = G().add('t', '', '<details class="tool"><summary>' + esc(T('ui.thinking')) + '</summary><div class="out">' + G().md(text.slice(0, 2000)) + '</div></details>');
+        const row = G().add('t', '', '<details class="tool thinking"><summary><span class="tspin" aria-hidden="true"></span><b>' + esc(T('ui.thinking')) + '</b></summary><div class="out">' + G().md(text.slice(0, 2000)) + '</div></details>');
         if (grouped && row) G().intoWorkGroup?.(row);
       }
     } else if (e.kind === 'tool_call') {
