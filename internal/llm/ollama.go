@@ -412,7 +412,7 @@ func (c *Client) ollamaChat(ctx context.Context, baseURL, apiKey, model string, 
 				id = fmt.Sprintf("call_ollama_%d", ollamaCallSeq.Add(1))
 			}
 			args := string(oc.Function.Arguments)
-			prog.delta(ProgressTool, args)
+			prog.eina(oc.Function.Name, args)
 			res.calls = append(res.calls, antCall(id, oc.Function.Name, args))
 		}
 		if ev.Done {

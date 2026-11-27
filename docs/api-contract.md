@@ -525,6 +525,8 @@ strings:
 | `since` | always | RFC 3339 UTC timestamp (nanosecond precision) when the current phase started; it does not change on `waiting` → `receiving`. |
 | `tail` | `phase=model` | Optional. The last ≤280 characters of the model's reasoning, present only while the call has produced no answer text or tool arguments yet. Lets a client show what the model is thinking live; older clients ignore it. |
 | `reasoning`, `text`, `tool` | `phase=model` | Cumulative characters received in the current model call (decimal strings): reasoning, answer text and tool-call arguments. They count every delta as it arrives, including output that is buffered and only shown when the call finishes, and output of attempts that are later retried. |
+| `tool_name` | `phase=model` | Optional. The tool whose arguments the model is writing, as soon as its name arrives (the latest one if the call has several). Lets a client say "Preparing bash" instead of "Thinking". |
+| `tool_target` | `phase=model` | Optional. The `path` or `file` argument of that tool, once its value is complete in the partial JSON. Lets a client say "Writing index.html · 67k characters" while a long `write` streams. |
 | `tools` | `phase=tools` | Comma-separated tool names of the step, in call order. |
 
 Cadence: one event when a phase starts (`model`/`waiting` when the request is

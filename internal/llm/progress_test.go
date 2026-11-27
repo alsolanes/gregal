@@ -215,3 +215,47 @@ func TestStreamProgressChatStream(t *testing.T) {
 		t.Fatalf("first=%d totals=%v", reg.primers(), reg.totals)
 	}
 }
+
+// WithToolText rep el nom de l'eina amb cada tros d'arguments, perquè la UI
+// pugui dir «Escrivint index.html» mentre el model encara l'escriu. Els tres
+// formats de streaming porten el nom de manera diferent (primer delta,
+// content_block_start, output_item.added).
+func TestWithToolTextPortaElNomDeLEina(t *testing.T) {
+	openai := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		sseLinia(w, `{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","function":{"name":"read","arguments":"{\"path\":"}}]}}]}`)
+		sseLinia(w, `{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"a.go\"}"}}]},"finish_reason":"tool_calls"}]}`)
+		sseLinia(w, `[DONE]`)
+	}))
+	defer openai.Close()
+	ant := newNativeServer(t, ProviderAnthropic, func(w http.ResponseWriter, _ int, _ map[string]any) {
+		writeSSE(w, antStreamToolTurn()...)
+	})
+	resp := newNativeServer(t, ProviderOpenAIResponses, func(w http.ResponseWriter, _ int, _ map[string]any) {
+		writeRespSSE(w,
+			map[string]any{"type": "response.output_item.added", "output_index": 0, "item": map[string]any{"type": "function_call", "id": "fc_1", "call_id": "call_A", "name": "glob", "arguments": ""}},
+			map[string]any{"type": "response.function_call_arguments.delta", "output_index": 0, "delta": `{"pattern":`},
+			map[string]any{"type": "response.function_call_arguments.delta", "output_index": 0, "delta": `"*.go"}`},
+			map[string]any{"type": "response.completed", "response": map[string]any{"status": "completed"}},
+		)
+	})
+	casos := []struct{ nom, url, model, eina, args string }{
+		{"openai", openai.URL, "m", "read", `{"path":"a.go"}`},
+		{"anthropic", ant.URL + "/v1", "claude-opus-5-5", "glob", `{"pattern":"*.go"}`},
+		{"responses", resp.URL + "/v1", "gpt-5", "glob", `{"pattern":"*.go"}`},
+	}
+	for _, c := range casos {
+		t.Run(c.nom, func(t *testing.T) {
+			vist := map[string]string{}
+			ctx := WithStreamProgress(context.Background(), func(string, int) {})
+			ctx = WithToolText(ctx, func(nom, args string) { vist[nom] += args })
+			msgs := []Message{{Role: "user", Content: "hola"}}
+			if _, _, err := New().ChatStreamWithTools(ctx, c.url, "k", c.model, msgs, 0, 512, specsProva, nil, nil); err != nil {
+				t.Fatal(err)
+			}
+			if len(vist) != 1 || vist[c.eina] != c.args {
+				t.Fatalf("vist=%v, volia %s → %s", vist, c.eina, c.args)
+			}
+		})
+	}
+}

@@ -395,3 +395,57 @@ func TestCheckpointAutonomChecksBuitsISenseEstatInutil(t *testing.T) {
 		t.Fatalf("resum ca=%q", got)
 	}
 }
+
+// Mentre el model escriu els arguments d'una eina, l'event diu quina eina
+// (tool_name) i, en quant apareix al JSON parcial, el fitxer (tool_target).
+// Vist en viu: 4m42s de «Pensant · 67k» sense saber què feia.
+func TestProgresTornNomIFitxerDeLEina(t *testing.T) {
+	em := &emissor{}
+	p := nouProgresTorn(em.emit)
+	ara := time.Date(2026, 11, 27, 10, 0, 0, 0, time.UTC)
+	p.ara = func() time.Time { return ara }
+	pas := func(nom, args string) map[string]string {
+		t.Helper()
+		ara = ara.Add(2 * time.Second)
+		p.eina(nom, args)
+		p.delta(llm.ProgressTool, len([]rune(args)))
+		evs := em.progres()
+		return evs[len(evs)-1]
+	}
+
+	p.iniciModel()
+	p.delta(llm.ProgressFirst, 0)
+	ev := pas("write", `{"pa`)
+	if ev["tool_name"] != "write" || ev["tool_target"] != "" {
+		t.Fatalf("abans del path: %+v", ev)
+	}
+	ev = pas("write", `th": "jocs/snake/inde`)
+	if _, ok := ev["tool_target"]; ok {
+		t.Fatalf("un path a mitges no és el fitxer: %+v", ev)
+	}
+	ev = pas("write", `x.html", "content": "<html>`+strings.Repeat("x", 2000))
+	if ev["tool_name"] != "write" || ev["tool_target"] != "jocs/snake/index.html" {
+		t.Fatalf("amb el path sencer: %+v", ev)
+	}
+	// Un "path" dins el contingut (escapat) no canvia el fitxer.
+	ev = pas("write", `{\"path\": \"altre.txt\"}`)
+	if ev["tool_target"] != "jocs/snake/index.html" {
+		t.Fatalf("el contingut ha canviat el fitxer: %+v", ev)
+	}
+	// Una eina sense path: el nom canvia i el fitxer anterior ja no hi és.
+	ev = pas("bash", `{"command": "ls"}`)
+	if ev["tool_name"] != "bash" || ev["tool_target"] != "" {
+		t.Fatalf("eina nova: %+v", ev)
+	}
+	// `file` també és un fitxer objectiu.
+	ev = pas("office_edit", `{"file": "informe.docx"`)
+	if ev["tool_target"] != "informe.docx" {
+		t.Fatalf("amb file: %+v", ev)
+	}
+
+	// Una crida nova al model comença sense eina.
+	p.iniciModel()
+	if ev := em.progres()[len(em.progres())-1]; ev["tool_name"] != "" || ev["tool_target"] != "" {
+		t.Fatalf("la crida nova arrossega l'eina: %+v", ev)
+	}
+}
