@@ -380,6 +380,7 @@ class MainActivity : ComponentActivity() {
                                     Screen.Webs -> WebsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Docs -> DocScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Prefs -> PrefsScreen(vm) { scope.launch { drawer.open() } }
+                                    Screen.Settings -> SettingsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Carpeta -> CarpetaScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Preview -> PreviewScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Retro -> RetroScreen(vm, { scope.launch { drawer.open() } }) { nav(Screen.Chat) }

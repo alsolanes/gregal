@@ -271,7 +271,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
             "computer" -> homeComputer
             else -> false
         }
-        if (panelShown != null && !stillOpen) { panelShown = null; vm.openVentsPanel(null) }
+        if (panelShown != null && !stillOpen) { panelShown = null; vm.closeVentsPanel() }
     }
     androidx.activity.compose.BackHandler(enabled = exploreOpen && !manage && open == null && !creator.first) { exploreOpen = false }
     var libraryOpen by remember { mutableStateOf(false) }

@@ -61,11 +61,14 @@ class VentsWebParityTest {
         val vm = GregalViewModel(app)
         vm.attachPrefs(Prefs(app))
         vm.setSimpleVents(true)
+        vm.setIdioma(lang)
         ui.setContent {
             CompositionLocalProvider(LocalPal provides LightPal) {
                 MaterialTheme(colorScheme = LightPal.scheme()) {
                     val screen by vm.screen.collectAsState()
-                    GregalDrawerContent(vm, lang, screen, true, "", "", "", nav = { vm.go(it) }, close = {})
+                    // 182: Configuració is a page now, and the computer row lives there.
+                    if (screen == Screen.Settings) SettingsScreen(vm) {}
+                    else GregalDrawerContent(vm, lang, screen, true, "", "", "", nav = { vm.go(it) }, close = {})
                 }
             }
         }
@@ -75,7 +78,7 @@ class VentsWebParityTest {
         drawer("ca")
         ui.onNodeWithText("Desat").performClick()
         ui.onNodeWithText("Respostes").assertExists()
-        ui.onNodeWithText("Configuració i més").performScrollTo().performClick()
+        ui.onNodeWithText("Configuració").performClick()
         ui.onNodeWithText("L’ordinador de Gregal").assertExists()
         ui.onNodeWithText("Ordinador").assertDoesNotExist()
     }
@@ -84,7 +87,7 @@ class VentsWebParityTest {
         drawer("en")
         ui.onNodeWithText("Saved").performClick()
         ui.onNodeWithText("Replies").assertExists()
-        ui.onNodeWithText("Settings & more").performScrollTo().performClick()
+        ui.onNodeWithText("Settings").performClick()
         ui.onNodeWithText("Gregal’s computer").assertExists()
     }
 
