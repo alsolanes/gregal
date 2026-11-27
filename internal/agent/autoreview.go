@@ -154,6 +154,7 @@ func vistaCrida(c llm.ToolCall) string {
 		Old     string `json:"old"`
 		New     string `json:"new"`
 		Content string `json:"content"`
+		Append  bool   `json:"append"`
 		Patch   string `json:"patch"`
 	}
 	_ = json.Unmarshal([]byte(c.Function.Arguments), &a)
@@ -168,7 +169,11 @@ func vistaCrida(c llm.ToolCall) string {
 		}
 	case "write":
 		if a.Path != "" {
-			return "FILE: " + a.Path + "\nNEW CONTENT:\n" + escurçaRevisio(a.Content, 6000)
+			titol := "NEW CONTENT"
+			if a.Append {
+				titol = "APPENDED CONTENT (added to the end of the file)"
+			}
+			return "FILE: " + a.Path + "\n" + titol + ":\n" + escurçaRevisio(a.Content, 6000)
 		}
 	case "patch":
 		if a.Patch != "" {

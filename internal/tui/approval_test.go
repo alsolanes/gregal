@@ -2,6 +2,8 @@ package tui
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -104,5 +106,18 @@ func TestAprovacioNoEsDisparaEscrivint(t *testing.T) {
 	m = mod.(Model)
 	if cmd == nil || m.pending != nil {
 		t.Fatal("passada la protecció, «s» ha d'aprovar")
+	}
+}
+
+// La confirmació d'un write amb append ensenya el que s'afegeix, no un diff
+// que esborra el fitxer sencer.
+func TestPreviewWriteAppendNomesAfegeix(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("linia vella\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p := previewCanvi(dir, "write", `{"path":"a.txt","content":"linia nova\n","append":true}`)
+	if !strings.Contains(p, "linia nova") || strings.Contains(p, "−") {
+		t.Fatalf("preview=%q", p)
 	}
 }

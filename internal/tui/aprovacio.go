@@ -64,6 +64,7 @@ func previewCanvi(dir, name, argsJSON string) string {
 	var a struct {
 		Path    string `json:"path"`
 		Content string `json:"content"`
+		Append  bool   `json:"append"`
 		Old     string `json:"old_string"`
 		New     string `json:"new_string"`
 		Edits   []struct {
@@ -84,6 +85,9 @@ func previewCanvi(dir, name, argsJSON string) string {
 		if err != nil {
 			// Fitxer nou: el cos, que és exactament el que es crearà.
 			return diffBlock(a.Path, "", a.Content, 40)
+		}
+		if a.Append {
+			a.Content = string(vell) + a.Content
 		}
 		if string(vell) == a.Content {
 			return dimStyle.Render(T("aprova.senseCanvi"))

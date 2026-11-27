@@ -208,3 +208,12 @@ func TestReviewerRoleIVistaDiff(t *testing.T) {
 		t.Fatalf("l'edit es mostra com a diff:\n%s", p)
 	}
 }
+
+// Un write amb append no reescriu el fitxer: el revisor ho ha de veure així,
+// no com un contingut nou que substitueix el que hi havia.
+func TestReviewPromptWriteAppendEsVeuComAfegit(t *testing.T) {
+	p := ReviewPrompt(ReviewRequest{Task: "t", Call: cridaProva("1", "write", `{"path":"a.html","content":"<p>final</p>","append":true}`)})
+	if !strings.Contains(p, "APPENDED CONTENT") || strings.Contains(p, "NEW CONTENT") {
+		t.Fatalf("l'append es mostra com a reescriptura:\n%s", p)
+	}
+}
