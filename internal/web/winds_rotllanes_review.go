@@ -67,5 +67,6 @@ func rotllanaReviewBrief(reviewer, author companion.Wind) string {
 func rotllanaAuthorBrief(author, reviewer companion.Wind) string {
 	return "\n\nREPLY TO YOUR PEER. " + reviewer.Name + " just reviewed your answer (see the end of the conversation). " +
 		"In 1-3 sentences, addressing " + reviewer.Name + " by name: if they are right, accept it and give the corrected version of what changes, for the human; if they are wrong or it does not apply, say why in one line. " +
+		"If you accept it and the fix is a change you can make with your tools (a file, a page, a document), make the change yourself first and then say what you changed, instead of describing it. " +
 		"No thanks, no repetition. If there is nothing to add, reply with exactly - and nothing else."
 }
