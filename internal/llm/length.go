@@ -37,6 +37,10 @@ type LengthError struct {
 	// sense passar per argsComplets.
 	Text  string
 	Calls []ToolCall
+	// Exhaurit: el proveïdor no ha dit length, però l'usage diu que s'ha
+	// gastat tot el pressupost. Qui ha tancat les crides és el proxy, no el
+	// model, i un JSON vàlid no vol dir que hi siguin tots els arguments.
+	Exhaurit bool
 }
 
 // StreamInterruptedError reports a stream closed before its final signal.

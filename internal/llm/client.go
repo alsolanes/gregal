@@ -1191,7 +1191,11 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 	if strings.TrimSpace(text) == "" && len(calls) == 0 {
 		return "", nil, emptyReplyErr(finish, reasoned, maxTokens)
 	}
-	if finish == "length" {
+	// Hi ha proxies OpenAI-compatibles que diuen tool_calls encara que el
+	// model hagi gastat tot el pressupost: arriba una crida amb el JSON tancat
+	// però sense els arguments que faltaven (un write sense content).
+	exhaurit := finish != "length" && maxTokens > 0 && rec.last.CompletionTokens >= maxTokens
+	if finish == "length" || exhaurit {
 		// Text callbacks have already escaped in the ordinary streaming mode.
 		// The opt-in recovery mode buffers them, so the discarded attempt is
 		// safe to retry even when it included partial answer text.
@@ -1199,7 +1203,9 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 		if onToken == nil {
 			visible = 0
 		}
-		return "", nil, lengthTallat(reasoned, maxTokens, visible).amb(text, calls)
+		le := lengthTallat(reasoned, maxTokens, visible).amb(text, calls)
+		le.Exhaurit = exhaurit
+		return "", nil, le
 	}
 	c.noteReasoning(ctx, calls, roundTrip.String())
 	return text, calls, nil

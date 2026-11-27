@@ -1131,16 +1131,22 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		return "aturat " + a.ID, nil, nil
 	case "write":
 		var a struct {
-			Path    string `json:"path"`
-			Content string `json:"content"`
+			Path    string  `json:"path"`
+			Content *string `json:"content"`
 		}
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "", nil, err
 		}
+		// Sense content (no "" explícit) és una resposta tallada pel límit de
+		// sortida de la qual només ha arribat el path: escriure-la buidaria
+		// el fitxer i el model ho tornaria a provar igual.
+		if a.Content == nil {
+			return "", nil, fmt.Errorf("write %s: the content argument did not arrive, most likely because your reply was cut off by the output token limit; nothing was written. Write the file in parts: a short skeleton with write, then add the rest with edit", a.Path)
+		}
 		if err := seg.GuardaEscriptura(a.Path); err != nil {
 			return "", nil, err
 		}
-		n, err := tools.Write(a.Path, []byte(a.Content))
+		n, err := tools.Write(a.Path, []byte(*a.Content))
 		if err != nil {
 			return "", nil, err
 		}

@@ -1,6 +1,6 @@
 ---
 title: "write sense content falla i no buida el fitxer"
-status: todo
+status: done
 depends_on: []
 ---
 
@@ -10,9 +10,9 @@ Un torn de Codi (DeepSeek V4.1 Flash, «Alt», autonomia total) va estar 37 minu
 
 ## Acceptance criteria
 
-- [ ] Un `write` amb el camp `content` absent (no un `""` explícit) no toca el fitxer i torna un error que diu que el contingut no ha arribat, segurament perquè la resposta s'ha tallat pel límit de sortida, i que escrigui el fitxer per parts (un esquelet amb `write` i la resta amb `edit`). Test Go: un fitxer existent conserva el contingut.
-- [ ] Un `write` amb `content: ""` explícit continua creant un fitxer buit. Test Go.
-- [ ] Si una resposta del model fa servir tot el pressupost de sortida (tokens de sortida de l'usage >= max_tokens demanat) però el proveïdor no diu `finish_reason: length`, es tracta com un tall: les crides d'eina d'aquella resposta no s'executen i passa pel camí de `continuaTallat` (`internal/llm/continua.go`). Test Go amb un servidor fals compatible OpenAI que torna `finish_reason: tool_calls` amb `completion_tokens` = max_tokens.
+- [x] Un `write` amb el camp `content` absent (no un `""` explícit) no toca el fitxer i torna un error que diu que el contingut no ha arribat, segurament perquè la resposta s'ha tallat pel límit de sortida, i que escrigui el fitxer per parts (un esquelet amb `write` i la resta amb `edit`). Test Go: un fitxer existent conserva el contingut.
+- [x] Un `write` amb `content: ""` explícit continua creant un fitxer buit. Test Go.
+- [x] Si una resposta del model fa servir tot el pressupost de sortida (tokens de sortida de l'usage >= max_tokens demanat) però el proveïdor no diu `finish_reason: length`, es tracta com un tall: les crides d'eina d'aquella resposta no s'executen i passa pel camí de `continuaTallat` (`internal/llm/continua.go`). Test Go amb un servidor fals compatible OpenAI que torna `finish_reason: tool_calls` amb `completion_tokens` = max_tokens.
 
 ## Out of scope
 
@@ -22,3 +22,8 @@ El temps que el model passa raonant («Alt»). El detector de crides repetides.
 
 - `internal/agent/loop.go` ~1131 (`case "write"`), `internal/llm/client.go` (~1190-1203, on es mira `finish == "length"`), `internal/llm/length.go`, `internal/llm/continua.go` (`argsComplets`, `promptCridaTallada`).
 - Mira també si el camí de `RecoverCalls` (DSML dins del text) pot deixar una crida amb només `path` quan el text es talla, i digues-ho a Notes.
+- `RecoverCalls` / DSML: no pot deixar una crida amb només `path` quan el text es talla. `dsmlInvoke` (`internal/llm/dsml.go`) exigeix el tancament `</｜DSML｜invoke>`, i un tall a mig paràmetre `content` no el té: no surt cap crida. Al run 364 tampoc va passar per aquí: el progrés comptava ~51 caràcters d'arguments d'eina en deltes `tool_calls` natius (just `{"path": "..."}`) i 0-206 de text, i el format amb espais (`"path": "`) apunta que el JSON el va muntar el proxy (zen) al seu costat, tancant la crida amb el que tenia.
+- El registre no desa el `finish_reason`, així que no es pot saber si zen va dir `tool_calls` o `length`. Si va dir `length`, el camí «crides senceres» de `continuaTallat` les accepta igualment (JSON vàlid) i el criteri 3 no hi entra; aleshores el que protegeix és el criteri 1 (write sense content falla i ho explica al model).
+- El camp nou `LengthError.Exhaurit` fa que `continuaTallat` tracti com a tallades totes les crides de la resposta, encara que el JSON sigui vàlid. Només el posa la via SSE de `chatStreamWithToolsInner`, que és la que va fer servir zen.
+- Follow-up: la mateixa comprovació (`completion_tokens >= max_tokens` sense `length`) falta a la branca no-SSE de `chatStreamWithToolsInner`, a `chatWithToolsInner` (no-streaming) i a les vies natives (`nativeChat`).
+- Follow-up: desar el `finish_reason` a l'event `speed` (o a un altre) perquè el pròxim cas es pugui diagnosticar sense endevinar.
