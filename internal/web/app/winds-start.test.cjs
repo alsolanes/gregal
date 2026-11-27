@@ -2127,3 +2127,12 @@ test('on desktop a reply uses the wide column like Claude or Codex: the reading 
   const bubble = rules.filter(r => r.sel === '.vw-messages .vw-user > div').map(r => prop(r, 'max-width')).filter(Boolean).at(-1);
   assert.match(bubble || '', /^min\(80%, ?(4[8-9]|[5-9]\d)rem\)$/, 'user bubble, got ' + bubble);
 });
+
+test('rows under a reply line up with its text, which starts at the left edge, and «Ho recordaré» leaves room under the text', () => {
+  const rules = cssRules('winds-workspace.css');
+  const align = rules.find(r => r.sel.startsWith('.vw-messages :is(') && prop(r, 'margin-left') === '0');
+  assert.ok(align, 'one rule puts the rows at the reply edge');
+  for (const c of ['vw-memory', 'vw-turn-acts', 'vw-choices', 'vw-handoff', 'vw-suggest', 'vw-debate', 'vw-asks-inline', 'vw-ask-done']) assert.match(align.sel, new RegExp('\\.' + c + '[,)]'), c);
+  const top = rules.filter(r => r.sel === '.vw-messages .vw-memory').map(r => prop(r, 'margin-top')).filter(Boolean).at(-1);
+  assert.ok(parseFloat(top) >= 10, 'space above «Ho recordaré», got ' + top);
+});

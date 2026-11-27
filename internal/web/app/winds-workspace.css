@@ -1531,6 +1531,10 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-memory-copy span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); }
 .vw-memory-undo { padding:2px 6px; font-weight:500; color:var(--muted); }
 .vw-memory-undo:hover { color:var(--ink); }
+/* Al xat el text de la resposta comença a la vora esquerra (la cara va al
+   marge): les files de sota s'hi alineen, i «Ho recordaré» no s'enganxa al text. */
+.vw-messages :is(.vw-memory,.vw-turn-acts,.vw-choices,.vw-handoff,.vw-suggest,.vw-debate,.vw-asks-inline,.vw-ask-done) { margin-left:0; }
+.vw-messages .vw-memory { margin-top:12px; }
 /* Permís: a la columna de lectura, compacte; els botons a la mida del text. */
 .vw-messages .vw-asks-inline .vw-ask, .vw-messages .vw-ask { max-width:740px; margin-left:0; padding:12px 14px; gap:8px; box-shadow:none; border-color:color-mix(in srgb, var(--accent) 35%, var(--line-hi)); }
 .vw-messages .vw-ask > strong { font-size:14px; }
