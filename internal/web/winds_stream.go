@@ -350,7 +350,14 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 		spot.userMsg = msg
 	}
 	ctx = withWindPark(ctx, spot)
-	if s.crewChatIntent(msg) == "review" {
+	intent := s.crewChatIntent(msg)
+	// La Tempesta només llegeix: si li demanes fer una cosa, el torn és
+	// normal (amb les eines d'escriure) i la resposta diu per què.
+	deepSkipped := req.Tempesta && intent == "work"
+	if deepSkipped {
+		req.Tempesta = false
+	}
+	if intent == "review" {
 		ctx = s.readOnlyWindCtx(ctx)
 	} else {
 		ctx = s.windDocsCtx(ctx)
@@ -495,6 +502,9 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 	reply = s.windSubjectPhoto(msg, s.windCardImages(reply))
 	reply += s.windDocLinks(turnStart, reply)
 	reply += s.windWebCards(turnStart, reply)
+	if deepSkipped {
+		reply += "\n\n_" + s.tr("«A fons» és per investigar; això ho he fet en mode normal.", "«Deep» is for research; I did this one in normal mode.") + "_"
+	}
 	history := append([]llm.Message(nil), base...)
 	if !isContinue {
 		history = append(history, llm.Message{Role: "user", Content: msg, Ts: turnStart.Unix()})

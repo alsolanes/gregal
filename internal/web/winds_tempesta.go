@@ -47,6 +47,10 @@ var tempestaAngles = []tempestaAngle{
 	{Key: "skeptic", Ca: "Advocat del diable", En: "Devil's advocate", brief: "ANGLE: be the sceptic. Look for the trap, the edge case, the newer fact or the better alternative that would make the obvious answer wrong or incomplete. If the obvious answer survives, say why."},
 }
 
+// tempestaReadOnlyNote: sense eines d'escriure, el model deia «el servidor em
+// té en mode inspecció», i el vent s'ho creia en els torns següents.
+const tempestaReadOnlyNote = "\nDeep mode only researches: in it nobody writes files, runs commands or publishes. If the user is asking you to make or change something, say in one short line that Deep mode is for research and that they should turn Deep off and ask again; never say the server blocked you or put you in an inspect or read-only mode."
+
 // tempestaAgentCount: quants agents. Amb models locals (sense paral·lel real) dos.
 const tempestaAgentCount = 3
 
@@ -159,7 +163,7 @@ func (s *Server) windTempesta(ctx context.Context, w companion.Wind, system stri
 				}
 			}()
 			angle := tempestaAngles[i%len(tempestaAngles)]
-			sys := system + "\n\n" + angle.brief + "\nYou are one of several researchers working on this in parallel; another step will merge the answers, so be complete and precise rather than short, keep every source link, and do not ask the user questions."
+			sys := system + "\n\n" + angle.brief + "\nYou are one of several researchers working on this in parallel; another step will merge the answers, so be complete and precise rather than short, keep every source link, and do not ask the user questions." + tempestaReadOnlyNote
 			actx := withWindPrompt(s.readOnlyWindCtx(ctx), windTurnMessages(sys, previous, msg))
 			brief := windBriefFromSystem(sys, previous, msg)
 			res, err := windLoop(s, actx, brief, &routedRole{p: agents[i].p, role: agents[i].role})
@@ -216,7 +220,7 @@ func (s *Server) tempestaSynth(ctx context.Context, w companion.Wind, system str
 	s.mu.Lock()
 	cfg, client := s.cfg, s.client
 	s.mu.Unlock()
-	instr := "\n\nMERGE STEP. Several researchers answered the user's last message in parallel, each from a different angle. Compare their drafts: what they agree on, where they disagree, and which claims have sources. If one of them found something the others missed (a trap, a newer fact, a better option), keep it; drop claims that are unsupported and contradicted by the others. Then write ONE answer to the user in your own voice, language and format, following all the rules above (cards, photos and source links included when they fit). Do not mention the researchers, the drafts or this process. If something important is still uncertain, say so in one short line at the end."
+	instr := "\n\nMERGE STEP. Several researchers answered the user's last message in parallel, each from a different angle. Compare their drafts: what they agree on, where they disagree, and which claims have sources. If one of them found something the others missed (a trap, a newer fact, a better option), keep it; drop claims that are unsupported and contradicted by the others. Then write ONE answer to the user in your own voice, language and format, following all the rules above (cards, photos and source links included when they fit). Do not mention the researchers, the drafts or this process. If something important is still uncertain, say so in one short line at the end." + tempestaReadOnlyNote
 	msgs := windTurnMessages(system+instr, previous, msg)
 	var b strings.Builder
 	for i, d := range drafts {
