@@ -229,6 +229,12 @@ class GregalApi(val base: String, val token: String) {
         return post("/api/model", JSONObject().put("model", model).put("scope", "vents"))
     }
 
+    /** «A fons»: el model triat per a cada agent i la síntesi ("" = automàtic). */
+    fun getTempestaModels(): Map<String, String> = TempestaModels.parse(read("/api/winds/tempesta/models"))
+
+    fun setTempestaModel(slot: String, model: String): Map<String, String> =
+        TempestaModels.parse(read("/api/winds/tempesta/models", "POST", TempestaModels.payload(slot, model)))
+
     /** POST que torna l'objecte JSON tal qual (per a les pantalles que el llegeixen elles mateixes). */
     fun post(path: String, payload: JSONObject): JSONObject {
         return JSONObject(read(path, "POST", payload.toString()))

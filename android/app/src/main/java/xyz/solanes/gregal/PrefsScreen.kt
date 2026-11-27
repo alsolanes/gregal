@@ -303,6 +303,13 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             }
 
                         }
+                        val tempestaModels by vm.tempestaModels.collectAsState()
+                        val models by vm.models.collectAsState()
+                        LaunchedEffect(Unit) { vm.loadModels(); vm.loadTempestaModels() }
+                        tempestaModels?.let {
+                            PrefsSection(t("app.tempesta.title"))
+                            TempestaModelsSection(idioma, it, models, vm::setTempestaModel)
+                        }
                     }
                     PrefsPage.Permissions -> {
                         PrefsGroup(Modifier.fillMaxWidth()) {

@@ -165,6 +165,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val _models = MutableStateFlow<Map<String, List<String>>>(emptyMap())
     val models: StateFlow<Map<String, List<String>>> = _models
 
+    /** «A fons»: el model de cada agent i la síntesi ("" = automàtic); null mentre no se sap. */
+    private val _tempestaModels = MutableStateFlow<Map<String, String>?>(null)
+    val tempestaModels: StateFlow<Map<String, String>?> = _tempestaModels
+
     private val _windsModel = MutableStateFlow("")
     val windsModel: StateFlow<String> = _windsModel
 
@@ -799,6 +803,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _jobs.value = emptyList()
         _runs.value = emptyList()
         _models.value = emptyMap()
+        _tempestaModels.value = null
         _providers.value = emptyList()
         _catalog.value = emptyList()
         _provMsg.value = ""
@@ -3400,6 +3405,33 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 }
             } catch (e: Exception) {
                 if (_conn.value == c) notify(appText("app.status.models", e.message.orEmpty()))
+            }
+        }
+    }
+
+    fun loadTempestaModels() {
+        val c = _conn.value
+        viewModelScope.launch {
+            try {
+                val m = withContext(Dispatchers.IO) { c.api().getTempestaModels() }
+                if (_conn.value == c) _tempestaModels.value = m
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                if (_conn.value == c) notify(appText("app.tempesta.loadFailed", e.message.orEmpty()))
+            }
+        }
+    }
+
+    /** El servidor valida el model (400 si no el coneix) i torna la tria sencera. */
+    fun setTempestaModel(slot: String, model: String) {
+        val c = _conn.value
+        viewModelScope.launch {
+            try {
+                val m = withContext(Dispatchers.IO) { c.api().setTempestaModel(slot, model) }
+                if (_conn.value == c) _tempestaModels.value = m
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                notify(appText("app.status.modelChange", e.message.orEmpty()))
             }
         }
     }
