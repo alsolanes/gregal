@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v1.103.0 - 2026-11-27 - Vents discrets a la capçalera, síntesi en streaming i polits visuals
+
+- **Avatar dels Vents tranquil a la capçalera.** A l'escriptori, el ninot del vent es queda ancorat al costat del seu nom a la capçalera sense baixar a la cantonada, sense volar per sobre del text en fer scroll ni ballar contínuament mentre treballa o espera.
+- **Síntesi final en streaming (`motor_web.go`).** La síntesi final després d'exhaurir el límit d'eines ara fa servir `ChatStreamWithToolsFO` i es mostra token a token en lloc d'esperar la resposta sencera.
+- **Polits visuals de targetes, menús i mode de treball (`refine.css`).** Millores d'estètica i acabat a les targetes d'aprovació i preguntes, menús emergents, inspector, visor de fitxers, selector compacte i animació suau a la capçalera de `.work-group.running`.
+
 ## v1.102.0 - 2026-11-27 - Barra lateral més ràpida, sense tabs redundants i detalls polits
 
 - **Conversa activa marcada i menys pestanyes redundants a Desktop (web i escriptori).**

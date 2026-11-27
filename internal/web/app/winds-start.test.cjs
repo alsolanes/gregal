@@ -1039,50 +1039,31 @@ test('in a group a wind’s small face starts its run only, and a long reply loo
   assert.equal(look(rows[1]), look(rows[0]), 'the long reply has the same shape as the short one');
 });
 
-// El vent descansa a la cantonada amb el missatge més nou; si tires amunt, vola al costat del nom, i torna.
-async function windChat(room) {
+// El vent es queda tranquil·lament al costat del seu nom a la capçalera, sense volar per sobre del text en fer scroll.
+async function windChat() {
   const json = data => ({ ok: true, status: 200, json: async () => data });
   const f = await boot({ api: r => r.url === '/api/winds/session/open' ? json({ wind: 'xaloc', name: r.body.name, history: longChat() }) : null });
   await byText(f.page.querySelector('.vw-start-recent'), 'button', 'Un concert per dissabte').click();
   await settle();
-  const box = f.page.querySelector('.vw-messages'), spot = f.page.querySelector('.vw-corner-spot');
-  // Al navegador, el lloc de la cantonada només té mida quan hi cap (winds-workspace.css).
-  if (room) spot.firstChild.getBoundingClientRect = () => ({ left: 900, top: 600, width: 96, height: 96, right: 996, bottom: 696 });
+  const box = f.page.querySelector('.vw-messages');
   const scrollTo = top => { box.scrollTop = top; for (const fn of box.listeners.scroll || []) fn({ target: box }); };
   return { ...f, box, corner: () => f.page.querySelector('.vw-wind-corner'), scrollTo, bottom: () => scrollTo(box.scrollHeight) };
 }
-test('the wind rests in the corner at the newest message, flies up next to its name when you scroll back, and comes back', async () => {
-  const f = await windChat(true);
+test('the wind stays calmly anchored next to its name in the header regardless of scroll', async () => {
+  const f = await windChat();
+  assert.equal(f.page.querySelector('.vw-corner-spot'), null, 'no floating corner spot over messages');
+  assert.equal(f.corner().dataset.at, 'top', 'starts anchored at the header');
   f.bottom();
-  assert.equal(f.corner().dataset.at, 'corner', 'at the newest message, in the corner');
-  f.scrollTo(f.box.scrollTop - 40);
-  assert.equal(f.corner().dataset.at, 'corner', 'a small nudge does not make it fly');
+  assert.equal(f.corner().dataset.at, 'top', 'stays at the header when at the newest message');
   f.scrollTo(0);
-  assert.equal(f.corner().dataset.at, 'top', 'reading back, it sits next to its name');
-  f.bottom();
-  assert.equal(f.corner().dataset.at, 'corner', 'back at the bottom, back in the corner');
+  assert.equal(f.corner().dataset.at, 'top', 'stays at the header when scrolling up');
   assert.equal(facesOf(f.page, 'Xaloc').length, 1, 'still one face');
 });
 
-test('where the corner has no room (narrow screens, a work pane open) the wind stays next to its name, still one', async () => {
-  const f = await windChat(false);
-  f.bottom();
-  assert.equal(f.corner().dataset.at, 'top');
-  assert.equal(facesOf(f.page, 'Xaloc').length, 1);
-});
-
-test('the flight moves one element with transforms only, and jumps instead of flying with reduced motion', () => {
+test('the corner wind CSS has no scroll flight transitions or busy bouncing animation', () => {
   const css = fs.readFileSync(path.join(__dirname, 'winds-workspace.css'), 'utf8');
-  const block = at => { let depth = 0; const start = css.indexOf('{', at); for (let i = start; i < css.length; i++) { if (css[i] === '{') depth++; else if (css[i] === '}' && --depth === 0) return css.slice(start + 1, i); } return ''; };
-  const blocks = [...css.matchAll(/@media\(prefers-reduced-motion:no-preference\)/g)].map(m => block(m.index));
-  const still = blocks.reduce((rest, b) => rest.replace(b, ''), css);
-  const flights = [...blocks.join('\n').matchAll(/\.vw-wind-corner\[data-fly\][^{]*\{ transition:([^;}]*)/g)].map(m => m[1]);
-  assert.equal(flights.length, 2, 'the corner wind flies up and down with motion allowed');
-  for (const flight of flights) {
-    const props = flight.split(/,(?![^(]*\))/).map(p => p.trim().split(' ')[0]);
-    assert.deepEqual(props.filter(p => !['translate', 'transform', 'scale'].includes(p)), [], 'transforms only: ' + props);
-  }
-  assert.doesNotMatch(still, /\.vw-wind-corner[^{]*\{[^}]*transition:/, 'no flight under reduced motion');
+  assert.doesNotMatch(css, /\.vw-wind-corner\[data-fly\]/, 'no scroll flight transition rules');
+  assert.doesNotMatch(css, /\.vw-wind-corner:is\([^)]*\) > \.winds-face \{ animation:vw-busy/, 'no bouncing vw-busy animation');
 });
 
 // 089: el panell de Gregal Docs i el de l'ordinador passen a flotar sobre el xat a la mateixa amplada.

@@ -1031,3 +1031,123 @@ html body:not(.shell-winds) #top .project-heading #topSessionNew {
   #main .wg-think-ico { animation:none; }
   #main .step-chip, #toBottom, #todoBox .todo-fletxa::before { transition:none; }
 }
+
+/* ---------- Cinquena passada: aprovacions, preguntes, menús, inici i diffs ---------- */
+#main .approve {
+  border:1px solid color-mix(in srgb, var(--amber) 36%, var(--line));
+  background:color-mix(in srgb, var(--amber) 4%, var(--surface));
+  box-shadow:0 6px 20px -10px var(--ombra);
+}
+#main .approve .args {
+  margin:10px 0; padding:10px 12px; border-radius:10px;
+  border:1px solid var(--line); background:var(--codi-fons); color:var(--text);
+}
+#main .approve .row { gap:8px; margin-top:8px; }
+#main .approve .row button { min-height:32px; padding:6px 14px; border-radius:9px; }
+#main .approve:not(:has(button)) {
+  background:transparent; border-color:var(--line); box-shadow:none; padding:8px 12px;
+}
+
+#main .qcard {
+  border:1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+  background:var(--surface); box-shadow:0 6px 20px -10px var(--ombra);
+}
+#main .qcard b.q { margin-bottom:10px; color:var(--ink); font-size:14.5px; }
+#main .qcard .qopt {
+  padding:9px 12px; border-radius:10px; border-color:var(--line);
+  background:color-mix(in srgb, var(--surface-hi) 45%, transparent);
+  transition:background-color .14s, border-color .14s, transform .14s;
+}
+#main .qcard .qopt:hover {
+  background:var(--accent-soft); border-color:var(--accent); transform:translateY(-.5px);
+}
+#main .qcard .qfree input { border-radius:10px; padding:8px 11px; }
+
+#heroMore .home-recent-row {
+  background:color-mix(in srgb, var(--surface) 64%, transparent);
+  border-color:var(--line);
+  transition:background-color .15s, border-color .15s, transform .15s var(--ease-out), box-shadow .15s;
+}
+#heroMore .home-recent-row:hover {
+  background:var(--surface); border-color:var(--line-hi);
+  transform:translateY(-1px); box-shadow:0 8px 22px -12px var(--ombra);
+}
+
+:is(#moreMenu, #mpick, .perm-menu, #attachMenu, #attachPick, #thinkMenu) {
+  background:color-mix(in srgb, var(--panel) 92%, transparent);
+  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  border-color:var(--line-hi); border-radius:14px;
+}
+#mpick .mp-item { padding:7px 10px; border-radius:8px; }
+.perm-menu button { padding:8px 10px; border-radius:9px; }
+
+#changesBody .diff-file {
+  border:1px solid var(--line); border-radius:12px; overflow:hidden; background:var(--surface);
+}
+#changesBody .diff-file > summary { padding:10px 14px; transition:background-color .14s; }
+#changesBody .diff-file > summary:hover { background:var(--hover); }
+#changesBody .hunk-bar {
+  padding:6px 14px; background:color-mix(in srgb, var(--surface-hi) 45%, transparent);
+}
+@media (prefers-reduced-motion:reduce) {
+  #main .qcard .qopt, #heroMore .home-recent-row { transition:none; }
+}
+
+/* ---------- Setena passada: «mentre treballa» viu i #productSwitch discret ---------- */
+@keyframes wgShimmer {
+  0%, 100% { background-position:0% 50%; }
+  50% { background-position:100% 50%; }
+}
+html body:not(.shell-winds) #main .work-group.running > summary {
+  background:linear-gradient(100deg,
+    color-mix(in srgb, var(--surface) 82%, transparent) 0%,
+    color-mix(in srgb, var(--accent) 8%, var(--surface)) 50%,
+    color-mix(in srgb, var(--surface) 82%, transparent) 100%);
+  background-size:200% 100%;
+  animation:wgShimmer 3.4s ease-in-out infinite;
+}
+html body #side #productSwitch {
+  margin:2px 12px 8px; padding:2px; border-radius:9px;
+  background:color-mix(in srgb, var(--hover) 70%, transparent);
+}
+html body #side #productSwitch button {
+  min-height:26px; padding:0 8px; border-radius:7px; font-size:12px;
+}
+@media (prefers-reduced-motion:reduce) {
+  html body:not(.shell-winds) #main .work-group.running > summary { animation:none; }
+}
+
+/* ---------- Sisena passada: autocompletat, cua, inspector, fitxers i modals ---------- */
+#suggest {
+  padding:6px; border-radius:16px;
+  background:color-mix(in srgb, var(--panel) 92%, transparent);
+  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  border-color:var(--line-hi); box-shadow:var(--lift);
+}
+#suggest .sg-item { border-radius:10px; padding:8px 11px; transition:background-color .12s; }
+#suggest .sg-item.on, #suggest .sg-item:hover { background:var(--hover-alt); }
+
+#queueList .q-item {
+  border:1px solid var(--line); border-radius:14px; padding:7px 12px;
+  background:var(--surface); box-shadow:0 2px 8px -4px var(--ombra);
+}
+#queueList .q-item b {
+  padding:2px 7px; border-radius:999px; background:var(--accent-soft);
+  color:var(--accent-hi); font-family:inherit; letter-spacing:.02em; text-transform:none;
+}
+
+#inspector { box-shadow:var(--lift); }
+#inspector .inspector-head { height:46px; padding:0 16px; }
+#inspector .inspect-section { padding:14px 16px; }
+#inspector .activity-dot { border-color:var(--surface); }
+
+#fileView .fv-head {
+  padding:10px 14px;
+  background:color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+}
+#treeBody .tree-row { padding:4px 8px; border-radius:7px; transition:background-color .12s; }
+#terminalPage .proc-row { padding:9px 12px; border-radius:12px; }
+
+#prefsModal, #keysModal { backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); }
+#prefsModal .card, #keysModal .card { border-radius:18px; }

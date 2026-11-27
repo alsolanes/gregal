@@ -533,7 +533,8 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 			progres.faseNova(faseRevisio, nil)
 			ctx, cancel := context.WithTimeout(runCtx, agent.TimeoutDecisio)
 			ctx = llm.WithThink(ctx, agent.ThinkPerPas(role.Think, pas))
-			final, _, err := s.client.ChatFO(ctx, prim, fb, pas.Hist, role.Temperature, role.MaxTokens, onFallback)
+			final, _, _, err := s.client.ChatStreamWithToolsFO(ctx, prim, fb, pas.Hist, role.Temperature, role.MaxTokens, nil,
+				func(tok string) { emit("token", map[string]string{"text": tok}) }, nil, onFallback)
 			cancel()
 			pinta(torn.RepSintesi(final, err))
 

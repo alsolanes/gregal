@@ -1007,30 +1007,8 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-owner .vw-wind-corner .winds-face .wf-gust { display:inline; }
 .vw-owner .vw-wind-corner .winds-face .wf-puff { display:none; }
 .vw-wind-corner { position:absolute; left:-26px; bottom:0; z-index:6; width:96px; height:96px; pointer-events:none; transform-origin:50% 100%; scale:.4584; }
-.vw-wind-corner[data-at="corner"] { translate:var(--vw-fly-x) 0; transform:translateY(var(--vw-fly-y)); scale:1; pointer-events:auto; cursor:pointer; }
 .vw-wind-corner > .winds-face { display:block; width:100%; height:100%; transform-origin:50% 100%; }
-/* T'espera: s'inclina cap a tu (el compositor) i hi fa un gest de tant en tant. */
-.vw-wind-corner[data-mood="waiting"] > .winds-face { transform:rotate(-8deg); }
 .vw-corner-spot { display:none; }
-@media(min-width:900px) {
-  .vw-thread-view:has(> .vw-corner-spot) > .vw-messages { padding-right:108px; }
-  .vw-corner-spot { display:block; position:relative; flex:none; height:0; }
-  .vw-corner-spot > i { position:absolute; right:0; bottom:4px; width:96px; height:96px; }
-}
-/* Un fil buit ja el mostra gran al mig: llavors es queda a dalt, al costat del nom. */
-.vw-thread-view:has(.vw-thread-empty) > .vw-corner-spot { display:none; }
-@media(min-width:900px) and (max-width:1199.98px) {
-  #workbench:has(> .vw-computer-pane, > #docsPanel:not([hidden])) .vw-corner-spot { display:none; }
-  #workbench:has(> .vw-computer-pane, > #docsPanel:not([hidden])) .vw-thread-view > .vw-messages { padding-right:3px; }
-}
-@media(prefers-reduced-motion:no-preference) {
-  /* Fa un arc, no una línia: amunt s'enlaira primer i després va cap al nom; avall llisca primer cap a
-     la dreta i hi aterra amb una molla que rebota una mica. Si tornes a mig vol, gira des d'on és. */
-  .vw-wind-corner[data-fly] { transition:translate .6s cubic-bezier(.3,.7,.2,1), transform .42s cubic-bezier(.2,.8,.2,1), scale .5s cubic-bezier(.2,.8,.2,1); }
-  .vw-wind-corner[data-fly][data-at="corner"] { transition:translate .42s cubic-bezier(.2,.8,.2,1), transform .62s linear(0, .128, .37, .603, .781, .898, .966, 1, 1.013, 1.015, 1.013, 1.009, 1.005, 1.003, 1.001, 1), scale .62s linear(0, .128, .37, .603, .781, .898, .966, 1, 1.013, 1.015, 1.013, 1.009, 1.005, 1.003, 1.001, 1); }
-  .vw-wind-corner[data-mood="waiting"] > .winds-face { animation:vw-corner-wait 3s ease-in-out infinite; }
-}
-@keyframes vw-corner-wait { 0%,70%,100% { transform:rotate(-8deg); } 78% { transform:rotate(-8deg) translateY(-5px); } 86% { transform:rotate(-8deg); } }
 /* 138: canviar d'humor fon la cara vella amb la nova (winds-workspace.js, swapIn): la vella queda a sota
    mentre s'esvaeix. L'estri de la feina (.vw-prop) el té a tocar, davant del cos, del color del vent
    barrejat amb el text del tema perquè es vegi en clar i en fosc. La plastilina ja porta els seus estris,
@@ -1064,7 +1042,6 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
    mentre els ulls escanegen, la pàgina gira mentre llegeix, el llapis gargoteja, les tecles piquen i els
    engranatges giren. Amb menys moviment, tot quiet: l'estri hi és, però no es mou. */
 @media(prefers-reduced-motion:no-preference) {
-  .vw-wind-corner:is([data-mood="thinking"],[data-mood="searching"],[data-mood="reading"],[data-mood="writing"],[data-mood="working"],[data-mood="discussing"]) > .winds-face { animation:vw-busy 3s ease-in-out var(--vw-phase,0s) infinite; }
   .vw-prop[data-kind="searching"] .vp-move { transform-origin:30% 100%; animation:vw-prop-sweep 2.4s ease-in-out var(--vw-phase,0s) infinite; }
   .vw-prop[data-kind="reading"] .vp-turn { animation:vw-prop-page 3s ease-in-out var(--vw-phase,0s) infinite; }
   .vw-prop[data-kind="writing"] .vp-move { transform-origin:0 100%; animation:vw-prop-pencil 1.2s ease-in-out var(--vw-phase,0s) infinite; }
