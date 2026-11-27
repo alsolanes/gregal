@@ -3,18 +3,20 @@
 // per defecte, si no se'n tria cap, és el del config (retro.persona).
 import { t as T } from './i18n.js';
 
-const KEYS = { mascot: 'gregal_fun_mascot', wrapped: 'gregal_fun_wrapped', voice: 'gregal_fun_voice', desktopMascot: 'gregal_desktop_mascot', kanban: 'gregal_exp_kanban' };
+const KEYS = { mascot: 'gregal_fun_mascot', wrapped: 'gregal_fun_wrapped', voice: 'gregal_fun_voice', desktopMascot: 'gregal_desktop_mascot', kanban: 'gregal_exp_kanban', windPresence: 'gregal_wind_presence' };
 // La mascota flotant només existeix a l'app d'escriptori (desktop/main.js):
 // el preload n'anuncia el suport i la preferència viatja per savePreference.
 const hasDesktopMascot = () => { try { return !!(window.gregalDesktop && window.gregalDesktop.mascotWindow); } catch (e) { return false; } };
 export const PERSONA_KEY = 'gregal_retro_persona';
 export const PERSONAS = [['neutral', 'retro.persona.neutral'], ['friendly', 'retro.persona.friendly'], ['sarcastic', 'retro.persona.sarcastic'], ['mentor', 'retro.persona.mentor']];
+export const WIND_PRESENCES = [['quiet', 'winds.presence.quiet'], ['corner', 'winds.presence.corner']];
 
 const get = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } };
 const set = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 export function retroPersonaPref() { return get(PERSONA_KEY, ''); }
+export function windPresencePref() { return get(KEYS.windPresence, 'quiet') === 'corner' ? 'corner' : 'quiet'; }
 
 // Les files que no són «diversió» viuen en un altre grup de Preferències: el
 // dictat per veu és una manera d'escriure (General) i el kanban, una funció
@@ -25,7 +27,12 @@ const check = (id, on, label) => '<label class="pf-check"><input type="checkbox"
 export const funPrefs = {
   section() {
     const persona = retroPersonaPref();
-    return row('fun.mascot', 'fun.mascot.help', check('prefsFunMascot', get(KEYS.mascot, '0') === '1', 'fun.mascot')) +
+    const windPresence = windPresencePref();
+    return row('winds.presence', 'winds.presence.help',
+        '<select class="pf-select" id="prefsWindPresence" aria-label="' + esc(T('winds.presence')) + '">' +
+        WIND_PRESENCES.map(([v, k]) => '<option value="' + v + '"' + (v === windPresence ? ' selected' : '') + '>' + esc(T(k)) + '</option>').join('') +
+        '</select>') +
+      row('fun.mascot', 'fun.mascot.help', check('prefsFunMascot', get(KEYS.mascot, '0') === '1', 'fun.mascot')) +
       (hasDesktopMascot() ? row('fun.desktopMascot', 'fun.desktopMascot.help', check('prefsDesktopMascot', get(KEYS.desktopMascot, '0') === '1', 'fun.desktopMascot')) : '') +
       row('retro.persona', 'retro.persona.help',
         '<select class="pf-select" id="prefsRetroPersona" aria-label="' + esc(T('retro.persona')) + '">' +
@@ -49,5 +56,7 @@ export const funPrefs = {
     wire('prefsKanban', KEYS.kanban);
     const p = root.querySelector('#prefsRetroPersona');
     if (p) p.onchange = () => { set(PERSONA_KEY, p.value); changed(); };
+    const wp = root.querySelector('#prefsWindPresence');
+    if (wp) wp.onchange = () => { set(KEYS.windPresence, wp.value); changed(); };
   },
 };

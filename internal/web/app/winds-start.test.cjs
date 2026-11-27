@@ -1060,9 +1060,9 @@ test('the wind stays calmly anchored next to its name in the header regardless o
   assert.equal(facesOf(f.page, 'Xaloc').length, 1, 'still one face');
 });
 
-test('the corner wind CSS has no scroll flight transitions or busy bouncing animation', () => {
+test('the corner wind CSS only enables scroll flight when vw-corner-active is set and has no bouncing vw-busy animation', () => {
   const css = fs.readFileSync(path.join(__dirname, 'winds-workspace.css'), 'utf8');
-  assert.doesNotMatch(css, /\.vw-wind-corner\[data-fly\]/, 'no scroll flight transition rules');
+  assert.match(css, /\.wind-workspace\.vw-corner-active \.vw-wind-corner\[data-fly\]/, 'flight transitions are scoped to vw-corner-active');
   assert.doesNotMatch(css, /\.vw-wind-corner:is\([^)]*\) > \.winds-face \{ animation:vw-busy/, 'no bouncing vw-busy animation');
 });
 

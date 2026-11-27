@@ -1009,6 +1009,23 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-wind-corner { position:absolute; left:-26px; bottom:0; z-index:6; width:96px; height:96px; pointer-events:none; transform-origin:50% 100%; scale:.4584; }
 .vw-wind-corner > .winds-face { display:block; width:100%; height:100%; transform-origin:50% 100%; }
 .vw-corner-spot { display:none; }
+/* Opcional (Preferències › Avatar del vent al xat: Present al lateral): baixa a la cantonada dreta en fer scroll al final. */
+.wind-workspace.vw-corner-active .vw-wind-corner[data-at="corner"] { translate:var(--vw-fly-x) 0; transform:translateY(var(--vw-fly-y)); scale:1; pointer-events:auto; cursor:pointer; }
+.wind-workspace.vw-corner-active .vw-wind-corner[data-mood="waiting"] > .winds-face { transform:rotate(-8deg); }
+@media(min-width:900px) {
+  .wind-workspace.vw-corner-active .vw-thread-view:has(> .vw-corner-spot) > .vw-messages { padding-right:108px; }
+  .wind-workspace.vw-corner-active .vw-corner-spot { display:block; position:relative; flex:none; height:0; }
+  .wind-workspace.vw-corner-active .vw-corner-spot > i { position:absolute; right:0; bottom:4px; width:96px; height:96px; }
+}
+.wind-workspace.vw-corner-active .vw-thread-view:has(.vw-thread-empty) > .vw-corner-spot { display:none; }
+@media(min-width:900px) and (max-width:1199.98px) {
+  .wind-workspace.vw-corner-active #workbench:has(> .vw-computer-pane, > #docsPanel:not([hidden])) .vw-corner-spot { display:none; }
+  .wind-workspace.vw-corner-active #workbench:has(> .vw-computer-pane, > #docsPanel:not([hidden])) .vw-thread-view > .vw-messages { padding-right:3px; }
+}
+@media(prefers-reduced-motion:no-preference) {
+  .wind-workspace.vw-corner-active .vw-wind-corner[data-fly] { transition:translate .6s cubic-bezier(.3,.7,.2,1), transform .42s cubic-bezier(.2,.8,.2,1), scale .5s cubic-bezier(.2,.8,.2,1); }
+  .wind-workspace.vw-corner-active .vw-wind-corner[data-fly][data-at="corner"] { transition:translate .42s cubic-bezier(.2,.8,.2,1), transform .62s linear(0, .128, .37, .603, .781, .898, .966, 1, 1.013, 1.015, 1.013, 1.009, 1.005, 1.003, 1.001, 1), scale .62s linear(0, .128, .37, .603, .781, .898, .966, 1, 1.013, 1.015, 1.013, 1.009, 1.005, 1.003, 1.001, 1); }
+}
 /* 138: canviar d'humor fon la cara vella amb la nova (winds-workspace.js, swapIn): la vella queda a sota
    mentre s'esvaeix. L'estri de la feina (.vw-prop) el té a tocar, davant del cos, del color del vent
    barrejat amb el text del tema perquè es vegi en clar i en fosc. La plastilina ja porta els seus estris,

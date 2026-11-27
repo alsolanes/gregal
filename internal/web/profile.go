@@ -43,6 +43,7 @@ var profileKeys = map[string]bool{
 	"gregal_side_compact":      true,
 	"gregal_inspector":         true,
 	"gregal_fun_mascot":        true,
+	"gregal_wind_presence":     true,
 	"gregal_fun_voice":         true,
 	"gregal_fun_wrapped":       true,
 	"gregal_wrapped_dismissed": true,

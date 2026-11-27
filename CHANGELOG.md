@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## v1.103.2 - 2026-11-27 - Eines clicables estil Claude/Codex i selector de presència del vent
+
+- **Bloc de treball, eines i raonament en línies de text clicables.** A [refine.css](internal/web/app/refine.css), les crides d'eines, la capçalera de treball i el raonament plegat es mostren com a línies de text netes i sense caixes que s'estenen en fer clic (estil Claude / Codex).
+- **Selector de presència de l'avatar del vent a Preferències.** Nova opció *Avatar del vent al xat* (`gregal_wind_presence`) per triar entre *Discret a la capçalera* (per defecte) o *Present al lateral*.
+
 ## v1.103.1 - 2026-11-27 - Sortides d'eines arxivades per accelerar les respostes
 
 - **Respostes més ràpides i enfocades en torns llargs (*observation masking*).** `MaskOldToolOutputs` arxiva les sortides d'eina antigues i molt llargues (`> 3000` bytes) ja vistes pel model —mantenint intactes les 4 més recents i una capçalera breu de les anteriors—, reduint la mida del *prefill* i millorant l'atenció dels models ràpids.

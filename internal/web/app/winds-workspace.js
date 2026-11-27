@@ -200,13 +200,23 @@
  // del xat quan ets al missatge més nou: el lloc .vw-corner-spot, que el CSS amaga on no hi cap (llavors
  // es queda a dalt). Al fil de Gregal la seva cara ja és gran a dalt; en un grup no hi ha un sol vent.
  let flight=null;
- function cornerWind(){flight?.disconnect();const n=page.querySelector('.vw-wind-corner');if(n)n.dataset.at='top';}
+ const windCornerOn=()=>{try{return root.localStorage?.getItem('gregal_wind_presence')==='corner';}catch{return false;}};
+ function cornerWind(){flight?.disconnect();content?.querySelector('.vw-corner-spot')?.remove();const n=page?.querySelector('.vw-wind-corner');const on=!!(n&&windCornerOn());page?.classList?.toggle('vw-corner-active',on);if(!n)return;if(!on){n.dataset.at='top';return;}
+  const spot=el('div','vw-corner-spot');spot.setAttribute('aria-hidden','true');spot.append(el('i'));content.append(spot);messages.addEventListener('scroll',flyCorner,{passive:true});
+  // La mida del fil canvia amb la finestra, un panell de feina o el compositor que creix: el lloc es mou.
+  flight=new ResizeObserver(flyCorner);flight.observe(messages);flyCorner();}
  // 138: amb marge. A la cantonada, només puja quan has pujat clarament lluny del final (240 px); a dalt, només
  // baixa quan tornes a ser-hi a prop (48 px); entremig es queda on és. El fil que creix sota un vent que
  // escriu allunya el final sense que hagis pujat: això no el mou.
  const cornerAt=(at,gap,up)=>at==='corner'?(up&&gap>240?'top':'corner'):(gap<48?'corner':'top');
  let lastTop=0;
- function flyCorner(){const n=page?.querySelector('.vw-wind-corner');if(n)n.dataset.at='top';}
+ function flyCorner(){const n=page?.querySelector('.vw-wind-corner');if(!n)return;if(!windCornerOn()){n.dataset.at='top';return;}const spot=content?.querySelector('.vw-corner-spot')?.firstChild;if(!spot||!messages)return;const a=spot.getBoundingClientRect(),top=messages.scrollTop,up=top<lastTop;lastTop=top;
+  const at=a.width?cornerAt(n.dataset.at,messages.scrollHeight-messages.clientHeight-top,up):'top';
+  if(at==='corner'){const b=n.parentNode.getBoundingClientRect();n.style.setProperty('--vw-fly-x',a.left-b.left-n.offsetLeft+'px');n.style.setProperty('--vw-fly-y',a.top-b.top-n.offsetTop+'px');}
+  n.dataset.at=at;
+  // El primer lloc s'hi posa sense vol (llegir-ne la mida el fixa): només volen els canvis que vénen després.
+  if(!('fly' in n.dataset)){n.getBoundingClientRect();n.dataset.fly='';}}
+ document.addEventListener?.('gregal:fun-prefs',()=>{if(page&&messages&&content)cornerWind();});
  // 128: el vent reacciona amb el cos: assenteix quan envies (nod), s'hi acosta amb un esclat del seu color
  // quan arriba la resposta (lean) i fa que no quan falla o li dius que no (shake).
  function react(n,kind){if(!n)return;clearTimeout(n.reacting);n.querySelector('.vw-burst')?.remove();n.dataset.react=kind;
