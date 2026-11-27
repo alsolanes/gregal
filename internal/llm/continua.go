@@ -211,13 +211,24 @@ func reintent(le *LengthError, trencada string, budget int) (string, int) {
 // menysRaonament baixa un graó el raonament del rol per al reintent: a
 // low, o sense raonament si el rol ja era low (no n'hi ha de més baix).
 func menysRaonament(ctx context.Context) context.Context {
+	mode := "low"
 	switch thinkMode(ctx) {
 	case "no", "none":
 		return ctx
 	case "low":
-		return WithThink(ctx, "no")
+		mode = "no"
 	}
-	return WithThink(ctx, "low")
+	return context.WithValue(WithThink(ctx, mode), esforcRebaixatKey{}, true)
+}
+
+type esforcRebaixatKey struct{}
+
+// esforcRebaixat diu si l'esforç del context és el d'un reintent
+// (menysRaonament) i no el del rol: un rebuig d'aquest valor no s'ha de
+// recordar per a les peticions del rol.
+func esforcRebaixat(ctx context.Context) bool {
+	v, _ := ctx.Value(esforcRebaixatKey{}).(bool)
+	return v
 }
 
 // lliuraFallada decideix què es torna quan un intent falla per una cosa que

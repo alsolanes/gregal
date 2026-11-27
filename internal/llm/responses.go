@@ -299,7 +299,7 @@ func (c *Client) responsesChat(ctx context.Context, baseURL, apiKey, model strin
 			req.Header.Set("Accept", "text/event-stream")
 		}
 	}
-	resp, err := c.postNatiu(ctx, baseURL, model, "/responses", hasMalformedToolArguments(msgs), campsResponses, headers, c.responsesBody(ctx, model, msgs, temp, maxTokens, specs, stream))
+	resp, err := c.postNatiu(ctx, baseURL, model, "/responses", hasMalformedToolArguments(msgs), campsPerEsforc(ctx, campsResponses, "reasoning"), headers, c.responsesBody(ctx, model, msgs, temp, maxTokens, specs, stream))
 	if err != nil {
 		return "", nil, err
 	}

@@ -449,7 +449,7 @@ func (c *Client) anthropicChat(ctx context.Context, baseURL, apiKey, model strin
 			req.Header.Set("Accept", "text/event-stream")
 		}
 	}
-	resp, err := c.postNatiu(ctx, baseURL, model, "/messages", hasMalformedToolArguments(msgs), campsAnthropic, headers, c.anthropicBody(ctx, model, msgs, maxTokens, specs, stream))
+	resp, err := c.postNatiu(ctx, baseURL, model, "/messages", hasMalformedToolArguments(msgs), campsPerEsforc(ctx, campsAnthropic, "output_config"), headers, c.anthropicBody(ctx, model, msgs, maxTokens, specs, stream))
 	if err != nil {
 		return "", nil, err
 	}
