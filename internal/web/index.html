@@ -1540,6 +1540,9 @@ h1, h2, h3, h4 { font-family:var(--font-heading, inherit); }
 .agent-glyph { display:none; }
 .msg.u .msg-inner { max-width:72%; padding:11px 16px; background:var(--surface-hi); border:0;
   border-radius:18px 18px 4px 18px; line-height:1.6; }
+/* L'adjunt del missatge va a sobre del text, mai a sota. */
+.msg-imgs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+.msg-imgs img { display:block; max-height:200px; max-width:100%; border-radius:12px; border:1px solid var(--line); }
 .msg.sys { font:var(--t2)/1.5 inherit; font-family:inherit; color:var(--faint); }
 .msg.t { padding-left:0; }
 .body h1 { font-size:1.35em; } .body h2 { font-size:1.18em; } .body h3 { font-size:1.06em; }
@@ -2221,6 +2224,7 @@ body.sense-inspector #inspector { display:none; }
 <script src="/app/shell-icons.js"></script>
 <script defer src="/app/palette.js"></script>
 <script src="/app/tool-summary.js"></script>
+<script src="/app/msg-imgs.js"></script>
 <script src="/app/prompt-nav.js"></script>
 <script src="/app/connectors.js"></script>
 <script src="/app/knowledge.js"></script>
@@ -2927,31 +2931,74 @@ function stepChips(node) {
     box.className = 'step-chips';
     line.appendChild(box);
   }
-  box.replaceChildren(...units.map(u => {
+  // Una pastilla per fila d'eina, però la mateixa crida repetida (un script
+  // rellançat sis cops seguits) es compta en una sola pastilla, i les menys
+  // recents queden darrere d'un «+N»: vint pastilles seguides tapen la
+  // conversa més que explicar-la.
+  const MAX = 6;
+  const desc = units.map(u => {
     const d = u.querySelector(':scope > .body > details.tool');
-    const b = document.createElement('button');
-    b.type = 'button';
     const fold = u.matches('.explore-fold');
     let c;
     if (fold) c = { icon: 'search', text: u.querySelector('summary .targs').textContent };
     else { const k = callsOf(u)[0]; c = ts.chip(k.name, k.args, lang); }
     // L'estat d'una fila «Explorat» és el de les crides de dins.
     const state = ['failed', 'pending', 'interrupted', 'quiet'].find(k => fold ? u.querySelector('.explore-list .tool.' + k) : d.classList.contains(k)) || 'done';
-    b.className = 'step-chip ' + state;
-    b.dataset.icon = c.icon;
-    b.textContent = c.text + (d.dataset.note ? ' · ' + d.dataset.note : '');
-    b.title = u.querySelector(':scope > .body > details.tool > summary')?.textContent || c.text;
-    b.setAttribute('aria-expanded', String(d.open));
-    b.unit = u;
+    return {
+      unit: u, icon: c.icon, state,
+      text: c.text + (d.dataset.note ? ' · ' + d.dataset.note : ''),
+      title: u.querySelector(':scope > .body > details.tool > summary')?.textContent || c.text,
+    };
+  });
+  const groups = [], byKey = new Map();
+  for (const it of desc) {
+    const key = it.icon + '\u0000' + it.text + '\u0000' + it.state;
+    let g = byKey.get(key);
+    if (!g) { g = { ...it, units: [], reps: 0 }; byKey.set(key, g); groups.push(g); }
+    g.units.push(it.unit); g.reps++;
+  }
+  box.first = units[0];
+  const more = box.dataset.more === '1';
+  const shown = more ? groups : groups.slice(-MAX);
+  const hidden = groups.length - shown.length;
+  box.replaceChildren(...shown.map(g => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'step-chip ' + g.state;
+    b.dataset.icon = g.icon;
+    b.textContent = g.text + (g.reps > 1 ? ' ×' + g.reps : '');
+    b.title = g.title + (g.reps > 1 ? ' ×' + g.reps : '');
+    b.setAttribute('aria-expanded', String(g.units.some(u => u.querySelector(':scope > .body > details.tool')?.open)));
+    b.units = g.units;
     return b;
   }));
+  if (hidden > 0 || (more && groups.length > MAX)) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'step-chip more';
+    b.dataset.more = '1';
+    b.textContent = hidden > 0 ? '+' + hidden : '−';
+    const label = gregalT('ui.toolsCount').replace('{n}', hidden || groups.length);
+    b.title = label;
+    b.setAttribute('aria-label', label);
+    box.appendChild(b);
+  }
 }
 main.addEventListener('click', e => {
   const b = e.target.closest('.step-chip');
-  if (!b || !b.unit) return;
-  const d = b.unit.querySelector(':scope > .body > details.tool');
-  d.open = !d.open;
-  b.setAttribute('aria-expanded', String(d.open));
+  if (!b) return;
+  if (b.dataset.more) {
+    const box = b.parentElement;
+    box.dataset.more = box.dataset.more === '1' ? '' : '1';
+    if (box.first) stepChips(box.first);
+    return;
+  }
+  const units = b.units || (b.unit ? [b.unit] : []);
+  const ds = units.map(u => u.querySelector(':scope > .body > details.tool')).filter(Boolean);
+  if (!ds.length) return;
+  const open = !ds.every(d => d.open);
+  ds.forEach(d => { d.open = open; });
+  b.setAttribute('aria-expanded', String(open));
 });
 // Les crides d'exploració seguides (llegir, cercar, llistar) es pleguen en
 // una sola fila «Explorat · 3 fitxers · 2 cerques», com fa Codex: una
@@ -4011,8 +4058,10 @@ function renderImgs() {
   if (!pendingImgs.length) { if (chip) chip.remove(); return; }
   if (!chip) {
     chip = document.createElement('div'); chip.id = 'imgChip';
-    chip.style.cssText = 'display:flex;gap:6px;padding:6px 12px;flex-wrap:wrap';
-    $('send').before(chip);
+    chip.style.cssText = 'display:flex;gap:6px;padding:0 2px 8px;flex-wrap:wrap;align-items:flex-start';
+    // A sobre del camp, com ChatGPT i Claude: la imatge és el que adjuntes,
+    // no una nota al peu de la barra d'eines.
+    $('in').before(chip);
   }
   chip.innerHTML = '';
   pendingImgs.forEach((u, i) => {
@@ -4055,6 +4104,11 @@ $('imgPick').onchange = () => {
   }
   $('imgPick').value = '';
 };
+// Les imatges del missatge, a sobre del text (app/msg-imgs.js): són el que
+// has adjuntat, i el text n'és el comentari.
+function imgsHTML(list) {
+  return window.gregalMsgImgs ? window.gregalMsgImgs.html(list) : '';
+}
 function showGateBtns(){
   if ($('gateBtn')) return;
   const mk = (id, label, approve) => {
@@ -4086,7 +4140,7 @@ async function doAgent(task, resumed) {
   runningAgentSessions.add(runSession);
   setSending(true);
   if (task === undefined) { input.value=''; input.dispatchEvent(new Event('input')); input.style.height='auto'; }
-  if (!resumed) add('u','',md(text));
+  if (!resumed) add('u','', imgsHTML(imgs) + md(text));
   const turnStart = Date.parse(resumed?.active?.started_at || '') || Date.now();
   let workGroup = resumed?.restored?.workGroup || beginWorkGroup();
   const closeWorkGroup = failed => {

@@ -144,6 +144,8 @@ test('chip names what a call touched in a few words', () => {
   assert.deepEqual(chip('write', args({ path: 'n.txt', content: 'a\nb\n' }), 'en'), { icon: 'edit', text: 'n.txt +2' });
   assert.deepEqual(chip('bash', args({ command: 'cd x && go test ./internal/...' }), 'en'), { icon: 'test', text: 'go test ./internal/...' });
   assert.deepEqual(chip('bash', args({ command: 'npm run build' }), 'en'), { icon: 'run', text: 'npm run build' });
+  // Un heredoc: la pastilla es queda la primera línia, no el programa que hi ha a sota.
+  assert.deepEqual(chip('bash', args({ command: "python - <<'EOF'\np=\"output/x.py\"\nprint(1)\nEOF" }), 'en'), { icon: 'run', text: "python - <<'EOF'" });
   assert.deepEqual(chip('web_fetch', args({ url: 'https://pkg.go.dev/crypto/subtle' }), 'en'), { icon: 'web', text: 'pkg.go.dev' });
   assert.deepEqual(chip('calendar', args({ action: 'today' }), 'ca'), { icon: 'tool', text: 'calendar · today' });
   assert.deepEqual(chip('remind_list', '{}', 'ca'), { icon: 'tool', text: 'remind_list' });

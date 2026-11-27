@@ -400,7 +400,9 @@
     else if (tool === 'read' || tool === 'read_image' || /^(office|pdf)_/.test(tool)) text = base(s.target);
     else if (tool === 'web_fetch') text = (/^[a-z]+:\/\/([^/?#]+)/i.exec(s.target) || [])[1] || s.target;
     else if (f === 'git' && tool === 'bash') text = 'git ' + s.target;
-    else if (f === 'test' || f === 'run') text = String(o.command || '').replace(/^\s*cd\s+\S+\s*&&\s*/, '');
+    // Només la primera línia: darrere d'un heredoc (python - <<'EOF') hi ha
+    // el programa sencer, i la pastilla s'omplia de codi que no diu res.
+    else if (f === 'test' || f === 'run') text = String(o.command || '').replace(/^\s*cd\s+\S+\s*&&\s*/, '').split(/\r?\n/)[0];
     // Les eines sense verb propi (calendar, mail, profile…): el nom i els valors.
     else if (!ICONS.has(f)) text = [tool, oneLine(Object.keys(o).filter(k => typeof o[k] === 'string').map(k => o[k]).join(' · '), 30)].filter(Boolean).join(' · ');
     return { icon: ICONS.has(f) ? f : 'tool', text: oneLine(text || s.label, 48) };

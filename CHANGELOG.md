@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **La feina del torn es llegeix d'un cop d'ull al xat (web).** Les crides
+  d'eines ja no són una paret de vint pastilles: la mateixa crida repetida
+  es compta en una sola (`python - <<'EOF' ×6`), se'n veuen les sis més
+  recents i la resta queden darrere d'un `+N` que les desplega. Les ordres
+  amb heredoc només mostren la primera línia en lloc del programa sencer.
+- **La imatge que adjuntes va a sobre del text.** La previsualització viu
+  dins del requadre del missatge, sobre el camp, i el missatge enviat també
+  ensenya les imatges abans del text i no a sota (o gens).
 - **Connectar una eina: primer la via sense GUI.** El prompt de tots els
   modes (també xat, inspecció i pla) ara demana buscar un mode headless
   abans de donar una aplicació per GUI-only: `--background`, `--headless`,
