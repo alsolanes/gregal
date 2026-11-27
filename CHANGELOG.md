@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- **Connectar una eina: primer la via sense GUI.** El prompt de tots els
+  modes (també xat, inspecció i pla) ara demana buscar un mode headless
+  abans de donar una aplicació per GUI-only: `--background`, `--headless`,
+  `--command`, un servidor o socket, una API HTTP/IPC o l'MCP oficial. Si
+  n'hi ha, es prefereix; si no, es diu i es cau a la GUI. En connectar una
+  integració, tria els valors menys intrusius que funcionin (només lectura,
+  allow-list, headless, toolsets acotats) i diu quins ha triat.
+- **Servidors MCP recomanats al manual.** Una secció amb els que més es fan
+  servir (Playwright, Filesystem, Context7, GitHub, Chrome DevTools,
+  Postgres, Notion/Slack), la comanda d'arrencada i els paràmetres que els
+  fan discrets, amb els interruptors propis de Gregal (`timeout_s`,
+  `readonly`, `permissions.tools`).
+- **Les eines es llegeixen millor al terminal.** El color ja no tenyeix la
+  línia sencera: el glif porta l'estat (`▸` en curs, `✓` fet, `✗` error) i
+  el nom i els arguments van en text de debò. El resultat penja amb `└` i
+  les continuacions queden alineades, en lloc de ser una altra fila del
+  mateix to gris.
+
 ## v1.93.0 - 2026-11-22 - Quatre aspectes nous per als vents
 
 - **Quatre aspectes nous per als vents (web, escriptori i Android).** A

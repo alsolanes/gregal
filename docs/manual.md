@@ -1266,6 +1266,29 @@ mcp:
   command). Adding and removing write `config.yaml` and are restricted to the
   administrator when the server has users.
 
+### Recommended servers
+
+Start with two or three and add more only when a task asks for it: every server
+adds its tools to each prompt (cost, and more chances to pick the wrong one) and
+one more place with access to your data. With the defaults below the server
+stays out of the way.
+
+| Server | What it is for | Launch | Flags that keep it quiet |
+|---|---|---|---|
+| **Playwright** ([options](https://playwright.dev/mcp/configuration/options)) | A real browser: click, fill, read the accessibility tree | `npx @playwright/mcp@latest --headless --isolated` | `--headless` (no window), `--isolated` (no saved profile), `--caps=` to drop vision/pdf/testing, `network.allowedOrigins` to scope |
+| **Filesystem** ([README](https://github.com/modelcontextprotocol/servers/blob/main/src/filesystem/README.md)) | Read and write files under an allow-list | `npx -y @modelcontextprotocol/server-filesystem /path/one /path/two` | `--read-only`, `--read-only-dir`, `--confine-roots`; it refuses to start without a directory |
+| **Context7** ([repo](https://github.com/upstash/context7)) | Versioned library docs inside the context | `https://mcp.context7.com/mcp` (bearer key) | only two tools; pass the library id and version so it skips the lookup |
+| **GitHub** ([repo](https://github.com/github/github-mcp-server)) | Repos, issues, PRs, Actions | remote OAuth, or `docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server` | `--read-only` (or `GITHUB_READ_ONLY=1`), `--toolsets=repos,issues,pull_requests`; a read-only PAT does **not** remove the write tools |
+| **Chrome DevTools** ([repo](https://github.com/ChromeDevTools/chrome-devtools-mcp)) | Performance traces, network, console | `npx -y chrome-devtools-mcp@latest --no-usage-statistics` | `--no-usage-statistics`, `--no-performance-crux`; it drives your own Chrome, so keep it off by default |
+| **Postgres** ([repo](https://github.com/crystaldba/postgres-mcp)) | Schema, EXPLAIN, index health | `docker run -i --rm -e DATABASE_URI crystaldba/postgres-mcp --access-mode=restricted` | `--access-mode=restricted` (read-only plus a safe parser); credentials in `DATABASE_URI`, never in `config.yaml` |
+| **Notion** / **Slack** | Pages and databases / messages and channels | remote OAuth: `https://mcp.notion.com/mcp`, `https://mcp.slack.com/mcp` | connect them on demand; grant read-only scopes and the narrowest workspace |
+
+Every server also honours Gregal's own switches: `timeout_s` (default 10 s),
+`readonly: true` for servers you trust to only read, and `permissions.tools`
+for per-tool allow/deny. `gregal mcp import` copies definitions from Claude
+Code, Codex or opencode as they are; review the write tools before enabling
+them.
+
 ## Gregal as an MCP Server
 
 `gregal mcp serve` runs Gregal as an MCP server over stdio, so another MCP

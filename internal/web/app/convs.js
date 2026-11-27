@@ -121,6 +121,25 @@ export const convs = {
     const signature = this._liveSessions.map(s => s.id + ':' + (s.busy ? 1 : 0) + ':' + (window.gregalPendingInteractions?.has(s.id) ? 1 : 0)).join('|');
     if (signature !== this._liveSignature) { this._liveSignature = signature; this.draw(); }
   },
+  // Un projecte desplegat recorda l'estat entre redibuixos (canvi d'idioma,
+  // recàrrega de la llista, un torn que acaba...). La ruta es compara
+  // normalitzada perquè la mateixa carpeta pot arribar amb o sense barra final.
+  projectExpanded(path) {
+    const norm = p => String(p || '').replace(/[\\/]+$/, '').toLowerCase();
+    const key = norm(path);
+    const has = set => { for (const p of set) if (norm(p) === key) return true; return false; };
+    return has(this.expandedProjects) && !has(this.collapsedProjects);
+  },
+  toggleProject(path) {
+    const open = this.projectExpanded(path);
+    const norm = p => String(p || '').replace(/[\\/]+$/, '').toLowerCase();
+    const key = norm(path);
+    for (const set of [this.expandedProjects, this.collapsedProjects]) {
+      for (const p of [...set]) if (norm(p) === key) set.delete(p);
+    }
+    (open ? this.collapsedProjects : this.expandedProjects).add(path);
+    this.draw();
+  },
   forgetSession(id) {
     const map = resumedSessions();
     let changed = false;
@@ -155,14 +174,18 @@ export const convs = {
     // van a un sol grup apartat amb l'opció d'esborrar-les.
     const missing = llista.filter(c => c.missing);
     // Calma: una sola llista per dies amb les converses generals i les del
-    // projecte actual (o totes les que troba la cerca); els projectes són
-    // una llista compacta a part i no despleguen converses.
+    // projecte actual plegat (o totes les que troba la cerca); en desplegar
+    // un projecte, les seves converses passen a viure sota seu.
     const normPath = path => String(path || '').replace(/[\\/]+$/, '').toLowerCase();
-    const cwdN = normPath(G().state?.cwd || window.gregalCwd || '');
+    const cwd = G().state?.cwd || window.gregalCwd || '';
+    const cwdN = normPath(cwd);
     const inCurrent = c => !!c.workspace && normPath(c.workspace) === cwdN;
+    // Amb el projecte actual desplegat, les seves converses viuen sota el
+    // projecte i no es repeteixen a la llista per dates.
+    const currentOpen = this.projectExpanded(cwd);
     llista.filter(c => (!c.pinned || c.workspace) && !c.missing).forEach(c => {
       const ws = c.workspace || '';
-      if (!ws || q || inCurrent(c)) recents.push(c);
+      if (!ws || !inCurrent(c) || !currentOpen) recents.push(c);
       if (!ws) return;
       // La ruta completa és la clau: dos repositoris poden acabar amb el
       // mateix nom de carpeta (C:\\a\\app i C:\\b\\app).
@@ -255,10 +278,12 @@ export const convs = {
       const name = p.name || p.path.replace(/[\\/]+$/, '').split(/[\\/]/).pop();
       // Dues carpetes amb el mateix nom (tres «ws»): la carpeta de sobre les distingeix.
       const parent = sameName.get(name.toLowerCase()) > 1 ? p.path.replace(/[\\/]+$/, '').split(/[\\/]/).slice(-2, -1)[0] || '' : '';
-      const expanded = false;
+      const expanded = this.projectExpanded(p.path);
       const files = grouped.get(p.path) || [];
+      const rows = expanded ? '<div class="project-conversations"><div class="project-folder" title="'+esc(gregalT('shell.projectFolder'))+'">'+esc(p.path)+'</div>' +
+        (files.length ? this.projectRows(p.path, files, row) : '<div class="conv-empty">'+esc(gregalT('conv.empty.none') || 'No conversations yet.')+'</div>') + '</div>' : '';
       return '<section class="sidebar-project' + (norm(cwd) === norm(p.path) ? ' selected' : '') + '"><div class="sidebar-project-row"><button class="project-open" data-path="'+esc(p.path)+'" aria-expanded="'+expanded+'" title="'+esc(p.path)+'"><span class="project-chevron" aria-hidden="true">'+(expanded?'⌄':'›')+'</span><svg class="project-folder-ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M1.75 4.5a1 1 0 0 1 1-1h3.1l1.45 1.55h5.95a1 1 0 0 1 1 1v5.45a1 1 0 0 1-1 1h-10.5a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg><span>'+esc(name)+'</span>'+(parent?'<span class="project-parent">'+esc(parent)+'</span>':'')+'</button><button class="project-new" data-path="'+esc(p.path)+'" title="'+esc(gregalT('shell.newProjectChat'))+'" aria-label="'+esc(gregalT('shell.newProjectChat')+' · '+name)+'">＋</button></div>' +
-        (expanded ? '<div class="project-conversations"><div class="project-folder" title="'+esc(gregalT('shell.projectFolder'))+'">'+esc(p.path)+'</div>'+this.projectRows(p.path, files, row)+'</div>' : '')+'</section>';
+        rows+'</section>';
     }).join('') || '<div class="conv-empty">'+esc(gregalT('shell.noProjects'))+'</div>';
     if (total > limit && !this.filtre) {
       const all = this.allRows.has(':projects');
@@ -277,16 +302,9 @@ export const convs = {
       const clean = box.querySelector('.missing-clean');
       if (clean) clean.onclick = () => this.esborraMissing(missing, goneFolders);
     }
-    box.querySelectorAll('.project-open').forEach(b => b.onclick = async () => {
-      const path = b.dataset.path;
-      if (b.getAttribute('aria-expanded') === 'true') { this.collapsedProjects.add(path); this.draw(); return; }
-      this.collapsedProjects.delete(path);
-      this.expandedProjects.add(path);
-      if (norm(cwd) === norm(path)) { this.draw(); return; }
-      const latest = (grouped.get(path) || [])[0];
-      if (latest) await this.obre(latest.name);
-      else await this.newProjectConversation(path);
-    });
+    // El projecte és el desplegable: mostra o amaga les seves converses sota
+    // sense canviar de workspace ni obrir res tot sol.
+    box.querySelectorAll('.project-open').forEach(b => b.onclick = () => this.toggleProject(b.dataset.path));
     box.querySelectorAll('.project-new').forEach(b => b.onclick = () => this.newProjectConversation(b.dataset.path));
   },
   async newProjectConversation(path) {

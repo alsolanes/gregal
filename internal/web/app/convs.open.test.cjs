@@ -115,3 +115,44 @@ test('a conversation whose folder is gone explains instead of trying to open', a
   assert.equal(calls.opens, 0);
   assert.match(said[0], /C\projecte/);
 });
+
+test('clicking a project expands its conversations underneath and collapses them again', async () => {
+  const { convs, document } = await loadConvs();
+  convs.items = [{ name: 'one', workspace: '/c/p', title: 'First task', msgs: 2 }];
+  convs.projects = [{ name: 'P', path: '/c/p' }];
+  const open = { dataset: { path: '/c/p' }, onclick: null };
+  const projects = { innerHTML: '', insertAdjacentHTML() {}, querySelectorAll(sel) { return sel === '.project-open' ? [open] : []; } };
+  const conversations = { innerHTML: '', querySelectorAll() { return []; } };
+  document.getElementById = id => id === 'convs' ? conversations : id === 'projectList' ? projects : null;
+
+  convs.draw();
+  assert.match(projects.innerHTML, /aria-expanded="false"/);
+  assert.doesNotMatch(projects.innerHTML, /project-conversations/);
+
+  open.onclick();
+  assert.match(projects.innerHTML, /aria-expanded="true"/);
+  assert.match(projects.innerHTML, /class="project-conversations"/);
+  assert.match(projects.innerHTML, /First task/);
+  assert.ok(convs.projectExpanded('/c/p'));
+
+  open.onclick();
+  assert.match(projects.innerHTML, /aria-expanded="false"/);
+  assert.doesNotMatch(projects.innerHTML, /project-conversations/);
+});
+
+test('the expanded current project keeps its conversations only underneath', async () => {
+  const { convs, document } = await loadConvs();
+  convs.items = [{ name: 'one', workspace: 'C:/project', title: 'First task', msgs: 2 }];
+  convs.projects = [{ name: 'project', path: 'C:/project' }];
+  convs.expandedProjects.add('C:/project');
+  const projects = { innerHTML: '', insertAdjacentHTML() {}, querySelectorAll() { return []; } };
+  const conversations = { innerHTML: '', querySelectorAll() { return []; } };
+  document.getElementById = id => id === 'convs' ? conversations : id === 'projectList' ? projects : null;
+
+  convs.draw();
+  // Un redibuix (canvi d'idioma, un torn que acaba) no ha de plegar el projecte.
+  convs.draw();
+  assert.match(projects.innerHTML, /class="project-conversations"/);
+  assert.match(projects.innerHTML, /First task/);
+  assert.doesNotMatch(conversations.innerHTML, /First task/);
+});

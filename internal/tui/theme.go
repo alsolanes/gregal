@@ -77,7 +77,9 @@ var (
 	modeChatStyle    lipgloss.Style
 	modeInspectStyle lipgloss.Style
 	toolRailStyle    lipgloss.Style
+	toolGlyphStyle   lipgloss.Style
 	toolNameStyle    lipgloss.Style
+	toolArgStyle     lipgloss.Style
 	toolDoneStyle    lipgloss.Style
 	composerCode     lipgloss.Style
 	composerChat     lipgloss.Style
@@ -191,7 +193,11 @@ func aplicaTema(nom string) {
 	modeInspectStyle = lipgloss.NewStyle().Foreground(ink).Background(onada).Bold(true).Padding(0, 1)
 	modeAutoStyle = lipgloss.NewStyle().Foreground(ink).Background(teal).Bold(true).Padding(0, 1)
 	toolRailStyle = lipgloss.NewStyle().Foreground(boxIdle)
-	toolNameStyle = lipgloss.NewStyle().Foreground(onada).Bold(true)
+	// El color va al glif i a l'estat; el nom i els arguments queden en
+	// text de debò, perquè una columna d'eines no sigui un sol to gris.
+	toolGlyphStyle = lipgloss.NewStyle().Foreground(onada).Bold(true)
+	toolNameStyle = lipgloss.NewStyle().Foreground(textFort).Bold(true)
+	toolArgStyle = lipgloss.NewStyle().Foreground(textPrinc)
 	toolDoneStyle = lipgloss.NewStyle().Foreground(green).Bold(true)
 	composerCode = lipgloss.NewStyle().Foreground(arena).Bold(true)
 	composerChat = lipgloss.NewStyle().Foreground(escuma).Bold(true)
@@ -366,6 +372,12 @@ const maxFilesSortida = 6
 func indentTool(s string) string {
 	lines := strings.Split(strings.TrimSpace(s), "\n")
 	for i := range lines {
+		// Primera línia amb cantonada i continuació alineada: el resultat
+		// penja de la crida en lloc de ser una altra fila del mateix nivell.
+		if i == 0 {
+			lines[i] = toolRailStyle.Render("│ ") + dimStyle.Render("└ ") + dimStyle.Render(lines[i])
+			continue
+		}
 		lines[i] = toolRailStyle.Render("│ ") + dimStyle.Render("  "+lines[i])
 	}
 	return strings.Join(lines, "\n")
@@ -380,7 +392,7 @@ func thinkLine(s string) string { return workRail(dimStyle.Render("◇ " + s)) }
 // pantalla «read internal/config/config.go» es llegeix d'un cop d'ull i
 // «read {"path":"internal/config/config.go"}» no.
 func toolCallLine(name, args string) string {
-	return workRail(toolNameStyle.Render("▸ "+name) + " " + dimStyle.Render(humanArgs(name, args, 110)))
+	return workRail(toolGlyphStyle.Render("▸ ") + toolNameStyle.Render(name) + " " + toolArgStyle.Render(humanArgs(name, args, 110)))
 }
 
 // humanArgs resumeix els arguments d'una crida per a la pantalla.
@@ -556,12 +568,14 @@ func toolResultLine(name, output string, failed bool) string {
 	return state
 }
 
-// toolEstat és la marca i el nom de l'eina segons com hagi anat.
+// toolEstat és la marca i el nom de l'eina segons com hagi anat: el color
+// identifica l'estat i el nom es llegeix en text fort, no tenyit de verd o
+// vermell (que és el que feia una paret d'un sol color).
 func toolEstat(name string, failed bool) string {
 	if failed {
-		return badStyle.Render("✗ " + name)
+		return badStyle.Render("✗") + " " + toolNameStyle.Render(name)
 	}
-	return toolDoneStyle.Render("✓ " + name)
+	return toolDoneStyle.Render("✓") + " " + toolNameStyle.Render(name)
 }
 
 // toolEstatLine és la fila d'una eina ja acabada: marca, nom, de què
@@ -570,10 +584,10 @@ func toolEstat(name string, failed bool) string {
 func toolEstatLine(name, args, output string, failed bool) string {
 	fila := toolEstat(name, failed)
 	if a := humanArgs(name, args, 90); a != "" {
-		fila += " " + dimStyle.Render(a)
+		fila += " " + toolArgStyle.Render(a)
 	}
 	if r := resumResultat(name, output); r != "" && resultatPlegat(name, failed) {
-		fila += faintStyle.Render("  · " + r)
+		fila += dimStyle.Render("  · " + r)
 	}
 	return workRail(fila)
 }

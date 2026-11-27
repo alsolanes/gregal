@@ -70,6 +70,7 @@ func PromptFor(base, mode string) string {
 		base += "\n\n" + f
 	}
 	base += reglesMode(mode)
+	base += integrationsRules
 	switch mode {
 	case "", ModeCode, ModeAutonomous, ModeGoal, ModeDebug:
 		base += deliveryRules
@@ -150,6 +151,13 @@ func reglesBase(mode string) string {
 		return ""
 	}
 }
+
+// integrationsRules val per a tots els modes: abans de donar una aplicació
+// per GUI-only cal buscar-ne la via headless. És fora de codeRules perquè la
+// pregunta («pots connectar X?») també arriba en xat, inspecció i pla.
+const integrationsRules = `
+
+CONNECTING TOOLS: Before telling the user that an app or tool can only be driven through its GUI (or that a headless mode is impossible), look for a headless path first: CLI flags such as --background, --headless or --command, a server or socket mode, an HTTP/IPC API, or the official MCP server. Read its --help, docs or source before concluding. Prefer that path; only if none exists, say so and fall back to the GUI. When you wire an integration, choose the least intrusive working defaults (read-only or allowlisted where possible, headless, scoped toolsets) and say which ones you chose.`
 
 // chatRules: el xat pot llegir (read és allow) i ho ha de saber; sense la
 // línia de question el model preguntava en text pla o endevinava.

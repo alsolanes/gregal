@@ -216,6 +216,20 @@ func TestPromptForDeixaLaLlenguaAlFinal(t *testing.T) {
 	}
 }
 
+// La regla de buscar una via headless abans de donar una eina per GUI-only
+// ha d'arribar a tots els modes, també als de només lectura: la pregunta
+// «pots connectar X?» no arriba només en mode code.
+func TestReglaHeadlessATotsElsModes(t *testing.T) {
+	// El prompt real que rep el model: identitat + memòria (SystemPrompt),
+	// més les regles del mode. No n'hi ha prou amb una constant solta.
+	base := (&config.Config{}).SystemPrompt()
+	for _, m := range []string{"", ModeChat, ModeInspect, ModePlan, ModeCode, ModeGoal, ModeAutonomous, ModeDebug} {
+		if got := PromptFor(base, m); !strings.Contains(got, "CONNECTING TOOLS:") || !strings.Contains(got, "--background") || !strings.Contains(got, "least intrusive working defaults") {
+			t.Errorf("mode %q: falta la regla de buscar una via headless abans de la GUI", m)
+		}
+	}
+}
+
 // Les regles del mode code no poden tornar a recomanar git stash (perillós
 // amb feina de l'usuari sense desar) ni dir que els passos no són un límit.
 func TestCodeRulesSenseStash(t *testing.T) {

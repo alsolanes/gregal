@@ -1271,6 +1271,29 @@ mcp:
   i treure escriuen `config.yaml` i, si el servidor té usuaris, només ho pot fer
   l'administrador.
 
+### Servidors recomanats
+
+Comença amb dos o tres i afegeix-ne més només quan una tasca els demani: cada
+servidor suma les seves eines a cada prompt (cost, i més ocasions de triar-ne
+una de dolenta) i un lloc més amb accés a les teves dades. Amb els valors de
+sota, el servidor queda fora del camí.
+
+| Servidor | Per a què serveix | Com s'arrenca | Paràmetres que el fan discret |
+|---|---|---|---|
+| **Playwright** ([opcions](https://playwright.dev/mcp/configuration/options)) | Un navegador de debò: clicar, omplir, llegir l'arbre d'accessibilitat | `npx @playwright/mcp@latest --headless --isolated` | `--headless` (sense finestra), `--isolated` (sense perfil desat), `--caps=` per treure vision/pdf/testing, `network.allowedOrigins` per acotar |
+| **Filesystem** ([README](https://github.com/modelcontextprotocol/servers/blob/main/src/filesystem/README.md)) | Llegir i escriure fitxers dins d'una llista de directoris | `npx -y @modelcontextprotocol/server-filesystem /ruta/un /ruta/dos` | `--read-only`, `--read-only-dir`, `--confine-roots`; sense cap directori no arrenca |
+| **Context7** ([repo](https://github.com/upstash/context7)) | Documentació versionada de llibreries dins del context | `https://mcp.context7.com/mcp` (amb clau bearer) | només dues eines; passa l'id de la llibreria i la versió perquè no hagi de buscar |
+| **GitHub** ([repo](https://github.com/github/github-mcp-server)) | Repos, issues, PRs, Actions | OAuth remot, o `docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server` | `--read-only` (o `GITHUB_READ_ONLY=1`), `--toolsets=repos,issues,pull_requests`; un PAT de només lectura **no** treu les eines d'escriptura |
+| **Chrome DevTools** ([repo](https://github.com/ChromeDevTools/chrome-devtools-mcp)) | Traces de rendiment, xarxa, consola | `npx -y chrome-devtools-mcp@latest --no-usage-statistics` | `--no-usage-statistics`, `--no-performance-crux`; controla el teu Chrome, així que deixa'l apagat per defecte |
+| **Postgres** ([repo](https://github.com/crystaldba/postgres-mcp)) | Esquema, EXPLAIN, salut dels índexs | `docker run -i --rm -e DATABASE_URI crystaldba/postgres-mcp --access-mode=restricted` | `--access-mode=restricted` (només lectura i parser segur); credencials a `DATABASE_URI`, mai a `config.yaml` |
+| **Notion** / **Slack** | Pàgines i bases de dades / missatges i canals | OAuth remot: `https://mcp.notion.com/mcp`, `https://mcp.slack.com/mcp` | connecta'ls a demanda; concedeix àmbits de només lectura i el workspace més estret |
+
+Tots els servidors també accepten els interruptors de Gregal: `timeout_s`
+(10 s per defecte), `readonly: true` per als servidors que et refies que només
+llegeixin i `permissions.tools` per permetre o denegar eines concretes.
+`gregal mcp import` copia les definicions de Claude Code, Codex o opencode tal
+com són; revisa les eines d'escriptura abans d'activar-les.
+
 ## Gregal com a servidor MCP
 
 `gregal mcp serve` fa de Gregal un servidor MCP per stdio, perquè un altre
