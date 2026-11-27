@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## v1.99.0 - 2026-11-27 - Respostes amples, documents foscos i «A fons» que fa la feina
+
+- **Respostes amples a l'escriptori.** El text dels vents ocupa l'amplada del
+  xat (fins a 64rem), com Claude o Codex, en lloc de quedar-se en una columna
+  estreta.
+- **Documents foscos en un tema fosc.** Els documents de text i els Word
+  adjunts ja no són una pàgina blanca que enlluerna a les fosques; els temes
+  clars la mantenen blanca.
+- **«A fons» fa la feina que li demanes.** «Vull una pàgina web…» o
+  «Escriu-me un fitxer…» ja no acaben en «només investigo»: el torn passa a
+  mode normal. Les preguntes i les recerques continuen anant a fons.
+- **Cada resposta, les seves webs.** Amb dos vents treballant alhora, una
+  resposta ja no porta les targetes de les webs de l'altre.
+- **L'enllaç al document funciona.** El Word que fa un vent és un enllaç que
+  es baixa, i un enllaç inventat pel model ja no surt com a markdown cru (web
+  i Android).
+- **Retocs:** «Ho recordaré» i les files de sota la resposta s'alineen amb el
+  text i hi deixen aire.
+
 ## v1.98.0 - 2026-11-27 - Gregal acaba la feina, converses a dalt i «A fons» a la teva mida
 
 - **Gregal acaba la feina encara que el fitxer sigui gran.** Els fitxers
