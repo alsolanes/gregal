@@ -31,13 +31,13 @@ const (
 	// 45-55 s per torn. Amb 4 passos segueix llegint el que cal per al
 	// briefing però deixa de recórrer el projecte sencer abans del primer
 	// pas del coordinador.
-	scoutMaxSteps = 4
+	scoutMaxSteps = 3
 	// 90 s i no 4 min: la mateixa tasca ha trigat 6,7 s i 59,2 s amb el model
 	// local, i el tall era de quatre minuts, o sigui que un scout encallat
 	// podia menjar-se el torn sencer. Amb 4 passos i el model local, 90 s ja
 	// és molt per sobre del que s'ha vist; si no hi arriba, el coordinador
 	// continua sense brief, que és el que ja fa quan l'investigador falla.
-	scoutTimeout = 90 * time.Second
+	scoutTimeout = 30 * time.Second
 	scoutMaxTask = 1500
 )
 
@@ -104,6 +104,8 @@ func ScoutFocusPrompt(task, focus string) string {
 			"Return a concise brief (at most ~15 lines): file paths (with line numbers where useful), what exists today, what has to change and any risk. No preamble.\n\nFULL TASK (for context):\n" + string(r)
 	}
 	return "Investigate what the coordinator needs to do this task: the relevant files, the current behaviour, constraints (tests, conventions, dependencies) and facts from the web only if the task really needs them. Do not change anything. " +
+		"Work in few steps: in every step send ALL the calls you can already think of at once (several greps, then the reads of every hit you need) and read only the lines you need (offset/limit), not whole files. " +
+		"You already have the project map and the symbol hints below: do not spend a step asking for them. Stop as soon as you can write the brief.\n" +
 		"Return a concise brief (at most ~25 lines): file paths (with line numbers where useful), what exists today, what has to change and any risk. No preamble.\n\nTASK:\n" + string(r)
 }
 
@@ -183,6 +185,19 @@ func RunScout(ctx context.Context, o ScoutOptions) ScoutResult {
 			o.Mapa = MapaProjecte(o.Workspace, o.Task, nil)
 		}
 		prompt = ExplorePrompt(o.Task, o.Focus, o.Mapa)
+	} else {
+		// El scout de codi no rebia el mapa: el primer pas se li anava a
+		// demanar-lo (o a llistar el projecte) i amb el model local cada
+		// pas són ~10-12 s abans que el coordinador arrenqui. El mapa i les
+		// pistes de símbols es calculen sense model (repomap + git) i ja
+		// porten els fitxers que contenen les paraules de la tasca.
+		mapa := strings.TrimSpace(o.Mapa)
+		if mapa == "" {
+			mapa = MapaProjecte(o.Workspace, o.Task, nil)
+		}
+		if mapa != "" {
+			prompt += "\n\n" + mapa
+		}
 	}
 	// P12: l'investigador només llegeix i resumeix; si hi ha rol petit, és seu.
 	if name, _, _, ok := SmallRole(o.Cfg); ok {
