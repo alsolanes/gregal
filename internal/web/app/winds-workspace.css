@@ -402,7 +402,15 @@ button.vw-start-row:hover { background:var(--hover); }
 .vw-start-row-copy { display:flex; flex-direction:column; min-width:0; }
 .vw-start-row-copy > strong { color:var(--ink); font-size:14px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .vw-start-row-copy > small { color:var(--muted); font-size:12px; }
-.vw-settings-list { display:flex; flex-direction:column; gap:2px; max-width:420px; }
+.vw-settings-list { display:flex; flex-direction:column; gap:2px; max-width:560px; }
+button.vw-settings-row { display:flex; align-items:center; gap:14px; min-height:56px; padding:8px 10px; background:transparent; border:0; border-radius:12px; color:var(--ink); text-align:left; cursor:pointer; }
+button.vw-settings-row:hover { background:var(--hover); }
+.vw-settings-row > .vw-nav-svg { width:20px; height:20px; flex:none; color:var(--muted); }
+.vw-settings-copy { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.vw-settings-copy > strong { font-size:14px; font-weight:500; }
+.vw-settings-copy > small { color:var(--muted); font-size:12.5px; }
+.vw-top > button.vw-crumb { padding:0; background:transparent; border:0; color:inherit; font:inherit; cursor:pointer; }
+.vw-top > button.vw-crumb:hover { color:var(--ink); text-decoration:underline; }
 @media(max-width:760px) { .vw-home { padding-top:28px; } .vw-cards { grid-template-columns:1fr; } }
 @media(prefers-reduced-motion:reduce) { .vw-orb::before { animation:none; } }
 

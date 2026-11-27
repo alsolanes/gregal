@@ -86,7 +86,7 @@ async function boot({ lang = 'en', api, storage = {}, css = () => '', extra = {}
   const doc = { createElement: t => new Element(t, doc), createElementNS: (_, t) => new Element(t, doc), documentElement: { lang }, querySelector: () => null,
     addEventListener(k, f) { (events[k] ||= []).push(f); }, removeEventListener(k, f) { events[k] = (events[k] || []).filter(x => x !== f); }, dispatchEvent(e) { for (const f of events[e.type] || []) f(e); } };
   doc.root = new Element('root', doc);
-  for (const id of ['ventsPage', 'side', 'workbench', 'racoPage', 'memoriaPage', 'publicacionsPage']) { const n = new Element('div', doc); n.setAttribute('id', id); doc.root.append(n); }
+  for (const id of ['ventsPage', 'side', 'workbench', 'racoPage', 'memoriaPage', 'publicacionsPage', 'prefsBtn']) { const n = new Element('div', doc); n.setAttribute('id', id); doc.root.append(n); }
   // Com a index.html: la barra dels vents és dins la part que es desplaça de #side.
   const scroller = new Element('div', doc), sideNav = new Element('div', doc);
   scroller.className = 'side-scroll'; sideNav.setAttribute('id', 'windContextNav');
@@ -530,6 +530,72 @@ test('Settings is one plain row that opens the settings view, marked on every se
   await byText(f.nav, '.vw-nav-item', 'Today').click(); await settle();
   assert.equal(row().getAttribute('aria-current'), 'false', 'Today is not');
   for (const file of ['winds-workspace.js', '../profile.go']) assert.ok(!fs.readFileSync(path.join(__dirname, file), 'utf8').includes('gregal_vw_more'), file + ' has no folded-menu key');
+});
+
+// 181: Configuració és una pàgina; cada entrada amb icona, nom i què hi ha, i s'hi torna des de dins.
+const settingsRows = f => f.page.querySelector('.vw-content').querySelectorAll('.vw-settings-row');
+const settingsBoot = (opts = {}) => {
+  const seen = { prefs: 0, shell: 'vents' };
+  const extra = { open: () => null, gregalPanels: { prefs: { obre() { seen.prefs++; } } }, gregal: { setView: v => { seen.shell = v; }, viewActual: () => seen.shell } };
+  return boot({ ...opts, extra, api: r => r.url === '/api/ordinador/viewer' ? { ok: false, status: 404, text: async () => 'no_viewer' } : null }).then(f => Object.assign(f, { seen }));
+};
+
+test('the settings page lists every section with an icon, its name and one line saying what is inside, in English and Catalan', async () => {
+  for (const [lang, rows] of [['en', [['Preferences', 'Language, appearance, models and connections'], ['About you', 'Tastes, preferences and facts it has learned about you'], ['Rules', 'What it can do alone, what it must ask and what never'], ['Project memory', 'Project notes that every conversation reads'], ['Gregal’s computer', 'Where Gregal works and what you can do there'], ['Library', 'The memory and knowledge of each wind'], ['Wiki', 'Summaries of what was talked about, as pages']]],
+    ['ca', [['Preferències', 'Idioma, aparença, models i connexions'], ['Què sap de tu', 'Gustos, preferències i fets que ha après de tu'], ['Regles', 'Què pot fer sol, què t’ha de preguntar i què mai'], ['Memòria del projecte', 'Notes del projecte que llegeix cada conversa'], ['L’ordinador de Gregal', 'On treballa Gregal i què hi pots fer'], ['Biblioteca', 'La memòria i el coneixement de cada vent'], ['Wiki', 'Resums del que s’ha parlat, en pàgines']]]]) {
+    const f = await settingsBoot({ lang });
+    await byText(f.nav, '.vw-nav-item', lang === 'en' ? 'Settings' : 'Configuració').click(); await settle();
+    assert.equal(f.page.querySelector('.vw-content').querySelector('h1').textContent, lang === 'en' ? 'Settings' : 'Configuració');
+    assert.deepEqual(settingsRows(f).map(r => [r.querySelector('strong').textContent, r.querySelector('small').textContent]), rows, lang);
+    for (const r of settingsRows(f)) { assert.equal(r.tagName, 'BUTTON'); assert.ok(r.querySelector('svg'), r.textContent + ' has an icon'); }
+  }
+});
+
+test('each settings entry opens what it opened before: Preferences, its view, the project memory page or the computer', async () => {
+  const f = await settingsBoot();
+  const open = async name => { await byText(f.nav, '.vw-nav-item', 'Settings').click(); await settle(); await settingsRows(f).find(r => r.querySelector('strong').textContent === name).click(); await settle(); };
+  await open('Preferences');
+  assert.equal(f.seen.prefs, 1, 'the Preferences dialog');
+  for (const [name, title] of [['About you', 'What it knows about you'], ['Rules', 'Rules'], ['Library', 'What we learn along the way.'], ['Wiki', 'Winds wiki']]) {
+    await open(name);
+    assert.equal(f.page.querySelector('.vw-content').querySelector('h1').textContent, title, name);
+  }
+  await open('Project memory');
+  assert.equal(f.seen.shell, 'memoria');
+  f.seen.shell = 'vents';
+  await open('Gregal’s computer');
+  assert.ok(f.doc.getElementById('workbench').querySelector('.vw-computer-pane'), 'the computer pane');
+});
+
+test('the gear in the sidebar foot opens the settings page, from any page, instead of the Preferences dialog', async () => {
+  const f = await settingsBoot();
+  f.seen.shell = 'raco';
+  const gear = f.doc.getElementById('prefsBtn');
+  let stopped = false;
+  f.doc.dispatchEvent({ type: 'click', target: gear, stopImmediatePropagation() { stopped = true; }, preventDefault() {} });
+  await settle();
+  assert.ok(stopped, 'the Preferences dialog does not open');
+  assert.equal(f.seen.shell, 'vents', 'back to the winds');
+  assert.equal(f.page.querySelector('.vw-content').querySelector('h1').textContent, 'Settings');
+  let other = false;
+  f.doc.dispatchEvent({ type: 'click', target: f.doc.getElementById('ventsPage'), stopImmediatePropagation() { other = true; }, preventDefault() {} });
+  assert.ok(!other, 'other clicks go on as before');
+});
+
+test('inside a settings section the header reads Winds / Settings / section, and Settings takes you back', async () => {
+  for (const [lang, names, home] of [['en', ['About you', 'Rules', 'Library', 'Wiki'], 'Settings'], ['ca', ['Què sap de tu', 'Regles', 'Biblioteca', 'Wiki'], 'Configuració']]) {
+    const f = await settingsBoot({ lang });
+    await byText(f.nav, '.vw-nav-item', home).click(); await settle();
+    assert.ok(!byText(f.page.querySelector('.vw-top'), 'button', home), lang + ': on the settings page itself there is nowhere to go back to');
+    for (const name of names) {
+      await settingsRows(f).find(r => r.querySelector('strong').textContent === name).click(); await settle();
+      assert.equal(f.page.querySelector('.vw-top').textContent.replace(/\s/g, ''), (lang === 'en' ? 'Winds/' : 'Vents/') + home + '/' + name.replace(/\s/g, ''), lang + ': ' + name);
+      await byText(f.page.querySelector('.vw-top'), 'button', home).click(); await settle();
+      assert.equal(f.page.querySelector('.vw-content').querySelector('h1').textContent, home, lang + ': back from ' + name);
+    }
+    await byText(f.nav, '.vw-nav-item', lang === 'en' ? 'Today' : 'Avui').click(); await settle();
+    assert.ok(!byText(f.page.querySelector('.vw-top'), 'button', home), lang + ': Today is not a settings section');
+  }
 });
 
 // Sota «Converses», les cinc darreres; la resta, darrere «Mostra'n més».
@@ -1370,7 +1436,7 @@ test('the computer has one name: the settings row, the header menu entry and the
   const name = pc.textContent;
   await byText(f.nav, '.vw-nav-item', 'Settings').click();
   await settle();
-  assert.ok(f.page.querySelector('.vw-content').querySelectorAll('button').some(b => b.textContent === name), 'the settings row says «' + name + '»');
+  assert.ok(f.page.querySelector('.vw-content').querySelectorAll('.vw-settings-row').some(b => b.querySelector('strong').textContent === name), 'the settings row says «' + name + '»');
   await byText(f.nav, '.vw-nav-channel', 'Gregal').click();
   await settle();
   await pc.click();
@@ -1385,7 +1451,7 @@ test('the computer row in Settings opens the pane over that page; the start page
   const f = await boot({ extra: { open: () => null }, api: r => r.url === '/api/ordinador/viewer' ? { ok: false, status: 404, text: async () => 'no_viewer' } : null });
   await byText(f.nav, '.vw-nav-item', 'Settings').click();
   await settle();
-  const row = f.page.querySelector('.vw-content').querySelectorAll('button').find(b => b.textContent === 'Gregal’s computer');
+  const row = f.page.querySelector('.vw-content').querySelectorAll('.vw-settings-row').find(b => b.querySelector('strong').textContent === 'Gregal’s computer');
   assert.ok(row, 'the settings row');
   await row.click();
   await settle();
