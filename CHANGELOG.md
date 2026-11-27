@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## v1.100.0 - 2026-11-27 - El xat més llegible i el terminal al lateral
+
+- **Les converses d'un projecte, sota el projecte (web).** El chevron de la barra lateral desplega les converses d'un projecte i, mentre és obert, surten sota seu en lloc de repetir-se a la llista per dates.
 - **La feina del torn es llegeix d'un cop d'ull al xat (web).** Les crides
   d'eines ja no són una paret de vint pastilles: la mateixa crida repetida
   es compta en una sola (`python - <<'EOF' ×6`), se'n veuen les sis més
