@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+## v1.98.0 - 2026-11-27 - Gregal acaba la feina, converses a dalt i «A fons» a la teva mida
+
+- **Gregal acaba la feina encara que el fitxer sigui gran.** Els fitxers
+  llargs s'escriuen per parts; si una resposta es talla pel límit de sortida,
+  el model ho torna a provar pensant menys i escrivint ja, en lloc de rendir-se.
+  Un `write` que arriba sense contingut ja no buida el fitxer.
+- **Veus què fa el model.** Mentre treballa, el xat diu «Escrivint index.html
+  · 12k caràcters», «Preparant bash» o «Pensant» amb l'última frase del que
+  pensa (web i Android).
+- **«A fons» a la teva mida.** Tria el model de cada agent i de la síntesi a
+  Preferències › Models, i cada agent diu què fa. Si amb «A fons» demanes fer
+  una cosa, es fa en mode normal en lloc de quedar-se en lectura.
+- **A la colla, qui ha fet la feina aplica la revisió.** Ja no diu que està
+  «en mode inspecció».
+- **Converses a dalt i Configuració com a pàgina.** A la barra lateral i al
+  calaix d'Android, Avui i les últimes converses surten a dalt (amb «Mostra'n
+  més»), barrejades per data; Configuració és una pàgina amb seccions, també
+  des de l'engranatge.
+- **Vents mira si hi ha versió nova en tornar a primer pla**, no només en
+  obrir l'app.
+- **Retocs:** les lletres amb cua ja no es tallen, «Els teus vents» mostra la
+  plastilina amb la seva forma, «Posa ordre» no diu «sense ús» als vents nous,
+  i al mòbil res no surt amb punts suspensius.
+
 ## v1.97.0 - 2026-11-26 - Vents que es pregunten, plastilina a tot arreu i negre de debò
 
 - **Els vents es pregunten entre ells, i es veu (web, escriptori i Android).**
