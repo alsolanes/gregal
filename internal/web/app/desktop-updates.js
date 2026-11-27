@@ -67,7 +67,8 @@ export const desktopUpdates = {
     // instal·la i reinicia (la baixada passa sola, en segon pla).
     const pending = this.status.state === 'ready' || this.status.state === 'installing';
     button.classList.toggle('has-update', pending);
-    const label = pending ? translate('prefs.update.notice') : translate('prefs.title');
+    // Sense res pendent, el nom de sempre: el de la clau del botó (a Vents, Configuració).
+    const label = pending ? translate('prefs.update.notice') : translate(button.dataset.i18nTitle || 'prefs.title');
     button.title = label;
     button.setAttribute('aria-label', label);
     const notice = document.getElementById('desktopUpdateNotice');

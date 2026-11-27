@@ -86,6 +86,8 @@
   // El Racó (una pàgina de l'app) s'obre des del pati: en obrir-lo o tancar-lo, la barra marca on ets.
   // L'engranatge del peu de la barra (prefs.js hi posa Preferències) porta a la pàgina de Configuració, on Preferències és una entrada.
   // Es captura al document perquè passi abans del seu onclick, el posi qui el posi primer.
+  // A Vents també ho diu: amb la clau, l'idioma (i18n.js) i les actualitzacions (desktop-updates.js) hi tornen a posar Configuració.
+  const gear=$('prefsBtn');if(gear&&root.gregalProduct==='vents'){gear.dataset.i18nTitle=gear.dataset.i18nAria='nav.settings';const label=t('Configuració','Settings');gear.title=label;gear.setAttribute('aria-label',label);}
   document.addEventListener('click',e=>{if(!e.target.closest?.('#prefsBtn'))return;e.stopImmediatePropagation();closeDrawer();if(root.gregal?.viewActual?.()!=='vents')root.gregal.setView('vents');route('settings');},true);
   for(const id of ['racoPage','memoriaPage','publicacionsPage']){const shellPage=$(id);if(shellPage)new MutationObserver(renderNav).observe(shellPage,{attributes:true,attributeFilter:['hidden']});}
   new MutationObserver(()=>{for(const c of page.querySelectorAll('.vw-ask-wind'))askColour(c,state.winds.find(w=>w.id===c.dataset.wind));}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
@@ -99,7 +101,9 @@
  function threadButton(chat,cls='vw-nav-item vw-thread'){const n=btn('',()=>openChat(chat),cls);const label=cleanTitle(chat.name);n.append(el('span','vw-thread-label',label));n.title=label;if(state.view==='chat'&&state.active?.id===chat.id)n.setAttribute('aria-current','page');return n;}
  // Una conversa a soles amb un vent: la seva cara i la primera cosa que li vas demanar.
  function soloButton(th){const w=state.winds.find(w=>w.id===th.wind);const n=btn('',()=>{if(w)talkTo(w,th.name).catch(fail);},'vw-nav-item vw-thread vw-thread-solo');if(w)n.append(face(w,null,20));n.append(el('span','vw-thread-label',th.title||w?.name||''));n.title=(w?w.name+' · ':'')+(th.title||'');if(state.view==='chat'&&state.active?.id===th.name)n.setAttribute('aria-current','page');return n;}
- async function refreshSolo(){try{state.solo=(await call('/api/winds/threads')).threads||[];}catch{}}
+ async function refreshSolo(){try{state.solo=(await call('/api/winds/threads')).threads||[];}catch{}
+  // L'hora de l'últim missatge de cada grup (en segons), per barrejar-los per data amb les converses a soles; sense, van al final.
+  try{state.groupTs=Object.fromEntries(((await call('/api/winds/summaries')).items||[]).map(i=>[i.key,i.ts||0]));}catch{}}
  function threadRow(chat,fav){const row=el('div','vw-thread-row');row.append(threadButton(chat),threadStar('rot:'+chat.id,fav));return row;}
  function renderThreads(nav){
   const m=state.meta||{};const favs=new Set(m.favorites||[]);
@@ -111,8 +115,8 @@
   for(const chat of favRows)nav.append(threadRow(chat,true));
   for(const {s,rows} of secRows){section(s.name);for(const chat of rows)nav.append(threadButton(chat));}
   // Les cinc darreres a la vista i la resta darrere «Mostra'n més»; l'oberta hi és sempre.
-  // Els grups no porten data: van després de les converses a soles (ja de la més nova a la més vella), com abans.
-  const all=[...(state.solo||[]).map(th=>({id:th.name,row:()=>soloButton(th)})),...rest.map(chat=>({id:chat.id,row:()=>threadRow(chat,false)}))];
+  // Converses a soles i grups junts, de la més nova a la més vella; el que no té data, al final.
+  const all=[...(state.solo||[]).map(th=>({id:th.name,at:Date.parse(th.at)||0,row:()=>soloButton(th)})),...rest.map(chat=>({id:chat.id,at:(state.groupTs?.['rot:'+chat.id]||0)*1000,row:()=>threadRow(chat,false)}))].sort((a,b)=>b.at-a.at);
   const open=x=>state.view==='chat'&&state.active?.id===x.id;
   const shown=threadsOpen?all:all.filter((x,i)=>i<5||open(x));
   for(const x of shown)nav.append(x.row());

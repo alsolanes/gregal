@@ -582,6 +582,22 @@ test('the gear in the sidebar foot opens the settings page, from any page, inste
   assert.ok(!other, 'other clicks go on as before');
 });
 
+// L'engranatge porta a Configuració i ho diu, també quan l'idioma o les actualitzacions tornen a posar l'etiqueta (via la clau).
+test('in Vents the gear is called Settings, with a key that relabelling keeps; in Codi it is left alone', async () => {
+  for (const [lang, label] of [['en', 'Settings'], ['ca', 'Configuració']]) {
+    const f = await boot({ lang, extra: { gregalProduct: 'vents' } });
+    const gear = f.doc.getElementById('prefsBtn');
+    assert.equal(gear.title, label, lang);
+    assert.equal(gear.getAttribute('aria-label'), label, lang);
+    assert.equal(gear.dataset.i18nTitle, 'nav.settings');
+    assert.equal(gear.dataset.i18nAria, 'nav.settings');
+  }
+  const codi = await boot({ extra: { gregalProduct: 'codi' } });
+  const gear = codi.doc.getElementById('prefsBtn');
+  assert.equal(gear.title, undefined);
+  assert.equal(gear.dataset.i18nTitle, undefined);
+});
+
 test('inside a settings section the header reads Winds / Settings / section, and Settings takes you back', async () => {
   for (const [lang, names, home] of [['en', ['About you', 'Rules', 'Library', 'Wiki'], 'Settings'], ['ca', ['Què sap de tu', 'Regles', 'Biblioteca', 'Wiki'], 'Configuració']]) {
     const f = await settingsBoot({ lang });
@@ -636,6 +652,16 @@ test('the open conversation stays in the sidebar when it is older than the lates
   assert.deepEqual(threadNames(f), ['Favourite group', 'Solo 0', 'Solo 1', 'Solo 2', 'Solo 3', 'Solo 4', 'Group two']);
   assert.equal(byText(f.nav, '.vw-thread', 'Group two').getAttribute('aria-current'), 'page');
   assert.equal(byText(f.nav, 'button', 'Show more').textContent, 'Show more (3)', 'the count leaves out the one on show');
+});
+
+// Els grups porten la data del seu últim missatge (ts de /api/winds/summaries, en segons) i es barregen amb les converses a soles.
+test('under Conversations solo threads and groups are ordered together, newest first, and a group with no date goes last', async () => {
+  const hours = h => Math.floor((Date.now() - h * 3600000) / 1000);
+  const f = await boot({ api: r => r.url === '/api/winds/summaries' ? { ok: true, status: 200, json: async () => ({ items: [{ key: 'rot:g1', ts: hours(0.5), count: 3 }, { key: 'rot:g2', ts: hours(2.5), count: 1 }, { key: 'wind:xaloc', ts: hours(0), count: 1 }] }) }
+    : r.url === '/api/winds/rotllanes' ? { ok: true, status: 200, json: async () => ({ rotllanes: [...manyGroups, { id: 'g3', name: 'Group three', members: ['gregal'] }] }) }
+    : manyApi(r) });
+  await byText(f.nav, 'button', 'Show more').click(); await settle();
+  assert.deepEqual(threadNames(f), ['Favourite group', 'Solo 0', 'Group one', 'Solo 1', 'Solo 2', 'Group two', 'Solo 3', 'Solo 4', 'Solo 5', 'Solo 6', 'Group three']);
 });
 
 // La pastilla de l'ofici: el rol del vent, tenyit amb el seu color.
