@@ -613,7 +613,7 @@ func (c *Client) sessionID() string {
 // Si el torn queda buit per length, ho torna a provar una vegada amb el
 // doble de pressupost (retryLength) abans de donar l'error per bo.
 func (c *Client) Chat(ctx context.Context, baseURL, apiKey, model string, msgs []Message, temp float64, maxTokens int) (string, error) {
-	out, _, err := continuaTallat(ctx, msgs, maxTokens, nil, func(msgs []Message, maxTokens int) (string, []ToolCall, error) {
+	out, _, err := continuaTallat(ctx, msgs, maxTokens, false, nil, func(ctx context.Context, msgs []Message, maxTokens int) (string, []ToolCall, error) {
 		var out string
 		err := retryFit(ctx, maxTokens, func(budget int) error {
 			var err error
@@ -692,7 +692,7 @@ func (c *Client) chatInner(ctx context.Context, baseURL, apiKey, model string, m
 // ChatWithTools crida amb specs d'eines i retorna contingut + tool_calls.
 // Amb el mateix reintent per length que Chat.
 func (c *Client) ChatWithTools(ctx context.Context, baseURL, apiKey, model string, msgs []Message, temp float64, maxTokens int, specs []ToolSpec) (string, []ToolCall, error) {
-	return continuaTallat(ctx, msgs, maxTokens, nil, func(msgs []Message, maxTokens int) (string, []ToolCall, error) {
+	return continuaTallat(ctx, msgs, maxTokens, len(specs) > 0, nil, func(ctx context.Context, msgs []Message, maxTokens int) (string, []ToolCall, error) {
 		return c.chatWithToolsOnce(ctx, baseURL, apiKey, model, msgs, temp, maxTokens, specs)
 	})
 }
@@ -791,7 +791,7 @@ func (c *Client) chatWithToolsInner(ctx context.Context, baseURL, apiKey, model 
 // raonament a onReason) i retorna el text sencer. Amb el mateix reintent
 // per length que Chat (només si no s'ha emès ni una lletra).
 func (c *Client) ChatStream(ctx context.Context, baseURL, apiKey, model string, msgs []Message, temp float64, maxTokens int, onToken, onReason func(string)) (string, error) {
-	out, _, err := continuaTallat(ctx, msgs, maxTokens, onToken, func(msgs []Message, maxTokens int) (string, []ToolCall, error) {
+	out, _, err := continuaTallat(ctx, msgs, maxTokens, false, onToken, func(ctx context.Context, msgs []Message, maxTokens int) (string, []ToolCall, error) {
 		var out string
 		err := retryFit(ctx, maxTokens, func(budget int) error {
 			var err error
@@ -965,7 +965,7 @@ func toolsWire(specs []ToolSpec) []any {
 // anava sense `tools` per poder fer streaming, i DeepSeek escrivia la crida
 // en DSML com a text.
 func (c *Client) ChatStreamWithTools(ctx context.Context, baseURL, apiKey, model string, msgs []Message, temp float64, maxTokens int, specs []ToolSpec, onToken, onReason func(string)) (string, []ToolCall, error) {
-	return continuaTallat(ctx, msgs, maxTokens, onToken, func(msgs []Message, maxTokens int) (string, []ToolCall, error) {
+	return continuaTallat(ctx, msgs, maxTokens, len(specs) > 0, onToken, func(ctx context.Context, msgs []Message, maxTokens int) (string, []ToolCall, error) {
 		return c.chatStreamWithToolsOnce(ctx, baseURL, apiKey, model, msgs, temp, maxTokens, specs, onToken, onReason)
 	})
 }

@@ -60,8 +60,10 @@ func (s *sseFals) acaba(finish string, tokens int) string {
 // a escriure'l), escriu el tros següent. El límit de sortida es fa com el
 // va fer zen al run 364: tallat dins del pensament, el proxy tanca la crida
 // amb només el path i diu tool_calls amb completion_tokens = max_tokens;
-// tallat dins dels arguments, finish length.
-func respostaModelFals(req peticioFalsa, sencer string, trossos []string) string {
+// tallat dins dels arguments, finish length. Amb tancaCrida fals, el proxy
+// no tanca la crida: el tall dins del pensament arriba sense cap crida,
+// només raonament i finish length.
+func respostaModelFals(req peticioFalsa, sencer string, trossos []string, tancaCrida bool) string {
 	var s sseFals
 	perParts, escrits := false, 0
 	for _, m := range req.Messages {
@@ -86,6 +88,9 @@ func respostaModelFals(req peticioFalsa, sencer string, trossos []string) string
 	switch {
 	case len(pensament) >= limitSortidaFals:
 		s.delta(map[string]any{"reasoning_content": pensament[:limitSortidaFals]})
+		if !tancaCrida {
+			return s.acaba("length", req.MaxTokens)
+		}
 		s.crida(id, `{"path": "index.html"}`)
 		return s.acaba("tool_calls", req.MaxTokens)
 	case len(pensament)+len(raw) > limitSortidaFals:
@@ -103,6 +108,30 @@ func respostaModelFals(req peticioFalsa, sencer string, trossos []string) string
 // només arriba el path. El torn ha d'acabar amb el fitxer sencer al disc,
 // escrit en diverses crides, sense que ningú hi digui res.
 func TestFitxerGranTallatPelLimitAcabaEscritPerParts(t *testing.T) {
+	indicacions := provaFitxerGranPerParts(t, true)
+	if len(indicacions) < 2 || !strings.Contains(indicacions[1], "in your thinking") {
+		t.Fatalf("el reintent després del tall no diu que no redacti el fitxer pensant: %q", indicacions)
+	}
+}
+
+// El mateix torn amb un proveïdor que no tanca la crida: el tall dins del
+// pensament arriba sense text ni crida. Més pressupost no hi cap (el límit
+// és fix), i el reintent ha de dir igualment d'escriure ja i per parts.
+func TestFitxerGranTallatNomesPensantAcabaEscritPerParts(t *testing.T) {
+	indicacions := provaFitxerGranPerParts(t, false)
+	for _, ind := range indicacions {
+		if strings.Contains(ind, "nothing was written") && strings.Contains(ind, "append: true") {
+			return
+		}
+	}
+	t.Fatalf("cap reintent no diu d'escriure ja i per parts: %q", indicacions)
+}
+
+// provaFitxerGranPerParts demana al motor real un fitxer més gran que el
+// límit de sortida del model fals, comprova que acaba sencer al disc en
+// quatre write i torna l'últim missatge d'usuari de cada petició.
+func provaFitxerGranPerParts(t *testing.T, tancaCrida bool) []string {
+	t.Helper()
 	var linies []string
 	for i := 1; i <= 40; i++ {
 		linies = append(linies, fmt.Sprintf("<p>Línia %02d del joc: %s</p>", i, strings.Repeat("x", 60)))
@@ -133,7 +162,7 @@ func TestFitxerGranTallatPelLimitAcabaEscritPerParts(t *testing.T) {
 			mu.Unlock()
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
-		if _, err := io.WriteString(w, respostaModelFals(req, sencer, trossos)); err != nil {
+		if _, err := io.WriteString(w, respostaModelFals(req, sencer, trossos, tancaCrida)); err != nil {
 			t.Error(err)
 		}
 	}))
@@ -153,7 +182,5 @@ func TestFitxerGranTallatPelLimitAcabaEscritPerParts(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(indicacions) < 2 || !strings.Contains(indicacions[1], "in your thinking") {
-		t.Fatalf("el reintent després del tall no diu que no redacti el fitxer pensant: %q", indicacions)
-	}
+	return indicacions
 }
