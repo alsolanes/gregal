@@ -411,6 +411,36 @@ func TestProbeModelsUsesAnthropicHeaders(t *testing.T) {
 
 // Un 400 pels blocs de pensament reenviats (historial editat) es reintenta
 // sense blocs, però la petició següent els torna a enviar.
+// Si el model rebutja l'esforç rebaixat d'un reintent (menysRaonament),
+// output_config es treu només d'aquella petició: la del rol el torna a
+// portar amb el seu esforç.
+func TestAnthropicRejectedRetryEffortIsDroppedOnce(t *testing.T) {
+	ns := newNativeServer(t, ProviderAnthropic, func(w http.ResponseWriter, n int, body map[string]any) {
+		if oc, _ := body["output_config"].(map[string]any); oc != nil && oc["effort"] == "low" {
+			w.WriteHeader(400)
+			if _, err := io.WriteString(w, `{"type":"error","error":{"type":"invalid_request_error","message":"output_config.effort: 'low' is not supported on this model"}}`); err != nil {
+				t.Error(err)
+			}
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if _, err := io.WriteString(w, `{"type":"message","stop_reason":"end_turn","content":[{"type":"text","text":"ok"}]}`); err != nil {
+			t.Error(err)
+		}
+	})
+	c := New()
+	rol := WithThink(context.Background(), "high")
+	for _, ctx := range []context.Context{menysRaonament(rol), rol} {
+		if out, err := c.Chat(ctx, ns.URL+"/v1", "k", "claude-x", []Message{{Role: "user", Content: "hi"}}, 0, 100); err != nil || out != "ok" {
+			t.Fatalf("%q %v", out, err)
+		}
+	}
+	last := ns.body(len(ns.bodies) - 1)
+	if oc, _ := last["output_config"].(map[string]any); oc == nil || oc["effort"] != "high" {
+		t.Fatalf("the role's request lost output_config after the retry's rejection: %v", last)
+	}
+}
+
 func TestAnthropicRejectedThinkingBlocksAreDroppedOnce(t *testing.T) {
 	ns := newNativeServer(t, ProviderAnthropic, func(w http.ResponseWriter, n int, body map[string]any) {
 		if n == 1 {
@@ -438,7 +468,10 @@ func TestAnthropicRejectedThinkingBlocksAreDroppedOnce(t *testing.T) {
 			t.Fatalf("%q %v", out, err)
 		}
 	}
-	has := func(i int) bool { raw, _ := json.Marshal(ns.body(i)["messages"]); return strings.Contains(string(raw), "sig-abc") }
+	has := func(i int) bool {
+		raw, _ := json.Marshal(ns.body(i)["messages"])
+		return strings.Contains(string(raw), "sig-abc")
+	}
 	if len(ns.bodies) != 4 || !has(1) || has(2) || !has(3) {
 		t.Fatalf("requests %d blocks: %v %v %v", len(ns.bodies), has(1), has(2), has(3))
 	}

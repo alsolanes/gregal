@@ -74,6 +74,23 @@ func (c *Client) postNatiu(ctx context.Context, baseURL, model, path string, mal
 	return nil, fmt.Errorf("provider %s: negociació de camps esgotada", baseURL)
 }
 
+// campsPerEsforc torna els camps negociables de la petició. Si l'esforç és
+// el rebaixat d'un reintent (esforcRebaixat), un rebuig del camp que el
+// porta val només per a aquesta petició: el del rol pot ser un valor que el
+// model sí que admet.
+func campsPerEsforc(ctx context.Context, camps []campNatiu, esforc string) []campNatiu {
+	if !esforcRebaixat(ctx) {
+		return camps
+	}
+	camps = append([]campNatiu(nil), camps...)
+	for i := range camps {
+		if camps[i].nom == esforc {
+			camps[i].efimer = true
+		}
+	}
+	return camps
+}
+
 func campEfimer(camps []campNatiu, nom string) bool {
 	for _, cp := range camps {
 		if cp.nom == nom {
