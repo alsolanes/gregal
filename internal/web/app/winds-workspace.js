@@ -84,6 +84,9 @@
   // El tema (prefs.js, palette.js, brands.js) és el data-theme de l'arrel: en canviar, el Permet de les targetes obertes es repinta
   // al seu lloc (refer-les perdria el que s'hi està escrivint).
   // El Racó (una pàgina de l'app) s'obre des del pati: en obrir-lo o tancar-lo, la barra marca on ets.
+  // L'engranatge del peu de la barra (prefs.js hi posa Preferències) porta a la pàgina de Configuració, on Preferències és una entrada.
+  // Es captura al document perquè passi abans del seu onclick, el posi qui el posi primer.
+  document.addEventListener('click',e=>{if(!e.target.closest?.('#prefsBtn'))return;e.stopImmediatePropagation();closeDrawer();if(root.gregal?.viewActual?.()!=='vents')root.gregal.setView('vents');route('settings');},true);
   for(const id of ['racoPage','memoriaPage','publicacionsPage']){const shellPage=$(id);if(shellPage)new MutationObserver(renderNav).observe(shellPage,{attributes:true,attributeFilter:['hidden']});}
   new MutationObserver(()=>{for(const c of page.querySelectorAll('.vw-ask-wind'))askColour(c,state.winds.find(w=>w.id===c.dataset.wind));}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
  }
@@ -262,7 +265,10 @@
   if(state.done&&(state.view!=='chat'||state.active?.id!==state.done))state.done=null;
   if(paneThread&&state.view==='chat'&&state.active?.id!==paneThread&&paneOpen())document.dispatchEvent(new CustomEvent('gregal:workpane',{detail:'none'}));
   renderNav();page.replaceChildren();messages=null;asksBox=null;input=null;composer=null;
-  const top=el('header','vw-top');const menu=iconOnly('menu',t('Obre la navegació','Open navigation'),()=>{if(matchMedia('(max-width:760px)').matches){setDrawer(!document.body.classList.contains('vw-drawer'));return;}const side=$('side');const reopen=side.classList.contains('closed')||side.classList.contains('compact');if(reopen&&root.setSideCompact)root.setSideCompact(false);if(root.setSide)root.setSide(reopen);},'vw-mobile-menu');menu.setAttribute('aria-expanded',String(document.body.classList.contains('vw-drawer')));top.append(menu);if(state.view==='chat')top.append(owner());else top.append(el('span','',t('Vents','Winds')));if(state.view!=='home'&&state.view!=='chat')top.append(el('span','vw-separator','/'),el('span','',({tasks:t('Feina','Work'),fes:t('Feina','Work'),saved:t('Desat','Saved'),notes:t('Desat','Saved'),today:t('Avui','Today'),crew:t('Els teus vents','Your winds'),apres:t('Què sap de tu','About you'),rules:t('Regles','Rules'),library:t('Biblioteca','Library'),wiki:t('Wiki','Wiki'),settings:t('Configuració','Settings'),pati:t('El pati','Playground')})[state.view]||state.active?.name||squadName(state.squad)));
+  const top=el('header','vw-top');const menu=iconOnly('menu',t('Obre la navegació','Open navigation'),()=>{if(matchMedia('(max-width:760px)').matches){setDrawer(!document.body.classList.contains('vw-drawer'));return;}const side=$('side');const reopen=side.classList.contains('closed')||side.classList.contains('compact');if(reopen&&root.setSideCompact)root.setSideCompact(false);if(root.setSide)root.setSide(reopen);},'vw-mobile-menu');menu.setAttribute('aria-expanded',String(document.body.classList.contains('vw-drawer')));top.append(menu);if(state.view==='chat')top.append(owner());else top.append(el('span','',t('Vents','Winds')));
+  // Dins d'una secció de la configuració, el fil hi torna: «Vents / Configuració / Regles».
+  if(state.view!=='settings'&&SETTINGS_VIEWS.includes(state.view))top.append(el('span','vw-separator','/'),btn(t('Configuració','Settings'),()=>route('settings'),'vw-crumb'));
+  if(state.view!=='home'&&state.view!=='chat')top.append(el('span','vw-separator','/'),el('span','',({tasks:t('Feina','Work'),fes:t('Feina','Work'),saved:t('Desat','Saved'),notes:t('Desat','Saved'),today:t('Avui','Today'),crew:t('Els teus vents','Your winds'),apres:t('Què sap de tu','About you'),rules:t('Regles','Rules'),library:t('Biblioteca','Library'),wiki:t('Wiki','Wiki'),settings:t('Configuració','Settings'),pati:t('El pati','Playground')})[state.view]||state.active?.name||squadName(state.squad)));
   // «La colla» ja és a la barra lateral (i a la de sota, al mòbil): aquí només hi van les accions del fil obert.
   const solo=state.view==='chat'?soloWind():null;page.classList.toggle('vw-wind-chat',!!solo&&hex6(solo.color));if(solo&&hex6(solo.color))page.style.setProperty('--vw-wind',solo.color);
   const abT=browserToggle();if(abT){abT.classList.add('vw-top-browser');top.append(abT);}
@@ -1105,12 +1111,18 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  }
  // Una resposta desada és una nota amb tipus (winds-notes.js): s'obre a Notes, on les targetes es pinten com al xat.
  function openSaved(id){state.openNote=id;route('notes');}
- // La pàgina de configuració: el que abans es desplegava a la barra, en una llista.
+ // La pàgina de configuració: el que abans es desplegava a la barra, cada entrada amb la seva icona i una línia del que hi ha.
  function settingsView(){
   heading(t('Configuració','Settings'));
   const list=el('div','vw-settings-list');
-  const row=(ic,label,go)=>{const n=btn('',go,'vw-nav-item vw-nav-icon');n.append(navIcon(ic),el('span','',label));return n;};
-  list.append(row('settings',t('Preferències','Preferences'),()=>root.document.getElementById('prefsBtn')?.click()),row('apres',t('Què sap de tu','About you'),()=>route('apres')),row('rules',t('Regles','Rules'),()=>route('rules')),row('wiki',t('Memòria del projecte','Project memory'),()=>root.gregal.setView('memoria')),row('computer',computerName(),()=>openComputer()),row('library',t('Biblioteca','Library'),()=>route('library')),row('wiki',t('Wiki','Wiki'),()=>route('wiki')));
+  const row=(ic,label,about,go)=>{const n=btn('',go,'vw-settings-row');const copy=el('span','vw-settings-copy');copy.append(el('strong','',label),el('small','',about));n.append(navIcon(ic),copy);return n;};
+  list.append(row('settings',t('Preferències','Preferences'),t('Idioma, aparença, models i connexions','Language, appearance, models and connections'),()=>root.gregalPanels?.prefs?.obre()),
+   row('apres',t('Què sap de tu','About you'),t('Gustos, preferències i fets que ha après de tu','Tastes, preferences and facts it has learned about you'),()=>route('apres')),
+   row('rules',t('Regles','Rules'),t('Què pot fer sol, què t’ha de preguntar i què mai','What it can do alone, what it must ask and what never'),()=>route('rules')),
+   row('notes',t('Memòria del projecte','Project memory'),t('Notes del projecte que llegeix cada conversa','Project notes that every conversation reads'),()=>root.gregal.setView('memoria')),
+   row('computer',computerName(),t('On treballa Gregal i què hi pots fer','Where Gregal works and what you can do there'),()=>openComputer()),
+   row('library',t('Biblioteca','Library'),t('La memòria i el coneixement de cada vent','The memory and knowledge of each wind'),()=>route('library')),
+   row('wiki',t('Wiki','Wiki'),t('Resums del que s’ha parlat, en pàgines','Summaries of what was talked about, as pages'),()=>route('wiki')));
   content.append(list);
  }
  function savedView(){heading(t('Desat','Saved'));pageTabs(SAVED_TABS);root.gregalNotes?.saved(content,{open:openSaved});}
