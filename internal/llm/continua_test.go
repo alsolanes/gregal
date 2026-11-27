@@ -248,6 +248,73 @@ func TestTallRaonatDemanaNoRedactarElFitxerPensant(t *testing.T) {
 	}
 }
 
+// Un tall que se'l menja el pensament es reintenta pensant menys: el
+// reasoning_effort del reintent baixa respecte del del rol (si el rol ja
+// pensa poc, sense raonament). Un tall als arguments (poc pensament) el
+// manté.
+func TestTallRaonatReintentaAmbMenysRaonament(t *testing.T) {
+	pensament := `{"choices":[{"delta":{"reasoning_content":"` + strings.Repeat("<div>esborrany</div>", 200) + `"}}]}`
+	exhaurit := `{"choices":[],"usage":{"prompt_tokens":10,"completion_tokens":1000,"total_tokens":1010}}`
+	for _, cas := range []struct {
+		nom, rol, volia string
+		primer          []string
+	}{
+		{"raonat high", "high", "low", []string{pensament, deltaCall("bad", "write", `{"path":"web/index.html"}`), fi("tool_calls"), exhaurit}},
+		{"raonat low", "low", "none", []string{pensament, deltaCall("bad", "write", `{"path":"web/index.html"}`), fi("tool_calls"), exhaurit}},
+		{"arguments", "high", "high", []string{deltaCall("bad", "write", `{"path":"web/index.html","content":"`+strings.Repeat("<p>x</p>", 400)), fi("length")}},
+	} {
+		t.Run(cas.nom, func(t *testing.T) {
+			srv := nouServidorTall(t, func(w http.ResponseWriter, n int) {
+				if n == 1 {
+					sse(w, cas.primer...)
+					return
+				}
+				sse(w, deltaCall("good", "write", `{"path":"web/index.html","content":"<p>hola</p>"}`), fi("tool_calls"))
+			})
+			ctx := WithThink(context.Background(), cas.rol)
+			_, calls, err := New().ChatStreamWithTools(ctx, srv.URL, "", "m", []Message{{Role: "user", Content: "fes la web"}}, 0, 1000, specsProva, nil, nil)
+			if err != nil || len(calls) != 1 || calls[0].ID != "good" || srv.n() != 2 {
+				t.Fatalf("calls=%+v n=%d err=%v", calls, srv.n(), err)
+			}
+			if got := srv.req(0).ReasoningEffort; got != cas.rol {
+				t.Fatalf("primer intent amb reasoning_effort %q, volia el del rol %q", got, cas.rol)
+			}
+			if got := srv.req(1).ReasoningEffort; got != cas.volia {
+				t.Fatalf("reintent amb reasoning_effort %q, volia %q", got, cas.volia)
+			}
+		})
+	}
+}
+
+// Un tall que només porta pensament (cap text, cap crida) no es queda en
+// més pressupost amb la mateixa consigna: quan l'escalada tampoc hi cap, el
+// reintent diu d'escriure ja i per parts, i pensant menys.
+func TestTallNomesRaonamentDemanaEscriureJaPerParts(t *testing.T) {
+	pensament := `{"choices":[{"delta":{"reasoning_content":"` + strings.Repeat("<div>esborrany</div>", 200) + `"}}]}`
+	var srv *servidorTall
+	srv = nouServidorTall(t, func(w http.ResponseWriter, n int) {
+		msgs := srv.req(n - 1).Messages
+		if last := msgs[len(msgs)-1].Content; strings.Contains(last, "append: true") {
+			sse(w, deltaCall("good", "write", `{"path":"web/index.html","content":"<p>hola</p>"}`), fi("tool_calls"))
+			return
+		}
+		sse(w, pensament, fi("length"))
+	})
+	ctx := WithThink(context.Background(), "high")
+	_, calls, err := New().ChatStreamWithTools(ctx, srv.URL, "", "m", []Message{{Role: "user", Content: "fes la web"}}, 0, 1000, specsProva, nil, nil)
+	if err != nil || len(calls) != 1 || calls[0].ID != "good" {
+		t.Fatalf("calls=%+v n=%d err=%v", calls, srv.n(), err)
+	}
+	last := srv.req(srv.n() - 1)
+	consigna := last.Messages[len(last.Messages)-1].Content
+	if !strings.Contains(consigna, "in your thinking") || !strings.Contains(consigna, "`write`") {
+		t.Fatalf("la consigna no diu d'escriure ja i per parts: %s", consigna)
+	}
+	if last.ReasoningEffort != "low" {
+		t.Fatalf("reintent amb reasoning_effort %q, volia low", last.ReasoningEffort)
+	}
+}
+
 // Si cada intent torna una crida tallada, al sostre es lliura el text amb
 // una nota i cap crida: mai s'executa res a mitges.
 func TestTallCridaSempreTalladaAlSostre(t *testing.T) {
