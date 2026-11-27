@@ -19,18 +19,30 @@ Opcions: `--start`/`--end` (per defecte 1..72), `--res` (512), `--bevel`
 1. El path de l'SVG es reconstrueix com a corba Bézier amb els punts de
    control originals (és C1 contínua) i s'aplana en un polígon dens.
 2. La silueta és el path **dilatat 30 px**, que és el que fa el
-   `stroke-width="60"` de l'SVG: es desplaça la vora cap enfora i es
-   descarten els trossos que cauen dins de la dilatació (el notch queda
-   tancat, com al logo). A cada punta convexa aguda de radi de curvatura
-   petit hi va un arc de radi 30 (el `stroke-linejoin: round`), i al fons
-   del notch mana la intersecció de les dues bandes.
-3. El polígon s'extrudeix (44 unitats de gruix) i se li arrodoneix la vora
-   amb un bevel de 5. Els ulls són dues el·lipssis del path de l'SVG,
-   aferrades a la cara de davant.
+   `stroke-width="60"` de l'SVG: es desplaça la vora cap enfora (`normals`
+   sortints, sense dependre de l'orientació del path) i se'n retallen els
+   bucles on la corba desplaçada es creua amb ella mateixa. Això tanca
+   l'escletxa del notch i deixa les puntes primes amb el radi del traç, tal
+   com les pinta l'SVG. Un `cap_gaps` hi posa l'arc de tancament i un
+   `chaikin` de dos passos arrodoneix les cantonades.
+3. El polígon s'extrudeix 44 unitats i se li arrodoneix la vora amb un
+   bevel de 5. Els ulls són dues el·lipsis del path de l'SVG, aferrades a
+   la cara de davant.
 4. El color és el degradat de la marca en espai lineal
    (`escumaClara` → `escuma` → `#6F7FF0`), aplicat amb coordenades generades
-   i un `Map Range` perquè recorri tot el cos, i emissió a 1.0 perquè el
-   color no depengui de la llum. Les llums només hi posen el brillantor.
+   i un `Map Range` perquè recorri tot el cos. El color el posa l'emissió
+   (així no depèn de la llum); la difusa hi afegeix el relleu, enfosquida,
+   perquè no cremi el blanc de la punta.
+
+## Animació
+
+Tot és una funció del frame (72 a 24 fps = 3 s) i el frame 73 és igual a
+l'1, així que el bucle no té costura:
+
+- el logo sura (`±26` unitats), gira una mica (`±4°`) i respira (`±1.8%`);
+- una llum petita el recorre d'esquerra a dreta un cop per cicle;
+- els ulls parpellegen una vegada, cap al 62% del cicle (escalen l'eix
+  vertical de l'ull, que és el Y local perquè el disc va girat 90°).
 
 ## Sortida
 

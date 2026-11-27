@@ -127,10 +127,19 @@ def brand_material():
     nt.links.new(add.outputs[0], half.inputs[0])
     nt.links.new(half.outputs[0], stretch.inputs["Value"])
     nt.links.new(stretch.outputs["Result"], ramp.inputs["Fac"])
-    nt.links.new(ramp.outputs["Color"], bsdf.inputs["Base Color"])
+    # el color el posa l'emissió (marca exacta); la difusa només hi afegeix
+    # el relleu, per això va enfosquida i no arriba a cremar el blanc
+    fosc = nt.nodes.new("ShaderNodeMix")
+    fosc.data_type = "RGBA"
+    fosc.blend_type = "MULTIPLY"
+    fosc.inputs["Factor"].default_value = 1.0
+    fosc.location = (250, 160)
+    nt.links.new(ramp.outputs["Color"], fosc.inputs[6])
+    fosc.inputs[7].default_value = (0.3, 0.3, 0.3, 1.0)
+    nt.links.new(fosc.outputs[2], bsdf.inputs["Base Color"])
     if "Emission Color" in bsdf.inputs:
         nt.links.new(ramp.outputs["Color"], bsdf.inputs["Emission Color"])
-        bsdf.inputs["Emission Strength"].default_value = 1.0
+        bsdf.inputs["Emission Strength"].default_value = 0.85
     bsdf.inputs["Roughness"].default_value = 0.45
     if "Specular IOR Level" in bsdf.inputs:
         bsdf.inputs["Specular IOR Level"].default_value = 0.5
@@ -385,9 +394,9 @@ def setup_world_and_lights():
         aim(obj)
         return obj
 
-    area("clau", (-820.0, -1250.0, 980.0), 760.0, 0.55e6)
-    area("contra", (1000.0, 620.0, 420.0), 520.0, 0.15e6, (0.72, 0.80, 1.0))
-    area("omplert", (-950.0, -900.0, -760.0), 900.0, 0.12e6,
+    area("clau", (-820.0, -1250.0, 980.0), 760.0, 0.22e6)
+    area("contra", (1000.0, 620.0, 420.0), 520.0, 0.0, (0.72, 0.80, 1.0))
+    area("omplert", (-950.0, -900.0, -760.0), 900.0, 0.06e6,
          (1.0, 0.95, 0.92))
     # la ratxa de llum que recorre la superficie un cop per cicle
     sweep = area("ratxa", (-1500.0, -650.0, 900.0), 220.0, 0.0,
@@ -420,7 +429,8 @@ def animate(root, eyes, sweep):
         b = max(0.0, 1.0 - abs(t - 0.62) / 0.055)
         blink = 1.0 - 0.88 * (b * b * (3.0 - 2.0 * b))
         for eye in eyes:
-            eye.scale = (1.0, 1.0, blink)
+            # l'eix vertical de l'ull és el Y local (el disc es va girar 90°)
+            eye.scale = (1.0, blink, 1.0)
             eye.keyframe_insert("scale", frame=f)
 
         # la llum travessa el logo d'esquerra a dreta
