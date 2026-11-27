@@ -86,7 +86,7 @@ async function boot({ lang = 'en', api, storage = {}, css = () => '', extra = {}
   const doc = { createElement: t => new Element(t, doc), createElementNS: (_, t) => new Element(t, doc), documentElement: { lang }, querySelector: () => null,
     addEventListener(k, f) { (events[k] ||= []).push(f); }, removeEventListener(k, f) { events[k] = (events[k] || []).filter(x => x !== f); }, dispatchEvent(e) { for (const f of events[e.type] || []) f(e); } };
   doc.root = new Element('root', doc);
-  for (const id of ['ventsPage', 'side', 'workbench', 'racoPage']) { const n = new Element('div', doc); n.setAttribute('id', id); doc.root.append(n); }
+  for (const id of ['ventsPage', 'side', 'workbench', 'racoPage', 'memoriaPage', 'publicacionsPage']) { const n = new Element('div', doc); n.setAttribute('id', id); doc.root.append(n); }
   // Com a index.html: la barra dels vents és dins la part que es desplaça de #side.
   const scroller = new Element('div', doc), sideNav = new Element('div', doc);
   scroller.className = 'side-scroll'; sideNav.setAttribute('id', 'windContextNav');
@@ -491,20 +491,45 @@ test('changing wind from the sidebar keeps the sidebar where it was', async () =
   assert.equal(f.scroller.scrollTop, 160);
 });
 
-test('a sidebar drawn with «Settings & more» left open does not scroll; opening it by hand does', async () => {
-  const f = await boot({ storage: { gregal_vw_more: '1' } });
-  f.scroller.scrollTop = 160;
-  await byText(f.nav, 'button', 'Xaloc').click();
-  await settle();
-  const more = f.nav.querySelector('details');
-  assert.ok(more.open, 'the menu is drawn open, as it was left');
-  assert.equal(f.scroller.scrollTop, 160, 'drawing it open is not opening it');
+// 180: les converses, a dalt, just sota Avui; la configuració, una sola fila a baix de tot.
+// Les etiquetes de la barra en l'ordre del DOM (la fila de dalt, desplegada).
+const navOrder = nav => nav.querySelector('.vw-nav-top').parentNode.children.flatMap(n => n.classList.contains('vw-nav-top') ? n.children : [n]).map(n => n.classList.contains('vw-section-label') ? '§' + n.children[0].textContent : n.textContent);
 
-  more.open = false;
-  await settle();
-  more.open = true;
-  await settle();
-  assert.equal(f.scroller.scrollTop, f.scroller.scrollHeight - f.scroller.clientHeight, 'opened by hand, its options come into view');
+test('the sidebar reads Today, then the conversations, the winds, Work · Saved · Playground, the projects and Settings last', async () => {
+  for (const [lang, words] of [['en', ['New conversation', 'Search', 'Today', '§Conversations', 'Un concert per dissabte', '§Winds', 'Gregal', 'All winds', 'Work', 'Saved', 'Playground', '§Projects', 'Settings']],
+    ['ca', ['Nova conversa', 'Cerca', 'Avui', '§Converses', 'Un concert per dissabte', '§Vents', 'Gregal', 'Tots els vents', 'Feina', 'Desat', 'El pati', '§Projectes', 'Configuració']]]) {
+    const f = await boot({ lang });
+    const order = navOrder(f.nav);
+    const at = words.map(w => order.findIndex(x => x.startsWith(w)));
+    assert.ok(at.every(i => i >= 0), lang + ': every row is there: ' + JSON.stringify(order));
+    assert.deepEqual([...at].sort((a, b) => a - b), at, lang + ': in this order: ' + JSON.stringify(order));
+    assert.equal(order.at(-1), words.at(-1), lang + ': one Settings row, the last');
+  }
+});
+
+test('Settings is one plain row that opens the settings view, marked on every settings view, and nothing remembers a folded menu', async () => {
+  let shell = 'vents';
+  const f = await boot({ extra: { gregal: { setView: v => { shell = v; }, viewActual: () => shell } } });
+  assert.ok(!f.nav.querySelector('details'), 'nothing folds open in the sidebar');
+  const row = () => byText(f.nav, '.vw-nav-item', 'Settings');
+  assert.equal(row().tagName, 'BUTTON');
+  assert.equal(row().getAttribute('aria-current'), 'false');
+  await row().click(); await settle();
+  assert.match(f.page.querySelector('.vw-top').textContent, /Settings/, 'the settings view');
+  assert.equal(row().getAttribute('aria-current'), 'page');
+  for (const name of ['About you', 'Rules', 'Library', 'Wiki']) {
+    await row().click(); await settle();
+    await byText(f.page.querySelector('.vw-content'), 'button', name).click(); await settle();
+    assert.equal(row().getAttribute('aria-current'), 'page', name + ' is a settings view');
+  }
+  for (const id of ['memoriaPage', 'publicacionsPage']) {
+    shell = id.replace('Page', ''); f.mutate(f.doc.getElementById(id), 'hidden');
+    assert.equal(row().getAttribute('aria-current'), 'page', shell + ' is a settings view');
+  }
+  shell = 'vents';
+  await byText(f.nav, '.vw-nav-item', 'Today').click(); await settle();
+  assert.equal(row().getAttribute('aria-current'), 'false', 'Today is not');
+  for (const file of ['winds-workspace.js', '../profile.go']) assert.ok(!fs.readFileSync(path.join(__dirname, file), 'utf8').includes('gregal_vw_more'), file + ' has no folded-menu key');
 });
 
 // La pastilla de l'ofici: el rol del vent, tenyit amb el seu color.
@@ -1297,13 +1322,17 @@ test('a numbered list in a wind’s reply keeps room for the number: no later ru
   assert.deepEqual(later.map(r => r.sel), []);
 });
 
-test('the computer has one name: the sidebar row, the header menu entry and the pane it opens say the same', async () => {
+test('the computer has one name: the settings row, the header menu entry and the pane it opens say the same', async () => {
   const f = await boot({ extra: { open: () => null }, api: r => r.url === '/api/ordinador/viewer' ? { ok: false, status: 404, text: async () => 'no_viewer' } : null });
   await byText(f.nav, '.vw-nav-channel', 'Gregal').click();
   await settle();
   const pc = byText(f.page.querySelector('.vw-more-list'), 'button', 'computer');
   const name = pc.textContent;
-  assert.ok(f.nav.querySelectorAll('button').some(b => b.textContent === name), 'the sidebar row says «' + name + '»');
+  await byText(f.nav, '.vw-nav-item', 'Settings').click();
+  await settle();
+  assert.ok(f.page.querySelector('.vw-content').querySelectorAll('button').some(b => b.textContent === name), 'the settings row says «' + name + '»');
+  await byText(f.nav, '.vw-nav-channel', 'Gregal').click();
+  await settle();
   await pc.click();
   await settle();
   const pane = f.doc.getElementById('workbench').querySelector('.vw-computer-pane');
@@ -1312,14 +1341,16 @@ test('the computer has one name: the sidebar row, the header menu entry and the 
   assert.equal(pane.getAttribute('aria-label'), name);
 });
 
-test('the sidebar computer row opens the pane over the start page, whose faces wrap instead of being cut', async () => {
+test('the computer row in Settings opens the pane over that page; the start page faces wrap instead of being cut', async () => {
   const f = await boot({ extra: { open: () => null }, api: r => r.url === '/api/ordinador/viewer' ? { ok: false, status: 404, text: async () => 'no_viewer' } : null });
-  const row = f.nav.querySelectorAll('button').find(b => b.textContent === 'Gregal’s computer');
-  assert.ok(row, 'the sidebar row');
+  await byText(f.nav, '.vw-nav-item', 'Settings').click();
+  await settle();
+  const row = f.page.querySelector('.vw-content').querySelectorAll('button').find(b => b.textContent === 'Gregal’s computer');
+  assert.ok(row, 'the settings row');
   await row.click();
   await settle();
   assert.ok(f.doc.getElementById('workbench').querySelector('.vw-computer-pane'), 'the pane opens');
-  assert.ok(f.page.querySelector('.vw-start-faces'), 'the start page stays');
+  assert.match(f.page.querySelector('.vw-top').textContent, /Settings/, 'the settings page stays');
   const wide = fs.readFileSync(path.join(__dirname, 'winds-workspace.css'), 'utf8').match(/@media\(min-width:761px\) \{([^@]*)\}/)?.[1] || '';
   assert.match(wide, /\.vw-start-faces \{[^}]*flex-wrap:wrap/, 'on wide screens every face stays visible');
 });
@@ -1873,8 +1904,7 @@ test('a tapped start face flies into the chat with a view transition, and just o
 test('El pati sits in the sidebar and the bottom bar, not under «Settings & more», and the Racó is folded into it', async () => {
   const views = [];
   const f = await boot({ extra: { gregal: { setView: v => views.push(v) } } });
-  const more = f.nav.querySelector('details');
-  assert.ok(byText(f.nav, '.vw-nav-item', 'Playground') && !byText(more, '.vw-nav-item', 'Playground'), 'the sidebar has El pati, outside the menu');
+  assert.ok(byText(f.nav, '.vw-nav-item', 'Playground') && !f.nav.querySelector('details'), 'the sidebar has El pati, in no menu');
   assert.ok(!byText(f.nav, '.vw-nav-item', 'The winds’ corner'), 'the Racó has no row of its own');
   const bottom = f.page.querySelector('.vw-mobile-nav');
   assert.deepEqual(bottom.querySelectorAll('button').map(b => b.textContent), ['Home', 'Today', 'Work', 'Saved', 'Play', 'Winds']);
@@ -1886,7 +1916,7 @@ test('El pati sits in the sidebar and the bottom bar, not under «Settings & mor
   await settle();
   assert.equal(byText(f.page.querySelector('.vw-mobile-nav'), 'button', 'Play').dataset.selected, 'true');
   assert.equal(byText(f.nav, '.vw-nav-item', 'Playground').getAttribute('aria-current'), 'page');
-  assert.ok(!f.nav.querySelector('details').open, 'the menu does not open for El pati');
+  assert.equal(byText(f.nav, '.vw-nav-item', 'Settings').getAttribute('aria-current'), 'false', 'Settings is not marked for El pati');
   await byText(f.page.querySelector('.vw-content'), 'button', 'The winds’ corner').click();
   assert.deepEqual(views, ['raco'], 'the Racó opens from inside El pati');
 });

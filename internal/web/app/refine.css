@@ -416,7 +416,6 @@ html body:is(.shell-winds,.winds-side) #side .vw-section-label .vw-small { width
 html body:is(.shell-winds,.winds-side) #side .vw-nav .vw-nav-channel { font-size:14px!important; }
 html body:is(.shell-winds,.winds-side) #side .vw-nav .vw-thread { color:var(--muted); }
 html body:is(.shell-winds,.winds-side) #side .vw-thread:is(:hover,:focus-visible,[aria-current="page"]) { color:var(--ink); }
-html body:is(.shell-winds,.winds-side) #side .vw-more > .vw-nav-item:not(summary) { padding-left:30px; }
 html body:is(.shell-winds,.winds-side) #side .vw-nav .vw-project[data-selected="true"] { background:transparent; font-weight:550; color:var(--ink); }
 html body:is(.shell-winds,.winds-side) #side .vw-project[data-selected="true"] .vw-folder { color:var(--accent-hi); }
 

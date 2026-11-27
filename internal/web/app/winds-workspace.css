@@ -402,13 +402,7 @@ button.vw-start-row:hover { background:var(--hover); }
 .vw-start-row-copy { display:flex; flex-direction:column; min-width:0; }
 .vw-start-row-copy > strong { color:var(--ink); font-size:14px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .vw-start-row-copy > small { color:var(--muted); font-size:12px; }
-/* Barra lateral: «Més» plegat. */
-.vw-more { display:flex; flex-direction:column; }
-.vw-more > summary { list-style:none; cursor:pointer; display:flex; align-items:center; }
-.vw-more > summary::-webkit-details-marker { display:none; }
-.vw-more[open] > summary { color:var(--ink); }
-/* Dins de <details> els botons no s'estiren sols: l'actiu ha d'ocupar tota la fila com la resta. */
-.vw-more > .vw-nav-item:not(summary) { width:100%; padding-left:20px; }
+.vw-settings-list { display:flex; flex-direction:column; gap:2px; max-width:420px; }
 @media(max-width:760px) { .vw-home { padding-top:28px; } .vw-cards { grid-template-columns:1fr; } }
 @media(prefers-reduced-motion:reduce) { .vw-orb::before { animation:none; } }
 

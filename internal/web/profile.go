@@ -41,7 +41,6 @@ var profileKeys = map[string]bool{
 	"gregal_view":              true, // vista normal/compacta
 	"gregal_doc_ample":         true,
 	"gregal_side_compact":      true,
-	"gregal_vw_more":           true,
 	"gregal_inspector":         true,
 	"gregal_fun_mascot":        true,
 	"gregal_fun_voice":         true,
