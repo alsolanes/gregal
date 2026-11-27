@@ -1622,7 +1622,8 @@ dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize
 @media (prefers-reduced-motion: reduce) { .vw-storm-hint { animation:none; transition:none; } }
 .vw-tempesta { margin-top:8px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:var(--surface); display:flex; flex-direction:column; gap:6px; max-width:520px; }
 .vw-tempesta-head { font-size:12.5px; color:var(--muted); font-weight:600; }
-.vw-tempesta-agent { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text); }
+.vw-tempesta-agent { display:flex; flex-wrap:wrap; align-items:center; gap:2px 8px; font-size:13px; color:var(--text); }
+.vw-tempesta-desc { flex-basis:100%; padding-left:16px; color:var(--muted); font-size:12px; line-height:1.35; }
 .vw-tempesta-agent small { color:var(--faint); font-size:11.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
 .vw-tempesta-dot { width:8px; height:8px; border-radius:50%; background:var(--faint); flex:none; }
 .vw-tempesta-working .vw-tempesta-dot { background:var(--accent); animation:vwTempestaPulse 1.2s ease-in-out infinite; }

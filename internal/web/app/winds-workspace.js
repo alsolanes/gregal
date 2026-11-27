@@ -477,6 +477,9 @@
  // Passos seguits iguals es compten un cop («Llegint fitxers ×3»).
  const workSteps=list=>{const out=[];for(const x of list||[]){const label=stepLabel(x.tool,x.winds),last=out[out.length-1];if(last&&last.label===label&&last.done&&x.done)last.n++;else out.push({label,done:!!x.done,n:1,winds:x.winds});}return out;};
  const nearChatEnd=box=>box.scrollHeight-box.clientHeight-box.scrollTop<64;
+ // Un agent de la Tempesta: nom, model, estat i, a sota, què fa (desc_ca/desc_en; les veus d'una rotllana no en porten).
+ function tempestaAgentRow(a){const r=el('div','vw-tempesta-agent vw-tempesta-'+a.state);r.append(el('span','vw-tempesta-dot'),el('strong','',a.ca?t(a.ca,a.en):a.label),el('small','',String(a.model||'').replace(/^.*\//,'')),el('span','vw-tempesta-state',a.state==='working'?t('treballant','working'):a.state==='done'?'✓':t('no ha pogut','failed')));const desc=a.desc_ca?t(a.desc_ca,a.desc_en):'';if(desc){r.title=desc;r.append(el('span','vw-tempesta-desc',desc));}return r;}
+ root.gregalWindChat.tempestaAgentRow=tempestaAgentRow;
  // 144: la resposta en directe és un sol node que creix al seu lloc. Abans es refeia sencer a cada tanda de
  // tokens (la cara i els punts tornaven a començar i l'alçada saltava). El que només hi és mentre treballa
  // (la tempesta, els passos i l'estat) va sota el text: en acabar se'n va sense moure res de dalt.
@@ -513,7 +516,7 @@
    const shown=choicesStrip(withoutSpeaker(pending.text,wind?.name)).replace(/```(?:chart|gregal-plot)\n[\s\S]*?```/g,'\n_'+t('Preparant un gràfic…','Preparing a chart…')+'_\n').replace(/```(?:gregal-[a-z]+|chart)[ \n](?![\s\S]*```)[\s\S]*$/,'\n_'+t('Preparant la targeta…','Preparing the card…')+'_\n');
    if(body.shown!==shown){body.shown=shown;if(root.gregalMD)body.innerHTML=root.gregalMD.render(shown);else body.textContent=shown;}}
   // Tempesta (winds_tempesta.go): què fa cada agent, i quan escriu la síntesi, que les ajunta.
-  if(Array.isArray(pending.tempesta)&&pending.tempesta.length){const box=el('div','vw-tempesta');const n=pending.tempesta.length,done=pending.tempesta.filter(a=>a.state!=='working').length;box.append(el('div','vw-tempesta-head',done<n?t(n+' vents hi treballen alhora','The '+n+' winds are on it at once'):t('Ajuntant el que han trobat','Merging what they found')));for(const a of pending.tempesta){const r=el('div','vw-tempesta-agent vw-tempesta-'+a.state);r.append(el('span','vw-tempesta-dot'),el('strong','',a.ca?t(a.ca,a.en):a.label),el('small','',String(a.model||'').replace(/^.*\//,'')),el('span','vw-tempesta-state',a.state==='working'?t('treballant','working'):a.state==='done'?'✓':t('no ha pogut','failed')));box.append(r);}activity.before(box);}
+  if(Array.isArray(pending.tempesta)&&pending.tempesta.length){const box=el('div','vw-tempesta');const n=pending.tempesta.length,done=pending.tempesta.filter(a=>a.state!=='working').length;box.append(el('div','vw-tempesta-head',done<n?t(n+' vents hi treballen alhora','The '+n+' winds are on it at once'):t('Ajuntant el que han trobat','Merging what they found')));for(const a of pending.tempesta)box.append(tempestaAgentRow(a));activity.before(box);}
   // Com dots o Duet: el que ja ha fet, en una línia discreta.
   const doneSteps=steps.filter(x=>x.done);
   if(doneSteps.length){const trail=el('div','vw-steps');trail.setAttribute('aria-label',t('Passos fets','Steps done'));for(const x of doneSteps.slice(-4))trail.append(el('span','vw-step',x.label+(x.n>1?' ×'+x.n:'')));if(doneSteps.length>4)trail.prepend(el('span','vw-step vw-step-more','+'+(doneSteps.length-4)));activity.before(trail);}

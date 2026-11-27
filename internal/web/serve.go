@@ -740,6 +740,8 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/apps", h.route((*Server).handleApps))
 	// Registre d'especialitats dels vents (winds_specialists.go).
 	handle("/api/winds/specialists", h.route((*Server).handleWindSpecialists))
+	// Models d'«A fons» (winds_tempesta_models.go).
+	handle("/api/winds/tempesta/models", h.route((*Server).handleTempestaModels))
 	handle("/api/dirs", h.route((*Server).handleDirs))
 	// G3: arbre, fitxers i diffs del workspace.
 	handle("/api/tree", h.route((*Server).handleTree))

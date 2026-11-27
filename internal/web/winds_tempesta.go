@@ -61,18 +61,22 @@ type tempestaAgent struct {
 	Label string `json:"label"`
 	Ca    string `json:"ca"` // el nom de l'angle en cada llengua: l'app tria
 	En    string `json:"en"`
-	Model string `json:"model"`
-	State string `json:"state"` // working | done | failed
-	Chars int    `json:"chars,omitempty"`
-	Error string `json:"error,omitempty"`
-	p     config.Provider
-	role  config.Role
-	text  string
+	// Què fa l'agent, en cada llengua (tempestaDescs); les veus d'una rotllana no en porten.
+	DescCa string `json:"desc_ca,omitempty"`
+	DescEn string `json:"desc_en,omitempty"`
+	Model  string `json:"model"`
+	State  string `json:"state"` // working | done | failed
+	Chars  int    `json:"chars,omitempty"`
+	Error  string `json:"error,omitempty"`
+	p      config.Provider
+	role   config.Role
+	text   string
 }
 
 // tempestaModels: models diferents dels rols que hi ha configurats, el del vent
 // primer. Si només n'hi ha un, el mateix per a tots (amb temperatures
-// diferents perquè no diguin el mateix).
+// diferents perquè no diguin el mateix). El model que l'usuari ha triat per a
+// un angle (tempestaChosen) mana sobre aquesta tria.
 func (s *Server) tempestaModels(n int) []routedRole {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -114,13 +118,23 @@ func (s *Server) tempestaModels(n int) []routedRole {
 		r.Temperature = temps[i%len(temps)]
 		out = append(out, routedRole{p: base, role: r})
 	}
-	return out[:n]
+	out = out[:n]
+	for i := range out {
+		if c, ok := s.tempestaChosen(tempestaAngles[i%len(tempestaAngles)].Key); ok {
+			out[i] = c
+		}
+	}
+	return out
 }
 
-// tempestaSynthRole: el rol de la síntesi, el més fort que hi hagi (think) o el del vent.
+// tempestaSynthRole: el rol de la síntesi, el triat per l'usuari o, si no, el
+// més fort que hi hagi (think) o el del vent.
 func (s *Server) tempestaSynthRole() (config.Provider, config.Role) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if c, ok := s.tempestaChosen("synth"); ok {
+		return c.p, c.role
+	}
 	if r, ok := s.cfg.Roles["think"]; ok && strings.TrimSpace(r.Model) != "" {
 		if _, known := s.cfg.Providers[r.Provider]; known {
 			return s.roleRefBase("think")
@@ -134,11 +148,12 @@ func (s *Server) tempestaSynthRole() (config.Provider, config.Role) {
 func (s *Server) windTempesta(ctx context.Context, w companion.Wind, system string, previous []llm.Message, msg string,
 	emit func(kind, text string), emitTempesta func(agents []tempestaAgent)) (exploracio, error) {
 	start := time.Now()
+	s.refreshTempestaModels()
 	models := s.tempestaModels(tempestaAgentCount)
 	agents := make([]tempestaAgent, tempestaAgentCount)
 	for i := range agents {
 		a := tempestaAngles[i%len(tempestaAngles)]
-		agents[i] = tempestaAgent{Index: i, Angle: a.Key, Label: s.tr(a.Ca, a.En), Ca: a.Ca, En: a.En, Model: models[i].role.Model, State: "working", p: models[i].p, role: models[i].role}
+		agents[i] = tempestaAgent{Index: i, Angle: a.Key, Label: s.tr(a.Ca, a.En), Ca: a.Ca, En: a.En, DescCa: tempestaDescs[a.Key][0], DescEn: tempestaDescs[a.Key][1], Model: models[i].role.Model, State: "working", p: models[i].p, role: models[i].role}
 	}
 	var mu sync.Mutex
 	snapshot := func() []tempestaAgent {
