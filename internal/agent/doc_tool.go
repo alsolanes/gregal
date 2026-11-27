@@ -29,6 +29,7 @@ func docToolSpec() llm.ToolSpec {
 		"or a presentation with kind \"deck\" whose blocks are slides (PowerPoint), " +
 		"or a spreadsheet with kind \"sheet\" whose blocks are named sheets of cells, with Excel formulas the server calculates (Excel). " +
 		"A new text document (a report, a letter, notes, «a Word») is created here, not with office_create, and your reply gives the Word link create returns. " +
+		"After an edit, reuse that same /api/docs/<id>/export link or give none: never make up another address (no gregal:// or similar), the app cannot open it. " +
 		"Prefer it over office_create for a new presentation or a new spreadsheet too. Actions: " +
 		"create (title, kind doc, deck or sheet, optional md for a doc: split into blocks at headings and blank lines; a deck starts empty; a sheet starts with one empty sheet named sheet; returns the download link to give the person); list; " +
 		"read (id, optional range like A1:D20 for a sheet; every block with its id and version, a sheet's cells with their input and computed value); insert (id, md or for a deck slide or for a sheet a new sheet name in sheet, after = block id, or omitted for the start); " +

@@ -33,10 +33,14 @@
     // la clau, així que l'app la baixa i hi posa el src (attach.js).
     t = t.replace(/!\[([^\]\n]*)\]\((\/api\/winds\/image\?id=[a-f0-9]{24}\.(?:jpg|png|webp))\)/g, '<img class="md-img gregal-img" data-gregal-img="$2" alt="$1" loading="lazy">');
     // [text](/api/winds/doc?…) — un document que ha fet un vent (o un adjunt
-    // editat): l'app el baixa amb la seva autenticació (attach.js).
-    t = t.replace(/\[([^\]\n]+)\]\((\/api\/(?:winds\/doc|office\/download)\?[^\s)"<]+)\)/g, '<a href="$2" class="gregal-doc" data-gregal-doc="1">$1</a>');
+    // editat, o el Word que torna l'eina doc): l'app el baixa amb la seva
+    // autenticació (attach.js).
+    t = t.replace(/\[([^\]\n]+)\]\((\/api\/(?:winds\/doc|office\/download)\?[^\s)"<]+|\/api\/docs\/[A-Za-z0-9_-]+\/export\?[^\s)"<]+)\)/g, '<a href="$2" class="gregal-doc" data-gregal-doc="1">$1</a>');
     // [text](http://…) — només http/https; la resta es deixa com a text.
     t = t.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    // [text](gregal://…) o qualsevol altre esquema: un enllaç que el model
+    // s'ha inventat. Queda el text, sense el markdown cru ni un enllaç viu.
+    t = t.replace(/\[([^\]\n]+)\]\([a-z][a-z0-9+.-]*:[^\s)]*\)/gi, "$1");
     // URL sola.
     t = t.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>');
     t = t.replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>");

@@ -280,6 +280,13 @@ fun parseInline(src: String): List<Seg> {
                 val rp = s.indexOf(')', rb + 2)
                 if (rp > rb + 2) {
                     val url = s.substring(rb + 2, rp)
+                    // Un esquema que no és web (gregal://docs/… inventat pel
+                    // model): no obre res, així que es queda el text. Correu i telèfon sí.
+                    if (!isImage && rb > lb + 1 && Regex("^[A-Za-z][A-Za-z0-9+.-]*:").containsMatchIn(url) && !Regex("^(https?://|mailto:|tel:)", RegexOption.IGNORE_CASE).containsMatchIn(url)) {
+                        buf.append(s, lb + 1, rb)
+                        i = rp + 1
+                        continue
+                    }
                     if (!url.any { it == ' ' || it == '\n' || it == '\t' }) {
                         flush()
                         val label = s.substring(lb + 1, rb)

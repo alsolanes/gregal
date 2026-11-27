@@ -18,3 +18,17 @@ test('altres rutes relatives no es converteixen en imatge', () => {
     assert.ok(!md.render('![x](' + u + ')').includes('<img'), u);
   }
 });
+
+test('the Word link the doc tool gives is a link the app downloads with its key, not raw markdown', () => {
+  const h = md.render("Aquí el tens: [El quadern](/api/docs/zjq2kr3jf3k2/export?format=docx)");
+  assert.ok(h.includes('href="/api/docs/zjq2kr3jf3k2/export?format=docx"') && h.includes('data-gregal-doc="1"'), h);
+  assert.ok(!h.includes(']('), h);
+});
+
+test('a link with a made-up scheme shows its text only: no raw markdown and no live link', () => {
+  for (const u of ['gregal://docs/zjq2kr3jf3k2', 'javascript:alert(1)']) {
+    const h = md.render("[Obre el document per veure'l](" + u + ')');
+    assert.ok(!h.includes('](') && !h.includes('<a') && !h.includes(u), u + ' → ' + h);
+    assert.ok(h.includes("Obre el document per veure"), h);
+  }
+});

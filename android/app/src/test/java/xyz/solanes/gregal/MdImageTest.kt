@@ -27,6 +27,17 @@ class MdImageTest {
         assertTrue(segs.filterIsInstance<Seg.Image>().isEmpty())
         assertEquals(1, segs.filterIsInstance<Seg.Link>().size)
     }
+    // Un enllaç amb un esquema inventat pel model (gregal://docs/…) no
+    // obre res: es queda el text, sense enllaç ni markdown cru.
+    @Test fun `enllac amb esquema inventat queda com a text`() {
+        val segs = splitMd("[Obre el document](gregal://docs/zjq2kr3jf3k2) i prou")
+        assertTrue(segs.none { it is Seg.Link })
+        val text = segs.filterIsInstance<Seg.Text>().joinToString("") { it.t }
+        assertTrue(text, text.contains("Obre el document") && !text.contains("gregal://") && !text.contains("]("))
+    }
+    @Test fun `enllac al document viu continua sent Link`() {
+        assertEquals("/api/docs/zjq2kr3jf3k2/export?format=docx", splitMd("[Quadern](/api/docs/zjq2kr3jf3k2/export?format=docx)").filterIsInstance<Seg.Link>().single().url)
+    }
     @Test fun `groupRich treu la imatge a bloc propi`() {
         val rich = groupRich(splitMd("text ![a](https://x.example/a.png) més"))
         assertEquals(3, rich.size)
