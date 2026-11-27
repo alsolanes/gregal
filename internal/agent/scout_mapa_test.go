@@ -42,10 +42,10 @@ func TestScoutDeCodiRepElMapaDelProjecte(t *testing.T) {
 // El pressupost ha de quedar curt: el torn no pot esperar més de mig minut
 // per un resum que és opcional.
 func TestScoutPressupostCurt(t *testing.T) {
-	if scoutMaxSteps > 3 {
-		t.Fatalf("scoutMaxSteps = %d; el torn no pot esperar tants passos de model", scoutMaxSteps)
+	if scoutMaxSteps > 2 {
+		t.Fatalf("scoutMaxSteps = %d; el torn no pot esperar tants passos de model amb un sol fil", scoutMaxSteps)
 	}
-	if scoutTimeout.Seconds() > 30 {
+	if scoutTimeout.Seconds() > 25 {
 		t.Fatalf("scoutTimeout = %s; un scout encallat no ha de menjar-se mig minut del torn", scoutTimeout)
 	}
 }

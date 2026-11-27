@@ -31,13 +31,13 @@ const (
 	// 45-55 s per torn. Amb 4 passos segueix llegint el que cal per al
 	// briefing però deixa de recórrer el projecte sencer abans del primer
 	// pas del coordinador.
-	scoutMaxSteps = 3
+	scoutMaxSteps = 2
 	// 90 s i no 4 min: la mateixa tasca ha trigat 6,7 s i 59,2 s amb el model
 	// local, i el tall era de quatre minuts, o sigui que un scout encallat
 	// podia menjar-se el torn sencer. Amb 4 passos i el model local, 90 s ja
 	// és molt per sobre del que s'ha vist; si no hi arriba, el coordinador
 	// continua sense brief, que és el que ja fa quan l'investigador falla.
-	scoutTimeout = 30 * time.Second
+	scoutTimeout = 25 * time.Second
 	scoutMaxTask = 1500
 )
 
