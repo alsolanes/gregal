@@ -61,6 +61,31 @@ test('one isolated window per document; pressing again focuses it', () => {
   assert.deepEqual(created.map(x => x.destroyed), [true, true, true]);
 });
 
+test('a personal document («Els meus documents») opens its own page with scope=mine', () => {
+  const { FakeWindow, created } = fakeWindows();
+  const docs = createDocWindows({ BrowserWindow: FakeWindow, base: () => 'http://127.0.0.1:8097', preloadPath: '', openExternal() {} });
+  assert.equal(docs.open('w1', 'default', 'mine'), true);
+  assert.equal(created[0].webContents.mainFrame.url, 'http://127.0.0.1:8097/app/doc/w1?session=default&scope=mine');
+  assert.equal(docs.open('p1', 'default', ''), true);
+  assert.equal(created[1].webContents.mainFrame.url, 'http://127.0.0.1:8097/app/doc/p1?session=default');
+  assert.equal(docs.open('p2', 'default', 'other'), false);
+  assert.equal(created.length, 2);
+});
+
+test('a personal document and a project one with the same id get a window each', () => {
+  const { FakeWindow, created } = fakeWindows();
+  const docs = createDocWindows({ BrowserWindow: FakeWindow, base: () => 'http://127.0.0.1:8097', preloadPath: '', openExternal() {} });
+  docs.open('abc', 'default', 'mine');
+  docs.open('abc', 'default', '');
+  assert.deepEqual(created.map(w => w.webContents.mainFrame.url), ['http://127.0.0.1:8097/app/doc/abc?session=default&scope=mine', 'http://127.0.0.1:8097/app/doc/abc?session=default']);
+  docs.open('abc', 'default', 'mine');
+  assert.equal(created.length, 2);
+  assert.equal(created[0].focused, 1);
+  created[0].close();
+  docs.open('abc', 'default', '');
+  assert.equal(created[1].focused, 1, 'closing one does not forget the other');
+});
+
 test('refuses ids and sessions that are not plain tokens', () => {
   const { FakeWindow, created } = fakeWindows();
   const docs = createDocWindows({ BrowserWindow: FakeWindow, base: () => 'http://127.0.0.1:8097', preloadPath: '', openExternal() {} });

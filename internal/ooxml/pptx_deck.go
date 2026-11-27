@@ -18,21 +18,21 @@ type DeckSpec struct {
 // two_columns, comparison, big_number, image, title_only, blank,
 // closing (o el nom/índex d'un layout de la plantilla).
 type SlideSpec struct {
-	Layout     string     `json:"layout"`
-	Title      string     `json:"title"`
-	Subtitle   string     `json:"subtitle"`
-	Body       string     `json:"body"`
-	Bullets    []string   `json:"bullets"`
-	Left       string     `json:"left"`
-	Right      string     `json:"right"`
-	LeftTitle  string     `json:"left_title"`
-	RightTitle string     `json:"right_title"`
-	Number     string     `json:"number"`
-	Caption    string     `json:"caption"`
-	Image      string     `json:"image"`
-	Table      FlexTable  `json:"table"`
-	Chart      *ChartSpec `json:"chart"`
-	Notes      string     `json:"notes"`
+	Layout     string     `json:"layout,omitempty"`
+	Title      string     `json:"title,omitempty"`
+	Subtitle   string     `json:"subtitle,omitempty"`
+	Body       string     `json:"body,omitempty"`
+	Bullets    []string   `json:"bullets,omitempty"`
+	Left       string     `json:"left,omitempty"`
+	Right      string     `json:"right,omitempty"`
+	LeftTitle  string     `json:"left_title,omitempty"`
+	RightTitle string     `json:"right_title,omitempty"`
+	Number     string     `json:"number,omitempty"`
+	Caption    string     `json:"caption,omitempty"`
+	Image      string     `json:"image,omitempty"`
+	Table      FlexTable  `json:"table,omitempty"`
+	Chart      *ChartSpec `json:"chart,omitempty"`
+	Notes      string     `json:"notes,omitempty"`
 }
 
 // ChartSpec és un gràfic natiu (editable a PowerPoint).
@@ -46,7 +46,7 @@ type ChartSpec struct {
 
 // ChartSeries és una sèrie de dades.
 type ChartSeries struct {
-	Name   string    `json:"name"`
+	Name   string      `json:"name"`
 	Values FlexNumbers `json:"values"`
 }
 
@@ -385,8 +385,8 @@ func (p *Pptx) addVisual(slide string, s SlideSpec, b Box) (string, error) {
 
 // ---------- gràfics ----------
 
-// AddChart afegeix un gràfic natiu (barres, columnes, línies, pastís).
-func (p *Pptx) AddChart(slide string, c ChartSpec, b Box) error {
+// CheckChart diu si AddChart podrà fer el gràfic.
+func CheckChart(c ChartSpec) error {
 	if len(c.Series) == 0 || len(c.Categories) == 0 {
 		return fmt.Errorf("el gràfic necessita categories i almenys una sèrie")
 	}
@@ -394,6 +394,14 @@ func (p *Pptx) AddChart(slide string, c ChartSpec, b Box) error {
 		if len(s.Values) != len(c.Categories) {
 			return fmt.Errorf("la sèrie %q té %d valors i hi ha %d categories", s.Name, len(s.Values), len(c.Categories))
 		}
+	}
+	return nil
+}
+
+// AddChart afegeix un gràfic natiu (barres, columnes, línies, pastís).
+func (p *Pptx) AddChart(slide string, c ChartSpec, b Box) error {
+	if err := CheckChart(c); err != nil {
+		return err
 	}
 	part := p.Pkg.NextPartName("ppt/charts", "chart", ".xml")
 	p.Pkg.Put(part, []byte(chartXML(c, p.Theme)))

@@ -33,7 +33,7 @@ const val CompanyJobId = "company-checkin-daily"
 const val COMPANY_CHECKIN_PROMPT = "Fes una revisió proactiva i de només lectura del projecte actiu. Consulta els objectius oberts, l’estat documentat dels serveis i les darreres proves o canvis que puguis verificar. No inventis observacions: inclou el fitxer, prova, estat o font que sosté cada afirmació, i acaba amb un únic pas següent recomanat. No modifiquis fitxers, no reiniciïs ni despleguis serveis. Si cal actuar, proposa-ho i espera aprovació explícita. Respon en català, breu i útil."
 
 /** Pantalles de l'app. */
-enum class Screen { Pairing, Chat, Sessions, Goals, Backlog, Jobs, Office, Flows, Automatitzacions, Desat, Notes, Prefs, Retro, Company, Work, Ventet, Carpeta, Preview, Webs, Docs }
+enum class Screen { Pairing, Chat, Sessions, Goals, Backlog, Jobs, Office, Flows, Automatitzacions, Desat, Notes, Prefs, Retro, Company, Work, Ventet, Carpeta, Preview, Webs, Docs, Activitat, Settings }
 
 /**
  * On parla l'app. `local` és el servidor d'aquest mateix dispositiu (el
@@ -165,6 +165,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val _models = MutableStateFlow<Map<String, List<String>>>(emptyMap())
     val models: StateFlow<Map<String, List<String>>> = _models
 
+    /** «A fons»: el model de cada agent i la síntesi ("" = automàtic); null mentre no se sap. */
+    private val _tempestaModels = MutableStateFlow<Map<String, String>?>(null)
+    val tempestaModels: StateFlow<Map<String, String>?> = _tempestaModels
+
     private val _windsModel = MutableStateFlow("")
     val windsModel: StateFlow<String> = _windsModel
 
@@ -226,6 +230,16 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
      * n'hi ha o si l'has silenciada, però avisa per notificació si en surt.
      */
     private val otaUrl: String get() = androidOtaUrl(appContext.packageName)
+
+    private var lastUpdateCheckMs = 0L
+
+    /** Comprovació silenciosa en passar a primer pla (també a l'arrencada), com a molt un cop per hora. */
+    fun checkUpdateIfStale() {
+        val ara = System.currentTimeMillis()
+        if (!tocaComprovarDeNou(lastUpdateCheckMs, ara)) return
+        lastUpdateCheckMs = ara
+        checkUpdate(silent = true)
+    }
 
     fun checkUpdate(silent: Boolean = false) {
         if (otaUrl.isBlank()) return
@@ -356,7 +370,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     val expressiveMotion: StateFlow<Boolean> = _expressiveMotion
 
     /**
-     * L'arrencada (reconnexió automàtica + comprovar actualitzacions) ja s'ha
+     * L'arrencada (reconnexió automàtica) ja s'ha
      * fet amb aquest ViewModel: girar la pantalla recrea l'activitat però no
      * l'ha de repetir (ni treure't al Pairing si la reconnexió fallés).
      */
@@ -482,9 +496,21 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     /** Un panell de la portada dels Vents que s'ha demanat des de fora (el calaix):
      *  "directory" (els teus vents) o "explore". La portada l'obre i el buida. */
     val ventsPanel: StateFlow<String?> = _ventsPanel
+    /** Obert des de Configuració: en tancar-lo, Enrere hi torna en lloc de quedar-se a la portada. */
+    private var panelFromSettings = false
+
     fun openVentsPanel(panel: String?) {
+        panelFromSettings = panel != null && _screen.value == Screen.Settings
         _ventsPanel.value = panel
-        if (panel != null) go(Screen.Company)
+        // «A prop teu» s'obre a Automatitzacions (qui la crida hi va), no a la portada.
+        if (panel != null && panel != "local") go(Screen.Company)
+    }
+
+    /** La portada tanca el panell (Enrere, o el full s'ha tancat). */
+    fun closeVentsPanel() {
+        val fromSettings = panelFromSettings && _ventsPanel.value != null
+        openVentsPanel(null)
+        if (fromSettings) back()
     }
 
     fun setGlass(v: Boolean) {
@@ -643,6 +669,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             if (_rotllanaChat.value[bare].isNullOrEmpty()) _rotllanaChatLoading.value = _rotllanaChatLoading.value + bare
         }
         _ventsOpen.value = id
+        // Obrir una conversa és anar endavant: el panell que es tanca ara no torna a Configuració.
+        panelFromSettings = false
         if (id.startsWith("rot:")) followCrew(bare)
         // Tocar una notificació ha d'obrir la conversa que l'ha provocada: si
         // només desàvem el vent, l'app es quedava a la pantalla on era i
@@ -661,7 +689,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             return true
         }
         if (_screen.value == Screen.Company && _ventsPanel.value != null) {
-            openVentsPanel(null)
+            closeVentsPanel()
             return true
         }
         val stack = _backStack.value
@@ -733,6 +761,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _outbox.value = emptyList()
         _automations.value = emptyMap()
         _saved.value = emptyMap()
+        _windActivity.value = WindActivityFeed()
         _notes.value = null
         _openNote.value = null
         _savedNotes.value = null
@@ -744,6 +773,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _windLive.value = emptyMap()
         _lastWindReply.value = null
         _windNews.value = emptySet()
+        knownNews = null
+        _windArrival.value = null
         _rotllanes.value = emptyList()
         _rotllanaChat.value = emptyMap()
         _rotllanaBusy.value = emptySet()
@@ -786,6 +817,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _jobs.value = emptyList()
         _runs.value = emptyList()
         _models.value = emptyMap()
+        _tempestaModels.value = null
         _providers.value = emptyList()
         _catalog.value = emptyList()
         _provMsg.value = ""
@@ -834,6 +866,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         // Un torn que s'ha quedat sense xarxa en segon pla segueix al servidor.
         if (_connected.value && !_sending.value) attachToRunning()
         if (_connected.value && !_conn.value.local) {
+            // The look of the winds (theme, pack, face) may have changed on the desktop meanwhile.
+            loadWinds()
             loadWindTasks()
             refreshWindNews()
         }
@@ -923,6 +957,17 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             }
             is GregalApi.WindStreamEvent.Ask -> _windAsks.value = _windAsks.value.filter { it.key != e.ask.key } + e.ask
             is GregalApi.WindStreamEvent.AskResolved -> _windAsks.value = _windAsks.value.filter { it.key != e.key }
+            // Una targeta per document, com a Codi; la bombolla en directe ha de quedar l'última.
+            is GregalApi.WindStreamEvent.DocChanged -> if (!rotllana) {
+                _windChat.update { chats ->
+                    val cur = chats[threadId].orEmpty()
+                    if (cur.any { it.doc?.id == e.doc.id }) chats else {
+                        val at = if (cur.lastOrNull()?.streaming == true) cur.lastIndex else cur.size
+                        chats + (threadId to cur.toMutableList().apply { add(at, PetMsg("pet", e.doc.title, kind = "doc", doc = e.doc)) })
+                    }
+                }
+                docsChanged()
+            }
             is GregalApi.WindStreamEvent.DoneRotllana -> if (e.failed.isNotEmpty()) {
                 notify(appText("wind.turn.incomplete", e.failed.joinToString(", ")))
             }
@@ -1056,7 +1101,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 val v = withContext(Dispatchers.IO) { c.api().avui() }
-                if (_conn.value == c) { _avui.value = v; _avuiError.value = false }
+                if (_conn.value == c) { _avui.value = v; _avuiError.value = false; pollAvuiWhilePending(v) }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 if (_conn.value == c) _avuiError.value = true
@@ -1077,13 +1122,19 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (e is CancellationException) throw e
                 false
             }
-            if (!ok && _conn.value == c) _avui.value = AvuiLogic.revert(_avui.value ?: before, before, id)
+            if (_conn.value != c) return@launch
+            if (!ok) _avui.value = AvuiLogic.revert(_avui.value ?: before, before, id)
+            if (action == "resume") notify(appText(if (ok) "app.avui.resumed" else "app.avui.resumeError"))
         }
     }
 
-    /** Una acció de la targeta: obre la conversa amb el vent i li diu el que demana. */
+    /**
+     * Una acció de la targeta: obre la conversa amb el vent i li diu el que demana.
+     * Si porta [AvuiAction.thread] (un fil obert, task 148), reprèn aquell fil i no hi envia res.
+     */
     fun avuiRun(card: AvuiCard, action: AvuiAction) {
         if (card.wind.isBlank()) return
+        if (action.thread.isNotBlank()) { resumeWindThread(card.wind, action.thread); return }
         openVentsChat("wind:" + card.wind)
         if (action.prompt.isNotBlank()) sendWindMessage(card.wind, avuiPrompt(card, action))
     }
@@ -1114,6 +1165,53 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 if (_conn.value == c && before != null) _avui.value?.let { _avui.value = it.copy(settings = before.settings) }
+            }
+        }
+    }
+
+    /** On ets, per al temps de dalt d'«Avui». */
+    fun setAvuiPlace(place: String) = avuiGlanceChange({ it }) { it.avuiPlace(place.trim()) }
+
+    fun avuiFollow(kind: String, name: String) = avuiGlanceChange({ it }) { it.avuiFollow(kind, name.trim()) }
+
+    /** Deixa de seguir: la targeta marxa al moment i torna si el servidor no ho accepta. */
+    fun avuiUnfollow(id: String) = avuiGlanceChange({ v ->
+        v.copy(settings = v.settings.copy(follows = v.settings.follows.filterNot { it.id == id }),
+            glance = v.glance.copy(follows = v.glance.follows.filterNot { it.id == id }))
+    }) { it.avuiUnfollow(id) }
+
+    private val _avuiGlanceMsg = MutableStateFlow<String?>(null)
+    /** Per què no s'ha pogut desar el lloc o un seguiment; null si l'últim canvi ha anat bé. */
+    val avuiGlanceMsg: StateFlow<String?> = _avuiGlanceMsg.asStateFlow()
+    private var avuiPoll: Job? = null
+    private var avuiPolls = 0
+
+    // Mentre es busca (un seguiment nou, el temps del lloc) la safata torna a mirar sola, uns minuts com a molt.
+    private fun pollAvuiWhilePending(v: AvuiView) {
+        if (!GlanceLogic.pending(v)) { avuiPolls = 0; return }
+        if (avuiPoll?.isActive == true || avuiPolls >= 20) return
+        avuiPolls++
+        avuiPoll = viewModelScope.launch { delay(15_000); loadAvui() }
+    }
+
+    /** Desa el canvi i torna a llegir la safata: la ullada nova (el temps del lloc, el que segueixes) la fa el servidor. */
+    private fun avuiGlanceChange(optimistic: (AvuiView) -> AvuiView, call: (GregalApi) -> AvuiSettings) {
+        val c = _conn.value
+        val before = _avui.value
+        if (before != null) _avui.value = optimistic(before)
+        viewModelScope.launch {
+            try {
+                val saved = withContext(Dispatchers.IO) { call(c.api()) }
+                if (_conn.value != c) return@launch
+                _avuiGlanceMsg.value = null
+                avuiPolls = 0
+                _avui.value?.let { _avui.value = it.copy(settings = saved) }
+                loadAvui()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                if (_conn.value != c) return@launch
+                if (before != null) _avui.value = before
+                _avuiGlanceMsg.value = LocalLogic.serverMessage(e).ifBlank { tr(_idioma.value, "app.avui.glance.saveError") }
             }
         }
     }
@@ -2416,10 +2514,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         updateWork { it.add(WorkStep("s${nextMsgId()}", kind, label, target, meta, detail, state)) }
     }
 
-    private fun setActivity(key: String, text: String) {
+    private fun setActivity(key: String, text: String, tail: String = "") {
         val a = _activity.value
-        _activity.value = if (a != null && a.key == key) a.copy(text = text)
-            else Activity(key, text, System.currentTimeMillis())
+        _activity.value = if (a != null && a.key == key) a.copy(text = text, tail = tail)
+            else Activity(key, text, System.currentTimeMillis(), tail)
     }
 
     /**
@@ -2574,9 +2672,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             "progress" -> {
                 val p = mutableMapOf<String, String>()
                 o.keys().forEach { k -> p[k] = o.optString(k) }
-                val (k, t) = progressLine(p, lang)
+                val (k, t, tail) = progressLine(p, lang)
                 // Mentre corre una eina concreta, la seva línia és més útil.
-                if (!(k.startsWith("tools") && _activity.value?.key?.startsWith("tool:") == true)) setActivity(k, t)
+                if (!(k.startsWith("tools") && _activity.value?.key?.startsWith("tool:") == true)) setActivity(k, t, tail)
             }
             "status", "route" -> f("message").ifEmpty { text }.takeIf { it.isNotBlank() }?.let { _statusLine.value = it }
             "fallback" -> step(StepKind.Warn, appText("app.chat.fallback", f("model")))
@@ -2602,6 +2700,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             // Una targeta per document: les edicions següents ja es veuen a la pantalla.
             "doc_changed" -> DocsJson.changed(o.toString())?.let { d ->
                 if (_msgs.value.none { it.doc?.id == d.id }) push(ChatMsg("assistant", d.title, "doc", doc = d))
+                docsChanged()
             }
             "goal" -> push(ChatMsg("assistant", "◆ ${f("title")} (${f("id")})", "goal"))
             // El mode objectiu desa la tasca al backlog: el número queda al fil.
@@ -3324,6 +3423,33 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun loadTempestaModels() {
+        val c = _conn.value
+        viewModelScope.launch {
+            try {
+                val m = withContext(Dispatchers.IO) { c.api().getTempestaModels() }
+                if (_conn.value == c) _tempestaModels.value = m
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                if (_conn.value == c) notify(appText("app.tempesta.loadFailed", e.message.orEmpty()))
+            }
+        }
+    }
+
+    /** El servidor valida el model (400 si no el coneix) i torna la tria sencera. */
+    fun setTempestaModel(slot: String, model: String) {
+        val c = _conn.value
+        viewModelScope.launch {
+            try {
+                val m = withContext(Dispatchers.IO) { c.api().setTempestaModel(slot, model) }
+                if (_conn.value == c) _tempestaModels.value = m
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                notify(appText("app.status.modelChange", e.message.orEmpty()))
+            }
+        }
+    }
+
     /** Model per defecte dels vents: el tria l'usuari, el valida el servidor. */
     fun setWindsModel(model: String) {
         viewModelScope.launch {
@@ -3508,7 +3634,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.IO) { source.api().post("/api/winds/avatar-theme", JSONObject().put("theme", theme)) }
                 if (isCompanionOrigin(source, epoch)) _avatarTheme.value = theme
             } catch (e: Exception) {
-                if (isCompanionOrigin(source, epoch)) companyError(e)
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                // A server from before avatar themes has no such route.
+                if (e.message.orEmpty().startsWith("HTTP 404")) notify(appText("winds.avatarServerOld")) else companyError(e)
             }
         }
     }
@@ -3562,6 +3690,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _windBusy.value = _windBusy.value - id
         endLive(id)
         flushLateSteer(id, rotllana = false)
+        // El torn ja és al disc: la conversa entra (o puja) a les recents de la portada.
+        loadWindThreads()
         // La memòria s'aprèn en segon pla: es torna a mirar el fil per ensenyar «Ho recordaré».
         if (complete) viewModelScope.launch {
             for (wait in listOf(9_000L, 12_000L)) {
@@ -3623,11 +3753,33 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (isCompanionOrigin(source, epoch)) {
                     _windNews.value = WindNewsLogic.unseen(list, seen, floor)
                     _windNewsCount.value = WindNewsLogic.unseenCounts(list, seen, floor)
+                    val arrived = WindNewsLogic.arrived(list, seen, floor, knownNews)
+                    knownNews = WindNewsLogic.keys(list, seen, floor)
+                    if (arrived.isNotEmpty()) {
+                        loadWindThreads()
+                        arrived.filter { _ventsOpen.value != "wind:" + it.wind }.maxByOrNull { it.ts }
+                            ?.let { _windArrival.value = WindArrival(it.wind, it.name, it.text, it.messageId, System.currentTimeMillis()) }
+                    }
                 }
             } catch (_: Exception) {
                 // Sense servidor o en mode local: cap novetat, cap soroll.
             }
         }
+    }
+
+    /** Novetats pendents ja vistes per aquesta connexió; null fins a la primera lectura (les d'abans no fan bàner). */
+    private var knownNews: Set<String>? = null
+    private val _windArrival = MutableStateFlow<WindArrival?>(null)
+    /** L'última novetat arribada amb l'app oberta: el bàner de dalt i el salt de la cara del vent. */
+    val windArrival: StateFlow<WindArrival?> = _windArrival
+
+    fun dismissWindArrival(a: WindArrival) { _windArrival.compareAndSet(a, null) }
+
+    /** Tocar el bàner: el xat del vent, al missatge de la novetat. */
+    fun openWindArrival(a: WindArrival) {
+        _windArrival.compareAndSet(a, null)
+        MessageFocus.open("wind:" + a.wind, a.messageId)
+        openVentsChat("wind:" + a.wind)
     }
 
     /** Les novetats que tenia cada vent just abans d'obrir-lo (i marcar-les llegides): el fil s'hi obre. */
@@ -4057,7 +4209,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 onDone(true)
             } catch (e: Exception) {
                 if (isCompanionOrigin(source, epoch)) {
-                    companyError(e); onDone(false)
+                    // A server from before avatar themes rejects the unknown `avatar` field.
+                    if (avatar.isNotEmpty() && e.message.orEmpty().startsWith("HTTP 400: invalid request")) notify(appText("winds.avatarServerOld"))
+                    else companyError(e)
+                    onDone(false)
                 }
             }
         }
@@ -4371,6 +4526,56 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (!isCompanionOrigin(source, epoch)) return@launch
                 if (_saved.value[wind] == null) _saved.value = _saved.value + (wind to emptyList())
                 notify(appText("saved.loadError", e.message.orEmpty()))
+            }
+        }
+    }
+
+    /** El que els vents han fet en segon pla (WindActivityScreen.kt); `wind` buit = tots. */
+    private val _windActivity = MutableStateFlow(WindActivityFeed())
+    val windActivity: StateFlow<WindActivityFeed> = _windActivity.asStateFlow()
+
+    fun openWindActivity(wind: String) {
+        _windActivity.value = WindActivityFeed(wind)
+        go(Screen.Activitat)
+        loadWindActivity()
+    }
+
+    /** Obre el xat del vent; una novetat, pel seu missatge (com des de l'avís) i llegida a tot arreu. */
+    fun openWindActivityItem(item: WindActivityItem) {
+        if (item.kind == "news" && item.ref.isNotBlank()) {
+            _windActivity.value = _windActivity.value.let { f -> f.copy(items = f.items.map { if (it == item) it.copy(status = "read") else it }) }
+            val source = _conn.value
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    val api = source.api()
+                    AvuiJson.novetat(api.get("/api/winds/novetats?id=" + java.net.URLEncoder.encode(item.ref, "UTF-8")).toString())
+                        ?.let { MessageFocus.open("wind:" + item.wind, it.messageId) }
+                    api.post("/api/winds/novetats/read", JSONObject().put("ids", JSONArray().put(item.ref)))
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    // Sense xarxa o servidor antic: el xat s'obre pel final i, obert, el fil marca llegides les novetats del vent.
+                }
+            }
+        }
+        openVentsChat("wind:" + item.wind)
+    }
+
+    /** La primera pàgina de nou o, amb `older`, la següent de més velles (`before` = l'«at» de l'última). */
+    fun loadWindActivity(older: Boolean = false) {
+        val cur = _windActivity.value
+        if (cur.loading || (older && (!cur.more || cur.items.isEmpty()))) return
+        val before = if (older) cur.items.last().at else ""
+        val source = _conn.value; val epoch = companionEpoch
+        _windActivity.value = cur.copy(loading = true, error = null)
+        viewModelScope.launch {
+            try {
+                val got = withContext(Dispatchers.IO) { source.api().getWindActivity(cur.wind, before, WIND_ACTIVITY_PAGE) }
+                if (!isCompanionOrigin(source, epoch) || _windActivity.value.wind != cur.wind) return@launch
+                _windActivity.value = _windActivity.value.copy(items = if (older) cur.items + got else got, loading = false, loaded = true,
+                    more = got.size == WIND_ACTIVITY_PAGE)
+            } catch (e: Exception) {
+                if (!isCompanionOrigin(source, epoch) || _windActivity.value.wind != cur.wind) return@launch
+                _windActivity.value = _windActivity.value.copy(loading = false, loaded = true, error = e.message ?: "error")
             }
         }
     }
@@ -5054,36 +5259,36 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
      *  i parla només si troba novetats que valguin la pena. El vent es
      *  reprograma ell sol per quan acabi el proper esdeveniment del seu
      *  tema (partit, llançament…): el primer cop corre ara i ell decideix
-     *  quan mirar altra vegada. L'id és wind-<vent>: el backend el tracta. */
+     *  quan mirar altra vegada. L'id el tria el backend (amb comptes, un cor
+     *  per compte): aquí es fa servir el que torna. */
     fun ensureWindHeartbeat(wind: Wind, on: Boolean, onDone: (Boolean) -> Unit = {}) {
         val source = _conn.value; val epoch = companionEpoch
         viewModelScope.launch {
             try {
                 val api = source.api()
-                val jobId = "wind-" + wind.id
                 val jobs = withContext(Dispatchers.IO) { api.getJobs() }
-                val existing = jobs.firstOrNull { it.id == jobId }
+                val existing = jobs.firstOrNull { it.isHeartbeatOf(wind.id) }
                 if (on && existing == null) {
                     withContext(Dispatchers.IO) {
-                        api.saveJob(JobItem(
-                            id = jobId,
+                        val saved = api.saveJob(JobItem(
+                            id = "", wind = wind.id,
                             name = appText("app.company.windHeartbeatName", wind.name),
                             prompt = "Cor de " + wind.name + ": vigila el tema «" + wind.role + "» i parla només si trobes novetats que valguin la pena.",
                             kind = "event", time = "",
                             enabled = true, notify = true,
                         ))
                         // Primera mirada ara: el mateix vent programa la següent.
-                        api.runJob(jobId)
+                        api.runJob(saved.id)
                     }
                 } else if (on && existing != null && !existing.enabled) {
                     withContext(Dispatchers.IO) { api.saveJob(existing.copy(enabled = true)) }
                 } else if (!on && existing != null) {
-                    withContext(Dispatchers.IO) { api.deleteJob(jobId) }
+                    withContext(Dispatchers.IO) { api.deleteJob(existing.id) }
                 }
                 if (!isCompanionOrigin(source, epoch)) return@launch
                 val current = withContext(Dispatchers.IO) { api.getJobs() }
                 if (!isCompanionOrigin(source, epoch)) return@launch
-                check(if (on) current.any { it.id == jobId && it.enabled } else current.none { it.id == jobId }) {
+                check(if (on) current.any { it.isHeartbeatOf(wind.id) && it.enabled } else current.none { it.isHeartbeatOf(wind.id) }) {
                     "Heartbeat state could not be verified"
                 }
                 _jobs.value = current
@@ -5102,6 +5307,18 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val (persona, style) = withContext(Dispatchers.IO) { source.api().suggestWind(name, role) }
                 if (isCompanionOrigin(source, epoch)) onDone(persona, style)
+            } catch (e: Exception) {
+                if (isCompanionOrigin(source, epoch)) { companyError(e); onError() }
+            }
+        }
+    }
+
+    internal fun describeWind(description: String, onError: () -> Unit, onDone: (SuggestDto) -> Unit) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val wind = withContext(Dispatchers.IO) { source.api().describeWind(description) }
+                if (isCompanionOrigin(source, epoch)) onDone(wind)
             } catch (e: Exception) {
                 if (isCompanionOrigin(source, epoch)) { companyError(e); onError() }
             }
@@ -5677,7 +5894,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 val list = withContext(Dispatchers.IO) { source.api().windThreads() }
-                if (_conn.value == source) _windThreads.value = list
+                if (_conn.value == source) _windThreads.value = newestFirst(list)
             } catch (_: Exception) {
                 // Sense llista, la portada només ensenya els vents.
             }
@@ -5722,6 +5939,15 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun resumeWindThread(windId: String, name: String) {
         if (windId !in _windBusy.value) selectWindThread(windId, name, null)
         openVentsChat("wind:$windId")
+    }
+
+    /**
+     * Tocar un vent a la portada: reprèn el seu fil més recent o, si encara no
+     * en té, el seu xat de sempre. Abans cada toc creava una sessió buida.
+     */
+    fun openWindFromHome(windId: String) {
+        val latest = _windThreads.value.firstOrNull { it.wind == windId }
+        if (latest != null) resumeWindThread(windId, latest.name) else openVentsChat("wind:$windId")
     }
 
     /** Fa de [name] el fil del vent abans d'obrir-lo; amb [history] null, el fil es buida fins que arriba. */
@@ -5822,8 +6048,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     !_windBusy.value.contains(windId)) {
                     if (thread.isNotEmpty()) selectedWindThreads[windId] = thread
                     windNew.fromServer(windId, history.size)
-                    _windChat.value = _windChat.value + (windId to OfflineLogic.withQueued(
-                        ventsRecency.restore(source, "wind", windId, history), _outbox.value, windId))
+                    _windChat.value = _windChat.value + (windId to OfflineLogic.withQueued(OfflineLogic.withDocCards(
+                        _windChat.value[windId].orEmpty(), ventsRecency.restore(source, "wind", windId, history)), _outbox.value, windId))
                     cacheChat(source, windId)
                 }
             } catch (e: Exception) {
@@ -6097,7 +6323,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                                     dropStreamingBubble(windId)
                                 }
                                 is GregalApi.WindStreamEvent.Activity -> {
-                                    live(windId) { it.copy(phase = e.phase, tool = e.tool, step = e.step, writing = false) }
+                                    val asking = e.winds.mapNotNull { id -> _winds.value.firstOrNull { it.id == id } }
+                                    live(windId) { it.copy(phase = e.phase, tool = e.tool, step = e.step, writing = false, asking = asking) }
                                 }
                                 is GregalApi.WindStreamEvent.Token -> {
                                     buf.append(e.token)?.let { text ->
@@ -6204,7 +6431,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                                     dropStreamingBubble(windId)
                                 }
                                 is GregalApi.WindStreamEvent.Activity -> {
-                                    live(windId) { it.copy(phase = e.phase, tool = e.tool, step = e.step, writing = false) }
+                                    val asking = e.winds.mapNotNull { id -> _winds.value.firstOrNull { it.id == id } }
+                                    live(windId) { it.copy(phase = e.phase, tool = e.tool, step = e.step, writing = false, asking = asking) }
                                 }
                                 is GregalApi.WindStreamEvent.Token -> {
                                     buf.append(e.token)?.let { text ->
@@ -6220,7 +6448,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         dropStreamingBubble(windId)
                         // La parcial es fusiona amb l'anterior: un sol missatge.
                         val cur = _windChat.value[windId].orEmpty()
-                        val idx = cur.indexOfLast { it.from == "pet" && !it.streaming }
+                        val idx = cur.indexOfLast { it.from == "pet" && !it.streaming && it.kind != "doc" }
                         val merged = if (idx >= 0) {
                             cur.toMutableList().also { it[idx] = it[idx].copy(text = it[idx].text + r.text, parcial = r.parcial) }
                         } else cur + PetMsg("pet", r.text, parcial = r.parcial)
@@ -6245,7 +6473,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     val r = withContext(Dispatchers.IO) { source.api().windChat(windId, "", cont = true, session = thread) }
                     if (isCompanionOrigin(source, epoch)) {
                         val cur = _windChat.value[windId].orEmpty()
-                        val idx = cur.indexOfLast { it.from == "pet" && !it.streaming }
+                        val idx = cur.indexOfLast { it.from == "pet" && !it.streaming && it.kind != "doc" }
                         val merged = if (idx >= 0) {
                             cur.toMutableList().also { it[idx] = it[idx].copy(text = it[idx].text + r.text, parcial = r.parcial) }
                         } else cur + PetMsg("pet", r.text, parcial = r.parcial)
@@ -6479,7 +6707,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                       val relatedRunId: Long = 0L,
                       val resultRefs: List<String> = emptyList(),
                       /** Captures del que ha fet a l'ordinador en aquest torn («Ho he fet així»). */
-                      val shots: List<MsgShot> = emptyList()) {
+                      val shots: List<MsgShot> = emptyList(),
+                      /** kind "doc": el document que el vent ha escrit, per a la targeta. */
+                      val doc: DocRef? = null,
+                      /** Un encàrrec que un altre vent ha passat a aquest: qui el demana. */
+                      val by: MsgBy? = null) {
         val proactive: Boolean get() = from != "user" && id.isNotBlank() && (relatedRunId > 0 || resultRefs.isNotEmpty())
     }
 
@@ -6564,51 +6796,105 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // --- documents vius del projecte (Docs.kt, DocScreen.kt) ---
+    // --- Gregal Docs: documents vius (Docs.kt, DocScreen.kt) ---
 
     private val _docs = MutableStateFlow(listOf<DocRef>())
     val docs: StateFlow<List<DocRef>> = _docs
-    private val _docId = MutableStateFlow("")
-    val docId: StateFlow<String> = _docId
+    private val _myDocs = MutableStateFlow(listOf<DocRef>())
+    val myDocs: StateFlow<List<DocRef>> = _myDocs
+    private val _docOpen = MutableStateFlow<DocRef?>(null)
+    val docOpen: StateFlow<DocRef?> = _docOpen
     private val _doc = MutableStateFlow<LiveDoc?>(null)
     val doc: StateFlow<LiveDoc?> = _doc
 
-    fun openDoc(id: String) {
-        _docId.value = id
+    /** L'inici de Gregal Docs, sense cap document obert. */
+    fun openDocsHome() {
+        _docOpen.value = null
         go(Screen.Docs)
     }
 
-    fun loadDocs() {
+    fun openDoc(d: DocRef) {
+        _docOpen.value = d
+        go(Screen.Docs)
+    }
+
+    /** «Els meus documents» i, si [project], els del projecte de la sessió. */
+    fun loadDocs(project: Boolean) {
+        docsProject = project
         viewModelScope.launch {
             try {
-                _docs.value = withContext(Dispatchers.IO) { DocsJson.list(_conn.value.api().get("/api/docs").toString()) }
+                val api = _conn.value.api()
+                _myDocs.value = withContext(Dispatchers.IO) { DocsJson.list(api.get("/api/docs?scope=mine").toString(), "mine") }
+                _docs.value = if (!project) emptyList() else withContext(Dispatchers.IO) { DocsJson.list(api.get("/api/docs").toString()) }
             } catch (e: Exception) { notify(appText("docs.error", e.message.orEmpty())) }
+        }
+    }
+
+    private var docsProject = false
+
+    /** Un `doc_changed` mentre es mira Gregal Docs: la llista es torna a llegir, i el document nou hi surt. */
+    private fun docsChanged() {
+        if (_screen.value == Screen.Docs) loadDocs(docsProject)
+    }
+
+    /** «Document nou» (o, amb [kind] "sheet" o "deck", «Full de càlcul nou» o «Presentació nova») a «Els meus documents», obert per escriure-hi. */
+    fun newDoc(title: String, kind: String = "doc") {
+        viewModelScope.launch {
+            try {
+                val untitled = appText(when (kind) { "sheet" -> "docs.untitledSheet"; "deck" -> "docs.untitledDeck"; else -> "docs.untitled" })
+                val (code, body) = withContext(Dispatchers.IO) { _conn.value.api().sendDoc(docCreateRequest(title.trim().ifEmpty { untitled }, kind)) }
+                if (code != 200) {
+                    notify(appText("docs.createError", runCatching { JSONObject(body).optString("error") }.getOrNull().orEmpty().ifBlank { "HTTP $code" }))
+                    return@launch
+                }
+                val d = DocsJson.doc(body)
+                openDoc(DocRef(d.id, d.title, d.kind, "mine"))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) { notify(appText("docs.createError", e.message.orEmpty())) }
         }
     }
 
     /**
      * Segueix el document mentre la pantalla el mira: obre el stream, llegeix
      * el document amb les capçaleres ja rebudes (com doc-view.js) i hi aplica
-     * els events. Si el stream cau o el servidor el tanca, torna a començar.
+     * els events. Si el stream cau, el servidor el tanca o respon un 5xx mentre
+     * es reinicia, torna a començar, i el que es mirava (pestanya, editor) es queda.
+     * Un document de text el segueix la pàgina de la web amb el seu stream: aquí només es llegeix.
      */
-    suspend fun followDoc(id: String) {
+    suspend fun followDoc(ref: DocRef) {
         val job = currentCoroutineContext().job
+        val id = ref.id
         _doc.value = null
         while (true) {
             try {
-                withContext(Dispatchers.IO) {
+                val web = withContext(Dispatchers.IO) {
                     val api = _conn.value.api()
-                    val path = "/api/docs/" + Uri.encode(id)
-                    api.streamGet("$path/stream", onOpen = { DocsJson.doc(api.get(path).toString()).let { d -> job.ensureActive(); _doc.value = d } }) { ev ->
-                        // El ping de cada 15 s deixa plegar el fil quan es tanca la pantalla.
+                    val read = {
+                        val d = DocsJson.doc(api.get(docPath(ref)).toString()).copy(scope = ref.scope)
+                        job.ensureActive()
+                        _doc.update { it?.kept(d) ?: d }
+                    }
+                    // La targeta d'un doc_changed no diu el tipus: cal llegir-lo abans d'obrir el stream.
+                    if (_doc.value?.id != id) read()
+                    if (_doc.value?.inWebEditor == true) return@withContext true
+                    api.streamGet(docPath(ref, "/stream"), onOpen = read) { ev ->
                         job.ensureActive()
                         if (ev.name == "block") DocsJson.change(ev.data)?.let { c -> _doc.update { if (it?.id == id) it.apply(c) else it } }
                     }
+                    false
                 }
+                if (web) return
             } catch (e: CancellationException) {
                 throw e
             } catch (_: java.io.IOException) {
                 // La xarxa ha caigut: es torna a connectar.
+            } catch (e: ApiException) {
+                // Un 502/503 és el servidor que es reinicia: es torna a provar. La resta no es resoldrà sola.
+                if (!e.message.orEmpty().startsWith("HTTP 5")) {
+                    notify(appText("docs.error", e.message.orEmpty()))
+                    return
+                }
             } catch (e: Exception) {
                 notify(appText("docs.error", e.message.orEmpty()))
                 return
@@ -6617,15 +6903,84 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun editDocBlock(id: String) = _doc.update { if (it?.edit == null) it?.open(id) else it }
+    fun editDocBlock(id: String) = leaveEdit { it.open(id) }
 
     fun typeDocBlock(text: String) = _doc.update { it?.typed(text) }
 
+    fun showSheet(id: String) = leaveEdit { it.showSheet(id) }
+
+    fun editCell(sheet: String, cell: String) = leaveEdit { it.openCell(sheet, cell) }
+
+    /**
+     * Una altra diapositiva, cel·la o pestanya: el que s'editava es desa abans (sense canvis, només es tanca)
+     * i després es va on s'ha tocat. Amb un conflicte a la vista o mentre es desa, no es mou res.
+     */
+    private fun leaveEdit(next: (LiveDoc) -> LiveDoc) {
+        val d = _doc.value ?: return
+        val e = d.edit
+        when {
+            e == null -> _doc.update { cur -> if (cur?.id == d.id && cur.edit == null) next(cur) else cur }
+            e.saving || e.conflict != null -> {}
+            d.saveRequest() == null -> _doc.update { cur -> if (cur?.id == d.id && cur.edit == e) next(cur.skipped().doc) else cur }
+            else -> sendDocEdit({ cur, _ -> next(cur) }) { it.saveRequest() }
+        }
+    }
+
+    fun typeSlideField(key: String, value: String) = _doc.update { it?.typedField(key, value) }
+
+    fun chooseSlideLayout(layout: String) = _doc.update { it?.chooseLayout(layout) }
+
+    /** «Full nou» al final del full de càlcul obert. */
+    fun addSheet() {
+        val d = _doc.value ?: return
+        viewModelScope.launch {
+            try {
+                val (code, body) = withContext(Dispatchers.IO) { _conn.value.api().sendDoc(d.addSheetRequest(appText("docs.sheetName"))) }
+                var out: DocSaved? = null
+                _doc.update { cur -> if (cur?.id == d.id) cur.sheetAdded(code, body).also { out = it }.doc else cur }
+                out?.error?.let { notify(appText("docs.sheetError", it)) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) { notify(appText("docs.sheetError", e.message.orEmpty())) }
+        }
+    }
+
+    /** Cancel·la el formulari d'una diapositiva sense desar-lo. */
+    fun cancelDocEdit() = _doc.update { if (it?.edit?.saving == false) it.skipped().doc else it }
+
+    /** «Diapositiva nova» del [layout] després de l'actual; se n'obre el formulari, com a deck-view.js. */
+    fun addSlide(layout: String) {
+        val d = _doc.value ?: return
+        if (d.edit?.saving == true) return
+        val after = d.slideAfter
+        viewModelScope.launch {
+            try {
+                val (code, body) = withContext(Dispatchers.IO) { _conn.value.api().sendDoc(d.addSlideRequest(after, layout)) }
+                var out: DocSaved? = null
+                _doc.update { cur -> if (cur?.id == d.id && cur.edit?.saving != true) cur.skipped().doc.slideAdded(after, code, body).also { out = it }.doc else cur }
+                out?.error?.let { notify(appText("docs.slideError", it)) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) { notify(appText("docs.slideError", e.message.orEmpty())) }
+        }
+    }
+
+    /** «Esborra la diapositiva» oberta, amb el mateix 409 que en desar. */
+    fun deleteSlide() = sendDocEdit(null) { it.deleteRequest() }
+
     /** Desa l'editor obert (doc-view.js); amb [addBelow], si es desa, n'obre un de nou a sota. */
-    fun saveDocBlock(addBelow: Boolean) {
+    fun saveDocBlock(addBelow: Boolean) = sendDocEdit(if (addBelow) { cur, at -> cur.openNew(at) } else null) { it.saveRequest() }
+
+    /** Envia [request]; si es desa, [then] rep el document amb l'editor tancat i el bloc desat. */
+    private fun sendDocEdit(then: ((LiveDoc, String) -> LiveDoc)?, request: (LiveDoc) -> DocRequest?) {
         val d = _doc.value ?: return
         if (d.edit?.saving != false) return
-        val req = d.saveRequest()
+        val req = request(d)
+        val failed = when {
+            d.edit?.slide != null -> "docs.slideError"
+            d.edit?.cell.isNullOrEmpty() -> "docs.saveError"
+            else -> "docs.cellError"
+        }
         viewModelScope.launch {
             var out: DocSaved? = null
             if (req == null) {
@@ -6640,13 +6995,13 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 } catch (e: Exception) {
                     // El text es queda a l'editor per tornar-ho a provar.
                     _doc.update { cur -> if (cur?.id == d.id) cur.copy(edit = cur.edit?.copy(saving = false)) else cur }
-                    notify(appText("docs.saveError", e.message.orEmpty()))
+                    notify(appText(failed, e.message.orEmpty()))
                 }
             }
             val s = out ?: return@launch
-            s.error?.let { notify(appText("docs.saveError", it)) }
+            s.error?.let { notify(appText(failed, it)) }
             val at = s.at
-            if (addBelow && at != null) _doc.update { cur -> if (cur?.id == d.id && cur.edit == null) cur.openNew(at) else cur }
+            if (then != null && at != null) _doc.update { cur -> if (cur?.id == d.id && cur.edit == null) then(cur, at) else cur }
         }
     }
 

@@ -22,7 +22,7 @@ focus rings, the active navigation item and links. Semantic colors (success,
 warning, danger, info) are reserved for state. The playful aqua (`onada`) is
 the rare fun touch: mascot, celebrations, retro reactions, autonomous mode.
 In the dark theme elevation is expressed with lighter surfaces
-(`abisme` < `fons` < `night` < `superficieAlta`), not heavy shadows. Body
+(`abisme` = `fons` (black) < `night` < `superficieAlta`), not heavy shadows. Body
 text is at least 4.5:1 (WCAG 2.2 AA) and APCA Lc ≥ 90; even `faint` passes
 4.5:1 on every surface; borders that matter (`boxIdle`) reach 3:1.
 
@@ -33,10 +33,10 @@ text is at least 4.5:1 (WCAG 2.2 AA) and APCA Lc ≥ 90; even `faint` passes
 | `arena` | `#F2B48E` | **warning**, CODE mode |
 | `onada` | `#7FD6C2` | **playful secondary** (aqua): weathervane gusts, celebrations, autonomous mode, diff hunks |
 | `algua` | `#2C3137` | subdued lines, rails and decorative borders |
-| `fons` | `#131518` | main background |
-| `abisme` | `#0E1012` | deeper background: sidebar, panels and code blocks |
-| `night` | `#1A1D21` | raised surfaces: cards, inputs and menus |
-| `superficieAlta` | `#24282D` | hovered or selected surface (highest elevation) |
+| `fons` | `#000000` | main background: true black, so AMOLED screens switch the pixels off |
+| `abisme` | `#000000` | sidebar, panels and code blocks: the same black, set apart by hairlines |
+| `night` | `#121417` | raised surfaces: cards, inputs and menus |
+| `superficieAlta` | `#1C1F23` | hovered or selected surface (highest elevation) |
 | `text` | `#DEE2E7` | primary text, including assistant responses |
 | `ink` | `#F2F4F7` | strong text: headings and brand name |
 | `slate` | `#A7AEB8` | muted text: metadata and descriptions |
@@ -48,7 +48,7 @@ text is at least 4.5:1 (WCAG 2.2 AA) and APCA Lc ≥ 90; even `faint` passes
 
 Web hairlines (`--line`, `--line-hi`, `--codi-vora`) are a cool gray
 (`#C9D1E6`) at 10% and 20% opacity, not the accent: the accent stays scarce.
-On the accent, text is `fons` (dark on the light blue, 6.6:1).
+On the accent, text is `fons` (black on the light blue, 8:1).
 
 ## Paleta clara (Light Palette)
 

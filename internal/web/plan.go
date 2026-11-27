@@ -156,11 +156,11 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 		rawEmit(kind, text)
 	}
 	var step atomic.Int32
-	activity := func(phase, tool string) {
+	activity := func(phase, tool string, winds ...string) {
 		if !stream {
 			return
 		}
-		b, _ := json.Marshal(windActivity{Phase: phase, Tool: tool, Step: int(step.Load())})
+		b, _ := json.Marshal(windActivity{Phase: phase, Tool: tool, Step: int(step.Load()), Winds: winds})
 		emit("activity", string(b))
 	}
 	modelContext := func(ctx context.Context) context.Context {
@@ -261,8 +261,17 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			if tools.EsNativa(name) && len(name) <= 64 {
 				tool = name
 			}
-			activity("tool", tool)
+			// A qui pregunta l'eina wind només ho sap runWindTool, un cop resolts
+			// els vents (winds_consult.go); si no n'arriba a resoldre cap, el pas
+			// surt igualment, sense vents.
+			var announced sync.Once
+			if name == "wind" && windIsMainCtx(ctx) {
+				ctx = withWindAsking(ctx, func(ids []string) { announced.Do(func() { activity("tool", tool, ids...) }) })
+			} else {
+				announced.Do(func() { activity("tool", tool) })
+			}
 			defer activity("tool_done", tool) // returned, not necessarily succeeded
+			defer announced.Do(func() { activity("tool", tool) })
 			// Una pregunta del vent, amb opcions que la persona toca (o text lliure).
 			if name == "question" && canAsk {
 				if _, _, err := tools.ParseQuestion(argsJSON); err != nil {
@@ -310,10 +319,20 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			// Apps, publicar: les fa el servidor web, no el paquet agent.
 			if name == "app" || name == "publish" || name == "tunnel" || name == "calendar" || name == "mail" || name == "notes" || name == "connector" {
 				out, err := s.runBuildTool(ctx, scope.workspace, name, argsJSON)
+				if err == nil {
+					s.noteWindOutput(ctx, name, argsJSON, out)
+				}
 				return out, nil, err
 			}
 			dirs := append([]string{}, agent.SkillsDirsOf(ctx)...)
 			dirs = append(dirs, s.userSkillsDirs()...)
+			if d := windDocsOf(ctx); d != "" && name == "doc" {
+				out, imgs, err := s.windDocExec(ctx, d, argsJSON, emit)
+				if err == nil {
+					s.noteWindOutput(ctx, name, argsJSON, out)
+				}
+				return out, imgs, err
+			}
 			cwd := scope.workspace
 			// Un vent crea els documents a la seva carpeta (winds_docs.go).
 			if d := windDocsOf(ctx); d != "" && windDocTool(name) {
@@ -331,6 +350,9 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 				if err != nil {
 					err = errors.New(maskSecrets(err.Error(), secretVals))
 				}
+			}
+			if err == nil && windDocTool(name) {
+				s.noteWindOutput(ctx, name, argsJSON, out)
 			}
 			return out, imgs, err
 		},
@@ -462,6 +484,12 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 				}
 				return "allow", "eina del vent"
 			}
+			// Els documents vius del vent són a la seva carpeta, com els altres
+			// documents del vent, i passen sols fins i tot en mode de lectura:
+			// la persona els veu en directe i queden versionats per bloc.
+			if windDocsOf(ctx) != "" && name == "doc" {
+				return "allow", "document viu del vent"
+			}
 			pol := scope.policy
 			// Keep the existing documents scope, but interactive turns must
 			// also respect the selected mode/access and explicit policy rules.
@@ -550,6 +578,10 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			}
 			return decision, reason
 		},
+	}
+	// El que la persona ha canviat als documents vius, com als torns de Codi.
+	if nota, marca := s.windNotaDocs(ctx, scope.workspace); nota != "" {
+		loop.Step = ambNotaDocs(loop.Step, nota, marca)
 	}
 	if spot != nil {
 		loop.Lot = spot.setHist

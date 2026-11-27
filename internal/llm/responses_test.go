@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -138,6 +139,33 @@ func TestResponsesNonStreamingAndErrors(t *testing.T) {
 		out, err := New().Chat(context.Background(), ns.URL+"/v1", "k", "o4", []Message{{Role: "user", Content: "x"}}, 0.7, 100)
 		if err != nil || out != "ok" || len(ns.bodies) != 2 || ns.body(1)["reasoning"] == nil {
 			t.Fatalf("%q %v requests %d", out, err, len(ns.bodies))
+		}
+	})
+	t.Run("rejected retry effort does not turn reasoning off", func(t *testing.T) {
+		ns := newNativeServer(t, ProviderOpenAIResponses, func(w http.ResponseWriter, n int, body map[string]any) {
+			if r, _ := body["reasoning"].(map[string]any); r != nil && r["effort"] == "low" {
+				w.WriteHeader(400)
+				if _, err := io.WriteString(w, `{"error":{"message":"Unsupported value: 'low' is not supported with this model for reasoning.effort.","type":"invalid_request_error","param":"reasoning.effort"}}`); err != nil {
+					t.Error(err)
+				}
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			if _, err := io.WriteString(w, `{"status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"ok"}]}]}`); err != nil {
+				t.Error(err)
+			}
+		})
+		c := New()
+		rol := WithThink(context.Background(), "high")
+		if out, err := c.Chat(menysRaonament(rol), ns.URL+"/v1", "k", "o4", []Message{{Role: "user", Content: "x"}}, 0, 100); err != nil || out != "ok" {
+			t.Fatalf("%q %v", out, err)
+		}
+		if out, err := c.Chat(rol, ns.URL+"/v1", "k", "o4", []Message{{Role: "user", Content: "x"}}, 0, 100); err != nil || out != "ok" {
+			t.Fatalf("%q %v", out, err)
+		}
+		last := ns.body(len(ns.bodies) - 1)
+		if r, _ := last["reasoning"].(map[string]any); r == nil || r["effort"] != "high" {
+			t.Fatalf("the role's request lost its reasoning after the retry's rejection: %v", last)
 		}
 	})
 	t.Run("incomplete is a LengthError", func(t *testing.T) {

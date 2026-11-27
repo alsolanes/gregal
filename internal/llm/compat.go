@@ -97,8 +97,8 @@ func (c *Client) postCompatNeg(ctx context.Context, baseURL, apiKey string, req 
 		// reasoning_effort amb un valor que el model no admet: el més proper
 		// dels que diu que admet (o «none» si el conflicte és amb les eines).
 		if nou, fix, ok := ajustaEsforc(string(raw), req); ok {
+			c.setEffortFix(clauEsforc(base, req), fix)
 			req = nou
-			c.setEffortFix(base+"|"+req.Model, fix)
 			continue
 		}
 		rebutjats := campsRebutjats(string(raw), req)
@@ -278,7 +278,14 @@ func (c *Client) aplicaAjustos(base string, req chatRequest) chatRequest {
 			req = ambAjust(req, a)
 		}
 	}
-	return ambEsforc(req, c.effortFix(base+"|"+req.Model))
+	return ambEsforc(req, c.effortFix(clauEsforc(base, req)))
+}
+
+// clauEsforc és la clau d'una correcció d'esforç: endpoint, model i valor
+// demanat. Sense el valor, la correcció d'un reintent que demana menys
+// raonament (menysRaonament) s'aplicaria a totes les peticions del rol.
+func clauEsforc(base string, req chatRequest) string {
+	return base + "|" + req.Model + "|" + req.ReasoningEffort
 }
 
 // campKey: reasoning_effort depèn del model (a Foundry, la mateixa URL

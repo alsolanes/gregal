@@ -280,6 +280,14 @@ fun parseInline(src: String): List<Seg> {
                 val rp = s.indexOf(')', rb + 2)
                 if (rp > rb + 2) {
                     val url = s.substring(rb + 2, rp)
+                    // Un esquema que no és web (gregal://docs/… inventat pel
+                    // model): no obre res, així que es queda el text. Correu,
+                    // telèfon i els enllaços entre notes (NOTE_LINK_SCHEME) sí.
+                    if (!isImage && rb > lb + 1 && Regex("^[A-Za-z][A-Za-z0-9+.-]*:").containsMatchIn(url) && !Regex("^(https?://|mailto:|tel:|$NOTE_LINK_SCHEME)", RegexOption.IGNORE_CASE).containsMatchIn(url)) {
+                        buf.append(s, lb + 1, rb)
+                        i = rp + 1
+                        continue
+                    }
                     if (!url.any { it == ' ' || it == '\n' || it == '\t' }) {
                         flush()
                         val label = s.substring(lb + 1, rb)
@@ -548,6 +556,36 @@ fun renderSegs(segs: List<Seg>, codeBg: Color, activity: Boolean = false, link: 
             }
         }
     }
+}
+
+private val blankLineRe = Regex("\\n[ \\t]*\\n\\s*")
+
+/**
+ * Un bloc de text partit pels seus paràgrafs (línia en blanc), sense els salts
+ * de les vores: cada un es pinta com un bloc més de la resposta, amb el mateix
+ * aire que una llista o el codi.
+ */
+fun mdParagraphs(segs: List<Seg>): List<List<Seg>> {
+    // El text arriba a trossos (una línia, un salt): junts, una línia en blanc no queda partida entre dos.
+    val merged = mutableListOf<Seg>()
+    for (seg in segs) {
+        val prev = merged.lastOrNull()
+        if (seg is Seg.Text && prev is Seg.Text) merged[merged.lastIndex] = Seg.Text(prev.t + seg.t) else merged += seg
+    }
+    val out = mutableListOf(mutableListOf<Seg>())
+    for (seg in merged) {
+        if (seg !is Seg.Text) { out.last() += seg; continue }
+        seg.t.split(blankLineRe).forEachIndexed { i, part ->
+            if (i > 0) out += mutableListOf<Seg>()
+            if (part.isNotEmpty()) out.last() += Seg.Text(part)
+        }
+    }
+    return out.map { p ->
+        p.mapIndexed { i, s ->
+            if (s !is Seg.Text) s
+            else Seg.Text(s.t.let { if (i == 0) it.trimStart('\n') else it }.let { if (i == p.lastIndex) it.trimEnd('\n') else it })
+        }.filterNot { it is Seg.Text && it.t.isEmpty() }
+    }.filter { it.isNotEmpty() }
 }
 
 /** Render clàssic des de text (negreta, codi, títols, enllaços, taules). */

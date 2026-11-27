@@ -449,7 +449,7 @@ func (c *Client) anthropicChat(ctx context.Context, baseURL, apiKey, model strin
 			req.Header.Set("Accept", "text/event-stream")
 		}
 	}
-	resp, err := c.postNatiu(ctx, baseURL, model, "/messages", hasMalformedToolArguments(msgs), campsAnthropic, headers, c.anthropicBody(ctx, model, msgs, maxTokens, specs, stream))
+	resp, err := c.postNatiu(ctx, baseURL, model, "/messages", hasMalformedToolArguments(msgs), campsPerEsforc(ctx, campsAnthropic, "output_config"), headers, c.anthropicBody(ctx, model, msgs, maxTokens, specs, stream))
 	if err != nil {
 		return "", nil, err
 	}
@@ -532,7 +532,7 @@ func anthropicWhole(baseURL string, body io.Reader, rec *usageCall, prog *progre
 	prog.delta(ProgressReasoning, reason.String())
 	prog.delta(ProgressText, res.text)
 	for _, tc := range res.calls {
-		prog.delta(ProgressTool, tc.Function.Arguments)
+		prog.eina(tc.Function.Name, tc.Function.Arguments)
 	}
 	if onReason != nil && reason.Len() > 0 {
 		onReason(reason.String())
@@ -655,7 +655,7 @@ func (c *Client) anthropicStream(ctx context.Context, baseURL string, body io.Re
 				b.signature.WriteString(ev.Delta.Signature)
 			case "input_json_delta":
 				b.args.WriteString(ev.Delta.PartialJSON)
-				prog.delta(ProgressTool, ev.Delta.PartialJSON)
+				prog.eina(b.name, ev.Delta.PartialJSON)
 			}
 		case "message_delta":
 			if ev.Delta.StopReason != "" {

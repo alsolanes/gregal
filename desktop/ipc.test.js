@@ -123,6 +123,8 @@ test('a document window opens only for the app page, and gets the token', async 
   assert.equal(await open(trusted, 'abc123', 'default'), true);
   assert.equal(created.length, 1);
   assert.equal(created[0].focused, true);
+  assert.equal(await open(trusted, 'w1', 'default', 'mine'), true);
+  assert.match(created[1].webContents.mainFrame.url, /\/app\/doc\/w1\?session=default&scope=mine$/);
   const doc = created[0].webContents;
   const fromDoc = { sender: doc, senderFrame: doc.mainFrame };
   listeners.get('gregal:connection')(fromDoc);

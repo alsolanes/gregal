@@ -68,10 +68,14 @@ func petHistoryJSON(history []llm.Message) []map[string]any {
 		if m.Kind == memoryKind {
 			row["kind"] = memoryKind
 		}
-		// Un altre vent convidat al fil (winds_invite.go): la seva cara i el seu nom.
-		if m.Kind == guestKind {
-			row["kind"] = guestKind
+		// Un altre vent convidat al fil (winds_invite.go) o consultat (winds_consult.go): la seva cara i el seu nom.
+		if m.Kind == guestKind || m.Kind == consultKind {
+			row["kind"] = m.Kind
 			row["speaker_id"], row["speaker_name"] = m.SpeakerID, m.SpeakerName
+		}
+		// Un encàrrec d'un altre vent (o de Gregal) amb l'eina wind.
+		if m.Role == "user" && m.SpeakerID != "" {
+			row["by"] = map[string]string{"id": m.SpeakerID, "name": m.SpeakerName}
 		}
 		if m.Ts > 0 {
 			row["ts"] = m.Ts

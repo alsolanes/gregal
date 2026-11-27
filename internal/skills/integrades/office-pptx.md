@@ -7,7 +7,9 @@ description: Professional PowerPoint decks: layouts, design rules, templates and
 
 1. **Plan the story first**: one message per slide. 6–12 slides for most decks.
    Title → agenda/context → sections → conclusion/next steps → closing.
-2. **Create** with `office_create` and a `spec` (JSON). Prefer the spec over
+2. **Create** a new presentation as a live deck with the `doc` tool and
+   `kind:"deck"`, one slide per block; it exports to PowerPoint. Make a .pptx
+   with `office_create` and a `spec` (JSON) only from a .potx/.pptx template or a document the person attached. Prefer the spec over
    markdown: it gives every slide a real layout.
 3. **Render** with `office_render`. Look at every thumbnail, then at full size
    (`pages="N"`) any slide that looks dense, empty or odd.

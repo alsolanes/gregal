@@ -53,6 +53,23 @@ private val windBodies: Map<WindShape, Path> by lazy {
     mapOf(WindShape.BALL to circle(0f, 0f, 1f), WindShape.CLOUD to cloud, WindShape.SPIRAL to circle(0f, 0f, 1f))
 }
 
+/**
+ * La silueta de Cares per a la forma `o` i la `s` (amb el rínxol): un còdol
+ * de plastilina, de cap rodó i espatlles amples, assegut pla a terra. El
+ * mateix camí que `pebble` a winds.js (110), en radis del cap (R 33, centre
+ * 40, 40.5); el núvol continua sent [windBodies].
+ */
+private val windPebble by lazy {
+    Path().apply {
+        moveTo(0f, -.939f)
+        cubicTo(.758f, -.939f, 1.045f, -.5f, 1.045f, .076f)
+        cubicTo(1.045f, .652f, .667f, .939f, 0f, .939f)
+        cubicTo(-.667f, .939f, -1.045f, .652f, -1.045f, .076f)
+        cubicTo(-1.045f, -.5f, -.758f, -.939f, 0f, -.939f)
+        close()
+    }
+}
+
 /** Fins on arriba cada silueta des del centre de la vora de llum: la vora en cenyeix el contorn. */
 private val rimReach = mapOf(WindShape.BALL to 1.32f, WindShape.CLOUD to 1.62f, WindShape.SPIRAL to 1.32f)
 
@@ -99,23 +116,73 @@ internal class WindBodyPaint(shape: WindShape, accent: Color, tx: Float = 0f, ty
     val shine = Brush.radialGradient(
         0f to Color.White.copy(alpha = .28f), 1f to Color.Transparent, center = light, radius = .5f,
     )
+    // Plastilina de Cares, les capes de `face` a winds.js: un fosc que gira la
+    // banda allunyada de la llum, la base que s'enfosqueix on toca els peus, una
+    // vora de llum rebotada, un setí suau i una lluentor ampla i tova, no un punt.
+    val core = lerp(accent, Color(0xFF1B1530), .6f)
+    val shade = Brush.radialGradient(
+        .4f to core.copy(alpha = 0f), .78f to core.copy(alpha = .5f), .93f to core.copy(alpha = .38f), 1f to core.copy(alpha = .18f),
+        center = light, radius = 1.7f,
+    )
+    val occlusion = Brush.radialGradient(0f to core.copy(alpha = .75f), 1f to deep.copy(alpha = 0f), center = Offset.Zero, radius = 1f)
+    private val glow = lerp(accent, Color.White, .5f)
+    val caresRim = Brush.radialGradient(
+        .8f to glow.copy(alpha = 0f), 1f to glow.copy(alpha = .55f),
+        center = Offset(-.22f - tx * .10f, -.26f - ty * .10f), radius = rimReach.getValue(shape),
+    )
+    val sheen = Brush.radialGradient(0f to Color.White.copy(alpha = .3f), 1f to Color.Transparent, center = light, radius = .65f)
+    val spec = Brush.radialGradient(0f to Color.White.copy(alpha = .7f), .45f to Color.White.copy(alpha = .4f), 1f to Color.Transparent,
+        center = Offset.Zero, radius = 1f)
+    val groundGlow = Brush.radialGradient(0f to ground.copy(alpha = .5f), 1f to ground.copy(alpha = 0f), center = Offset.Zero, radius = 1f)
 }
 
-internal fun DrawScope.drawWindBody(shape: WindShape, paint: WindBodyPaint, cx: Float, cy: Float, r: Float, sway: Float = 0f) {
-    val body = windBodies.getValue(shape)
+/**
+ * Un cos de Cares en radis del cap (R 33 de la caixa de 80, centre 40, 40.5):
+ * peus (que trepitgen amb [stepL] i [stepR], en radis, cap amunt negatiu), el
+ * rínxol de la ratxa, la silueta i la plastilina. L'ombra a terra només a la
+ * figura gran ([ground]), com al web.
+ */
+internal fun DrawScope.drawWindBody(shape: WindShape, paint: WindBodyPaint, cx: Float, cy: Float, r: Float, sway: Float = 0f,
+    ground: Boolean = true, stepL: Float = 0f, stepR: Float = 0f) {
     withTransform({ translate(cx, cy); scale(r, r, Offset.Zero) }) {
-        withTransform({ scale(1f, .2f, paint.foot) }) {
-            drawCircle(paint.shadow, radius = .8f, center = paint.foot)
+        if (ground) withTransform({ translate(0f, .967f); scale(.697f, .133f, Offset.Zero) }) { drawCircle(paint.groundGlow, 1f, Offset.Zero) }
+        drawOval(paint.deep, topLeft = Offset(-.66f, .764f + stepL), size = Size(.43f, .224f))
+        drawOval(paint.deep, topLeft = Offset(.23f, .764f + stepR), size = Size(.43f, .224f))
+        // El rínxol es gronxa una mica amb l'aire (sway, en graus) des de l'arrel;
+        // el seu camí va centrat a 40, no a 40.5.
+        if (shape == WindShape.SPIRAL) withTransform({ translate(0f, -.015f); rotate(sway, curlRoot) }) { drawPath(windCurl, paint.volume) }
+        // The cloud is drawn at R 30 around (40, 40), as on the web.
+        withTransform({ if (shape == WindShape.CLOUD) { translate(0f, -.015f); scale(30f / 33f, 30f / 33f, Offset.Zero) } }) {
+            val body = if (shape == WindShape.CLOUD) windBodies.getValue(shape) else windPebble
+            drawPath(body, paint.volume)
+            clipPath(body) {
+                drawRect(paint.shade, topLeft = Offset(-1.6f, -1.6f), size = Size(3.2f, 3.2f))
+                withTransform({ translate(0f, .906f); scale(.7f, .24f, Offset.Zero) }) { drawCircle(paint.occlusion, 1f, Offset.Zero) }
+                drawRect(paint.caresRim, topLeft = Offset(-1.6f, -1.6f), size = Size(3.2f, 3.2f))
+                drawCircle(paint.sheen, radius = .65f, center = paint.light)
+            }
         }
-        drawOval(paint.deep, topLeft = Offset(-.66f, .78f), size = Size(.43f, .22f))
-        drawOval(paint.deep, topLeft = Offset(.23f, .78f), size = Size(.43f, .22f))
-        // El rínxol es gronxa una mica amb l'aire (sway, en graus) des de l'arrel.
-        if (shape == WindShape.SPIRAL) withTransform({ rotate(sway, curlRoot) }) { drawPath(windCurl, paint.volume) }
-        drawPath(body, paint.volume)
-        clipPath(body) {
-            drawRect(paint.rim, topLeft = Offset(-1.6f, -1.6f), size = Size(3.2f, 3.2f))
-            drawCircle(paint.shine, radius = .5f, center = paint.light)
-        }
+        withTransform({ translate(-.36f, -.515f); rotate(-35f, Offset.Zero); scale(.27f, .16f, Offset.Zero) }) { drawCircle(paint.spec, 1f, Offset.Zero) }
+    }
+}
+
+/** L'ombra de contacte a terra, en coordenades de radi 1: també la fan els caps d'Esperit i Cap. */
+internal fun DrawScope.drawWindShadow(paint: WindBodyPaint) {
+    withTransform({ scale(1f, .2f, paint.foot) }) {
+        drawCircle(paint.shadow, radius = .8f, center = paint.foot)
+    }
+}
+
+/**
+ * El cos amb llum, vora i brillantor, en coordenades de radi 1. [fill] és el
+ * gradient del cos; la Rosa hi posa la seva esfera fosca.
+ */
+internal fun DrawScope.drawWindVolume(shape: WindShape, paint: WindBodyPaint, fill: Brush = paint.volume) {
+    val body = windBodies.getValue(shape)
+    drawPath(body, fill)
+    clipPath(body) {
+        drawRect(paint.rim, topLeft = Offset(-1.6f, -1.6f), size = Size(3.2f, 3.2f))
+        drawCircle(paint.shine, radius = .5f, center = paint.light)
     }
 }
 

@@ -4,10 +4,10 @@ const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
 
-function load({ bridge = null, confirmed = true, language = 'en' } = {}) {
+function load({ bridge = null, confirmed = true, language = 'en', gearKey } = {}) {
   const labels = {
     en: {
-      'prefs.title': 'Preferences', 'prefs.update.notice': 'An update is available',
+      'prefs.title': 'Preferences', 'nav.settings': 'Settings', 'prefs.update.notice': 'An update is available',
       'prefs.update.restart': 'Update to {version}', 'prefs.update.installing': 'Installing the update…',
       'prefs.update.version': 'Gregal version', 'prefs.update.idle': 'Check whether a newer version is available.',
       'prefs.update.check': 'Check for updates', 'prefs.update.checking': 'Checking for updates…',
@@ -21,7 +21,7 @@ function load({ bridge = null, confirmed = true, language = 'en' } = {}) {
       'prefs.update.reason.development': 'Development builds cannot update from the app.',
     },
     ca: {
-      'prefs.title': 'Preferències', 'prefs.update.notice': 'Hi ha una actualització disponible',
+      'prefs.title': 'Preferències', 'nav.settings': 'Configuració', 'prefs.update.notice': 'Hi ha una actualització disponible',
       'prefs.update.version': 'Versió de Gregal', 'prefs.update.idle': 'Comprova si hi ha una versió més nova.',
       'prefs.update.check': 'Comprova si hi ha actualitzacions', 'prefs.update.checking': 'Comprovant…',
       'prefs.update.available': 'La versió {version} està disponible.', 'prefs.update.download': 'Baixa l’actualització',
@@ -33,7 +33,7 @@ function load({ bridge = null, confirmed = true, language = 'en' } = {}) {
       'prefs.update.releases': 'Obre les versions oficials', 'prefs.update.busy': 'Un moment…',
     },
   };
-  const button = { classList: { toggle() {} }, setAttribute() {}, title: '', click() { this.clicked = true; } };
+  const button = { classList: { toggle() {} }, dataset: gearKey ? { i18nTitle: gearKey } : {}, attributes: {}, setAttribute(k, v) { this.attributes[k] = v; }, title: '', click() { this.clicked = true; } };
   const notice = { hidden: true, setAttribute() {} };
   const noticeText = { textContent: '' };
   const document = {
@@ -124,4 +124,17 @@ test('update messages follow the selected language', () => {
   updates.bridge = { version: '1.7.2' };
   updates.setStatus({ state: 'available', mode: 'automatic', version: '1.7.3' });
   assert.match(updates.content(), /La versió 1\.7\.3 està disponible/);
+});
+
+// A Vents l'engranatge porta a Configuració (winds-workspace.js li canvia la clau):
+// quan l'actualització passa, torna a dir el que diu la seva clau, no «Preferències».
+test('after an update the gear goes back to the label of its own key', () => {
+  for (const [language, gearKey, label] of [['en', 'nav.settings', 'Settings'], ['ca', 'nav.settings', 'Configuració'], ['en', undefined, 'Preferences']]) {
+    const { updates, button } = load({ language, gearKey });
+    updates.setStatus({ state: 'ready', version: '1.14.0' });
+    assert.equal(button.title, language === 'ca' ? 'Hi ha una actualització disponible' : 'An update is available');
+    updates.setStatus({ state: 'up-to-date' });
+    assert.equal(button.title, label, language + ' ' + gearKey);
+    assert.equal(button.attributes['aria-label'], label);
+  }
 });

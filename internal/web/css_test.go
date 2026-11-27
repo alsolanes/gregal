@@ -93,3 +93,34 @@ func TestCapHexFosaDelBlocGenerat(t *testing.T) {
 		t.Fatalf("hex solts a index.html: %s — passa'ls a var(--…)", strings.Join(solts, ", "))
 	}
 }
+
+// calma.css repinta el fosc a mà (no és el bloc generat); les superfícies
+// han de ser les de tema.Fosc() perquè el fosc sigui negre de debò.
+func TestCalmaFoscSegueixElTema(t *testing.T) {
+	_, this, _, _ := runtime.Caller(0)
+	raw, err := os.ReadFile(filepath.Join(filepath.Dir(this), "app", "calma.css"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	css := string(raw)
+	bloc := func(sel string) string {
+		i := strings.Index(css, sel)
+		if i < 0 {
+			t.Fatalf("calma.css no té %s", sel)
+		}
+		return css[i : i+strings.Index(css[i:], "}")]
+	}
+	f := tema.Fosc()
+	base := bloc(`:root, :root[data-theme="dark"] {`)
+	for nom, vol := range map[string]string{
+		"--bg": f.Fons, "--sidebar": f.Abisme, "--panel": f.Abisme,
+		"--surface": f.Night, "--surface-hi": f.SuperficieAlta, "--codi-fons": f.Abisme,
+	} {
+		if !strings.Contains(base, nom+":"+vol+";") {
+			t.Errorf("calma.css: %s hauria de ser %s", nom, vol)
+		}
+	}
+	if !strings.Contains(bloc(`:root[data-theme="dark"] { --composer`), "--composer:"+f.Night+";") {
+		t.Errorf("calma.css: --composer del fosc hauria de ser %s", f.Night)
+	}
+}

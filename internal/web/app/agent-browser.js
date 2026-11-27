@@ -132,7 +132,7 @@ const CSS = `
 #agentBrowser .ab-done:hover{filter:brightness(1.1)}
 #agentBrowser .ab-cancel{border:1px solid var(--line-hi);background:transparent;color:var(--ink)}
 #agentBrowser .ab-cancel:hover{background:var(--surface-hi)}
-#agentBrowser .ab-view{flex:1;min-height:0;margin:4px 10px 8px;border:1px solid var(--line-hi);border-radius:12px;overflow:hidden;background:#fff;position:relative}
+#agentBrowser .ab-view{flex:1;min-height:0;margin:4px 10px 8px;border:1px solid var(--line-hi);border-radius:12px;overflow:hidden;background:var(--bg);position:relative}
 #agentBrowser.handoff .ab-view{border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-soft)}
 .agent-browser-view{position:absolute;inset:0;width:100%;height:100%;border:0}
 #agentBrowser .ab-note{padding:0 12px 8px;color:var(--faint);font-size:11px;line-height:1.4}

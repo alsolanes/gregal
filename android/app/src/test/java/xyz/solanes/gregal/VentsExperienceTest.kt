@@ -122,6 +122,46 @@ class VentsExperienceTest {
         ui.onNodeWithText("Brisa tardana").assertExists()
     }
 
+    /** 159: a wind's empty chat shows it large in clay, as the web does, its trade on a badge. */
+    @Test fun anEmptyWindChatShowsTheWindInClay() {
+        val vm = GregalViewModel(ApplicationProvider.getApplicationContext())
+        vm.openVentsChat("wind:tram")
+        ui.setContent {
+            CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
+                MaterialTheme(colorScheme = LightPal.scheme()) { CompanyScreen(vm, {}) }
+            }
+        }
+        ui.runOnIdle {
+            (GregalViewModel::class.java.getDeclaredField("_winds").apply { isAccessible = true }.get(vm)
+                as kotlinx.coroutines.flow.MutableStateFlow<List<Wind>>).value = listOf(Wind("tram", "Tramuntana", "#A8CDE2", "webs i codi", kit = "frontend"))
+        }
+        ui.waitUntil(5_000) { ui.onAllNodesWithText(tr(vm.idioma.value, "app.vents.emptyChatTitle")).fetchSemanticsNodes().isNotEmpty() }
+        ui.onAllNodes(androidx.compose.ui.test.SemanticsMatcher.keyIsDefined(WindClayKey), useUnmergedTree = true)
+            .fetchSemanticsNodes().let { org.junit.Assert.assertTrue("the empty chat's large face is clay", it.isNotEmpty()) }
+    }
+
+    /** 168: a wind with a pending ask waits on its home face, in clay with its mark, and the face says so in both languages. */
+    @Test fun aWindWithAPendingAskWaitsOnItsHomeFace() {
+        val winds = listOf(Wind("a", "Marinada", "#EFC69A", "calma"), Wind("b", "Xaloc", "#EFA68F", "música"))
+        val lang = mutableStateOf("ca")
+        val waiting = mutableStateOf(setOf("b"))
+        ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
+            MaterialTheme(colorScheme = LightPal.scheme()) {
+                VentsStartPage(lang.value, "Anna", winds, emptyList(), "", {}, busy = false, onSend = {}, onWind = { _, _ -> }, onThread = {}, waiting = waiting.value)
+            }
+        } }
+        val waitingClay = SemanticsMatcher("the clay waiting sheet") { it.config.getOrElseNullable(WindClayKey) { null }?.endsWith("/waiting") == true }
+        fun said(id: String, text: String) = ui.onNodeWithTag("start-wind-$id").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, text))
+        ui.onAllNodes(waitingClay, useUnmergedTree = true).assertCountEquals(1)
+        said("b", "T'espera")
+        said("a", "")
+        ui.runOnIdle { lang.value = "en" }
+        said("b", "Waiting for you")
+        ui.runOnIdle { waiting.value = emptySet() }
+        ui.onAllNodes(waitingClay, useUnmergedTree = true).assertCountEquals(0)
+        said("b", "")
+    }
+
     @Test fun libraryEntryOpensTheRealRecoveryDialog() {
         val vm = vm()
         ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {

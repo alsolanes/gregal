@@ -6,16 +6,21 @@ import (
 	"strings"
 )
 
-// Colors per defecte del terminal pintat (fons fosc, com el TUI).
+// Colors per defecte del terminal pintat (fons fosc, com el TUI). Els
+// per defecte i els 16 bàsics surten com a variables CSS amb el color de
+// sempre de reserva: la pestanya Terminal els canvia segons el tema
+// (--term-fg, --term-bg, --ansi-0 … --ansi-15) i el Kanban es queda igual.
 const (
-	DefaultFG = "#d4d4d4"
-	DefaultBG = "#0f141a"
+	DefaultFG = "var(--term-fg,#d4d4d4)"
+	DefaultBG = "var(--term-bg,#0f141a)"
 )
 
 // base16 és la paleta dels 16 colors bàsics (to semblant al de VS Code).
 var base16 = [16]string{
-	"#1e1e1e", "#e05561", "#8cc265", "#d18f52", "#4aa5f0", "#c162de", "#42b3c2", "#d4d4d4",
-	"#6b737f", "#ff616e", "#a5e075", "#f0a45d", "#4dc4ff", "#de73ff", "#4cd1e0", "#ffffff",
+	"var(--ansi-0,#1e1e1e)", "var(--ansi-1,#e05561)", "var(--ansi-2,#8cc265)", "var(--ansi-3,#d18f52)",
+	"var(--ansi-4,#4aa5f0)", "var(--ansi-5,#c162de)", "var(--ansi-6,#42b3c2)", "var(--ansi-7,#d4d4d4)",
+	"var(--ansi-8,#6b737f)", "var(--ansi-9,#ff616e)", "var(--ansi-10,#a5e075)", "var(--ansi-11,#f0a45d)",
+	"var(--ansi-12,#4dc4ff)", "var(--ansi-13,#de73ff)", "var(--ansi-14,#4cd1e0)", "var(--ansi-15,#ffffff)",
 }
 
 // Hex torna el color CSS (fg diu quin per defecte fer servir).

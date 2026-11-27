@@ -137,3 +137,24 @@ func escriu(t *testing.T, dir, nom, cos string) {
 		t.Fatal(err)
 	}
 }
+
+// Les guies d'Office que l'agent carrega abans de crear un document diuen
+// el mateix que les eines: el document o la presentació nous van a doc, i
+// office_create només a partir d'una plantilla o d'un fitxer adjuntat.
+func TestLesGuiesDOfficeEnvienElsNousADoc(t *testing.T) {
+	cos := map[string]string{}
+	for _, s := range Integrades() {
+		cos[s.Nom] = s.Cos
+	}
+	for _, nom := range []string{"office-docx", "office-pptx"} {
+		c := cos[nom]
+		creating := strings.Index(c, "doc` tool")
+		office := strings.Index(c, "`office_create`")
+		if creating < 0 || office < 0 || creating > office {
+			t.Fatalf("%s ha de dir abans d'office_create que els nous van a l'eina doc:\n%s", nom, c)
+		}
+		if !strings.Contains(c, "template or a document the person attached") {
+			t.Fatalf("%s no limita office_create a plantilles i adjunts:\n%s", nom, c)
+		}
+	}
+}

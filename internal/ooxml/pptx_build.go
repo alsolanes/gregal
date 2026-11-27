@@ -18,6 +18,8 @@ type Pptx struct {
 	Pres    *Node
 	Theme   Theme
 	BaseDir string
+	// ResolveImage, si hi és, és l'única manera de trobar una imatge (com a Docx).
+	ResolveImage func(src string) (string, error)
 }
 
 // OpenPptx obre una presentació existent.
@@ -291,6 +293,12 @@ var layoutKinds = map[string]struct {
 	"image":       {[]string{"picTx"}, []string{"picture", "imatge", "image"}},
 	"title_only":  {[]string{"titleOnly"}, []string{"title only", "només"}},
 	"blank":       {[]string{"blank"}, []string{"blank", "en blanc"}},
+}
+
+// SlideLayout diu si k és un dels tipus de layout que BuildSlides coneix.
+func SlideLayout(k string) bool {
+	_, ok := layoutKinds[k]
+	return ok
 }
 
 // PickLayout tria el layout que millor encaixa amb un tipus semàntic.
@@ -614,10 +622,10 @@ func firstNonEmpty(xs ...string) string {
 
 // TextOpts és el format extra d'un quadre de text.
 type TextOpts struct {
-	Size    int // centèsimes de punt (2000 = 20 pt); 0 = el del layout
-	Bold    bool
-	Color   string // hex
-	Align   string // l, ctr, r
+	Size     int // centèsimes de punt (2000 = 20 pt); 0 = el del layout
+	Bold     bool
+	Color    string // hex
+	Align    string // l, ctr, r
 	NoBullet bool
 }
 
@@ -645,6 +653,46 @@ func SetText(sp *Node, md string, o TextOpts) {
 	}
 }
 
+// paraAlgn passa l'alineació d'un bloc ({align=…}) a la de DrawingML.
+var paraAlgn = map[string]string{"left": "l", "center": "ctr", "right": "r", "justify": "just"}
+
+// runPr és el format d'un tros de text en una diapositiva: el del quadre
+// (o) i, per sobre, el del markdown, format ampliat inclòs. Els fills van
+// en l'ordre de l'esquema: farciment, ressaltat, font.
+func runPr(in Inline, o TextOpts) *Node {
+	rpr := El("a:rPr", "lang", "ca-ES", "dirty", "0")
+	if o.Size > 0 {
+		rpr.Set("sz", strconv.Itoa(o.Size))
+	}
+	if in.Size > 0 {
+		rpr.Set("sz", strconv.Itoa(int(in.Size*100)))
+	}
+	if in.Bold || o.Bold {
+		rpr.Set("b", "1")
+	}
+	if in.Italic {
+		rpr.Set("i", "1")
+	}
+	if in.Underline {
+		rpr.Set("u", "sng")
+	}
+	if in.Strike {
+		rpr.Set("strike", "sngStrike")
+	}
+	if c := firstNonEmpty(in.Color, o.Color); c != "" {
+		rpr.Add(El("a:solidFill").Add(El("a:srgbClr", "val", c)))
+	}
+	if in.Bg != "" {
+		rpr.Add(El("a:highlight").Add(El("a:srgbClr", "val", in.Bg)))
+	}
+	if in.Code {
+		rpr.Add(El("a:latin", "typeface", "Courier New"))
+	} else if in.Font != "" {
+		rpr.Add(El("a:latin", "typeface", in.Font))
+	}
+	return rpr
+}
+
 func slideParas(b Block, o TextOpts) []*Node {
 	mk := func(lvl int, bullet string, ins []Inline, extra func(*Node)) *Node {
 		ap := El("a:p")
@@ -652,8 +700,8 @@ func slideParas(b Block, o TextOpts) []*Node {
 		if lvl > 0 {
 			ppr.Set("lvl", strconv.Itoa(lvl))
 		}
-		if o.Align != "" {
-			ppr.Set("algn", o.Align)
+		if a := firstNonEmpty(paraAlgn[b.ParaAlign], o.Align); a != "" {
+			ppr.Set("algn", a)
 		}
 		switch bullet {
 		case "none":
@@ -675,25 +723,7 @@ func slideParas(b Block, o TextOpts) []*Node {
 					continue
 				}
 				r := El("a:r")
-				rpr := El("a:rPr", "lang", "ca-ES", "dirty", "0")
-				if o.Size > 0 {
-					rpr.Set("sz", strconv.Itoa(o.Size))
-				}
-				if in.Bold || o.Bold {
-					rpr.Set("b", "1")
-				}
-				if in.Italic {
-					rpr.Set("i", "1")
-				}
-				if in.Strike {
-					rpr.Set("strike", "sngStrike")
-				}
-				if o.Color != "" {
-					rpr.Add(El("a:solidFill").Add(El("a:srgbClr", "val", o.Color)))
-				}
-				if in.Code {
-					rpr.Add(El("a:latin", "typeface", "Courier New"))
-				}
+				rpr := runPr(in, o)
 				if extra != nil {
 					extra(rpr)
 				}
@@ -778,7 +808,12 @@ func (p *Pptx) AddTextBox(slide string, b Box, md string, o TextOpts) (*Node, er
 // AddPicture posa una imatge encaixada (sense deformar) dins del box.
 func (p *Pptx) AddPicture(slide, src string, b Box) error {
 	path := src
-	if !filepath.IsAbs(path) && p.BaseDir != "" {
+	if p.ResolveImage != nil {
+		var err error
+		if path, err = p.ResolveImage(src); err != nil {
+			return err
+		}
+	} else if !filepath.IsAbs(path) && p.BaseDir != "" {
 		if _, err := os.Stat(filepath.Join(p.BaseDir, path)); err == nil {
 			path = filepath.Join(p.BaseDir, path)
 		}

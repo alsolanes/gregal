@@ -555,14 +555,14 @@ func respCleanUntil(v string) (string, error) {
 }
 
 // respSyncJob deixa el job que programa la responsabilitat d'acord amb el
-// seu estat. El cor fa servir el seu job wind-<vent> de sempre.
+// seu estat. El cor fa servir el seu job wind-<vent> (amb comptes, wind-<vent>@<compte>).
 func (s *Server) respSyncJob(r *responsabilitat, kick bool) error {
 	if s.jobs == nil {
 		return nil
 	}
 	active := r.State == respActive
 	if r.Kind == respKindHeartbeat {
-		job, ok := s.respFindJob(WindJobID(r.Wind))
+		job, ok := s.respFindJob(ownerWindJobID(r.Wind, respOwner(s)))
 		if !ok {
 			return nil
 		}
@@ -1094,6 +1094,51 @@ func (s *Server) respHeartMessage(r *responsabilitat, resultID, messageID string
 	})
 }
 
+// --- «no» d'Avui ---
+
+// respEase afluixa una responsabilitat quan la persona li diu que no a Avui
+// (Ara no, No m'interessa): a 3 «no» en 7 dies, la meitat de missatges per
+// dia; a 5, una vigilància es pausa. El cor i les vigilàncies de l'agenda (els
+// recordatoris) només afluixen: pausar-los deixaria la persona sense el que
+// va demanar. Torna la responsabilitat si l'ha pausada.
+func (s *Server) respEase(id string, noes int) (*responsabilitat, error) {
+	now := respStamp(time.Now())
+	paused := false
+	upd, err := s.respUpdate(id, func(r *responsabilitat) error {
+		agendaOnly := true
+		for _, src := range r.Sources {
+			agendaOnly = agendaOnly && src.Kind == "agenda"
+		}
+		if noes >= 5 && r.Kind == respKindWatch && !agendaOnly {
+			if r.State == respActive {
+				paused = true
+				r.State = respPaused
+				r.addLog(respAct{At: now, Kind: "pause", Note: fmt.Sprintf("%d «no» a Avui en 7 dies", noes)})
+			}
+			return nil
+		}
+		old := r.Budget.MessagesPerDay
+		r.Budget.MessagesPerDay = max(old/2, min(old, 1))
+		r.addLog(respAct{At: now, Kind: "budget", Note: fmt.Sprintf("%d «no» a Avui en 7 dies: de %d a %d missatges per dia", noes, old, r.Budget.MessagesPerDay)})
+		return nil
+	})
+	// La targeta pot ser d'una responsabilitat que ja s'ha esborrat.
+	if errors.Is(err, errRespNotFound) {
+		return nil, nil
+	}
+	if err != nil || !paused {
+		return nil, err
+	}
+	if err := s.respSyncJob(upd, false); err != nil {
+		return nil, err
+	}
+	if upd.Waiting != nil {
+		s.Hub().Queue().Cancel(upd.Waiting.RunID)
+		forgetComputerWait(upd.Waiting.RunID)
+	}
+	return upd, nil
+}
+
 // --- API ---
 
 // respPublic és la vista de la responsabilitat per a les apps: sense
@@ -1162,7 +1207,7 @@ func (s *Server) respPublicOf(r *responsabilitat) respPublic {
 	}
 	jobID := r.ID
 	if r.Kind == respKindHeartbeat {
-		jobID = WindJobID(r.Wind)
+		jobID = ownerWindJobID(r.Wind, respOwner(s))
 	}
 	if s.jobs != nil {
 		if j, ok := s.respFindJob(jobID); ok {
@@ -1182,7 +1227,7 @@ func (s *Server) respReconcile(r *responsabilitat) {
 	}
 	jobID := r.ID
 	if r.Kind == respKindHeartbeat {
-		jobID = WindJobID(r.Wind)
+		jobID = ownerWindJobID(r.Wind, respOwner(s))
 	}
 	j, ok := s.respFindJob(jobID)
 	if !ok {

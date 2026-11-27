@@ -65,14 +65,14 @@ class WindAuraTest {
     }
 
     /**
-     * Llum taronja a la franja esquerra de l'anell, fora del cos (radi .37) i
+     * Llum taronja a la franja esquerra de l'anell, fora del cos (el còdol de 111 fa .39 de la caixa) i
      * lluny de la insígnia (a dalt a la dreta) i de l'ombra (a sota), sobre negre.
      */
     private fun auraLight(frame: Bitmap): Int {
         val side = minOf(frame.width, frame.height)
         val cy = frame.height / 2
         var light = 0
-        for (y in cy - side / 5..cy + side / 5) for (x in 0 until frame.width / 2 - (side * .39f).toInt()) {
+        for (y in cy - side / 5..cy + side / 5) for (x in 0 until frame.width / 2 - (side * .40f).toInt()) {
             val p = frame.getPixel(x, y)
             val red = android.graphics.Color.red(p)
             if (red > android.graphics.Color.blue(p) + 8) light += red

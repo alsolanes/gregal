@@ -2,12 +2,13 @@ package ooxml
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
-	east "github.com/yuin/goldmark/extension/ast"
 	"github.com/yuin/goldmark/extension"
+	east "github.com/yuin/goldmark/extension/ast"
 	"github.com/yuin/goldmark/text"
 )
 
@@ -23,6 +24,13 @@ type Inline struct {
 	Code   bool
 	Strike bool
 	Link   string
+	// Format ampliat: ++subratllat++ i [text]{color=#rrggbb bg=#rrggbb
+	// font="Nom" size=N}. Colors en hex sense «#», mida en punts.
+	Underline bool
+	Color     string
+	Bg        string
+	Font      string
+	Size      float64
 }
 
 // BlockKind és el tipus de bloc.
@@ -47,17 +55,25 @@ type Block struct {
 	Kind    BlockKind
 	Level   int // títol 1–6; nivell de llista 0–8
 	Inlines []Inline
-	Text    string     // codi
+	Text    string       // codi
 	Rows    [][][]Inline // taula: files → cel·les → inlines (la primera és capçalera)
-	Align   []string   // alineació per columna: "", "left", "center", "right"
-	Image   string     // ruta de la imatge
+	Align   []string     // alineació per columna: "", "left", "center", "right"
+	Image   string       // ruta de la imatge
 	Alt     string
 	ListID  int // llistes numerades: cada llista nova reinicia
+	// ParaAlign ve d'una línia «{align=…}» just després del paràgraf o
+	// títol: "left", "center", "right" o "justify".
+	ParaAlign string
 }
 
 var (
 	pageBreakRe = regexp.MustCompile(`(?i)^\s*(\\pagebreak|\[pagebreak\]|<!--\s*pagebreak\s*-->)\s*$`)
 	tocRe       = regexp.MustCompile(`(?i)^\s*(\[toc\]|\[\[toc\]\]|\{\{toc\}\})\s*$`)
+	alignRe     = regexp.MustCompile(`^\{align=(left|center|right|justify)\}$`)
+	// La línia d'alineació passa a goldmark com a marcador perquè quedi
+	// enganxada al paràgraf (o sola, després d'un títol) i no es confongui
+	// amb el mateix text escrit dins d'una línia.
+	alignMarkRe = regexp.MustCompile("\x00ALIGN=([a-z]+)\x00")
 )
 
 // ParseMarkdown converteix markdown (CommonMark + taules GFM +
@@ -73,6 +89,8 @@ func ParseMarkdown(src string) []Block {
 			lines = append(lines, "", "\x00PAGEBREAK\x00", "")
 		case tocRe.MatchString(l):
 			lines = append(lines, "", "\x00TOC\x00", "")
+		case alignRe.MatchString(l) && len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) != "":
+			lines = append(lines, "\x00ALIGN="+alignRe.FindStringSubmatch(l)[1]+"\x00")
 		default:
 			lines = append(lines, l)
 		}
@@ -101,11 +119,16 @@ func (c *mdConv) block(ch ast.Node, listLevel int) {
 	{
 		switch b := ch.(type) {
 		case *ast.Heading:
-			c.out = append(c.out, Block{Kind: BHeading, Level: b.Level, Inlines: c.inlines(b, Inline{})})
+			c.out = append(c.out, Block{Kind: BHeading, Level: b.Level, Inlines: c.styled(b, Inline{})})
 		case *ast.Paragraph, *ast.TextBlock:
-			ins := c.inlines(b, Inline{})
+			ins, align := splitAlign(c.styled(b, Inline{}))
 			plain := inlineText(ins)
 			switch {
+			case len(ins) == 0 && align != "" && len(c.out) > 0 && c.out[len(c.out)-1].Kind == BHeading:
+				// Després d'un títol, la línia d'alineació és un paràgraf a part.
+				c.out[len(c.out)-1].ParaAlign = align
+			case len(ins) == 0 && align != "":
+				c.out = append(c.out, Block{Kind: BPara, Inlines: PlainInlines("{align=" + align + "}")})
 			case plain == "\x00PAGEBREAK\x00":
 				c.out = append(c.out, Block{Kind: BPageBreak})
 			case plain == "\x00TOC\x00":
@@ -117,7 +140,7 @@ func (c *mdConv) block(ch ast.Node, listLevel int) {
 					return
 				}
 				if len(ins) > 0 {
-					c.out = append(c.out, Block{Kind: BPara, Inlines: ins})
+					c.out = append(c.out, Block{Kind: BPara, Inlines: ins, ParaAlign: align})
 				}
 			}
 		case *ast.List:
@@ -137,7 +160,8 @@ func (c *mdConv) block(ch ast.Node, listLevel int) {
 				seg := lines.At(i)
 				sb.Write(seg.Value(c.src))
 			}
-			c.out = append(c.out, Block{Kind: BCode, Text: strings.TrimRight(sb.String(), "\n")})
+			text := alignMarkRe.ReplaceAllString(strings.TrimRight(sb.String(), "\n"), "{align=$1}")
+			c.out = append(c.out, Block{Kind: BCode, Text: text})
 		case *ast.ThematicBreak:
 			c.out = append(c.out, Block{Kind: BRule})
 		case *east.Table:
@@ -164,14 +188,14 @@ func (c *mdConv) list(l *ast.List, level int) {
 			case *ast.List:
 				c.list(b, level+1)
 			case *ast.Paragraph, *ast.TextBlock:
-				ins := c.inlines(b, Inline{})
+				ins, align := splitAlign(c.styled(b, Inline{}))
 				if first {
-					c.out = append(c.out, Block{Kind: kind, Level: min(level, 8), Inlines: ins, ListID: id})
+					c.out = append(c.out, Block{Kind: kind, Level: min(level, 8), Inlines: ins, ListID: id, ParaAlign: align})
 					first = false
 				} else {
 					// Paràgraf de continuació dins l'element: va com un
 					// element més del mateix nivell (prou fidel).
-					c.out = append(c.out, Block{Kind: kind, Level: min(level, 8), Inlines: ins, ListID: id})
+					c.out = append(c.out, Block{Kind: kind, Level: min(level, 8), Inlines: ins, ListID: id, ParaAlign: align})
 				}
 			default:
 				c.block(ch, level+1)
@@ -197,11 +221,22 @@ func (c *mdConv) table(t *east.Table) {
 	for r := t.FirstChild(); r != nil; r = r.NextSibling() {
 		var row [][]Inline
 		for cell := r.FirstChild(); cell != nil; cell = cell.NextSibling() {
-			row = append(row, c.inlines(cell, Inline{}))
+			ins := c.styled(cell, Inline{})
+			// Una línia «{align=…}» just després de la taula hi queda com a fila.
+			for i := range ins {
+				ins[i].Text = alignMarkRe.ReplaceAllString(ins[i].Text, "{align=$1}")
+			}
+			row = append(row, ins)
 		}
 		b.Rows = append(b.Rows, row)
 	}
 	c.out = append(c.out, b)
+}
+
+// styled són els trossos amb format d'un node, amb el format ampliat ja
+// llegit: goldmark el deixa com a text.
+func (c *mdConv) styled(n ast.Node, st Inline) []Inline {
+	return extendedFormat(c.inlines(n, st))
 }
 
 func (c *mdConv) inlines(n ast.Node, st Inline) []Inline {
@@ -275,13 +310,208 @@ func appendInline(out []Inline, st Inline, s string) []Inline {
 	}
 	if n := len(out); n > 0 {
 		p := out[n-1]
-		if p.Bold == st.Bold && p.Italic == st.Italic && p.Code == st.Code && p.Strike == st.Strike && p.Link == st.Link {
+		p.Text = st.Text
+		if p == st {
 			out[n-1].Text += s
 			return out
 		}
 	}
 	st.Text = s
 	return append(out, st)
+}
+
+var (
+	spanEndRe = regexp.MustCompile(`^\]\{([^{}\n]*)\}`)
+	attrRe    = regexp.MustCompile(`^([a-z]+)=("[^"\n]*"|[^\s"]*)(\s+|$)`)
+	hexRe     = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+	sizeRe    = regexp.MustCompile(`^\d+(\.\d+)?$`)
+)
+
+// extendedFormat llegeix [text]{atributs} i ++subratllat++ sobre el text de
+// tots els inlines alhora, perquè poden contenir negretes i cursives o
+// ser-hi dins. El codi no es toca, i el que no és vàlid queda com a text.
+func extendedFormat(ins []Inline) []Inline {
+	var f fmtText
+	for _, in := range ins {
+		st := in
+		st.Text = ""
+		for i := 0; i < len(in.Text); i++ {
+			f.text = append(f.text, in.Text[i])
+			f.style = append(f.style, st)
+		}
+	}
+	f.drop = make([]bool, len(f.text))
+	f.spans()
+	f.underlines()
+	var out []Inline
+	for i := 0; i < len(f.text); {
+		if f.drop[i] {
+			i++
+			continue
+		}
+		j := i
+		for j < len(f.text) && !f.drop[j] && f.style[j] == f.style[i] {
+			j++
+		}
+		out = appendInline(out, f.style[i], string(f.text[i:j]))
+		i = j
+	}
+	return out
+}
+
+// fmtText és el text d'un paràgraf byte a byte, amb el format de cada byte
+// i si és una marca que s'ha de treure.
+type fmtText struct {
+	text  []byte
+	style []Inline
+	drop  []bool
+}
+
+// plain diu si [from, to) és text normal: ni codi ni una marca ja llegida.
+func (f *fmtText) plain(from, to int) bool {
+	for j := from; j < to; j++ {
+		if f.style[j].Code || f.drop[j] {
+			return false
+		}
+	}
+	return true
+}
+
+// spans aplica els [text]{…}. Els interiors es tanquen abans, i els
+// exteriors no en trepitgen les claus.
+func (f *fmtText) spans() {
+	var opens []int
+	for i := 0; i < len(f.text); i++ {
+		if f.style[i].Code || (f.text[i] != '[' && f.text[i] != ']') {
+			continue
+		}
+		if f.text[i] == '[' {
+			opens = append(opens, i)
+			continue
+		}
+		if len(opens) == 0 {
+			continue
+		}
+		o := opens[len(opens)-1]
+		opens = opens[:len(opens)-1]
+		m := spanEndRe.FindSubmatch(f.text[i:])
+		if m == nil || !f.plain(i, i+len(m[0])) {
+			continue
+		}
+		a, ok := spanAttrs(string(m[1]))
+		if !ok {
+			continue
+		}
+		for j := o + 1; j < i; j++ {
+			fillAttrs(&f.style[j], a)
+		}
+		f.drop[o] = true
+		for j := i; j < i+len(m[0]); j++ {
+			f.drop[j] = true
+		}
+		i += len(m[0]) - 1
+	}
+}
+
+// fillAttrs posa a s les claus de a que s no té encara.
+func fillAttrs(s *Inline, a Inline) {
+	if s.Color == "" {
+		s.Color = a.Color
+	}
+	if s.Bg == "" {
+		s.Bg = a.Bg
+	}
+	if s.Font == "" {
+		s.Font = a.Font
+	}
+	if s.Size == 0 {
+		s.Size = a.Size
+	}
+}
+
+// underlines aplica els ++…++ no buits.
+func (f *fmtText) underlines() {
+	open := -1
+	for i := 0; i+1 < len(f.text); i++ {
+		if !f.plain(i, i+2) || f.text[i] != '+' || f.text[i+1] != '+' {
+			continue
+		}
+		if open < 0 || i == open+2 {
+			open = i
+		} else {
+			for j := open + 2; j < i; j++ {
+				f.style[j].Underline = true
+			}
+			f.drop[open], f.drop[open+1], f.drop[i], f.drop[i+1] = true, true, true, true
+			open = -1
+		}
+		i++
+	}
+}
+
+// spanAttrs llegeix els atributs d'un [text]{…}: color, bg, font i size,
+// cada un com a màxim un cop. Qualsevol altra cosa el fa invàlid.
+func spanAttrs(s string) (Inline, bool) {
+	var a Inline
+	seen := map[string]bool{}
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return a, false
+	}
+	for s != "" {
+		m := attrRe.FindStringSubmatch(s)
+		if m == nil || seen[m[1]] || !setAttr(&a, m[1], m[2]) {
+			return a, false
+		}
+		seen[m[1]] = true
+		s = s[len(m[0]):]
+	}
+	return a, true
+}
+
+// setAttr posa a a la clau k amb el valor v, si tots dos són vàlids.
+func setAttr(a *Inline, k, v string) bool {
+	switch {
+	case k == "color" && hexRe.MatchString(v):
+		a.Color = v[1:]
+	case k == "bg" && hexRe.MatchString(v):
+		a.Bg = v[1:]
+	case k == "font" && len(v) > 2 && v[0] == '"':
+		a.Font = v[1 : len(v)-1]
+	case k == "size" && sizeRe.MatchString(v):
+		n, err := strconv.ParseFloat(v, 64)
+		if err != nil || n <= 0 || n > 1638 { // 1638 pt és el màxim del Word
+			return false
+		}
+		a.Size = n
+	default:
+		return false
+	}
+	return true
+}
+
+// splitAlign treu el marcador d'alineació del final d'un paràgraf.
+func splitAlign(ins []Inline) ([]Inline, string) {
+	n := len(ins)
+	if n == 0 {
+		return ins, ""
+	}
+	loc := alignMarkRe.FindStringSubmatchIndex(ins[n-1].Text)
+	if loc == nil || loc[1] != len(ins[n-1].Text) {
+		return ins, ""
+	}
+	align := ins[n-1].Text[loc[2]:loc[3]]
+	ins[n-1].Text = ins[n-1].Text[:loc[0]]
+	// El salt de línia abans del marcador ha deixat un espai al final.
+	for len(ins) > 0 {
+		last := &ins[len(ins)-1]
+		last.Text = strings.TrimRight(last.Text, " ")
+		if last.Text != "" {
+			break
+		}
+		ins = ins[:len(ins)-1]
+	}
+	return ins, align
 }
 
 func soleImage(p ast.Node, src []byte) (*ast.Image, bool) {

@@ -8,16 +8,170 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/xuri/excelize/v2"
+
 	"gregal/internal/gdocs"
 	"gregal/internal/ooxml"
 )
 
 func docExport(s *Server, id string) *httptest.ResponseRecorder {
+	return docExportAs(s, id, "docx")
+}
+
+func docExportAs(s *Server, id, format string) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/docs/"+id+"/export?format=docx", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/docs/"+id+"/export?format="+format, nil)
 	req.SetPathValue("id", id)
 	s.handleDocExport(rec, req)
 	return rec
+}
+
+func TestDocExportPptx(t *testing.T) {
+	s := backlogServer(t)
+	st, _ := gdocs.Open(s.cwd)
+	d, err := st.CreateDeck("Llançament")
+	if err != nil {
+		t.Fatal(err)
+	}
+	after := ""
+	for _, sl := range []ooxml.SlideSpec{
+		{Layout: "title", Title: "Llançament 2027"},
+		{Layout: "content", Title: "Fases", Bullets: []string{"Beta", "Obert"}},
+		{Layout: "two_columns", Title: "Riscos", Left: "Temps", Right: "Cost"},
+	} {
+		if d, err = st.InsertSlide(d.ID, after, sl, gdocs.AuthorAgent); err != nil {
+			t.Fatal(err)
+		}
+		after = d.Blocks[len(d.Blocks)-1].ID
+	}
+	rec := docExportAs(s, d.ID, "pptx")
+	if rec.Code != 200 || !strings.Contains(rec.Header().Get("Content-Disposition"), "Llançament.pptx") {
+		t.Fatalf("%d %v %s", rec.Code, rec.Header(), rec.Body.String())
+	}
+	pk, err := ooxml.OpenBytes(rec.Body.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if iss := ooxml.NewIssues(pk, nil); len(iss) > 0 {
+		t.Fatalf("pptx invàlid: %v", iss)
+	}
+	text, err := ooxml.ReadPptx(pk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, b, c := strings.Index(text, "# Llançament 2027"), strings.Index(text, "# Fases"), strings.Index(text, "# Riscos")
+	if a < 0 || b < a || c < b || !strings.Contains(text, "Beta") || !strings.Contains(text, "Cost") {
+		t.Fatalf("diapositives:\n%s", text)
+	}
+}
+
+// Una presentació acabada de fer, sense cap diapositiva, també es baixa.
+func TestDocExportDeckBuit(t *testing.T) {
+	s := backlogServer(t)
+	st, _ := gdocs.Open(s.cwd)
+	d, _ := st.CreateDeck("Buida")
+	rec := docExportAs(s, d.ID, "pptx")
+	if rec.Code != 200 {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+	if _, err := ooxml.OpenBytes(rec.Body.Bytes()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDocExportNomesEnElFormatDelTipus(t *testing.T) {
+	s := backlogServer(t)
+	st, _ := gdocs.Open(s.cwd)
+	d, _ := st.CreateDeck("Llançament")
+	if rec := docExportAs(s, d.ID, "docx"); rec.Code != http.StatusBadRequest {
+		t.Fatalf("una presentació en docx: %d", rec.Code)
+	}
+	text, _ := st.Create("Plan", "a", gdocs.AuthorAgent)
+	if rec := docExportAs(s, text.ID, "pptx"); rec.Code != http.StatusBadRequest {
+		t.Fatalf("un document de text en pptx: %d", rec.Code)
+	}
+	if rec := docExportAs(s, text.ID, "xlsx"); rec.Code != http.StatusBadRequest {
+		t.Fatalf("un document de text en xlsx: %d", rec.Code)
+	}
+}
+
+// pressupost fa un full de dos fulls amb una fórmula que creua d'un a l'altre.
+func pressupost(t *testing.T, st *gdocs.Store) gdocs.Doc {
+	t.Helper()
+	d, err := st.CreateSheet("Pressupost", "Dades", gdocs.AuthorAgent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d, err = st.SetCells(d.ID, d.Blocks[0].ID, map[string]string{"A1": "10", "A2": "20", "A3": "=SUM(A1:A2)"}, gdocs.AuthorAgent, 0); err != nil {
+		t.Fatal(err)
+	}
+	if d, err = st.InsertSheet(d.ID, d.Blocks[0].ID, "Resum", gdocs.AuthorAgent); err != nil {
+		t.Fatal(err)
+	}
+	if d, err = st.SetCells(d.ID, d.Blocks[1].ID, map[string]string{"B2": "=Dades!A3*2"}, gdocs.AuthorAgent, 0); err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
+func TestDocExportXlsx(t *testing.T) {
+	s := backlogServer(t)
+	st, _ := gdocs.Open(s.cwd)
+	d := pressupost(t, st)
+	rec := docExportAs(s, d.ID, "xlsx")
+	if rec.Code != 200 || !strings.Contains(rec.Header().Get("Content-Disposition"), "Pressupost.xlsx") {
+		t.Fatalf("%d %v %s", rec.Code, rec.Header(), rec.Body.String())
+	}
+	f, err := excelize.OpenReader(rec.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	if got := f.GetSheetList(); len(got) != 2 || got[0] != "Dades" || got[1] != "Resum" {
+		t.Fatalf("fulls %v", got)
+	}
+	for _, c := range []struct{ sheet, cell, formula, value string }{
+		{"Dades", "A3", "SUM(A1:A2)", "30"},
+		{"Resum", "B2", "Dades!A3*2", "60"},
+		{"Dades", "A1", "", "10"},
+	} {
+		fx, err1 := f.GetCellFormula(c.sheet, c.cell)
+		v, err2 := f.CalcCellValue(c.sheet, c.cell)
+		if err1 != nil || err2 != nil || fx != c.formula || v != c.value {
+			t.Fatalf("%s!%s: %q = %q (%v %v)", c.sheet, c.cell, fx, v, err1, err2)
+		}
+	}
+}
+
+func TestDocCellsPutAndConflict(t *testing.T) {
+	s := backlogServer(t)
+	st, _ := gdocs.Open(s.cwd)
+	d, err := st.CreateSheet("Pressupost", "", gdocs.AuthorAgent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	full := d.Blocks[0].ID
+	code, out := docWrite(t, s, http.MethodPut, "/", `{"cells":{"A1":"2","A2":"=A1*3"},"base_version":1}`, d.ID, full)
+	blk, _ := out["block"].(map[string]any)
+	vals, _ := blk["values"].(map[string]any)
+	if code != 200 || out["version"] != 2.0 || blk["author"] != gdocs.AuthorUser || vals["A2"] != "6" {
+		t.Fatalf("put: %d %v", code, out)
+	}
+	code, out = docWrite(t, s, http.MethodPut, "/", `{"cells":{"A1":"5"},"base_version":1}`, d.ID, full)
+	blk, _ = out["block"].(map[string]any)
+	if code != http.StatusConflict || blk["version"] != 2.0 {
+		t.Fatalf("conflicte: %d %v", code, out)
+	}
+	if code, out = docWrite(t, s, http.MethodPut, "/", `{"cells":{},"base_version":2}`, d.ID, full); code != http.StatusBadRequest {
+		t.Fatalf("sense cel·les: %d %v", code, out)
+	}
+	if code, out = docWrite(t, s, http.MethodPut, "/", `{"cells":{"A1":"5"},"base_version":2}`, "noexist", full); code != http.StatusNotFound {
+		t.Fatalf("document que no hi és: %d %v", code, out)
+	}
 }
 
 func TestDocExportDocx(t *testing.T) {
@@ -269,11 +423,12 @@ func TestDocChangedWhenTheAgentWrites(t *testing.T) {
 			got = append(got, v.(map[string]string))
 		}
 	}
-	s.emitDocChanged(emit, `{"action":"create","title":"Pla"}`, "Created document "+d.ID+" with 1 blocks.")
-	s.emitDocChanged(emit, `{"action":"insert","id":"`+d.ID+`","md":"Dos"}`, "Document "+d.ID+" · Pla · v2\n")
-	s.emitDocChanged(emit, `{"action":"read","id":"`+d.ID+`"}`, "Document "+d.ID+" · Pla · v2\n")
-	s.emitDocChanged(emit, `{"action":"replace","id":"`+d.ID+`"}`, "ERROR: there is no block with that id")
-	if len(got) != 2 || got[0]["id"] != d.ID || got[0]["title"] != "Pla" || got[1]["id"] != d.ID {
+	s.emitDocChanged(emit, s.cwd, "", `{"action":"create","title":"Pla"}`, "Created document "+d.ID+" with 1 blocks.")
+	s.emitDocChanged(emit, s.cwd, "", `{"action":"insert","id":"`+d.ID+`","md":"Dos"}`, "Document "+d.ID+" · Pla · v2\n")
+	s.emitDocChanged(emit, s.cwd, "", `{"action":"read","id":"`+d.ID+`"}`, "Document "+d.ID+" · Pla · v2\n")
+	s.emitDocChanged(emit, s.cwd, "", `{"action":"replace","id":"`+d.ID+`"}`, "ERROR: there is no block with that id")
+	s.emitDocChanged(emit, s.cwd, "", `{"action":"set_cells","id":"`+d.ID+`"}`, "Document "+d.ID+" · Pla · v3\n")
+	if len(got) != 3 || got[0]["id"] != d.ID || got[0]["title"] != "Pla" || got[1]["id"] != d.ID || got[2]["id"] != d.ID {
 		t.Fatalf("%v", got)
 	}
 }
@@ -314,5 +469,180 @@ func TestDocPageServesTheEditorOfAnExistingDoc(t *testing.T) {
 	h.mu.RUnlock()
 	if rec.Code != 200 || after != before {
 		t.Fatalf("amb token: %d, sessions %d → %d", rec.Code, before, after)
+	}
+}
+
+// «Document nou» de Gregal Docs: POST /api/docs?scope=mine fa un document
+// de text buit a la carpeta de la persona, no al projecte. Buit, no té cap
+// bloc amb autor: el primer que hi escriu la persona és seu.
+func TestNewDocGoesToMyDocuments(t *testing.T) {
+	s := backlogServer(t)
+	rec := docReq(s, (*Server).handleDocs, "POST", "/api/docs?scope=mine", `{"title":"Notes del viatge","kind":"doc"}`)
+	if rec.Code != 200 {
+		t.Fatalf("crear: %d %s", rec.Code, rec.Body.String())
+	}
+	var d gdocs.Doc
+	if err := json.Unmarshal(rec.Body.Bytes(), &d); err != nil {
+		t.Fatal(err)
+	}
+	if d.ID == "" || d.Title != "Notes del viatge" || d.Kind != gdocs.KindDoc || len(d.Blocks) != 0 {
+		t.Fatalf("document nou: %+v", d)
+	}
+	if rec := docReq(s, (*Server).handleDocs, "GET", "/api/docs?scope=mine", ""); !strings.Contains(rec.Body.String(), d.ID) {
+		t.Fatalf("no és a «Els meus documents»: %s", rec.Body.String())
+	}
+	if rec := docReq(s, (*Server).handleDocs, "GET", "/api/docs", ""); strings.Contains(rec.Body.String(), d.ID) {
+		t.Fatalf("ha anat al projecte: %s", rec.Body.String())
+	}
+	if rec := docReq(s, (*Server).handleDocBlocks, "POST", "/api/docs/x/blocks?scope=mine", `{"after":"","md":"Primer dia"}`, d.ID); rec.Code != 200 {
+		t.Fatalf("primer bloc: %d %s", rec.Code, rec.Body.String())
+	}
+	mine, _ := gdocs.Open(s.windDocsDir())
+	if got, _ := mine.Get(d.ID); len(got.Blocks) != 1 || got.Blocks[0].Author != gdocs.AuthorUser {
+		t.Fatalf("blocs: %+v", got.Blocks)
+	}
+}
+
+func TestNewDocRefusesUnknownKindAndNoTitle(t *testing.T) {
+	s := backlogServer(t)
+	for _, body := range []string{`{"title":"Pla","kind":"poema"}`, `{"title":"Pla"}`, `{"title":"  ","kind":"doc"}`, `nope`} {
+		if rec := docReq(s, (*Server).handleDocs, "POST", "/api/docs?scope=mine", body); rec.Code != http.StatusBadRequest {
+			t.Fatalf("%s: %d %s", body, rec.Code, rec.Body.String())
+		}
+	}
+	if rec := docReq(s, (*Server).handleDocs, "GET", "/api/docs?scope=mine", ""); strings.Contains(rec.Body.String(), `"id"`) {
+		t.Fatalf("s'ha creat algun document: %s", rec.Body.String())
+	}
+}
+
+type docAnswer struct {
+	Version int
+	Block   gdocs.Block
+	Blocks  []gdocs.Block
+}
+
+func answer(t *testing.T, rec *httptest.ResponseRecorder) (out docAnswer) {
+	t.Helper()
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+	return out
+}
+
+// newDeckWithSlide crea una presentació a «Els meus documents» i hi posa
+// una diapositiva, tot per les rutes del panell. Torna el document i la
+// diapositiva.
+func newDeckWithSlide(t *testing.T, s *Server) (string, string) {
+	t.Helper()
+	rec := docReq(s, (*Server).handleDocs, "POST", "/api/docs?scope=mine", `{"title":"Llançament","kind":"deck"}`)
+	var d gdocs.Doc
+	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &d) != nil || d.Kind != gdocs.KindDeck || len(d.Blocks) != 0 {
+		t.Fatalf("presentació nova: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = docReq(s, (*Server).handleDocBlocks, "POST", "/api/docs/x/blocks?scope=mine", `{"after":"","slide":{"layout":"content","title":"Fases"}}`, d.ID)
+	nou := answer(t, rec)
+	if rec.Code != 200 || len(nou.Blocks) != 1 || nou.Blocks[0].Slide == nil || nou.Blocks[0].Slide.Title != "Fases" || nou.Blocks[0].Author != gdocs.AuthorUser {
+		t.Fatalf("diapositiva nova: %d %s", rec.Code, rec.Body.String())
+	}
+	return d.ID, nou.Blocks[0].ID
+}
+
+func TestNewDeckAndItsSlidesFromThePanel(t *testing.T) {
+	s := backlogServer(t)
+	id, sl := newDeckWithSlide(t, s)
+	rec := docReq(s, (*Server).handleDocBlock, "PUT", "/api/docs/x/blocks/y?scope=mine", `{"slide":{"layout":"content","title":"Fases","bullets":["Beta","Obert"]},"base_version":2}`, id, sl)
+	if out := answer(t, rec); rec.Code != 200 || out.Block.Slide == nil || len(out.Block.Slide.Bullets) != 2 || out.Block.Version != 3 {
+		t.Fatalf("desa: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = docReq(s, (*Server).handleDocBlock, "PUT", "/api/docs/x/blocks/y?scope=mine", `{"slide":{"layout":"content","title":"Una altra"},"base_version":2}`, id, sl)
+	if out := answer(t, rec); rec.Code != http.StatusConflict || out.Block.Slide == nil || out.Block.Slide.Title != "Fases" {
+		t.Fatalf("conflicte: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+// Una edició que no encaixa amb el document és culpa de qui l'envia: 400.
+func TestDeckRefusesEditsOfAnotherKind(t *testing.T) {
+	s := backlogServer(t)
+	id, sl := newDeckWithSlide(t, s)
+	for _, body := range []string{`{"md":"Text","base_version":2}`, `{"slide":{"layout":"poema","title":"Fases"},"base_version":2}`} {
+		if rec := docReq(s, (*Server).handleDocBlock, "PUT", "/api/docs/x/blocks/y?scope=mine", body, id, sl); rec.Code != http.StatusBadRequest {
+			t.Fatalf("put %s: %d %s", body, rec.Code, rec.Body.String())
+		}
+	}
+	if rec := docReq(s, (*Server).handleDocBlocks, "POST", "/api/docs/x/blocks?scope=mine", `{"after":"","md":"Text"}`, id); rec.Code != http.StatusBadRequest {
+		t.Fatalf("md a una presentació: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+// newSheet crea un full de càlcul a «Els meus documents» per la ruta del
+// panell, com fan l'app d'Android i la web. Neix amb un full buit.
+func newSheet(t *testing.T, s *Server) gdocs.Doc {
+	t.Helper()
+	rec := docReq(s, (*Server).handleDocs, "POST", "/api/docs?scope=mine", `{"title":"Pressupost","kind":"sheet"}`)
+	var d gdocs.Doc
+	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &d) != nil || d.Kind != gdocs.KindSheet || len(d.Blocks) != 1 {
+		t.Fatalf("full de càlcul nou: %d %s", rec.Code, rec.Body.String())
+	}
+	return d
+}
+
+// «Full nou» hi afegeix un full, i se n'editen les cel·les.
+func TestNewSheetAndItsSheetsFromThePanel(t *testing.T) {
+	s := backlogServer(t)
+	d := newSheet(t, s)
+	rec := docReq(s, (*Server).handleDocBlocks, "POST", "/api/docs/x/blocks?scope=mine", `{"after":"`+d.Blocks[0].ID+`","name":"Vendes"}`, d.ID)
+	nou := answer(t, rec)
+	if rec.Code != 200 || len(nou.Blocks) != 1 || nou.Blocks[0].Name != "Vendes" || nou.Blocks[0].Author != gdocs.AuthorUser {
+		t.Fatalf("full nou: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = docReq(s, (*Server).handleDocBlock, "PUT", "/api/docs/x/blocks/y?scope=mine", `{"cells":{"A1":"2","A2":"=A1*3"},"base_version":2}`, d.ID, nou.Blocks[0].ID)
+	if out := answer(t, rec); rec.Code != 200 || out.Block.Values["A2"] != "6" {
+		t.Fatalf("cel·les: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+// Una cel·la mal dita, un rang massa gran o un full repetit són culpa de
+// qui els envia: 400, no 500.
+func TestSheetRefusesBadInputWith400(t *testing.T) {
+	s := backlogServer(t)
+	d := newSheet(t, s)
+	sh := d.Blocks[0]
+	for _, body := range []string{`{"cells":{"1A":"3"},"base_version":1}`, `{"cells":{"A1":"=SUM(A1:Z100000)"},"base_version":1}`} {
+		if rec := docReq(s, (*Server).handleDocBlock, "PUT", "/api/docs/x/blocks/y?scope=mine", body, d.ID, sh.ID); rec.Code != http.StatusBadRequest {
+			t.Fatalf("put %s: %d %s", body, rec.Code, rec.Body.String())
+		}
+	}
+	if rec := docReq(s, (*Server).handleDocBlocks, "POST", "/api/docs/x/blocks?scope=mine", `{"after":"","name":"`+sh.Name+`"}`, d.ID); rec.Code != http.StatusBadRequest {
+		t.Fatalf("full repetit: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+// La pàgina d'un document al web llegeix el tema de l'exportació a Word:
+// el del branding actiu, tal com el dona ooxml.PageCSS.
+func TestDocThemeIsTheActiveExportTheme(t *testing.T) {
+	ooxml.RegisterTheme(ooxml.Theme{Name: "pagina-web", HeadingFont: "Cambria", BodyFont: "Georgia",
+		Dark: "101010", Primary: "123456", Accent: "ABCDEF", Light: "F0F0F0", Text: "202020", Muted: "707070"})
+	ooxml.SetDefaultTheme("pagina-web")
+	defer ooxml.UnregisterTheme("pagina-web")
+	s := backlogServer(t)
+	code, out := brandCall(t, s, (*Server).handleDocTheme, "GET", "/api/docs/theme", "")
+	if code != 200 {
+		t.Fatalf("code %d", code)
+	}
+	vars, _ := out["vars"].(map[string]any)
+	want := ooxml.PageCSS(ooxml.GetTheme(""))
+	if len(vars) != len(want) {
+		t.Fatalf("vars %v, want %v", vars, want)
+	}
+	for k, v := range want {
+		if vars[k] != v {
+			t.Errorf("%s = %v, want %s", k, vars[k], v)
+		}
+	}
+	if vars["--doc-body-font"] != `"Georgia"` || vars["--doc-h1-color"] != "#123456" {
+		t.Errorf("not the active brand: %v", vars)
+	}
+	if code, _ = brandCall(t, s, (*Server).handleDocTheme, "POST", "/api/docs/theme", ""); code != 405 {
+		t.Errorf("POST: %d", code)
 	}
 }

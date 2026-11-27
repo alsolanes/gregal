@@ -8,10 +8,19 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
@@ -19,11 +28,14 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlin.math.PI
 import kotlin.math.cos
@@ -50,9 +62,10 @@ internal fun contrastWith(a: Color, b: Color): Double {
  * L'estat d'ànim del vent. IDLE, HAPPY i TALKING són de la conversa; la resta
  * mostra feina observada (la fase del directe o un pas en marxa) o una veu
  * proactiva per obrir, amb una insígnia a dalt a la dreta com al web
- * (`badges` a internal/web/app/winds.js).
+ * (`badges` a internal/web/app/winds.js). WAITING és la marca del xat «t'espera»: el vent
+ * té una pregunta per a tu.
  */
-enum class WindMood { IDLE, THINKING, HAPPY, TALKING, SEARCHING, READING, WRITING, WORKING, DISCUSSING, DONE, FAILED, NEWS }
+enum class WindMood { IDLE, THINKING, HAPPY, TALKING, SEARCHING, READING, WRITING, WORKING, DISCUSSING, WAITING, DONE, FAILED, NEWS }
 
 private val windActivityMoods = mapOf(
     "read" to WindMood.READING, "read_file" to WindMood.READING, "ls" to WindMood.READING, "list" to WindMood.READING, "web_fetch" to WindMood.READING,
@@ -98,8 +111,9 @@ internal fun windMotionEnabled(): Boolean {
  * WindStyle — les peces triables de la cara:
  *  - eyes: punts, badalls (ovals grossos), estrellats, mig tancats
  *  - mouth: somriure, oberta (parlant), neutra, llengua
- *  - shape: bola, núvol, espiral
- * Desat com a tres lletres al backend (p.ex. "pso" = punts/somriure/bola).
+ *  - shape: bola, núvol, espiral, gota, sol, onada
+ * Desat com a tres lletres al backend (p.ex. "pso" = punts/somriure/bola),
+ * i una quarta si la persona tria el color de la barretina del minairó.
  * `kit` és l'especialitat d'un vent de colla ("shopping", "frontend"…): li dona
  * peus i l'eina del seu ofici. No es desa amb l'estil; ve de Wind.specialty.
  */
@@ -107,11 +121,19 @@ data class WindStyle(val eyes: WindEyes = WindEyes.DOTS, val mouth: WindMouth = 
     /** The wind's own avatar pack (Wind.avatar) and the bearing it blows from (windDirection): they come from the wind, not the style code. */
     val pack: String = "", val bearing: Int = 0,
     /** windId: what seeds the Mapa de vent picture, so the same wind always gets the same one. */
-    val windId: String = "")
+    val windId: String = "",
+    /** The barretina colour the person picked ([minairoBarretines]); empty picks one from the wind. */
+    val barretina: String = "")
 
 enum class WindEyes(val key: String) { DOTS("p"), WIDE("b"), STARRY("e"), SLEEPY("m") }
 enum class WindMouth(val key: String) { SMILE("s"), OPEN("o"), NEUTRAL("n"), TONGUE("t") }
-enum class WindShape(val key: String) { BALL("o"), CLOUD("n"), SPIRAL("s") }
+enum class WindShape(val key: String) {
+    BALL("o"), CLOUD("n"), SPIRAL("s"),
+    /** 170: shapes with a clay sheet only; drawn (no sheets, other packs' fallbacks) they take the nearest drawn shape. */
+    DROP("g"), SUN("u"), WAVE("w");
+
+    val drawn: WindShape get() = when (this) { DROP -> BALL; SUN -> CLOUD; WAVE -> SPIRAL; else -> this }
+}
 
 /** Del codi de tres lletres del backend ("pso") a l'estil. */
 fun windStyleOf(code: String?): WindStyle {
@@ -119,14 +141,18 @@ fun windStyleOf(code: String?): WindStyle {
     val eyes = WindEyes.entries.firstOrNull { it.key == c.getOrNull(0)?.toString() } ?: WindEyes.DOTS
     val mouth = WindMouth.entries.firstOrNull { it.key == c.getOrNull(1)?.toString() } ?: WindMouth.SMILE
     val shape = WindShape.entries.firstOrNull { it.key == c.getOrNull(2)?.toString() } ?: WindShape.BALL
-    return WindStyle(eyes, mouth, shape)
+    val barretina = c.getOrNull(3)?.toString()?.takeIf { letter -> minairoBarretines.any { it.first == letter } }.orEmpty()
+    return WindStyle(eyes, mouth, shape, barretina = barretina)
 }
 
-/** De l'estil al codi de tres lletres que viatja al backend. */
-fun WindStyle.encode(): String = eyes.key + mouth.key + shape.key
+/** De l'estil al codi que viatja al backend: tres lletres, i la de la barretina si n'hi ha. */
+fun WindStyle.encode(): String = eyes.key + mouth.key + shape.key + barretina
 
 /** The packs a wind can be drawn with; the account theme is one of them or "free" (task 045). */
-internal val windPacks = listOf("cares", "esperit", "cap", "rosa", "mapa")
+internal val windPacks = listOf("cares", "esperit", "cap", "rosa", "mapa", "minairo", "pelut")
+
+/** A pack's sample in a picker at [size]: a dial or a map fills its whole square, so it is drawn smaller to weigh as much as a figure. */
+internal fun windPackSample(pack: String, size: Int): Int = if (pack == "rosa" || pack == "mapa") size * 5 / 6 else size
 
 /** The account's avatar theme (`avatarTheme` of GET /api/winds); "free" draws each wind with its own pack. */
 val LocalAvatarTheme = compositionLocalOf { "cares" }
@@ -137,7 +163,7 @@ internal fun avatarThemeOf(raw: String): String =
 internal fun windPack(theme: String, style: WindStyle): String =
     if (theme != "free") theme else style.pack.takeIf { it in windPacks } ?: "cares"
 
-/** "winds.avatarCares", "winds.avatarEsperit", "winds.avatarCap", "winds.avatarRosa", "winds.avatarFree". */
+/** "winds.avatarCares", "winds.avatarEsperit", "winds.avatarCap", "winds.avatarRosa", "winds.avatarMinairo", "winds.avatarPelut", "winds.avatarFree". */
 internal fun avatarLabelKey(pack: String) = "winds.avatar" + pack.replaceFirstChar { it.uppercase() }
 
 private val windRose = mapOf("tramuntana" to 0, "gregal" to 45, "llevant" to 90, "xaloc" to 135,
@@ -196,8 +222,220 @@ private fun DrawScope.drawBreath(size: Int, accent: Color, blow: Float) {
     for ((d, width) in windBreathLines(size)) drawPath(windBreathPaths.getValue(d), brush, style = Stroke(width, cap = StrokeCap.Round, pathEffect = dash))
 }
 
+/** [block] amb opacitat [alpha]: en passar d'un humor a l'altre, les marques es fonen en lloc de canviar de cop. */
+private fun DrawScope.faded(alpha: Float, block: DrawScope.() -> Unit) {
+    if (alpha <= .01f) return
+    if (alpha >= .99f) return block()
+    drawContext.canvas.saveLayer(Rect(-size.width, -size.height, 2f * size.width, 2f * size.height), Paint().apply { this.alpha = alpha })
+    block()
+    drawContext.canvas.restore()
+}
+
+/**
+ * L'espurna de cada feina al voltant del cos (espai de 80, fora de la insígnia de
+ * dalt a la dreta), del color del vent: pensant, bombolles que pugen; buscant, un
+ * estel que li dona la volta; llegint, ratlles que passen; escrivint, gotes de
+ * tinta; treballant (l'ordinador), guspires; discutint, ones cap a fora.
+ */
+internal fun DrawScope.drawWorkTrail(mood: WindMood, t: Float, accent: Color) {
+    fun cycle(period: Float, shift: Float = 0f) = ((t + shift) % period + period) % period / period
+    fun swell(f: Float) = sin(PI.toFloat() * f)
+    when (mood) {
+        WindMood.THINKING -> for (i in 0 until 3) {
+            val f = cycle(2.4f, i * .8f)
+            drawCircle(accent, 1.2f + 2f * f, Offset(13f - 4f * f, 30f - 24f * f), alpha = .75f * swell(f))
+        }
+        WindMood.SEARCHING -> for (i in 0 until 5) {
+            val a = 2f * PI.toFloat() * (cycle(1.8f) - i * .035f)
+            drawCircle(accent, 2.4f - i * .35f, Offset(40f + 38f * cos(a), 42f + 34f * sin(a)), alpha = .8f * (1f - i / 5f))
+        }
+        WindMood.READING -> for (i in 0 until 3) {
+            val f = cycle(2.1f, i * .7f)
+            val y = 70f - 36f * f
+            drawLine(accent, Offset(1f, y), Offset(9f - 3f * (i % 2), y), strokeWidth = 1.8f, cap = StrokeCap.Round, alpha = .8f * swell(f))
+        }
+        WindMood.WRITING -> for (i in 0 until 3) {
+            val f = cycle(1.2f, i * .4f)
+            drawCircle(accent, 1.8f * (1f - .5f * f), Offset(63f + 3f * i, 64f + 14f * f * f), alpha = .85f * (1f - f))
+        }
+        WindMood.WORKING -> for (i in 0 until 5) {
+            val f = cycle(.9f, i * .18f)
+            val a = (200f + i * 34f) * PI.toFloat() / 180f
+            val from = 34f + 10f * f
+            drawLine(accent, Offset(40f + from * cos(a), 44f + from * sin(a)), Offset(40f + (from + 3.5f) * cos(a), 44f + (from + 3.5f) * sin(a)),
+                strokeWidth = 2f, cap = StrokeCap.Round, alpha = .9f * (1f - f))
+        }
+        WindMood.DISCUSSING -> for (i in 0 until 2) {
+            val f = cycle(1.6f, i * .8f)
+            val r = 34f + 8f * f
+            drawArc(accent, startAngle = 155f, sweepAngle = 50f, useCenter = false, topLeft = Offset(40f - r, 44f - r), size = Size(2f * r, 2f * r),
+                alpha = .8f * (1f - f), style = Stroke(1.8f, cap = StrokeCap.Round))
+        }
+        else -> {}
+    }
+}
+
+/**
+ * Quan parpelleja (s dins el rellotge de 12 s): cada 2–4,5 s, a l'atzar però
+ * sempre igual per al mateix vent. Un metrònom es nota; això sembla viu.
+ */
+internal fun windBlinkTimes(seed: Int): List<Float> {
+    val rnd = kotlin.random.Random(seed)
+    return generateSequence(.4f + rnd.nextFloat()) { it + 2f + rnd.nextFloat() * 2.5f }.takeWhile { it < 11.6f }.toList()
+}
+
+/** Dues mirades de reüll per volta: quan (s) i cap on, a l'atzar per vent. */
+internal fun windGlances(seed: Int): List<Pair<Float, Offset>> {
+    val rnd = kotlin.random.Random(seed xor 0x5eed)
+    return listOf(1.5f, 7.5f).map { from ->
+        from + rnd.nextFloat() * 3f to Offset(if (rnd.nextBoolean()) .75f else -.75f, if (rnd.nextInt(3) == 0) -.8f else .1f)
+    }
+}
+
+/** On mira al temps [t]: davant, tret del segon llarg de cada mirada, que els ulls fan i desfan sense saltar. */
+internal fun windGlanceAt(t: Float, glances: List<Pair<Float, Offset>>): Offset {
+    val (from, to) = glances.firstOrNull { t - it.first in 0f..1.1f } ?: return Offset.Zero
+    val d = t - from
+    return to * smooth(min(d, 1.1f - d) / .16f)
+}
+
 /** Gir (graus) i batec (escala) de l'aura al temps `t` del rellotge de 12 s; sense moviment `t` és 0 i queda quieta. */
 internal fun windAuraSway(t: Float): Pair<Float, Float> = t % 6f / 6f * 360f to 1f + sin(PI.toFloat() * t) * .06f
+
+/** De quin vent (el seu color) és una cara: al xat d'un vent n'hi ha d'haver una de sola (109). */
+internal val WindFaceKey = SemanticsPropertyKey<Color>("WindFace")
+
+private fun smooth(x: Float): Float { val c = x.coerceIn(0f, 1f); return c * c * (3f - 2f * c) }
+
+/**
+ * A keyframe track like a CSS animation: [keys] are (fraction 0..1, value)
+ * from 0, eased in and out between them, back to the first after the last.
+ */
+private fun track(f: Float, vararg keys: Pair<Float, Float>): Float {
+    val i = keys.indexOfLast { it.first <= f }.coerceAtLeast(0)
+    val (a, va) = keys[i]
+    val (b, vb) = keys.getOrElse(i + 1) { 1f to keys[0].second }
+    return if (b <= a) va else va + (vb - va) * smooth((f - a) / (b - a))
+}
+
+/**
+ * Com està posat el vent, amb els números de `poses` a winds.js (110): el cos
+ * es desplaça ([x], [y] en unitats de la caixa de 80, avall positiu),
+ * s'inclina ([tilt], graus) i s'aixafa ([sx], [sy]); els ulls miren ([gx], [gy]);
+ * la parpella de dalt baixa ([lid], 0..1 de l'ull) i es decanta ([brow], graus:
+ * + decidit, − trist); la de baix puja en un arc content ([smile], 0..1).
+ */
+internal data class WindPose(
+    val x: Float = 0f, val y: Float = 0f, val tilt: Float = 0f, val sx: Float = 1f, val sy: Float = 1f,
+    val gx: Float = 0f, val gy: Float = 0f, val lid: Float = 0f, val brow: Float = 0f, val smile: Float = 0f,
+)
+
+internal fun windPoseBetween(a: WindPose, b: WindPose, f: Float): WindPose {
+    fun mix(p: Float, q: Float) = p * (1f - f) + q * f
+    return WindPose(mix(a.x, b.x), mix(a.y, b.y), mix(a.tilt, b.tilt), mix(a.sx, b.sx), mix(a.sy, b.sy),
+        mix(a.gx, b.gx), mix(a.gy, b.gy), mix(a.lid, b.lid), mix(a.brow, b.brow), mix(a.smile, b.smile))
+}
+
+/**
+ * La postura de cada estat amb la seva firma de moviment al temps [t] del
+ * rellotge de 12 s, com `poses` i els bucles de winds.css: en repòs respira i
+ * mira de reüll; pensant mira amunt i es decanta a poc a poc; buscant s'acosta
+ * i escombra ràpid; llegint els ulls fan línies; escrivint bota una mica;
+ * treballant s'aixafa i bota amb força, decidit; discutint es gronxa; esperant
+ * s'inclina cap a tu; quan falla s'ensorra i sospira; acabat queda content;
+ * amb novetats fa dos botets de «hola».
+ */
+internal fun windPose(mood: WindMood, t: Float, glances: List<Pair<Float, Offset>> = emptyList()): WindPose {
+    fun at(period: Float) = t % period / period
+    // wf-breathe: every calm face, and the figure under the other loops too.
+    val breathe = track(at(4f), 0f to 0f, .5f to 1f)
+    val calm = WindPose(sx = 1f - .01f * breathe, sy = 1f + .025f * breathe)
+    val pose = when (mood) {
+        WindMood.IDLE, WindMood.TALKING -> windGlanceAt(t, glances).let { g -> calm.copy(gx = g.x * 4f, gy = g.y * 1.2f, lid = .07f) }
+        // Android's own «content» (profiles, games): idle with a little smile.
+        WindMood.HAPPY -> windGlanceAt(t, glances).let { g -> calm.copy(gx = g.x * 4f, gy = g.y * 1.2f, lid = .07f, smile = .15f) }
+        WindMood.THINKING -> {
+            val f = at(6f)
+            calm.copy(y = -.5f + track(f, 0f to 0f, .5f to -.6f), tilt = -5f + track(f, 0f to -2.5f, .5f to 2f),
+                gx = 2.4f + track(f, 0f to 0f, .3f to -2.4f, .45f to -2.4f, .7f to .6f, .85f to .6f),
+                gy = -3.2f + track(f, 0f to 0f, .3f to .4f, .45f to .4f, .7f to -.6f, .85f to -.6f))
+        }
+        WindMood.SEARCHING -> {
+            val peer = track(at(2.4f), 0f to 0f, .5f to 1f)
+            calm.copy(x = 1.5f + 1.2f * peer, tilt = 4f + 2f * peer, gy = -.6f, lid = .22f, brow = 8f,
+                gx = track(at(1.2f), 0f to -3f, .45f to 3f, .55f to 3f))
+        }
+        WindMood.READING -> {
+            val f = at(3f)
+            calm.copy(x = .5f, y = 1f, tilt = 3f, lid = .32f,
+                gx = track(f, 0f to -3f, .4f to 3f, .5f to -3f, .9f to 3f),
+                gy = 2.2f + track(f, 0f to 1f, .4f to 1f, .5f to 3f, .9f to 3f))
+        }
+        WindMood.WRITING -> calm.copy(x = .5f, y = .5f + track(at(1.2f), 0f to 0f, .5f to -1.5f), tilt = 2f,
+            gx = -.6f, gy = 2.6f, lid = .26f, brow = 5f, smile = .1f)
+        WindMood.WORKING -> {
+            // wf-busy: a hard squash-bob, its own scale instead of the breath.
+            val f = at(.6f)
+            WindPose(y = .8f + track(f, 0f to 0f, .4f to -3.2f, .8f to 0f),
+                sx = 1.04f * track(f, 0f to 1.03f, .4f to .98f, .8f to 1.04f),
+                sy = .96f * track(f, 0f to .97f, .4f to 1.03f, .8f to .95f),
+                gy = .6f, lid = .38f, brow = 14f)
+        }
+        WindMood.DISCUSSING -> at(3f).let { f ->
+            calm.copy(tilt = -3f + track(f, 0f to -4f, .5f to 4f), gx = track(f, 0f to -2.5f, .5f to 2.5f), lid = .08f, smile = .15f)
+        }
+        WindMood.WAITING -> {
+            val lean = track(at(4f), 0f to 0f, .5f to 1f)
+            calm.copy(x = -1.5f, y = -.8f * lean, tilt = -7f - 2.5f * lean, gx = -1.8f, gy = 1.6f, smile = .12f)
+        }
+        WindMood.DONE -> calm.copy(gy = -1f, smile = .5f)
+        WindMood.FAILED -> {
+            val f = at(6f)
+            WindPose(y = 2.4f, tilt = 5f, sx = 1.05f * track(f, 0f to 1f, .4f to 1.02f, .55f to .99f),
+                sy = .92f * track(f, 0f to 1f, .4f to .97f, .55f to 1.015f), gx = -.6f, gy = 2.6f, lid = .42f, brow = -16f)
+        }
+        WindMood.NEWS -> calm.copy(x = .5f, y = -.5f - 3f * hello(at(4f)), tilt = -4f, gx = 2f, gy = -1.6f, smile = .22f)
+    }
+    // Treballant ja bota fort (wf-busy); les altres feines no paren mai del tot:
+    // suren i es gronxen a poc a poc, amb uns períodes que no casen amb cap altre
+    // bucle (ni amb la cara de la capçalera).
+    if (mood !in windWorkMoods || mood == WindMood.WORKING) return pose
+    return pose.copy(y = pose.y + 1.1f * sin(2f * PI.toFloat() * t / 2.3f), tilt = pose.tilt + 1.6f * sin(2f * PI.toFloat() * t / 3.7f))
+}
+
+/**
+ * Quant pesa cada humor mentre la cara passa d'un a l'altre ([f] 0..1 del pas en
+ * marxa). Canviar a mig camí parteix dels pesos d'aquell moment: la cara no salta.
+ */
+internal class WindMoodBlend(mood: WindMood) {
+    private val from = FloatArray(WindMood.entries.size).also { it[mood.ordinal] = 1f }
+    var to = mood
+        private set
+
+    fun weight(m: WindMood, f: Float): Float = from[m.ordinal] * (1f - f) + if (m == to) f else 0f
+
+    fun retarget(mood: WindMood, f: Float) {
+        for (m in WindMood.entries) from[m.ordinal] = weight(m, f)
+        to = mood
+    }
+}
+
+/** The feet stepping while it works or writes (wf-step, .75 s, the right half a beat later); 0 otherwise. */
+internal fun windStep(mood: WindMood, t: Float, right: Boolean): Float =
+    if (mood != WindMood.WORKING && mood != WindMood.WRITING) 0f
+    else track((t + if (right) .375f else 0f) % .75f / .75f, 0f to 0f, .25f to -2.4f, .5f to 0f)
+
+/**
+ * El salt d'acabar (f 0..1 en 1,1 s, wf-hop): s'ajup i s'eixampla, salta
+ * estirat, toca a terra aixafat i s'assenta amb un rebot. y (avall positiu,
+ * unitats de 80), escala x i escala y.
+ */
+internal fun windDoneHop(f: Float): Triple<Float, Float, Float> {
+    val y = track(f, 0f to 0f, .16f to 0f, .4f to -9f, .6f to 0f, .72f to -1.5f, .86f to 0f, 1f to 0f)
+    val sx = track(f, 0f to 1f, .16f to 1.12f, .4f to .92f, .6f to 1.1f, .72f to .97f, .86f to 1.02f, 1f to 1f)
+    val sy = track(f, 0f to 1f, .16f to .84f, .4f to 1.1f, .6f to .88f, .72f to 1.03f, .86f to .98f, 1f to 1f)
+    return Triple(y, sx, sy)
+}
 
 @Composable
 fun WindFace(
@@ -209,16 +447,38 @@ fun WindFace(
     /** Llista de vents: l'eina de l'ofici també en avatars petits, per triar sabent l'especialització. */
     showKit: Boolean = false,
     modifier: Modifier = Modifier,
+    /** El toc, a més del bellugueig de [tappable]: el vent del xat obre el seu perfil. */
+    onClick: (() -> Unit)? = null,
+    /** A large face (the chat's, a profile, the home strip) is the clay wind (114) when its sheet is in the APK. */
+    clay: Boolean = false,
+    /** False for the chat's corner wind, which shakes its head on a failed turn instead (WindPresence), as on the web. */
+    shrugs: Boolean = true,
 ) {
     val compact = size < 64
     val motionAllowed = windMotionEnabled()
     val motion = (!compact || tappable) && motionAllowed
-    when (windPack(LocalAvatarTheme.current, style)) {
-        "esperit" -> return EsperitFace(size, mood, accent, style.bearing, motion, modifier)
-        "cap" -> return CapFace(size, mood, accent, style.bearing, motion, modifier)
-        "rosa" -> return RosaFace(size, mood, accent, style.bearing, motion, modifier)
-        "mapa" -> return MapFace(size, mood, accent, style, motion, modifier)
+    // Celebrar o arronsar-se és un sol gest en acabar el torn: també als avatars petits.
+    val cued = modifier.semantics { set(WindFaceKey, accent) }.then(windTurnCue(mood, accent, shrugs))
+    val packCued = if (onClick != null) cued.clickable(onClick = onClick) else cued
+    val pack = windPack(LocalAvatarTheme.current, style)
+    when (pack) {
+        "esperit" -> return EsperitFace(size, mood, accent, style.bearing, motion, packCued)
+        "cap" -> return CapFace(size, mood, accent, style.bearing, motion, packCued)
+        "rosa" -> return RosaFace(size, mood, accent, style.bearing, motion, packCued)
+        "mapa" -> return MapFace(size, mood, accent, style, motion, packCued)
     }
+    // A pelut is its clay sheets at every size, without a trade kit (155); without them, the Cares face.
+    val pelut = pack == "pelut"
+    if (pelut && WindClayFace(size, mood, accent, accent, "pelut", motion, packCued)) return
+    // The minairó is a Cares figure in costume: the same eyes, poses and springs, its own body.
+    val minairo = pack == "minairo"
+    // A face that wears its trade is clay too, the trade's icon on a badge (159); without the sheets, the Canvas figure with its kit. The minairó wears none and has its own sheets (119).
+    val wearsKit = !minairo && (size >= 80 || showKit) && windKits[style.kit] != null
+    if (clay && !pelut && WindClayFace(size, mood, accent, minairoLook(style, accent).cap,
+            if (minairo) "minairo" else style.shape.key, motion, packCued, badge = if (wearsKit) windKitIcon(style.kit) else null)) return
+    // A smaller Cares face (a list row, the chat header) holds its sheet's still frame, like the pelut (167); below 28 dp the badge would be a dot.
+    if (!clay && compact && pack == "cares" && WindClayFace(size, mood, accent, accent, style.shape.key, false, packCued,
+            badge = if (size >= 28 && windKits[style.kit] != null) windKitIcon(style.kit) else null)) return
     // La forma reacciona quan el dit toca la cara i torna amb molla en deixar-la.
     val touch = if (tappable && motion) remember { MutableInteractionSource() } else null
     val pressScale = if (touch != null) {
@@ -254,80 +514,126 @@ fun WindFace(
             animationSpec = infiniteRepeatable(tween(750, easing = LinearEasing)), label = "blow")
     } else null
     val seed = remember(accent, style) { ((accent.hashCode() * 31 + style.hashCode()) and 0xffff) / 65535f * 12f }
+    val blinks = remember(seed) { windBlinkTimes(seed.toBits()) }
+    val glances = remember(seed) { windGlances(seed.toBits()) }
     fun time() = loop?.let { (it.value + seed) % 12f } ?: 0f
-    fun wave(time: Float, period: Float) = sin(2f * PI.toFloat() * (time % period) / period)
     val doneHop = if (motion && mood == WindMood.DONE) {
         val hop = remember { Animatable(0f) }
-        LaunchedEffect(hop) { hop.animateTo(1f, tween(800)) }
+        LaunchedEffect(hop) { hop.animateTo(1f, tween(1100, easing = LinearEasing)) }
         hop
     } else null
-    val calm = mood == WindMood.IDLE || mood == WindMood.HAPPY || mood == WindMood.NEWS
-    // The stored specialty stays intact; small avatars show only their identity…
-    // unless the caller opts in (the crew strip): picking a wind by its trade tool.
-    val kit = if (size >= 80 || showKit) windKits[style.kit] else null
+    // D'un estat a l'altre la postura, la insígnia i l'espurna passen en 300 ms
+    // amb sortida suau, sense saltar ni reiniciar els bucles (el rellotge és el
+    // mateix). Els pesos no són estat de Compose: els llegeix només el dibuix.
+    val moodMix = remember { Animatable(1f) }
+    val blend = remember { WindMoodBlend(mood) }
+    LaunchedEffect(mood) {
+        if (blend.to == mood) return@LaunchedEffect
+        blend.retarget(mood, moodMix.value)
+        moodMix.snapTo(0f)
+        moodMix.animateTo(1f, tween(300, easing = FastOutSlowInEasing))
+    }
+    fun fade(m: WindMood) = if (!motion) (if (m == mood) 1f else 0f) else blend.weight(m, moodMix.value)
+    fun pose(t: Float): WindPose {
+        if (!motion) return windPose(mood, 0f)
+        var mixed: WindPose? = null
+        var total = 0f
+        for (m in WindMood.entries) {
+            val w = fade(m).takeIf { it > .001f } ?: continue
+            total += w
+            val p = windPose(m, t, glances)
+            mixed = mixed?.let { windPoseBetween(it, p, w / total) } ?: p
+        }
+        return mixed ?: windPose(mood, t, glances)
+    }
+    // The large figure (profile, creator, a crew strip with tools) wears its kit
+    // and is drawn a little smaller to make room for it, as `full` on the web;
+    // the stored specialty stays intact when a small avatar does not show it.
+    val full = size >= 80 || showKit
     // Paral·laxi de volum només a les cares grans (perfil, creador, xat buit):
     // a les llistes petites seria soroll i sensor per a res.
     val lean = rememberWindLean(motion && !compact)
-    val ink = remember(accent) { windInk(accent) }
-    // Eines i insígnies es dibuixen amb la tinta del mateix vent, no amb un lila fix.
-    val tone = remember(accent) { lerp(accent, Color(0xFF1B1530), .8f) }
-    val handEdge = remember(accent) { lerp(accent, Color(0xFF1B1530), .45f) }
-    val bodyPaint = remember(style.shape, accent) { WindBodyPaint(style.shape, accent) }
+    val bodyPaint = remember(style.shape, accent, minairo) { WindBodyPaint(if (minairo) WindShape.BALL else style.shape.drawn, accent) }
+    val look = remember(style, accent) { minairoLook(style, accent) }
     // L'aura entra i surt amb un fos quan el vent comença o acaba la feina.
     val aura by animateFloatAsState(if (windShowsAura(mood, size)) 1f else 0f, tween(450), label = "wind-aura")
     val motionLayer = if (motion) Modifier.graphicsLayer {
-        val t = time()
-        val breath = wave(t, 4f)
-        val lift = doneHop?.let { -sin(PI.toFloat() * it.value) * 7f }
-            ?: if (calm) breath * 1.6f else 0f
+        val p = pose(time())
+        val (hop, hopX, hopY) = doneHop?.let { windDoneHop(it.value) } ?: Triple(0f, 1f, 1f)
         val scale = pressScale?.value ?: 1f
+        val k = size.dp.toPx() / 80f
         transformOrigin = TransformOrigin(0.5f, 1f)
-        translationY = lift / 80f * size.dp.toPx()
-        scaleX = (1f + (1f - scale) * .5f) * (1f - breath * 0.008f)
-        scaleY = scale * (1f + breath * 0.015f)
-        rotationZ = when (mood) {
-            WindMood.THINKING -> wave(t, 6f) * 5f
-            WindMood.DISCUSSING -> wave(t, 3f) * 4f
-            else -> 0f
-        }
+        translationX = p.x * k
+        translationY = (p.y + hop) * k
+        scaleX = (1f + (1f - scale) * .5f) * p.sx * hopX
+        scaleY = scale * p.sy * hopY
+        // En tocar-la, un bellugueig curt que s'apaga: «sí, sóc aquí».
+        val c = cheer?.value ?: 0f
+        rotationZ = sin((1f - c) * 3f * PI.toFloat()) * c * 9f + p.tilt
     } else Modifier
-    val tap = if (touch != null) Modifier.clickable(interactionSource = touch, indication = null) { punch++ } else Modifier
-    Canvas(modifier.then(tap).then(motionLayer).size(size.dp)) {
-        val t = time()
+    val tap = if (touch != null) Modifier.clickable(interactionSource = touch, indication = null) { punch++; onClick?.invoke() }
+        else if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+    Canvas(cued.then(tap).then(motionLayer).size(size.dp)) {
+        with(WindFigure) {
+            draw(time(), size, mood, accent, style, minairo, full, motion, ::pose, blinks, aura, lean.value, cheer?.value, doneHop?.value, blow?.value, look, bodyPaint, ::fade)
+        }
+    }
+}
+
+/** The Cares figure (or the minairó) at one instant [t]: the live face and the still avatar of a notification draw it the same way. */
+internal object WindFigure {
+    private fun wave(time: Float, period: Float) = sin(2f * PI.toFloat() * (time % period) / period)
+
+    fun DrawScope.draw(
+        t: Float, size: Int, mood: WindMood, accent: Color, style: WindStyle, minairo: Boolean, full: Boolean, motion: Boolean,
+        pose: (Float) -> WindPose, blinks: List<Float>, aura: Float, lean: Offset,
+        cheer: Float?, doneHop: Float?, blow: Float?, look: MinairoLook, bodyPaint: WindBodyPaint,
+        /** Quant es veu cada humor mentre passa d'un a l'altre. */
+        fade: (WindMood) -> Float = { if (it == mood) 1f else 0f },
+    ) {
+        val kit = if (full && !minairo) windKits[style.kit] else null
+        val ink = windInk(accent)
+        // Eines i insígnies es dibuixen amb la tinta del mateix vent, no amb un lila fix.
+        val tone = lerp(accent, Color(0xFF1B1530), .8f)
+        val handEdge = lerp(accent, Color(0xFF1B1530), .45f)
+        val breath = windBreathMoods.sumOf { fade(it).toDouble() }.toFloat()
         fun phase(period: Float) = t % period / period
         val talkOpen = motion && mood == WindMood.TALKING && phase(.4f) < .5f
         val twinkle = if (motion && (mood == WindMood.HAPPY || mood == WindMood.TALKING)) (wave(t, 2f) + 1f) / 2f else 0f
-        val blinking = motion && phase(6f) in .955f..0.975f
-        val squint = motion && mood == WindMood.HAPPY && phase(6f) in .30f..0.44f
-        val look = when (mood) {
-            WindMood.THINKING, WindMood.NEWS -> Offset(.8f, -.9f)
-            WindMood.SEARCHING -> Offset(wave(t, 2.4f), 0f)
-            WindMood.READING -> {
-                val f = phase(3f)
-                Offset((f % .5f / .4f).coerceAtMost(1f) * 2f - 1f, if (f < .5f) .3f else .9f)
-            }
-            WindMood.WRITING -> Offset(0f, 1f)
-            WindMood.DISCUSSING -> Offset(wave(t, 3f), 0f)
-            WindMood.IDLE, WindMood.HAPPY -> when (phase(12f)) {
-                in .30f..0.40f -> Offset(-.7f, .1f)
-                in .62f..0.70f -> Offset(.7f, .1f)
-                else -> Offset.Zero
-            }
-            else -> Offset.Zero
-        }
+        // A blink closes and opens the lids in 160 ms instead of cutting to closed.
+        val blink = if (!motion) 0f else blinks.maxOfOrNull { b -> (t - b).let { if (it in 0f..0.16f) sin(PI.toFloat() * it / .16f) else 0f } } ?: 0f
+        val p = pose(t)
         val w = this.size.width
         val h = this.size.height
-        val cx = w / 2f
-        // Keep the same silhouette/face placement with or without a specialty.
-        val cy = h / 2f
-        val r = min(w, h) * 0.37f
         val unit = min(w, h) / 80f
-        // Thin features vanish in a list avatar: the small face draws them bolder.
-        val mouthStroke = r * if (compact) .09f else .074f
+        // The web's 80 box: the head is a face of R 33 centred at (40, 40.5);
+        // the large figure draws it at .9 from (4, 3), a small gust at .95 from
+        // (2, 3.6) to fit its curl. [u] turns head units into pixels.
+        val (headScale, headX, headY) = when {
+            full -> Triple(.9f, 4f, 3f)
+            style.shape.drawn == WindShape.SPIRAL -> Triple(.95f, 2f, 3.6f)
+            else -> Triple(1f, 0f, 0f)
+        }
+        val u = unit * headScale
+        val cx = (headX + 40f * headScale) * unit
+        val cy = (headY + 40.5f * headScale) * unit
+        val r = 33f * u
+        fun hx(x: Float) = cx + (x - 40f) * u
+        fun hy(y: Float) = cy + (y - 40.5f) * u
+        // Una espurna per feina, del color del vent: només a les cares grans que es mouen.
+        fun trails() {
+            if (motion && size >= 64) withTransform({ scale(unit, unit, Offset.Zero) }) {
+                for (m in windWorkMoods) faded(fade(m)) { drawWorkTrail(m, t, accent) }
+            }
+        }
+        // La insígnia de cada humor que es veu, amb el seu pes.
+        fun badges(skip: WindMood?) {
+            for (m in WindMood.entries) if (m != skip) faded(fade(m)) { drawBadge(m, t, motion, doneHop ?: 1f, tone) }
+        }
 
         // Inclinació del mòbil (−1..1), llegida aquí perquè només redibuixi.
-        val (tx, ty) = lean.value
-        val paint = if (tx == 0f && ty == 0f) bodyPaint else WindBodyPaint(style.shape, accent, tx, ty)
+        val (tx, ty) = lean
+        val paint = if (tx == 0f && ty == 0f) bodyPaint else WindBodyPaint(if (minairo) WindShape.BALL else style.shape.drawn, accent, tx, ty)
         if (aura > 0f) {
             // Darrere el cos: un halo suau i un anell que gira, tots dos del color del vent.
             val (spin, pulse) = windAuraSway(t)
@@ -342,16 +648,31 @@ fun WindFace(
                     ring, Offset(cx, cy), style = Stroke(r * .07f, cap = StrokeCap.Round))
             }
         }
-        drawWindBody(style.shape, paint, cx, cy, r, if (motion) .5f + wave(t, 6f) * 5.5f else 0f)
+        if (minairo) {
+            val cheered = (((cheer ?: 0f) - .15f) * 4f).coerceIn(0f, 1f)
+            val eyePose = p.copy(lid = maxOf(blink, p.lid), smile = maxOf(p.smile, cheered * .5f))
+            // The cap and the beard trail the figure: how far it moved in the last tenth of a second, the hop included.
+            val hop = doneHop
+            fun lift(at: Float) = if (hop == null) 0f else windDoneHop(at.coerceIn(0f, 1f)).first
+            val moved = if (!motion) 0f else p.y - pose(t - .1f).y + lift(hop ?: 0f) - lift((hop ?: 0f) - .09f)
+            withTransform({ scale(unit, unit, Offset.Zero) }) {
+                drawMinairo(look, style.eyes, eyePose, mood, t, motion, moved, size, accent, ink, paint, tx, ty, talkOpen)
+                // The badge goes to the corner the barretina does not fold over.
+                withTransform({ translate(if (look.fold == 1) -54f else 0f, 0f) }) { badges(null) }
+            }
+            trails()
+            return
+        }
+        drawWindBody(style.shape.drawn, paint, cx, cy, r, if (motion) .5f + wave(t, 6f) * 5.5f else 0f,
+            ground = full, stepL = windStep(mood, t, false) / 33f, stepR = windStep(mood, t, true) / 33f)
         // A single small tool on large profiles, never a costume over the eyes.
-        // El 'head' del kit (auriculars, gorres...) es dibuixa com al web: en
-        // coordenades d'una cara de radi 33, i aquest cos és aquella cara a .9;
-        // així cenyeix les seves vores i les ulleres emmarquen els ulls. El
-        // 'prop' es porta davant, petit i a la dreta.
+        // El 'head' del kit (auriculars, gorres...) es dibuixa com al web, en
+        // coordenades del cap; així cenyeix les seves vores i les ulleres
+        // emmarquen els ulls. El 'prop' es porta davant, petit i a la dreta.
         fun accessories() {
             if (kit == null) return
             if (kit.head.isNotEmpty()) {
-                withTransform({ scale(unit, unit, Offset.Zero); translate(4f, 4f); scale(.9f, .9f, Offset.Zero) }) { drawKit(kit.head, tone) }
+                withTransform({ scale(unit, unit, Offset.Zero); translate(headX, headY); scale(headScale, headScale, Offset.Zero) }) { drawKit(kit.head, tone) }
             }
             if (kit.prop.isNotEmpty() || kit.head.isEmpty()) {
                 val shapes = kit.prop.ifEmpty { kit.head }
@@ -369,128 +690,51 @@ fun WindFace(
             }
         }
 
-        // Els trets viuen a la cara de l'esfera: amb la inclinació es desplacen una mica.
-        val fx = cx + tx * r * .09f
-        val fy = cy + ty * r * .07f
-        val eyeY = fy - r * 0.05f + look.y * r * 0.07f
-        val eyeDx = r * 0.29f
-        val eyeW = r * 0.135f
-        val gazeShift = look.x * r * 0.07f
+        // Soft cheeks: a blush that melts into the body on every wind colour, and on the large figure a touch of light on them.
+        for (x in listOf(20.6f, 59.4f)) withTransform({ translate(hx(x), hy(48.8f)); scale(7f * u, 4.6f * u, Offset.Zero) }) {
+            drawCircle(windBlush, 1f, Offset.Zero)
+        }
+        if (full) for (x in listOf(19.1f, 57.9f)) drawOval(Color.White, Offset(hx(x) - 2.6f * u, hy(46.8f) - 1.2f * u), Size(5.2f * u, 2.4f * u), alpha = .35f)
 
-        // Soft cheeks: a blush that melts into the body on every wind colour.
-        for (side in listOf(-1f, 1f)) {
-            withTransform({ translate(fx + side * r * .588f, fy + r * .267f); scale(r * .212f, r * .139f, Offset.Zero) }) {
-                drawCircle(windBlush, 1f, Offset.Zero)
-            }
+        // Els ulls porten l'expressió. Mouen tot l'ull cap on mira (també amb la
+        // inclinació del mòbil); en tocar-la somriuen amb els ulls.
+        val cheered = (((cheer ?: 0f) - .15f) * 4f).coerceIn(0f, 1f)
+        val eyePose = p.copy(lid = maxOf(blink, p.lid), smile = maxOf(p.smile, cheered * .5f))
+        val small = size < 28
+        val gx = p.gx + tx * 2.4f
+        val gy = p.gy + ty * 1.8f
+        for (right in listOf(false, true)) {
+            drawWindEye(style.eyes, eyePose, right, hx(if (right) 49.6f else 30.4f) + gx * u, hy(38.4f) + gy * u, u, small, full, ink, accent, paint, cx, cy, r)
         }
 
-        // Two bold eye marks; the whole figure also gets a catchlight, as on the web.
-        if (mood == WindMood.DONE || blinking || squint || (cheer?.value ?: 0f) > .15f) {
-            for (side in listOf(-1f, 1f)) {
-                drawArc(ink, 190f, 160f, false,
-                    Offset(fx + side * eyeDx - eyeW, eyeY - eyeW * .55f),
-                    Size(eyeW * 2f, eyeW * 1.1f),
-                    style = Stroke(r * .085f, cap = StrokeCap.Round))
-            }
-        } else for (side in listOf(-1f, 1f)) {
-            val ex = fx + side * eyeDx + gazeShift
-            when (style.eyes) {
-                WindEyes.DOTS, WindEyes.WIDE -> {
-                    val half = eyeW * if (style.eyes == WindEyes.WIDE) 1.3f else 1f
-                    drawRoundRect(ink, Offset(ex - half, eyeY - r * .27f),
-                        Size(half * 2f, r * .54f),
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(half))
-                    // Only where there is room for it: never in a list avatar.
-                    if (!compact) drawCircle(if (ink == Color.White) accent else Color.White, half * .36f,
-                        Offset(ex + half * .3f, eyeY - r * .143f), alpha = .5f)
-                }
-                WindEyes.STARRY -> {
-                    val rad = r * .23f
-                    val star = Path().apply {
-                        moveTo(ex, eyeY - rad)
-                        lineTo(ex + rad * .3f, eyeY - rad * .3f)
-                        lineTo(ex + rad, eyeY)
-                        lineTo(ex + rad * .3f, eyeY + rad * .3f)
-                        lineTo(ex, eyeY + rad)
-                        lineTo(ex - rad * .3f, eyeY + rad * .3f)
-                        lineTo(ex - rad, eyeY)
-                        lineTo(ex - rad * .3f, eyeY - rad * .3f)
-                        close()
-                    }
-                    drawPath(star, ink)
-                }
-                // Closed and content, not a flat dash: the lower arc of a small ellipse.
-                WindEyes.SLEEPY -> drawArc(ink, 20f, 140f, false,
-                    Offset(ex - r * .16f, eyeY - r * .16f), Size(r * .32f, r * .22f),
-                    style = Stroke(r * .097f, cap = StrokeCap.Round))
-            }
-        }
-
-        // Boca: segons l'estil. La base és un arc cap AVALL (somriure).
-        // Cal revisar-ho: boca plana, sense somriure que ho contradigui.
-        when (if (mood == WindMood.FAILED) WindMouth.NEUTRAL else style.mouth) {
-            WindMouth.SMILE -> drawArc(
-                color = ink,
-                // Compose mesura els arcs des de la dreta, en sentit horari:
-                // startAngle=20° + sweep 140° dibuixa la meitat INFERIOR de la
-                // circumferència → la boca corba cap avall als extrems = somriure.
-                startAngle = 20f,
-                sweepAngle = 140f,
-                useCenter = false,
-                topLeft = Offset(fx - r * 0.27f, fy + r * 0.02f),
-                size = Size(r * 0.54f, r * 0.52f),
-                style = Stroke(width = mouthStroke, cap = StrokeCap.Round),
-            )
+        // Boca: petita sota els ulls, que són els que parlen (els camins de winds.js).
+        // Thin features vanish in a list avatar: the small face draws them bolder.
+        val line = Stroke((if (full) 2.5f else 3.1f) * u, cap = StrokeCap.Round)
+        fun smile() = drawPath(Path().apply { moveTo(hx(31.8f), hy(52.8f)); quadraticTo(hx(40f), hy(62.8f), hx(48.2f), hy(52.8f)) }, ink, style = line)
+        if (mood == WindMood.FAILED) drawPath(Path().apply {
+            // A worried wave instead of the mouth.
+            moveTo(hx(32.5f), hy(55.4f)); quadraticTo(hx(36.25f), hy(52f), hx(40f), hy(55.4f)); quadraticTo(hx(43.75f), hy(58.8f), hx(47.5f), hy(55.4f))
+        }, ink, style = line)
+        else when (style.mouth) {
+            WindMouth.SMILE -> smile()
             WindMouth.OPEN -> {
                 // Boca oberta: llavor fosca amb una mica de llengua.
-                drawOval(
-                    color = ink,
-                    topLeft = Offset(fx - r * 0.145f, fy + r * 0.285f),
-                    size = Size(r * 0.29f, r * 0.315f),
-                )
-                drawOval(
-                    color = WindTongue,
-                    topLeft = Offset(fx - r * 0.094f, fy + r * 0.46f),
-                    size = Size(r * 0.188f, r * 0.134f),
-                )
+                drawOval(ink, Offset(hx(35.2f), hy(49.4f)), Size(9.6f * u, 10.4f * u))
+                drawOval(WindTongue, Offset(hx(36.9f), hy(55.2f)), Size(6.2f * u, 4.4f * u))
             }
-            WindMouth.NEUTRAL -> drawLine(
-                color = ink,
-                start = Offset(fx - r * 0.164f, fy + r * 0.424f),
-                end = Offset(fx + r * 0.164f, fy + r * 0.424f),
-                strokeWidth = mouthStroke,
-                cap = StrokeCap.Round,
-            )
+            WindMouth.NEUTRAL -> drawLine(ink, Offset(hx(34.6f), hy(54f)), Offset(hx(45.4f), hy(54f)), strokeWidth = line.width, cap = StrokeCap.Round)
             WindMouth.TONGUE -> {
                 // La llengua penja del somriure, que es dibuixa a sobre.
-                drawOval(
-                    color = WindTongue,
-                    topLeft = Offset(fx - r * 0.042f, fy + r * 0.46f),
-                    size = Size(r * 0.212f, r * 0.25f),
-                )
-                drawArc(
-                    color = ink,
-                    startAngle = 20f,
-                    sweepAngle = 140f,
-                    useCenter = false,
-                    topLeft = Offset(fx - r * 0.27f, fy + r * 0.02f),
-                    size = Size(r * 0.54f, r * 0.52f),
-                    style = Stroke(width = mouthStroke, cap = StrokeCap.Round),
-                )
+                drawPath(Path().apply {
+                    moveTo(hx(38.6f), hy(56.8f)); quadraticTo(hx(38.2f), hy(63.4f), hx(42f), hy(63.4f)); quadraticTo(hx(45.8f), hy(63.4f), hx(45.6f), hy(56f)); close()
+                }, WindTongue)
+                smile()
             }
         }
         // En parlar, la boca de l'estil s'obre i tanca: sembla que vocalitza.
         if (talkOpen) {
-            drawOval(
-                color = ink,
-                topLeft = Offset(fx - r * 0.12f, fy + r * 0.30f),
-                size = Size(r * 0.24f, r * 0.24f),
-            )
-            drawOval(
-                color = WindTongue,
-                topLeft = Offset(fx - r * 0.075f, fy + r * 0.43f),
-                size = Size(r * 0.15f, r * 0.10f),
-            )
+            drawOval(ink, Offset(hx(36.4f), hy(50.8f)), Size(7.2f * u, 7.2f * u))
+            drawOval(WindTongue, Offset(hx(37.8f), hy(55f)), Size(4.4f * u, 3f * u))
         }
         accessories()
         // Espurnes quan està content o explica coses.
@@ -503,11 +747,330 @@ fun WindFace(
             sparkle(cx + r * 1.05f, cy - r * 0.75f, r * 0.13f, twinkle)
             sparkle(cx - r * 1.10f, cy - r * 0.45f, r * 0.10f, 1f - twinkle)
         }
-        if (breathing) withTransform({ scale(unit, unit, Offset.Zero); translate(40f, 40f); rotate(style.bearing + 90f, Offset.Zero) }) {
-            drawBreath(size, accent, blow?.value ?: 0f)
+        if (breath > 0f) withTransform({ scale(unit, unit, Offset.Zero); translate(40f, 40f); rotate(style.bearing + 90f, Offset.Zero) }) {
+            faded(breath) { drawBreath(size, accent, blow ?: 0f) }
         }
         // In Cares the breath replaces the working cog; the other marks stay.
-        if (mood != WindMood.WORKING) withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, motion, doneHop?.value ?: 1f, tone) }
+        withTransform({ scale(unit, unit, Offset.Zero) }) { badges(skip = WindMood.WORKING) }
+        trails()
+    }
+}
+
+/** A wind's still face as a bitmap, for a notification's large icon: drawn without a window, as a list avatar. */
+internal fun windFaceBitmap(wind: Wind, theme: String, px: Int = 128): android.graphics.Bitmap {
+    val accent = Color(wind.argb)
+    val style = wind.faceStyle
+    val pack = windPack(theme, style)
+    val minairo = pack == "minairo"
+    val image = ImageBitmap(px, px)
+    val ball = WindBodyPaint(WindShape.BALL, accent)
+    CanvasDrawScope().draw(Density(1f), LayoutDirection.Ltr, androidx.compose.ui.graphics.Canvas(image), Size(px.toFloat(), px.toFloat())) {
+        when (pack) {
+            "esperit" -> with(EsperitFigure) { draw(0f, false, WindMood.IDLE, accent, style.bearing, Offset.Zero, ball) }
+            "cap" -> with(CapFigure) { draw(0f, false, 48, WindMood.IDLE, accent, style.bearing, Offset.Zero, ball) }
+            "rosa" -> with(RosaFigure) { draw(0f, false, 48, WindMood.IDLE, accent, style.bearing, Offset.Zero, ball) }
+            "mapa" -> with(MapFigure) { draw(0f, false, WindMood.IDLE, MapPicture(style, px, accent).image, lerp(accent, Color(0xFF1B1530), .8f)) }
+            else -> with(WindFigure) {
+                draw(0f, 48, WindMood.IDLE, accent, style, minairo, false, false, { windPose(WindMood.IDLE, 0f) }, emptyList(), 0f, Offset.Zero,
+                    null, null, null, minairoLook(style, accent), WindBodyPaint(if (minairo) WindShape.BALL else style.shape.drawn, accent))
+            }
+        }
+    }
+    return image.asAndroidBitmap()
+}
+
+/** Eye size (rx, ry) and how much lower it sits, in head units, per eye style: tall, big, star shine, calm and low (`face` in winds.js). */
+private fun windEyeSize(eyes: WindEyes) = when (eyes) {
+    WindEyes.DOTS -> Triple(5.8f, 8f, 0f)
+    WindEyes.WIDE -> Triple(7.2f, 8.6f, 0f)
+    WindEyes.STARRY -> Triple(6.2f, 7.8f, 0f)
+    WindEyes.SLEEPY -> Triple(6.8f, 5.8f, 1.6f)
+}
+
+/**
+ * Un ull de Cares centrat a ([x], [y0]) en píxels, [u] píxels per unitat del cap.
+ * Una el·lipse fosca i brillant amb la parpella de dalt (pintada amb el cos i un
+ * plec del seu to fosc) que baixa fins a `lid` i es decanta amb `brow`, mirall a
+ * l'ull dret, i la de baix, que puja amb `smile` fins a fer un arc content. Tot
+ * retallat a l'ull: és l'ull qui canvia de forma. Sota 28 dp ([small]) és una
+ * mica més gran i té un sol reflex gros; la figura gran ([full]) s'enfonsa una
+ * mica a la cara.
+ */
+private fun DrawScope.drawWindEye(eyes: WindEyes, p: WindPose, right: Boolean, x: Float, y0: Float, u: Float, small: Boolean, full: Boolean,
+    ink: Color, accent: Color, paint: WindBodyPaint, cx: Float, cy: Float, r: Float) {
+    val (baseRx, baseRy, drop) = windEyeSize(eyes)
+    val rx = baseRx * u * (if (small) 1.12f else 1f)
+    val ry = baseRy * u * (if (small) 1.08f else 1f)
+    val y = y0 + drop * u
+    val lash = lerp(accent, Color(0xFF1B1530), .45f)
+    val shine = if (ink == Color.White) accent else Color.White
+    if (full) drawOval(Brush.radialGradient(0f to paint.core.copy(alpha = .45f), 1f to paint.core.copy(alpha = 0f),
+        center = Offset(x, y - .6f * u - .1f * (ry + 1.4f * u)), radius = ry + 1.4f * u),
+        Offset(x - rx - 1.2f * u, y - .6f * u - ry - 1.4f * u), Size(2f * (rx + 1.2f * u), 2f * (ry + 1.4f * u)))
+    val eye = Path().apply { addOval(androidx.compose.ui.geometry.Rect(x - rx, y - ry, x + rx, y + ry)) }
+    clipPath(eye) {
+        drawOval(ink, Offset(x - rx, y - ry), Size(2f * rx, 2f * ry))
+        if (!small) drawOval(Brush.radialGradient(0f to lerp(accent, Color.White, .2f).copy(alpha = .7f), 1f to accent.copy(alpha = 0f),
+            center = Offset(x, y + .87f * ry), radius = .9f * rx),
+            Offset(x - .9f * rx, y - .15f * ry), Size(1.8f * rx, 1.2f * ry))
+        val gx = x + .3f * rx
+        val gy = y - .38f * ry
+        val gr = (if (small) .42f else .34f) * rx
+        if (eyes == WindEyes.STARRY && !small) drawPath(Path().apply {
+            moveTo(gx, gy - 2f * gr); quadraticTo(gx, gy, gx + 2f * gr, gy); quadraticTo(gx, gy, gx, gy + 2f * gr)
+            quadraticTo(gx, gy, gx - 2f * gr, gy); quadraticTo(gx, gy, gx, gy - 2f * gr); close()
+        }, shine)
+        else drawCircle(shine, gr, Offset(gx, gy))
+        if (!small) drawCircle(shine, .15f * rx, Offset(x - .32f * rx, y + .42f * ry), alpha = .7f)
+        // The lids are the body's own paint (in its radius-1 frame) with a crease in its deep tone.
+        val crease = 1.2f * u
+        val h = 2f * ry + 2f * u
+        val edge = y - ry + p.lid.coerceIn(0f, 1f) * h
+        withTransform({ rotate(if (right) -p.brow else p.brow, Offset(x, edge)) }) {
+            val lid = androidx.compose.ui.geometry.Rect(x - 1.6f * rx, edge - h, x + 1.6f * rx, edge)
+            withTransform({ translate(cx, cy); scale(r, r, Offset.Zero) }) {
+                drawRect(paint.volume, Offset((lid.left - cx) / r, (lid.top - cy) / r), Size(lid.width / r, lid.height / r))
+            }
+            drawLine(lash, Offset(lid.left, edge), Offset(lid.right, edge), strokeWidth = crease)
+        }
+        val lowY = y + 2.15f * ry + .5f * u - p.smile.coerceIn(0f, 1f) * 2.3f * ry
+        val low = androidx.compose.ui.geometry.Rect(x - 1.7f * rx, lowY - 1.15f * ry, x + 1.7f * rx, lowY + 1.15f * ry)
+        withTransform({ translate(cx, cy); scale(r, r, Offset.Zero) }) {
+            drawOval(paint.volume, Offset((low.left - cx) / r, (low.top - cy) / r), Size(low.width / r, low.height / r))
+        }
+        drawOval(lash, low.topLeft, low.size, style = Stroke(crease))
+    }
+}
+
+/**
+ * A wind's own minairó (118, 120), the same every time and the same as on the
+ * web (`minairo` in winds.js): the side its barretina folds to ([fold], 1 =
+ * right: downwind, north and south by the seed), where its beard ends ([beard],
+ * box units, from the mouth style), what it carries ([gear]: a boxwood needle
+ * case, a sprig of St John's wort in the band, or a pebble), the barretina
+ * colour ([cap]), and the brows, moustache and rare round glasses on top.
+ */
+internal data class MinairoLook(val fold: Int, val beard: Float, val gear: Int, val cap: Color,
+    val brows: String, val moustache: String, val glasses: Boolean)
+
+/** Folk barretina colours by the style letter that picks them, each worn under the black band (`barretines` in winds.js). */
+internal val minairoBarretines = listOf("v" to Color(0xFFC9342C), "m" to Color(0xFF6E2F6B), "f" to Color(0xFF2E6B3F),
+    "o" to Color(0xFFC8962E), "b" to Color(0xFF26406E), "g" to Color(0xFF7D1F33))
+
+/** "winds.barretinaAuto" for the automatic pick, "winds.barretinaV", "winds.barretinaM"… for a palette letter. */
+internal fun barretinaLabelKey(letter: String) = "winds.barretina" + letter.uppercase().ifEmpty { "Auto" }
+
+private fun hueOf(c: Color): Double {
+    val (r, g, b) = listOf(c.red, c.green, c.blue).map { it.toDouble() }
+    val max = maxOf(r, g, b)
+    val d = max - minOf(r, g, b)
+    if (d == 0.0) return 0.0
+    val h = when (max) { r -> (g - b) / d % 6; g -> (b - r) / d + 2; else -> (r - g) / d + 4 }
+    return (h * 60 + 360) % 360
+}
+
+internal fun minairoLook(style: WindStyle, body: Color): MinairoLook {
+    // The face seed of winds.js (its key is the id); the barretina walks from the id hash instead.
+    val seed = style.windId.fold(0) { s, c -> (s * 31 + c.code) % 997 }
+    val fold = if (style.bearing % 180 != 0) (if (style.bearing < 180) -1 else 1) else if (seed % 2 == 1) 1 else -1
+    val beard = when (style.mouth) { WindMouth.NEUTRAL -> 63.5f; WindMouth.SMILE -> 67.5f; WindMouth.OPEN -> 71f; WindMouth.TONGUE -> 74.5f }
+    val start = (Integer.toUnsignedLong(style.windId.hashCode()) % minairoBarretines.size).toInt()
+    fun gap(c: Color) = Math.abs(hueOf(c) - hueOf(body)).let { minOf(it, 360 - it) }
+    // The person's pick as it is; otherwise the next colour whose hue stands 30° from the body's.
+    val cap = minairoBarretines.firstOrNull { it.first == style.barretina }?.second
+        ?: minairoBarretines.indices.map { minairoBarretines[(start + it) % minairoBarretines.size].second }.first { gap(it) >= 30 }
+    // Moduli prime to the 2 and 3 above, so ids one letter apart still differ.
+    return MinairoLook(fold, beard, seed % 3, cap, listOf("straight", "arched", "bushy")[seed % 7 % 3],
+        listOf("lobes", "walrus", "handlebar")[seed % 11 % 3], seed % 13 == 5)
+}
+
+// La cinta negra de la barretina: el que la fa catalana a primer cop d'ull.
+private val MinairoBand = Color(0xFF17141A)
+// The beard keeps its own colours on every wind.
+private val MinairoBeard = Color(0xFFFFFDF7)
+private val MinairoBeardShade = Color(0xFFE2DACD)
+private val MinairoCrease = lerp(MinairoBeardShade, Color(0xFF1B1530), .25f)
+private val MinairoNose = Color(0xFFE88875)
+
+private fun svgPath(d: String) = PathParser().parsePathString(d).toPath()
+
+// The barretina of winds.js, drawn for a body of rx 24 with its top at 25.5: the
+// crown, the tube rising off it and folding over to the right, the shade on its
+// hanging part, the crease where it folds, and the wide black band.
+private val minairoCrown by lazy { svgPath("M17 32C17.5 22 27.5 16 40 16S62.5 22 63 32Z") }
+private val minairoTip by lazy { svgPath("M30 18C28.5 8.5 33 1.5 42.5 1C52.5 .5 60.5 5 64 12.5C67 18.5 68 27 67 34.5C66.6 37.6 62.8 37.8 62.5 34.5" +
+    "C62.2 29 60.5 23.5 57 20C54.5 17.5 51.5 16.5 49 16.5C43 16 36 16.5 30 18Z") }
+private val minairoTipShade by lazy { svgPath("M64 12.5C67 18.5 68 27 67 34.5C66.6 37.6 62.8 37.8 62.5 34.5C62.2 29 60.5 23.5 57 20Z") }
+private val minairoTipCrease by lazy { svgPath("M62.5 34.5C62.2 29 60.5 23.5 57 20C54.5 17.5 51.5 16.5 49 16.5") }
+private val minairoBand by lazy { svgPath("M15.5 37.5C19 32 29 30.5 40 30.5S61 32 64.5 37.5L63.2 29C59 24.5 50 22.5 40 22.5S21 24.5 16.8 29Z") }
+private val minairoBandShine by lazy { svgPath("M17.5 29.4C22 25.6 31 24 40 24S58 25.6 62.5 29.4") }
+// White brows over the right eye, from its centre; the left one is its mirror.
+private val minairoBrows by lazy { mapOf(
+    "straight" to svgPath("M-5 -8.2L5 -7.4L5 -5.2L-5 -6Z"),
+    "arched" to svgPath("M-5.6 -5.6Q0 -11.6 5.8 -5.8Q0 -8.6 -5.6 -5.6Z"),
+    "bushy" to svgPath("M-6.4 -5C-5 -10.8 4 -11.6 7.2 -7.6C6 -5.4 2 -6.4 -1 -5.2C-3 -4.6 -5 -4.2 -6.4 -5Z")) }
+// The moustache's right half from under the nose: cubic segments in (share of the half width, dy from the body's centre).
+private val minairoLips = mapOf(
+    "lobes" to listOf(listOf(.2f, -5.4f, .6f, -4.6f, .66f, .2f), listOf(.52f, 3.2f, .2f, 2.8f, 0f, .6f)),
+    "walrus" to listOf(listOf(.24f, -5.6f, .72f, -4.4f, .74f, 3.8f), listOf(.5f, 4.2f, .2f, 2.4f, 0f, .6f)),
+    "handlebar" to listOf(listOf(.2f, -5.2f, .55f, -4.4f, .74f, -1.4f), listOf(.84f, -.2f, 1f, -1.8f, .94f, -4.8f), listOf(.92f, 1.4f, .4f, 3.2f, 0f, .6f)))
+
+/**
+ * The minairó in the 80 box, as winds.js draws it: a Cares body of R 25 at
+ * (40, 49) with its feet, a long soft beard narrower than the body with a
+ * moustache over the lower face, a round nose, the Cares eyes at .84 with
+ * white brows, and the barretina in [MinairoLook.cap] whose tube folds to
+ * [MinairoLook.fold] over the black band. The cap's tip bobs and the beard
+ * sways on their own clock and both trail the figure by [moved] (how far it
+ * went down in the last tenth of a second); motion off leaves them at the
+ * mood's rest. Under 28 dp only the silhouette is left.
+ */
+private fun DrawScope.drawMinairo(look: MinairoLook, eyes: WindEyes, p: WindPose, mood: WindMood, t: Float, motion: Boolean, moved: Float,
+    size: Int, accent: Color, ink: Color, paint: WindBodyPaint, tx: Float, ty: Float, talkOpen: Boolean) {
+    val s = look.fold.toFloat()
+    val small = size < 28
+    val full = size >= 80
+    val gear = if (small) -1 else look.gear
+    val rx = 25f
+    val cy = 49f
+    fun x(f: Float) = 40f + f * rx
+    fun wave(period: Float) = if (motion) sin(2f * PI.toFloat() * (t % period) / period) else 0f
+    // Accessories are drawn on the right and mirrored to the side away from the tip.
+    fun away(block: DrawScope.() -> Unit) = withTransform({ scale(-s, 1f, Offset(40f, 0f)) }, block)
+
+    if (gear == 2) away {
+        drawOval(Color(0xFFA8A39B), Offset(x(1f) + 5f - 5.2f, cy + rx - 2f - 3.8f), Size(10.4f, 7.6f))
+        drawOval(Color.White.copy(alpha = .45f), Offset(x(1f) + 3.6f - 2.2f, cy + rx - 3.6f - 1.1f), Size(4.4f, 2.2f))
+    }
+    drawWindBody(WindShape.BALL, paint, 40f, cy, rx, ground = full,
+        stepL = windStep(mood, t, false) / rx, stepR = windStep(mood, t, true) / rx)
+
+    // The beard hangs from under the nose and sways from there; it lags the hops by stretching.
+    val busy = mood == WindMood.WORKING || mood == WindMood.WRITING
+    val sway = wave(if (busy) .6f else 3.2f) * (if (busy) 3f else 2f) + (if (mood == WindMood.FAILED) 0f else p.tilt * -.3f)
+    val stretch = (1f - moved * .05f).coerceIn(.85f, 1.15f)
+    val l = if (small) 67f else look.beard
+    // Its right half as cubic segments from under the nose to the tip, then back mirrored.
+    val half = listOf(listOf(.28f, cy - .5f, .58f, cy - 1f, .82f, cy - 5.5f), listOf(.94f, cy + 1f, .84f, l - 12f, .58f, l - 5.5f),
+        listOf(.47f, l - 2.5f, .34f, l - 4f, .25f, l - 2f), listOf(.16f, l, .07f, l, 0f, l + .8f))
+    val beard = Path().apply {
+        moveTo(40f, cy - 2.5f)
+        for (c in half) cubicTo(x(c[0]), c[1], x(c[2]), c[3], x(c[4]), c[5])
+        for (i in 3 downTo 0) {
+            val c = half[i]
+            val (ef, ey) = if (i > 0) half[i - 1][4] to half[i - 1][5] else 0f to cy - 2.5f
+            cubicTo(x(-c[2]), c[3], x(-c[0]), c[1], x(-ef), ey)
+        }
+        close()
+    }
+    withTransform({ rotate(sway, Offset(40f, cy)); scale(1f, stretch, Offset(40f, cy)) }) {
+        withTransform({ translate(1.2f, 1.8f) }) { drawPath(beard, paint.core, alpha = .35f) }
+        drawPath(beard, Brush.verticalGradient(0f to MinairoBeard, .55f to MinairoBeard, 1f to MinairoBeardShade, startY = cy - 5.5f, endY = l + .8f))
+        if (!small) drawPath(Path().apply {
+            for (f in listOf(-.4f, 0f, .4f)) { moveTo(x(f), cy + 7f); quadraticTo(x(f * 1.15f), (cy + l) / 2f, x(f * .55f), l - 6f) }
+        }, MinairoCrease, alpha = .6f, style = Stroke(1f, cap = StrokeCap.Round))
+    }
+
+    // The Cares eyes, at .84 on this smaller head.
+    val gx = (p.gx + tx * 2.4f) * .8f
+    val gy = (p.gy + ty * 1.8f) * .8f
+    for (right in listOf(false, true)) {
+        drawWindEye(eyes, p, right, x(if (right) .34f else -.34f) + gx, cy - 10f + gy, .84f, small, full, ink, accent, paint, 40f, cy, rx)
+    }
+
+    // A mouth only shows when it talks or cheers, under the moustache.
+    val open = when (mood) {
+        WindMood.TALKING -> if (talkOpen || !motion) 5.2f else 0f
+        WindMood.DONE -> 4.4f
+        else -> 0f
+    }
+    if (open > 0f) {
+        drawOval(ink, Offset(36.6f, 54.6f), Size(6.8f, open))
+        drawOval(WindTongue, Offset(38f, 54.6f + open * .55f), Size(4f, open * .4f))
+    }
+    // The moustache lifts with a smile and droops when it fails; a small face keeps the plain lobes.
+    val curl = p.smile * 16f - (if (mood == WindMood.FAILED) 12f else 0f) + wave(4f) * 1.5f
+    val lip = Path().apply {
+        moveTo(0f, -1.8f)
+        for (c in minairoLips.getValue(if (small) "lobes" else look.moustache)) cubicTo(c[0] * rx, c[1], c[2] * rx, c[3], c[4] * rx, c[5])
+        close()
+    }
+    for (side in listOf(1f, -1f)) withTransform({ translate(40f, cy); rotate(curl * side, Offset.Zero); scale(side, 1f, Offset.Zero) }) {
+        drawPath(lip, MinairoBeard)
+        if (!small) drawPath(lip, MinairoCrease, style = Stroke(.8f))
+    }
+    val nose = if (small) 4.4f else 3.8f
+    drawCircle(Brush.radialGradient(0f to Color(0xFFF8BCA8), .55f to MinairoNose, 1f to Color(0xFFB2544A),
+        center = Offset(38.8f, cy - 4.1f), radius = nose * 1.5f), nose, Offset(40f, cy - 2.6f))
+    if (!small) drawCircle(Color.White, .9f, Offset(38.7f, cy - 3.8f), alpha = .7f)
+
+    // The barretina, fitted to this body from the web's rx 24 and top at 25.5.
+    // The tip bobs on its own clock, lags the figure and flies up on the hop.
+    val (period, amp) = when (mood) {
+        WindMood.WORKING -> .6f to 7f
+        WindMood.WRITING, WindMood.SEARCHING -> 1.2f to 4f
+        WindMood.NEWS, WindMood.DISCUSSING -> 2f to 5f
+        else -> 3f to 3f
+    }
+    val rest = when (mood) {
+        WindMood.FAILED -> 14f
+        WindMood.DONE, WindMood.HAPPY -> -6f
+        WindMood.THINKING -> -3f
+        else -> 0f
+    }
+    // Held to a swing the fold can make without the tube parting from the crown.
+    val tip = (rest + wave(period) * amp - moved * 9f).coerceIn(-18f, 18f)
+    val cap = look.cap
+    fun capPaint(px: Float, py: Float, r: Float) = Brush.radialGradient(0f to lerp(cap, Color.White, .3f), .5f to cap,
+        1f to lerp(cap, Color(0xFF1B1530), .35f), center = Offset(px, py), radius = r)
+    withTransform({ translate(0f, cy - rx - 25.5f); scale(rx / 24f, 1f, Offset(40f, 0f)) }) {
+        drawPath(minairoCrown, capPaint(30.8f, 19.2f, 44f))
+        withTransform({ scale(s, 1f, Offset(40f, 0f)); rotate(tip, Offset(46f, 17f)) }) {
+            drawPath(minairoTip, capPaint(40.4f, 8f, 38f))
+            drawPath(minairoTipShade, MinairoBand, alpha = .32f)
+            if (!small) drawPath(minairoTipCrease, MinairoBand, alpha = .6f, style = Stroke(1.2f, cap = StrokeCap.Round))
+        }
+        drawPath(minairoBand, MinairoBand)
+        if (!small) drawPath(minairoBandShine, Color.White, alpha = .18f, style = Stroke(.9f, cap = StrokeCap.Round))
+        // A sprig of St John's wort, the herb minairons are born from, tucked in the band.
+        if (gear == 1) away {
+            val leaf = Color(0xFF6C9A3E)
+            val wort = Color(0xFFF4C431)
+            drawPath(Path().apply { moveTo(58f, 30f); cubicTo(61f, 24f, 63f, 19f, 67f, 14.5f) }, leaf, style = Stroke(1.4f, cap = StrokeCap.Round))
+            withTransform({ rotate(-40f, Offset(62.6f, 22.5f)) }) { drawOval(leaf, Offset(59.6f, 21.2f), Size(6f, 2.6f)) }
+            withTransform({ rotate(25f, Offset(65.4f, 20.2f)) }) { drawOval(leaf, Offset(62.8f, 19.1f), Size(5.2f, 2.2f)) }
+            for (a in 0 until 5) withTransform({ rotate(a * 72f, Offset(67f, 14.5f)) }) { drawOval(wort, Offset(65.5f, 9.5f), Size(3f, 4.8f)) }
+            drawCircle(lerp(wort, cap, .4f), 1.3f, Offset(67f, 14.5f))
+        }
+    }
+
+    // Glasses and white brows sit over the band's edge, so both read on it and on the body.
+    val frame = Color(0xFF2B2530)
+    for (side in listOf(-1f, 1f)) {
+        val ex = x(.34f * side)
+        if (!small && look.glasses) {
+            drawCircle(Color.White.copy(alpha = .14f), 7.4f, Offset(ex, cy - 10f))
+            drawCircle(frame, 7.4f, Offset(ex, cy - 10f), style = Stroke(1.4f))
+        }
+        // The brows follow the lids: down with them, and slanting with the mood.
+        if (!small) withTransform({ translate(ex, cy - 10f + p.lid * 2.4f); rotate(side * -p.brow, Offset.Zero); scale(side, 1f, Offset.Zero) }) {
+            val brow = minairoBrows.getValue(look.brows)
+            drawPath(brow, MinairoBeard)
+            drawPath(brow, MinairoCrease, style = Stroke(.8f, join = StrokeJoin.Round))
+        }
+    }
+    if (!small && look.glasses) drawPath(Path().apply { moveTo(x(-.34f) + 7.4f, cy - 10f); quadraticTo(40f, cy - 12.5f, x(.34f) - 7.4f, cy - 10f) },
+        frame, style = Stroke(1.4f))
+
+    // The boxwood needle case minairons live in, standing by its feet as tall as half of it.
+    if (gear == 0) away {
+        val wood = Color(0xFFD9B26A)
+        withTransform({ translate(x(1f) + 4.5f, cy + rx - 9f); rotate(8f, Offset.Zero) }) {
+            drawRoundRect(wood, Offset(-3.4f, -9f), Size(6.8f, 18f), CornerRadius(3f))
+            drawRoundRect(lerp(wood, Color(0xFF1B1530), .35f), Offset(-3.7f, -10f), Size(7.4f, 4f), CornerRadius(1.8f))
+            drawLine(Color.White.copy(alpha = .45f), Offset(-1.5f, -4f), Offset(-1.5f, 6f), 1.2f, StrokeCap.Round)
+            drawLine(lerp(wood, Color(0xFF1B1530), .2f), Offset(-3.4f, 3f), Offset(3.4f, 3f), .8f)
+        }
     }
 }
 
@@ -522,25 +1085,38 @@ private val esperitStreak by lazy { PathParser().parsePathString("M28.56 1.12C36
 /**
  * A head with two tails pointing to where the wind blows from, its eyes
  * looking where it goes. The idle sway follows [motion]; while the wind works
- * the tails move four times faster even without it, because that is the work.
+ * the tails move four times faster even without it, because that is the work, unless the person turned motion off.
  */
 @Composable
 private fun EsperitFace(size: Int, mood: WindMood, accent: Color, bearing: Int, motion: Boolean, modifier: Modifier) {
     val busy = mood in windWorkMoods
-    val loop = if (motion || busy) {
+    // La feina mou la cara també als avatars petits, però mai amb el moviment apagat (com el web i el mapa).
+    val loop = if (motion || busy && windMotionEnabled()) {
         rememberInfiniteTransition(label = "esperit").animateFloat(
             initialValue = 0f, targetValue = 12f,
             animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing)), label = "loop")
     } else null
     val seed = remember(accent, bearing) { ((accent.hashCode() * 31 + bearing) and 0xffff) / 65535f * 12f }
-    val ink = remember(accent) { windInk(accent) }
-    val tone = remember(accent) { lerp(accent, Color(0xFF1B1530), .8f) }
+    // The head is a Cares ball: the same volume, and the same tilt on large faces only.
+    val lean = rememberWindLean(motion && size >= 64)
+    val bodyPaint = remember(accent) { WindBodyPaint(WindShape.BALL, accent) }
     Canvas(modifier.size(size.dp)) {
-        val t = loop?.let { (it.value + seed) % 12f } ?: 0f
+        with(EsperitFigure) { draw(loop?.let { (it.value + seed) % 12f } ?: 0f, loop != null, mood, accent, bearing, lean.value, bodyPaint) }
+    }
+}
+
+/** An Esperit at one instant [t]: the live face and the still avatar of a notification draw it the same way. */
+internal object EsperitFigure {
+    fun DrawScope.draw(t: Float, moving: Boolean, mood: WindMood, accent: Color, bearing: Int, lean: Offset, bodyPaint: WindBodyPaint) {
+        val busy = mood in windWorkMoods
+        val ink = windInk(accent)
+        val tone = lerp(accent, Color(0xFF1B1530), .8f)
+        val (tx, ty) = lean
+        val paint = if (tx == 0f && ty == 0f) bodyPaint else WindBodyPaint(WindShape.BALL, accent, tx, ty)
         val period = if (busy) .75f else 3f
         val turn = 2f * PI.toFloat() * (t % period) / period
-        val sway = if (loop != null) sin(turn) * 5f else 0f
-        val drift = if (loop != null) (1f - cos(turn)) / 2f else 0f
+        val sway = if (moving) sin(turn) * 5f else 0f
+        val drift = if (moving) (1f - cos(turn)) / 2f else 0f
         val rad = Math.toRadians(bearing.toDouble())
         val ux = sin(rad).toFloat()
         val uy = -cos(rad).toFloat()
@@ -550,14 +1126,14 @@ private fun EsperitFace(size: Int, mood: WindMood, accent: Color, bearing: Int, 
         val py = -1.6f * uy
         val k = min(this.size.width, this.size.height) / 100f
         withTransform({ scale(k, k, Offset.Zero); translate(px * drift, (py - 1.4f) * drift) }) {
+            withTransform({ translate(hx, hy); scale(28f, 28f, Offset.Zero) }) { drawWindShadow(paint) }
             withTransform({ translate(hx, hy); rotate(bearing - 90f + sway, Offset.Zero) }) {
                 val tail = Brush.horizontalGradient(0f to accent, .55f to accent.copy(alpha = .55f), 1f to accent.copy(alpha = 0f),
                     startX = 11.2f, endX = 53.2f)
                 drawPath(esperitTails, tail)
                 drawPath(esperitStreak, tail, style = Stroke(3.2f, cap = StrokeCap.Round))
             }
-            drawCircle(Brush.radialGradient(0f to lerp(accent, Color.White, .5f), .5f to accent, 1f to lerp(accent, Color(0xFF1B1530), .35f),
-                center = Offset(hx - 9f, hy - 11f), radius = 53.2f), 28f, Offset(hx, hy))
+            withTransform({ translate(hx, hy); scale(28f, 28f, Offset.Zero) }) { drawWindVolume(WindShape.BALL, paint) }
             for (side in listOf(-1f, 1f)) {
                 drawOval(Color(0xFFE4577A), Offset(hx + 14f * side - 4.6f, hy + 3.2f), Size(9.2f, 5.6f), alpha = .32f)
                 drawOval(ink, Offset(hx + 8f * side + px - 2.9f, hy - 5.7f + py), Size(5.8f, 7.4f))
@@ -567,7 +1143,7 @@ private fun EsperitFace(size: Int, mood: WindMood, accent: Color, bearing: Int, 
             drawPath(mouth, ink, style = Stroke(2.2f, cap = StrokeCap.Round))
         }
         val unit = min(this.size.width, this.size.height) / 80f
-        withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, loop != null, 1f, tone) }
+        withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, moving, 1f, tone) }
     }
 }
 
@@ -584,17 +1160,29 @@ private val capPuffs by lazy { listOf("M0-5C6-7 12-4 18-6", "M0 6C6 8 12 5 18 7"
 @Composable
 private fun CapFace(size: Int, mood: WindMood, accent: Color, bearing: Int, motion: Boolean, modifier: Modifier) {
     val busy = mood in windWorkMoods
-    val loop = if (motion || busy) {
+    // La feina mou la cara també als avatars petits, però mai amb el moviment apagat (com el web i el mapa).
+    val loop = if (motion || busy && windMotionEnabled()) {
         rememberInfiniteTransition(label = "cap").animateFloat(
             initialValue = 0f, targetValue = 12f,
             animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing)), label = "loop")
     } else null
     val seed = remember(accent, bearing) { ((accent.hashCode() * 31 + bearing) and 0xffff) / 65535f * 12f }
-    val ink = remember(accent) { windInk(accent) }
-    val tone = remember(accent) { lerp(accent, Color(0xFF1B1530), .8f) }
-    val small = size < 28
+    val lean = rememberWindLean(motion && size >= 64)
+    val bodyPaint = remember(accent) { WindBodyPaint(WindShape.BALL, accent) }
     Canvas(modifier.size(size.dp)) {
-        val t = loop?.let { (it.value + seed) % 12f } ?: 0f
+        with(CapFigure) { draw(loop?.let { (it.value + seed) % 12f } ?: 0f, loop != null, size, mood, accent, bearing, lean.value, bodyPaint) }
+    }
+}
+
+/** A Cap de vent at one instant [t]: the live face and the still avatar of a notification draw it the same way. */
+internal object CapFigure {
+    fun DrawScope.draw(t: Float, moving: Boolean, size: Int, mood: WindMood, accent: Color, bearing: Int, lean: Offset, bodyPaint: WindBodyPaint) {
+        val busy = mood in windWorkMoods
+        val ink = windInk(accent)
+        val tone = lerp(accent, Color(0xFF1B1530), .8f)
+        val small = size < 28
+        val (tx, ty) = lean
+        val paint = if (tx == 0f && ty == 0f) bodyPaint else WindBodyPaint(WindShape.BALL, accent, tx, ty)
         val period = if (busy) .7f else 1.8f
         val rad = Math.toRadians(bearing.toDouble())
         val ux = sin(rad).toFloat()
@@ -608,8 +1196,11 @@ private fun CapFace(size: Int, mood: WindMood, accent: Color, bearing: Int, moti
         // The web's face clips to its box, so the breath ends at the edge.
         clipRect {
             withTransform({ scale(k, k, Offset.Zero) }) {
-                drawOval(Brush.radialGradient(0f to lerp(accent, Color.White, .5f), .5f to accent, 1f to lerp(accent, Color(0xFF1B1530), .35f),
-                    center = Offset(hx - 9f, hy - 11f), radius = 1.9f * r), Offset(hx - r - 1.5f, hy - r), Size(2f * r + 3f, 2f * r))
+                // The head is a ball 1.5 wider than tall, with the volume of Cares.
+                withTransform({ translate(hx, hy); scale(r + 1.5f, r, Offset.Zero) }) {
+                    drawWindShadow(paint)
+                    drawWindVolume(WindShape.BALL, paint)
+                }
                 if (small) drawCircle(ink, 4f, Offset(mx, my)) else {
                     for (side in listOf(-1f, 1f)) drawCircle(Color(0xFFE4577A), 6.5f, Offset(hx + 13f * side, hy + 5f), alpha = .38f)
                     val eyes = Path().apply {
@@ -629,7 +1220,7 @@ private fun CapFace(size: Int, mood: WindMood, accent: Color, bearing: Int, moti
             }
         }
         val unit = min(this.size.width, this.size.height) / 80f
-        withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, loop != null, 1f, tone) }
+        withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, moving, 1f, tone) }
     }
 }
 
@@ -648,24 +1239,41 @@ private fun DrawScope.rosePoint(len: Float, wd: Float, left: Color, right: Color
 @Composable
 private fun RosaFace(size: Int, mood: WindMood, accent: Color, bearing: Int, motion: Boolean, modifier: Modifier) {
     val busy = mood in windWorkMoods
-    val loop = if (motion || busy) {
+    // La feina mou la cara també als avatars petits, però mai amb el moviment apagat (com el web i el mapa).
+    val loop = if (motion || busy && windMotionEnabled()) {
         rememberInfiniteTransition(label = "rosa").animateFloat(
             initialValue = 0f, targetValue = 12f,
             animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing)), label = "loop")
     } else null
     val seed = remember(accent, bearing) { ((accent.hashCode() * 31 + bearing) and 0xffff) / 65535f * 12f }
-    val tone = remember(accent) { lerp(accent, Color(0xFF1B1530), .8f) }
-    val dark = remember(accent) { lerp(accent, Color(0xFF0F0C18), .72f) }
-    val cream = Color(0xFFF3EAD8)
-    val faint = lerp(cream, dark, .45f)
-    val small = size < 28
+    val lean = rememberWindLean(motion && size >= 64)
+    val bodyPaint = remember(accent) { WindBodyPaint(WindShape.BALL, accent) }
     Canvas(modifier.size(size.dp)) {
-        val t = loop?.let { (it.value + seed) % 12f } ?: 0f
+        with(RosaFigure) { draw(loop?.let { (it.value + seed) % 12f } ?: 0f, loop != null, size, mood, accent, bearing, lean.value, bodyPaint) }
+    }
+}
+
+/** A Rosa de rellotge at one instant [t]: the live face and the still avatar of a notification draw it the same way. */
+internal object RosaFigure {
+    fun DrawScope.draw(t: Float, moving: Boolean, size: Int, mood: WindMood, accent: Color, bearing: Int, lean: Offset, bodyPaint: WindBodyPaint) {
+        val busy = mood in windWorkMoods
+        val tone = lerp(accent, Color(0xFF1B1530), .8f)
+        val dark = lerp(accent, Color(0xFF0F0C18), .72f)
+        val cream = Color(0xFFF3EAD8)
+        val faint = lerp(cream, dark, .45f)
+        val small = size < 28
+        val face = lerp(accent, Color(0xFF1B1530), .3f)
+        val (tx, ty) = lean
+        val paint = if (tx == 0f && ty == 0f) bodyPaint else WindBodyPaint(WindShape.BALL, accent, tx, ty)
         val period = if (busy) 1.4f else 4f
-        val swing = if (loop != null) -cos(2f * PI.toFloat() * (t % period) / period) * (if (busy) 10f else 5f) else 0f
+        val swing = if (moving) -cos(2f * PI.toFloat() * (t % period) / period) * (if (busy) 10f else 5f) else 0f
         val k = min(this.size.width, this.size.height) / 100f
         withTransform({ scale(k, k, Offset.Zero); translate(50f, 50f) }) {
-            drawCircle(Brush.radialGradient(0f to lerp(accent, Color(0xFF1B1530), .3f), 1f to dark, center = Offset(-10f, -16f), radius = 70f), 50f, Offset.Zero)
+            // The dial keeps its dark face, lit like a Cares ball: a bezel of light and a glint on the glass.
+            // It fills the box, so its contact shadow would fall outside: the needle's shadow on the dial gives the depth.
+            withTransform({ scale(50f, 50f, Offset.Zero) }) {
+                drawWindVolume(WindShape.BALL, paint, Brush.radialGradient(0f to face, 1f to dark, center = paint.light, radius = 1.4f))
+            }
             if (!small) {
                 drawCircle(cream, 44f, Offset.Zero, alpha = .3f, style = Stroke(1f))
                 if (size >= 80) for (i in 0 until 32) withTransform({ rotate(i * 11.25f, Offset.Zero) }) {
@@ -674,6 +1282,10 @@ private fun RosaFace(size: Int, mood: WindMood, accent: Color, bearing: Int, mot
                 for (a in 0 until 360 step 90) withTransform({ rotate(a.toFloat(), Offset.Zero) }) { rosePoint(29f, 5.5f, cream, faint, .55f) }
                 for (a in 45 until 360 step 90) withTransform({ rotate(a.toFloat(), Offset.Zero) }) { rosePoint(20f, 4.5f, cream, faint, .32f) }
             }
+            val shade = Color(0xFF0B0C14).copy(alpha = .5f)
+            withTransform({ translate(2f + 2f * tx, 2.5f + 2f * ty); rotate(bearing + swing, Offset.Zero) }) {
+                rosePoint(if (small) 40f else 43f, if (small) 12f else 8f, shade, shade)
+            }
             withTransform({ rotate(bearing + swing, Offset.Zero) }) {
                 rosePoint(if (small) 40f else 43f, if (small) 12f else 8f, lerp(accent, Color.White, .55f), accent)
             }
@@ -681,7 +1293,7 @@ private fun RosaFace(size: Int, mood: WindMood, accent: Color, bearing: Int, mot
             drawCircle(dark, if (small) 3f else 1.8f, Offset.Zero)
         }
         val unit = min(this.size.width, this.size.height) / 80f
-        withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, loop != null, 1f, tone) }
+        withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, moving, 1f, tone) }
     }
 }
 

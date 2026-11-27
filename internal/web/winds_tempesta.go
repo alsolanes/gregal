@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -47,6 +48,28 @@ var tempestaAngles = []tempestaAngle{
 	{Key: "skeptic", Ca: "Advocat del diable", En: "Devil's advocate", brief: "ANGLE: be the sceptic. Look for the trap, the edge case, the newer fact or the better alternative that would make the obvious answer wrong or incomplete. If the obvious answer survives, say why."},
 }
 
+// tempestaWantsWork: un missatge que demana fer una cosa, encara que no
+// porti els verbs de la colla (crewCodeAction, conservadors perquè engeguen el
+// pipeline de codi). «Vull una pàgina web…» o «Escriu-me un fitxer…» amb «A
+// fons» acabaven en una negativa educada i sense feina feta.
+var (
+	tempestaWorkVerb   = regexp.MustCompile(`(?i)(?:^|[^\pL])(vull|voldria|necessito|escriu\pL*|redacta|genera|desa|guarda|prepara|munta|want|need|write|draft|generate|save|quiero|quisiera|necesito|escribe|redacta|guarda)(?:$|[^\pL])`)
+	tempestaWorkObject = regexp.MustCompile(`(?i)(?:^|[^\pL])(document|informe|report|word|pdf|presentaci[oó]n?|presentation|full de c[aà]lcul|spreadsheet|carta|letter|landing)(?:$|[^\pL])|[\pL\d_-]+\.(?:html?|css|js|ts|py|go|md|txt|docx|xlsx|pptx|pdf|json|csv)(?:$|[^\pL\d])`)
+	tempestaResearch   = regexp.MustCompile(`(?i)(?:^|[^\pL])(saber|entendre|con[eè]ixer|know|understand|learn|investiga\pL*|research|compara\pL*|compare|cerca|busca|search)(?:$|[^\pL])`)
+)
+
+func tempestaWantsWork(msg string) bool {
+	m := strings.TrimLeft(strings.ToLower(strings.TrimSpace(msg)), "¿")
+	if strings.HasPrefix(m, "?") || crewQuestion.MatchString(m) || crewCodeNegation.MatchString(m) || crewEmbeddedNegation.MatchString(m) || crewExplanation.MatchString(m) || tempestaResearch.MatchString(m) {
+		return false
+	}
+	return (crewCodeAction.MatchString(m) || tempestaWorkVerb.MatchString(m)) && (crewCodeObject.MatchString(m) || tempestaWorkObject.MatchString(m))
+}
+
+// tempestaReadOnlyNote: sense eines d'escriure, el model deia «el servidor em
+// té en mode inspecció», i el vent s'ho creia en els torns següents.
+const tempestaReadOnlyNote = "\nDeep mode only researches: in it nobody writes files, runs commands or publishes. If the user is asking you to make or change something, say in one short line that Deep mode is for research and that they should turn Deep off and ask again; never say the server blocked you or put you in an inspect or read-only mode."
+
 // tempestaAgentCount: quants agents. Amb models locals (sense paral·lel real) dos.
 const tempestaAgentCount = 3
 
@@ -57,18 +80,22 @@ type tempestaAgent struct {
 	Label string `json:"label"`
 	Ca    string `json:"ca"` // el nom de l'angle en cada llengua: l'app tria
 	En    string `json:"en"`
-	Model string `json:"model"`
-	State string `json:"state"` // working | done | failed
-	Chars int    `json:"chars,omitempty"`
-	Error string `json:"error,omitempty"`
-	p     config.Provider
-	role  config.Role
-	text  string
+	// Què fa l'agent, en cada llengua (tempestaDescs); les veus d'una rotllana no en porten.
+	DescCa string `json:"desc_ca,omitempty"`
+	DescEn string `json:"desc_en,omitempty"`
+	Model  string `json:"model"`
+	State  string `json:"state"` // working | done | failed
+	Chars  int    `json:"chars,omitempty"`
+	Error  string `json:"error,omitempty"`
+	p      config.Provider
+	role   config.Role
+	text   string
 }
 
 // tempestaModels: models diferents dels rols que hi ha configurats, el del vent
 // primer. Si només n'hi ha un, el mateix per a tots (amb temperatures
-// diferents perquè no diguin el mateix).
+// diferents perquè no diguin el mateix). El model que l'usuari ha triat per a
+// un angle (tempestaChosen) mana sobre aquesta tria.
 func (s *Server) tempestaModels(n int) []routedRole {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -110,13 +137,23 @@ func (s *Server) tempestaModels(n int) []routedRole {
 		r.Temperature = temps[i%len(temps)]
 		out = append(out, routedRole{p: base, role: r})
 	}
-	return out[:n]
+	out = out[:n]
+	for i := range out {
+		if c, ok := s.tempestaChosen(tempestaAngles[i%len(tempestaAngles)].Key); ok {
+			out[i] = c
+		}
+	}
+	return out
 }
 
-// tempestaSynthRole: el rol de la síntesi, el més fort que hi hagi (think) o el del vent.
+// tempestaSynthRole: el rol de la síntesi, el triat per l'usuari o, si no, el
+// més fort que hi hagi (think) o el del vent.
 func (s *Server) tempestaSynthRole() (config.Provider, config.Role) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if c, ok := s.tempestaChosen("synth"); ok {
+		return c.p, c.role
+	}
 	if r, ok := s.cfg.Roles["think"]; ok && strings.TrimSpace(r.Model) != "" {
 		if _, known := s.cfg.Providers[r.Provider]; known {
 			return s.roleRefBase("think")
@@ -130,11 +167,12 @@ func (s *Server) tempestaSynthRole() (config.Provider, config.Role) {
 func (s *Server) windTempesta(ctx context.Context, w companion.Wind, system string, previous []llm.Message, msg string,
 	emit func(kind, text string), emitTempesta func(agents []tempestaAgent)) (exploracio, error) {
 	start := time.Now()
+	s.refreshTempestaModels()
 	models := s.tempestaModels(tempestaAgentCount)
 	agents := make([]tempestaAgent, tempestaAgentCount)
 	for i := range agents {
 		a := tempestaAngles[i%len(tempestaAngles)]
-		agents[i] = tempestaAgent{Index: i, Angle: a.Key, Label: s.tr(a.Ca, a.En), Ca: a.Ca, En: a.En, Model: models[i].role.Model, State: "working", p: models[i].p, role: models[i].role}
+		agents[i] = tempestaAgent{Index: i, Angle: a.Key, Label: s.tr(a.Ca, a.En), Ca: a.Ca, En: a.En, DescCa: tempestaDescs[a.Key][0], DescEn: tempestaDescs[a.Key][1], Model: models[i].role.Model, State: "working", p: models[i].p, role: models[i].role}
 	}
 	var mu sync.Mutex
 	snapshot := func() []tempestaAgent {
@@ -159,7 +197,7 @@ func (s *Server) windTempesta(ctx context.Context, w companion.Wind, system stri
 				}
 			}()
 			angle := tempestaAngles[i%len(tempestaAngles)]
-			sys := system + "\n\n" + angle.brief + "\nYou are one of several researchers working on this in parallel; another step will merge the answers, so be complete and precise rather than short, keep every source link, and do not ask the user questions."
+			sys := system + "\n\n" + angle.brief + "\nYou are one of several researchers working on this in parallel; another step will merge the answers, so be complete and precise rather than short, keep every source link, and do not ask the user questions." + tempestaReadOnlyNote
 			actx := withWindPrompt(s.readOnlyWindCtx(ctx), windTurnMessages(sys, previous, msg))
 			brief := windBriefFromSystem(sys, previous, msg)
 			res, err := windLoop(s, actx, brief, &routedRole{p: agents[i].p, role: agents[i].role})
@@ -216,7 +254,7 @@ func (s *Server) tempestaSynth(ctx context.Context, w companion.Wind, system str
 	s.mu.Lock()
 	cfg, client := s.cfg, s.client
 	s.mu.Unlock()
-	instr := "\n\nMERGE STEP. Several researchers answered the user's last message in parallel, each from a different angle. Compare their drafts: what they agree on, where they disagree, and which claims have sources. If one of them found something the others missed (a trap, a newer fact, a better option), keep it; drop claims that are unsupported and contradicted by the others. Then write ONE answer to the user in your own voice, language and format, following all the rules above (cards, photos and source links included when they fit). Do not mention the researchers, the drafts or this process. If something important is still uncertain, say so in one short line at the end."
+	instr := "\n\nMERGE STEP. Several researchers answered the user's last message in parallel, each from a different angle. Compare their drafts: what they agree on, where they disagree, and which claims have sources. If one of them found something the others missed (a trap, a newer fact, a better option), keep it; drop claims that are unsupported and contradicted by the others. Then write ONE answer to the user in your own voice, language and format, following all the rules above (cards, photos and source links included when they fit). Do not mention the researchers, the drafts or this process. If something important is still uncertain, say so in one short line at the end." + tempestaReadOnlyNote
 	msgs := windTurnMessages(system+instr, previous, msg)
 	var b strings.Builder
 	for i, d := range drafts {

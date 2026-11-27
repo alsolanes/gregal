@@ -61,7 +61,7 @@ sealed interface RichCard {
     data class Web(val spec: WebSpec) : RichCard
     /** Llista del markdown («- …», «1. …»), amb sagnat penjant i nivells. */
     data class Bullets(val items: List<Seg.Item>) : RichCard
-    /** 2-3 coses una al costat de l'altra (```gregal-compare, CompareCards.kt). */
+    /** 2-8 coses en fitxes per lliscar (```gregal-compare, CompareCards.kt). */
     data class Compare(val spec: CompareSpec) : RichCard
     /** Xifres clau grans (```gregal-facts). */
     data class Facts(val spec: FactsSpec) : RichCard
@@ -387,7 +387,7 @@ private fun Tip(text: String, link: Color) {
 }
 
 @Composable
-private fun Sources(sources: List<Pair<String, String>>, lang: String, end: @Composable () -> Unit = {}) {
+internal fun Sources(sources: List<Pair<String, String>>, lang: String, end: @Composable () -> Unit = {}) {
     val uri = LocalUriHandler.current
     HorizontalDivider(color = Line)
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -526,7 +526,7 @@ private fun ChecksBlock(items: List<Pair<Boolean, List<Seg>>>, link: Color) {
                 .heightIn(min = 40.dp).padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Tick(on, link)
-                Text(text, color = if (on) Muted else Ink, fontSize = 15.sp, lineHeight = 21.sp,
+                Text(text, color = if (on) Muted else Ink, style = GregalType.chatBody,
                     textDecoration = if (on) TextDecoration.LineThrough else null)
             }
         }

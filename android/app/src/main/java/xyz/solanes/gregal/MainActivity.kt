@@ -253,7 +253,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // El tema real es pinta al setContent; aquí `fons` (#13151B) per al
+        // El tema real es pinta al setContent; aquí `fons` (negre) per al
         // flaix inicial.
         window.statusBarColor = DarkPal.deepTop.toArgb()
         window.navigationBarColor = DarkPal.deepTop.toArgb()
@@ -274,9 +274,6 @@ class MainActivity : ComponentActivity() {
             // Per defecte, Gregal en aquest dispositiu; si havies triat un
             // servidor remot, aquell.
             vm.startSaved(prefs)
-            // Comprovació silenciosa d'actualitzacions a l'arrencada: si n'hi ha
-            // i no l'has silenciada, surt la targeta; si no, no diu res.
-            vm.checkUpdate(silent = true)
         }
         setContent {
             val tema by vm.tema.collectAsState()
@@ -291,7 +288,7 @@ class MainActivity : ComponentActivity() {
             // sobre el tema clar (abans quedaven blanques sobre blanc).
             SideEffect {
                 // El color del fil (direcció visual §2): cap franja entre la barra d'estat i la capçalera flotant.
-                window.statusBarColor = pal.surface.compositeOver(pal.deepTop).toArgb()
+                window.statusBarColor = pal.page.compositeOver(pal.deepTop).toArgb()
                 window.navigationBarColor = pal.deepTop.toArgb()
                 WindowCompat.getInsetsController(window, view).apply {
                     isAppearanceLightStatusBars = !dark
@@ -317,7 +314,7 @@ class MainActivity : ComponentActivity() {
                 val st by vm.state.collectAsState()
                 // L'avis d'actualització viu per sobre de qualsevol pantalla:
                 // si l'has silenciada o no n'hi ha, no es veu res.
-                Box(Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxSize().windTouch()) {
                 if (!connected) {
                     PairingScreen(vm, prefs)
                 } else {
@@ -378,10 +375,12 @@ class MainActivity : ComponentActivity() {
                                     Screen.Flows -> FlowsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Automatitzacions -> AutomatitzacionsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Desat -> DesatScreen(vm) { scope.launch { drawer.open() } }
+                                    Screen.Activitat -> WindActivityScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Notes -> NotesScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Webs -> WebsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Docs -> DocScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Prefs -> PrefsScreen(vm) { scope.launch { drawer.open() } }
+                                    Screen.Settings -> SettingsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Carpeta -> CarpetaScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Preview -> PreviewScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Retro -> RetroScreen(vm, { scope.launch { drawer.open() } }) { nav(Screen.Chat) }
@@ -427,6 +426,9 @@ class MainActivity : ComponentActivity() {
         vm.onForegrounded()
         // «A prop teu» amb la ubicació del mòbil: si t'has mogut, el servidor ho sap.
         vm.refreshDeviceLocation(applicationContext)
+        // Comprovació silenciosa d'actualitzacions (arrencada inclosa): si n'hi
+        // ha i no l'has silenciada, surt la targeta; si no, no diu res.
+        vm.checkUpdateIfStale()
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {

@@ -3,8 +3,12 @@ package web
 import (
 	"encoding/json"
 	"path"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
+
+	"gregal/internal/llm"
 )
 
 // La web que un vent acaba de fer, dins del xat.
@@ -25,15 +29,23 @@ type webCard struct {
 }
 
 // windWebCards torna les targetes de les webs tocades des de [since] que la
-// resposta encara no esmenta.
-func (s *Server) windWebCards(since time.Time, reply string) string {
+// resposta encara no esmenta i que aquest torn ha escrit (hist): amb dos
+// torns alhora, la web de l'altre vent també és nova i no és d'aquesta resposta.
+func (s *Server) windWebCards(since time.Time, reply string, hist []llm.Message) string {
+	written := turnWrittenFiles(hist)
+	if len(written) == 0 {
+		return ""
+	}
 	since = since.Add(-time.Second)
 	var cards []webCard
 	seenDir := map[string]bool{}
 	for _, root := range s.previewRoots() {
+		if len(cards) >= webCardMax {
+			break
+		}
 		for _, w := range previewWebs(root.Dir) {
 			mt, err := time.Parse(time.RFC3339, w.Mtime)
-			if err != nil || mt.Before(since) {
+			if err != nil || mt.Before(since) || !wroteInDir(written, filepath.ToSlash(filepath.Join(root.Dir, path.Dir(w.Path)))) {
 				continue
 			}
 			rel := root.Slug + "/" + w.Path
@@ -65,6 +77,47 @@ func (s *Server) windWebCards(since time.Time, reply string) string {
 		b.WriteString("\n```")
 	}
 	return b.String()
+}
+
+// htmlInCommand treu les rutes .html d'una ordre de shell (cat > x.html, cp …).
+var htmlInCommand = regexp.MustCompile(`[^\s"'<>|;&]+\.html?\b`)
+
+// turnWrittenFiles són les rutes que han escrit les eines d'un torn: write,
+// edit i patch pel camp path, i les .html que esmenta una ordre de shell.
+func turnWrittenFiles(hist []llm.Message) []string {
+	var out []string
+	for _, m := range hist {
+		for _, c := range m.ToolCalls {
+			switch c.Function.Name {
+			case "write", "edit", "patch":
+				var a struct{ Path string }
+				if json.Unmarshal([]byte(c.Function.Arguments), &a) == nil && a.Path != "" {
+					out = append(out, a.Path)
+				}
+			case "bash", "bash_background":
+				var a struct{ Command string }
+				if json.Unmarshal([]byte(c.Function.Arguments), &a) == nil {
+					out = append(out, htmlInCommand.FindAllString(a.Command, -1)...)
+				}
+			}
+		}
+	}
+	return out
+}
+
+// wroteInDir diu si alguna ruta escrita és dins de la carpeta dir (absoluta,
+// amb /). Una ruta relativa compta si la carpeta acaba igual («rius/index.html»
+// és de …/projectes/rius); una de sola («index.html»), si el nom de la carpeta
+// no hi diu res, no compta: no se sap de quina és.
+func wroteInDir(written []string, dir string) bool {
+	dir = strings.ToLower(strings.TrimSuffix(dir, "/"))
+	for _, p := range written {
+		d := strings.ToLower(path.Dir(path.Clean(filepath.ToSlash(p))))
+		if d == dir || (d != "." && !filepath.IsAbs(p) && !strings.HasPrefix(d, "/") && strings.HasSuffix(dir, "/"+strings.TrimPrefix(d, "./"))) {
+			return true
+		}
+	}
+	return false
 }
 
 // webCardTitle: «calculadora-propines» → «Calculadora propines».

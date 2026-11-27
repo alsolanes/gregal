@@ -220,6 +220,7 @@ fun WorkGroupCard(work: WorkGroup, activity: Activity?, statusLine: String, lang
                     }
                     val sub = when {
                         stalled -> tr(lang, "app.work.stalled")
+                        running && !activity?.tail.isNullOrBlank() -> activity?.tail.orEmpty()
                         running && work.steps.isNotEmpty() -> work.steps.last().let { s -> listOf(s.label, s.target).filter { it.isNotBlank() }.joinToString(" · ") }
                         running -> statusLine
                         else -> ""

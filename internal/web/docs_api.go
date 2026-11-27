@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -17,40 +18,90 @@ import (
 )
 
 // handleDocExport baixa un document viu del projecte de la sessió com a
-// fitxer d'Office, fet dels blocs amb el tema de la marca activa.
+// fitxer d'Office, fet dels blocs amb el tema de la marca activa: un
+// document de text en Word, una presentació en PowerPoint, un full de
+// càlcul en Excel.
 //
-//	GET /api/docs/{id}/export?format=docx
+//	GET /api/docs/{id}/export?format=docx|pptx|xlsx
 func (s *Server) handleDocExport(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "GET required", http.StatusMethodNotAllowed)
-		return
-	}
-	if f := r.URL.Query().Get("format"); f != "" && f != "docx" {
-		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "format: only docx"})
-		return
-	}
-	_, d, ok := s.sessionDoc(w, r)
+	st, d, ok := s.sessionDoc(w, r)
 	if !ok {
 		return
 	}
-	// Sense tema, NewDocx fa servir el per defecte, que és la marca activa.
-	x := ooxml.NewDocx(ooxml.DocxOptions{Title: d.Title, PageNumbers: true})
-	x.AppendMarkdown(d.Markdown())
-	data, err := x.Pkg.Bytes()
+	format := map[string]string{gdocs.KindDoc: "docx", gdocs.KindDeck: "pptx", gdocs.KindSheet: "xlsx"}[d.Kind]
+	if f := r.URL.Query().Get("format"); f != "" && f != format {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "format: a " + d.Kind + " exports only as " + format})
+		return
+	}
+	// Sense tema, NewDocx i NewPptx fan servir el per defecte, que és la marca activa.
+	// Les imatges només surten de la carpeta del document.
+	images := func(src string) (string, error) { return st.ImagePath(d.ID, src) }
+	var pkg *ooxml.Package
+	var data []byte
+	var err error
+	ctype := "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	switch d.Kind {
+	case gdocs.KindSheet:
+		data, err = sheetXlsx(d)
+		ctype = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	case gdocs.KindDeck:
+		spec := ooxml.DeckSpec{Title: d.Title}
+		for _, b := range d.Blocks {
+			spec.Slides = append(spec.Slides, *b.Slide)
+		}
+		p := ooxml.NewPptx(ooxml.Theme{}, d.Title)
+		p.ResolveImage = images
+		warns, err := p.BuildSlides(spec)
+		if err != nil {
+			writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		// Una imatge que falta no ha d'impedir la baixada.
+		for _, warn := range warns {
+			log.Printf("docs: %s: %s", d.ID, warn)
+		}
+		pkg = p.Pkg
+		ctype = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+	default:
+		x := ooxml.NewDocx(ooxml.DocxOptions{Title: d.Title, PageNumbers: true})
+		x.ResolveImage = images
+		x.AppendMarkdown(d.Markdown())
+		pkg = x.Pkg
+	}
+	if pkg != nil {
+		data, err = pkg.Bytes()
+	}
 	if err != nil {
 		writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	name := d.Title + ".docx"
-	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+	name := d.Title + "." + format
+	w.Header().Set("Content-Type", ctype)
 	w.Header().Set("Content-Disposition", "attachment; filename=\""+senseEspais(name)+"\"; filename*=UTF-8''"+url.PathEscape(name))
 	_, _ = w.Write(data)
 }
 
-// docStore obre els documents del projecte de la sessió; si no pot, ja ha
+// sheetXlsx és el llibre d'Excel d'un full de càlcul, amb les fórmules.
+func sheetXlsx(d gdocs.Doc) ([]byte, error) {
+	f, err := gdocs.Workbook(d)
+	if err != nil {
+		return nil, err
+	}
+	buf, err := f.WriteToBuffer()
+	if err != nil {
+		return nil, errors.Join(err, f.Close())
+	}
+	return buf.Bytes(), f.Close()
+}
+
+// docStore obre els documents del projecte de la sessió, o amb ?scope=mine
+// els de la carpeta de documents dels vents de qui crida; si no pot, ja ha
 // respost.
-func (s *Server) docStore(w http.ResponseWriter) (*gdocs.Store, bool) {
+func (s *Server) docStore(w http.ResponseWriter, r *http.Request) (*gdocs.Store, bool) {
 	st, err := gdocs.Open(s.sessionCwd())
+	if r.URL.Query().Get("scope") == "mine" {
+		st, err = gdocs.OpenAt(s.windDocsDir())
+	}
 	if err != nil {
 		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return nil, false
@@ -65,7 +116,7 @@ func (s *Server) sessionDoc(w http.ResponseWriter, r *http.Request) (*gdocs.Stor
 		http.Error(w, "GET required", http.StatusMethodNotAllowed)
 		return nil, gdocs.Doc{}, false
 	}
-	st, ok := s.docStore(w)
+	st, ok := s.docStore(w, r)
 	if !ok {
 		return nil, gdocs.Doc{}, false
 	}
@@ -82,15 +133,21 @@ func (s *Server) sessionDoc(w http.ResponseWriter, r *http.Request) (*gdocs.Stor
 }
 
 // handleDocs llista els documents del projecte de la sessió, l'últim
-// canviat primer.
+// canviat primer. Amb POST la persona en crea un de text buit, sense
+// l'agent («Document nou» de Gregal Docs).
 //
 //	GET /api/docs
+//	POST /api/docs {title, kind:"doc"|"deck"|"sheet"}
 func (s *Server) handleDocs(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "GET required", http.StatusMethodNotAllowed)
+	if r.Method == http.MethodPost {
+		s.handleDocCreate(w, r)
 		return
 	}
-	st, ok := s.docStore(w)
+	if r.Method != http.MethodGet {
+		http.Error(w, "GET or POST", http.StatusMethodNotAllowed)
+		return
+	}
+	st, ok := s.docStore(w, r)
 	if !ok {
 		return
 	}
@@ -106,6 +163,43 @@ func (s *Server) handleDocs(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"items": items})
 }
 
+// handleDocCreate fa el document nou de la persona. Neix sense blocs: el
+// primer que hi escriu entra per les rutes de blocs, amb autor user.
+func (s *Server) handleDocCreate(w http.ResponseWriter, r *http.Request) {
+	var q struct{ Title, Kind string }
+	if json.NewDecoder(r.Body).Decode(&q) != nil {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
+		return
+	}
+	if q.Kind != gdocs.KindDoc && q.Kind != gdocs.KindDeck && q.Kind != gdocs.KindSheet {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "kind: only \"doc\", \"deck\" or \"sheet\" can be created here"})
+		return
+	}
+	if strings.TrimSpace(q.Title) == "" {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "title required"})
+		return
+	}
+	st, ok := s.docStore(w, r)
+	if !ok {
+		return
+	}
+	var d gdocs.Doc
+	var err error
+	switch q.Kind {
+	case gdocs.KindDeck:
+		d, err = st.CreateDeck(q.Title)
+	case gdocs.KindSheet:
+		d, err = st.CreateSheet(q.Title, "", gdocs.AuthorUser)
+	default:
+		d, err = st.Create(q.Title, "", gdocs.AuthorUser)
+	}
+	if err != nil {
+		writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, d)
+}
+
 // handleDoc torna un document sencer.
 //
 //	GET /api/docs/{id}
@@ -113,6 +207,19 @@ func (s *Server) handleDoc(w http.ResponseWriter, r *http.Request) {
 	if _, d, ok := s.sessionDoc(w, r); ok {
 		writeJSON(w, d)
 	}
+}
+
+// handleDocTheme dona les propietats CSS de la pàgina d'un document de
+// text, tretes del tema amb què s'exporta a Word (el branding actiu), perquè
+// la pàgina del web i el docx s'assemblin.
+//
+//	GET /api/docs/theme
+func (s *Server) handleDocTheme(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "GET required", http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, map[string]any{"vars": ooxml.PageCSS(ooxml.GetTheme(""))})
 }
 
 // handleDocStream envia un event `block` per cada canvi del document des
@@ -146,6 +253,56 @@ func (s *Server) handleDocStream(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// maxDocImage és la mida més gran d'una imatge que la persona posa en un document.
+const maxDocImage = 10 << 20
+
+// handleDocImages desa a la carpeta del document una imatge que la persona
+// hi posa. El cos és la imatge (PNG, JPEG o GIF); la resposta, la ruta que
+// va al markdown, ![peu](images/<nom>).
+//
+//	POST /api/docs/{id}/images → {path}
+func (s *Server) handleDocImages(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", http.StatusMethodNotAllowed)
+		return
+	}
+	st, ok := s.docStore(w, r)
+	if !ok {
+		return
+	}
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxDocImage))
+	var big *http.MaxBytesError
+	if errors.As(err, &big) {
+		writeJSONStatus(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "image: 10 MB at most"})
+		return
+	}
+	if err != nil {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	path, err := st.AddImage(r.PathValue("id"), data)
+	if !docWriteErr(w, err) {
+		writeJSON(w, map[string]string{"path": path})
+	}
+}
+
+// handleDocImage serveix una imatge de la carpeta del document; cap altra.
+//
+//	GET /api/docs/{id}/images/{name}
+func (s *Server) handleDocImage(w http.ResponseWriter, r *http.Request) {
+	st, d, ok := s.sessionDoc(w, r)
+	if !ok {
+		return
+	}
+	p, err := st.ImagePath(d.ID, "images/"+r.PathValue("name"))
+	if err != nil {
+		writeJSONStatus(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+		return
+	}
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	http.ServeFile(w, r, p)
+}
+
 // handleDocPage serveix un document a pàgina sencera, la finestra pròpia
 // que s'obre des del panell: el mateix panell (docs-panel.js) sense la
 // resta de l'app. Sense comptes, un id que no és del projecte de la sessió
@@ -167,7 +324,7 @@ func (h *Hub) handleDocPage(w http.ResponseWriter, r *http.Request) {
 		`body #docsPanel{position:static;flex:1;width:auto;border:0;box-shadow:none}body #docsPanel header{display:none}</style>`+
 		`<script>(()=>{let t='';try{t=(JSON.parse(localStorage.getItem('gregal_brand_cache')||'null')||{}).theme||localStorage.getItem('gregal_tema')||''}catch(e){}`+
 		`if(!t||t==='sistema')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)})()</script>`+
-		`</head><body><div id="workbench"></div><script src="/app/md.js"></script><script src="/app/doc-view.js"></script>`+
+		`</head><body><div id="workbench"></div><script src="/app/md.js"></script><script src="/app/vendor/prosemirror.min.js"></script><script src="/app/doc-view.js"></script><script src="/app/deck-view.js"></script><script src="/app/sheet-view.js"></script>`+
 		`<script type="module" src="/app/doc-page.js"></script></body></html>`)
 }
 
@@ -175,21 +332,35 @@ func (h *Hub) handleDocPage(w http.ResponseWriter, r *http.Request) {
 // fa l'eina, i la resposta porta els blocs nous en ordre.
 //
 //	POST /api/docs/{id}/blocks {after, md}
+//	POST /api/docs/{id}/blocks {after, slide} (una presentació)
+//	POST /api/docs/{id}/blocks {after, name} (un full nou en un full de càlcul)
 func (s *Server) handleDocBlocks(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST required", http.StatusMethodNotAllowed)
 		return
 	}
-	var q struct{ After, MD string }
-	if json.NewDecoder(r.Body).Decode(&q) != nil || strings.TrimSpace(q.MD) == "" {
-		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "md required"})
+	var q struct {
+		After, MD, Name string
+		Slide           *ooxml.SlideSpec
+	}
+	if json.NewDecoder(r.Body).Decode(&q) != nil || (strings.TrimSpace(q.MD) == "" && q.Slide == nil && strings.TrimSpace(q.Name) == "") {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "md, slide or name required"})
 		return
 	}
-	st, ok := s.docStore(w)
+	st, ok := s.docStore(w, r)
 	if !ok {
 		return
 	}
-	d, err := st.Insert(r.PathValue("id"), q.After, q.MD, gdocs.AuthorUser)
+	var d gdocs.Doc
+	var err error
+	switch {
+	case q.Slide != nil:
+		d, err = st.InsertSlide(r.PathValue("id"), q.After, *q.Slide, gdocs.AuthorUser)
+	case strings.TrimSpace(q.Name) != "":
+		d, err = st.InsertSheet(r.PathValue("id"), q.After, q.Name, gdocs.AuthorUser)
+	default:
+		d, err = st.Insert(r.PathValue("id"), q.After, q.MD, gdocs.AuthorUser)
+	}
 	if docWriteErr(w, err) {
 		return
 	}
@@ -207,16 +378,24 @@ func (s *Server) handleDocBlocks(w http.ResponseWriter, r *http.Request) {
 // 409 amb el bloc d'ara, i no es toca res.
 //
 //	PUT /api/docs/{id}/blocks/{block} {md, base_version}
+//	PUT /api/docs/{id}/blocks/{block} {cells, base_version} (un full)
+//	PUT /api/docs/{id}/blocks/{block} {slide, base_version} (una diapositiva)
 //	DELETE /api/docs/{id}/blocks/{block}?base_version=N
 func (s *Server) handleDocBlock(w http.ResponseWriter, r *http.Request) {
 	var q struct {
-		MD   string `json:"md"`
-		Base int    `json:"base_version"`
+		MD    string            `json:"md"`
+		Cells map[string]string `json:"cells"`
+		Slide *ooxml.SlideSpec  `json:"slide"`
+		Base  int               `json:"base_version"`
 	}
 	switch r.Method {
 	case http.MethodPut:
 		if json.NewDecoder(r.Body).Decode(&q) != nil {
 			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
+			return
+		}
+		if q.Cells != nil && len(q.Cells) == 0 {
+			writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "cells: no cells to set"})
 			return
 		}
 	case http.MethodDelete:
@@ -229,7 +408,7 @@ func (s *Server) handleDocBlock(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "PUT or DELETE", http.StatusMethodNotAllowed)
 		return
 	}
-	st, ok := s.docStore(w)
+	st, ok := s.docStore(w, r)
 	if !ok {
 		return
 	}
@@ -241,7 +420,16 @@ func (s *Server) handleDocBlock(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	d, err := st.Replace(id, block, q.MD, gdocs.AuthorUser, q.Base)
+	var d gdocs.Doc
+	var err error
+	switch {
+	case q.Cells != nil:
+		d, err = st.SetCells(id, block, q.Cells, gdocs.AuthorUser, q.Base)
+	case q.Slide != nil:
+		d, err = st.ReplaceSlide(id, block, *q.Slide, gdocs.AuthorUser, q.Base)
+	default:
+		d, err = st.Replace(id, block, q.MD, gdocs.AuthorUser, q.Base)
+	}
 	if docWriteErr(w, err) {
 		return
 	}
@@ -262,6 +450,8 @@ func docWriteErr(w http.ResponseWriter, err error) bool {
 		writeJSONStatus(w, http.StatusConflict, map[string]any{"error": err.Error(), "block": c.Block})
 	case errors.Is(err, gdocs.ErrNotFound), errors.Is(err, gdocs.ErrBlockNotFound):
 		writeJSONStatus(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+	case errors.Is(err, gdocs.ErrInvalid):
+		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	default:
 		writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
@@ -272,27 +462,46 @@ func docWriteErr(w http.ResponseWriter, err error) bool {
 // «Document <id> · …» (agent/doc_tool.go).
 var docToolOut = regexp.MustCompile(`^(?:Created document|Document) ([a-z0-9]+) `)
 
-// emitDocChanged avisa la sessió que l'agent ha creat o canviat un
-// document, perquè la web l'obri al panell lateral.
-func (s *Server) emitDocChanged(emit func(string, any), argsJSON, out string) {
+// docChangedID és el document que una crida a doc ha creat o canviat, o ""
+// si la crida només l'ha llegit.
+func docChangedID(argsJSON, out string) string {
 	var a struct{ Action string }
 	if json.Unmarshal([]byte(argsJSON), &a) != nil {
-		return
+		return ""
 	}
 	switch strings.ToLower(strings.TrimSpace(a.Action)) {
-	case "create", "insert", "replace", "delete":
+	case "create", "insert", "replace", "set_cells", "delete":
 	default:
+		return ""
+	}
+	if m := docToolOut.FindStringSubmatch(out); m != nil {
+		return m[1]
+	}
+	return ""
+}
+
+// emitDocChanged avisa la sessió que l'agent ha creat o canviat un
+// document de root, perquè la web l'obri al panell lateral. scope, si no
+// és buit, és el que el client ha de passar a les rutes (mine: els dels
+// vents).
+func (s *Server) emitDocChanged(emit func(string, any), root, scope, argsJSON, out string) {
+	id := docChangedID(argsJSON, out)
+	if id == "" {
 		return
 	}
-	m := docToolOut.FindStringSubmatch(out)
-	if m == nil {
-		return
+	open := gdocs.Open
+	if scope == "mine" {
+		open = gdocs.OpenAt
 	}
-	st, err := gdocs.Open(s.sessionCwd())
+	st, err := open(root)
 	if err != nil {
 		return
 	}
-	if d, err := st.Get(m[1]); err == nil {
-		emit("doc_changed", map[string]string{"id": d.ID, "title": d.Title})
+	if d, err := st.Get(id); err == nil {
+		ev := map[string]string{"id": d.ID, "title": d.Title}
+		if scope != "" {
+			ev["scope"] = scope
+		}
+		emit("doc_changed", ev)
 	}
 }

@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"log"
 	"strings"
 	"time"
 
@@ -19,17 +20,114 @@ import (
 
 const windJobPrefix = "wind-"
 
-// windJobID extreu l'id del vent d'un id de job (wind-tramuntana → tramuntana).
+// windJobID extreu l'id del vent d'un id de job: wind-tramuntana, o amb
+// comptes wind-tramuntana@aleix → tramuntana (un id de vent no porta @).
 func windJobID(jobID string) (string, bool) {
 	if !strings.HasPrefix(jobID, windJobPrefix) {
 		return "", false
 	}
-	id := strings.TrimPrefix(jobID, windJobPrefix)
+	id, _, _ := strings.Cut(strings.TrimPrefix(jobID, windJobPrefix), "@")
 	return id, id != ""
 }
 
-// WindJobID construeix l'id del job d'un vent.
+// WindJobID construeix l'id del job d'un vent d'un servidor sense comptes.
 func WindJobID(windID string) string { return windJobPrefix + windID }
+
+// ownerWindJobID és l'id del cor d'un vent d'un compte: dos comptes poden
+// tenir un vent amb el mateix id i cada un té el seu cor.
+func ownerWindJobID(windID, owner string) string {
+	if owner == "" {
+		return WindJobID(windID)
+	}
+	return WindJobID(windID) + "@" + owner
+}
+
+// heartJobID és l'id amb què es desa un job que arriba per l'API: un cor
+// (wind-<vent>, o kind event amb wind i sense id) va sempre al del compte.
+// false si l'id és el cor d'un altre compte.
+func (s *Server) heartJobID(j jobs.Job) (string, bool) {
+	wid, ok := windJobID(j.ID)
+	if !ok && j.ID == "" && j.Kind == "event" && j.Wind != "" {
+		wid, ok = j.Wind, true
+	}
+	if !ok {
+		return j.ID, true
+	}
+	own := ownerWindJobID(wid, respOwner(s))
+	return own, j.ID == "" || j.ID == WindJobID(wid) || j.ID == own
+}
+
+// migrateWindJobs passa el cor d'un compte desat com a wind-<vent> (abans
+// no hi havia id per compte) a l'id del compte, amb la seva programació.
+// Amb comptes (ownersOf no és nil), el cor sense amo és del compte que té el
+// vent si només n'hi ha un: el servidor arrel no el sabria córrer.
+func migrateWindJobs(store *jobs.Store, ownersOf func(windID string) []string) {
+	list, err := store.List()
+	if err != nil {
+		log.Printf("cors dels vents: no puc llegir els jobs: %v", err)
+		return
+	}
+	for _, j := range list {
+		wid, ok := windJobID(j.ID)
+		if !ok || strings.Contains(j.ID, "@") {
+			continue
+		}
+		switch {
+		case j.WindOwner != "":
+			moveWindJob(store, j, wid, j.WindOwner)
+		case ownersOf != nil:
+			adoptWindJob(store, j, wid, ownersOf(wid))
+		}
+	}
+}
+
+// adoptWindJob dona el cor sense amo al compte que té el vent (owners; ""
+// és l'estat compartit, que el corre com sempre). Si no se sap de qui és,
+// queda apagat: mai ha de córrer com una feina qualsevol.
+func adoptWindJob(store *jobs.Store, j jobs.Job, wid string, owners []string) {
+	switch {
+	case len(owners) == 1 && owners[0] == "":
+	case len(owners) == 1:
+		moveWindJob(store, j, wid, owners[0])
+	case j.Enabled:
+		log.Printf("cors dels vents: %s no se sap de qui és (%d estats amb el vent): queda apagat", j.ID, len(owners))
+		j.Enabled = false
+		if _, err := store.Save(j); err != nil {
+			log.Printf("cors dels vents: no puc apagar %s: %v", j.ID, err)
+		}
+	}
+}
+
+// moveWindJob porta el cor a l'id del compte; si el compte ja en té un,
+// l'antic sobra.
+func moveWindJob(store *jobs.Store, j jobs.Job, wid, owner string) {
+	old := j.ID
+	j.ID, j.Wind, j.WindOwner = ownerWindJobID(wid, owner), wid, owner
+	if !store.Has(j.ID) {
+		if _, err := store.Save(j); err != nil {
+			log.Printf("cors dels vents: no puc migrar %s: %v", old, err)
+			return
+		}
+	}
+	if err := store.Delete(old); err != nil {
+		log.Printf("cors dels vents: no puc esborrar %s: %v", old, err)
+	}
+}
+
+// windOwners diu qui té un vent amb aquest id: "" és l'estat compartit (sense
+// compte) i la resta, els comptes.
+func (s *Server) windOwners(windID string) []string {
+	var out []string
+	if _, ok := s.winds.ByID(windID); ok {
+		out = append(out, "")
+	}
+	for _, name := range s.users.Noms() {
+		if _, ok := companion.NewWindStore(userStateDir(s.cfgPath, name)).ByID(windID); ok {
+			out = append(out, name)
+		}
+	}
+	return out
+}
 
 // windHeartbeatSystem compon la consigna del cor: persona + tema a vigilar.
 func windHeartbeatSystem(w companion.Wind, memory, userName string) string {
@@ -41,12 +139,20 @@ func windHeartbeatSystem(w companion.Wind, memory, userName string) string {
 	} else {
 		b.WriteString("\n\nWHO YOU TALK TO:\nThis message goes to one person whose name you do NOT know. If a name would help, ask them; NEVER invent a name and NEVER borrow another wind's name.")
 	}
-	b.WriteString("\n\nYOU ARE ON WATCH. Your job (" + w.Role + ") is to check your topic with web_search and web_fetch. Rules:\n- Search the web for news about your topic. Prefer recent sources (last 24-48h).\n- Speak ONLY if you find something genuinely worth telling the user: real news, a release, a price drop, something actionable for them.\n- If nothing deserves their attention, reply with exactly: (res)\n- Never invent news. Cite source URLs inline like [title](url).\n- You can also fetch an image with web_images (album cover, product photo, diagram) and embed it as ![title](image-url) on its own line — only when it genuinely helps, never to decorate, and never invent an image URL.\n- Reply in the user's language (Catalan if unsure). 1-4 sentences, no preamble.\n- ALWAYS end your reply with a NEXT line: when you should look again. Find the next scheduled event of your topic (match, release, sale…) and set NEXT 30 minutes after it ends; if you cannot find one, 24 hours from now. Format the line exactly as: NEXT: 2026-10-21T19:30:00Z (RFC 3339, UTC).")
+	b.WriteString("\n\nYOU ARE ON WATCH. Your job (" + w.Role + ") is to check your topic with web_search and web_fetch. Rules:\n- Search the web for news about your topic. Prefer recent sources (last 24-48h).\n- Speak ONLY if you find something genuinely worth telling the user: real news, a release, a price drop, something actionable for them.\n- If nothing deserves their attention, reply with exactly: (res)\n- Never invent news. Cite source URLs inline like [title](url).\n- You can also fetch an image with web_images (album cover, product photo, diagram) and embed it as ![title](image-url) on its own line — only when it genuinely helps, never to decorate, and never invent an image URL.\n- 1-4 sentences, no preamble.\n- ALWAYS end your reply with a NEXT line: when you should look again. Find the next scheduled event of your topic (match, release, sale…) and set NEXT 30 minutes after it ends; if you cannot find one, 24 hours from now. Format the line exactly as: NEXT: 2026-10-21T19:30:00Z (RFC 3339, UTC).")
 	if strings.TrimSpace(memory) != "" {
 		b.WriteString("\n\nWHAT YOU KNOW ABOUT THEM:\n")
 		b.WriteString(memory)
 	}
 	return b.String()
+}
+
+// windOwnVoice tanca la consigna dels torns que el vent fa sol (cor, rutina,
+// recordatori, seguiment): el missatge arriba com una notificació, així que
+// ha de ser una nota curta en l'idioma de la persona, no un informe.
+func windOwnVoice(lang string) string {
+	return "\n\nFORMAT: a short chat message from you to the user, like a note from a friend, not a report: one line with the news first, then at most a few lines of detail. No markdown headings, no bold section titles, no tables." +
+		"\n\n" + config.LanguageDirective(lang)
 }
 
 // windHeartbeatLoop és la via de cerca del cor; els tests la substitueixen.
@@ -155,7 +261,7 @@ func (s *Server) executeWindHeartbeat(ctx context.Context, job jobs.Job, queued 
 			_ = s.jobs.SetNextAt(job.ID, next)
 			_ = s.jobs.MarkRun(job.ID, start, "ok")
 		}
-		return jobs.Run{JobID: job.ID, JobName: job.Name, StartedAt: start, FinishedAt: start, Status: "ok"}, nil
+		return jobs.Run{Wind: w.ID, WindOwner: job.WindOwner, JobID: job.ID, JobName: job.Name, StartedAt: start, FinishedAt: start, Status: "ok"}, nil
 	}
 	brief := windHeartbeatSystem(w, s.personalMemory(), s.windUserName()) + windRemindBriefExact(w.ID)
 	brief += companion.WindBrainSystem(s.windBrain(w.ID)) + s.windMemorySystem(w.ID)
@@ -163,7 +269,7 @@ func (s *Server) executeWindHeartbeat(ctx context.Context, job jobs.Job, queued 
 	brief += "\n\nTopic to watch: " + w.Role
 	// El que la persona ha marcat com a útil o no a la safata «Avui».
 	brief += s.avuiFeedbackBrief(w.ID)
-	brief += "\n\n" + config.LanguageDirective(s.cfg.Lang())
+	brief += windOwnVoice(s.cfg.Lang())
 	res, runErr := windHeartbeatLoop(s, ctx, brief)
 	out := strings.TrimSpace(res.text)
 	// El cor es reprograma: la línia "NEXT: <RFC3339>" del final és el moment
@@ -177,6 +283,7 @@ func (s *Server) executeWindHeartbeat(ctx context.Context, job jobs.Job, queued 
 
 	end := time.Now()
 	run := jobs.Run{
+		Wind: w.ID, WindOwner: job.WindOwner,
 		JobID: job.ID, JobName: job.Name, StartedAt: start, FinishedAt: end,
 	}
 	if runErr != nil {

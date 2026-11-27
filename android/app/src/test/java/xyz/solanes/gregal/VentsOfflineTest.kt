@@ -29,6 +29,24 @@ class VentsOfflineTest {
         assertNull(OfflineLogic.decodeChat("no és json"))
     }
 
+    private val carta = DocRef("w1", "Carta", "doc", "mine")
+    private fun card() = GregalViewModel.PetMsg("pet", "Carta", kind = "doc", doc = carta)
+
+    @Test fun laCopiaDelXatGuardaLaTargetaDelDocument() {
+        val got = OfflineLogic.decodeChat(OfflineLogic.encodeChat(listOf(msg("user", "Escriu-la"), card())))!!
+        assertEquals(carta, got[1].doc)
+    }
+
+    @Test fun lHistorialDelServidorConservaLesTargetesDarrereDelSeuMissatge() {
+        val before = listOf(msg("user", "Escriu-la"), card(), msg("pet", "Feta"))
+        val server = listOf(msg("user", "Escriu-la"), msg("pet", "Feta"), msg("user", "Gràcies"))
+        assertEquals(listOf("Escriu-la", "Carta", "Feta", "Gràcies"), OfflineLogic.withDocCards(before, server).map { it.text })
+        // Si el missatge d'abans de la targeta ja no hi és (una altra sessió), la targeta no s'hi cola.
+        assertEquals(listOf("Una altra"), OfflineLogic.withDocCards(before, listOf(msg("user", "Una altra"))).map { it.text })
+        // Una targeta que ja hi és no es repeteix.
+        assertEquals(1, OfflineLogic.withDocCards(before, before).count { it.kind == "doc" })
+    }
+
     @Test fun laCuaVaEnOrdreIUnPerVent() {
         var q = emptyList<OutboxItem>()
         q = OfflineLogic.enqueue(q, OutboxItem("xaloc", "segon", 20))

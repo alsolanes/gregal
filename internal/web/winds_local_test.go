@@ -215,8 +215,19 @@ func TestLocalRunBringsSourcedCardsToTodayAndVoiceRespectsQuiet(t *testing.T) {
 			nov = append(nov, n)
 		}
 	}
-	if len(nov) != 1 || nov[0].Source != "local" || !nov[0].Quiet || !strings.Contains(nov[0].Text, "[elnacional.cat](https://www.elnacional.cat/gracia-obres)") {
+	if len(nov) != 1 || nov[0].Source != "local" || !nov[0].Quiet || nov[0].Text == "" {
 		t.Fatalf("the voice must go to the thread without ringing: %+v", nov)
+	}
+	// Des de la 097 la novetat només en du la primera línia; el missatge sencer, amb la font, és al fil del vent.
+	h := windHistory(s, nov[0].Wind)
+	h.mu.RLock()
+	var cited bool
+	for _, m := range h.messages {
+		cited = cited || strings.Contains(m.Content, "[elnacional.cat](https://www.elnacional.cat/gracia-obres)")
+	}
+	h.mu.RUnlock()
+	if !cited {
+		t.Fatal("the wind's message in its thread must cite the source")
 	}
 	// Una segona mirada el mateix dia no toca (freqüència), i forçada no repeteix res.
 	if run, _ := s.executeLocalInfo(context.Background(), job, runsZero()); run.Output != "" || len(*briefs) != 1 {
@@ -276,5 +287,32 @@ func TestLocalNothingFoundStaysSilent(t *testing.T) {
 				t.Fatalf("%q: no voice or notification when nothing is found: %+v", reply, n)
 			}
 		}
+	}
+}
+
+func TestLocalNovetatCarriesItsCard(t *testing.T) {
+	s := localTestServer(t)
+	stubLocalLoop(t, localReply)
+	if rec := localPost(t, s, `{"enabled":true,"consent":true,"place":{"label":"Gràcia, Barcelona"},"topics":["concerts","news","openings"],"voice":true}`); rec.Code != 200 {
+		t.Fatalf("enable: %d %s", rec.Code, rec.Body.String())
+	}
+	job, _ := s.ownWindJob(localJobID(""))
+	if run, err := s.executeLocalInfo(context.Background(), job, runsZero()); err != nil || run.Status != "ok" {
+		t.Fatalf("run: %+v %v", run, err)
+	}
+	var first string
+	for _, c := range loadAvui(s) {
+		if c.Source == localSourceName {
+			first = c.ID
+			break
+		}
+	}
+	n := loadNovetats(s)
+	if first == "" || len(n) != 1 || n[0].Card != first {
+		t.Fatalf("the local novetat carries its first Today card: %q %+v", first, n)
+	}
+	avuiPost(t, s, first, "dismiss")
+	if n := loadNovetats(s); !n[0].Read {
+		t.Fatalf("deciding the card marks the novetat read: %+v", n)
 	}
 }

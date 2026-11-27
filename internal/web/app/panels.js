@@ -356,7 +356,7 @@ export const sessions = {
   // treballa. El repo principal no es toca fins a «Porta al repo principal».
   async openWorktree() {
     const suggested = 's-' + new Date().toISOString().slice(5, 16).replace(/[-T:]/g, '');
-    const name = prompt(T('sessions.worktreeName'), suggested);
+    const name = await window.gregalAsk(T('sessions.worktreeName'), suggested);
     if (name == null) return;
     try {
       const r = await j('/api/worktrees', { method: 'POST', body: JSON.stringify({ name: name.trim() }) });
@@ -919,7 +919,7 @@ async function runMcpPrompt(p) {
   const args = {};
   for (const a of (p.arguments || [])) {
     const name = String(a).replace(/\*$/, '');
-    const v = window.prompt(p.command + ' · ' + name + (String(a).endsWith('*') ? ' *' : ''), '');
+    const v = await window.gregalAsk(p.command + ' · ' + name + (String(a).endsWith('*') ? ' *' : ''), '');
     if (v === null) return;
     if (v.trim()) args[name] = v.trim();
   }

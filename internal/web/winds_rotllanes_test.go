@@ -274,6 +274,148 @@ func TestWindSuggestPersona(t *testing.T) {
 	}
 }
 
+type windDescribed struct {
+	Name, Role, Persona, Style, Color, Kit string
+}
+
+func suggestFromDescription(t *testing.T, s *Server, reply string) (windDescribed, string, string) {
+	t.Helper()
+	var gotSystem, gotUser string
+	saved := windSuggestLoop
+	windSuggestLoop = func(s *Server, ctx context.Context, client *llm.Client, cfg *config.Config, p config.Provider, role config.Role, msgs []llm.Message) (string, error) {
+		gotSystem, gotUser = msgs[0].Content, msgs[1].Content
+		return reply, nil
+	}
+	t.Cleanup(func() { windSuggestLoop = saved })
+	rec := postJSON(t, s.handleWindSuggest, `{"description":"un vent que m'ajudi amb receptes de temporada"}`)
+	if rec.Code != 200 {
+		t.Fatalf("suggest: %d %s", rec.Code, rec.Body.String())
+	}
+	var out windDescribed
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	return out, gotSystem, gotUser
+}
+
+// TestWindSuggestFromDescription: una frase omple el vent sencer; el nom mai
+// és el d'un vent que ja existeix i el color és #rrggbb.
+func TestWindSuggestFromDescription(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s, _ := companionTestServer(t)
+	postJSON(t, s.handleWinds, `{"name":"Garbinada","color":"#FF4444","role":"portàtils"}`)
+
+	out, system, user := suggestFromDescription(t, s, "Aquí el tens:\n```json\n"+
+		`{"name":"garbinada","role":"Cuina de temporada","persona":"Sóc la cuinera del barri: parlo poc i tasto molt.","style":"ETN","color":"#E8A040"}`+"\n```")
+	if !strings.Contains(user, "receptes de temporada") {
+		t.Errorf("la descripció no arriba al model: %s", user)
+	}
+	if !strings.Contains(system, "Garbinada") {
+		t.Errorf("el model no sap quins noms ja hi són:\n%s", system)
+	}
+	if out.Name == "" || strings.EqualFold(out.Name, "Garbinada") {
+		t.Errorf("nom repetit o buit: %q", out.Name)
+	}
+	if out.Role != "Cuina de temporada" || !strings.Contains(out.Persona, "cuinera") || out.Style != "etn" || out.Color != "#e8a040" {
+		t.Errorf("proposta: %+v", out)
+	}
+}
+
+// TestWindSuggestFromDescriptionDefaults: una resposta sense JSON torna
+// valors per defecte vàlids; el col·lectiu arriba al model; buit és 400.
+func TestWindSuggestFromDescriptionDefaults(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s, _ := companionTestServer(t)
+	postJSON(t, s.handleWinds, `{"name":"Garbinada","color":"#FF4444","role":"portàtils"}`)
+
+	out, _, _ := suggestFromDescription(t, s, "no sé què dir")
+	if out.Name == "" || strings.EqualFold(out.Name, "Garbinada") || out.Style != "pso" || out.Persona != companion.DefaultWindPersona(out.Name) {
+		t.Errorf("defectes: %+v", out)
+	}
+	if len(out.Color) != 7 || out.Color != strings.ToLower(out.Color) || out.Color[0] != '#' {
+		t.Errorf("color no és #rrggbb: %q", out.Color)
+	}
+
+	// El nom col·lectiu dona veu i nom.
+	setCollective(t, s, "Fullet", "Fullets")
+	_, system, _ := suggestFromDescription(t, s, "{}")
+	if !strings.Contains(system, "Fullets") {
+		t.Errorf("el col·lectiu no arriba al model:\n%s", system)
+	}
+
+	// Sense nom ni descripció → 400.
+	if rec := postJSON(t, s.handleWindSuggest, `{"description":"  "}`); rec.Code != http.StatusBadRequest {
+		t.Errorf("buit hauria de ser 400: %d", rec.Code)
+	}
+}
+
+// TestWindStyleNewShapes: les formes de la tasca 170 (g gota, u sol, w onada)
+// són lletres vàlides: el model les coneix, la proposta les manté i un vent
+// creat amb una d'elles la conserva.
+func TestWindStyleNewShapes(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s, _ := companionTestServer(t)
+
+	out, system, _ := suggestFromDescription(t, s, `{"name":"Ruixat","persona":"Sóc el ruixat.","style":"ETG"}`)
+	if out.Style != "etg" {
+		t.Errorf("la gota s'ha perdut a la proposta: %q", out.Style)
+	}
+	for _, letter := range []string{"g=gota", "u=sol", "w=onada"} {
+		if !strings.Contains(system, letter) || !strings.Contains(windSuggestSystem("Xaloc", "cuina"), letter) {
+			t.Errorf("el model no coneix la forma %s:\n%s", letter, system)
+		}
+	}
+	for _, style := range []string{"psg", "mou", "btw"} {
+		if got := normalizeWindStyle(style); got != style {
+			t.Errorf("normalizeWindStyle(%q) = %q", style, got)
+		}
+	}
+
+	if rec := postJSON(t, s.handleWinds, `{"name":"Onada","color":"#4A90D9","style":"ptw"}`); rec.Code != 200 {
+		t.Fatalf("crear: %d %s", rec.Code, rec.Body.String())
+	}
+	rec := httptest.NewRecorder()
+	s.handleWinds(rec, httptest.NewRequest(http.MethodGet, "/api/winds", nil))
+	var list struct {
+		Winds []struct{ Name, Style string } `json:"winds"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, w := range list.Winds {
+		if w.Name == "Onada" {
+			found = true
+			if w.Style != "ptw" {
+				t.Errorf("el vent ha perdut l'onada: %q", w.Style)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("el vent creat no és a la llista: %s", rec.Body.String())
+	}
+}
+
+// TestWindSuggestRoleCarriesTrade: el rol proposat porta l'ofici que la regla
+// rol→kit reconeix, també quan el model falla i el rol és la descripció.
+func TestWindSuggestRoleCarriesTrade(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s, _ := companionTestServer(t)
+
+	out, system, _ := suggestFromDescription(t, s, `{"name":"Fogó","role":"Cuina i receptes","persona":"x","style":"pso","color":"#eebc78"}`)
+	if out.Kit != "cooking" || inferKit(out.Role) != out.Kit {
+		t.Errorf("kit: %+v", out)
+	}
+	if !strings.Contains(system, "cuina") || !strings.Contains(system, "música") {
+		t.Errorf("el model no rep les paraules dels oficis:\n%s", system)
+	}
+
+	out, _, _ = suggestFromDescription(t, s, `{"persona":"x"}`)
+	if out.Kit != "cooking" || inferKit(out.Role) != "cooking" {
+		t.Errorf("sense rol, la descripció mana: %+v", out)
+	}
+}
+
 // --- Cervell del vent ---
 
 // TestWindBrainGrowsWithWhatItLearns: després d'una resposta, els fets

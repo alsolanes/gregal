@@ -102,6 +102,15 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 		uso = &llm.UsageMeter{}
 		runCtx = llm.WithUsage(runCtx, uso)
 	}
+	// Les comparacions surten amb les fotos i els logos posats, un sol cop:
+	// el que es veu (assistant) i el que es desa (la resposta) és el mateix.
+	cardsIn, cardsOut := "", ""
+	cards := func(t string) string {
+		if t != cardsIn {
+			cardsIn, cardsOut = t, s.codeCompareImages(t)
+		}
+		return cardsOut
+	}
 	// Bind children to this session's model/config, not the last Server
 	// that installed the process-global delegate runner.
 	s.mu.Lock()
@@ -282,7 +291,7 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 					emit("tool_result", map[string]string{"id": e.ID, "name": c.nom, "output": e.Text})
 				}
 			case agent.EvResposta:
-				emit("assistant", map[string]string{"text": e.Text})
+				emit("assistant", map[string]string{"text": cards(e.Text)})
 			case agent.EvNota, agent.EvAvis:
 				text := strings.TrimSpace(e.Missatge())
 				switch {
@@ -361,6 +370,7 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 			progres.iniciModel()
 			ctx = llm.WithStreamProgress(ctx, progres.delta)
 			ctx = llm.WithReasoningText(ctx, progres.raonament)
+			ctx = llm.WithToolText(ctx, progres.eina)
 			// Velocitat de la crida (pp/tg) per a l'indicador de la UI.
 			velocitat := newSpeedProbe(uso)
 			ctx = llm.WithStreamProgress(ctx, velocitat.delta)
@@ -442,7 +452,7 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 				}
 				emit("tool_result", ev)
 				if o.Call.Function.Name == "doc" {
-					s.emitDocChanged(emit, o.Call.Function.Arguments, o.Sortida)
+					s.emitDocChanged(emit, s.sessionCwd(), "", o.Call.Function.Arguments, o.Sortida)
 				}
 			}
 			if done, ok := s.endLane(generation, lane.Seq, laneResult(laneInfo, outs)); ok {
@@ -557,7 +567,7 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 			return "", histAmbSys(), errors.New(msg)
 
 		default: // OrdreAcaba (o OrdreRes, que un conductor síncron no espera)
-			reply := strings.TrimSpace(torn.Resposta())
+			reply := cards(strings.TrimSpace(torn.Resposta()))
 			if reply == "" {
 				// La síntesi ha fallat o ha sortit buida: mai un torn en
 				// blanc, que l'app no tindria res a ensenyar.

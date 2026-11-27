@@ -192,7 +192,7 @@ func procesEnMarxa(t string) bool {
 }
 
 // DoomGuide és el que rep el model quan cau al forat.
-const DoomGuide = "REPEATED TOOL CALL: you have called this tool 3-4 times with the same or nearly the same arguments (only numbers change) without making progress. Change strategy (read a different file, refine the pattern, or summarize what you have) instead of repeating it."
+const DoomGuide = "REPEATED TOOL CALL: you have called this tool 3-4 times with the same or nearly the same arguments (only numbers change) without making progress. Change strategy (read a different file, refine the pattern, or summarize what you have) instead of repeating it. If it is a write of a large file that keeps failing or arriving without its content, write it in parts: the first part with write, then the rest with write and append: true, each call under ~8,000 tokens."
 
 // Ampliació de pressupost decidida pel model.
 //

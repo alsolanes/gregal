@@ -59,8 +59,7 @@ import org.json.JSONObject
 internal fun ordinadorCopy(lang: String, key: String): String {
     val en = lang == "en"
     return when (key) {
-        "title" -> if (en) "Computer" else "Ordinador"
-        "local" -> if (en) "Gregal's browser, on this computer" else "El navegador de Gregal, en aquest ordinador"
+        "title", "local" -> tr(lang, "app.computer.name")
         "localSub" -> if (en) "You see it live. Tap the screen to use it yourself: Gregal waits meanwhile." else "El veus en directe. Toca la pantalla per fer-lo servir tu: mentrestant, Gregal s'espera."
         "localMine" -> if (en) "You have control · Gregal is waiting" else "Tens el control · Gregal s'espera"
         "giveShort" -> if (en) "Give it back" else "Torna-l'hi"
@@ -345,13 +344,19 @@ private fun ViewerWebView(url: String, description: String) {
 
 @Composable
 private fun OrdButton(label: String, primary: Boolean, modifier: Modifier = Modifier, accent: Color = Color.Unspecified, onClick: () -> Unit) {
-    val bg = if (primary) (if (accent != Color.Unspecified) accent else Sea) else Color.Transparent
+    val pal = LocalPal.current
+    // Del color del vent que ho demana, com el Permet de les targetes de permís: la tinta que s'hi llegeix a 4.5:1.
+    val (bg, fg) = when {
+        !primary -> Color.Transparent to Ink
+        accent != Color.Unspecified -> remember(accent, pal) { allowPaint(accent, pal.ink, pal.deepTop) }
+        else -> Sea to OnSea
+    }
     Box(
         modifier.heightIn(min = 48.dp).clip(GregalShape.sm).background(bg)
             .then(if (primary) Modifier else Modifier.border(1.dp, Line, GregalShape.sm))
             .semantics { role = Role.Button }.clickable(onClick = onClick).padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
-    ) { Text(label, color = if (primary) OnSea else Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
+    ) { Text(label, color = fg, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
 }
 
 /** Targeta de handoff al fil: la feina espera que la persona faci una cosa a l'ordinador. */

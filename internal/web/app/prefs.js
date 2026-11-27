@@ -17,6 +17,7 @@ import { voicePrefs } from './voice-prefs.js';
 import { collective } from './collective.js';
 import { profileSync } from './profile-sync.js';
 import { onboarding } from './onboarding.js';
+import { tempestaPrefs } from './tempesta-prefs.js';
 import { PREFS_PAGES, resolvePrefsPage, prefsNavPage, prefsPageAvailable, searchPrefsPages } from './prefs-navigation.js';
 
 const $ = id => document.getElementById(id);
@@ -425,7 +426,8 @@ export const prefs = {
         // El revisor passava el model per sobre de CADA resposta i no hi
         // havia manera d'apagar-lo des de la finestra: només editant el
         // config a mà o des del TUI. Aquí és on el busques.
-        fila('prefs.verify', 'prefs.verify.help', check('prefsVerify', this.verifyAuto(), T('prefs.verify')))],
+        fila('prefs.verify', 'prefs.verify.help', check('prefsVerify', this.verifyAuto(), T('prefs.verify'))) +
+        tempestaPrefs.section()],
       ['permissions', 'key', fila('prefs.perms', 'prefs.perms.help', seg('perm', perm,
         [['ask', 'perm.ask'], ['edits', 'perm.edits'], ['full', 'perm.full']], 'prefs.perms')) +
         fila('prefs.reviewer', 'prefs.reviewer.help', check('prefsReviewer', G().state && G().state.auto_review, T('prefs.reviewer')))],
@@ -517,6 +519,7 @@ export const prefs = {
     chromeExt.bind(cos, () => this.repinta());
     wordAddin.bind(cos, () => this.repinta());
     funPrefs.bind(cos);
+    tempestaPrefs.bind(cos);
     // Repintar conserva el desplaçament: la secció de brandings és llarga.
     brands.bind(cos, () => this.repinta());
     cos.onclick = event => {

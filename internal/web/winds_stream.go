@@ -27,7 +27,7 @@ import (
 //   reply: {"wind":"id","history":[...]}     (rotllana: una veu acabada i ja desada)
 //   done:  {"reply":..., "history":..., ...}  (mateix payload que el clàssic)
 //   error: {"error":"..."}
-//   activity: {"phase":"waiting|choosing|preparing|model|thinking|responding|tool|tool_done|retry|fallback", "tool":"name"?, "step":N?}
+//   activity: {"phase":"waiting|choosing|preparing|model|thinking|responding|tool|tool_done|retry|fallback", "tool":"name"?, "step":N?, "winds":["id"]?}
 //   ping: {} (transport keepalive, NOT progress)
 // Els tokens especulatius d'un pas que acaba en eines es retiren: el
 // client els descarta quan arriba una fase (poden ser JSON d'eina, no
@@ -39,6 +39,8 @@ type windActivity struct {
 	Phase string `json:"phase"`
 	Tool  string `json:"tool,omitempty"`
 	Step  int    `json:"step,omitempty"`
+	// Winds: a quins vents pregunta l'eina wind (ids del magatzem, winds_consult.go).
+	Winds []string `json:"winds,omitempty"`
 }
 
 func emitWindActivity(emit func(string, any), text string) {
@@ -348,7 +350,14 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 		spot.userMsg = msg
 	}
 	ctx = withWindPark(ctx, spot)
-	if s.crewChatIntent(msg) == "review" {
+	intent := s.crewChatIntent(msg)
+	// La Tempesta només llegeix: si li demanes fer una cosa, el torn és
+	// normal (amb les eines d'escriure) i la resposta diu per què.
+	deepSkipped := req.Tempesta && (intent == "work" || tempestaWantsWork(msg))
+	if deepSkipped {
+		req.Tempesta = false
+	}
+	if intent == "review" {
 		ctx = s.readOnlyWindCtx(ctx)
 	} else {
 		ctx = s.windDocsCtx(ctx)
@@ -377,6 +386,8 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 	// El que faci al navegador torna al fil amb la resposta (captures).
 	turnShots := &tools.TurnShots{}
 	ctx = tools.WithTurnShots(ctx, turnShots)
+	consults := &windConsults{}
+	ctx = withWindConsults(ctx, consults)
 	isContinue := req.Continue && len(previous) > 0
 	s.mu.Lock()
 	_, logRole := s.windRoleRef()
@@ -490,7 +501,10 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 	written := reply
 	reply = s.windSubjectPhoto(msg, s.windCardImages(reply))
 	reply += s.windDocLinks(turnStart, reply)
-	reply += s.windWebCards(turnStart, reply)
+	reply += s.windWebCards(turnStart, reply, res.hist)
+	if deepSkipped {
+		reply += "\n\n_" + s.tr("«A fons» és per investigar; això ho he fet en mode normal.", "«Deep» is for research; I did this one in normal mode.") + "_"
+	}
 	history := append([]llm.Message(nil), base...)
 	if !isContinue {
 		history = append(history, llm.Message{Role: "user", Content: msg, Ts: turnStart.Unix()})
@@ -502,6 +516,7 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 	}
 	// El que has escrit mentre treballava, abans de la resposta que ja ho té en compte.
 	history = append(history, windSteerTaken(steerKey)...)
+	history = append(history, consults.taken()...)
 	replyID := newMessageID()
 	history = append(history, llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix(), ID: replyID, Shots: s.turnShotsFor(turnShots)})
 	history, err = s.commitWindTurn(wind, hist, gotGen, history)
@@ -513,6 +528,7 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 	s.noteReplyIfAway(r, wind, replySource, replyID, reply)
 	s.startWindLearn(wind, msg, reply)
 	s.startWindMemoryLearnInThread(wind, msg, reply, hist)
+	s.startWindOffer(wind, msg, reply)
 	s.startWindLessons(wind, msg, reply, res.hist)
 	steerLeft()
 	emit("done", map[string]any{"reply": reply, "wind": wind.ID, "parcial": res.parcial, "history": petHistoryJSON(history), "actions": remindActionsSince(s.remindOwner(), wind.ID, turnStart)})
@@ -671,6 +687,8 @@ func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stre
 		wind companion.Wind
 		text string
 		id   string
+		// writes: el torn podia escriure; la rèplica a la revisió hereta el permís.
+		writes bool
 	}
 	var veus []veu
 	members := s.rotMembersOf(rot)
@@ -805,7 +823,7 @@ func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stre
 			reply += s.windDocLinks(r0.at, reply)
 			voiceID := newMessageID()
 			conversation = append(conversation, llm.Message{Role: "assistant", Content: reply, SpeakerID: sp.ID, SpeakerName: sp.Name, Ts: time.Now().Unix(), ID: voiceID, Kind: "debate"})
-			veus = append(veus, veu{sp, reply, voiceID})
+			veus = append(veus, veu{sp, reply, voiceID, false})
 			tempsVeus = append(tempsVeus, fmt.Sprintf("%s %.1fs (%s)", sp.Name, time.Since(r0.at).Seconds(), r0.res.temps))
 		}
 		conversation = append(conversation, windSteerTaken(rotSteerKey)...)
@@ -877,13 +895,14 @@ func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stre
 		// La primera veu és la que pot fer canvis i, per tant, demanar permís:
 		// amb el termini de 3 minuts, un permís que contestaves des del mòbil
 		// al cap de més estona arribava tard i la veu es perdia.
+		writes := si == 0 && intent != "review"
 		limit := rotllanaTurnTimeout
-		if si == 0 && intent != "review" && rotllanaAskTimeout > limit {
+		if writes && rotllanaAskTimeout > limit {
 			limit = rotllanaAskTimeout
 		}
 		ctx, cancel := context.WithTimeout(turnCtx, limit)
 		ctx = s.interactiveWindCtx(s.withWindSteerKey(withLinkBase(ctx, r), "rotllana", rot.ID))
-		if si > 0 || intent == "review" {
+		if !writes {
 			ctx = s.readOnlyWindCtx(ctx)
 		} else {
 			ctx = s.windDocsCtx(ctx)
@@ -967,11 +986,11 @@ func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stre
 		}
 		reply = s.windCardImages(reply)
 		reply += s.windDocLinks(tVeu, reply)
-		reply += s.windWebCards(tVeu, reply)
+		reply += s.windWebCards(tVeu, reply, res.hist)
 		conversation = append(conversation, windSteerTaken(rotSteerKey)...)
 		voiceID := newMessageID()
 		conversation = append(conversation, llm.Message{Role: "assistant", Content: reply, SpeakerID: sp.ID, SpeakerName: sp.Name, Ts: time.Now().Unix(), ID: voiceID})
-		veus = append(veus, veu{sp, reply, voiceID})
+		veus = append(veus, veu{sp, reply, voiceID, writes})
 		// Cada veu acabada es desa de seguida (amb el missatge de l'usuari, la
 		// primera vegada): si una veu posterior falla, aquesta no es perd.
 		if err := saveRotllanaHistory(s, rot.ID, conversation); err != nil {
@@ -1012,6 +1031,13 @@ func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stre
 		if summaryReply != "" {
 			author, authorText = speakingWind, summaryReply
 		}
+		authorWrites := false
+		for _, v := range veus {
+			if v.wind.ID == author.ID {
+				authorWrites = v.writes
+				break
+			}
+		}
 		directed := strings.TrimSpace(req.Wind) != "" || len(windsNamedIn(members, msg)) > 0
 		if rotllanaWantsReview(directed, isContinue, intent, authorText) {
 			spoke := make([]companion.Wind, 0, len(veus))
@@ -1020,14 +1046,25 @@ func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stre
 			}
 			reviewer, ok := s.rotllanaReviewer(members, spoke, msg, conversation)
 			if ok {
-				peerSay := func(sp companion.Wind, extra string) string {
+				// Qui revisa només llegeix; l'autor contesta amb el permís que tenia
+				// el seu torn, perquè pugui aplicar la correcció que accepta.
+				peerSay := func(sp companion.Wind, extra string, writes bool) string {
 					tornTexte = &tornText{}
 					emit("phase", map[string]string{"phase": "speaker:" + sp.ID})
 					_, brief := rotllanaChatBrief(s, rot, sp, conversation, msg)
 					brief += extra
-					ctx, cancel := context.WithTimeout(turnCtx, rotllanaTurnTimeout)
+					limit := rotllanaTurnTimeout
+					if writes && rotllanaAskTimeout > limit {
+						limit = rotllanaAskTimeout
+					}
+					ctx, cancel := context.WithTimeout(turnCtx, limit)
 					defer cancel()
-					ctx = s.readOnlyWindCtx(s.interactiveWindCtx(s.withWindSteerKey(withLinkBase(ctx, r), "rotllana", rot.ID)))
+					ctx = s.interactiveWindCtx(s.withWindSteerKey(withLinkBase(ctx, r), "rotllana", rot.ID))
+					if writes {
+						ctx = s.windDocsCtx(ctx)
+					} else {
+						ctx = s.readOnlyWindCtx(ctx)
+					}
 					ctx = agent.WithSkillsDirs(ctx, s.windSkillsDir(sp.ID))
 					s.mu.Lock()
 					_, logRole := s.windRoleRef()
@@ -1060,8 +1097,8 @@ func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stre
 					}
 					return text
 				}
-				if note := peerSay(reviewer, rotllanaReviewBrief(reviewer, author)); note != "" && turnCtx.Err() == nil {
-					peerSay(author, rotllanaAuthorBrief(author, reviewer))
+				if note := peerSay(reviewer, rotllanaReviewBrief(reviewer, author), false); note != "" && turnCtx.Err() == nil {
+					peerSay(author, rotllanaAuthorBrief(author, reviewer), authorWrites)
 				}
 			}
 		}

@@ -199,6 +199,7 @@ func (s *Server) runWindTool(ctx context.Context, argsJSON string) (string, erro
 		if len(ws) == 0 {
 			return "The user has no winds yet.", nil
 		}
+		announceWindAsking(ctx, ws)
 		type answer struct {
 			wind companion.Wind
 			text string
@@ -241,6 +242,7 @@ func (s *Server) runWindTool(ctx context.Context, argsJSON string) (string, erro
 				continue
 			}
 			b.WriteString(r.text + "\n")
+			noteWindConsult(ctx, r.wind, r.text)
 		}
 		return strings.TrimRight(b.String(), "\n"), nil
 	case "ask":
@@ -267,10 +269,12 @@ func (s *Server) runWindTool(ctx context.Context, argsJSON string) (string, erro
 			}
 			wind, _ = s.winds.ByID(cards[0].ID)
 		}
-		reply, folder, err := s.windDelegate(ctx, wind, task)
+		announceWindAsking(ctx, []companion.Wind{wind})
+		reply, folder, err := s.windDelegate(ctx, wind, task, s.windAsker(ctx))
 		if err != nil {
 			return "", err
 		}
+		noteWindConsult(ctx, wind, reply)
 		out := wind.Name + " (" + wind.ID + ") answered:\n" + reply
 		if folder != "" {
 			out += "\n\nWorking folder: " + folder
@@ -278,6 +282,17 @@ func (s *Server) runWindTool(ctx context.Context, argsJSON string) (string, erro
 		return out, nil
 	}
 	return "", fmt.Errorf("unknown action %q (list, ask, all)", a.Action)
+}
+
+// windAsker és qui encarrega la feina: el vent del xat 1:1 que crida l'eina, o
+// Gregal (el seu xat, el xat principal de Codi i les rotllanes).
+func (s *Server) windAsker(ctx context.Context) companion.Wind {
+	if k, ok := windSteerKeyOf(ctx); ok && k.kind == "wind" && k.id != gregalWindID {
+		if w, ok := s.winds.ByID(k.id); ok {
+			return w
+		}
+	}
+	return companion.Wind{ID: gregalWindID, Name: "Gregal"}
 }
 
 func mustWinds(s *Server) []companion.Wind {
@@ -325,7 +340,7 @@ func (s *Server) windAskOnceAs(parent context.Context, wind companion.Wind, msg 
 // windDelegate fa fer una feina a un vent (com si la persona li ho hagués
 // demanat al seu xat) i en torna la resposta. L'encàrrec i la resposta
 // queden a la conversa del vent, així la persona ho pot seguir des del mòbil.
-func (s *Server) windDelegate(parent context.Context, wind companion.Wind, task string) (string, string, error) {
+func (s *Server) windDelegate(parent context.Context, wind companion.Wind, task string, by companion.Wind) (string, string, error) {
 	hist := windHistory(s, wind.ID)
 	turn := windDirectTurn(s, wind.ID)
 	turn.Lock()
@@ -355,7 +370,10 @@ func (s *Server) windDelegate(parent context.Context, wind companion.Wind, task 
 	ctx, doneTurn := s.beginWindTurn("wind", wind.ID, ctx)
 	defer doneTurn()
 	ctx = s.windDocsCtx(s.interactiveWindCtx(ctx))
-	msg := "[Task handed over by the main agent] " + task
+	msg := handoffTag + task
+	if by.ID != gregalWindID {
+		msg = "[Task handed over by " + by.Name + "] " + task
+	}
 	start := time.Now()
 	s.mu.Lock()
 	_, logRole := s.windRoleRef()
@@ -373,9 +391,9 @@ func (s *Server) windDelegate(parent context.Context, wind companion.Wind, task 
 	}
 	reply = s.windSubjectPhoto(msg, s.windCardImages(reply))
 	reply += s.windDocLinks(start, reply)
-	reply += s.windWebCards(start, reply)
+	reply += s.windWebCards(start, reply, res.hist)
 	history = append(history,
-		llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()},
+		llm.Message{Role: "user", Content: handoffShown(s.cfg.Lang(), by.Name, task), Ts: time.Now().Unix(), SpeakerID: by.ID, SpeakerName: by.Name},
 		llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix()})
 	hist.mu.Lock()
 	if hist.gen == gen {
@@ -396,4 +414,16 @@ func (s *Server) windDelegate(parent context.Context, wind companion.Wind, task 
 // agentSkills posa els coneixements del vent al context del torn.
 func agentSkills(ctx context.Context, s *Server, windID string) context.Context {
 	return agent.WithSkillsDirs(ctx, s.windSkillsDir(windID))
+}
+
+// handoffTag és l'etiqueta per al model que porta l'encàrrec d'un vent.
+const handoffTag = "[Task handed over by the main agent] "
+
+// handoffShown és l'encàrrec tal com es desa al xat del vent (i en fa el títol):
+// qui l'encarrega i què, sense l'etiqueta en anglès que només llegeix el model.
+func handoffShown(lang, by, task string) string {
+	if lang == "ca" {
+		return "Encàrrec de " + by + ": " + task
+	}
+	return "Task from " + by + ": " + task
 }

@@ -1,5 +1,11 @@
 package xyz.solanes.gregal
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -38,6 +44,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
@@ -279,27 +287,39 @@ internal fun HomeFacesRow(
     }
 }
 
-/** El vent escriu: la seva cara petita i els punts, a l'esquerra com un missatge seu. */
+/** El vent escriu: els punts, a l'esquerra com un missatge seu. La cara és la del xat, una de sola (109). */
 @Composable
-internal fun WindTypingBubble(lang: String, wind: Wind, accent: Color, mood: WindMood,
+internal fun WindTypingBubble(lang: String, wind: Wind, accent: Color,
                                 /** Què està fent ara («Cercant al web…»). Aquí i enlloc més. */
-                                label: String? = null) {
+                                label: String? = null,
+                                /** El vent a qui pregunta ara (163): la seva cara va al costat de l'etiqueta. */
+                                asking: Wind? = null) {
     Row(
-        Modifier.padding(top = 12.dp, bottom = 4.dp)
+        Modifier.padding(vertical = 4.dp)
             .semantics(mergeDescendants = true) { contentDescription = tr(lang, "app.company.windThinking", wind.name) }
             .testTag("wind-typing"),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        WindFace(size = 30, mood = mood, accent = accent, style = wind.faceStyle)
+        // La bombolla respira mentre el vent hi pensa; l'escala va a la capa, no recompon la fila.
+        val breath = if (windMotionEnabled()) rememberInfiniteTransition(label = "typing-breath").animateFloat(
+            initialValue = 0f, targetValue = 1f, label = "breath",
+            animationSpec = infiniteRepeatable(tween(1300, easing = FastOutSlowInEasing), RepeatMode.Reverse)) else null
         Box(
-            Modifier.clip(RoundedCornerShape(18.dp)).background(accent.copy(alpha = .16f))
+            Modifier.graphicsLayer {
+                val b = breath?.value ?: 0f
+                transformOrigin = TransformOrigin(0f, .5f)
+                scaleX = 1f + .035f * b
+                scaleY = scaleX
+            }.clip(RoundedCornerShape(18.dp)).background(accent.copy(alpha = .16f))
                 .padding(horizontal = 14.dp, vertical = 12.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TypingDots(accent)
                 // L'acció en marxa, al costat dels punts: un sol lloc per
                 // «què està fent» (la capçalera i la franja ja no ho diuen).
+                if (asking != null) WindFace(size = 18, accent = Color(asking.argb), style = asking.faceStyle,
+                    modifier = Modifier.testTag("wind-asking-face"))
                 if (!label.isNullOrBlank()) Text(label, color = accent.copy(alpha = .85f), style = GregalType.caption, maxLines = 1)
             }
         }

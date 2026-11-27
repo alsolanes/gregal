@@ -7,6 +7,7 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -55,6 +56,9 @@ type Docx struct {
 	Body    *Node
 	Theme   Theme
 	BaseDir string
+	// ResolveImage, si hi és, és l'única manera de trobar una imatge: els
+	// documents vius (internal/gdocs) només en tenen a la seva carpeta.
+	ResolveImage func(src string) (string, error)
 
 	styles    map[string]string // rol → styleId
 	numAbs    map[string]int    // "bullet"/"decimal" → abstractNumId
@@ -122,7 +126,7 @@ func NewDocx(o DocxOptions) *Docx {
 	pk.AddRel("word/document.xml", RelNumbering, "word/numbering.xml")
 	pk.AddRel("word/document.xml", RelSettings, "word/settings.xml")
 
-	w, h := 11906, 16838
+	w, h := a4W, a4H
 	if strings.EqualFold(o.Page, "letter") {
 		w, h = 12240, 15840
 	}
@@ -131,7 +135,7 @@ func NewDocx(o DocxOptions) *Docx {
 		w, h = h, w
 		orient = ` w:orient="landscape"`
 	}
-	sect := fmt.Sprintf(`<w:sectPr>%%s<w:pgSz w:w="%d" w:h="%d"%s/><w:pgMar w:top="1418" w:right="1304" w:bottom="1418" w:left="1304" w:header="709" w:footer="709" w:gutter="0"/><w:cols w:space="708"/></w:sectPr>`, w, h, orient)
+	sect := fmt.Sprintf(`<w:sectPr>%%s<w:pgSz w:w="%d" w:h="%d"%s/><w:pgMar w:top="%d" w:right="%d" w:bottom="%d" w:left="%d" w:header="709" w:footer="709" w:gutter="0"/><w:cols w:space="708"/></w:sectPr>`, w, h, orient, marginTop, marginSide, marginTop, marginSide)
 	refs := ""
 	header := o.Header
 	if header == "" {
@@ -261,6 +265,18 @@ func coreProps(title, author string) string {
 
 // ---------- estils ----------
 
+// La pàgina (A4, en twips) i les mides dels estils (en mitjos punts) del
+// docx. La pàgina del web les llegeix de PageCSS perquè s'assembli a
+// l'exportació.
+const (
+	a4W, a4H                         = 11906, 16838
+	marginTop, marginSide            = 1418, 1304
+	szBody, szH1, szH2, szH3, szCode = 22, 34, 28, 24, 19
+	spaceAfter                       = 140
+	codeFont                         = "Courier New"
+	tableBorder                      = "BFBFBF"
+)
+
 func defaultStylesXML(t Theme) string {
 	font := func(f string) string {
 		return `<w:rFonts w:ascii="` + f + `" w:hAnsi="` + f + `" w:eastAsia="` + f + `" w:cs="` + f + `"/>`
@@ -279,30 +295,30 @@ func defaultStylesXML(t Theme) string {
 	}
 	return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` + "\n" +
 		`<w:styles xmlns:w="` + nsW + `">` +
-		`<w:docDefaults><w:rPrDefault><w:rPr>` + font(t.BodyFont) + `<w:color w:val="` + t.Text + `"/><w:sz w:val="22"/><w:szCs w:val="22"/><w:lang w:val="ca-ES" w:eastAsia="en-US" w:bidi="ar-SA"/></w:rPr></w:rPrDefault>` +
-		`<w:pPrDefault><w:pPr><w:spacing w:after="140" w:line="276" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>` +
+		`<w:docDefaults><w:rPrDefault><w:rPr>` + font(t.BodyFont) + `<w:color w:val="` + t.Text + `"/><w:sz w:val="` + strconv.Itoa(szBody) + `"/><w:szCs w:val="` + strconv.Itoa(szBody) + `"/><w:lang w:val="ca-ES" w:eastAsia="en-US" w:bidi="ar-SA"/></w:rPr></w:rPrDefault>` +
+		`<w:pPrDefault><w:pPr><w:spacing w:after="` + strconv.Itoa(spaceAfter) + `" w:line="276" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>` +
 		`<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>` +
 		`<w:style w:type="character" w:default="1" w:styleId="DefaultParagraphFont"><w:name w:val="Default Paragraph Font"/><w:uiPriority w:val="1"/><w:semiHidden/></w:style>` +
 		`<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:after="80"/><w:contextualSpacing/></w:pPr><w:rPr>` + font(t.HeadingFont) + `<w:b/><w:color w:val="` + t.Dark + `"/><w:sz w:val="56"/><w:szCs w:val="56"/></w:rPr></w:style>` +
 		`<w:style w:type="paragraph" w:styleId="Subtitle"><w:name w:val="Subtitle"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:after="360"/><w:pBdr><w:bottom w:val="single" w:sz="8" w:space="8" w:color="` + t.Accent + `"/></w:pBdr></w:pPr><w:rPr><w:color w:val="` + t.Muted + `"/><w:sz w:val="28"/><w:szCs w:val="28"/></w:rPr></w:style>` +
-		h("Heading1", "heading 1", 0, 34, t.Primary, true, false, 400, 140) +
-		h("Heading2", "heading 2", 1, 28, t.Primary, true, false, 300, 100) +
-		h("Heading3", "heading 3", 2, 24, t.Dark, true, false, 240, 80) +
+		h("Heading1", "heading 1", 0, szH1, t.Primary, true, false, 400, 140) +
+		h("Heading2", "heading 2", 1, szH2, t.Primary, true, false, 300, 100) +
+		h("Heading3", "heading 3", 2, szH3, t.Dark, true, false, 240, 80) +
 		h("Heading4", "heading 4", 3, 22, t.Dark, true, true, 200, 60) +
 		h("Heading5", "heading 5", 4, 22, t.Muted, true, false, 200, 60) +
 		h("Heading6", "heading 6", 5, 22, t.Muted, false, true, 200, 60) +
 		`<w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/><w:basedOn w:val="Normal"/><w:uiPriority w:val="34"/><w:qFormat/><w:pPr><w:spacing w:after="60"/><w:ind w:left="720"/><w:contextualSpacing/></w:pPr></w:style>` +
 		`<w:style w:type="paragraph" w:styleId="Quote"><w:name w:val="Quote"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:before="120" w:after="200"/><w:ind w:left="567" w:right="567"/><w:pBdr><w:left w:val="single" w:sz="18" w:space="12" w:color="` + t.Accent + `"/></w:pBdr></w:pPr><w:rPr><w:i/><w:iCs/><w:color w:val="` + t.Muted + `"/></w:rPr></w:style>` +
-		`<w:style w:type="paragraph" w:styleId="Code"><w:name w:val="Code"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/><w:shd w:val="clear" w:color="auto" w:fill="` + t.Light + `"/><w:ind w:left="170" w:right="170"/></w:pPr><w:rPr>` + font("Courier New") + `<w:sz w:val="19"/><w:szCs w:val="19"/></w:rPr></w:style>` +
+		`<w:style w:type="paragraph" w:styleId="Code"><w:name w:val="Code"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/><w:shd w:val="clear" w:color="auto" w:fill="` + t.Light + `"/><w:ind w:left="170" w:right="170"/></w:pPr><w:rPr>` + font(codeFont) + `<w:sz w:val="` + strconv.Itoa(szCode) + `"/><w:szCs w:val="` + strconv.Itoa(szCode) + `"/></w:rPr></w:style>` +
 		`<w:style w:type="paragraph" w:styleId="Caption"><w:name w:val="caption"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:jc w:val="center"/><w:spacing w:after="240"/></w:pPr><w:rPr><w:i/><w:color w:val="` + t.Muted + `"/><w:sz w:val="18"/></w:rPr></w:style>` +
 		`<w:style w:type="paragraph" w:styleId="Header"><w:name w:val="header"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="0"/></w:pPr><w:rPr><w:color w:val="` + t.Muted + `"/><w:sz w:val="18"/></w:rPr></w:style>` +
 		`<w:style w:type="paragraph" w:styleId="Footer"><w:name w:val="footer"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="0"/></w:pPr><w:rPr><w:color w:val="` + t.Muted + `"/><w:sz w:val="18"/></w:rPr></w:style>` +
 		`<w:style w:type="paragraph" w:styleId="TOCHeading"><w:name w:val="TOC Heading"/><w:basedOn w:val="Heading1"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:outlineLvl w:val="9"/></w:pPr></w:style>` +
 		`<w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/><w:rPr><w:color w:val="` + t.Accent + `"/><w:u w:val="single"/></w:rPr></w:style>` +
-		`<w:style w:type="character" w:styleId="CodeChar"><w:name w:val="Code Char"/><w:rPr>` + font("Courier New") + `<w:sz w:val="20"/><w:shd w:val="clear" w:color="auto" w:fill="` + t.Light + `"/></w:rPr></w:style>` +
+		`<w:style w:type="character" w:styleId="CodeChar"><w:name w:val="Code Char"/><w:rPr>` + font(codeFont) + `<w:sz w:val="20"/><w:shd w:val="clear" w:color="auto" w:fill="` + t.Light + `"/></w:rPr></w:style>` +
 		`<w:style w:type="table" w:default="1" w:styleId="TableNormal"><w:name w:val="Normal Table"/><w:semiHidden/><w:tblPr><w:tblInd w:w="0" w:type="dxa"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="108" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="108" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style>` +
 		`<w:style w:type="table" w:styleId="TableGrid"><w:name w:val="Table Grid"/><w:basedOn w:val="TableNormal"/><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:tblPr><w:tblBorders>` +
-		`<w:top w:val="single" w:sz="4" w:space="0" w:color="BFBFBF"/><w:left w:val="single" w:sz="4" w:space="0" w:color="BFBFBF"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="BFBFBF"/><w:right w:val="single" w:sz="4" w:space="0" w:color="BFBFBF"/><w:insideH w:val="single" w:sz="4" w:space="0" w:color="BFBFBF"/><w:insideV w:val="single" w:sz="4" w:space="0" w:color="BFBFBF"/>` +
+		`<w:top w:val="single" w:sz="4" w:space="0" w:color="` + tableBorder + `"/><w:left w:val="single" w:sz="4" w:space="0" w:color="` + tableBorder + `"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="` + tableBorder + `"/><w:right w:val="single" w:sz="4" w:space="0" w:color="` + tableBorder + `"/><w:insideH w:val="single" w:sz="4" w:space="0" w:color="` + tableBorder + `"/><w:insideV w:val="single" w:sz="4" w:space="0" w:color="` + tableBorder + `"/>` +
 		`</w:tblBorders><w:tblCellMar><w:top w:w="57" w:type="dxa"/><w:left w:w="108" w:type="dxa"/><w:bottom w:w="57" w:type="dxa"/><w:right w:w="108" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style>` +
 		`</w:styles>`
 }
@@ -584,6 +600,15 @@ func (d *Docx) Blocks(bs []Block) []*Node {
 				out = append(out, d.para("", PlainInlines(fmt.Sprintf("[imatge no trobada: %s]", b.Image))))
 			}
 		}
+		// Només els paràgrafs, títols, cites i elements de llista en porten,
+		// i són un sol w:p.
+		if b.ParaAlign != "" {
+			jc := b.ParaAlign
+			if jc == "justify" {
+				jc = "both"
+			}
+			out[len(out)-1].Child("w:pPr").EnsureChild("w:jc", pPrOrder).Set("w:val", jc)
+		}
 	}
 	return out
 }
@@ -623,6 +648,9 @@ func (d *Docx) runs(in Inline) []*Node {
 				rpr.Add(El("w:rStyle", "w:val", id))
 			}
 		}
+		if in.Font != "" {
+			rpr.Add(El("w:rFonts", "w:ascii", in.Font, "w:hAnsi", in.Font, "w:eastAsia", in.Font, "w:cs", in.Font))
+		}
 		if in.Bold {
 			rpr.Add(El("w:b"), El("w:bCs"))
 		}
@@ -631,6 +659,20 @@ func (d *Docx) runs(in Inline) []*Node {
 		}
 		if in.Strike {
 			rpr.Add(El("w:strike"))
+		}
+		if in.Color != "" {
+			rpr.Add(El("w:color", "w:val", strings.ToUpper(in.Color)))
+		}
+		if in.Size > 0 {
+			hp := strconv.Itoa(int(math.Round(in.Size * 2))) // mitjos punts
+			rpr.Add(El("w:sz", "w:val", hp), El("w:szCs", "w:val", hp))
+		}
+		if in.Underline {
+			rpr.Add(El("w:u", "w:val", "single"))
+		}
+		if in.Bg != "" {
+			// w:highlight només admet colors amb nom; un fons qualsevol és ombrejat.
+			rpr.Add(El("w:shd", "w:val", "clear", "w:color", "auto", "w:fill", strings.ToUpper(in.Bg)))
 		}
 		if len(rpr.Children) > 0 {
 			r.Add(rpr)
@@ -879,7 +921,12 @@ func headerLogo(pk *Package, t Theme) string {
 
 func (d *Docx) imagePara(src, alt string) (*Node, error) {
 	path := src
-	if !filepath.IsAbs(path) && d.BaseDir != "" {
+	if d.ResolveImage != nil {
+		var err error
+		if path, err = d.ResolveImage(src); err != nil {
+			return nil, err
+		}
+	} else if !filepath.IsAbs(path) && d.BaseDir != "" {
 		if _, err := os.Stat(filepath.Join(d.BaseDir, path)); err == nil {
 			path = filepath.Join(d.BaseDir, path)
 		}

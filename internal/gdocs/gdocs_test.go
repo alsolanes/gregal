@@ -3,8 +3,12 @@ package gdocs
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"sync"
 	"testing"
+	"time"
+
+	"gregal/internal/ooxml"
 )
 
 func obre(t *testing.T) *Store {
@@ -88,6 +92,15 @@ func TestSplit(t *testing.T) {
 	}
 }
 
+// La línia d'alineació d'un títol (078) va amb el títol, no en un bloc a part.
+func TestSplitDeixaLAlineacioAmbElTitol(t *testing.T) {
+	got := Split("# Title\n{align=center}\nIntro\n\n## Next\n{align=right}")
+	want := []string{"# Title\n{align=center}", "Intro", "## Next\n{align=right}"}
+	if fmt.Sprintf("%q", got) != fmt.Sprintf("%q", want) {
+		t.Fatalf("%q", got)
+	}
+}
+
 func TestDeleteDeixaLapida(t *testing.T) {
 	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	s := obre(t)
@@ -166,5 +179,349 @@ func TestSeenPerSessio(t *testing.T) {
 	}
 	if l, _ := s.List(); len(l) != 0 {
 		t.Fatalf("el registre surt com a document: %+v", l)
+	}
+}
+
+// deck fa una presentació amb una portada i una diapositiva «Fases».
+func deck(t *testing.T, s *Store) Doc {
+	t.Helper()
+	d, err := s.CreateDeck("Llançament")
+	if err != nil || d.Kind != KindDeck || len(d.Blocks) != 0 {
+		t.Fatalf("%+v %v", d, err)
+	}
+	if d, err = s.InsertSlide(d.ID, "", ooxml.SlideSpec{Layout: "title", Title: "Llançament"}, AuthorAgent); err != nil {
+		t.Fatal(err)
+	}
+	if d, err = s.InsertSlide(d.ID, d.Blocks[0].ID, ooxml.SlideSpec{Layout: "content", Title: "Fases", Bullets: []string{"Beta", "Llançament"}}, AuthorAgent); err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
+func TestDeckUnaDiapositivaPerBloc(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d := deck(t, s)
+	fases := d.Blocks[1]
+	ch, stop := s.Watch(d.ID)
+	defer stop()
+	d2, err := s.ReplaceSlide(d.ID, fases.ID, ooxml.SlideSpec{Layout: "two_columns", Title: "Fases", Left: "Beta", Right: "Llançament"}, AuthorUser, fases.Version)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := d2.Blocks[1]
+	if got.Slide == nil || got.Slide.Layout != "two_columns" || got.Slide.Right != "Llançament" || got.Author != AuthorUser || got.Version != d2.Version || got.Since != fases.Since {
+		t.Fatalf("diapositiva %+v", got)
+	}
+	if c := <-ch; c.Op != "replace" || c.Block.Slide == nil || c.Block.Slide.Left != "Beta" {
+		t.Fatalf("canvi %+v", c)
+	}
+	if again, _ := s.Get(d.ID); again.Blocks[0].Slide.Title != "Llançament" || again.Blocks[1].Slide.Layout != "two_columns" {
+		t.Fatalf("no s'ha desat: %+v", again.Blocks)
+	}
+}
+
+// L'agent no trepitja una diapositiva que la persona ha canviat després.
+func TestDeckConflicte(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d := deck(t, s)
+	fases := d.Blocks[1]
+	if _, err := s.ReplaceSlide(d.ID, fases.ID, ooxml.SlideSpec{Layout: "section", Title: "Fases"}, AuthorUser, fases.Version); err != nil {
+		t.Fatal(err)
+	}
+	var c *ConflictError
+	if _, err := s.ReplaceSlide(d.ID, fases.ID, ooxml.SlideSpec{Layout: "content"}, AuthorAgent, fases.Version); !errors.As(err, &c) {
+		t.Fatalf("sense conflicte: %v", err)
+	}
+}
+
+func TestDeckRefusaLayoutIContingutDAltreTipus(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d := deck(t, s)
+	if _, err := s.ReplaceSlide(d.ID, d.Blocks[1].ID, ooxml.SlideSpec{Layout: "diagonal", Title: "x"}, AuthorAgent, d.Version); err == nil {
+		t.Fatal("layout invàlid acceptat")
+	}
+	if _, err := s.InsertSlide(d.ID, "", ooxml.SlideSpec{Title: "sense layout"}, AuthorAgent); err == nil {
+		t.Fatal("diapositiva sense layout acceptada")
+	}
+	// Un gràfic que el PowerPoint no pot fer es refusa aquí, no en baixar-lo.
+	coix := &ooxml.ChartSpec{Type: "bar", Categories: []string{"a", "b"}, Series: []ooxml.ChartSeries{{Name: "s", Values: []float64{1}}}}
+	if _, err := s.InsertSlide(d.ID, "", ooxml.SlideSpec{Layout: "content", Title: "x", Chart: coix}, AuthorAgent); err == nil {
+		t.Fatal("gràfic amb més categories que valors acceptat")
+	}
+	buit := &ooxml.ChartSpec{Type: "bar"}
+	if _, err := s.InsertSlide(d.ID, "", ooxml.SlideSpec{Layout: "content", Title: "x", Chart: buit}, AuthorAgent); err == nil {
+		t.Fatal("gràfic sense dades acceptat")
+	}
+	if _, err := s.Insert(d.ID, "", "# text", AuthorAgent); err == nil {
+		t.Fatal("markdown a una presentació")
+	}
+	text, _ := s.Create("Plan", "a", AuthorAgent)
+	if _, err := s.InsertSlide(text.ID, "", ooxml.SlideSpec{Layout: "title"}, AuthorAgent); err == nil {
+		t.Fatal("diapositiva a un document de text")
+	}
+}
+
+// full fa un full de càlcul amb dos fulls, «Dades» i «Resum».
+func full(t *testing.T, s *Store) Doc {
+	t.Helper()
+	d, err := s.CreateSheet("Pressupost", "Dades", AuthorAgent)
+	if err != nil || d.Kind != KindSheet || len(d.Blocks) != 1 || d.Blocks[0].Name != "Dades" {
+		t.Fatalf("%+v %v", d, err)
+	}
+	if d, err = s.InsertSheet(d.ID, d.Blocks[0].ID, "Resum", AuthorAgent); err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
+func TestFullCellesPerFull(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d := full(t, s)
+	dades, resum := d.Blocks[0], d.Blocks[1]
+	ch, stop := s.Watch(d.ID)
+	defer stop()
+	d, err := s.SetCells(d.ID, dades.ID, map[string]string{"a1": "1", "A2": "text"}, AuthorUser, dades.Version)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d, err = s.SetCells(d.ID, resum.ID, map[string]string{"A1": "9"}, AuthorAgent, resum.Version); err != nil {
+		t.Fatal(err)
+	}
+	got := d.Blocks[0]
+	if got.Cells["A1"] != "1" || got.Cells["A2"] != "text" || got.Author != AuthorUser || got.Version != 3 || got.Since != dades.Since {
+		t.Fatalf("full Dades %+v", got)
+	}
+	if r := d.Blocks[1]; len(r.Cells) != 1 || r.Cells["A1"] != "9" {
+		t.Fatalf("full Resum %+v", r)
+	}
+	if c := rep(t, ch); c.Op != "replace" || c.Block.ID != dades.ID || c.Block.Cells["A1"] != "1" || c.Author != AuthorUser {
+		t.Fatalf("canvi %+v", c)
+	}
+	// La persona tenia el full a la versió d'abans del seu canvi: conflicte.
+	var conflicte *ConflictError
+	if _, err := s.SetCells(d.ID, dades.ID, map[string]string{"A1": "2"}, AuthorUser, dades.Version); !errors.As(err, &conflicte) {
+		t.Fatalf("base vella: %v", err)
+	}
+}
+
+func TestFullCellesValidades(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d := full(t, s)
+	dades := d.Blocks[0]
+	d, err := s.SetCells(d.ID, dades.ID, map[string]string{"A1": "1", "A2": "text"}, AuthorUser, dades.Version)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Una entrada buida buida la cel·la; una cel·la mal escrita es refusa.
+	if d, err = s.SetCells(d.ID, dades.ID, map[string]string{"A2": ""}, AuthorUser, d.Version); err != nil || len(d.Blocks[0].Cells) != 1 {
+		t.Fatalf("%+v %v", d.Blocks[0], err)
+	}
+	if _, err := s.SetCells(d.ID, dades.ID, map[string]string{"1A": "x"}, AuthorUser, d.Version); err == nil {
+		t.Fatal("cel·la 1A acceptada")
+	}
+	if _, err := s.Replace(d.ID, dades.ID, "text", AuthorAgent, d.Version); err == nil {
+		t.Fatal("markdown en un full de càlcul")
+	}
+	if _, err := s.InsertSheet(d.ID, "", "dades", AuthorAgent); err == nil {
+		t.Fatal("dos fulls amb el mateix nom")
+	}
+	// $B$2, b2 i B02 són la mateixa cel·la, i es desa com a B2.
+	if d, err = s.SetCells(d.ID, dades.ID, map[string]string{"$B$2": "5"}, AuthorUser, d.Version); err != nil {
+		t.Fatal(err)
+	}
+	if d, err = s.SetCells(d.ID, dades.ID, map[string]string{"B02": "6", "A01": "7"}, AuthorUser, d.Version); err != nil {
+		t.Fatal(err)
+	}
+	if c := d.Blocks[0].Cells; len(c) != 2 || c["B2"] != "6" || c["A1"] != "7" {
+		t.Fatalf("cel·les %v", c)
+	}
+}
+
+// rep és el canvi següent del canal; si no n'arriba cap, el test falla en
+// lloc de quedar-se penjat.
+func rep(t *testing.T, ch <-chan Change) Change {
+	t.Helper()
+	select {
+	case c := <-ch:
+		return c
+	case <-time.After(5 * time.Second):
+		t.Fatal("no ha arribat cap canvi")
+		return Change{}
+	}
+}
+
+// Les fórmules venen del model o de qualsevol persona: un rang immens es
+// refusa abans de calcular, i un valor no passa del límit d'Excel.
+func TestFullLimitsDeCalcul(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d := full(t, s)
+	dades := d.Blocks[0]
+	t0 := time.Now()
+	if _, err := s.SetCells(d.ID, dades.ID, map[string]string{"A1": "=SUM(A1:XFC1048575)"}, AuthorAgent, 0); err == nil {
+		t.Fatal("rang de mil milions de cel·les acceptat")
+	}
+	if _, err := s.SetCells(d.ID, dades.ID, map[string]string{"A1": "=sum($a$1:$z$1000000)"}, AuthorAgent, 0); err == nil {
+		t.Fatal("rang de 26 milions de cel·les acceptat")
+	}
+	if el := time.Since(t0); el > 200*time.Millisecond {
+		t.Fatalf("refusar ha trigat %v", el)
+	}
+	massa := map[string]string{}
+	for i := range maxSheetCells + 1 {
+		massa[fmt.Sprintf("A%d", i+1)] = "1"
+	}
+	if _, err := s.SetCells(d.ID, dades.ID, massa, AuthorAgent, 0); err == nil {
+		t.Fatal("full massa gran acceptat")
+	}
+}
+
+func TestFullValorLlargEsRetalla(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d := full(t, s)
+	dades := d.Blocks[0]
+	d, err := s.SetCells(d.ID, dades.ID, map[string]string{"A1": `=REPT("x",100000000)`, "B1": "=SUM(A:A)"}, AuthorAgent, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := d.Blocks[0].Values["A1"]; len(v) != maxValue {
+		t.Fatalf("valor de %d caràcters", len(v))
+	}
+}
+
+func TestFullCalculaLesFormules(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d := full(t, s)
+	dades, resum := d.Blocks[0], d.Blocks[1]
+	d, err := s.SetCells(d.ID, resum.ID, map[string]string{"A1": "=Dades!A4*2", "B1": "=A1/0", "C1": "=NOEXISTEIX(1)", "D1": "=Fantasma!A1"}, AuthorAgent, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch, stop := s.Watch(d.ID)
+	defer stop()
+	if d, err = s.SetCells(d.ID, dades.ID, map[string]string{"A1": "1", "A2": "2", "A3": "3", "A4": "=SUM(A1:A3)"}, AuthorAgent, 0); err != nil {
+		t.Fatal(err)
+	}
+	if v := d.Blocks[0].Values; v["A4"] != "6" || v["A1"] != "1" {
+		t.Fatalf("valors de Dades %v", v)
+	}
+	want := map[string]string{"A1": "12", "B1": "#DIV/0!", "C1": "#NAME?", "D1": "#NAME?"}
+	if v := d.Blocks[1].Values; !maps.Equal(v, want) {
+		t.Fatalf("valors de Resum %v, volia %v", v, want)
+	}
+	// Resum no ha canviat de versió, però els que miren reben els valors nous.
+	if d.Blocks[1].Version == d.Version {
+		t.Fatalf("Resum ha pujat de versió: %+v", d.Blocks[1])
+	}
+	vist := map[string]bool{}
+	for range 2 {
+		c := rep(t, ch)
+		vist[c.Block.ID] = c.Op == "replace" && (c.Block.ID != resum.ID || c.Block.Values["A1"] == "12")
+	}
+	if !vist[dades.ID] || !vist[resum.ID] {
+		t.Fatalf("canvis %v", vist)
+	}
+}
+
+// Un bloc buit no és un bloc: per treure'l hi ha Delete.
+func TestReplaceBuitEsRefusa(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d, _ := s.Create("Plan", "# Plan\n\nFirst.", AuthorAgent)
+	if _, err := s.Replace(d.ID, d.Blocks[1].ID, " \n ", AuthorUser, d.Version); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("md buit: %v", err)
+	}
+	if d2, _ := s.Get(d.ID); d2.Version != d.Version || d2.Blocks[1].MD != "First." {
+		t.Fatalf("ha canviat: %+v", d2)
+	}
+}
+
+// Un id amb dos punts seria una ruta d'unitat o un flux alternatiu a Windows.
+func TestIdAmbDosPuntsNoExisteix(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	if _, err := s.Get("c:x"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("id amb dos punts: %v", err)
+	}
+	if _, err := s.ImagePath("c:x", "images/a.png"); err == nil {
+		t.Fatal("imatge d'un id amb dos punts")
+	}
+}
+
+// Una referència circular dona error, com a Excel, a les cel·les del cercle
+// i a les que en depenen; una funció com LOG10 no és una cel·la.
+func TestFullReferenciaCircular(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d := full(t, s)
+	d, err := s.SetCells(d.ID, d.Blocks[0].ID, map[string]string{
+		"A1": "=B1+1", "B1": "=a1+1", "C1": "=C1", "D1": "=SUM(D1:D2)", "E1": "=A1*2",
+		"F1": "=LOG10(100)", "G1": `="A1"&"x"`, "H1": "=Resum!A1",
+	}, AuthorAgent, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d, err = s.SetCells(d.ID, d.Blocks[1].ID, map[string]string{"A1": "=Dades!H1", "B1": "=SUM(Dades!F1:F2)"}, AuthorAgent, 0); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"A1": "#REF!", "B1": "#REF!", "C1": "#REF!", "D1": "#REF!", "E1": "#REF!", "F1": "2", "G1": "A1x", "H1": "#REF!"}
+	if v := d.Blocks[0].Values; !maps.Equal(v, want) {
+		t.Fatalf("valors %v, volia %v", v, want)
+	}
+	if v := d.Blocks[1].Values; v["A1"] != "#REF!" || v["B1"] != "2" {
+		t.Fatalf("valors de Resum %v", v)
+	}
+}
+
+// El llibre porta el valor calculat de cada fórmula numèrica, perquè un
+// visor que no recalcula no ensenyi la cel·la buida.
+func TestWorkbookPortaElsValorsCalculats(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d := full(t, s)
+	d, err := s.SetCells(d.ID, d.Blocks[0].ID, map[string]string{"A1": "10", "A2": "=A1*3"}, AuthorAgent, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := Workbook(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	fx, err1 := f.GetCellFormula("Dades", "A2")
+	v, err2 := f.GetCellValue("Dades", "A2")
+	if err1 != nil || err2 != nil || fx != "A1*3" || v != "30" {
+		t.Fatalf("A2: %q = %q (%v %v)", fx, v, err1, err2)
+	}
+}
+
+// Un full de càlcul sense cap full encara es pot calcular i treure.
+func TestFullSenseFulls(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := obre(t)
+	d := full(t, s)
+	for _, b := range d.Blocks {
+		var err error
+		if d, err = s.Delete(d.ID, b.ID, AuthorUser, d.Version); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f, err := Workbook(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
 	}
 }

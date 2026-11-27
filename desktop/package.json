@@ -1,7 +1,7 @@
 {
   "name": "gregal-desktop",
   "productName": "Gregal",
-  "version": "1.93.0",
+  "version": "1.99.0",
   "description": "Gregal desktop application with an integrated local backend.",
   "license": "MIT",
   "main": "main.js",
@@ -36,6 +36,7 @@
       "browser-bridge.js",
       "preload.js",
       "mascot-window.js",
+      "doc-window.js",
       "chrome-extension.js",
       "word-addin.js",
       "mascot-preload.js",

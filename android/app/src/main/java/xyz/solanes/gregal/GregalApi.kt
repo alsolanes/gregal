@@ -1,5 +1,9 @@
 package xyz.solanes.gregal
 
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.decodeFromString
@@ -224,6 +228,12 @@ class GregalApi(val base: String, val token: String) {
     fun setWindsModel(model: String): JSONObject {
         return post("/api/model", JSONObject().put("model", model).put("scope", "vents"))
     }
+
+    /** «A fons»: el model triat per a cada agent i la síntesi ("" = automàtic). */
+    fun getTempestaModels(): Map<String, String> = TempestaModels.parse(read("/api/winds/tempesta/models"))
+
+    fun setTempestaModel(slot: String, model: String): Map<String, String> =
+        TempestaModels.parse(read("/api/winds/tempesta/models", "POST", TempestaModels.payload(slot, model)))
 
     /** POST que torna l'objecte JSON tal qual (per a les pantalles que el llegeixen elles mateixes). */
     fun post(path: String, payload: JSONObject): JSONObject {
@@ -647,6 +657,10 @@ class GregalApi(val base: String, val token: String) {
         return Pair(o.persona, o.style.ifBlank { "pso" })
     }
 
+    /** El vent sencer d'una frase: una proposta que l'usuari revisa al creador; no es crea res. */
+    internal fun describeWind(description: String): SuggestDto =
+        postAs("/api/winds/suggest", JSONObject().put("description", description))
+
     fun getRotllanes(): List<Rotllana> = RotllanaRequests.parse(read("/api/winds/rotllanes"))
 
     fun saveRotllana(name: String, members: List<String>, id: String = ""): JSONObject {
@@ -701,8 +715,8 @@ class GregalApi(val base: String, val token: String) {
         getAs<ConeixementDto>("/api/winds/coneixement?wind=$windId&nom=$nom").toConeixement(withBody = true)
 
     fun saveConeixement(windId: String, c: Coneixement): String {
-        val o = postAs<NomDto>("/api/winds/coneixements", JSONObject().put("wind", windId).put("nom", c.nom)
-            .put("titol", c.titol).put("descripcio", c.descripcio).put("cos", c.cos))
+        val o = GregalJson.decodeFromString<NomDto>(read("/api/winds/coneixements", "PUT", JSONObject().put("wind", windId).put("nom", c.nom)
+            .put("titol", c.titol).put("descripcio", c.descripcio).put("cos", c.cos).toString()))
         return o.nom ?: c.nom
     }
 
@@ -962,6 +976,17 @@ class GregalApi(val base: String, val token: String) {
         return AvuiJson.settings(read("/api/winds/avui/settings", "POST", body.toString()))
     }
 
+    /** On ets, per al temps de dalt d'«Avui» (un nom de ciutat). */
+    fun avuiPlace(place: String): AvuiSettings =
+        AvuiJson.settings(read("/api/winds/avui/settings", "POST", JSONObject().put("place", place).toString()))
+
+    /** Segueix un equip (kind «team») o qualsevol altra cosa («other»). */
+    fun avuiFollow(kind: String, name: String): AvuiSettings = AvuiJson.settings(read("/api/winds/avui/settings", "POST",
+        JSONObject().put("follow", JSONObject().put("kind", kind).put("name", name)).toString()))
+
+    fun avuiUnfollow(id: String): AvuiSettings =
+        AvuiJson.settings(read("/api/winds/avui/settings", "POST", JSONObject().put("unfollow", id).toString()))
+
     // --- «A prop teu» (VentsLocal.kt, /api/winds/local) ---
 
     fun localInfo(): LocalInfo = LocalJson.view(read("/api/winds/local"))
@@ -988,7 +1013,8 @@ class GregalApi(val base: String, val token: String) {
     /** Resposta d'un torn amb streaming (SSE per POST). */
     sealed interface WindStreamEvent {
         data class Phase(val phase: String) : WindStreamEvent
-        data class Activity(val phase: String, val tool: String = "", val step: Int = 0) : WindStreamEvent
+        /** [winds]: els vents que l'eina wind consulta (ids ja resolts pel servidor). */
+        data class Activity(val phase: String, val tool: String = "", val step: Int = 0, val winds: List<String> = emptyList()) : WindStreamEvent
         data class Token(val token: String) : WindStreamEvent
         /** Tempesta: l'estat de cada agent (winds_tempesta.go). */
         data class Tempesta(val agents: List<TempestaAgent>) : WindStreamEvent
@@ -1001,6 +1027,8 @@ class GregalApi(val base: String, val token: String) {
         data class AskResolved(val key: String) : WindStreamEvent
         /** El que has escrit mentre treballava i ja no ha arribat a llegir: s'envia després. */
         data class SteerUnread(val texts: List<String>) : WindStreamEvent
+        /** El vent ha escrit un document (066): du el seu scope ("mine"). */
+        data class DocChanged(val doc: DocRef) : WindStreamEvent
     }
 
     /** Una aprovació («approve») o una pregunta amb opcions («question») d'un vent. */
@@ -1116,7 +1144,7 @@ class GregalApi(val base: String, val token: String) {
             "phase" -> WindStreamEvent.Phase(if (o.containsKey("phase")) o.str("phase") else "working")
             "activity" -> {
                 val a = GregalJson.decodeFromJsonElement<ActivityDto>(o)
-                WindStreamEvent.Activity(a.phase, a.tool.take(48), a.step.coerceAtLeast(0))
+                WindStreamEvent.Activity(a.phase, a.tool.take(48), a.step.coerceAtLeast(0), a.winds)
             }
             "token" -> WindStreamEvent.Token(o.str("token"))
             "tempesta" -> WindStreamEvent.Tempesta(TempestaAgent.listOf(data))
@@ -1135,6 +1163,7 @@ class GregalApi(val base: String, val token: String) {
             "steer_unread" -> (o["texts"] as? kotlinx.serialization.json.JsonArray)
                 ?.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.content?.trim()?.takeIf(String::isNotEmpty) }
                 ?.takeIf { it.isNotEmpty() }?.let { WindStreamEvent.SteerUnread(it) }
+            "doc_changed" -> DocsJson.changed(data)?.let { WindStreamEvent.DocChanged(it) }
             else -> null
         }
     }
@@ -1379,7 +1408,7 @@ class GregalApi(val base: String, val token: String) {
                 intervalH = j.intervalH, enabled = j.enabled,
                 notify = j.notify, lastStatus = j.lastStatus,
                 nextDue = j.nextDue,
-                lastAt = j.lastAt, nextDueAt = j.nextDueAt, days = j.days,
+                lastAt = j.lastAt, nextDueAt = j.nextDueAt, days = j.days, wind = j.wind,
             )
         }
 
@@ -1387,7 +1416,8 @@ class GregalApi(val base: String, val token: String) {
         val o = postAs<JobRefDto>("/api/jobs/save", JSONObject()
             .put("id", j.id).put("name", j.name).put("prompt", j.prompt)
             .put("kind", j.kind).put("time", j.time).put("interval_h", j.intervalH)
-            .put("enabled", j.enabled).put("notify", j.notify))
+            .put("enabled", j.enabled).put("notify", j.notify)
+            .apply { if (j.wind.isNotBlank()) put("wind", j.wind) })
         val r = o.job as? JsonObject ?: return j
         return j.copy(id = if (r.containsKey("id")) r.str("id") else j.id)
     }
@@ -1429,9 +1459,13 @@ class GregalApi(val base: String, val token: String) {
     }
 
     /** SSE per GET (execució de grafs, documents): mateix Bearer, mateix
-     *  parser. [onOpen] corre amb les capçaleres ja rebudes, abans del primer event. */
-    fun streamGet(path: String, onOpen: () -> Unit = {}, onEvent: (SseEvent) -> Unit) {
-        streamRead(exec(path, "GET"), onEvent, onOpen)
+     *  parser. [onOpen] corre amb les capçaleres ja rebudes, abans del primer event.
+     *  Si qui escolta es cancel·la (s'ha sortit de la pantalla), la crida es talla de seguida, no al ping següent:
+     *  la vigila una corutina germana, i per això s'ha de cridar des d'un dispatcher amb més d'un fil (IO). */
+    suspend fun streamGet(path: String, onOpen: () -> Unit = {}, onEvent: (SseEvent) -> Unit) = coroutineScope {
+        val call = http.newCall(request(path, "GET"))
+        val cut = launch(start = CoroutineStart.UNDISPATCHED) { try { awaitCancellation() } finally { call.cancel() } }
+        try { streamRead(call.execute(), onEvent, onOpen) } finally { cut.cancel() }
     }
 
     private fun streamRead(r: Response, onEvent: (SseEvent) -> Unit, onOpen: () -> Unit = {}) = r.use {
@@ -1536,7 +1570,7 @@ object AvuiJson {
         id = j.id, wind = j.wind, windName = j.windName,
         source = j.source, section = j.section.ifBlank { "fyi" },
         title = j.title, why = j.why, body = j.body,
-        actions = j.actions.mapNotNull { a -> if (a.label.isBlank()) null else AvuiAction(a.label, a.prompt) },
+        actions = j.actions.mapNotNull { a -> if (a.label.isBlank()) null else AvuiAction(a.label, a.prompt, a.thread) },
         state = j.state.ifBlank { "open" }, feedback = j.feedback,
         saved = j.saved, held = j.held,
         created = j.created, days = j.days,
@@ -1551,6 +1585,8 @@ object AvuiJson {
             quietTo = o.quietTo.ifBlank { "08:00" },
             level = if (o.level == "calm") "calm" else "normal",
             tune = o.tune,
+            place = o.place,
+            follows = o.follows.map(::glanceFollow).filter { it.id.isNotBlank() },
         )
     }
 
@@ -1562,7 +1598,7 @@ object AvuiJson {
         return AvuiView(
             date = o.date,
             now = cards(o.now), fyi = cards(o.fyi), ahead = cards(o.ahead), done = cards(o.done),
-            held = o.held, settings = settings(o.settings),
+            held = o.held, settings = settings(o.settings), glance = glance(o.glance),
         )
     }
 
@@ -1633,7 +1669,7 @@ internal class ModelsDto(
 @Serializable internal class NomDto(val nom: String? = null)
 @Serializable internal class NameDto(val name: String = "")
 @Serializable internal class NamesDto(val names: List<String> = emptyList())
-@Serializable internal class SuggestDto(val persona: String = "", val style: String = "")
+@Serializable internal class SuggestDto(val persona: String = "", val style: String = "", val name: String = "", val role: String = "", val color: String = "", val kit: String = "")
 @Serializable internal class GithubDto(val output: String = "")
 @Serializable internal class JobRefDto(val job: JsonElement? = null)
 @Serializable internal class CursorDto(val cursor: Long? = null)
@@ -1744,11 +1780,15 @@ internal class PetMsgDto(
     val ts: Long = 0L, val kind: String = "", val id: String = "",
     val relatedRunId: Long = 0L, val resultRefs: List<String> = emptyList(),
     val shots: List<MsgShotDto> = emptyList(),
+    val by: MsgByDto? = null,
 ) {
     fun toPetMsg() = GregalViewModel.PetMsg(from, text, speakerId, speakerName, ts = msgMillis(ts), kind = kind, id = id,
-        relatedRunId = relatedRunId, resultRefs = resultRefs,
+        relatedRunId = relatedRunId, resultRefs = resultRefs, by = by?.let { MsgBy(it.id, it.name) },
         shots = shots.filter { it.shotUrl.startsWith("/api/ordinador/accions/captura?id=") }.map { MsgShot(it.id, it.title, it.url, it.shotUrl) })
 }
+
+/** El vent que ha passat l'encàrrec (task 160). */
+@Serializable internal class MsgByDto(val id: String = "", val name: String = "")
 
 /** Una captura del que el vent ha fet a l'ordinador en aquell torn. */
 @Serializable
@@ -1776,7 +1816,7 @@ internal class TurnActionDto(
 @Serializable
 internal class WindReplyDto(val reply: String = "", val parcial: Boolean = false, val actions: List<TurnActionDto> = emptyList())
 
-@Serializable internal class ActivityDto(val phase: String = "working", val tool: String = "", val step: Int = 0)
+@Serializable internal class ActivityDto(val phase: String = "working", val tool: String = "", val step: Int = 0, val winds: List<String> = emptyList())
 
 @Serializable internal class AskOptionDto(val label: String = "", val description: String = "")
 
@@ -1959,7 +1999,7 @@ internal class JobDto(
     val notify: Boolean = true, @SerialName("last_status") val lastStatus: String = "",
     @SerialName("next_due") val nextDue: String = "",
     @SerialName("last_at") val lastAt: String = "", @SerialName("next_due_at") val nextDueAt: String = "",
-    val days: List<Int> = emptyList(),
+    val days: List<Int> = emptyList(), val wind: String = "",
 )
 
 @Serializable internal class JobsDto(val jobs: List<JobDto> = emptyList())
@@ -1994,7 +2034,7 @@ internal class NovetatDto(
 
 @Serializable internal class NovetatsDto(val novetats: List<NovetatDto> = emptyList())
 
-@Serializable internal class AvuiActionDto(val label: String = "", val prompt: String = "")
+@Serializable internal class AvuiActionDto(val label: String = "", val prompt: String = "", val thread: String = "")
 
 @Serializable
 internal class AvuiCardDto(
@@ -2008,6 +2048,7 @@ internal class AvuiCardDto(
 internal class AvuiSettingsDto(
     @SerialName("quiet_from") val quietFrom: String = "", @SerialName("quiet_to") val quietTo: String = "",
     val level: String = "", val tune: String = "",
+    val place: String = "", val follows: List<AvuiFollowDto> = emptyList(),
 )
 
 @Serializable
@@ -2015,5 +2056,5 @@ internal class AvuiViewDto(
     val date: String = "",
     val now: List<AvuiCardDto> = emptyList(), val fyi: List<AvuiCardDto> = emptyList(),
     val ahead: List<AvuiCardDto> = emptyList(), val done: List<AvuiCardDto> = emptyList(),
-    val held: Int = 0, val settings: AvuiSettingsDto? = null,
+    val held: Int = 0, val settings: AvuiSettingsDto? = null, val glance: AvuiGlanceDto? = null,
 )

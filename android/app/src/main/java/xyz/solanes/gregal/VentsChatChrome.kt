@@ -1,5 +1,23 @@
 package xyz.solanes.gregal
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.foundation.lazy.LazyListLayoutInfo
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameMillis
+import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.delay
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.isSpecified
+import androidx.compose.ui.graphics.TransformOrigin
+import kotlin.math.PI
+import kotlin.math.sin
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.text.BasicTextField
@@ -30,6 +48,7 @@ import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Forum
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -48,6 +67,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -79,14 +99,14 @@ internal fun VentsChatHeader(
     centered: Boolean = false,
     /** L'ordinador de l'assistent (dreta), quan n'hi ha. */
     onComputer: (() -> Unit)? = null,
-    /** B6: el que aquest vent vigila (responsabilitats). */
-    onWatch: (() -> Unit)? = null,
     /** A la portada el botó de l'esquerra obre el menú (no torna enrere). */
     menu: Boolean = false,
     /** Portada de Gregal: només la cara, petita i flotant, sense nom ni fons (B14). */
     compact: Boolean = false,
     /** El vent del xat: el seu ofici va en pastilla al costat del nom. */
     wind: Wind? = null,
+    /** Xat d'un vent: la cara no és aquí sinó un forat on hi vola la del xat (109), que és una de sola. */
+    faceSlot: Modifier? = null,
     modifier: Modifier = Modifier,
 ) {
     if (centered) {
@@ -105,7 +125,8 @@ internal fun VentsChatHeader(
             Row(Modifier.pillBacking(SuperficieAlta).clip(RoundedCornerShape(999.dp)).clickable(onClick = onProfile, role = Role.Button)
                 .padding(start = 6.dp, end = 14.dp, top = 5.dp, bottom = 5.dp).testTag("chat-header-pill"),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                WindHalo(accent, style, size = 30, mood = mood, stacked = faces.drop(1), online = false, showKit = faces.size <= 1)
+                if (faceSlot != null) Box(faceSlot.height(44.dp).testTag("chat-header-face"))
+                else WindHalo(accent, style, size = 30, mood = mood, stacked = faces.drop(1), online = false, showKit = faces.size <= 1)
                 Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                     // El nom es mesura primer: la pastilla es queda amb el que sobra.
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -116,24 +137,25 @@ internal fun VentsChatHeader(
                 }
             }
         }
-        // Una sola acció a la dreta, amb noms: dues icones soles (llibre,
-        // bombolles) no deien què feien. El perfil també és a la cara.
-        if (onWiki != null || onSessions != null || onTransfer != null || onWatch != null || onComputer != null) {
+        // Una sola acció a la dreta, amb noms, la mateixa per a tots els vents (Gregal inclòs) i en
+        // l'ordre del web: Perfil, Fils, Desa a la wiki, l'ordinador. El perfil també és a la cara.
+        if (onWiki != null || onSessions != null || onTransfer != null || onComputer != null) {
             var more by remember { mutableStateOf(false) }
             Box {
                 IconButton(onClick = { more = true }, modifier = Modifier.softBacking(SuperficieAlta).testTag("chat-more")) {
                     Icon(Icons.Rounded.MoreHoriz, tr(lang, "app.vents.more"), tint = Ink)
                 }
                 DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
-                    DropdownMenuItem(text = { Text(tr(lang, "app.vents.profile")) }, onClick = { more = false; onProfile() })
+                    DropdownMenuItem(leadingIcon = { Icon(Icons.Rounded.Person, null) },
+                        text = { Text(tr(lang, "app.vents.menu.profile")) }, onClick = { more = false; onProfile() })
                     if (onSessions != null) DropdownMenuItem(
                         leadingIcon = { Icon(Icons.Rounded.Forum, null) },
-                        text = { Text(tr(lang, "app.wind.sessions")) }, onClick = { more = false; onSessions() })
+                        text = { Text(tr(lang, "app.vents.menu.threads")) }, onClick = { more = false; onSessions() })
                     if (onWiki != null) DropdownMenuItem(
                         leadingIcon = { Icon(Icons.Rounded.AutoStories, null) },
-                        text = { Text(tr(lang, "app.wiki.summarize")) }, onClick = { more = false; onWiki() })
-                    if (onWatch != null) DropdownMenuItem(text = { Text(respCopy(lang, "title")) }, onClick = { more = false; onWatch() })
-                    if (onComputer != null) DropdownMenuItem(text = { Text(ordinadorCopy(lang, "title")) }, onClick = { more = false; onComputer() })
+                        text = { Text(tr(lang, "app.vents.menu.wiki")) }, onClick = { more = false; onWiki() })
+                    if (onComputer != null) DropdownMenuItem(leadingIcon = { Icon(Icons.Rounded.Computer, null) },
+                        text = { Text(tr(lang, "app.computer.name")) }, onClick = { more = false; onComputer() })
                     if (onTransfer != null) DropdownMenuItem(text = { Text(tr(lang, "app.vents.transferToServer")) }, onClick = { more = false; onTransfer() })
                 }
             }
@@ -143,6 +165,224 @@ internal fun VentsChatHeader(
 
 /** Alçada de la capçalera flotant del xat: el fil hi deixa aquest marge a dalt. */
 internal val ChatHeaderInset = 62.dp
+
+/** El fons de la conversa d'un vent: la superfície amb un vel suau del seu color. */
+internal fun windWash(accent: Color, surface: Color): Color = accent.copy(alpha = 0.06f).compositeOver(surface)
+
+/** Les bombolles del vent, tenyides del seu color com els punts d'escriure (16 %). */
+internal fun windBubbleColor(accent: Color, background: Color): Color = accent.copy(alpha = 0.16f).compositeOver(background)
+
+/** El nom del vent sobre les seves respostes: el seu color barrejat (40 %) amb la tinta, perquè es llegeixi en tots els temes. */
+internal fun windNameColor(accent: Color, ink: Color): Color = androidx.compose.ui.graphics.lerp(ink, accent, 0.4f)
+
+/**
+ * Qui parla, al principi d'una ratxa de respostes: el nom petit amb el color del
+ * vent i, en una conversa en grup ([face]), la seva cara al costat. Les respostes
+ * són text corrent, sense bombolla; el color del vent és aquí i als accents.
+ */
+@Composable
+internal fun WindByline(name: String, accent: Color, face: Wind? = null, onClick: (() -> Unit)? = null, modifier: Modifier = Modifier) {
+    Row(modifier.padding(top = 2.dp)
+        .then(if (onClick != null) Modifier.heightIn(min = 32.dp).clickable(onClick = onClick) else Modifier)
+        .testTag("wind-byline"),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (face != null) WindFace(size = 24, accent = Color(face.argb), style = face.faceStyle)
+        Text(name, color = windNameColor(accent, Ink), style = GregalType.bodySmall, fontWeight = FontWeight.SemiBold, maxLines = 1,
+            overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/**
+ * L'estat del vent a la capçalera, la mateixa regla que el web: t'espera (té
+ * una pregunta per a tu, encara que el torn segueixi), treballant, fet (el torn
+ * ha acabat i encara no has escrit ni has sortit) o res. Torna la clau del text.
+ */
+internal fun windChatState(windId: String, busy: Set<String>, asks: List<GregalApi.WindAsk>, done: Boolean, failed: Boolean = false): String? = when {
+    asks.any { it.wind == windId } -> "winds.state.waiting"
+    windId in busy -> "winds.state.working"
+    // Un torn que ha acabat amb «Torn interromput» no està fet.
+    done && !failed -> "winds.state.done"
+    else -> null
+}
+
+/** Mida (dp) del vent present a la cantonada del xat. */
+internal const val WindPresenceSize = 72
+
+/**
+ * L'humor del vent de la cantonada segons [windChatState]: treballant sempre és
+ * un humor de feina (el que diu el flux en directe, si ho és) perquè hi surti l'aura.
+ */
+internal fun windPresenceMood(state: String?, live: WindMood?): WindMood = when (state) {
+    "winds.state.working" -> live?.takeIf { it in windWorkMoods } ?: WindMood.WORKING
+    "winds.state.waiting" -> WindMood.WAITING
+    "winds.state.done" -> WindMood.DONE
+    else -> WindMood.IDLE
+}
+
+/** Quant (ms) es manté com a mínim un humor de feina: canviar d'eina cada pocs segons no reinicia la cara. */
+internal const val WindMoodHoldMs = 1200L
+
+/** L'humor que es veu: un de feina es queda [WindMoodHoldMs] abans de deixar pas al següent. El rellotge és qui el crida. */
+internal class WindMoodHold(private var shown: WindMood, private var since: Long) {
+    private var wanted = shown
+
+    fun at(now: Long, want: WindMood): WindMood {
+        wanted = want
+        if (want != shown && (shown !in windWorkMoods || now - since >= WindMoodHoldMs)) { shown = want; since = now }
+        return shown
+    }
+
+    /** Quant falta perquè surti l'humor que espera; 0 si no n'espera cap. */
+    fun waitFor(now: Long): Long = if (wanted == shown) 0L else (since + WindMoodHoldMs - now).coerceAtLeast(0L)
+}
+
+@Composable
+private fun rememberHeldMood(mood: WindMood): WindMood {
+    val hold = remember { WindMoodHold(mood, 0L) }
+    var shown by remember { mutableStateOf(mood) }
+    LaunchedEffect(mood) {
+        // El temps dels fotogrames: a les proves és el rellotge virtual.
+        var now = withFrameMillis { it }
+        shown = hold.at(now, mood)
+        while (hold.waitFor(now) > 0L) {
+            delay(hold.waitFor(now))
+            now = withFrameMillis { it }
+            shown = hold.at(now, mood)
+        }
+    }
+    return shown
+}
+
+/**
+ * El vent puja a la capçalera quan t'has allunyat clarament del final (200 dp) i
+ * només torna a baix quan hi tornes a ser a prop (40 dp); entremig es queda on és.
+ * Que el final s'allunyi sol (la resposta creix) no el mou: cal que t'hagis desplaçat.
+ */
+internal fun windFliesUp(up: Boolean, fromEndDp: Float, scrolled: Boolean): Boolean = when {
+    fromEndDp <= 40f -> false
+    scrolled && fromEndDp >= 200f -> true
+    else -> up
+}
+
+/**
+ * Quants px falten per arribar al final de la llista. Els elements de sota que no
+ * es veuen no tenen mida encara: compten com el més petit dels visibles, per
+ * quedar curt i que el vent no pugi abans d'hora.
+ */
+internal fun LazyListLayoutInfo.pxFromEnd(): Int {
+    val last = visibleItemsInfo.lastOrNull() ?: return 0
+    val unseen = (totalItemsCount - 1 - last.index) * visibleItemsInfo.minOf { it.size }
+    return (last.offset + last.size - (viewportEndOffset - afterContentPadding) + unseen).coerceAtLeast(0)
+}
+
+/** [windFliesUp] seguint la llista del xat. */
+@Composable
+internal fun rememberWindUp(list: LazyListState): Boolean {
+    val density = LocalDensity.current.density
+    var up by remember(list) { mutableStateOf(false) }
+    LaunchedEffect(list) {
+        var at = -1 to -1
+        snapshotFlow { Triple(list.firstVisibleItemIndex, list.firstVisibleItemScrollOffset, list.layoutInfo.pxFromEnd()) }
+            .collect { (index, offset, px) ->
+                val moved = (index to offset) != at
+                at = index to offset
+                up = windFliesUp(up, px / density, moved)
+            }
+    }
+    return up
+}
+
+/** El que passa al xat i el vent nota amb el cos (128 al web). */
+internal enum class WindEvent { SENT, APPROVED, DECLINED, REPLY, FAILED }
+
+/** Com hi reacciona el vent: assenteix, s'hi acosta o fa que no. */
+internal enum class WindReaction { NOD, LEAN, SHAKE }
+
+internal fun windReaction(event: WindEvent): WindReaction = when (event) {
+    WindEvent.SENT, WindEvent.APPROVED -> WindReaction.NOD
+    WindEvent.REPLY -> WindReaction.LEAN
+    WindEvent.FAILED, WindEvent.DECLINED -> WindReaction.SHAKE
+}
+
+/** Com ha acabat un torn, pel seu últim missatge; null si l'has aturat abans que respongués. */
+internal fun windTurnEvent(msgs: List<GregalViewModel.PetMsg>): WindEvent? {
+    val last = msgs.lastOrNull { it.kind != "memory" } ?: return null
+    return when {
+        last.kind == "error" -> WindEvent.FAILED
+        last.from == "user" -> null
+        else -> WindEvent.REPLY
+    }
+}
+
+/** On pot seure el vent al seu xat (a l'arrel): la conversa, la cantonada i el forat de la capçalera. */
+internal class WindPerch {
+    var root by mutableStateOf(Offset.Unspecified)
+    var corner by mutableStateOf(Offset.Unspecified)
+    var header by mutableStateOf(Offset.Unspecified)
+    /** La reacció en marxa, de 0 a 1 en 0,9 s; a 1 el vent és quiet. */
+    val act = Animatable(1f)
+    var reaction by mutableStateOf(WindReaction.NOD)
+        private set
+
+    suspend fun react(kind: WindReaction) {
+        reaction = kind
+        act.snapTo(0f)
+        act.animateTo(1f, tween(900, easing = LinearEasing))
+    }
+}
+
+/**
+ * El vent del xat, un de sol (109): a l'últim missatge seu a la cantonada i, quan
+ * puges pel fil ([up]), vola al costat del nom i s'encongeix fins a la mida de la
+ * capçalera. Una sola cara moguda a la capa amb una molla que es pot girar a mig
+ * vol: cap fotograma recompon la cara ni el xat. Sense moviment, salta.
+ */
+@Composable
+internal fun BoxScope.WindPresence(perch: WindPerch, up: Boolean, mood: WindMood, accent: Color, style: WindStyle,
+    label: String, hidden: Boolean, onClick: () -> Unit) {
+    val motion = windMotionEnabled()
+    val flight = animateFloatAsState(if (up) 1f else 0f,
+        if (motion) spring(dampingRatio = .72f, stiffness = Spring.StiffnessMediumLow) else snap(), label = "wind-flight")
+    WindFace(size = WindPresenceSize, mood = rememberHeldMood(mood), accent = accent, style = style, showKit = true, tappable = true,
+        onClick = onClick, clay = true, shrugs = false,
+        modifier = Modifier.align(Alignment.TopStart).graphicsLayer {
+            val root = perch.root
+            val corner = perch.corner
+            val header = perch.header
+            if (hidden || !root.isSpecified || !corner.isSpecified || !header.isSpecified) { alpha = 0f; return@graphicsLayer }
+            val f = flight.value
+            // La cara de la capçalera fa 38 dp (WindHalo de 30) al mig del forat de 44.
+            val to = header + Offset(3.dp.toPx(), 3.dp.toPx())
+            // Un arc cap a fora i una mica de gir: vola, no llisca.
+            val arc = sin(PI.toFloat() * f.coerceIn(0f, 1f))
+            transformOrigin = TransformOrigin(0f, 0f)
+            translationX = corner.x + (to.x - corner.x) * f - root.x + arc * 28.dp.toPx()
+            translationY = corner.y + (to.y - corner.y) * f - root.y
+            scaleX = 1f + (38f / WindPresenceSize - 1f) * f
+            scaleY = scaleX
+            rotationZ = -10f * arc
+        }.graphicsLayer {
+            // La reacció, a una capa pròpia que gira des dels peus; l'esclat de la resposta el fa la cara en passar a DONE.
+            val n = perch.act.value
+            if (!motion || n >= 1f) return@graphicsLayer
+            transformOrigin = TransformOrigin(.5f, 1f)
+            // Tres cops que s'apaguen: amunt i avall per assentir, de costat per fer que no (103).
+            val swing = sin(n * 6f * PI.toFloat()) * (1f - n) * 7.dp.toPx()
+            when (perch.reaction) {
+                WindReaction.NOD -> translationY = swing
+                // S'inclina cap al fil (a la seva dreta), una mica més gran, i torna.
+                WindReaction.LEAN -> {
+                    val lean = sin(PI.toFloat() * n)
+                    translationX = 7.dp.toPx() * lean
+                    translationY = -4.dp.toPx() * lean
+                    rotationZ = 8f * lean
+                    scaleX = 1f + .06f * lean
+                    scaleY = scaleX
+                }
+                WindReaction.SHAKE -> translationX = swing
+            }
+        }.semantics { contentDescription = label }.testTag("wind-presence"))
+}
 
 /**
  * El fil s'esvaeix sota la capçalera flotant: sense això el text es llegia
@@ -187,7 +427,7 @@ private fun CenteredChatHeader(
     compact: Boolean = false,
 ) {
     Row(
-        Modifier.fillMaxWidth().then(if (compact) Modifier else Modifier.background(Superficie))
+        Modifier.fillMaxWidth().then(if (compact) Modifier else Modifier.background(Pagina))
             .padding(horizontal = 8.dp, vertical = if (compact) 2.dp else 6.dp).testTag("chat-header-centered"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -282,7 +522,7 @@ internal fun VentsComposer(
     val hasTools = onAttachDoc != null || onAttachImage != null || onPerm != null || onWorkspace != null || onPreview != null || onVoiceTalk != null
     var showPlus by remember { mutableStateOf(false) }
     val ringColor = if (accent != Color.Unspecified) accent else Sea
-    Column(Modifier.fillMaxWidth().background(Superficie)) {
+    Column(Modifier.fillMaxWidth().background(Pagina)) {
         if (workCount > 0 && onWork != null) WorkStrip(lang, workCount, onWork)
         if (st != null && onWorkspace != null && st.project.isNotBlank()) {
             Row(

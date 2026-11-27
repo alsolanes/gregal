@@ -157,6 +157,14 @@ class CompanyModeTest {
         // reconeix per aquest prefix i li dona consigna pròpia.
         assertEquals("wind-tramuntana", "wind-" + "tramuntana")
     }
+
+    @Test fun windHeartbeatEsReconeixPelVentIPerLIdAntic() {
+        // Amb comptes el backend tria wind-<vent>@<compte>; el cor antic no porta wind.
+        assertTrue(JobItem(id = "wind-xaloc@aleix", kind = "event", wind = "xaloc").isHeartbeatOf("xaloc"))
+        assertTrue(JobItem(id = "wind-xaloc", kind = "event").isHeartbeatOf("xaloc"))
+        assertFalse(JobItem(id = "wind-xaloc@aleix", kind = "event", wind = "xaloc").isHeartbeatOf("garbi"))
+        assertFalse(JobItem(id = "rutina-xaloc-1", kind = "daily", wind = "xaloc").isHeartbeatOf("xaloc"))
+    }
 }
 
 /** Constructors dels cossos de petició del mode company (testejades). */

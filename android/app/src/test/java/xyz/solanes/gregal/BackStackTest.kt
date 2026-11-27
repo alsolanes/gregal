@@ -91,4 +91,17 @@ class BackStackTest {
         v.openVentsChat(null)
         assertEquals(null, v.ventsOpen.value)
     }
+
+    @Test
+    fun aTextDocumentInTheWebEditorGoesBackLikeTheOtherDocuments() {
+        // El WebView no navega mai (docPageKeeps): Enrere és el de l'app, com per a una presentació o un full.
+        for (kind in listOf("doc", "deck", "sheet")) {
+            val v = vm()
+            v.go(Screen.Chat)
+            v.openDoc(DocRef("d1", "Carta", kind, "mine"))
+            assertEquals(Screen.Docs, v.screen.value)
+            assertTrue(v.back())
+            assertEquals(Screen.Chat, v.screen.value)
+        }
+    }
 }

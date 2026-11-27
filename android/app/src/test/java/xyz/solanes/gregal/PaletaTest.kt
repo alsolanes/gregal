@@ -20,10 +20,10 @@ class PaletaTest {
 
     @Test
     fun foscTeElsHexosDeLaWeb() {
-        assertEquals("#131518", hex(DarkPal.deepTop))     // --bg (fons)
-        assertEquals("#0E1012", hex(DarkPal.deepBottom))  // --sidebar/--panel (abisme)
-        assertEquals("#1A1D21", hex(DarkPal.surface))     // --surface (night)
-        assertEquals("#24282D", hex(DarkPal.surfaceHi))   // --surface-hi
+        assertEquals("#000000", hex(DarkPal.deepTop))     // --bg (fons)
+        assertEquals("#000000", hex(DarkPal.deepBottom))  // --sidebar/--panel (abisme)
+        assertEquals("#121417", hex(DarkPal.surface))     // --surface (night)
+        assertEquals("#1C1F23", hex(DarkPal.surfaceHi))   // --surface-hi
         assertEquals("#F2F4F7", hex(DarkPal.ink))         // --ink
         assertEquals("#DEE2E7", hex(DarkPal.text))        // --text
         assertEquals("#A7AEB8", hex(DarkPal.muted))       // --muted (slate)
@@ -37,7 +37,7 @@ class PaletaTest {
         assertEquals("#C9B2FF", hex(DarkPal.lila))        // --lila
         assertEquals("#2A2645", hex(DarkPal.lilaFons))    // --lila-fons
         assertEquals("#2C3137", hex(DarkPal.algua))       // docs: línies/algua
-        assertEquals("#131518", hex(DarkPal.onSea))       // text sobre l'accent: fons
+        assertEquals("#000000", hex(DarkPal.onSea))       // text sobre l'accent: fons
     }
 
     @Test
@@ -81,6 +81,15 @@ class PaletaTest {
         assertEquals(DarkPal.surface, DarkPal.bubbleDark)
         assertEquals(DarkPal.surface, DarkPal.pillDark)
         assertEquals(DarkPal.surfaceHi, DarkPal.codeDark)
+    }
+
+    @Test
+    fun lesPaginesSonNegresAlFosc() {
+        // AMOLED: la pàgina sencera (vents, perfils, xats) és el fons negre al
+        // fosc; al clar i amb Vidre continua sent la superfície de sempre.
+        assertEquals(DarkPal.deepTop, DarkPal.page)
+        assertEquals(LightPal.surface, LightPal.page)
+        assertEquals(DarkPal.glassy().surface, DarkPal.glassy().page)
     }
 
     @Test

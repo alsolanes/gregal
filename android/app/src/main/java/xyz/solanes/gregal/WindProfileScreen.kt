@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.*
@@ -72,9 +73,9 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
     LaunchedEffect(wind.id) { vm.loadCalaix(wind.id) }
     LaunchedEffect(wind.id, isWeather) { if (isWeather) vm.loadWeather(wind.id) }
     // Primer el que sap de tu; el caràcter és a «Instruccions i ofici». Amb
-    // quatre pestanyes com a molt, caben totes sense lliscar ni tallar-se.
-    val tabs = listOf("memory", "scheduled", "saved") + if (profile?.trade != null || !shelves.isNullOrEmpty()) listOf("calaix") else emptyList()
-    Scaffold(containerColor = Superficie, modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(),
+    // quatre pestanyes caben totes; amb el calaix, la fila llisca.
+    val tabs = listOf("memory", "scheduled", "saved", "shelf") + if (profile?.trade != null || !shelves.isNullOrEmpty()) listOf("calaix") else emptyList()
+    Scaffold(containerColor = Pagina, modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(),
         bottomBar = {
             Surface(color = Superficie) {
                 // Dins d'un diàleg els insets del sistema arriben a zero i el
@@ -91,8 +92,11 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
         topBar = { TopAppBar(
             title = { Text(tr(lang, "app.vents.profile"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
             navigationIcon = { IconButton(onClick = onDismiss, enabled = !saving) { Icon(Icons.Rounded.ArrowBack, tr(lang, "app.vents.back")) } },
-            actions = { IconButton(onClick = onEdit, enabled = !busy && !saving && profile != null) { Icon(Icons.Rounded.Edit, tr(lang, "app.company.windEdit")) } },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie)) }) { padding ->
+            actions = {
+                IconButton(onClick = { onDismiss(); vm.openWindActivity(wind.id) }, enabled = !saving) { Icon(Icons.Rounded.History, tr(lang, "winds.activity.title")) }
+                IconButton(onClick = onEdit, enabled = !busy && !saving && profile != null) { Icon(Icons.Rounded.Edit, tr(lang, "app.company.windEdit")) }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = Pagina)) }) { padding ->
         // Tot en una llista: la cara i el nom s'emporten mitja pantalla i, si
         // es queden fixes, la informació del vent no té lloc. Ara el hero
         // llisca i les pestanyes es queden enganxades a dalt.
@@ -100,7 +104,7 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
             item(key = "hero") {
             Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 14.dp, bottom = 10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                WindHalo(accent = accent, style = wind.faceStyle, size = 88, mood = WindMood.HAPPY, tappable = true)
+                WindHalo(accent = accent, style = wind.faceStyle, size = 88, mood = WindMood.HAPPY, tappable = true, clay = true)
                 Text(wind.name, color = Ink, fontWeight = FontWeight.Bold, fontSize = 24.sp, textAlign = TextAlign.Center)
                 Text(wind.role.ifBlank { tr(lang, "app.vents.noPersonality") }, color = Muted, fontSize = 14.sp,
                     lineHeight = 19.sp, textAlign = TextAlign.Center)
@@ -143,7 +147,7 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
             }
             stickyHeader(key = "tabs") {
             // Amb calaix, cinc pestanyes: es poden fer lliscar.
-            if (tabs.size > 4) ScrollableTabRow(selectedTabIndex = tab, containerColor = Superficie, contentColor = Ink, edgePadding = 8.dp,
+            if (tabs.size > 4) ScrollableTabRow(selectedTabIndex = tab, containerColor = Pagina, contentColor = Ink, edgePadding = 8.dp,
                 indicator = { positions ->
                     positions.getOrNull(tab)?.let { pos ->
                         with(TabRowDefaults) {
@@ -156,7 +160,7 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                         modifier = Modifier.testTag("profile-tab-$key"))
                 }
             } else
-            TabRow(selectedTabIndex = tab, containerColor = Superficie, contentColor = Ink,
+            TabRow(selectedTabIndex = tab, containerColor = Pagina, contentColor = Ink,
                 indicator = { positions ->
                     positions.getOrNull(tab)?.let { pos ->
                         with(TabRowDefaults) {
@@ -210,6 +214,7 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                         HorizontalDivider(color = Muted.copy(alpha = .15f))
                         WindCardsSection(vm, lang, wind)
                     }
+                    "shelf" -> WindShelfSection(vm, lang, wind.id, onLeave = onDismiss)
                     "calaix" -> CalaixSection(lang, wind.name, shelves.orEmpty(), accent,
                         onAction = { shelf, action, key, item -> vm.calaixAction(wind.id, shelf, action, key, item) },
                         onSearchPlaces = { q -> vm.searchWeatherPlaces(q) })
@@ -286,7 +291,7 @@ private fun bgHealthRow(lang: String, vm: GregalViewModel) {
 @Composable
 private fun heartbeatRow(lang: String, vm: GregalViewModel, wind: Wind) {
     val jobs by vm.jobs.collectAsState()
-    val job = jobs.firstOrNull { it.id == "wind-" + wind.id }
+    val job = jobs.firstOrNull { it.isHeartbeatOf(wind.id) }
     var pending by remember(wind.id) { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {

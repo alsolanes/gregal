@@ -12,7 +12,7 @@ import (
 
 func TestEndpointURLKeepsAzureQuery(t *testing.T) {
 	cases := map[string]string{
-		"https://r.openai.azure.com/openai/v1/":                                            "https://r.openai.azure.com/openai/v1/chat/completions",
+		"https://r.openai.azure.com/openai/v1/":                                             "https://r.openai.azure.com/openai/v1/chat/completions",
 		"https://r.openai.azure.com/openai/deployments/gpt5?api-version=2025-04-01-preview": "https://r.openai.azure.com/openai/deployments/gpt5/chat/completions?api-version=2025-04-01-preview",
 		"https://api.openai.com/v1":                                                         "https://api.openai.com/v1/chat/completions",
 	}
@@ -91,6 +91,33 @@ func TestReasoningEffortUnsupportedValuePicksNearest(t *testing.T) {
 	}
 	if s := seen(); len(s) != 3 || s[2]["reasoning_effort"] != "high" {
 		t.Fatalf("the supported value is remembered (one request): %v", s)
+	}
+}
+
+// La correcció recordada val només per al valor que s'havia demanat: el
+// reintent d'un tall raonat demana none, el model el rebutja i es queda
+// amb minimal, però el rol que demana high ha de continuar enviant high.
+func TestReasoningEffortFixOnlyForTheRequestedValue(t *testing.T) {
+	srv, seen := fakeEffort(t, [2]string{"400", `{"error":{"message":"Unsupported value: 'reasoning_effort' does not support 'none' with this model. Supported values are: 'minimal', 'low', 'medium', and 'high'.","param":"reasoning_effort","code":"unsupported_value"}}`})
+	c := New()
+	msgs := []Message{{Role: "user", Content: "hola"}}
+	if _, err := c.Chat(WithThink(context.Background(), "none"), srv.URL, "", "gpt-5", msgs, 0, 64); err != nil {
+		t.Fatal(err)
+	}
+	if s := seen(); len(s) != 2 || s[1]["reasoning_effort"] != "minimal" {
+		t.Fatalf("expected a retry with 'minimal': %v", s)
+	}
+	if _, err := c.Chat(WithThink(context.Background(), "high"), srv.URL, "", "gpt-5", msgs, 0, 64); err != nil {
+		t.Fatal(err)
+	}
+	if s := seen(); len(s) != 3 || s[2]["reasoning_effort"] != "high" {
+		t.Fatalf("the role's 'high' must not inherit the fix for 'none': %v", s)
+	}
+	if _, err := c.Chat(WithThink(context.Background(), "none"), srv.URL, "", "gpt-5", msgs, 0, 64); err != nil {
+		t.Fatal(err)
+	}
+	if s := seen(); len(s) != 4 || s[3]["reasoning_effort"] != "minimal" {
+		t.Fatalf("the fix for 'none' is still remembered: %v", s)
 	}
 }
 

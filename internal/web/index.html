@@ -46,8 +46,8 @@
 /* GENERAT des d'internal/tema (go test ./internal/web -run TestCSSAlDia -update).
    No l'editis a mà: canvia la paleta a internal/tema/tema.go. */
 :root {
-  --bg:#131518; --sidebar:#0E1012; --panel:#0E1012;
-  --surface:#1A1D21; --surface-hi:#24282D; --line:rgba(207,214,224,.10);
+  --bg:#000000; --sidebar:#000000; --panel:#000000;
+  --surface:#121417; --surface-hi:#1C1F23; --line:rgba(207,214,224,.10);
   --line-hi:rgba(207,214,224,.20); --ink:#F2F4F7; --text:#DEE2E7;
   --muted:#A7AEB8; --faint:#9098A3; --accent:#8A9BF0;
   --accent-hi:#B0BCF7; --green:#86E3A6; --amber:#F2B48E;
@@ -55,7 +55,7 @@
   --lila-fons:#2A2645; --hover:rgba(255,255,255,.05); --hover-alt:rgba(255,255,255,.08);
   --raised:rgba(255,255,255,.02); --edge:rgba(255,255,255,.12); --accent-soft:rgba(242,244,247,.07);
   --accent-soft-hi:rgba(242,244,247,.12); --ok-soft:rgba(134,227,166,.12); --ombra:rgba(0,0,0,.45);
-  --amber-soft:rgba(242,180,142,.14); --red-soft:rgba(255,143,134,.12); --codi-fons:#0E1012;
+  --amber-soft:rgba(242,180,142,.14); --red-soft:rgba(255,143,134,.12); --codi-fons:#000000;
   --codi-vora:rgba(207,214,224,.20); --chart-1:#8A9BF0; --chart-2:#7FD6C2;
   --chart-3:#F2B48E; --chart-4:#C9B2FF; --chart-5:#86E3A6;
   --chart-6:#FF8F86;
@@ -548,10 +548,10 @@ body.doc-minimized #workbench { padding-right:0 !important; }
 .browser-progress { height:2px; margin:6px 10px 0; position:relative; overflow:hidden; border-radius:2px; }
 .browser-progress.loading::after { content:""; position:absolute; top:0; bottom:0; width:40%; background:linear-gradient(90deg,transparent,var(--accent),transparent); animation:browserLoad 1.1s ease-in-out infinite; }
 @keyframes browserLoad { from { left:-40%; } to { left:100%; } }
-.browser-shell { flex:1; min-height:300px; margin-top:6px; border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#fff; position:relative; }
-#browserView, #browserFrame { width:100%; height:100%; min-height:300px; border:0; display:block; background:#fff; }
+.browser-shell { flex:1; min-height:300px; margin-top:6px; border:1px solid var(--line); border-radius:12px; overflow:hidden; background:var(--bg); position:relative; }
+#browserView, #browserFrame { position:absolute; inset:0; width:100%; height:100%; border:0; display:block; background:#fff; }
 #browserFrame { display:none; }
-.browser-empty { position:absolute; inset:0; display:grid; place-items:center; color:var(--faint); background:var(--panel); padding:30px; text-align:center; }
+.browser-empty { position:absolute; inset:0; z-index:1; display:grid; place-items:center; color:var(--faint); background:var(--panel); padding:30px; text-align:center; }
 .doc-text h3 { font:600 14px/1.5 var(--sans, system-ui); color:var(--ink); margin:12px 0 4px; }
 .doc-text h3:first-child { margin-top:0; }
 .doc-text h4.doc-sec { font:600 11px/1.5 var(--mono); letter-spacing:.08em; text-transform:uppercase;
@@ -561,10 +561,14 @@ body.doc-minimized #workbench { padding-right:0 !important; }
 .doc-text table.doc-table { border-collapse:collapse; margin:4px 0 10px; font-size:var(--t2); }
 .doc-text table.doc-table td, .doc-text table.doc-table th { border:1px solid var(--line-hi); padding:3px 8px; text-align:left; }
 .doc-text table.doc-table tr:first-child td { color:var(--ink); font-weight:600; background:var(--accent-soft); }
-/* Render fidel docx (docx-preview): pàgines blanques sobre gris, fluid
+/* Render fidel docx (docx-preview): pàgines blanques sobre gris (fosques als temes foscos), fluid
    dins la subfinestra (ignoreWidth). */
 .doc-text .gregal-docx-wrapper { background:var(--surface-hi); padding:10px; }
 .doc-text .gregal-docx-wrapper > section.gregal-docx { box-shadow:0 2px 14px rgba(0,0,0,.4); margin-bottom:10px; }
+/* En un tema fosc la pàgina blanca enlluerna: els colors s'inverteixen (el
+   to es manté) i les imatges es tornen a invertir perquè quedin com són. */
+:root:not([data-theme="light"]):not([data-theme="gpt"]):not([data-theme="claude"]):not([data-theme="mistral"]):not([data-theme="gemini"]) .doc-text .gregal-docx-wrapper > section.gregal-docx { filter:invert(.9) hue-rotate(180deg); }
+:root:not([data-theme="light"]):not([data-theme="gpt"]):not([data-theme="claude"]):not([data-theme="mistral"]):not([data-theme="gemini"]) .doc-text .gregal-docx-wrapper > section.gregal-docx :is(img,svg) { filter:invert(1) hue-rotate(180deg); }
 .doc-text .chip.on { border-color:var(--accent); color:var(--ink); }
 /* Pestanyes de fulls: a baix i en fila, com a l'Excel. A dalt i com a
    píndoles semblaven filtres, i amb un llibre de vuit fulls t'ocupaven
@@ -639,6 +643,15 @@ body.product-bare #conversationNav, body.product-bare .side-quick, body.product-
 .act-face svg, .act-face > * { width:34px; height:34px; }
 .act-detail summary { cursor:pointer; color:var(--muted); font-size:12px; margin-top:4px; }
 .act-detail p { margin:4px 0 0; font-size:13px; white-space:pre-wrap; }
+/* Activitat dels vents (vents-activity.js, renderActivity). */
+.act-day h3 { margin:18px 0 2px; color:var(--muted); font-size:12px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; }
+.act-day:first-child h3 { margin-top:4px; }
+.act-head { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 8px; }
+.act-state { flex:none; font-size:11px; font-weight:500; line-height:1.5; padding:1px 8px; border-radius:999px; border:1px solid var(--line); color:var(--muted); }
+.act-state.is-done { color:var(--green); border-color:color-mix(in srgb,var(--green) 40%,transparent); }
+.act-state.is-failed { color:var(--amber); border-color:color-mix(in srgb,var(--amber) 40%,transparent); }
+.act-state.is-waiting { color:var(--accent-hi); border-color:color-mix(in srgb,var(--accent) 40%,transparent); }
+.act-more { display:flex; justify-content:center; padding:12px 0 4px; }
 .saved-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:10px; margin-top:6px; }
 .saved-card { border:1px solid var(--line); border-radius:14px; padding:12px; background:var(--raised); display:flex; flex-direction:column; gap:8px; min-width:0; }
 .saved-head { display:flex; gap:8px; align-items:flex-start; min-width:0; }
@@ -649,6 +662,10 @@ a.saved-title:hover { text-decoration:underline; }
 .saved-img { width:100%; max-height:220px; object-fit:cover; border-radius:10px; display:block; }
 .saved-chart { grid-column:1/-1; }
 .saved-card.saved-chart { grid-column:1/-1; }
+/* Prestatge d'un vent (vents-shelf.js): les targetes entren una darrere l'altra. */
+.shelf-card { animation:shelf-in .32s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes shelf-in { from { opacity:0; transform:translateY(6px) scale(.98); } }
+@media (prefers-reduced-motion:reduce) { .shelf-card { animation:none; } }
 .vw-saved { margin-top:8px; }
 .auto-line { color:var(--ink); margin:4px 0; }
 .auto-status { min-height:1.2em; color:var(--muted); font-size:13px; }
@@ -923,6 +940,13 @@ body:not(.working) .spin { animation:none; }
 .collective-error { color:var(--red); margin:0; font-size:13px; }
 .collective-prefs { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
 .collective-prefs input { width:130px; }
+/* Diàleg d'una línia de text (app/ask.js), en lloc de prompt(), que Electron no té. */
+.ask-dialog { border:1px solid var(--line-hi); border-radius:14px; background:var(--panel); color:inherit; padding:0; max-width:440px; width:calc(100% - 32px); }
+.ask-form { display:flex; flex-direction:column; gap:14px; padding:18px; }
+.ask-form label { display:flex; flex-direction:column; gap:8px; font-size:13.5px; line-height:1.4; }
+.ask-form input { padding:8px 10px; border-radius:10px; border:1px solid var(--line-hi); background:transparent; color:inherit; font:inherit; }
+.ask-actions { display:flex; justify-content:flex-end; gap:8px; }
+.ask-actions button[type=submit] { background:var(--accent); border-color:var(--accent); color:var(--on-accent, #fff); }
 .collective-toast { position:fixed; left:50%; top:72px; transform:translateX(-50%); background:var(--panel); border:1px solid var(--line-hi); padding:10px 16px; border-radius:12px; z-index:9999; max-width:min(560px, 90vw); box-shadow:0 8px 28px rgba(0,0,0,.28); font-size:13px; }
 .pf-check { position:relative; flex:0 0 auto; width:40px; height:22px; cursor:pointer; }
 .pf-check input { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; }
@@ -1627,7 +1651,7 @@ body.sense-inspector #inspector { display:none; }
 <body data-professional-shell="gregal-code-agent">
 <nav id="navRail" aria-label="Main navigation" data-i18n-aria="shell.navigation">
   <a class="rail-brand" href="#" aria-label="Gregal"><span class="brand-mark"><img src="/app/icon.png" width="30" height="30" alt="Gregal"></span></a>
-  <div class="rail-main"><button class="rail-item nav-item active side-view" data-view="agent" data-also="fitxers canvis terminal navegador knowledge memoria"><span class="nav-icon">›_</span><span data-i18n="shell.chat">Chat</span></button><button class="rail-item nav-item side-view" data-view="vents"><span class="nav-icon">◍</span><span data-i18n="nav.winds">Winds</span></button><button class="rail-item nav-item side-view" data-view="raco"><span class="nav-icon">✦</span><span data-i18n="nav.corner">Corner</span></button><button class="rail-item nav-item side-view" data-view="partits"><span class="nav-icon">🏈</span><span data-i18n="nav.games">Games</span></button><button class="rail-item nav-item side-view" data-view="arena"><span class="nav-icon">🏆</span><span data-i18n="nav.arena">Arena</span></button><button class="rail-item nav-item side-view" data-view="kanban" hidden><span class="nav-icon">▦</span><span data-i18n="kanban.nav">Kanban</span></button><button class="rail-item nav-item side-view" data-view="automatitzacions"><span class="nav-icon">◷</span><span data-i18n="nav.automations">Automations</span></button><button class="rail-item nav-item side-view" data-view="programat"><span class="nav-icon">◷</span><span data-i18n="ui.scheduled">Scheduled</span></button></div>
+  <div class="rail-main"><button class="rail-item nav-item active side-view" data-view="agent" data-also="fitxers canvis terminal navegador knowledge memoria"><span class="nav-icon">›_</span><span data-i18n="shell.chat">Chat</span></button><button class="rail-item nav-item side-view" data-view="vents"><span class="nav-icon">◍</span><span data-i18n="nav.winds">Winds</span></button><button class="rail-item nav-item side-view" data-view="raco"><span class="nav-icon">✦</span><span data-i18n="nav.corner">Corner</span></button><button class="rail-item nav-item side-view" data-view="partits"><span class="nav-icon">🏈</span><span data-i18n="nav.games">Games</span></button><button class="rail-item nav-item side-view" data-view="arena"><span class="nav-icon">🏆</span><span data-i18n="nav.arena">Arena</span></button><button class="rail-item nav-item side-view" data-view="kanban" hidden><span class="nav-icon">▦</span><span data-i18n="kanban.nav">Kanban</span></button><button class="rail-item nav-item side-view" data-view="automatitzacions"><span class="nav-icon">◷</span><span data-i18n="nav.automations">Automations</span></button><button class="rail-item nav-item side-view" data-view="programat"><span class="nav-icon">◷</span><span data-i18n="ui.scheduled">Scheduled</span></button><button class="rail-item nav-item" id="docsHomeBtn" type="button"><span class="nav-icon">¶</span><span>Gregal Docs</span></button></div>
   <details id="sideMore" class="rail-more"><summary title="More" aria-label="More" data-i18n-title="nav.more" data-i18n-aria="nav.more">⋯</summary><div class="rail-more-menu side-main"><button class="nav-item side-view" data-view="knowledge"><span class="nav-icon">▥</span><span data-i18n="nav.knowledge">Knowledge</span></button>
       <button class="nav-item side-view" data-view="memoria"><span class="nav-icon"></span><span data-i18n="nav.memory">Project memory</span></button>
       <button class="nav-item side-view" data-view="publicacions"><span class="nav-icon"></span><span data-i18n="nav.publications">Sharing</span></button>
@@ -1751,89 +1775,6 @@ body.sense-inspector #inspector { display:none; }
         <script defer src="/app/wind-i18n.js"></script>
         <script defer src="/app/wind-desk.js"></script>
         <script defer src="/app/winds.js"></script>
-        <div class="page-inner winds-page">
-          <header class="winds-heading">
-            <div><div class="page-kicker" data-i18n="winds.aSmallCrewByYourSide">Uns quants vents, al teu costat</div><h1 class="page-title" data-i18n="winds.makeRoomForYourIdeas">Fem lloc a les teves idees.</h1><p class="page-copy" data-i18n="winds.youSetTheCourseYourWindsHelpYou">Tu poses el rumb. Els teus vents t’ajuden a fer camí.</p></div>
-            <svg class="winds-heading-art" viewBox="0 0 180 110" fill="none" aria-hidden="true"><path d="M8 48h104c36 0 36-35 12-35-19 0-22 21-9 24M25 65h114c31 0 31 31 10 31-16 0-20-17-9-23M46 82H13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="m38 13 3 9 9 3-9 3-3 9-3-9-9-3 9-3Z" fill="currentColor"/><circle cx="166" cy="45" r="3" fill="currentColor"/></svg>
-            <div class="winds-new-wrap">
-              <button type="button" class="ghost wind-work-jump" id="windWorkJump" hidden aria-label="Encàrrec actual" data-i18n-aria="winds.currentTask"><span class="wind-jump-dot" aria-hidden="true"></span><span data-i18n="winds.currentTask">Encàrrec actual</span> ↓</button>
-              <button class="ghost winds-primary" type="button" id="windNewBtn" aria-expanded="false" aria-controls="windsNewMenu" data-i18n="winds.new">＋ Nou</button>
-              <div id="windsNewMenu" class="winds-new-menu" hidden>
-                <button type="button" id="windsCreateWind"><span data-i18n="winds.createAWind">Crea un vent</span><span data-i18n="winds.aFaceAndVoiceOfTheirOwn">Una cara i una veu pròpies</span></button>
-                <button type="button" id="windsCreateChat"><span data-i18n="winds.newConversation">Nova conversa</span><span data-i18n="winds.withOneWindOrAGroup">Amb un vent o amb uns quants</span></button>
-              </div>
-            </div>
-          </header>
-          <div id="windsStatus" class="winds-status" role="status" aria-live="polite"></div>
-          <section class="wind-desk" aria-label="Espai de treball dels vents" data-i18n-aria="winds.windsWorkspace">
-            <div class="wind-desk-workspace">
-              <form id="windWorkForm" class="wind-work-form">
-                <div class="page-kicker" data-i18n="winds.aTaskToMoveThingsForward">Un encàrrec per avançar</div>
-                <h2 data-i18n="winds.whatWouldYouLikeUsToDo">Què t’agradaria que féssim?</h2>
-                <label class="winds-sr-only" for="windWorkTask" data-i18n="winds.whatWouldYouLikeToAchieve">Què vols aconseguir?</label>
-                <textarea id="windWorkTask" rows="3" required placeholder="Una web, una cerca amb fonts, aquell canvi de codi que tens pendent…" data-i18n-ph="winds.aWebsiteResearchWithSourcesThatCodeChange"></textarea>
-                <div class="wind-work-examples" id="windWorkExamples"></div>
-                <div class="wind-work-actions"><details class="wind-work-settings"><summary data-i18n="winds.taskOptions">Opcions de l’encàrrec</summary><div class="wind-work-options">
-                  <label><span data-i18n="winds.typeOfWork">Tipus de feina</span><select id="windWorkKind"><option value="auto" data-i18n="winds.automatic">Automàtic</option><option value="build" data-i18n="winds.createOrModify">Crear o modificar</option><option value="research" data-i18n="winds.researchReadOnly">Investigar · només lectura</option></select></label>
-                  <label><span data-i18n="winds.takingCareOfIt">Se n’encarrega</span><select id="windWorkOwner"></select></label>
-                  <label><span data-i18n="winds.aSecondPairOfEyes">Una segona mirada</span><select id="windWorkReviewer"></select></label>
-                  <label class="wind-tools-option"><input type="checkbox" id="windWorkTools" checked> <span data-i18n="winds.withProjectTools">Amb eines del projecte</span></label>
-                </div></details><div class="wind-submit-group"><button type="button" class="ghost" id="windWorkAttach" title="PDF, Word, Excel, PowerPoint" data-i18n="winds.attachDocument">📎 Adjunta un document</button><input type="file" id="windWorkDoc" accept=".pdf,.docx,.xlsx,.pptx,application/pdf" multiple hidden><span class="wind-shortcut" data-i18n="winds.startShortcut">Ctrl/⌘ + Retorn</span><button type="submit" class="ghost winds-primary" id="windWorkStart" data-i18n="winds.letSGo" aria-keyshortcuts="Control+Enter Meta+Enter">Som-hi ↗</button></div></div>
-                <p id="windWorkContext" class="winds-composer-hint" data-i18n="winds.readyToHelp">Explica què vols. Els vents es reparteixen la feina i treballen al projecte obert.</p>
-                <p id="windWorkStatus" class="winds-status" role="status" aria-live="polite"></p>
-              </form>
-              <details class="wind-routines"><summary data-i18n="winds.keepTheLittleThingsOnTrack">Les petites coses, al dia</summary><p data-i18n="winds.scheduleRecurringResearchAndSummariesCheckTheirHistory">Programa cerques i resums recurrents. Consulta’n l’historial i reprèn el fil quan vulguis.</p><button type="button" id="windRoutineStart" class="ghost" data-i18n="winds.setUpARoutine">Prepara una rutina ↗</button><p class="winds-composer-hint" data-i18n="winds.routinesCurrentlySupportReadingAndResearchTheService">Les rutines actuals són de lectura i cerca. El servei ha d’estar actiu perquè s’executin.</p></details>
-            </div>
-            <div id="windDeskRoster" class="wind-desk-roster"></div>
-            <section id="windWorkProgress" class="wind-work-progress" hidden aria-label="Encàrrec actual" data-i18n-aria="winds.currentTask">
-              <header><div><div class="page-kicker" data-i18n="winds.gettingToWork">Ens hi posem</div><h2 id="windWorkTitle" tabindex="-1"></h2></div><button type="button" class="ghost" id="windWorkStop" data-i18n="winds.stop">Atura</button></header>
-              <p id="windWorkSummary" role="status" aria-live="polite"></p>
-              <div id="windsWorkApprovals" aria-live="assertive"></div>
-              <div id="windWorkSteps" class="wind-work-steps"></div>
-              <details class="wind-work-log"><summary data-i18n="winds.followTheWork">El fil de la feina</summary><ol id="windWorkEvents"></ol></details>
-            </section>
-          </section>
-          <div class="winds-conversation-heading"><div><div class="page-kicker" data-i18n="winds.thereSTimeToTalkToo">També hi ha temps per parlar</div><h2 data-i18n="winds.yourCornerWithTheWinds">El teu racó amb els vents</h2></div><p class="winds-muted" data-i18n="winds.conversationsMemoriesAndGroups">Converses, records i rotllanes.</p></div>
-          <div class="winds-layout">
-            <aside class="winds-sidebar" id="windsListCard" aria-label="Vents i converses" data-i18n-aria="winds.windsAndConversations">
-              <h2 data-i18n="winds.yourWinds">Els teus vents</h2><div id="windsList" class="winds-list"></div>
-              <h2 data-i18n="winds.conversations">Converses</h2><div id="windsConversations" class="winds-list"></div>
-              <button type="button" class="ghost winds-refresh" id="windsRefresh" data-i18n="winds.refreshTheList">Actualitza la llista</button>
-            </aside>
-            <div class="winds-main">
-              <div id="windsWelcome" class="winds-welcome"><span class="winds-mark" aria-hidden="true">≋</span><h2 data-i18n="winds.weReHere">Som aquí.</h2><p data-i18n="winds.chooseAWindToThinkOutLoudPick">Tria un vent per pensar en veu alta, reprendre una conversa o compartir una idea abans de posar fil a l’agulla.</p></div>
-              <article class="winds-chat" id="windChatCard" hidden>
-                <header class="winds-chat-heading"><div id="windChatFaces" class="winds-face-stack" aria-hidden="true"></div><div><h2 id="windChatTitle"></h2><p id="windChatSubtitle" class="winds-muted"></p></div></header>
-                <div id="windsChatMembers" class="winds-members" aria-label="Perfils dels participants" data-i18n-aria="winds.participantProfiles"></div>
-                <div id="windChatHistory" class="winds-history" role="log" aria-label="Missatges" data-i18n-aria="winds.messages" aria-live="polite" tabindex="0"></div>
-                <div id="windsChatStatus" class="winds-status" role="status" aria-live="polite"></div>
-                <form id="windsChatForm" class="winds-composer">
-                  <label class="winds-sr-only" for="windChatInput" data-i18n="winds.messageYourWinds">Missatge als vents</label>
-                  <textarea id="windChatInput" rows="2" placeholder="Què tens al cap?" data-i18n-ph="winds.whatSOnYourMind" required></textarea>
-                  <button class="ghost winds-primary" type="submit" id="windChatSend" data-i18n="winds.send">Envia</button>
-                </form>
-                <p class="winds-composer-hint" data-i18n="winds.enterToSendShiftEnterForANew">Retorn per enviar · Majúscules + Retorn per fer un salt de línia</p>
-              </article>
-              <aside id="windsProfile" class="winds-profile" aria-label="Perfil del vent" data-i18n-aria="winds.windProfile" hidden></aside>
-            </div>
-          </div>
-          <dialog id="windsDialog" class="winds-dialog" aria-labelledby="windsDialogTitle"><div id="windsDialogBody"></div></dialog>
-          <dialog id="windRoutineDialog" class="winds-dialog" aria-labelledby="windRoutineTitle">
-            <form id="windRoutineForm" class="winds-form">
-              <h2 id="windRoutineTitle" data-i18n="winds.setUpARoutine">Prepara una rutina</h2>
-              <div class="winds-form-fields">
-                <label><span data-i18n="jobs.name">Task name</span><input id="windRoutineName" required maxlength="120"></label>
-                <label><span data-i18n="jobs.frequency">Frequency</span><select id="windRoutineKind"><option value="daily" data-i18n="jobs.daily">Daily</option><option value="interval" data-i18n="jobs.interval">Interval</option></select></label>
-                <label id="windRoutineTimeField"><span data-i18n="jobs.time">Time (HH:MM)</span><input id="windRoutineTime" type="time" value="09:00"></label>
-                <label id="windRoutineIntervalField" hidden><span data-i18n="jobs.intervalHours">Interval in hours</span><input id="windRoutineInterval" type="number" min="0.1" step="0.1" value="24"></label>
-                <label><span data-i18n="jobs.prompt">What should Gregal do?</span><textarea id="windRoutinePrompt" rows="4" required></textarea></label>
-                <label><input id="windRoutineNotify" type="checkbox"><span data-i18n="jobs.notify">Notify</span></label>
-              </div>
-              <p id="windRoutineStatus" class="winds-status" role="status" aria-live="polite"></p>
-              <div class="winds-dialog-actions"><button type="button" class="ghost" id="windRoutineCancel" data-i18n="ws.cancella">Cancel</button><button type="submit" class="ghost winds-primary" data-i18n="jobs.save">Save task</button></div>
-            </form>
-          </dialog>
-        </div>
       </section>
       <section class="workspace-page" id="racoPage" hidden></section>
       <section class="workspace-page" id="partitsPage" hidden></section>
@@ -1992,7 +1933,14 @@ body.sense-inspector #inspector { display:none; }
       </section>
       <section class="workspace-page" id="terminalPage" hidden>
         <div class="page-inner">
-          <div class="shell-term-wrap">
+          <div class="shell-term-wrap" id="shellTermWrap" data-state="connecting">
+            <div class="shell-term-head">
+              <span class="shell-term-dot" aria-hidden="true"></span>
+              <span class="shell-term-title" data-i18n="nav.terminal">Terminal</span>
+              <span class="shell-term-cwd" id="shellTermCwd"></span>
+              <button type="button" class="icon-btn" id="shellCopy" data-i18n-title="shellTerm.copy" data-i18n-aria="shellTerm.copy" title="Copy the output" aria-label="Copy the output"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 9h11v11H9z M5 15H4V4h11v1"/></svg><svg class="ui-icon shell-term-ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
+              <button type="button" class="icon-btn" id="shellClear" data-i18n-title="shellTerm.clear" data-i18n-aria="shellTerm.clear" title="Clear the screen" aria-label="Clear the screen"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16 M7.5 16.5l-3-3L14 4l6 6-6.5 6.5z M9.5 8.5l6 6"/></svg></button>
+            </div>
             <div id="shellTerm" class="kb-term shell-term" aria-label="Terminal" data-i18n-aria="nav.terminal"><div id="shellHist"></div><div id="shellScreen"></div></div>
             <textarea id="shellInput" class="kb-input" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Terminal input" data-i18n-aria="shellTerm.input"></textarea>
             <p id="shellTermState" class="shell-term-state" role="status" hidden></p>
@@ -2204,19 +2152,25 @@ body.sense-inspector #inspector { display:none; }
 <script defer src="/app/think-level.js"></script>
 <script defer src="/app/winds-choices.js"></script>
 <script defer src="/app/share-msg.js"></script>
+<script defer src="/app/characters.js"></script>
 <script defer src="/app/winds-workspace.js"></script>
 <script defer src="/app/winds-shared.js"></script>
 <script defer src="/app/winds-notes.js"></script>
 <script defer src="/app/notes-quick.js"></script>
 <script type="module" src="/app/profile-sync.js"></script>
 <script type="module" src="/app/preview.js"></script>
+<script defer src="/app/vendor/prosemirror.min.js"></script>
 <script defer src="/app/doc-view.js"></script>
+<script defer src="/app/deck-view.js"></script>
+<script defer src="/app/sheet-view.js"></script>
+<script defer src="/app/doc-home.js"></script>
 <script type="module" src="/app/docs-panel.js"></script>
 <script type="module" src="/app/agent-browser.js"></script>
 <script type="module" src="/app/corner.js"></script>
 <!--product:modules-->
 <script type="module" src="/app/kanban.js"></script>
 <script type="module" src="/app/backlog.js"></script>
+<script src="/app/ask.js"></script>
 <script src="/app/mode-cycle.js"></script>
 <script src="/app/desktop-prefs.js"></script>
 <script src="/app/md.js"></script>
@@ -2224,6 +2178,7 @@ body.sense-inspector #inspector { display:none; }
 <script src="/app/shell-icons.js"></script>
 <script defer src="/app/palette.js"></script>
 <script src="/app/tool-summary.js"></script>
+<script src="/app/model-progress.js"></script>
 <script src="/app/msg-imgs.js"></script>
 <script src="/app/prompt-nav.js"></script>
 <script src="/app/connectors.js"></script>
@@ -2770,7 +2725,6 @@ function paintThinkTail(text) {
   el.textContent = '…' + text.trim();
   body.appendChild(el); // sempre l'últim, per sota de les eines ja fetes
 }
-function fmtChars(n) { n = +n || 0; return n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(n); }
 function endWorkGroup(o = {}) {
   paintThinkTail('');
   const g = turnGroup;
@@ -4242,11 +4196,9 @@ async function doAgent(task, resumed) {
         const since = Date.parse(d.since || '') || Date.now();
         const same = k => turnActivity && turnActivity.key === k ? 0 : since;
         if (d.phase === 'model') {
-          if (d.state !== 'receiving') setActivity('model', gregalT('act.now.model'), same('model'));
-          else if (+d.tool > 0) setActivity('model-tool', gregalT('act.now.toolcall'), same('model-tool'));
-          else if (+d.text > 0) setActivity('writing', gregalT('act.now.writing'), same('writing'));
-          else setActivity('thinking', gregalT('act.now.thinking') + (+d.reasoning > 0 ? ' · ' + fmtChars(d.reasoning) : ''), same('thinking'));
-          paintThinkTail(d.tail || '');
+          const p = window.gregalModelProgress.modelProgress(d, gregalT);
+          setActivity(p.key, p.text, same(p.key));
+          paintThinkTail(p.tail);
         } else if (d.phase === 'tools') {
           paintThinkTail('');
           // tool_call ja ha posat una descripció millor («Write notes/a.md»).
@@ -5040,7 +4992,9 @@ refresh();
 </script>
 <script type="module" src="/app/plots.js"></script>
 <script type="module" src="/app/vents-automations.js"></script>
+<script type="module" src="/app/vents-shelf.js"></script>
 <script type="module" src="/app/vents-responsabilitats.js"></script>
+<script type="module" src="/app/vents-avui-glance.js"></script>
 <!--product:end-->
 <script type="module" src="/app/gitflow.js"></script>
 <div id="retroMount"></div>

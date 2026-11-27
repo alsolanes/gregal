@@ -105,6 +105,29 @@ func TestAutomationDeleteOnlyOwn(t *testing.T) {
 	}
 }
 
+// Amb comptes, un cor sense amo no és de ningú; el que porta amo només
+// el veu el seu compte.
+func TestAutomationsOnlyOwnHeartbeatWithAccounts(t *testing.T) {
+	rig := sharedTestRig(t)
+	sameWindTwoAccounts(t, rig)
+	seedLegacyHeart(t, rig.aleix, rig.mestral.ID)
+	for name, s := range map[string]*Server{"aleix": rig.aleix, "carla": rig.carla} {
+		if items, _ := automationsGet(t, s, ""); len(items) != 0 {
+			t.Fatalf("%s veu un cor sense amo: %+v", name, items)
+		}
+	}
+	if _, err := rig.aleix.jobs.Save(jobs.Job{ID: WindJobID(rig.mestral.ID), Name: "Cor", Prompt: "vigila", Kind: "event",
+		Enabled: true, Wind: rig.mestral.ID, WindOwner: "aleix"}); err != nil {
+		t.Fatal(err)
+	}
+	if items, _ := automationsGet(t, rig.aleix, ""); len(items) != 1 {
+		t.Fatalf("l'Aleix no veu el seu cor: %+v", items)
+	}
+	if items, _ := automationsGet(t, rig.carla, ""); len(items) != 0 {
+		t.Fatalf("la Carla veu el cor de l'Aleix: %+v", items)
+	}
+}
+
 // Seguiments: el vent els pot oferir pel seu compte, però amb mesura; i si
 // l'usuari els apaga per a aquest vent, l'eina els refusa.
 func TestFollowupGuards(t *testing.T) {

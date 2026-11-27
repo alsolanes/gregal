@@ -24,6 +24,31 @@ class TempestaTest {
         assertTrue(TempestaAgent.listOf("no és json").isEmpty())
     }
 
+    @Test fun cadaAgentPortaLaDescripcioEnLaLlenguaDeLApp() {
+        val data = """{"agents":[{"index":0,"angle":"direct","ca":"Directe","en":"Direct","desc_ca":"Respon pas a pas.","desc_en":"Answers step by step.","model":"m","state":"working"}]}"""
+        val a = TempestaAgent.listOf(data).single()
+        assertEquals("Respon pas a pas.", a.desc("ca"))
+        assertEquals("Answers step by step.", a.desc("en"))
+    }
+
+    @Test fun unServidorVellSenseDescripcioSegueixFuncionant() {
+        val data = """{"agents":[{"index":0,"angle":"direct","ca":"Directe","en":"Direct","model":"m","state":"done"}]}"""
+        val a = TempestaAgent.listOf(data).single()
+        assertEquals("Directe", a.label("ca"))
+        assertEquals("done", a.state)
+        assertEquals("", a.desc("ca"))
+        assertEquals("", a.desc("en"))
+    }
+
+    @Test fun elsModelsDAFonsEsLlegeixenIEsDesen() {
+        val m = TempestaModels.parse("""{"models":{"direct":"zen/deepseek-v4.1-flash","sources":"","skeptic":"glm/glm-5.3-flash"}}""")
+        assertEquals(mapOf("direct" to "zen/deepseek-v4.1-flash", "sources" to "", "skeptic" to "glm/glm-5.3-flash", "synth" to ""), m)
+        val p = org.json.JSONObject(TempestaModels.payload("skeptic", ""))
+        assertEquals("skeptic", p.getString("slot"))
+        assertEquals("", p.getString("model"))
+        assertEquals("zen/x", org.json.JSONObject(TempestaModels.payload("synth", "zen/x")).getString("model"))
+    }
+
     @Test fun laPeticioPortaElFlagNomesSiCal() {
         assertTrue(WindRequests.chat("gregal", "hola", tempesta = true).contains("\"tempesta\":true"))
         assertFalse(WindRequests.chat("gregal", "hola").contains("tempesta"))

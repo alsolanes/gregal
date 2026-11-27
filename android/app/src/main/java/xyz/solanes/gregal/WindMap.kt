@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.PaintingStyle
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
@@ -75,13 +76,13 @@ internal fun mapStep(st: MapState, busy: Boolean): MapState {
 }
 
 /** The picture the face shows: each step fades it towards [base] and adds its streaks, as `mapPaint`. */
-private class MapPicture(wind: WindStyle, val px: Int, base: Color, ink: Color) {
+internal class MapPicture(wind: WindStyle, val px: Int, accent: Color) {
     val image = ImageBitmap(px, px)
     private val canvas = androidx.compose.ui.graphics.Canvas(image)
     private var st = mapStart(wind)
-    private val fade = Paint().apply { color = base }
+    private val fade = Paint().apply { color = lerp(accent, Color(0xFF0C0A13), .4f) }
     private val streak = Paint().apply {
-        color = ink; style = PaintingStyle.Stroke; strokeCap = StrokeCap.Round; blendMode = BlendMode.Plus
+        color = lerp(accent, Color.White, .55f); style = PaintingStyle.Stroke; strokeCap = StrokeCap.Round; blendMode = BlendMode.Plus
         strokeWidth = max(1.2f, px / (if (px < 60) 28f else 70f))
     }
 
@@ -105,21 +106,19 @@ private class MapPicture(wind: WindStyle, val px: Int, base: Color, ink: Color) 
 }
 
 /**
- * The map moves, one step a frame, while [motion] allows it or the wind works
- * (faster then, because that is the work); otherwise it is the still frame.
+ * The map moves, one step a frame, while [motion] allows it (faster while the
+ * wind works); otherwise it is the still frame, working or not.
  * Only a composed face steps, so a list scrolled away costs nothing.
  */
 @Composable
 internal fun MapFace(size: Int, mood: WindMood, accent: Color, style: WindStyle, motion: Boolean, modifier: Modifier) {
     val busy = mood in windWorkMoods
     val px = max(48, with(LocalDensity.current) { size.dp.roundToPx() })
-    val picture = remember(style.windId, style.bearing, accent, px) {
-        MapPicture(style, px, lerp(accent, Color(0xFF0C0A13), .4f), lerp(accent, Color.White, .55f))
-    }
+    val picture = remember(style.windId, style.bearing, accent, px) { MapPicture(style, px, accent) }
     val tone = remember(accent) { lerp(accent, Color(0xFF1B1530), .8f) }
     // Seconds on the 12 s badge loop; reading it in the Canvas redraws each frame.
     var clock by remember { mutableFloatStateOf(0f) }
-    if (motion || busy) LaunchedEffect(picture, busy) {
+    if (motion) LaunchedEffect(picture, busy) {
         val start = withFrameNanos { it } - (clock * 1e9f).toLong()
         while (true) withFrameNanos { now ->
             picture.paint(busy)
@@ -127,17 +126,23 @@ internal fun MapFace(size: Int, mood: WindMood, accent: Color, style: WindStyle,
         }
     }
     Canvas(modifier.size(size.dp)) {
-        val t = clock
+        with(MapFigure) { draw(clock, motion, mood, picture.image, tone) }
+    }
+}
+
+/** The map at one instant [t]: the live face and the still avatar of a notification draw it the same way. */
+internal object MapFigure {
+    fun DrawScope.draw(t: Float, motion: Boolean, mood: WindMood, image: ImageBitmap, tone: Color) {
         val k = min(this.size.width, this.size.height)
         val unit = k / 80f
         clipPath(Path().apply { addOval(androidx.compose.ui.geometry.Rect(0f, 0f, k, k)) }) {
-            drawImage(picture.image, dstSize = IntSize(k.toInt(), k.toInt()))
+            drawImage(image, dstSize = IntSize(k.toInt(), k.toInt()))
         }
         withTransform({ scale(unit, unit, Offset.Zero) }) {
             drawCircle(Brush.radialGradient(0f to Color.White.copy(alpha = .22f), 1f to Color.White.copy(alpha = 0f),
                 center = Offset(25.6f, 20.8f), radius = 36.8f), 40f, Offset(40f, 40f))
             drawCircle(Color.White.copy(alpha = .08f), 39.5f, Offset(40f, 40f), style = Stroke(1f))
-            drawBadge(mood, t, motion || busy, 1f, tone)
+            drawBadge(mood, t, motion, 1f, tone)
         }
     }
 }

@@ -60,8 +60,25 @@ func argsComplets(raw string) bool {
 
 const promptContinua = "Your previous reply was cut off by the output token limit. Continue exactly where you stopped: do not repeat anything you already wrote and do not add any preamble."
 
-func promptCridaTallada(tool string) string {
-	return fmt.Sprintf("Your previous reply hit the output token limit while you were writing a call to the tool `%s`. The call was cut off and was NOT executed; no tool call from that reply was executed. Do not repeat the text you already wrote. Issue the tool call again, and if its arguments are large (for example a long file), split the work into several smaller calls (e.g. write a first part, then add the rest with further edits or appends) so each call fits in the output limit.", tool)
+func promptCridaTallada(tool string, raonat bool) string {
+	p := fmt.Sprintf("Your previous reply hit the output token limit while you were writing a call to the tool `%s`. The call was cut off and was NOT executed; no tool call from that reply was executed. Do not repeat the text you already wrote. Issue the tool call again, and if its arguments are large (for example a long file), split the work into several smaller calls so each call fits in the output limit: write the first part with `write`, then the rest with `write` and `append: true`, each call under ~8,000 tokens.", tool)
+	if raonat {
+		p += " Most of that output went into your thinking: do not draft the file (or any large argument) in your thinking. Write the first part now with `write` and continue with `append: true`."
+	}
+	return p
+}
+
+const promptRaonamentTallat = "Your previous reply hit the output token limit while you were still thinking: nothing was written and no tool call was made. Do not draft the file (or any large argument) in your thinking. Act now: if you need to write a large file, write the first part now with `write`, then the rest with `write` and `append: true`, each call under ~8,000 tokens."
+
+// raonatSobretot diu si el tall s'ha menjat el pressupost pensant: el
+// pensament passa de tot el que ha arribat de text i arguments. És el cas
+// del model que redacta el fitxer sencer dins del raonament.
+func (e *LengthError) raonatSobretot() bool {
+	sortida := len([]rune(e.Text))
+	for _, c := range e.Calls {
+		sortida += len([]rune(c.Function.Arguments))
+	}
+	return e.Reasoned > sortida
 }
 
 // continuaTallat embolcalla una crida al model perquè una resposta tallada
@@ -79,88 +96,177 @@ func promptCridaTallada(tool string) string {
 // onToken rep el text dels trossos que la crida no havia ensenyat (mode
 // recuperació o resposta no-streaming) perquè la pantalla i el retorn
 // coincideixin. Cada pas s'avisa pel RetryHook amb un *TruncationNotice.
-func continuaTallat(ctx context.Context, msgs []Message, maxTokens int, onToken func(string), do func(msgs []Message, budget int) (string, []ToolCall, error)) (string, []ToolCall, error) {
-	do = reintentaBuida(ctx, do)
+//
+// eines diu si la crida porta eines: només llavors un tall que és tot
+// pensament (cap text, cap crida) es continua amb la consigna d'escriure
+// ja i per parts. Sense eines, aquest tall puja tal qual com a error.
+//
+// Un tall que se l'ha menjat el pensament es reintenta amb un graó menys
+// de raonament (menysRaonament): el do rep el context de cada intent.
+func continuaTallat(ctx context.Context, msgs []Message, maxTokens int, eines bool, onToken func(string), do cridaModel) (string, []ToolCall, error) {
+	do = reintentaBuida(do)
 	var acc strings.Builder
-	cur, budget := msgs, maxTokens
+	cur, budget, dctx := msgs, maxTokens, ctx
 	emet := func(s string) {
 		if s != "" && onToken != nil {
 			onToken(s)
 		}
 	}
 	for n := 0; ; n++ {
-		text, calls, err := do(cur, budget)
+		text, calls, err := do(dctx, cur, budget)
 		if err == nil {
 			acc.WriteString(text)
 			return acc.String(), calls, nil
 		}
-		le, ok := AsLengthError(err)
-		if !ok || !le.teSortida() {
-			if acc.Len() == 0 {
-				// Primer intent: el que digui la crida, tal qual (algunes
-				// vies tornen text útil al costat de l'error).
-				return text, calls, err
-			}
-			if ctx.Err() != nil {
-				return acc.String(), nil, err
-			}
-			// Una continuació ha fallat però ja hi ha feina: es lliura
-			// amb el motiu, no es llença.
-			nota := fmt.Sprintf("\n\n[resposta incompleta: la continuació ha fallat (%v)]", err)
-			emet(nota)
-			acc.WriteString(nota)
-			return acc.String(), nil, nil
+		le := tallContinuable(err, eines)
+		if le == nil {
+			return lliuraFallada(ctx, acc.String(), text, calls, err, emet)
 		}
 		if !le.Partial {
 			emet(le.Text)
 		}
 		acc.WriteString(le.Text)
-		trencada := ""
-		for _, c := range le.Calls {
-			if !argsComplets(c.Function.Arguments) {
-				trencada = c.Function.Name
-				if trencada == "" {
-					trencada = "(sense nom)"
-				}
-				break
-			}
-		}
+		trencada := cridaTrencada(le)
 		if len(le.Calls) > 0 && trencada == "" {
 			// Tallat just després de crides senceres: són executables.
 			return acc.String(), le.Calls, nil
 		}
-		hook := retryHookFrom(ctx)
 		if n >= MaxContinuacions || ctx.Err() != nil {
-			if ctx.Err() != nil {
-				return acc.String(), nil, ctx.Err()
-			}
-			if hook != nil {
-				hook(n, MaxContinuacions, 0, &TruncationNotice{N: n, Max: MaxContinuacions, Exhausted: true})
-			}
-			nota := fmt.Sprintf("\n\n[resposta tallada: s'ha arribat al límit de sortida (max_tokens %d) després de %d continuacions]", budget, n)
-			if trencada != "" {
-				nota = fmt.Sprintf("\n\n[resposta tallada: la crida a %s ha quedat incompleta per max_tokens i no s'ha executat]", trencada)
-			}
-			emet(nota)
-			acc.WriteString(nota)
-			return acc.String(), nil, nil
+			return alSostre(ctx, acc.String(), err, n, budget, trencada, emet)
 		}
-		prompt := promptContinua
-		if trencada != "" {
-			prompt = promptCridaTallada(trencada)
-			if d := dobla(budget); d > budget {
-				budget = d
-			}
+		var prompt string
+		prompt, budget = reintent(le, trencada, budget)
+		if le.raonatSobretot() {
+			dctx = menysRaonament(ctx)
 		}
-		if hook != nil {
+		if hook := retryHookFrom(ctx); hook != nil {
 			hook(n+1, MaxContinuacions, 0, &TruncationNotice{N: n + 1, Max: MaxContinuacions, Tool: trencada, Budget: budget})
 		}
-		cur = append([]Message(nil), msgs...)
-		if s := acc.String(); strings.TrimSpace(s) != "" {
-			cur = append(cur, Message{Role: "assistant", Content: s})
-		}
-		cur = append(cur, Message{Role: "user", Content: prompt})
+		cur = conversaReintent(msgs, acc.String(), prompt)
 	}
+}
+
+// cridaModel és una crida al model amb el context, la conversa i el
+// pressupost de l'intent.
+type cridaModel func(ctx context.Context, msgs []Message, budget int) (string, []ToolCall, error)
+
+// nomesRaonat diu si el tall és tot pensament: ni text ni crida.
+func (e *LengthError) nomesRaonat() bool {
+	return e.Reasoned > 0 && !e.teSortida()
+}
+
+// tallContinuable torna el tall si continuaTallat el pot continuar (porta
+// text o crides, o, amb eines, és tot pensament), o nil si no.
+func tallContinuable(err error, eines bool) *LengthError {
+	le, ok := AsLengthError(err)
+	if ok && (le.teSortida() || eines && le.nomesRaonat()) {
+		return le
+	}
+	return nil
+}
+
+// conversaReintent és la conversa original, el que ja s'ha escrit com a
+// missatge de l'assistent (si n'hi ha) i la consigna del reintent.
+func conversaReintent(msgs []Message, acc, prompt string) []Message {
+	cur := append([]Message(nil), msgs...)
+	if strings.TrimSpace(acc) != "" {
+		cur = append(cur, Message{Role: "assistant", Content: acc})
+	}
+	return append(cur, Message{Role: "user", Content: prompt})
+}
+
+// cridaTrencada torna el nom de la primera crida del tall que no es pot
+// executar, o "" si totes són senceres.
+func cridaTrencada(le *LengthError) string {
+	for _, c := range le.Calls {
+		if le.Exhaurit || !argsComplets(c.Function.Arguments) {
+			if c.Function.Name == "" {
+				return "(sense nom)"
+			}
+			return c.Function.Name
+		}
+	}
+	return ""
+}
+
+// reintent tria la consigna i el pressupost del torn que segueix un tall:
+// continuar el text tal qual, o, si s'ha perdut una crida (o tot ha estat
+// pensament), tornar-la a demanar per parts amb el doble de pressupost.
+func reintent(le *LengthError, trencada string, budget int) (string, int) {
+	prompt := promptContinua
+	switch {
+	case trencada != "":
+		prompt = promptCridaTallada(trencada, le.raonatSobretot())
+	case le.nomesRaonat():
+		prompt = promptRaonamentTallat
+	default:
+		return prompt, budget
+	}
+	if d := dobla(budget); d > budget {
+		budget = d
+	}
+	return prompt, budget
+}
+
+// menysRaonament baixa un graó el raonament del rol per al reintent: a
+// low, o sense raonament si el rol ja era low (no n'hi ha de més baix).
+func menysRaonament(ctx context.Context) context.Context {
+	mode := "low"
+	switch thinkMode(ctx) {
+	case "no", "none":
+		return ctx
+	case "low":
+		mode = "no"
+	}
+	return context.WithValue(WithThink(ctx, mode), esforcRebaixatKey{}, true)
+}
+
+type esforcRebaixatKey struct{}
+
+// esforcRebaixat diu si l'esforç del context és el d'un reintent
+// (menysRaonament) i no el del rol: un rebuig d'aquest valor no s'ha de
+// recordar per a les peticions del rol.
+func esforcRebaixat(ctx context.Context) bool {
+	v, _ := ctx.Value(esforcRebaixatKey{}).(bool)
+	return v
+}
+
+// lliuraFallada decideix què es torna quan un intent falla per una cosa que
+// no és un tall que es pugui continuar.
+func lliuraFallada(ctx context.Context, acc, text string, calls []ToolCall, err error, emet func(string)) (string, []ToolCall, error) {
+	if acc == "" {
+		// Primer intent: el que digui la crida, tal qual (algunes vies
+		// tornen text útil al costat de l'error).
+		return text, calls, err
+	}
+	if ctx.Err() != nil {
+		return acc, nil, err
+	}
+	// Una continuació ha fallat però ja hi ha feina: es lliura amb el
+	// motiu, no es llença.
+	nota := fmt.Sprintf("\n\n[resposta incompleta: la continuació ha fallat (%v)]", err)
+	emet(nota)
+	return acc + nota, nil, nil
+}
+
+// alSostre lliura el que hi ha quan s'acaben les continuacions. Si no hi ha
+// res (tots els intents han estat pensament), puja el tall com a error.
+func alSostre(ctx context.Context, acc string, err error, n, budget int, trencada string, emet func(string)) (string, []ToolCall, error) {
+	if ctx.Err() != nil {
+		return acc, nil, ctx.Err()
+	}
+	if acc == "" && trencada == "" {
+		return "", nil, err
+	}
+	if hook := retryHookFrom(ctx); hook != nil {
+		hook(n, MaxContinuacions, 0, &TruncationNotice{N: n, Max: MaxContinuacions, Exhausted: true})
+	}
+	nota := fmt.Sprintf("\n\n[resposta tallada: s'ha arribat al límit de sortida (max_tokens %d) després de %d continuacions]", budget, n)
+	if trencada != "" {
+		nota = fmt.Sprintf("\n\n[resposta tallada: la crida a %s ha quedat incompleta per max_tokens i no s'ha executat]", trencada)
+	}
+	emet(nota)
+	return acc + nota, nil, nil
 }
 
 // MaxEmptyRetries és quants cops es torna a demanar una resposta buida
@@ -178,9 +284,9 @@ var (
 // res que l'usuari hagi vist: una resposta buida no ha emès cap text (el
 // pensament, si n'hi havia, sí que es pot repetir). Cada intent s'avisa
 // pel RetryHook, com la resta de reintents.
-func reintentaBuida(ctx context.Context, do func(msgs []Message, budget int) (string, []ToolCall, error)) func(msgs []Message, budget int) (string, []ToolCall, error) {
-	return func(msgs []Message, budget int) (string, []ToolCall, error) {
-		text, calls, err := do(msgs, budget)
+func reintentaBuida(do cridaModel) cridaModel {
+	return func(ctx context.Context, msgs []Message, budget int) (string, []ToolCall, error) {
+		text, calls, err := do(ctx, msgs, budget)
 		wait := EmptyRetryWait
 		for i := 1; i <= MaxEmptyRetries; i++ {
 			var buida *EmptyReplyError
@@ -202,7 +308,7 @@ func reintentaBuida(ctx context.Context, do func(msgs []Message, budget int) (st
 			case <-time.After(wait):
 			}
 			wait *= 2
-			text, calls, err = do(msgs, budget)
+			text, calls, err = do(ctx, msgs, budget)
 		}
 		return text, calls, err
 	}

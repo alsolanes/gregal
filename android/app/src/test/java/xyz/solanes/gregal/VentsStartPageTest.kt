@@ -31,7 +31,7 @@ class VentsStartPageTest {
     private val xaloc = Wind("xaloc", "Xaloc", "#EFA68F", "Música i concerts")
     private val now = java.time.OffsetDateTime.now()
     private val threads = listOf(
-        WindThread("xaloc", "company-xaloc-s2", "Concerts de dissabte a Girona", now.minusHours(1).toString(), 6),
+        WindThread("xaloc", "company-xaloc-s2", "Concerts de dissabte a Girona", now.truncatedTo(java.time.temporal.ChronoUnit.DAYS).toString(), 6),
         WindThread("gregal", "company-gregal", "Prepara'm el viatge de divendres", now.minusDays(1).toString(), 40),
     )
 
@@ -42,7 +42,7 @@ class VentsStartPageTest {
                 MaterialTheme(colorScheme = pal.scheme()) {
                     GregalBg {
                         VentsStartPage("ca", "Anna", listOf(gregal, xaloc), threads, "", {}, busy = false,
-                            onSend = {}, onWind = onWind, onThread = onThread)
+                            onSend = {}, onWind = { w, _ -> onWind(w) }, onThread = onThread)
                     }
                 }
             }

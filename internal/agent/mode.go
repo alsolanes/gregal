@@ -124,7 +124,7 @@ const ReviewDeliveryRules = `For research the user wants to read or compare, use
 const VerifiedDeliveryRules = `In the final answer, deliver the result first. Check requested facts and calculations against the sources. State what was verified and identify material gaps or assumptions without claiming a check that did not run.`
 
 // OfficeDeliveryRules is shared by the main agent and Vents.
-const OfficeDeliveryRules = `For Office delivery, load the matching skill and create each complete file in one office_create call. Group edits to existing files. For straightforward Word and Excel output use creation checks and office_render with qa_only=true if a further structural check is needed. Render once for layout-critical output, PowerPoint, or when the user asks for a visual check. After fixes, recheck only the affected part. Never open the document in a desktop app just to check it.`
+const OfficeDeliveryRules = `For Office delivery, load the matching skill; when you use office_create, create each complete file in one call. Group edits to existing files. For straightforward Word and Excel output use creation checks and office_render with qa_only=true if a further structural check is needed. Render once for layout-critical output, PowerPoint, or when the user asks for a visual check. After fixes, recheck only the affected part. Never open the document in a desktop app just to check it.`
 
 // reglesMode és el text específic de cada mode.
 func reglesMode(mode string) string {

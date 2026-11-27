@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"gregal/internal/agent"
@@ -44,18 +45,7 @@ func (s *Server) windCardImages(reply string) string {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
-	searches := 0
-	find := func(q string) string {
-		if q = strings.TrimSpace(q); q == "" || searches >= 6 || ctx.Err() != nil {
-			return ""
-		}
-		searches++
-		out, err := cardImageSearch(ctx, q, 3)
-		if err != nil {
-			return ""
-		}
-		return relevantImage(q, out)
-	}
+	find := cardFinder(ctx)
 	if hasCard {
 		reply = cardBlockRe.ReplaceAllStringFunc(reply, func(block string) string {
 			m := cardBlockRe.FindStringSubmatch(block)
@@ -74,57 +64,10 @@ func (s *Server) windCardImages(reply string) string {
 				}
 				return "```" + kind + "\n" + strings.TrimSpace(buf.String()) + "\n```"
 			}
-			// Comparació: una foto per a cada cosa que es compara (no una a dalt).
+			// Comparació: una foto o un logo per a cada cosa que es compara (no una a dalt).
 			if kind == "gregal-compare" {
-				items, _ := card["items"].([]any)
-				// Sense image_query, el nom és en català («Terra», «Mart») i a
-				// Commons no troba res: una sola crida curta en dona el títol
-				// en anglès de cada un (Earth, Mars).
-				var missing []string
-				for _, it := range items {
-					if item, ok := it.(map[string]any); ok && cardString(item, "image_query") == "" && cardString(item, "image") == "" {
-						missing = append(missing, cardString(item, "name"))
-					}
-				}
-				english := map[string]string{}
-				if len(missing) > 0 && ctx.Err() == nil {
-					english = compareEnglishNames(s, ctx, missing)
-				}
-				for _, it := range items {
-					if item, ok := it.(map[string]any); ok && cardString(item, "image_query") == "" {
-						if en := english[cardString(item, "name")]; en != "" {
-							item["image_query"] = en
-						}
-					}
-				}
-				for _, it := range items {
-					item, ok := it.(map[string]any)
-					if !ok {
-						continue
-					}
-					q, _ := item["image_query"].(string)
-					delete(item, "image_query")
-					img, _ := item["image"].(string)
-					if img = strings.TrimSpace(img); img != "" && !strings.HasPrefix(img, "https://") && !strings.HasPrefix(img, "http://") {
-						delete(item, "image")
-						img = ""
-					}
-					if img == "" {
-						for _, qq := range []string{q, cardString(item, "name")} {
-							if u := find(qq); u != "" {
-								item["image"] = u
-								break
-							}
-						}
-					}
-				}
-				var buf bytes.Buffer
-				enc := json.NewEncoder(&buf)
-				enc.SetEscapeHTML(false)
-				if enc.Encode(card) != nil {
-					return block
-				}
-				return "```" + kind + "\n" + strings.TrimSpace(buf.String()) + "\n```"
+				s.compareImages(ctx, card, find)
+				return cardFence(kind, card, block)
 			}
 			query, _ := card["image_query"].(string)
 			delete(card, "image_query")
@@ -167,6 +110,157 @@ func (s *Server) windCardImages(reply string) string {
 		reply = strings.TrimSpace(blankRunRe.ReplaceAllString(reply, "\n\n"))
 	}
 	return reply
+}
+
+// cardFinder busca la foto d'una consulta: com a molt sis cerques per resposta.
+func cardFinder(ctx context.Context) func(string) string {
+	searches := 0
+	return func(q string) string {
+		if q = strings.TrimSpace(q); q == "" || searches >= 6 || ctx.Err() != nil {
+			return ""
+		}
+		searches++
+		out, err := cardImageSearch(ctx, q, 3)
+		if err != nil {
+			return ""
+		}
+		return relevantImage(q, out)
+	}
+}
+
+// cardFence torna la targeta en JSON net dins la seva tanca (o el bloc tal
+// com era si no es pot escriure).
+func cardFence(kind string, card map[string]any, block string) string {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if enc.Encode(card) != nil {
+		return block
+	}
+	return "```" + kind + "\n" + strings.TrimSpace(buf.String()) + "\n```"
+}
+
+// codeCompareImages posa les fotos i els logos a les comparacions d'una
+// resposta del mode Codi. Només toca els blocs ```gregal-compare: la resta
+// d'una resposta de codi (adreces, imatges) es queda com és.
+func (s *Server) codeCompareImages(reply string) string {
+	if !strings.Contains(reply, "```gregal-compare") {
+		return reply
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	find := cardFinder(ctx)
+	return cardBlockRe.ReplaceAllStringFunc(reply, func(block string) string {
+		m := cardBlockRe.FindStringSubmatch(block)
+		if m[1] != "gregal-compare" {
+			return block
+		}
+		card, ok := cardJSON(strings.TrimSpace(strings.TrimSpace(m[2]) + "\n" + m[3]))
+		if !ok {
+			return block
+		}
+		s.compareImages(ctx, card, find)
+		return cardFence(m[1], card, block)
+	})
+}
+
+// compareImages posa a cada cosa de la comparació el logo del seu web
+// (logo_domain) i la seva foto (image_query, o el nom en anglès). Els logos
+// es busquen alhora que les fotos: cadascun és el web i la seva icona.
+func (s *Server) compareImages(ctx context.Context, card map[string]any, find func(string) string) {
+	items, _ := card["items"].([]any)
+	var list []map[string]any
+	for _, it := range items {
+		if item, ok := it.(map[string]any); ok {
+			list = append(list, item)
+		}
+	}
+	logos := make([]string, len(list))
+	var wg sync.WaitGroup
+	for i, item := range list {
+		if d := cardString(item, "logo_domain"); d != "" {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				logos[i] = cardLogo(ctx, d)
+			}()
+		}
+	}
+	s.comparePhotos(ctx, list, find)
+	wg.Wait()
+	for i, item := range list {
+		delete(item, "logo_domain")
+		if logos[i] != "" {
+			item["logo"] = logos[i]
+		}
+	}
+}
+
+// comparePhotos: una foto per a cada cosa. Una cosa amb logo i sense
+// image_query no en busca: el logo ja la representa.
+func (s *Server) comparePhotos(ctx context.Context, items []map[string]any, find func(string) string) {
+	wantsPhoto := func(item map[string]any) bool {
+		return cardString(item, "logo_domain") == "" || cardString(item, "image_query") != ""
+	}
+	// Sense image_query, el nom és en català («Terra», «Mart») i a
+	// Commons no troba res: una sola crida curta en dona el títol
+	// en anglès de cada un (Earth, Mars).
+	var missing []string
+	for _, item := range items {
+		if wantsPhoto(item) && cardString(item, "image_query") == "" && cardString(item, "image") == "" {
+			missing = append(missing, cardString(item, "name"))
+		}
+	}
+	english := map[string]string{}
+	if len(missing) > 0 && ctx.Err() == nil {
+		english = compareEnglishNames(s, ctx, missing)
+	}
+	for _, item := range items {
+		q := cardString(item, "image_query")
+		if q == "" {
+			q = english[cardString(item, "name")]
+		}
+		photo := wantsPhoto(item)
+		delete(item, "image_query")
+		keepWebImages(item)
+		if cardString(item, "image") != "" || item["images"] != nil || !photo {
+			continue
+		}
+		for _, qq := range []string{q, cardString(item, "name")} {
+			if u := find(qq); u != "" {
+				item["image"] = u
+				break
+			}
+		}
+	}
+}
+
+// keepWebImages deixa a «image» i «images» (com a molt dues) només adreces
+// http(s): una que no ve de cap eina (el model se la inventa) no val.
+func keepWebImages(item map[string]any) {
+	web := func(v any) string {
+		u, _ := v.(string)
+		if u = strings.TrimSpace(u); strings.HasPrefix(u, "https://") || strings.HasPrefix(u, "http://") {
+			return u
+		}
+		return ""
+	}
+	if u := web(item["image"]); u != "" {
+		item["image"] = u
+	} else {
+		delete(item, "image")
+	}
+	list, _ := item["images"].([]any)
+	var images []any
+	for _, v := range list {
+		if u := web(v); u != "" && len(images) < 2 {
+			images = append(images, u)
+		}
+	}
+	delete(item, "images")
+	if len(images) > 0 {
+		item["images"] = images
+	}
 }
 
 // cardJSON llegeix l'objecte d'una targeta. Els models barats, de tant en

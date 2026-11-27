@@ -162,7 +162,8 @@ class WindEsperitTest {
         assertFalse(identical(image("esperit"), image("cares")))
     }
 
-    @Test fun `with motion off an idle Esperit is still, and a working one still moves its tails`() {
+    // Amb el moviment apagat, ni la feina el mou (com el web i el mapa).
+    @Test fun `with motion off an Esperit is still, idle or working`() {
         ui.mainClock.autoAdvance = false
         val style = Wind("bit", "Bit", "#29ADFF", "r", avatar = "esperit").faceStyle
         ui.setContent {
@@ -180,6 +181,6 @@ class WindEsperitTest {
         assertTrue("Without motion an idle face does not move", identical(idle, image("idle")))
         // The left half holds Bit's tails (south-west) and not the mood badge (top right).
         fun tails(b: Bitmap) = Bitmap.createBitmap(b, 0, 0, b.width / 2, b.height)
-        assertFalse("Real work is always shown", identical(tails(working), tails(image("working"))))
+        assertTrue("Without motion work does not move it either", identical(tails(working), tails(image("working"))))
     }
 }

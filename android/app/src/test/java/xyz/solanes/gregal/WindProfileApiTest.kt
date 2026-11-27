@@ -291,7 +291,7 @@ class WindProfileApiTest {
                 assertTrue(JSONObject(body).getBoolean("enabled"))
                 if (acceptWrite) enabled = true
                 200 to "{}"
-            } else 200 to "{\"jobs\":[{\"id\":\"wind-wind-2\",\"name\":\"Heartbeat\",\"enabled\":$enabled}]}"
+            } else 200 to "{\"jobs\":[{\"id\":\"wind-wind-2\",\"name\":\"Heartbeat\",\"kind\":\"event\",\"enabled\":$enabled}]}"
         }.use { server ->
             val vm = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
             vm.setConn(server.conn())

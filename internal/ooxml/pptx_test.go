@@ -23,6 +23,22 @@ const sampleDeck = `{
  ]
 }`
 
+// El format ampliat dels documents (078) passa també a les diapositives:
+// subratllat, color, ressaltat, font, mida i alineació del paràgraf.
+func TestSetTextFormatAmpliat(t *testing.T) {
+	sp := El("p:sp")
+	SetText(sp, "Un ++sub++ i [vermell]{color=#C00000 bg=#FFFF00 font=\"Georgia\" size=18}\n{align=center}\n\nAltre", TextOpts{Size: 2000, Color: "111111"})
+	x := sp.String()
+	for _, want := range []string{`u="sng"`, `sz="1800"`, `<a:srgbClr val="C00000"/>`, `<a:highlight><a:srgbClr val="FFFF00"/></a:highlight>`, `<a:latin typeface="Georgia"/>`, `algn="ctr"`} {
+		if !strings.Contains(x, want) {
+			t.Fatalf("falta %s a:\n%s", want, x)
+		}
+	}
+	if strings.Count(x, `algn=`) != 1 {
+		t.Fatalf("l'alineació ha passat a un altre paràgraf:\n%s", x)
+	}
+}
+
 func TestBuildDeckIsValid(t *testing.T) {
 	spec, err := ParseDeckSpec(sampleDeck)
 	if err != nil {

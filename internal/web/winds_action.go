@@ -23,7 +23,7 @@ func windActionSystem(w companion.Wind, memory, userName, task string, last bool
 		b.WriteString("\n\nWHO YOU TALK TO:\nThis message goes to one person: " + n + ". Use their name only when it helps, and never anyone else's.")
 	}
 	b.WriteString("\n\nSCHEDULED TASK. The user asked you earlier to do this at this exact moment, and the moment has come. Do it now, with your tools (web_search, web_fetch…), and report the result:\n\n" + task)
-	b.WriteString("\n\nRules:\n- Give the actual result (the score, the price, the answer), 1-4 sentences, no preamble. Cite source URLs inline like [title](url).\n- Never invent facts. Write the reply in the language the task above is written in (Catalan if unsure).")
+	b.WriteString("\n\nRules:\n- Give the actual result (the score, the price, the answer), 1-4 sentences, no preamble. Cite source URLs inline like [title](url).\n- Never invent facts.")
 	if last {
 		b.WriteString("\n- This is the last attempt: if you cannot get the result, say so plainly and what you found.")
 	} else {
@@ -46,7 +46,7 @@ func (s *Server) executeWindAction(ctx context.Context, job jobs.Job, w companio
 	brief += windRemindBriefExact(w.ID) + companion.WindBrainSystem(s.windBrain(w.ID))
 	// Les preferències que l'usuari ha corregit a la memòria del vent valen
 	// també per als encàrrecs amb hora, no només per al xat (B8).
-	brief += s.windMemorySystem(w.ID)
+	brief += s.windMemorySystem(w.ID) + windOwnVoice(s.cfg.Lang())
 	res, runErr := windHeartbeatLoop(s, ctx, brief)
 	out := strings.TrimSpace(res.text)
 	end := time.Now()

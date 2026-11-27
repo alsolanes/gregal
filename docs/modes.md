@@ -41,8 +41,9 @@ touching system services; and making a named site public for the first time
 asks too (also in Full autonomy). Publishing a project folder as a private link,
 or updating a site that is already public, goes ahead alone. What
 the policy denies stays denied. The winds keep their own limits on top: in a
-rotllana only the first speaker can change things (the others, and a review
-request, are read-only), shared chats can only search the web, and a study
+rotllana only the first speaker can change things (the others, a review
+request and a peer reviewer are read-only; the first speaker can still apply
+the fix a peer review asks for), shared chats can only search the web, and a study
 writes only in its own practice folder.
 
 The mode is Codi's alone. A wind turn always runs in Act, whatever mode Codi

@@ -163,6 +163,17 @@ func TestLineHTMLEscapesAndMarksCursor(t *testing.T) {
 	}
 }
 
+// Els 16 colors bàsics i els per defecte surten com a variables CSS (amb el
+// color de reserva), perquè la pestanya Terminal els pugui canviar amb el tema.
+func TestLineHTMLThemesBaseColors(t *testing.T) {
+	vt := New(10, 1, nil)
+	feed(vt, "\x1b[31mR\x1b[0;7mI")
+	h := LineHTML(vt.Lines()[0], -1)
+	if !strings.Contains(h, "color:var(--ansi-1,#e05561);") || !strings.Contains(h, "background:var(--term-fg,#d4d4d4);") {
+		t.Fatalf("html: %s", h)
+	}
+}
+
 // Les línies que surten per dalt de la pantalla principal queden a
 // l'historial, en ordre; les de la pantalla alternativa (un TUI) no, i
 // «clear» complet (ED 3) l'esborra.

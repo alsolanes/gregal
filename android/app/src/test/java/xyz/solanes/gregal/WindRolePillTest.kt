@@ -86,7 +86,7 @@ class WindRolePillTest {
     @Test fun `la portada posa l'ofici sota el nom de cada cara`() {
         val ponent = Wind("ponent", "Ponent", "#EACF87", "Llibres", kit = "books")
         show(DarkPal) {
-            VentsStartPage("ca", "Anna", listOf(xaloc, ponent), emptyList(), "", {}, busy = false, onSend = {}, onWind = {}, onThread = {})
+            VentsStartPage("ca", "Anna", listOf(xaloc, ponent), emptyList(), "", {}, busy = false, onSend = {}, onWind = { _, _ -> }, onThread = {})
         }
         save("start-dark")
         name("start-wind-xaloc", "Xaloc").assertExists()

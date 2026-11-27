@@ -5,6 +5,9 @@ description: Word documents with real styles, templates, tracked changes and com
 
 ## Creating
 
+- A new text document (a report, a letter, notes, «a Word») is a live
+  document: create it with the `doc` tool and give the Word link it returns.
+  Make a .docx with `office_create` only from a .dotx/.docx template or a document the person attached.
 - Use `office_create` with `content` in **markdown**. It becomes real Word
   structure: `#`–`######` → Heading 1–6 (navigable, TOC-ready), `-` and `1.`
   → real bullet/numbered lists (nested), `| tables |` → Word tables with a

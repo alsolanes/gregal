@@ -180,7 +180,7 @@ export const attach = {
       await this.posaCarpeta(dir);
       return;
     }
-    const ruta = prompt(T('attach.folderPrompt'));
+    const ruta = await window.gregalAsk(T('attach.folderPrompt'));
     if (ruta && ruta.trim()) {
       await this.posaCarpeta(ruta.trim());
     }

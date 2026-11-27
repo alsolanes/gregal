@@ -4,8 +4,14 @@ import android.annotation.SuppressLint
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -99,6 +105,7 @@ internal fun FeinesDialog(vm: GregalViewModel, lang: String, onOpenThread: (Stri
     val tasksError by vm.windTasksError.collectAsState()
     val asks by vm.windAsks.collectAsState()
     val autos by vm.automations.collectAsState()
+    val winds by vm.winds.collectAsState()
     var file by remember { mutableStateOf<Pair<WindTask, String>?>(null) }
     LaunchedEffect(Unit) { vm.loadWindTasks(); vm.loadWindAsks(); vm.loadAutomations("") }
     GregalDialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -138,14 +145,15 @@ internal fun FeinesDialog(vm: GregalViewModel, lang: String, onOpenThread: (Stri
                         if (running.isNotEmpty()) {
                             item(key = "h-now") { FeinesSection(tr(lang, "app.feines.sec.now"), running.size) }
                             items(running, key = { "r-" + it.id }) { t ->
-                                FeinaRow(lang, t, onFile = { f -> file = t to f }, onThread = { onDismiss(); onOpenThread(t.thread) })
+                                FeinaCard(lang, t, winds.firstOrNull { it.name == t.agents.firstOrNull() },
+                                    onFile = { f -> file = t to f }, onThread = { onDismiss(); onOpenThread(t.thread) })
                             }
                         }
                         if (programat.isNotEmpty()) {
                             item(key = "h-sched") { FeinesSection(tr(lang, "app.feines.sec.scheduled"), programat.size) }
                             items(programat, key = { "a-" + it.id }) { a ->
                                 Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                                    WindAutomationRow(lang, a, showWind = true, onAction = { item, action -> vm.automationAction(item, action, "") })
+                                    WindAutomationRow(lang, a, showWind = true, winds = winds, onAction = { item, action -> vm.automationAction(item, action, "") })
                                 }
                             }
                         }
@@ -174,6 +182,35 @@ private fun FeinesSection(title: String, count: Int) {
             Box(Modifier.clip(RoundedCornerShape(50)).background(Sea).padding(horizontal = 7.dp, vertical = 1.dp)) {
                 Text(count.toString(), color = OnSea, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
+        }
+    }
+}
+
+/**
+ * Una feina en marxa, com al web (136): una targeta del color de qui la porta, amb la seva cara, el títol i
+ * «En marxa»; en tocar-la s'obre al lloc amb els fitxers que n'han sortit i el fil.
+ */
+@Composable
+private fun FeinaCard(lang: String, t: WindTask, owner: Wind?, onFile: (String) -> Unit, onThread: () -> Unit) {
+    var open by rememberSaveable(t.id) { mutableStateOf(false) }
+    val color = owner?.let { Color(it.argb) } ?: Muted
+    val shape = RoundedCornerShape(18.dp)
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().clip(shape).background(color.copy(alpha = .10f))
+        .border(1.dp, color.copy(alpha = .45f), shape).animateContentSize().testTag("feina-card")) {
+        Row(Modifier.fillMaxWidth().clickable { open = !open }.padding(12.dp).testTag("feina-card-head"),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            WindFace(size = 36, mood = WindMood.WORKING, accent = color, style = owner?.faceStyle ?: WindStyle())
+            Text(t.task, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f))
+            Text(tr(lang, "app.feines.st.running"), color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Icon(Icons.Rounded.ExpandMore, null, tint = Muted, modifier = Modifier.rotate(if (open) 180f else 0f))
+        }
+        if (open) Row(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp).horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            t.files.take(4).forEach { f ->
+                AssistChip(onClick = { onFile(f) }, label = { Text(f.substringAfterLast('/'), fontSize = 12.sp, maxLines = 1) })
+            }
+            if (t.thread.isNotBlank()) AssistChip(onClick = onThread, label = { Text(tr(lang, "app.feines.thread"), fontSize = 12.sp) })
         }
     }
 }

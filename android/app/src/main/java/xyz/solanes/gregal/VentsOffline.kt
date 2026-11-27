@@ -69,16 +69,33 @@ object OfflineLogic {
     fun encodeChat(msgs: List<GregalViewModel.PetMsg>): String =
         GregalJson.encodeToString(ListSerializer(SavedMsg.serializer()),
             msgs.filter { !it.streaming && it.kind != "queued" && it.text.isNotBlank() }.takeLast(CHAT_KEEP).map { m ->
-                SavedMsg(m.from, m.text, m.speakerId, m.speakerName, m.ts, m.kind, m.parcial, m.id)
+                SavedMsg(m.from, m.text, m.speakerId, m.speakerName, m.ts, m.kind, m.parcial, m.id, m.doc)
             })
 
     fun decodeChat(raw: String?): List<GregalViewModel.PetMsg>? {
         if (raw.isNullOrBlank()) return null
         return try {
             GregalJson.decodeFromString(ListSerializer(SavedMsg.serializer()), raw).map { o ->
-                GregalViewModel.PetMsg(o.from, o.text, o.speakerId, o.speakerName, parcial = o.parcial, ts = o.ts, kind = o.kind, id = o.id)
+                GregalViewModel.PetMsg(o.from, o.text, o.speakerId, o.speakerName, parcial = o.parcial, ts = o.ts, kind = o.kind, id = o.id, doc = o.doc)
             }
         } catch (_: Exception) { null }
+    }
+
+    /**
+     * L'historial del servidor no du les targetes de document (només arriben pel flux): les de [before]
+     * es queden a [fresh] darrere del missatge que les precedia, si aquest hi és; si no, és un altre fil i no s'hi posen.
+     */
+    fun withDocCards(before: List<GregalViewModel.PetMsg>, fresh: List<GregalViewModel.PetMsg>): List<GregalViewModel.PetMsg> {
+        val out = fresh.toMutableList()
+        before.forEachIndexed { i, card ->
+            if (card.kind != "doc" || out.any { it.doc?.id == card.doc?.id }) return@forEachIndexed
+            val anchor = before.subList(0, i).lastOrNull { it.kind != "doc" && it.kind != "queued" && !it.streaming } ?: return@forEachIndexed
+            var at = out.indexOfLast { if (anchor.id.isNotBlank() && it.id.isNotBlank()) it.id == anchor.id else it.from == anchor.from && it.text == anchor.text }
+            if (at < 0) return@forEachIndexed
+            while (at + 1 < out.size && out[at + 1].kind == "doc") at++
+            out.add(at + 1, card)
+        }
+        return out
     }
 
     fun encodeOutbox(items: List<OutboxItem>): String =
@@ -163,6 +180,7 @@ internal class SavedMsg(
     @SerialName("speaker_id") val speakerId: String = "",
     @SerialName("speaker_name") val speakerName: String = "",
     val ts: Long = 0L, val kind: String = "", val parcial: Boolean = false, val id: String = "",
+    val doc: DocRef? = null,
 )
 
 @Serializable

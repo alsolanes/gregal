@@ -64,7 +64,8 @@ object AvuiLogic {
 
     /** El canvi que es veu al moment, abans que respongui el servidor (el mateix que hi fa ell). */
     fun apply(v: AvuiView, id: String, action: String): AvuiView = when (action) {
-        "done" -> {
+        // Reprendre una vigilància pausada també dona la targeta per feta (ho fa el servidor).
+        "done", "resume" -> {
             val c = v.all.firstOrNull { it.id == id }
             val next = map(v, id) { it.copy(state = "done") }
             if (c != null && v.done.none { it.id == id }) next.copy(done = listOf(c.copy(state = "done")) + next.done) else next
@@ -133,6 +134,12 @@ internal fun AvuiTray(
     weather: (@Composable () -> Unit)? = null,
     /** «A prop teu» (VentsLocal.kt), sota els ajustos. */
     local: (@Composable () -> Unit)? = null,
+    /** La ullada de dalt (VentsAvuiGlance.kt): segueix (kind, nom), deixa de seguir (id) i on ets. */
+    onFollow: (String, String) -> Unit = { _, _ -> },
+    onUnfollow: (String) -> Unit = {},
+    onPlace: (String) -> Unit = {},
+    /** Per què no s'ha pogut desar el lloc o un seguiment (el que diu el servidor). */
+    glanceMessage: String? = null,
 ) {
     val p = LocalPal.current
     Column(
@@ -157,7 +164,8 @@ internal fun AvuiTray(
             Icon(Icons.Rounded.Bedtime, null, tint = Muted, modifier = Modifier.size(14.dp))
             Text(tr(lang, "app.avui.held", view.held), color = Muted, style = GregalType.caption)
         }
-        if (weather != null) Box(Modifier.padding(top = 14.dp)) { weather() }
+        AvuiBrief(lang, view, winds, onRun)
+        AvuiGlanceSection(lang, view, winds, onFollow, onUnfollow, onPlace, windWeather = weather, message = glanceMessage)
         val open = view.openCount
         listOf("now" to view.now, "fyi" to view.fyi, "ahead" to view.ahead).forEach { (key, cards) ->
             AvuiSection(lang, key, cards, winds, onAct, onRun)
@@ -245,7 +253,10 @@ private fun AvuiCardView(
             Text(renderMd(c.body, SuperficieAlta), color = Tinta, style = GregalType.bodySmall.copy(fontSize = 14.sp, lineHeight = 20.sp),
                 modifier = Modifier.padding(start = 48.dp))
         }
-        if (c.actions.isNotEmpty()) FlowRow(
+        // Una vigilància pausada sola (task 146) es reprèn amb l'acció resume: el xat del vent no la pot reprendre.
+        if (c.source == "pausa") Row(Modifier.padding(start = 42.dp)) {
+            AvuiButton(tr(lang, "app.avui.resume"), null, filled = true, tag = "avui-resume") { onAct(c.id, "resume") }
+        } else if (c.actions.isNotEmpty()) FlowRow(
             Modifier.padding(start = 48.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             c.actions.forEach { a ->

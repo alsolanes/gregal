@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"time"
 )
 
 type dirEntry struct {
@@ -106,12 +107,49 @@ func arrels() []string {
 	if runtime.GOOS != "windows" {
 		return []string{"/"}
 	}
-	var out []string
+	return unitatsVives()
+}
+
+// provaArrel diu si una unitat hi és. esperaArrel és el que s'espera, com a
+// molt, que contestin totes: un disc local respon en mil·lisegons, i una
+// unitat lenta que es quedi fora surt a la llista següent (no es desa res).
+// Variables perquè els tests les canviïn.
+var (
+	provaArrel = func(d string) bool {
+		_, err := os.Stat(d)
+		return err == nil
+	}
+	esperaArrel = 300 * time.Millisecond
+)
+
+// unitatsVives prova totes les lletres alhora i no espera la que no contesta:
+// una unitat de xarxa desconnectada triga segons a fallar, i provades d'una
+// en una el selector de carpetes s'hi quedava aturat cada cop que s'obria.
+func unitatsVives() []string {
+	const lletres = 'Z' - 'C' + 1
+	type resposta struct {
+		unitat string
+		viva   bool
+	}
+	ch := make(chan resposta, lletres) // amb lloc per a totes: la que arriba tard no es queda penjada
+	prova := provaArrel                // llegida aquí: les proves que acaben tard no miren la variable
 	for c := 'C'; c <= 'Z'; c++ {
-		d := string(c) + ":\\"
-		if _, err := os.Stat(d); err == nil {
-			out = append(out, d)
+		d := string(c) + `:\`
+		go func() { ch <- resposta{d, prova(d)} }()
+	}
+	var out []string
+	limit := time.After(esperaArrel)
+espera:
+	for i := 0; i < lletres; i++ {
+		select {
+		case r := <-ch:
+			if r.viva {
+				out = append(out, r.unitat)
+			}
+		case <-limit:
+			break espera
 		}
 	}
+	sort.Strings(out)
 	return out
 }

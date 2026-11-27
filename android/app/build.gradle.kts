@@ -69,9 +69,9 @@ android {
         manifestPlaceholders["gregalAppLabel"] = if (project.hasProperty("gregal.plotsPreview")) "Gregal Vents" else "Gregal"
         minSdk = 26
         targetSdk = 34
-        versionCode = if (project.hasProperty("gregal.plotsPreview")) 245 else 50
+        versionCode = if (project.hasProperty("gregal.plotsPreview")) 251 else 50
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        versionName = if (project.hasProperty("gregal.plotsPreview")) "1.99.0-vents" else "1.63.0"
+        versionName = if (project.hasProperty("gregal.plotsPreview")) "1.105.0-vents" else "1.63.0"
         manifestPlaceholders["gregalFcm"] = fcmOn.toString()
         if (fcmOn) fcmConfig.forEach { (k, v) -> buildConfigField("String", "FCM_" + k.uppercase(), "\"" + v.replace("\"", "") + "\"") }
     }
@@ -216,6 +216,30 @@ val buildGregalBackend by tasks.registering {
 
 tasks.matching { it.name.matches(Regex("merge.*JniLibFolders")) }.configureEach {
     dependsOn(buildGregalBackend)
+}
+
+// Els vents de plastilina (112) viuen un sol cop al repositori, a la carpeta
+// del web: es copien als assets de l'APK (assets/characters/) a cada build.
+// Com a carpeta generada de la variant, tota tasca que llegeix els assets
+// (merge, lint) fa córrer abans la còpia.
+abstract class CopyWindCharacters : DefaultTask() {
+    @get:InputDirectory abstract val from: DirectoryProperty
+    @get:OutputDirectory abstract val out: DirectoryProperty
+
+    @TaskAction fun copy() {
+        val dir = out.get().asFile
+        dir.deleteRecursively()
+        from.get().asFile.copyRecursively(File(dir, "characters"))
+    }
+}
+
+val copyWindCharacters = tasks.register<CopyWindCharacters>("copyWindCharacters") {
+    description = "Copies the clay wind sprite sheets from internal/web/app/characters into the APK assets."
+    from.set(File(repoRoot, "internal/web/app/characters"))
+}
+
+androidComponents {
+    onVariants { variant -> variant.sources.assets?.addGeneratedSourceDirectory(copyWindCharacters, CopyWindCharacters::out) }
 }
 
 dependencies {

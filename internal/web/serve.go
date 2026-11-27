@@ -251,6 +251,13 @@ func New(cfg *config.Config, cfgPath string) *Server {
 	// Enviar fitxers al xat: l'eina viu a les eines i el servidor web és qui sap
 	// on publicar-los (enllaç amb clau pròpia, sense sessió).
 	tools.PublicarFitxer = s.publicaFitxer
+	if js != nil {
+		var owners func(string) []string
+		if s.users.Actiu() {
+			owners = s.windOwners
+		}
+		migrateWindJobs(js, owners)
+	}
 	return s
 }
 
@@ -437,6 +444,7 @@ func (s *Server) StartBackground(ctx context.Context) <-chan struct{} {
 	// dir-ho al fil ara, no quedar en silenci.
 	if gregalBackground() {
 		s.crewRecoverInterrupted()
+		s.ensureNightJobs()
 	}
 	return done
 }
@@ -591,6 +599,8 @@ func (h *Hub) mux() *http.ServeMux {
 			w.Header().Set("Content-Type", "image/svg+xml")
 		case ".png":
 			w.Header().Set("Content-Type", "image/png")
+		case ".json":
+			w.Header().Set("Content-Type", "application/json")
 		}
 		w.Write(raw)
 	})
@@ -635,11 +645,14 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/backlog", h.route((*Server).handleBacklog))
 	// Documents vius del projecte (docs_api.go, internal/gdocs).
 	handle("/api/docs", h.route((*Server).handleDocs))
+	handle("/api/docs/theme", h.global((*Server).handleDocTheme))
 	handle("/api/docs/{id}", h.route((*Server).handleDoc))
 	handle("/api/docs/{id}/stream", h.route((*Server).handleDocStream))
 	handle("/api/docs/{id}/export", h.route((*Server).handleDocExport))
 	handle("/api/docs/{id}/blocks", h.route((*Server).handleDocBlocks))
 	handle("/api/docs/{id}/blocks/{block}", h.route((*Server).handleDocBlock))
+	handle("/api/docs/{id}/images", h.route((*Server).handleDocImages))
+	handle("/api/docs/{id}/images/{name}", h.route((*Server).handleDocImage))
 	handle("/app/doc/{id}", h.handleDocPage)
 	handle("/api/verify", h.route((*Server).handleVerify))
 	handle("/api/lang", h.global((*Server).handleLang))
@@ -727,6 +740,8 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/apps", h.route((*Server).handleApps))
 	// Registre d'especialitats dels vents (winds_specialists.go).
 	handle("/api/winds/specialists", h.route((*Server).handleWindSpecialists))
+	// Models d'«A fons» (winds_tempesta_models.go).
+	handle("/api/winds/tempesta/models", h.route((*Server).handleTempestaModels))
 	handle("/api/dirs", h.route((*Server).handleDirs))
 	// G3: arbre, fitxers i diffs del workspace.
 	handle("/api/tree", h.route((*Server).handleTree))
@@ -1749,10 +1764,12 @@ func (s *Server) recordActive(event string, value any) {
 		chunk, _ := value.(map[string]string)
 		s.mu.Lock()
 		if s.active != nil {
+			firstChunk := s.tokenBuf == ""
 			s.tokenBuf += chunk["text"]
-			// Una escriptura durable per cada token saturava el registre i
-			// l'event stream en tirades de milers de passos.
-			if len(s.tokenBuf) >= 512 || time.Since(s.tokenAt) >= 180*time.Millisecond {
+			// El primer fragment surt de seguida: si el model s'atura un instant
+			// després, no podem esperar un altre token per buidar el buffer.
+			// Després agrupem les escriptures per no saturar registre i SSE.
+			if firstChunk || len(s.tokenBuf) >= 512 || time.Since(s.tokenAt) >= 180*time.Millisecond {
 				s.flushTokensLocked()
 			}
 		}
@@ -2640,10 +2657,13 @@ inspect the disk, say explicitly that you cannot know instead of making it up.`,
 	if plotInSystem(mode) {
 		plot = strings.TrimPrefix(plotPrompt, "\n\n")
 	}
+	// La comparació en fitxes és curta i va a tots els modes, com als vents:
+	// el model ha de saber que la té abans que li demanin comparar.
+	compare := "The Gregal web, desktop and Android chat render comparison cards: one short sentence, the fence, a NEW line with one JSON object, the closing fence. " + companion.CompareGuide
 	// Fets i memòria del projecte van abans de la directiva d'idioma, que
 	// ha de tancar el prompt (agent.AmbContext).
-	build = func(c string) string { return agent.AmbContext(prompt, plot, fets, c) }
-	return prompt + "\x00" + plot + "\x00" + fets, agent.ContextProjecteExtra(workspace, s.id, s.userSkillsDirs()...), build
+	build = func(c string) string { return agent.AmbContext(prompt, plot, compare, fets, c) }
+	return prompt + "\x00" + plot + "\x00" + compare + "\x00" + fets, agent.ContextProjecteExtra(workspace, s.id, s.userSkillsDirs()...), build
 }
 
 // compactaSiCal resumeix la conversa quan l'estimació passa del llindar de

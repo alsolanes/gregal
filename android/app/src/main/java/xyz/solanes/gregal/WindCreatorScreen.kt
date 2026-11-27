@@ -28,6 +28,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -46,7 +47,8 @@ internal fun WindCreatorScreen(vm: GregalViewModel, lang: String, edit: Wind?) {
     WindEditor(lang, edit, themed = themed,
         onBack = { vm.showWindCreator(false) },
         onSuggest = { name, role, error, done -> vm.suggestWind(name, role, error, done) },
-        onSave = { draft, done -> vm.createWind(draft.name, draft.color, draft.role, draft.style, draft.persona, draft.id, draft.avatar, done) })
+        onSave = { draft, done -> vm.createWind(draft.name, draft.color, draft.role, draft.style, draft.persona, draft.id, draft.avatar, done) },
+        onDescribe = { description, error, done -> vm.describeWind(description, error, done) })
 }
 
 /** A visual editor first; templates and personality are optional second-level choices. */
@@ -60,13 +62,21 @@ internal fun WindEditor(
     onSave: (WindDraft, (Boolean) -> Unit) -> Unit,
     /** Noms proposats al gust del col·lectiu (buit = els de la plantilla). */
     themed: List<String> = emptyList(),
+    /** Only a new wind: one sentence and the AI proposes the whole wind, which fills the fields and creates nothing. */
+    onDescribe: (String, () -> Unit, (SuggestDto) -> Unit) -> Unit = { _, error, _ -> error() },
 ) {
     var name by rememberSaveable(edit?.id) { mutableStateOf(edit?.name.orEmpty()) }
     var color by rememberSaveable(edit?.id) { mutableStateOf(edit?.color ?: windEditorColors.first()) }
-    val colorChoices = remember(edit?.id) { (windEditorColors + listOfNotNull(edit?.color)).distinct() }
+    // The AI's colour joins the palette, so it stays selectable after picking another one.
+    var describedColor by rememberSaveable(edit?.id) { mutableStateOf<String?>(null) }
+    val colorChoices = remember(edit?.id, describedColor) { (windEditorColors + listOfNotNull(edit?.color, describedColor)).distinct() }
     var role by rememberSaveable(edit?.id) { mutableStateOf(edit?.role.orEmpty()) }
     var style by rememberSaveable(edit?.id) { mutableStateOf(windStyleOf(edit?.style).encode()) }
     var persona by rememberSaveable(edit?.id) { mutableStateOf(edit?.persona.orEmpty()) }
+    var description by rememberSaveable(edit?.id) { mutableStateOf("") }
+    // The preview wears the proposed trade while the role is still the proposed one, as on the web.
+    var kit by rememberSaveable(edit?.id) { mutableStateOf("") }
+    var kitRole by rememberSaveable(edit?.id) { mutableStateOf("") }
     val theme = LocalAvatarTheme.current
     var avatar by rememberSaveable(edit?.id) { mutableStateOf(edit?.avatar.takeIf { it in windPacks } ?: "cares") }
     var gallery by rememberSaveable(edit?.id) { mutableStateOf(false) }
@@ -81,11 +91,11 @@ internal fun WindEditor(
         }
     }
     BackHandler { navigateBack() }
-    Scaffold(containerColor = Superficie,
+    Scaffold(containerColor = Pagina,
         topBar = { TopAppBar(
             title = { Text(tr(lang, if (edit == null) "app.company.windNewTitle" else "app.company.windEditTitle")) },
             navigationIcon = { IconButton(onClick = navigateBack, enabled = !saving) { Icon(Icons.Rounded.ArrowBack, tr(lang, "app.vents.back")) } },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie)) },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = Pagina)) },
         bottomBar = {
             if (!gallery) Surface(color = Superficie) {
                 Column(Modifier.navigationBarsPadding().imePadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
@@ -166,8 +176,28 @@ internal fun WindEditor(
             TextButton(onClick = { gallery = false }, modifier = Modifier.fillMaxWidth()) { Text(tr(lang, "app.vents.startFromScratch")) }
             } else {
             // The face owns the canvas: no halo, duplicate title, or preset wall before creation.
-            val face = windStyleOf(style).copy(pack = avatar, bearing = windDirection(edit?.id.orEmpty(), name), windId = windId(edit?.id.orEmpty(), name))
+            val face = windStyleOf(style).copy(pack = avatar, bearing = windDirection(edit?.id.orEmpty(), name), windId = windId(edit?.id.orEmpty(), name),
+                kit = if (role == kitRole) kit else "")
             val controlsEnabled = !saving && !suggesting
+            if (edit == null) {
+                OutlinedTextField(description, { description = it }, enabled = controlsEnabled,
+                    label = { Text(tr(lang, "app.vents.describe")) }, placeholder = { Text(tr(lang, "app.vents.describeHint")) }, maxLines = 3,
+                    shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
+                OutlinedButton(onClick = {
+                    suggesting = true; error = null
+                    onDescribe(description.trim(), { suggesting = false; error = tr(lang, "app.vents.suggestError") }) { w ->
+                        name = w.name; role = w.role; persona = w.persona
+                        color = w.color.uppercase(); describedColor = color
+                        style = windStyleOf(w.style).copy(barretina = face.barretina).encode()
+                        kit = w.kit; kitRole = w.role
+                        suggesting = false
+                    }
+                }, enabled = description.isNotBlank() && controlsEnabled, modifier = Modifier.fillMaxWidth().testTag("wind-describe-go")) {
+                    if (suggesting) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    else Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp)); Text(tr(lang, "app.vents.describeGo"))
+                }
+            }
             Surface(
                 shape = RoundedCornerShape(24.dp),
                 color = Color(Wind("", "", color, "").argb).copy(alpha = .10f),
@@ -196,25 +226,31 @@ internal fun WindEditor(
                 { "app.company.windShape_$it" }, { face.copy(shape = WindShape.entries.first { e -> e.key == it }) }, color, controlsEnabled)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(tr(lang, "app.company.windColor"), color = Muted, fontSize = 13.sp)
-                // Two short rows keep every swatch reachable, without horizontal scrolling.
-                colorChoices.chunked(4).forEachIndexed { row, colors ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                // Two rows of five fixed columns: the palette plus a wind's own colour fits, and a short row lines up under the full one.
+                colorChoices.chunked(5).forEachIndexed { row, colors ->
+                    Row(Modifier.fillMaxWidth()) {
                         colors.forEachIndexed { index, c ->
-                            Box(Modifier.size(48.dp).clip(CircleShape)
-                                .selectable(selected = color == c, enabled = controlsEnabled, role = Role.RadioButton, onClick = { color = c })
-                                .semantics { contentDescription = tr(lang, "app.vents.colorChoice", (row * 4 + index + 1).toString()) },
-                                contentAlignment = Alignment.Center) {
-                                // Vora fina sempre: un color fosc no desapareix sobre el fons fosc.
-                                Box(Modifier.size(34.dp).background(Color(Wind("", "", c, "").argb), CircleShape)
-                                    .border(if (color == c) 2.dp else 1.dp, if (color == c) Ink else LineHi, CircleShape))
+                            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                                Box(Modifier.size(48.dp).clip(CircleShape)
+                                    .selectable(selected = color == c, enabled = controlsEnabled, role = Role.RadioButton, onClick = { color = c })
+                                    .semantics { contentDescription = tr(lang, "app.vents.colorChoice", (row * 5 + index + 1).toString()) },
+                                    contentAlignment = Alignment.Center) {
+                                    // Vora fina sempre: un color fosc no desapareix sobre el fons fosc.
+                                    Box(Modifier.size(34.dp).background(Color(Wind("", "", c, "").argb), CircleShape)
+                                        .border(if (color == c) 2.dp else 1.dp, if (color == c) Ink else LineHi, CircleShape))
+                                }
                             }
                         }
+                        repeat(5 - colors.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
             }
             if (theme == "free") FaceOptions(lang, "winds.avatar", windPacks, avatar, { avatar = it },
-                ::avatarLabelKey, { face.copy(pack = it) }, color, controlsEnabled)
+                ::avatarLabelKey, { face.copy(pack = it) }, color, controlsEnabled, clay = true)
             else Text(tr(lang, "winds.avatarThemeInUse", tr(lang, avatarLabelKey(theme))), color = Muted, fontSize = 13.sp)
+            // A wind drawn as a minairó picks its barretina; the first choice leaves it to the wind.
+            if (windPack(theme, face) == "minairo") FaceOptions(lang, "winds.barretina", listOf("") + minairoBarretines.map { it.first }, face.barretina,
+                { style = face.copy(barretina = it).encode() }, ::barretinaLabelKey, { face.copy(barretina = it) }, color, controlsEnabled)
             EditorDisclosure(tr(lang, "app.vents.customize"), customize, !saving) { customize = !customize }
             if (customize) {
                 FaceOptions(lang, "app.company.windFaceEyes", WindEyes.entries.map { it.key }, face.eyes.key,
@@ -233,7 +269,7 @@ internal fun WindEditor(
                 OutlinedButton(onClick = {
                     suggesting = true; error = null
                     onSuggest(name, role, { suggesting = false; error = tr(lang, "app.vents.suggestError") }) { p, s ->
-                        persona = p; style = windStyleOf(s).encode(); suggesting = false
+                        persona = p; style = windStyleOf(s).copy(barretina = face.barretina).encode(); suggesting = false
                     }
                 }, enabled = name.isNotBlank() && controlsEnabled, modifier = Modifier.fillMaxWidth()) {
                     if (suggesting) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -260,18 +296,23 @@ private fun EditorDisclosure(label: String, expanded: Boolean, enabled: Boolean,
 
 @Composable
 private fun FaceOptions(lang: String, label: String, options: List<String>, selected: String, pick: (String) -> Unit,
-    optionLabel: (String) -> String, face: (String) -> WindStyle, color: String, enabled: Boolean) {
+    optionLabel: (String) -> String, face: (String) -> WindStyle, color: String, enabled: Boolean,
+    /** The avatar packs show the clay ones as their 3D figure; a look's options stay drawn, where the eyes and mouth show. */
+    clay: Boolean = false) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(tr(lang, label), color = Muted, fontSize = 13.sp)
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // One card width and height for every option, so a long name does not make its card stand out.
+        Row(Modifier.horizontalScroll(rememberScrollState()).height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             options.forEach { option ->
-                Column(Modifier.clip(RoundedCornerShape(14.dp))
+                Column(Modifier.width(92.dp).fillMaxHeight().clip(RoundedCornerShape(14.dp))
                     .background(if (option == selected) SeaSoft(.16f) else Color.Transparent)
                     .border(if (option == selected) 1.dp else 0.dp, Sea.copy(alpha = .45f), RoundedCornerShape(14.dp))
                     .selectable(selected = option == selected, enabled = enabled, role = Role.RadioButton, onClick = { pick(option) })
                     .padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    WindFace(size = 42, accent = Color(Wind("", "", color, "").argb), style = face(option))
-                    Text(tr(lang, optionLabel(option)), fontSize = 12.sp, color = Ink)
+                    Box(Modifier.size(42.dp), contentAlignment = Alignment.Center) {
+                        WindFace(size = windPackSample(windPack(LocalAvatarTheme.current, face(option)), 42), accent = Color(Wind("", "", color, "").argb), style = face(option), clay = clay)
+                    }
+                    Text(tr(lang, optionLabel(option)), fontSize = 12.sp, lineHeight = 15.sp, color = Ink, textAlign = TextAlign.Center, maxLines = 2)
                 }
             }
         }

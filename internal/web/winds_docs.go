@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"gregal/internal/agent"
+	"gregal/internal/gdocs"
+	"gregal/internal/llm"
 	"gregal/internal/tools"
 )
 
@@ -123,9 +125,66 @@ func windDocDecide(dir, name, argsJSON string) (string, string) {
 	return "allow", "document del vent"
 }
 
+// windDocExec fa una crida a doc amb els documents vius de la carpeta del
+// vent. L'enllaç de baixada porta scope=mine, sense el qual les rutes el
+// buscarien al projecte de la sessió, i el client rep doc_changed com en
+// un torn de Codi.
+func (s *Server) windDocExec(ctx context.Context, dir, argsJSON string, emit func(kind, text string)) (string, []string, error) {
+	st, err := gdocs.OpenAt(dir)
+	if err != nil {
+		return "", nil, err
+	}
+	out, err := agent.DocExecIn(st, s.id, argsJSON)
+	if err != nil {
+		return out, nil, err
+	}
+	if strings.HasPrefix(out, "Created document ") {
+		out = strings.Replace(out, "/export?format=", "/export?scope=mine&format=", 1)
+	}
+	s.emitDocChanged(func(ev string, v any) {
+		b, err := json.Marshal(v)
+		if err == nil {
+			emit(ev, string(b))
+		}
+	}, dir, "mine", argsJSON, out)
+	return out, nil, nil
+}
+
+// windNotaDocs és la nota del torn (agent.NotaDocsIn) amb els documents
+// vius que l'eina doc del torn fa servir: els de la carpeta del vent o, si
+// no n'hi ha, els del projecte.
+func (s *Server) windNotaDocs(ctx context.Context, workspace string) (string, func()) {
+	st, err := gdocs.Open(workspace)
+	if d := windDocsOf(ctx); d != "" {
+		st, err = gdocs.OpenAt(d)
+	}
+	if err != nil {
+		return "", nil
+	}
+	return agent.NotaDocsIn(st, s.id)
+}
+
+// ambNotaDocs posa la nota dels documents al final del missatge de sistema
+// del pas, sense tocar l'historial que es desa.
+func ambNotaDocs(step agent.Stepper, nota string, marca func()) agent.Stepper {
+	return func(ctx context.Context, h []llm.Message) (string, []llm.ToolCall, error) {
+		if len(h) > 0 && h[0].Role == "system" {
+			h = append([]llm.Message{{Role: "system", Content: h[0].Content + "\n\n" + nota}}, h[1:]...)
+		} else {
+			h = append([]llm.Message{{Role: "system", Content: nota}}, h...)
+		}
+		content, calls, err := step(ctx, h)
+		if err == nil && marca != nil {
+			marca()
+			marca = nil
+		}
+		return content, calls, err
+	}
+}
+
 // windDocsBrief és la consigna dels documents per al prompt del vent.
 const windDocsBrief = "\n\n" + agent.ReviewDeliveryRules + " " + agent.VerifiedDeliveryRules +
-	"\nDOCUMENTS: create PDF, Word, Excel or PowerPoint when the user requests that format or asks to fill or edit an existing document. Use pdf_create, pdf_edit or the office tools. Use a plain file name: it is saved in your documents folder and the app adds a download link to your reply. Read attached documents with pdf_read or office_read. " + agent.OfficeDeliveryRules
+	"\nDOCUMENTS: a new text document (a report, a letter, notes, «a Word») is a live document with the doc tool: create it with doc and give the Word export link it returns in your reply. A new presentation is a live deck with doc and kind \"deck\". Use office_create only for templates, spreadsheets and documents the person attached, and pdf_create or pdf_edit for PDF. With those tools use a plain file name: it is saved in your documents folder and the app adds a download link to your reply. Read attached documents with pdf_read or office_read. " + agent.OfficeDeliveryRules
 
 // windDocLinks són els enllaços de baixada dels documents creats o
 // editats des de since: els de la carpeta del vent i els adjunts editats.

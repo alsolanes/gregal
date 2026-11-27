@@ -299,7 +299,7 @@ func (c *Client) responsesChat(ctx context.Context, baseURL, apiKey, model strin
 			req.Header.Set("Accept", "text/event-stream")
 		}
 	}
-	resp, err := c.postNatiu(ctx, baseURL, model, "/responses", hasMalformedToolArguments(msgs), campsResponses, headers, c.responsesBody(ctx, model, msgs, temp, maxTokens, specs, stream))
+	resp, err := c.postNatiu(ctx, baseURL, model, "/responses", hasMalformedToolArguments(msgs), campsPerEsforc(ctx, campsResponses, "reasoning"), headers, c.responsesBody(ctx, model, msgs, temp, maxTokens, specs, stream))
 	if err != nil {
 		return "", nil, err
 	}
@@ -346,7 +346,7 @@ func responsesWhole(baseURL string, body io.Reader, rec *usageCall, prog *progre
 	prog.delta(ProgressReasoning, reason)
 	prog.delta(ProgressText, res.text)
 	for _, tc := range res.calls {
-		prog.delta(ProgressTool, tc.Function.Arguments)
+		prog.eina(tc.Function.Name, tc.Function.Arguments)
 	}
 	if onReason != nil && reason != "" {
 		onReason(reason)
@@ -372,6 +372,7 @@ func responsesStream(ctx context.Context, baseURL string, body io.Reader, rec *u
 	var text strings.Builder
 	items := map[int]json.RawMessage{}
 	args := map[int]*strings.Builder{}
+	noms := map[int]string{} // eina de cada output_index, per al progrés
 	var final *respObject
 	var errStream error
 	readSSE(body, func(event, data string) bool {
@@ -406,10 +407,16 @@ func responsesStream(ctx context.Context, baseURL string, body io.Reader, rec *u
 				args[ev.OutputIndex] = b
 			}
 			b.WriteString(ev.Delta)
-			prog.delta(ProgressTool, ev.Delta)
+			prog.eina(noms[ev.OutputIndex], ev.Delta)
 		case "response.output_item.added":
 			if _, ok := items[ev.OutputIndex]; !ok && len(ev.Item) > 0 {
 				items[ev.OutputIndex] = ev.Item
+			}
+			var item struct {
+				Name string `json:"name"`
+			}
+			if json.Unmarshal(ev.Item, &item) == nil {
+				noms[ev.OutputIndex] = item.Name
 			}
 		case "response.output_item.done":
 			if len(ev.Item) > 0 {

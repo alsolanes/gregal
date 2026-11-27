@@ -112,6 +112,8 @@ data class WindLive(
     val tool: String = "", val step: Int = 0, val receivedText: Boolean = false, val speaker: String = "",
     /** Tempesta: l'estat de cada agent mentre treballen (buit en un torn normal). */
     val tempesta: List<TempestaAgent> = emptyList(),
+    /** Els vents que l'eina wind consulta ara (163); buit si no en pregunta cap de concret. */
+    val asking: List<Wind> = emptyList(),
 ) {
     val mood: WindMood get() = if (phase == "tool" && tool.isNotBlank()) {
         windMoodOf(state = "working", activity = tool, writing = writing, voices = voices)
@@ -122,6 +124,10 @@ data class WindLive(
 internal fun windProgressLabel(lang: String, live: WindLive): String {
     val en = lang == "en"
     if (live.writing) return if (en) "Receiving the reply" else "Rebent la resposta"
+    if (live.phase == "tool" && live.tool.lowercase() == "wind" && live.asking.isNotEmpty()) {
+        return if (live.asking.size == 1) tr(lang, "app.vents.askingWind", live.asking[0].name)
+        else tr(lang, "app.vents.askingWinds", live.asking.size)
+    }
     if (live.phase == "tool") return when (live.tool.lowercase()) {
         "bash", "shell" -> if (en) "Running a command" else "Executant una ordre"
         "read", "read_file", "ls" -> if (en) "Reading the project" else "Llegint el projecte"
@@ -203,6 +209,19 @@ object WindNewsLogic {
     fun unseenCounts(novetats: List<WindNovetat>, seen: Map<String, Long>, floor: Long): Map<String, Int> =
         novetats.filter { !it.read && it.wind.isNotBlank() && it.ts > maxOf(seen[it.wind] ?: 0L, floor) }
             .groupingBy { it.wind }.eachCount()
+
+    /** Clau d'una novetat pendent: l'id (B7) o, en un servidor antic, vent i hora. */
+    fun keys(novetats: List<WindNovetat>, seen: Map<String, Long>, floor: Long): Set<String> =
+        pending(novetats, seen, floor).map(::key).toSet()
+
+    /** Les pendents que no hi eren a la lectura d'abans; cap si encara no n'hi havia hagut cap ([known] null). */
+    fun arrived(novetats: List<WindNovetat>, seen: Map<String, Long>, floor: Long, known: Set<String>?): List<WindNovetat> =
+        if (known == null) emptyList() else pending(novetats, seen, floor).filter { key(it) !in known }
+
+    private fun pending(novetats: List<WindNovetat>, seen: Map<String, Long>, floor: Long) =
+        novetats.filter { !it.read && it.wind.isNotBlank() && it.ts > maxOf(seen[it.wind] ?: 0L, floor) }
+
+    private fun key(n: WindNovetat) = n.id.ifBlank { n.wind + ":" + n.ts }
 }
 
 /**

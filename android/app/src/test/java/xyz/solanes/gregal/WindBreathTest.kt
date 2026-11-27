@@ -93,7 +93,8 @@ class WindBreathTest {
     @Test fun `a working Cares face blows toward where its wind goes, as on the web`() {
         ui.mainClock.autoAdvance = false
         ui.setContent {
-            CompositionLocalProvider(LocalWindMotion provides false) {
+            // The Canvas face, without the clay sheets (167: with them a small Cares face is clay).
+            CompositionLocalProvider(LocalWindMotion provides false, LocalWindClay provides "no-such-folder") {
                 Row {
                     framed("tramuntana", "Tramuntana", WindMood.WORKING)
                     framed("ponent", "Ponent", WindMood.WORKING)
@@ -126,10 +127,12 @@ class WindBreathTest {
         ui.mainClock.autoAdvance = false
         val mood = mutableStateOf(WindMood.WORKING)
         ui.setContent {
-            Row {
-                framed("face", "Tramuntana", mood.value, tappable = true)
-                framed("list", "Tramuntana", WindMood.WORKING)
-                CompositionLocalProvider(LocalWindMotion provides false) { framed("still", "Tramuntana", WindMood.WORKING) }
+            CompositionLocalProvider(LocalWindClay provides "no-such-folder") {
+                Row {
+                    framed("face", "Tramuntana", mood.value, tappable = true)
+                    framed("list", "Tramuntana", WindMood.WORKING)
+                    CompositionLocalProvider(LocalWindMotion provides false) { framed("still", "Tramuntana", WindMood.WORKING) }
+                }
             }
         }
         ui.mainClock.advanceTimeBy(100)
@@ -154,7 +157,8 @@ class WindBreathTest {
         assertTrue(below(still).sameAs(below(image("still"))))
         assertTrue("a list face shows it but keeps still, like the rest of Cares in lists", ink(below(list), 0, 0, Int.MAX_VALUE, Int.MAX_VALUE) > 0 && below(list).sameAs(below(image("list"))))
         mood.value = WindMood.IDLE
-        ui.mainClock.advanceTimeBy(100)
+        // 139: en canviar d'estat l'alè es fon en 300 ms en lloc de desaparèixer de cop.
+        ui.mainClock.advanceTimeBy(400)
         assertEquals("back to idle, no breath", 0, ink(below(image("face")), 0, 0, Int.MAX_VALUE, Int.MAX_VALUE))
     }
 }

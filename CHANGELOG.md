@@ -28,6 +28,175 @@
   les continuacions queden alineades, en lloc de ser una altra fila del
   mateix to gris.
 
+## v1.99.0 - 2026-11-27 - Respostes amples, documents foscos i «A fons» que fa la feina
+
+- **Respostes amples a l'escriptori.** El text dels vents ocupa l'amplada del
+  xat (fins a 64rem), com Claude o Codex, en lloc de quedar-se en una columna
+  estreta.
+- **Documents foscos en un tema fosc.** Els documents de text i els Word
+  adjunts ja no són una pàgina blanca que enlluerna a les fosques; els temes
+  clars la mantenen blanca.
+- **«A fons» fa la feina que li demanes.** «Vull una pàgina web…» o
+  «Escriu-me un fitxer…» ja no acaben en «només investigo»: el torn passa a
+  mode normal. Les preguntes i les recerques continuen anant a fons.
+- **Cada resposta, les seves webs.** Amb dos vents treballant alhora, una
+  resposta ja no porta les targetes de les webs de l'altre.
+- **L'enllaç al document funciona.** El Word que fa un vent és un enllaç que
+  es baixa, i un enllaç inventat pel model ja no surt com a markdown cru (web
+  i Android).
+- **Retocs:** «Ho recordaré» i les files de sota la resposta s'alineen amb el
+  text i hi deixen aire.
+
+## v1.98.0 - 2026-11-27 - Gregal acaba la feina, converses a dalt i «A fons» a la teva mida
+
+- **Gregal acaba la feina encara que el fitxer sigui gran.** Els fitxers
+  llargs s'escriuen per parts; si una resposta es talla pel límit de sortida,
+  el model ho torna a provar pensant menys i escrivint ja, en lloc de rendir-se.
+  Un `write` que arriba sense contingut ja no buida el fitxer.
+- **Veus què fa el model.** Mentre treballa, el xat diu «Escrivint index.html
+  · 12k caràcters», «Preparant bash» o «Pensant» amb l'última frase del que
+  pensa (web i Android).
+- **«A fons» a la teva mida.** Tria el model de cada agent i de la síntesi a
+  Preferències › Models, i cada agent diu què fa. Si amb «A fons» demanes fer
+  una cosa, es fa en mode normal en lloc de quedar-se en lectura.
+- **A la colla, qui ha fet la feina aplica la revisió.** Ja no diu que està
+  «en mode inspecció».
+- **Converses a dalt i Configuració com a pàgina.** A la barra lateral i al
+  calaix d'Android, Avui i les últimes converses surten a dalt (amb «Mostra'n
+  més»), barrejades per data; Configuració és una pàgina amb seccions, també
+  des de l'engranatge.
+- **Vents mira si hi ha versió nova en tornar a primer pla**, no només en
+  obrir l'app.
+- **Retocs:** les lletres amb cua ja no es tallen, «Els teus vents» mostra la
+  plastilina amb la seva forma, «Posa ordre» no diu «sense ús» als vents nous,
+  i al mòbil res no surt amb punts suspensius.
+
+## v1.97.0 - 2026-11-26 - Vents que es pregunten, plastilina a tot arreu i negre de debò
+
+- **Els vents es pregunten entre ells, i es veu (web, escriptori i Android).**
+  Quan un vent demana una feina a un altre, el fil del que la rep diu
+  «Encàrrec de X» amb la cara de qui la demana. Quan un vent consulta altres
+  vents, el xat diu a qui pregunta i plega el que li han respost com un debat
+  que pots obrir.
+- **Crea un vent amb una frase.** Al creador, «Descriu el teu vent» omple el
+  nom, el rol, la persona, el color, la cara i l'ofici; ho revises abans de
+  crear-lo.
+- **Plastilina a totes les mides.** Les files de llista i la capçalera del xat
+  també mostren el vent de plastilina, quiet, amb la insígnia del seu ofici.
+- **El vent que t'espera ho diu a la figura.** Si un vent espera la teva
+  resposta, a l'inici, a l'equip i a la capçalera porta una bombolla amb «?».
+- **Et mira.** Un vent gran de plastilina en repòs gira els ulls cap al ratolí
+  (web) o cap al dit (Android).
+- **Tres formes noves: gota, sol i onada.** Es trien al creador i també surten
+  als suggeriments.
+- **Mode fosc negre de debò.** El tema fosc és negre pur, pensat per a
+  pantalles AMOLED, al web, l'escriptori, el terminal i Android.
+
+## v1.96.0 - 2026-11-26 - Pelut, vents nítids i un capçal per a tots
+
+- **Pelut, un paquet d'avatars nou (web, escriptori i Android).** Cada vent
+  és una bola de pèl curt en 3D del seu color, amb ulls grossos i brillants.
+  Es tria a Preferències › Avatars («Pelut» / «Furry») o, en mode Lliure, a
+  l'editor de cada vent.
+- **Vents de plastilina nítids al mòbil.** Totes les figures de plastilina
+  (còdol, núvol, rínxol, minairó i pelut) es renderitzen al doble de
+  resolució: ulls, boca i vores ja no es veuen borrosos. A Android ja no
+  tenen un requadre fosc al voltant.
+- **Selectors d'avatars ben repartits.** Els colors i els paquets queden en
+  files i columnes iguals, sense cap opció sola en una fila ni noms tallats,
+  i les mostres són més grans, les de plastilina en 3D.
+- **Un capçal per a tots els vents.** Gregal inclòs, tots tenen la mateixa
+  capçalera amb un menú «⋯»; el vent assenteix, s'hi acosta o fa que no amb
+  el cos, i si un torn falla t'ho diu ell al fil amb «Torna-ho a provar».
+- **Permisos amb la cara de qui demana.** La targeta de permís porta la cara
+  i el color del vent que pregunta i el perquè en una línia.
+- **Inici i Feina (Android).** La fila de cares de l'inici hi té tots els
+  vents, llisca amb imant i el vent que respon porta un punt; en tocar-ne una
+  vola al xat i en repren el fil. A Feina, cada feina en marxa és una
+  targeta amb la cara de qui la porta, i «Què pot fer Gregal» s'obre amb tres
+  targetes i «Més». La resposta del vent creix al seu lloc, com al web.
+- **Avui.** Al web comença amb el resum del dia, una targeta per vent amb el
+  que ha fet i el que proposa. Després d'un xat sobre una cosa que canvia, el
+  vent ofereix «Vols que ho vigili?». Les feines nocturnes funcionen des que
+  s'engega el servidor.
+- **Correccions.** La barra de l'editor de documents parla l'idioma de l'app;
+  Android anomena l'ordinador i les respostes desades com el web; la pàgina
+  de vents antiga ja no es carrega; la primera paraula d'una resposta surt de
+  seguida.
+
+## v1.95.0 - 2026-11-25 - Xat més pro, vents que es mouen amb calma i proactius
+
+- **Un xat més professional (web i escriptori).** La resposta d'un vent creix
+  dins d'una sola bombolla, sense salts ni repintats, i quan acaba és el
+  mateix missatge. Les respostes es llegeixen com un text net, amb una sola
+  mida i amplada de lectura; els teus missatges, en una bombolla discreta.
+  Si puges a llegir mentre escriu, ja no et torna a baixar.
+- **El vent es mou amb calma (web, escriptori i Android).** Ja no salta entre
+  la cantonada i la capçalera a la mínima: hi ha marge. Canvia d'estat amb
+  una transició suau i, si canvia d'eina cada pocs segons, l'animació no
+  torna a començar. Mentre treballa es mou una mica i fa servir un objecte
+  segons la feina.
+- **Plastilina amb objectes.** Els vents de plastilina tenen mans: escombren
+  amb una lupa quan busquen, passen pàgines quan llegeixen, gargotegen amb un
+  llapis, piquen un portàtil, fan girar engranatges quan pensen i tiren
+  confeti en acabar. Els minairons porten cadascun la barretina d'un color,
+  sempre amb la cinta negra, i trets propis (celles, bigoti, alguns ulleres);
+  el color es tria a l'editor del vent.
+- **Avui funciona de debò.** El temps i el que segueixes es desen (a Android
+  també amb la tecla del teclat) i, si no es troba un lloc o uns partits,
+  ho diu. Avui comença amb una targeta lliscable per a cada vent que ha fet
+  o proposa alguna cosa.
+- **Vents més proactius, sense ser pesats.** Preparen les teves reunions
+  abans que comencin, continuen al matí el que va quedar pendent en un xat i,
+  si dius «no m'interessa» sovint, afluixen o s'aturen («Torna-hi» els
+  engega de nou). Només a l'app, mai per Telegram.
+- **Inici i lateral.** A Android, la fila de cares respira, mostra qui
+  treballa i, en tocar-ne una, s'obre la seva última conversa. A l'escriptori
+  el document del vent al lateral s'obre i es tanca quan vols i se'n pot
+  canviar l'amplada.
+- **Correccions.** El navegador ja no té marcs blancs en tema fosc i la pàgina
+  omple tot el marc; «Tots els vents» sempre és a la barra; a Android els
+  estils dels vents es refresquen en tornar a l'app i les notificacions
+  porten la cara i el color del vent; els coneixements es desen; els fils
+  antics diuen «Encàrrec de Gregal».
+
+## v1.94.0 - 2026-11-24 - Gregal Docs, Avui i vents amb vida
+
+- **Gregal Docs: documents vius que fas amb els vents (web, escriptori i
+  Android).** Demana «fes-me un Word» i el vent obre un document que pots
+  editar al mateix temps, amb un editor com el d'un processador de textos
+  (estils, colors, lletres, alineació, taules i imatges), presentacions i
+  fulls de càlcul amb fórmules. Es baixen en Word, PowerPoint o Excel, i el
+  document s'obre en una finestra pròpia que se sincronitza amb el panell.
+- **Avui, d'una ullada (web, escriptori i Android).** A dalt de tot, el temps
+  d'avui a la teva ciutat, el calendari d'avui i de demà i el que segueixes:
+  el pròxim partit dels teus equips, amb compte enrere, o qualsevol altra
+  cosa que els vents miren cada matí. «Segueix el Barça» també funciona des
+  del xat.
+- **Els vents es fan notar (web, escriptori i Android).** Quan un vent
+  t'escriu pel seu compte, la seva cara salta amb una insígnia, surt un avís
+  i, amb l'app tancada, una notificació. Escriuen en el teu idioma i curt.
+  La pantalla «Activitat» recull el que han fet mentre no hi eres.
+- **Vents amb vida.** Avatars redissenyats que parpellegen, miren i celebren
+  la feina feta, i una versió de plastilina feta amb Blender. Al xat, el
+  vent és un de sol: és a la cantonada amb tu i vola fins a la capçalera
+  quan puges. Cada conversa agafa el color del seu vent.
+- **Minairons.** Si dius «minairons» als teus ajudants, tenen aspecte de
+  minairó català: barretina vermella amb la cinta negra, barba blanca i un
+  canut d'agulles, un brot d'herba de Sant Joan o una pedreta.
+- **Feina de veritat, a la vista.** Les aprovacions són targetes amb vista
+  prèvia i «Permet / No»; mentre un vent fa servir l'ordinador el veus al
+  costat del xat; i cada vent té un prestatge amb el que t'ha fet.
+- **Comparacions en fitxes que llisques (a Codi i a Vents).** Amb foto o
+  logo de cada cosa, o una fitxa per pàgina per a resums llargs, com els
+  programes electorals.
+- **Terminal integrat** al panell lateral, amb Ctrl+C que funciona a Windows.
+- **Correccions.** Els batecs i recordatoris dels vents ja no arriben mai per
+  Telegram, només a l'app; amb comptes, cada compte té els seus batecs; els
+  botons que demanaven un text (taula, imatge, enllaç, carpeta, kanban…) tornen
+  a funcionar a l'app d'escriptori; i l'app d'Android ja no es tanca en obrir-se
+  ni ensenya els documents en negre.
+
 ## v1.93.0 - 2026-11-22 - Quatre aspectes nous per als vents
 
 - **Quatre aspectes nous per als vents (web, escriptori i Android).** A

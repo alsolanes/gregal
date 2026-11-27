@@ -5,11 +5,13 @@ import android.graphics.Bitmap
 import android.os.Looper
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.*
@@ -30,7 +32,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.annotation.LooperMode
 
-/** Cap de vent and Rosa de rellotge, as `cap()` and `rosa()` in winds.js. */
+/** Cap de vent and Rosa de rellotge, as `cap()` and `rosa()` in winds.js; with Esperit, the volume of the packs. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w393dp-h851dp-xxhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -65,12 +67,16 @@ class WindCapRosaTest {
     /** The pixel at (x, y) of the web's 100 box, drawn at 0.8 in the face. */
     private fun at(b: Bitmap, x: Float, y: Float) = b.getPixel((x * .8f / 80f * b.width).toInt(), (y * .8f / 80f * b.height).toInt())
 
-    /** Pixels that are not the black ground in the 100 box rectangle [x0, x1) × [y0, y1). */
+    /**
+     * Pixels drawn over the black ground in the 100 box rectangle [x0, x1) × [y0, y1).
+     * The contact shadow under a head is ground, not ink: at most half of a dark tone, under 48 on every channel.
+     */
     private fun ink(b: Bitmap, x0: Int, y0: Int, x1: Int, y1: Int): Int {
         val k = b.width * .8f / 80f
         var n = 0
         for (y in (y0 * k).toInt() until minOf((y1 * k).toInt(), b.height)) for (x in (x0 * k).toInt() until minOf((x1 * k).toInt(), b.width)) {
-            if (b.getPixel(x, y) != android.graphics.Color.BLACK) n++
+            val c = b.getPixel(x, y)
+            if (maxOf(android.graphics.Color.red(c), android.graphics.Color.green(c), android.graphics.Color.blue(c)) >= 48) n++
         }
         return n
     }
@@ -181,7 +187,8 @@ class WindCapRosaTest {
         assertTrue("cardinal point $big over bare dial $small", big > small + 40)
     }
 
-    @Test fun `motion off keeps both still while idle, and work moves them anyway`() {
+    // Amb el moviment apagat la cara és un fotograma quiet, també mentre treballa (com el web i el mapa).
+    @Test fun `motion off keeps both still, idle or working`() {
         // Bottom halves: Cap Tramuntana's breath and Rosa Migjorn's point, away from the mood badge.
         fun bottom(b: Bitmap) = Bitmap.createBitmap(b, 0, b.height / 2, b.width, b.height / 2)
         faces(false, face("cap", "Tramuntana", "cap", 96), face("rosa", "Migjorn", "rosa", 96),
@@ -190,8 +197,18 @@ class WindCapRosaTest {
         ui.mainClock.advanceTimeBy(300)
         assertTrue("idle Cap is still", before.getValue("cap").sameAs(bottom(image("cap"))))
         assertTrue("idle Rosa is still", before.getValue("rosa").sameAs(bottom(image("rosa"))))
-        assertFalse("working Cap blows", before.getValue("capWork").sameAs(bottom(image("capWork"))))
-        assertFalse("working Rosa swings", before.getValue("rosaWork").sameAs(bottom(image("rosaWork"))))
+        assertTrue("working Cap is still too", before.getValue("capWork").sameAs(bottom(image("capWork"))))
+        assertTrue("working Rosa is still too", before.getValue("rosaWork").sameAs(bottom(image("rosaWork"))))
+    }
+
+    // Amb el moviment encès, la feina mou fins i tot les cares petites de les llistes.
+    @Test fun `with motion on small working Cap and Rosa move`() {
+        faces(true, face("capWork", "Tramuntana", "cap", 40, WindMood.WORKING), face("rosaWork", "Migjorn", "rosa", 40, WindMood.WORKING))
+        val cap = image("capWork")
+        val rosa = image("rosaWork")
+        ui.mainClock.advanceTimeBy(300)
+        assertFalse("working Cap blows", cap.sameAs(image("capWork")))
+        assertFalse("working Rosa swings", rosa.sameAs(image("rosaWork")))
     }
 
     @Test fun `with motion on an idle Cap and Rosa move`() {
@@ -203,5 +220,60 @@ class WindCapRosaTest {
         ui.mainClock.advanceTimeBy(500)
         assertFalse(cap.sameAs(bottom(image("cap"))))
         assertFalse(rosa.sameAs(bottom(image("rosa"))))
+    }
+
+    private fun light(c: Int) = android.graphics.Color.red(c) + android.graphics.Color.green(c) + android.graphics.Color.blue(c)
+
+    @Test fun `Esperit, Cap and Rosa have the volume of Cares, a rim light and a coloured contact shadow`() {
+        // Head centre and radius in the 100 box: Esperit Ponent (62, 50) R 28, Cap Migjorn (50, 61) R 25, Rosa (50, 50) R 50.
+        val heads = listOf(Triple("esperit", "Ponent", floatArrayOf(62f, 50f, 28f)), Triple("cap", "Migjorn", floatArrayOf(50f, 61f, 25f)),
+            Triple("rosa", "Migjorn", floatArrayOf(50f, 50f, 50f)))
+        faces(false, *heads.map { (pack, name, _) -> face(pack, name, pack, 96) }.toTypedArray())
+        for ((pack, _, h) in heads) {
+            val b = image(pack)
+            // Down and right, away from the features: the plain gradient only darkens toward the edge, the rim lights it back.
+            fun ray(f: Float) = light(at(b, h[0] + .5f * h[2] * f, h[1] + .866f * h[2] * f))
+            assertTrue("$pack: the rim lights the lower edge (${ray(.97f)} over ${ray(.5f)})", ray(.97f) > ray(.5f) + 20)
+        }
+        for ((pack, _, h) in heads.take(2)) {
+            // The ground shadow under the head is a dark tone of the wind's colour, not grey.
+            val c = at(image(pack), h[0], h[1] + 1.13f * h[2])
+            assertNotEquals("$pack: a contact shadow", android.graphics.Color.BLACK, c)
+            assertTrue("$pack: tinted like the wind", android.graphics.Color.blue(c) > android.graphics.Color.red(c) + 8)
+        }
+    }
+
+    @Test fun `the gravity tilt moves the light of every pack with motion on, and nothing without it`() {
+        ui.mainClock.autoAdvance = false
+        val packs = listOf("esperit", "cap", "rosa")
+        ui.setContent {
+            CompositionLocalProvider(LocalAvatarTheme provides "free") {
+                Column {
+                    for (pack in packs) Row {
+                        CompositionLocalProvider(LocalWindMotion provides true) {
+                            Box(Modifier.testTag(pack).background(Color.Black)) { WindFace(size = 96, accent = accent, style = style("Migjorn", pack)) }
+                            Box(Modifier.testTag("$pack-list").background(Color.Black)) { WindFace(size = 40, accent = accent, style = style("Migjorn", pack)) }
+                        }
+                        CompositionLocalProvider(LocalWindMotion provides false) {
+                            Box(Modifier.testTag("$pack-still").background(Color.Black)) { WindFace(size = 96, accent = accent, style = style("Migjorn", pack)) }
+                        }
+                    }
+                }
+            }
+        }
+        ui.mainClock.advanceTimeBy(100)
+        val tags = packs.flatMap { listOf(it, "$it-list", "$it-still") }
+        val before = tags.associateWith { image(it) }
+        try {
+            WindLean.value.value = Offset(1f, .6f)
+            ui.waitForIdle()
+            for (pack in packs) {
+                assertFalse("$pack: the light follows the tilt", before.getValue(pack).sameAs(image(pack)))
+                assertTrue("$pack: list faces do not tilt", before.getValue("$pack-list").sameAs(image("$pack-list")))
+                assertTrue("$pack: without motion nothing moves", before.getValue("$pack-still").sameAs(image("$pack-still")))
+            }
+        } finally {
+            WindLean.value.value = Offset.Zero
+        }
     }
 }

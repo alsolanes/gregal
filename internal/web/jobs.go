@@ -20,6 +20,11 @@ import (
 // llengua la fixa la directiva d'idioma que tanca la consigna (executeJob).
 const jobSystem = "You are the writer of a bulletin. You work in inspect mode: read-only (web search, reading pages and the project). Do not modify anything or run destructive actions. Produce the answer as well-structured markdown: headline, date, summary, key points with links to the sources and, if relevant, a comparison table. Reply with the bulletin only, no preamble."
 
+// windRoutineSystem és la consigna d'una rutina d'un vent: el resultat entra
+// al seu xat i sona com a novetat, així que no és un butlletí (windOwnVoice
+// en dona la forma).
+const windRoutineSystem = "You are doing a routine the user set up for you. You work in inspect mode: read-only (web search, reading pages and the project). Do not modify anything or run destructive actions. Give the actual result with links to the sources, no preamble."
+
 // ExternalJobScheduler diu si els jobs programats els dispara algú de fora
 // (GREGAL_JOBS_SCHEDULER=external): l'app Android programa una alarma del
 // sistema i crida /api/jobs/run amb scheduled, perquè el backend només viu
@@ -218,21 +223,48 @@ func (s *Server) executeJob(ctx context.Context, job jobs.Job, queued runs.Run) 
 	if isLocalJob(job.ID) {
 		return s.executeLocalInfo(jobCtx, job, queued)
 	}
+	// El que segueixes a «Avui» (winds_avui_follows.go): només desa la resposta.
+	if isFollowJob(job.ID) {
+		return s.executeFollow(jobCtx, job)
+	}
+	// Els fils oberts a «Avui» (winds_avui_loops.go): targetes, cap missatge.
+	if isLoopsJob(job.ID) {
+		return s.executeLoops(jobCtx, job)
+	}
+	// La preparació de les reunions (winds_avui_prep.go): targetes «Prep».
+	if isPrepJob(job.ID) {
+		return s.executePrep(jobCtx, job)
+	}
 	// Els jobs de vent (id wind-<vent>) tenen consigna pròpia: el vent vigila
 	// el seu tema amb cerques web i només parla si troba algo que valgui la
 	// pena. El missatge entra al seu xat (company-<vent>).
-	if id, isWind := windJobID(job.ID); isWind && s.winds != nil {
-		if w, ok := s.winds.ByID(id); ok {
-			return s.executeWindHeartbeat(ctx, job, queued, w)
+	if id, isWind := windJobID(job.ID); isWind {
+		if s.winds != nil {
+			if w, ok := s.winds.ByID(id); ok {
+				return s.executeWindHeartbeat(ctx, job, queued, w)
+			}
 		}
+		// Mai com una feina qualsevol: sense el vent, ni xat ni avís.
+		end := time.Now()
+		run := jobs.Run{Wind: job.Wind, WindOwner: job.WindOwner, JobID: job.ID, JobName: job.Name,
+			StartedAt: start, FinishedAt: end, Status: "error", Error: "the heartbeat's wind is not in this account"}
+		_ = s.jobs.AddRun(run)
+		_ = s.jobs.MarkRun(job.ID, end, "error")
+		return run, fmt.Errorf("%s", run.Error)
 	}
 	// Loop no té system prompt: la consigna va davant la tasca, amb la
 	// memòria del projecte si n'hi ha.
-	brief := jobSystem + "\n\nTask:\n" + job.Prompt
+	brief := jobSystem
+	if job.Wind != "" {
+		brief = windRoutineSystem
+	}
+	brief += "\n\nTask:\n" + job.Prompt
 	if info := agent.ContextProjecte(s.cwd); info != "" {
 		brief += "\n\n" + info
 	}
-	brief += "\n\n" + config.LanguageDirective(s.cfg.Lang())
+	if job.Wind == "" {
+		brief += "\n\n" + config.LanguageDirective(s.cfg.Lang())
+	}
 	var res exploracio
 	var runErr error
 	if job.Wind != "" {
@@ -247,7 +279,7 @@ func (s *Server) executeJob(ctx context.Context, job jobs.Job, queued runs.Run) 
 		} else {
 			brief += "\nWind: " + wind.Name + ". " + wind.Persona + windTradeBrief(wind) + s.windCalaixBrief(wind) + s.windMemorySystem(wind.ID) + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windSkillsSystem(wind.ID)
 			// El que l'usuari ha ensenyat a aquesta rutina («fes-ho així»).
-			brief += rutinaHowtoBrief(job)
+			brief += rutinaHowtoBrief(job) + windOwnVoice(s.cfg.Lang())
 			jobCtx = agent.WithSkillsDirs(jobCtx, s.windSkillsDir(wind.ID))
 		}
 	}
@@ -356,6 +388,12 @@ func (s *Server) handleJobSave(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "nom i prompt obligatoris", 400)
 		return
 	}
+	id, own := s.heartJobID(j)
+	if !own {
+		http.Error(w, "unknown routine", 404)
+		return
+	}
+	j.ID = id
 	if j.ID != "" {
 		oldJobs, err := s.jobs.List()
 		if err != nil {
@@ -518,13 +556,25 @@ func (s *Server) handleJobRuns(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) canSeeWindRoutine(job jobs.Job) bool {
 	if job.Wind == "" {
-		return true
+		// El cor antic sense amo (wind-<vent>): amb comptes no és de ningú.
+		return !strings.HasPrefix(job.ID, windJobPrefix) || respOwner(s) == ""
 	}
 	owner := ""
 	if s.user != nil && !s.user.Tothom {
 		owner = s.user.Name
 	}
 	return job.WindOwner == owner
+}
+
+// canSeeWindJob és canSeeWindRoutine per als jobs que ja se sap que són d'un
+// vent (el cor wind-<id>, un recordatori). El cor antic no porta Wind: amb
+// comptes no se'n sap l'amo, i dos comptes poden tenir un vent amb el
+// mateix id; no es mostra a ningú (el compte que desa el cor en té un de nou).
+func (s *Server) canSeeWindJob(job jobs.Job) bool {
+	if job.Wind == "" {
+		return s.user == nil || s.user.Tothom
+	}
+	return s.canSeeWindRoutine(job)
 }
 func (s *Server) windRoutineVisibleID(id string) bool {
 	list, err := s.jobs.List()

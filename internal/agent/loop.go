@@ -69,9 +69,10 @@ func Specs() []llm.ToolSpec {
 				"command": str,
 				"bet":     betParam,
 			}, "required": []string{"command"}}},
-		{Name: "write", Description: "Write a whole file with the given content: for NEW files. To change an existing file use edit or patch: rewriting it whole is slow (every line is written again) and you can lose code you have not read.",
+		{Name: "write", Description: "Write a whole file with the given content: for NEW files. To change an existing file use edit or patch: rewriting it whole is slow (every line is written again) and you can lose code you have not read. Write a file of more than ~300 lines in parts: the first part with write, then the rest with write and append: true (adds content to the end of the file), each call under ~8,000 tokens.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"path": str, "content": str,
+				"append": map[string]any{"type": "boolean"},
 			}, "required": []string{"path", "content"}}},
 		{Name: "edit", Description: "Replace ONE exact block (it must be unique) in a file. For several changes to the same file use patch: with separate edits, if one fails the file is left half-changed. replace_all=true replaces every occurrence instead (renaming an identifier, a repeated literal).",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
@@ -189,9 +190,9 @@ func Specs() []llm.ToolSpec {
 				"sheet":       str, "cell": str, "value": str,
 			}, "required": []string{"path", "op"}}},
 		{Name: "office_create", Description: "Create a new, professionally formatted office document. Fails if the file exists unless overwrite=true (use it to regenerate your own draft, never to replace a user file). Load the skill office-docx / office-pptx / office-xlsx first for the rules. " +
-			"docx: content in markdown (headings, lists, numbered lists, tables, quotes, code, links, images ![alt](path), [TOC], \\pagebreak) becomes real Word styles; title/subtitle make a cover; template = a .dotx/.docx whose styles, header, footer and page setup are kept ({{name}} markers are filled from vars, {{content}} marks where content goes). " +
-			"pptx: spec JSON {\"theme\":…,\"slides\":[{\"layout\":\"title|section|content|two_columns|comparison|big_number|image|title_only|blank|closing\",\"title\",\"subtitle\",\"bullets\":[…],\"body\",\"left\",\"right\",\"left_title\",\"right_title\",\"number\",\"caption\",\"image\",\"table\":[[…]],\"chart\":{\"type\":\"column|bar|line|pie|doughnut\",\"categories\":[…],\"series\":[{\"name\",\"values\":[…]}]},\"notes\"}]} or content markdown (one # per slide); template = .potx/.pptx (its layouts are reused; its sample slides are removed unless keep_template_slides). " +
-			"xlsx: spec JSON {\"sheets\":[{\"name\",\"rows\":[[…]] (\"=…\" = formula),\"number_formats\":{\"B2:D9\":\"#,##0 €\"},\"roles\":{\"B2:B5\":\"input\"},\"widths\":[24,14,14],\"freeze\":\"B2\",\"table\":true,\"conditional\",\"charts\",\"comments\",\"hyperlinks\":{\"A2\":\"https://example.com/source\"},\"validation\":[{\"range\":\"B2:B5\",\"min\":0,\"max\":5}]}]} or content rows separated by |. Put the link label in rows and its URL in hyperlinks. Omit widths to auto-fit. Creation reports formula QA. " +
+			"docx: a new text document (a report, a letter, notes, «a Word») goes to the doc tool instead (a live document; give the Word link it returns); use office_create for a docx only from a .dotx/.docx template or a document the person attached: content in markdown (headings, lists, numbered lists, tables, quotes, code, links, images ![alt](path), [TOC], \\pagebreak) becomes real Word styles; title/subtitle make a cover; template = a .dotx/.docx whose styles, header, footer and page setup are kept ({{name}} markers are filled from vars, {{content}} marks where content goes). " +
+			"pptx: a new presentation goes to the doc tool with kind \"deck\" instead (live slides the person edits with you); use office_create for a pptx only from a .potx/.pptx template or a file the person attached: spec JSON {\"theme\":…,\"slides\":[{\"layout\":\"title|section|content|two_columns|comparison|big_number|image|title_only|blank|closing\",\"title\",\"subtitle\",\"bullets\":[…],\"body\",\"left\",\"right\",\"left_title\",\"right_title\",\"number\",\"caption\",\"image\",\"table\":[[…]],\"chart\":{\"type\":\"column|bar|line|pie|doughnut\",\"categories\":[…],\"series\":[{\"name\",\"values\":[…]}]},\"notes\"}]} or content markdown (one # per slide); template = .potx/.pptx (its layouts are reused; its sample slides are removed unless keep_template_slides). " +
+			"xlsx: a new spreadsheet goes to the doc tool with kind \"sheet\" instead (live cells whose formulas the server calculates); use office_create for an xlsx only from a .xltx/.xlsx template, a file the person attached, or when it needs charts, conditional formats or styles: spec JSON {\"sheets\":[{\"name\",\"rows\":[[…]] (\"=…\" = formula),\"number_formats\":{\"B2:D9\":\"#,##0 €\"},\"roles\":{\"B2:B5\":\"input\"},\"widths\":[24,14,14],\"freeze\":\"B2\",\"table\":true,\"conditional\",\"charts\",\"comments\",\"hyperlinks\":{\"A2\":\"https://example.com/source\"},\"validation\":[{\"range\":\"B2:B5\",\"min\":0,\"max\":5}]}]} or content rows separated by |. Put the link label in rows and its URL in hyperlinks. Omit widths to auto-fit. Creation reports formula QA. " +
 			"theme: leave it empty unless the user asks for a look: empty uses the user's active branding (their colours, fonts and logo) or the default; otherwise default, modern, nature, elegant, mono (optionally \"default:primary=1F4E79,accent=F18F01,font=Arial\").",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"path": str, "title": str, "subtitle": str, "content": str, "template": str, "theme": str, "author": str,
@@ -1131,22 +1132,35 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		return "aturat " + a.ID, nil, nil
 	case "write":
 		var a struct {
-			Path    string `json:"path"`
-			Content string `json:"content"`
+			Path    string  `json:"path"`
+			Content *string `json:"content"`
+			Append  bool    `json:"append"`
 		}
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "", nil, err
 		}
+		// Sense content (no "" explícit) és una resposta tallada pel límit de
+		// sortida de la qual només ha arribat el path: escriure-la buidaria
+		// el fitxer i el model ho tornaria a provar igual.
+		if a.Content == nil {
+			return "", nil, fmt.Errorf("write %s: the content argument did not arrive, most likely because your reply was cut off by the output token limit; nothing was written. Write the file in parts: the first part with write, then the rest with write and append: true, each call under ~8,000 tokens", a.Path)
+		}
 		if err := seg.GuardaEscriptura(a.Path); err != nil {
 			return "", nil, err
 		}
-		n, err := tools.Write(a.Path, []byte(a.Content))
+		// «escrit …» també per a append: els clients hi reconeixen un write
+		// que ha anat bé.
+		escriu, nota := tools.Write, ""
+		if a.Append {
+			escriu, nota = tools.Append, " afegits al final"
+		}
+		n, err := escriu(a.Path, []byte(*a.Content))
 		if err != nil {
 			return "", nil, err
 		}
 		apendix := apendixEdicio(ctx, a.Path)
 		seg.Coneix(a.Path)
-		return fmt.Sprintf("escrit %s (%d bytes)", a.Path, n) + apendix, nil, nil
+		return fmt.Sprintf("escrit %s (%d bytes%s)", a.Path, n, nota) + apendix, nil, nil
 	case "edit":
 		var a struct {
 			Path string `json:"path"`

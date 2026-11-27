@@ -378,10 +378,11 @@ func (s *Server) windQuestionCall(ctx context.Context, emit func(kind, text stri
 	return "The user answered: " + strings.TrimSpace(ans.Answer), false
 }
 
-// forwardWindAsk passa al client les peticions que surten del bucle del vent.
+// forwardWindAsk passa al client les peticions que surten del bucle del vent
+// i l'avís d'un document viu que ha canviat (windDocExec).
 func forwardWindAsk(emit func(string, any), kind, text string) bool {
 	switch kind {
-	case "approve_request", "question_request", "ask_resolved":
+	case "approve_request", "question_request", "ask_resolved", "doc_changed":
 		emit(kind, json.RawMessage(text))
 		return true
 	}

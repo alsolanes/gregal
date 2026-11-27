@@ -139,6 +139,26 @@ func Write(path string, content []byte) (int, error) {
 	return len(content), nil
 }
 
+// Append afegeix contingut al final del fitxer (el crea, i el directori
+// pare, si no hi és). Retorna bytes.
+func Append(path string, content []byte) (int, error) {
+	Active.SnapOp(path, "write")
+	if dir := filepath.Dir(path); dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return 0, err
+		}
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return 0, err
+	}
+	n, err := f.Write(content)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	return n, err
+}
+
 // Edit substitueix un bloc; exigeix que casi en UN sol lloc.
 //
 // Els finals de línia no compten. Un fitxer sortit d'un git amb
@@ -912,7 +932,7 @@ func ClassifyWith(cmd string, extraAllow, extraDeny []string) (string, string) {
 	// vegeu caminsCritics). Cap mode ni cap override del config les relaxa.
 	// Els patrons «deny» del config continuen sent subcadenes.
 	if d := ordreDenegada(strings.TrimSpace(cmd)); d != "" {
-		return "deny", "patró bloquejat: " + d
+		return "deny", motiuOrdreDenegada(d)
 	}
 	for _, d := range extraDeny {
 		if strings.Contains(lower, strings.ToLower(d)) {
@@ -929,6 +949,18 @@ func ClassifyWith(cmd string, extraAllow, extraDeny []string) (string, string) {
 	// `cat` o `git status` en una escriptura: composta() parteix la comanda
 	// i exigeix que TOTES les etapes siguin segures.
 	return composta(cmd, extraAllow)
+}
+
+// motiuOrdreDenegada: amb només «patró bloquejat: curl», el model tornava a
+// provar el mateix curl. Per a curl i wget li diem quina sortida té.
+func motiuOrdreDenegada(patro string) string {
+	switch patro {
+	case "curl", "wget":
+		return "patró bloquejat: " + patro + ". To read web pages, use the web_fetch tool. curl and wget only work against localhost, and a localhost curl or wget must be its own command, without inline code (python -c, a heredoc <<EOF, bash -c) in the same command."
+	case "curl | sh":
+		return "patró bloquejat: curl | sh. Downloading something and piping it to a shell is never allowed."
+	}
+	return "patró bloquejat: " + patro
 }
 
 // ClassifyServer és la classificació amb PODERS DE SERVIDOR (l'administrador
@@ -952,7 +984,7 @@ func ClassifyServer(cmd, home string, extraDeny []string) (string, string) {
 		}
 	}
 	if d := ordreDenegadaAmb(strings.TrimSpace(cmd), true); d != "" {
-		return "deny", "patró bloquejat: " + d
+		return "deny", motiuOrdreDenegada(d)
 	}
 	for _, d := range extraDeny {
 		if strings.Contains(lower, strings.ToLower(d)) {

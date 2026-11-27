@@ -28,6 +28,13 @@ class AppStringsFormatTest {
         if (errors.isNotEmpty()) throw AssertionError(errors.joinToString())
     }
 
+    @Test fun capClauPortaElNomDelsVents() {
+        // «{vents}» va al text, no a la clau: amb la clau canviada la targeta d'expert ensenyava «app.vents.expertTitle».
+        val keys = (STR_APP_CA.keys + STR_APP_EN.keys).filter { '{' in it }
+        org.junit.Assert.assertEquals(emptyList<String>(), keys)
+        for (lang in listOf("ca", "en")) org.junit.Assert.assertNotEquals("app.vents.expertTitle", tr(lang, "app.vents.expertTitle"))
+    }
+
     @Test fun elPercentatgeEsLiteral() {
         // "parla el 33%" amb %% escapat surt amb UN sol %.
         val ca = tr("ca", "app.programats.statLine", "3", "1", "2", "33")

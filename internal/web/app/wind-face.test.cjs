@@ -17,9 +17,10 @@ class El {
 }
 function load(extra = {}) {
   let now = 1000;
-  const window = { document:{ createElementNS:(_, tag) => new El(tag), createElement:tag => new El(tag) }, performance:{ now:() => now }, ...extra };
+  const frames = [];
+  const window = { document:{ createElementNS:(_, tag) => new El(tag), createElement:tag => new El(tag) }, performance:{ now:() => now }, requestAnimationFrame:fn => frames.push(fn), ...extra };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'winds.js'), 'utf8'), { window });
-  return { winds:window.gregalWinds, tick:ms => { now += ms; } };
+  return { winds:window.gregalWinds, tick:ms => { now += ms; }, frames };
 }
 const groups = svg => svg.all().map(n => n.attrs.class).filter(Boolean);
 // Every wind stands on its feet now; the trade kit is what sets specialists apart.
@@ -84,6 +85,19 @@ test('the gust shape curls on top instead of wearing a fringe', () => {
   }
 });
 
+// 170: without its clay sheets, a drop, sun or wave wind is drawn as the
+// nearest drawn shape (ball, cloud, curl), never as an empty face.
+test('a new clay shape draws as the nearest drawn shape', () => {
+  const { winds } = load();
+  const drawn = (style, large) => JSON.stringify(winds.face({ id:'a', color:'#A8D8EA', style }, large).all().map(n => [n.tag, n.attrs]))
+    .replaceAll(/"data-style":"[a-z]+"/g, '').replaceAll(/wf\d+/g, 'wf');
+  for (const large of [false, true, 'figure']) {
+    for (const [shape, nearest] of [['g', 'o'], ['u', 'n'], ['w', 's']]) {
+      assert.equal(drawn('bs' + shape, large), drawn('bs' + nearest, large), shape + ' draws as ' + nearest);
+    }
+  }
+});
+
 test('Android draws the same specialties as the web', () => {
   const kotlin = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'android', 'app', 'src', 'main', 'java', 'xyz', 'solanes', 'gregal', 'WindFace.kt'), 'utf8');
   const android = [...kotlin.matchAll(/^\s+"([a-z]+)" to MascotKit\(/gm)].map(m => m[1]).sort();
@@ -109,6 +123,20 @@ test('moods come only from observed chat phases and live step state', () => {
   for (const [work, mood] of cases) assert.equal(winds.moodOf(work), mood, JSON.stringify(work));
 });
 
+// 142: the clay sheet a work kind plays shows the wind handling that kind's prop.
+test('each work kind of a live turn plays the clay sheet with its prop', () => {
+  const { winds } = load();
+  const { moods } = JSON.parse(fs.readFileSync(path.join(__dirname, 'characters', 'manifest.json'), 'utf8'));
+  const cases = [
+    [{ state:'working', activity:'grep' }, 'magnifier'], [{ phase:'searching' }, 'magnifier'],
+    [{ state:'working', activity:'read' }, 'book'], [{ state:'working', activity:'edit' }, 'pencil'], [{ phase:'thinking', text:'Hola' }, 'pencil'],
+    [{ state:'working', activity:'bash' }, 'laptop'], [{ phase:'scheduling' }, 'laptop'],
+    [{ state:'working', activity:'plan' }, 'gear'], [{ phase:'thinking' }, 'gear'], [{ state:'completed' }, 'confetti'],
+    [{ state:'working', activity:'discussion' }, undefined], [{}, undefined],
+  ];
+  for (const [work, prop] of cases) assert.equal(moods[winds.moodOf(work)].prop, prop, JSON.stringify(work));
+});
+
 test('a redrawn face keeps its loop phase and plays the done hop once per transition', () => {
   const { winds, tick } = load();
   const w = { id:'front', specialty:'frontend', color:'#A8D8EA', style:'bss' };
@@ -125,6 +153,21 @@ test('a redrawn face keeps its loop phase and plays the done hop once per transi
   winds.face(w, false, 'working');
   assert.equal(winds.face(w, false, 'done').style.vars['--wf-since'], '0.00s');
   assert.equal(winds.face(w, false, 'idle').querySelector('.wf-badge'), null);
+});
+
+// 168: a waiting face has no text next to it everywhere, so it says it is waiting for you, in both languages.
+test('a waiting face says the wind is waiting for you, in Catalan and English, and stops saying it once it is not', async () => {
+  const { CLAUS } = await import('./i18n.js');
+  for (const lang of ['ca', 'en']) {
+    const { winds } = load({ gregalWindI18n:{ text:(key, fallback) => CLAUS[lang][key] ?? fallback } });
+    const svg = winds.face({ id:'xaloc', color:'#F5B45D', style:'pso' }, false, 'waiting');
+    assert.equal(svg.getAttribute('role'), 'img');
+    assert.equal(svg.getAttribute('aria-label'), { ca:'T\'espera', en:'Waiting for you' }[lang]);
+    assert.equal(svg.getAttribute('aria-hidden'), null);
+    winds.mood(svg, 'idle');
+    assert.equal(svg.getAttribute('aria-label'), null);
+    assert.equal(svg.getAttribute('aria-hidden'), 'true');
+  }
 });
 
 test('a proactive voice marks its wind until its chat is opened', async () => {
@@ -148,6 +191,22 @@ test('a proactive voice marks its wind until its chat is opened', async () => {
   assert.equal(after.getAttribute('data-mood'), 'idle');
   assert.equal(after.getAttribute('aria-hidden'), 'true');
   assert.ok(JSON.parse(store['gregal.winds.newsSeen']).marinada >= ts);
+});
+
+// 113: a clay face on the page (characters.js) follows the news like a drawn one.
+test('news reaches the clay faces already on the page, and leaves them when read', async () => {
+  const ts = Math.floor(Date.now() / 1000), store = {}, moods = [];
+  const api = async () => ({ ok:true, json:async () => ({ novetats:[{ ts, wind:'marinada', name:'Marinada', source:'remind', text:'Beu aigua' }] }) });
+  const clay = Object.assign(new El('canvas'), { tagName:'CANVAS' });
+  clay.setAttribute('class', 'winds-face winds-face-large winds-clay'); clay.setAttribute('data-wind', 'marinada'); clay.setAttribute('data-mood', 'idle');
+  const gregalCharacters = { mood(el, mood) { moods.push(mood); el.setAttribute('data-mood', mood); return el; } };
+  const document = { createElementNS:(_, tag) => new El(tag), createElement:tag => new El(tag), querySelectorAll:() => [clay] };
+  const { winds } = load({ api, gregalCharacters, document, localStorage:{ getItem:k => store[k] ?? null, setItem:(k, v) => { store[k] = v; } } });
+  winds.watchNews();
+  for (let i = 0; i < 5; i++) await new Promise(r => setImmediate(r));
+  assert.deepEqual(moods, ['news']);
+  winds.seen('marinada');
+  assert.deepEqual(moods, ['news', 'idle']);
 });
 
 // Esperit de vent: the face with two wind tails. Android's WindFace mirrors
@@ -339,17 +398,64 @@ test('Cap de vent and Rosa de rellotge move while working; idle only with motion
   assert.match(css, /\[data-mood=working\][^{]*\.wf-point[^{]*\{[^}]*animation:[^}]*!important/, 'working point swings');
 });
 
+// Volume: every gradient a face paints with is its own, so many faces on one
+// page never borrow each other's light.
+const has = (svg, cls) => !!svg.querySelector('.' + cls);
+function ownGradients(svg) {
+  const ids = svg.all().filter(n => /Gradient$/.test(n.tag)).map(n => n.attrs.id);
+  const used = svg.all().flatMap(n => ['fill', 'stroke'].map(k => /^url\(#(.+)\)$/.exec(n.attrs[k] || '')?.[1]).filter(Boolean));
+  for (const id of used) assert.ok(ids.includes(id), id + ' is defined in the same face');
+  return ids;
+}
+
+test('Esperit, Cap de vent and Rosa de rellotge are lit like Cares: shading, rim, highlight and a contact shadow when large', () => {
+  const { winds } = load();
+  const w = { id:'xaloc', name:'Xaloc', color:'#EFA68F', style:'pso' };
+  for (const pack of ['esperit', 'cap', 'rosa']) {
+    winds.setAvatarTheme(pack);
+    const big = winds.face(w, true), small = winds.face(w, false, 'idle', 24);
+    for (const [svg, size] of [[big, 'large'], [small, '24 px']]) {
+      assert.ok(svg.all().some(n => n.tag === 'radialGradient'), `${pack} ${size}: a radial gradient lit from the top left`);
+      assert.ok(has(svg, 'wf-shade'), `${pack} ${size}: a core shadow away from the light`);
+      assert.ok(has(svg, 'wf-rim'), `${pack} ${size}: a rim light`);
+      assert.ok(has(svg, 'wf-spec'), `${pack} ${size}: a specular highlight`);
+    }
+    assert.ok(has(big, 'wf-ground'), pack + ': a soft contact shadow under the large figure');
+    assert.ok(has(big, 'wf-bounce'), pack + ': a bounce of its own colour, so the shadow reads on a dark page');
+    assert.equal(has(small, 'wf-sheen'), false, pack + ': no broad sheen at 24 px');
+    assert.equal(has(small, 'wf-ground'), false, pack + ': no ground under a list face');
+    const a = ownGradients(big), b = ownGradients(winds.face(w, true));
+    assert.equal(a.filter(id => b.includes(id)).length, 0, pack + ': two faces share no gradient id');
+  }
+  winds.setAvatarTheme('rosa');
+  assert.ok(has(winds.face(w, true), 'wf-glass'), 'the whole Rosa figure has a curved reflection on its glass');
+});
+
+test('Cares gets a second shading layer and ambient occlusion at its base, at every size', () => {
+  const { winds } = load();
+  const w = { id:'xaloc', name:'Xaloc', color:'#EFA68F', style:'pso' };
+  for (const svg of [winds.face(w), winds.face(w, true), winds.face({ ...w, style:'psn' }, true)]) {
+    assert.ok(has(svg, 'wf-shade'), 'a second shading layer');
+    assert.ok(has(svg, 'wf-ao'), 'ambient occlusion where the face meets its feet');
+    ownGradients(svg);
+  }
+});
+
 // Mapa de vent: streaks on a canvas. Enough of a browser for it: a 2D context
 // that ignores the drawing, an IntersectionObserver the test drives and a
-// requestAnimationFrame that only queues.
+// requestAnimationFrame that only queues; `motion(reduce)` flips the
+// reduced-motion preference like the system setting does.
 function mapLoad({ reduce = false } = {}) {
   const frames = [], observers = [], ctx = { fillRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} };
   const document = { hidden:false, addEventListener() {}, createElementNS:(_, tag) => new El(tag), createElement:tag => Object.assign(new El(tag), tag === 'canvas' ? { getContext:() => ctx } : {}) };
   class IntersectionObserver { constructor(cb) { this.cb = cb; observers.push(this); } observe() {} unobserve() {} }
-  const { winds } = load({ document, IntersectionObserver, matchMedia:q => ({ matches:reduce && /reduce/.test(q) }), requestAnimationFrame:fn => frames.push(fn) });
+  const listeners = [], reduced = { matches:reduce, addEventListener:(type, fn) => listeners.push(fn) };
+  const matchMedia = q => /reduce/.test(q) ? reduced : { matches:false, addEventListener() {} };
+  const { winds } = load({ document, IntersectionObserver, matchMedia, requestAnimationFrame:fn => frames.push(fn) });
   winds.setAvatarTheme('mapa');
   const show = (svg, on = true) => observers.forEach(o => o.cb([{ target:svg, isIntersecting:on, boundingClientRect:{ width:40 } }]));
-  return { winds, frames, show, document };
+  const motion = on => { reduced.matches = !on; listeners.forEach(fn => fn({ matches:!on })); };
+  return { winds, frames, show, document, motion };
 }
 const ponent = { id:'ponent', name:'Ponent', color:'#EACF87', style:'pso', specialty:'books' };
 const picture = (winds, w, steps) => { let st = winds.mapStart(w); for (let i = 0; i < steps; i++) st = winds.mapStep(st, false); return JSON.stringify(st); };
@@ -390,26 +496,399 @@ test('the streaks blow away from where the wind comes from, faster while it work
   assert.equal(picture(winds, { name:'Lupa Ràpida' }, 20), picture(winds, { id:'lupa-rapida', name:'Lupa Ràpida' }, 20), 'the preview of a new wind is the picture the saved wind gets');
 });
 
-test('a still map never joins the animation loop; work, motion and being on screen do', () => {
+test('under reduced motion a map is one still frame, even while its wind works; motion and being on screen move it', () => {
   const still = mapLoad({ reduce:true });
   const idle = still.winds.face(ponent);
   still.show(idle);
   assert.equal(still.frames.length, 0, 'idle under reduced motion: a still frame, no loop');
   const busy = still.winds.face(ponent, false, 'working');
-  assert.equal(still.frames.length, 0, 'not on screen yet');
   still.show(busy);
-  assert.equal(still.frames.length, 1, 'working moves even under reduced motion');
   still.winds.mood(idle, 'searching');
-  assert.equal(still.frames.length, 1, 'one shared loop for every face');
-  still.frames.shift()();
-  assert.equal(still.frames.length, 1, 'the loop goes on while a face moves');
-  still.show(busy, false); still.winds.mood(idle, 'idle');
-  still.frames.shift()();
-  assert.equal(still.frames.length, 0, 'nothing moving on screen: the loop stops');
+  assert.equal(still.frames.length, 0, 'working under reduced motion: still a single frame');
   const lively = mapLoad();
+  const work = lively.winds.face(ponent, false, 'working');
+  assert.equal(lively.frames.length, 0, 'not on screen yet');
+  lively.show(work);
+  assert.equal(lively.frames.length, 1, 'with motion allowed the map moves');
   lively.show(lively.winds.face(ponent));
-  assert.equal(lively.frames.length, 1, 'with motion allowed the idle map drifts');
+  assert.equal(lively.frames.length, 1, 'one shared loop for every face');
+  lively.frames.shift()();
+  assert.equal(lively.frames.length, 1, 'the loop goes on while a face moves');
   lively.document.hidden = true;
   lively.frames.shift()();
   assert.equal(lively.frames.length, 0, 'a hidden tab stops the loop');
+});
+
+test('a map follows the reduced-motion setting when it changes', () => {
+  const m = mapLoad();
+  m.show(m.winds.face(ponent, false, 'working'));
+  assert.equal(m.frames.length, 1);
+  m.motion(false);
+  m.frames.shift()();
+  assert.equal(m.frames.length, 0, 'turning reduced motion on stops the loop on the frame it shows');
+  m.motion(true);
+  assert.equal(m.frames.length, 1, 'turning it off again starts the map moving');
+});
+
+// 101: what a block of CSS holds, braces matched, and which properties a keyframe animates.
+function cssBlock(css, at) {
+  if (at < 0) return '';
+  const start = css.indexOf('{', at);
+  let depth = 0;
+  for (let i = start; i < css.length; i++) {
+    if (css[i] === '{') depth++;
+    else if (css[i] === '}' && --depth === 0) return css.slice(start + 1, i);
+  }
+  return '';
+}
+const winds101 = () => fs.readFileSync(path.join(__dirname, 'winds.css'), 'utf8');
+const motionBlocks = css => [...css.matchAll(/@media \(prefers-reduced-motion:no-preference\)/g)].map(m => cssBlock(css, m.index));
+const outsideMotion = css => motionBlocks(css).reduce((rest, b) => rest.replace(b, ''), css);
+const keyframeProps = (css, name) => [...cssBlock(css, css.indexOf('@keyframes ' + name + ' ')).matchAll(/([a-z-]+)\s*:/g)].map(m => m[1]);
+
+test('idle faces blink and glance, each wind its own way, and reduced motion stills them', () => {
+  const css = winds101(), motion = motionBlocks(css).join(' ');
+  assert.match(motion, /\.winds-face \.wf-eyes \{ animation:wf-blink /, 'faces blink when motion is allowed');
+  assert.match(motion, /\.winds-face\[data-mood=idle\] \.wf-gaze \{ animation:wf-look /, 'idle faces glance around');
+  assert.equal(outsideMotion(css).includes('animation:wf-blink'), false, 'no blink outside the motion-allowed rules');
+  assert.match(cssBlock(css, css.lastIndexOf('@media (prefers-reduced-motion:reduce)')), /\.winds-face, \.winds-face \* \{ animation:none !important;/);
+  const { winds } = load();
+  const look = id => winds.face({ id, color:'#A8D8EA', style:'pso' }).style.vars['--wf-look'];
+  const looks = new Set(['xaloc', 'mestral', 'garbi', 'ponent', 'llevant'].map(look));
+  assert.ok(looks.size > 1, 'winds do not all glance the same way');
+  assert.equal(look('xaloc'), look('xaloc'), 'a redrawn face keeps its own glance');
+  assert.match(look('xaloc'), /^-?\d(\.\d+)?px$/);
+});
+
+test('a face squashes when hovered or pressed and springs back, only with motion allowed', () => {
+  const css = winds101(), motion = motionBlocks(css).join(' ');
+  assert.match(motion, /\.winds-face:hover[^{]*\{ animation:wf-squish /);
+  assert.match(motion, /\.winds-face:active[^{]*\{[^}]*transform:/);
+  assert.equal(outsideMotion(css).includes('wf-squish .'), false);
+});
+
+test('the faces animate transform and opacity only', () => {
+  const css = winds101();
+  for (const name of ['wf-blink', 'wf-look', 'wf-squish']) {
+    const props = keyframeProps(css, name);
+    assert.ok(props.length, name + ' exists');
+    assert.deepEqual(props.filter(p => !['transform', 'opacity'].includes(p)), [], name);
+  }
+});
+
+// 110: the redesigned Cares. A pose per mood (body, gaze, eyelids) that springs
+// from the last one, a motion signature per mood, and eyes that carry the mood.
+const poseVars = ['--wf-x', '--wf-y', '--wf-tilt', '--wf-sx', '--wf-sy', '--wf-gx', '--wf-gy', '--wf-lid', '--wf-brow', '--wf-smile'];
+const poseOf = svg => Object.fromEntries(poseVars.map(v => [v, Number.parseFloat(svg.style.vars[v])]));
+const allMoods = ['idle', 'thinking', 'searching', 'reading', 'writing', 'working', 'discussing', 'waiting', 'done', 'failed', 'news'];
+// The keyframes a mood plays on the Cares figure, gaze and feet, from winds.css.
+function moodLoops(css, mood) {
+  const names = new Set();
+  for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const selector = m[1].trim();
+    if (!selector.includes('[data-mood=' + mood + ']') || !/\.wf-(figure|gaze|foot)/.test(selector)) continue;
+    for (const a of m[2].matchAll(/animation:([^;]+)/g)) for (const part of a[1].split(',')) names.add(part.trim().split(/\s+/)[0]);
+  }
+  return [...names].sort();
+}
+
+test('each mood has its own pose and its own motion signature', () => {
+  const { winds } = load(), css = winds101();
+  const w = { id:'tramuntana', name:'Tramuntana', color:'#A8CDE2', style:'pso' };
+  const poses = new Map(), loops = new Map();
+  for (const mood of allMoods) {
+    const svg = winds.face({ ...w, id:'pose-' + mood }, true, mood);
+    assert.equal(svg.getAttribute('data-mood'), mood);
+    const pose = poseOf(svg), moves = moodLoops(css, mood);
+    for (const v of poseVars) assert.ok(Number.isFinite(pose[v]), mood + ' sets ' + v);
+    assert.ok(moves.length, mood + ' moves in its own way');
+    for (const [other, seen] of poses) assert.notDeepEqual(pose, seen, mood + ' and ' + other + ' share a pose');
+    for (const [other, seen] of loops) assert.notDeepEqual(moves, seen, mood + ' and ' + other + ' share a motion');
+    poses.set(mood, pose); loops.set(mood, moves);
+  }
+  const p = mood => poses.get(mood);
+  assert.ok(p('thinking')['--wf-gy'] < 0, 'thinking looks up');
+  assert.ok(p('working')['--wf-lid'] > p('idle')['--wf-lid'] && p('working')['--wf-brow'] > 0, 'working squints, determined');
+  assert.ok(p('failed')['--wf-y'] > 0 && p('failed')['--wf-sy'] < 1 && p('failed')['--wf-brow'] < 0, 'failed droops, sad lids');
+  assert.ok(p('done')['--wf-smile'] > .4, 'done smiles with its eyes');
+  assert.equal(p('waiting')['--wf-lid'], 0, 'waiting looks at you with wide eyes');
+  assert.ok(p('waiting')['--wf-tilt'] !== 0 && p('waiting')['--wf-gy'] > 0, 'waiting leans and looks out at the person');
+  assert.ok(loops.get('searching').includes('wf-scan') && loops.get('reading').includes('wf-read'), 'searching and reading scan with the eyes');
+});
+
+test('every Cares eye has an upper lid and a smiling lower lid, at every size and eye style', () => {
+  const { winds } = load();
+  for (const eyes of 'pbem') for (const large of [false, true]) {
+    const svg = winds.face({ id:'lid' + eyes, color:'#BFCFA4', style:eyes + 'so' }, large);
+    const lids = cls => svg.all().filter(n => new RegExp('\\b' + cls + '\\b').test(n.attrs.class || ''));
+    assert.equal(lids('wf-lid').length, 2, eyes + ' has two upper lids');
+    assert.equal(lids('wf-smile').length, 2, eyes + ' has two lower lids');
+    // Lids are cut to the eye, so they never show outside it.
+    for (const lid of [...lids('wf-lid'), ...lids('wf-smile')]) assert.match(lid.parent.attrs['clip-path'] || '', /^url\(#wf\d+e\d\)$/);
+  }
+});
+
+test('the three silhouettes come from the style and are tinted with the wind colour only', () => {
+  const { winds } = load();
+  const outline = svg => JSON.stringify(svg.all().find(n => n.tag === 'clipPath' && /c$/.test(n.attrs.id)).children.map(n => [n.tag, n.attrs]));
+  const outlines = new Set([...'ons'].map(s => outline(winds.face({ id:'s' + s, color:'#A8CDE2', style:'pb' + s }, true))));
+  assert.equal(outlines.size, 3, 'pebble, cloud and gust are three outlines');
+  assert.equal(outline(winds.face({ id:'a', color:'#EFA68F', style:'eto' })), outline(winds.face({ id:'b', color:'#A8CDE2', style:'pso' })), 'the same style is the same silhouette');
+  const tints = color => new Set(winds.face({ id:'t', color, style:'pso' }, true).all().filter(n => n.tag === 'stop').map(n => n.attrs['stop-color']).filter(c => !['#FFFFFF', '#E4577A'].includes(c)));
+  const blue = tints('#A8CDE2'), rose = tints('#EFA68F');
+  assert.ok(blue.size >= 4);
+  assert.deepEqual([...blue].filter(c => rose.has(c)), [], 'every tone of the volume derives from the wind colour');
+});
+
+test('a mood change springs from the last pose, even when the face is redrawn', () => {
+  const css = winds101(), motion = motionBlocks(css).join(' ');
+  const rule = /\.winds-face :is\(\.wf-pose, \.wf-aim, \.wf-lid, \.wf-smile\) \{ transition:transform ([\d.]+)s linear\(([^)]*)\)/.exec(motion);
+  assert.ok(rule, 'pose, gaze and lids transition with a spring, only with motion allowed');
+  const curve = rule[2].split(',').map(Number);
+  assert.equal(curve[0], 0); assert.equal(curve.at(-1), 1);
+  assert.ok(Math.max(...curve) > 1.05 && Math.max(...curve) < 1.2, 'it overshoots a little, like a spring');
+  assert.ok(curve.slice(-4).every(v => Math.abs(v - 1) < .02), 'and settles');
+  assert.equal(outsideMotion(css).includes('linear('), false);
+
+  const { winds, frames } = load();
+  const w = { id:'xaloc', name:'Xaloc', color:'#EFA68F', style:'eto' };
+  const idle = poseOf(winds.face(w, true, 'idle')), working = poseOf(winds.face({ ...w, id:'other' }, true, 'working'));
+  assert.notDeepEqual(idle, working);
+  frames.length = 0;
+  const redrawn = winds.face(w, true, 'working');
+  assert.deepEqual(poseOf(redrawn), idle, 'a redrawn face starts from the pose it had');
+  while (frames.length) frames.shift()();
+  assert.deepEqual(poseOf(redrawn), working, 'then springs to the new one');
+  assert.deepEqual(poseOf(winds.face(w, true, 'working')), working, 'the same mood again does not replay');
+  assert.equal(frames.length, 0);
+  // A list row of the same wind keeps its own pose apart from the large figure.
+  winds.face(w, false);
+  assert.deepEqual(poseOf(winds.face(w, true, 'working')), working);
+  assert.equal(frames.length, 0);
+  // A newer mood before the spring starts wins over the queued one.
+  const quick = winds.face(w, true, 'done');
+  quick.isConnected = true;
+  winds.mood(quick, 'failed');
+  while (frames.length) frames.shift()();
+  assert.equal(quick.getAttribute('data-mood'), 'failed');
+  assert.ok(poseOf(quick)['--wf-y'] > 0 && poseOf(quick)['--wf-smile'] === 0, 'the face keeps the pose of the mood it shows');
+  // The same face changing mood in place: the CSS transition does the spring.
+  const svg = winds.face({ ...w, id:'inplace' }, true, 'idle');
+  svg.isConnected = true;
+  winds.mood(svg, 'failed');
+  assert.ok(poseOf(svg)['--wf-y'] > 0);
+});
+
+test('with reduced motion a face takes its new pose at once and nothing moves', () => {
+  const { winds, frames } = load({ matchMedia:q => ({ matches:/reduce/.test(q) }) });
+  const w = { id:'gregal', name:'Gregal', color:'#C1B4DE', style:'mso' };
+  winds.face(w, true, 'idle');
+  frames.length = 0;
+  assert.ok(poseOf(winds.face(w, true, 'done'))['--wf-smile'] > .4);
+  assert.equal(frames.length, 0);
+  const css = winds101(), reduce = cssBlock(css, css.lastIndexOf('@media (prefers-reduced-motion:reduce)'));
+  assert.match(reduce, /\.winds-face, \.winds-face \* \{ animation:none !important; transition:none !important;/);
+});
+
+test('done anticipates, hops and settles with a spring', () => {
+  const css = winds101();
+  assert.match(css, /\.winds-face\[data-mood=done\] \.wf-figure \{[^}]*wf-hop [^}]*var\(--wf-since,0s\) 1/);
+  const hop = cssBlock(css, css.indexOf('@keyframes wf-hop '));
+  const steps = [...hop.matchAll(/translateY\((-?[\d.]+)px\) scale\(([\d.]+),([\d.]+)\)/g)].map(m => ({ y:+m[1], sx:+m[2], sy:+m[3] }));
+  const top = steps.findIndex(s => s.y === Math.min(...steps.map(t => t.y)));
+  assert.ok(top > 1 && steps.slice(0, top).some(s => s.y === 0 && s.sy < .9 && s.sx > 1.05), 'a squash before the jump');
+  assert.ok(steps[top].y <= -6 && steps[top].sy > 1, 'a stretched hop');
+  assert.ok(steps.slice(top + 1).some(s => s.y === 0 && s.sy < .95), 'it lands with a squash');
+  assert.ok(steps.slice(top + 2).filter(s => s.sy !== 1).length >= 2, 'and wobbles to rest');
+  for (const name of ['wf-hop', 'wf-ponder', 'wf-muse', 'wf-peer', 'wf-lean', 'wf-sigh', 'wf-busy']) {
+    const props = keyframeProps(css, name);
+    assert.ok(props.length, name + ' exists');
+    assert.deepEqual(props.filter(p => !['transform', 'opacity'].includes(p)), [], name);
+  }
+});
+
+// 117: the minairó pack. A small round body in the wind's colour under a long
+// white beard and a red barretina folded to one side, with the 110 eyes.
+const classed = (svg, cls) => svg.all().filter(n => (n.attrs.class || '').split(' ').includes(cls));
+const minairoCss = css => [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(m => m[1].includes('[data-avatar=minairo]') || /\.wf-(tip|beard)\b/.test(m[1]));
+
+test('the minairó has a round body in the wind colour, a white beard, a red barretina with a dark band, the 110 eyes and tiny feet', () => {
+  const { winds } = load();
+  winds.setAvatarTheme('minairo');
+  assert.equal(winds.avatarTheme(), 'minairo');
+  const w = { id:'tramuntana', name:'Tramuntana', color:'#A8CDE2', style:'pso' };
+  for (const [large, size] of [[true, undefined], [false, 40], [false, 24]]) {
+    const svg = winds.face(w, large, 'idle', size);
+    assert.equal(svg.getAttribute('data-avatar'), 'minairo');
+    for (const part of ['wf-pose', 'wf-figure', 'wf-body', 'wf-beard', 'wf-barretina', 'wf-band', 'wf-tip', 'wf-foot-l', 'wf-foot-r', 'wf-eyes', 'wf-mouth', 'wf-worry'])
+      assert.equal(classed(svg, part).length, 1, part + ' at ' + (size || 'large'));
+    assert.equal(classed(svg, 'wf-lid').length, 2, 'two upper lids');
+    assert.equal(classed(svg, 'wf-smile').length, 2, 'two lower lids');
+    for (const lid of [...classed(svg, 'wf-lid'), ...classed(svg, 'wf-smile')]) assert.match(lid.parent.attrs['clip-path'] || '', /^url\(#wf\d+e\d\)$/);
+  }
+  const tones = color => new Set(winds.face({ ...w, color }, true).all().filter(n => n.tag === 'stop').map(n => n.attrs['stop-color']));
+  const blue = tones('#A8CDE2'), rose = tones('#EFA68F');
+  const shared = [...blue].filter(c => rose.has(c));
+  assert.ok(shared.length >= 3, 'the beard and the barretina keep their own colours');
+  assert.ok(blue.size - shared.length >= 4, 'the body is modelled in tones of the wind colour');
+  const body = classed(winds.face(w, true), 'wf-body')[0];
+  assert.match(body.attrs.fill || '', /^url\(#wf\d+/, 'the body is painted with the wind gradient');
+  assert.ok(groups(winds.face(w, true)).includes('wf-ground'), 'the whole figure stands on its ground');
+});
+
+test('each minairó differs: beard length, the side its barretina falls to and a small accessory, which small faces leave out', () => {
+  const { winds } = load();
+  winds.setAvatarTheme('minairo');
+  const beard = svg => JSON.stringify(classed(svg, 'wf-beard')[0].all().map(n => n.attrs.d));
+  const fold = svg => classed(svg, 'wf-barretina')[0].all().find(n => n.children.some(c => (c.attrs.class || '').includes('wf-tip')))?.attrs.transform || '';
+  const accessory = svg => ['wf-canut', 'wf-herba', 'wf-pedra'].filter(c => classed(svg, c).length);
+  const beards = new Set([...'sont'].map(m => beard(winds.face({ id:'b' + m, color:'#A8CDE2', style:'p' + m + 'o' }, true))));
+  assert.equal(beards.size, 4, 'the mouth style sets the beard length');
+  const crew = ['tramuntana', 'gregal', 'llevant', 'xaloc', 'migjorn', 'garbi', 'ponent', 'mestral', 'brisa', 'marinada', 'terral', 'embat'];
+  const drawn = crew.map(name => winds.face({ id:name, name, color:'#EFA68F', style:'pso' }, true));
+  assert.equal(new Set(drawn.map(fold)).size, 2, 'the barretina falls to one side or the other');
+  assert.equal(fold(winds.face({ id:'llevant', name:'Llevant', color:'#EFA68F', style:'pso' }, true)), fold(drawn[2]), 'the same wind always the same way');
+  for (const svg of drawn) assert.equal(accessory(svg).length, 1, 'one small accessory each');
+  assert.deepEqual(new Set(drawn.flatMap(accessory)), new Set(['wf-canut', 'wf-herba', 'wf-pedra']), 'needle case, St John wort and pebble all appear');
+  for (const name of crew) assert.deepEqual(accessory(winds.face({ id:name, name, color:'#EFA68F', style:'pso' }, false, 'idle', 24)), [], 'a small face keeps only the barretina and beard silhouette');
+});
+
+test('every mood works on the minairó, with its own pose and motion, the barretina and beard moving with it', () => {
+  const { winds } = load(), css = winds101();
+  winds.setAvatarTheme('minairo');
+  const w = { id:'pessic', name:'Pessic', color:'#C1B4DE', style:'bto' };
+  const seen = new Map();
+  for (const mood of allMoods) {
+    const svg = winds.face({ ...w, id:'m-' + mood }, true, mood);
+    assert.equal(svg.getAttribute('data-mood'), mood);
+    const look = JSON.stringify([poseOf(svg), moodLoops(css, mood), svg.all().filter(n => /wf-badge/.test(n.attrs.class || '')).length]);
+    for (const [other, was] of seen) assert.notEqual(look, was, mood + ' looks like ' + other);
+    seen.set(mood, look);
+  }
+  const rules = minairoCss(css), rule = (sel, re) => rules.find(m => sel(m[1]) && re.test(m[2]));
+  assert.ok(rule(s => /\.wf-tip/.test(s) && !/data-mood/.test(s), /animation:wf-\w+/), 'the barretina tip bobs');
+  assert.ok(rule(s => /\.wf-beard/.test(s) && !/data-mood/.test(s), /animation:wf-\w+/), 'the beard sways');
+  assert.ok(rule(s => /\[data-mood=done\]/.test(s) && /\.wf-tip/.test(s), /var\(--wf-since,0s\) 1/), 'done flies the barretina once per hop');
+  const restless = rule(s => /\[data-avatar=minairo\]\[data-mood=working\] \.wf-figure/.test(s), /animation:/);
+  assert.ok(restless && !/wf-busy/.test(restless[2]), 'working has its own restless energy');
+  for (const m of rules) assert.doesNotMatch(m[2], /!important/, 'reduced motion stills it all: ' + m[1].trim());
+  for (const name of new Set(rules.flatMap(m => [...m[2].matchAll(/(wf-[\w-]+) [\d.]+s/g)].map(a => a[1])))) {
+    const props = keyframeProps(css, name);
+    assert.ok(props.length, name + ' exists');
+    assert.deepEqual(props.filter(p => !['transform', 'opacity'].includes(p)), [], name + ' animates transform only');
+  }
+});
+
+test('a minairó takes its new pose at once under reduced motion, and springs from its last pose otherwise', () => {
+  const still = load({ matchMedia:q => ({ matches:/reduce/.test(q) }) });
+  still.winds.setAvatarTheme('minairo');
+  const w = { id:'didal', name:'Didal', color:'#BFCFA4', style:'mno' };
+  still.winds.face(w, true, 'idle'); still.frames.length = 0;
+  assert.ok(poseOf(still.winds.face(w, true, 'done'))['--wf-smile'] > .4);
+  assert.equal(still.frames.length, 0, 'nothing waits to move');
+  const { winds, frames } = load();
+  winds.setAvatarTheme('minairo');
+  const idle = poseOf(winds.face(w, true, 'idle'));
+  frames.length = 0;
+  const redrawn = winds.face(w, true, 'working');
+  assert.deepEqual(poseOf(redrawn), idle, 'a redrawn minairó starts from the pose it had');
+  while (frames.length) frames.shift()();
+  assert.ok(poseOf(redrawn)['--wf-brow'] > 0, 'then springs to the working pose');
+});
+
+// 120: each minairó wears a barretina from a curated folk palette, picked from
+// its id and never close in hue to its body; the black band stays.
+const barretines = ['#C9342C', '#6E2F6B', '#2E6B3F', '#C8962E', '#26406E', '#7D1F33'];
+const capOf = svg => svg.all().find(n => n.tag === 'radialGradient' && /^wf\d+h$/.test(n.attrs.id)).children.find(n => n.attrs.offset === '0.5').attrs['stop-color'];
+const hueOf = hex => {
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255), max = Math.max(r, g, b), d = max - Math.min(r, g, b);
+  if (!d) return 0;
+  const h = max === r ? (g - b) / d % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return (h * 60 + 360) % 360;
+};
+const hueGap = (a, b) => { const d = Math.abs(hueOf(a) - hueOf(b)); return Math.min(d, 360 - d); };
+
+test('each minairó wears a barretina from the palette, the same for the same wind, spread across winds and far from its body colour', () => {
+  const { winds } = load();
+  winds.setAvatarTheme('minairo');
+  const bodies = ['#EFA68F', '#A8CDE2', '#BFCFA4', '#C1B4DE', '#EACF87', '#9ED3C5', '#E8AEC2', '#F5B45D', '#BCC4D4', '#C9342C', '#26406E'];
+  const seen = new Map();
+  for (let i = 0; i < 120; i++) {
+    const id = 'vent-' + i, color = bodies[i % bodies.length];
+    const cap = capOf(winds.face({ id, name:'Vent ' + i, color, style:'pso' }, true));
+    assert.ok(barretines.includes(cap), cap + ' is from the palette');
+    assert.ok(hueGap(cap, color) >= 30, `${id}: barretina ${cap} stands apart from body ${color}`);
+    assert.equal(capOf(winds.face({ id, name:'Vent ' + i, color, style:'pso' }, false, 'idle', 24)), cap, 'the same wind, the same barretina, at every size');
+    assert.equal(winds.face({ id, name:'Vent ' + i, color, style:'pso' }, true).getAttribute('data-barretina'), cap, 'the clay player (characters.js) tints its barretina with it');
+    seen.set(cap, (seen.get(cap) || 0) + 1);
+  }
+  assert.equal(seen.size, barretines.length, 'every colour of the palette is worn');
+  for (const [cap, count] of seen) assert.ok(count >= 8, cap + ' is not a rarity: ' + count);
+  assert.equal(classed(winds.face({ id:'vent-1', color:'#A8CDE2', style:'pso' }, true), 'wf-band')[0].attrs.fill, '#17141A', 'the black band stays');
+});
+
+test('a wind can pick its own barretina in the fourth letter of its style, any palette colour', () => {
+  const { winds } = load();
+  winds.setAvatarTheme('minairo');
+  const picks = { v:'#C9342C', m:'#6E2F6B', f:'#2E6B3F', o:'#C8962E', b:'#26406E', g:'#7D1F33' };
+  for (const [letter, hex] of Object.entries(picks)) assert.equal(capOf(winds.face({ id:'llevant', color:'#EFA68F', style:'pso' + letter }, true)), hex, letter);
+  const auto = capOf(winds.face({ id:'llevant', color:'#A8CDE2', style:'pso' }, true));
+  assert.equal(capOf(winds.face({ id:'llevant', color:'#A8CDE2', style:'psox' }, true)), auto, 'an unknown letter keeps the automatic pick');
+});
+
+test('each minairó has its own brows, moustache and now and then round glasses, readable at list size and gone below 28 px', () => {
+  const { winds } = load();
+  winds.setAvatarTheme('minairo');
+  const kinds = (svg, prefix) => classed(svg, prefix).map(n => n.attrs.class.split(' ').find(c => c.startsWith(prefix + '-')));
+  const brows = new Set(), moustaches = new Set();
+  let glasses = 0;
+  for (let i = 0; i < 200; i++) {
+    const w = { id:'m-' + i, color:'#A8CDE2', style:'pso' }, svg = winds.face(w, false, 'idle', 48);
+    assert.equal(kinds(svg, 'wf-brows').length, 1, 'one pair of brows');
+    assert.equal(kinds(svg, 'wf-moustache').length, 1, 'one moustache');
+    brows.add(kinds(svg, 'wf-brows')[0]); moustaches.add(kinds(svg, 'wf-moustache')[0]);
+    glasses += classed(svg, 'wf-glasses').length;
+    assert.deepEqual(kinds(winds.face(w, true), 'wf-brows'), kinds(svg, 'wf-brows'), 'the same wind, the same brows when large');
+    const small = winds.face(w, false, 'idle', 24);
+    assert.equal(classed(small, 'wf-brows').length + classed(small, 'wf-glasses').length, 0, 'a small face drops brows and glasses');
+    assert.deepEqual(kinds(small, 'wf-moustache'), ['wf-moustache-lobes'], 'and keeps the plain moustache');
+  }
+  assert.deepEqual([...brows].sort(), ['wf-brows-arched', 'wf-brows-bushy', 'wf-brows-straight']);
+  assert.deepEqual([...moustaches].sort(), ['wf-moustache-handlebar', 'wf-moustache-lobes', 'wf-moustache-walrus']);
+  assert.ok(glasses > 5 && glasses < 50, 'glasses are rare but there: ' + glasses + ' of 200');
+  const look = id => { const svg = winds.face({ id, color:'#A8CDE2', style:'pso' }, false, 'idle', 48); return [...kinds(svg, 'wf-brows'), ...kinds(svg, 'wf-moustache')].join(); };
+  const neighbours = Array.from({ length:9 }, (_, i) => look('minairo-' + (i + 1)));
+  assert.ok(neighbours.every((l, i) => !i || l !== neighbours[i - 1]), 'ids one letter apart look different: ' + neighbours.join(' | '));
+});
+
+// 167: a small Cares face is clay too, holding its sheet's still frame; the other packs stay drawn.
+test('a small Cares face is handed to the clay player as a still face; large ones and the other packs are not', () => {
+  const played = [];
+  const gregalCharacters = { play(svg, w, still) { played.push({ svg, w, still }); return 'clay'; } };
+  // Mapa de vent paints on a canvas it watches: a context and an observer that do nothing.
+  const document = { addEventListener() {}, createElementNS:(_, tag) => new El(tag), createElement:tag => Object.assign(new El(tag), { getContext:() => ({}) }) };
+  const IntersectionObserver = class { observe() {} };
+  const { winds } = load({ gregalCharacters, document, IntersectionObserver });
+  const w = { id:'xaloc', name:'Xaloc', color:'#EFA68F', style:'pso', kit:'books' };
+  assert.equal(winds.face(w), 'clay', 'a list row');
+  assert.equal(winds.face(w, false, 'reading', 30), 'clay', 'the chat header');
+  assert.deepEqual(played.map(p => [p.w.id, p.still, p.svg.getAttribute('data-mood'), p.svg.getAttribute('data-kit')]), [['xaloc', true, 'idle', 'books'], ['xaloc', true, 'reading', 'books']]);
+  played.length = 0;
+  assert.notEqual(winds.face(w, true), 'clay', 'a large face is played by its caller, as before');
+  assert.notEqual(winds.face(w, 'figure'), 'clay', 'a scene keeps its drawing');
+  for (const pack of ['cap', 'rosa', 'mapa', 'esperit']) {
+    winds.setAvatarTheme(pack);
+    for (const size of [undefined, 24, 48]) assert.notEqual(winds.face(w, false, 'idle', size), 'clay', pack + ' stays drawn at ' + size);
+    assert.notEqual(winds.face(w, true), 'clay', pack + ' stays drawn large');
+  }
+  assert.deepEqual(played, []);
+});
+
+test('below 28 px a small Cares face carries no trade badge: it would be a dot', () => {
+  const played = [];
+  const { winds } = load({ gregalCharacters:{ play(svg) { played.push(svg); return svg; } } });
+  const w = { id:'xaloc', name:'Xaloc', color:'#EFA68F', style:'pso', kit:'books' };
+  winds.face(w, false, 'idle', 26);
+  winds.face(w, false, 'idle', 28);
+  assert.deepEqual(played.map(svg => svg.getAttribute('data-kit')), [null, 'books']);
 });

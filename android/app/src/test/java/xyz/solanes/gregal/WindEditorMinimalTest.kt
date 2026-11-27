@@ -2,6 +2,9 @@ package xyz.solanes.gregal
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import org.junit.Assert.*
@@ -175,6 +178,32 @@ class WindEditorMinimalTest {
         }
     }
 
+    @Test fun aMinairoPicksItsBarretinaSavedAsTheFourthLetterOfItsStyle() {
+        val original = Wind("xaloc", "Xaloc", "#EFA68F", "lectura", "bto", "Persona.")
+        val saved = mutableListOf<WindDraft>()
+        var theme by mutableStateOf("minairo")
+        // Each save reports a failure, so the editor stays open for the next pick.
+        ui.setContent {
+            CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false, LocalAvatarTheme provides theme) {
+                MaterialTheme(colorScheme = LightPal.scheme()) {
+                    WindEditor("ca", original, {}, { _, _, _, _ -> error("Unexpected suggestion") }, { draft, done -> saved += draft; done(false) })
+                }
+            }
+        }
+        // The chips sit in a horizontal row: click them by action, as the eyes above.
+        fun pick(key: String) = ui.onNodeWithText(tr("ca", key)).performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        ui.onNodeWithText(tr("ca", "winds.barretina")).performScrollTo()
+        ui.onNodeWithText(tr("ca", "winds.barretinaAuto")).assertIsSelected()
+        pick("winds.barretinaM").assertIsSelected()
+        ui.onNodeWithText(tr("ca", "app.vents.saveChanges")).performClick()
+        pick("winds.barretinaAuto").assertIsSelected()
+        ui.onNodeWithText(tr("ca", "app.vents.saveChanges")).performClick()
+        ui.runOnIdle { assertEquals(listOf("btom", "bto"), saved.map { it.style }) }
+        // Only a wind drawn as a minairó wears a barretina.
+        theme = "cares"
+        ui.onNodeWithText(tr("ca", "winds.barretina")).assertDoesNotExist()
+    }
+
     @Test fun backFromTheDirectCreatorLeavesInsteadOfOpeningTheGallery() {
         var closed = false
         render(null, onBack = { closed = true })
@@ -194,6 +223,25 @@ class WindEditorMinimalTest {
                 MaterialTheme(colorScheme = LightPal.scheme()) { WindEditor("ca", wind, onBack, onSuggest, onSave) }
             }
         }
+    }
+
+    /** 170: the drop, the sun and the wave are shapes too, each chip with its clay sample, named in both languages. */
+    @Test fun theDropTheSunAndTheWaveAreShapesWithTheirClaySample() {
+        assertEquals(listOf("Gota", "Sol", "Onada"), "guw".map { tr("ca", "app.company.windShape_$it") })
+        assertEquals(listOf("Drop", "Sun", "Wave"), "guw".map { tr("en", "app.company.windShape_$it") })
+        var saved: WindDraft? = null
+        ui.setContent {
+            CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
+                MaterialTheme(colorScheme = LightPal.scheme()) {
+                    WindEditor("ca", null, {}, { _, _, _, _ -> error("Unexpected suggestion") }, { draft, _ -> saved = draft })
+                }
+            }
+        }
+        for (silhouette in listOf("gota", "sol", "onada")) ui.onNode(SemanticsMatcher.expectValue(WindClayKey, "$silhouette/idle"), useUnmergedTree = true).assertExists()
+        ui.onNodeWithText(tr("ca", "app.company.windName")).performTextInput("Ruixat")
+        ui.onNodeWithText(tr("ca", "app.company.windShape_w")).performScrollTo().performClick().assertIsSelected()
+        ui.onNodeWithText(tr("ca", "app.company.windSave")).performClick()
+        ui.runOnIdle { assertEquals("w", windStyleOf(saved?.style).shape.key) }
     }
 
     @Test fun opensDirectlyWithVisualControlsAndCreatesWithoutChoosingATemplate() {

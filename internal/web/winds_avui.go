@@ -27,10 +27,10 @@ import (
 // m'interessa») i les hores tranquil·les guarden les veus per al matí en lloc
 // de fer sonar el mòbil.
 //
-//	GET  /api/winds/avui                     → {date, now, fyi, ahead, done, settings, held}
-//	POST /api/winds/avui {id, action}        → done|later|dismiss|useful|notuseful|reopen|save
-//	GET  /api/winds/avui/settings            → {quiet_from, quiet_to, level, tune}
-//	POST /api/winds/avui/settings {…}        → desa i torna la configuració
+//	GET  /api/winds/avui                     → {date, now, fyi, ahead, done, settings, held, glance}
+//	POST /api/winds/avui {id, action}        → done|later|dismiss|useful|notuseful|reopen|save|resume
+//	GET  /api/winds/avui/settings            → {quiet_from, quiet_to, level, tune, place, follows}
+//	POST /api/winds/avui/settings {…}        → desa i torna la configuració (follow, unfollow)
 
 const (
 	avuiFile         = "winds-avui.json"
@@ -47,6 +47,8 @@ const (
 type avuiAction struct {
 	Label  string `json:"label"`
 	Prompt string `json:"prompt,omitempty"`
+	// Thread: el fil del vent que obre (winds_avui_loops.go).
+	Thread string `json:"thread,omitempty"`
 }
 
 type avuiCard struct {
@@ -81,14 +83,21 @@ type avuiSettings struct {
 	Level string `json:"level"`
 	// Tune: el que vols que el resum de demà (i els següents) tingui en compte.
 	Tune string `json:"tune,omitempty"`
+	// Place: la ciutat del temps d'«Avui» d'una ullada (winds_avui_glance.go).
+	Place string `json:"place"`
+	// Follows: el que la persona segueix (winds_avui_follows.go).
+	Follows []avuiFollow `json:"follows"`
 }
 
 // avuiSettingsReq: el que arriba per canviar-la (Tune nil = no el toquis).
 type avuiSettingsReq struct {
-	QuietFrom string  `json:"quiet_from"`
-	QuietTo   string  `json:"quiet_to"`
-	Level     string  `json:"level"`
-	Tune      *string `json:"tune"`
+	QuietFrom string      `json:"quiet_from"`
+	QuietTo   string      `json:"quiet_to"`
+	Level     string      `json:"level"`
+	Tune      *string     `json:"tune"`
+	Place     *string     `json:"place"`
+	Follow    *avuiFollow `json:"follow"`
+	Unfollow  string      `json:"unfollow"`
 }
 
 // avuiMu protegeix avui.json també entre processos (crosslock.go).
@@ -138,7 +147,19 @@ func (s *Server) avuiSettings() avuiSettings {
 	if st.Level != "calm" {
 		st.Level = "normal"
 	}
+	if st.Follows == nil {
+		st.Follows = []avuiFollow{}
+	}
 	return st
+}
+
+func (s *Server) saveAvuiSettings(st avuiSettings) error {
+	raw, err := json.Marshal(st)
+	if err != nil {
+		return err
+	}
+	_ = os.MkdirAll(filepath.Dir(avuiSettingsPath(s)), 0o700)
+	return os.WriteFile(avuiSettingsPath(s), raw, 0o600)
 }
 
 func avuiID() string {
@@ -227,9 +248,9 @@ func (s *Server) avuiFromVoice(w companion.Wind, source, job, text string) (stri
 	if isBriefingJob(job) || isReplySource(source) {
 		return "", true
 	}
-	// «A prop teu» ja ha posat una targeta per novetat, cadascuna amb la
-	// seva font (winds_local.go): aquí només es decideix si sona.
-	if source == localSourceName {
+	// «A prop teu» i «Prep» ja han posat la seva targeta (winds_local.go,
+	// winds_avui_prep.go): aquí només es decideix si sona.
+	if source == localSourceName || source == avuiPrepSource {
 		return "", !quiet
 	}
 	title := cardTitle(text)
@@ -440,10 +461,69 @@ func (s *Server) avuiView() map[string]any {
 	}
 }
 
+// avuiPauseSource és la targeta «He deixat de mirar X» (respEase).
+const avuiPauseSource = "pausa"
+
+// avuiWatchOf és la responsabilitat que va fer parlar el vent ("" si cap).
+func avuiWatchOf(c avuiCard) string {
+	switch c.Source {
+	case "responsabilitat":
+		return c.Job
+	case "heartbeat":
+		return respHeartID(c.Wind)
+	}
+	return ""
+}
+
+// avuiNoes compta els «no» (Ara no, No m'interessa) dels últims 7 dies a les
+// targetes d'una responsabilitat. Un «Útil» en una targeta posterior torna a
+// començar el compte; la llista va en ordre d'arribada.
+func avuiNoes(list []avuiCard, watch string, now time.Time) int {
+	cut := now.Add(-7 * 24 * time.Hour).Unix()
+	n := 0
+	for _, c := range list {
+		if avuiWatchOf(c) != watch {
+			continue
+		}
+		switch {
+		case c.Feedback == "useful":
+			n = 0
+		case (c.State == avuiDismissed || c.Feedback == "notuseful") && c.Updated >= cut:
+			n++
+		}
+	}
+	return n
+}
+
+// avuiPauseCard diu a «Avui» que una vigilància s'ha pausat sola; POST
+// {action:"resume"} la reprèn.
+func (s *Server) avuiPauseCard(r *responsabilitat) avuiCard {
+	obj := oneLine(r.Objective, 90)
+	name := r.Wind
+	if w, ok := s.winds.ByID(r.Wind); ok {
+		name = w.Name
+	}
+	now := time.Now().Unix()
+	return avuiCard{
+		ID: avuiID(), Wind: r.Wind, WindName: name, Source: avuiPauseSource, Job: r.ID, Section: avuiNow,
+		Title: s.tr("He deixat de mirar: ", "I've stopped watching: ") + obj,
+		Why:   s.tr("Li has dit que no 5 cops aquesta setmana.", "You said no to it 5 times this week."),
+		Actions: []avuiAction{{Label: s.tr("Torna a mirar-ho", "Watch it again"),
+			Prompt: s.tr("Torna a vigilar: ", "Watch this again: ") + obj}},
+		State: avuiOpen, Created: now, Updated: now,
+	}
+}
+
 func (s *Server) handleWindsAvui(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		writeJSON(w, s.avuiView())
+		if err := s.syncLoopsJob(); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		v := s.avuiView()
+		v["glance"] = s.avuiGlance()
+		writeJSON(w, v)
 	case http.MethodPost:
 		var req struct {
 			ID     string `json:"id"`
@@ -457,12 +537,16 @@ func (s *Server) handleWindsAvui(w http.ResponseWriter, r *http.Request) {
 		list := loadAvui(s)
 		now := time.Now()
 		found := false
+		watch, before := "", 0
 		for i := range list {
 			if list[i].ID != req.ID {
 				continue
 			}
 			found = true
 			c := &list[i]
+			if watch = avuiWatchOf(*c); watch != "" {
+				before = avuiNoes(list, watch, now)
+			}
 			switch req.Action {
 			case "done":
 				c.State = avuiDone
@@ -489,6 +573,16 @@ func (s *Server) handleWindsAvui(w http.ResponseWriter, r *http.Request) {
 				c.Saved = !c.Saved
 			case "reopen":
 				c.State, c.Until = avuiOpen, 0
+			case "resume":
+				if c.Source != avuiPauseSource {
+					http.Error(w, "only a paused watch's card resumes", http.StatusBadRequest)
+					return
+				}
+				if _, code, err := s.respAction("resume", c.Job, respInput{}, r); err != nil {
+					http.Error(w, err.Error(), code)
+					return
+				}
+				c.State = avuiDone
 			default:
 				http.Error(w, "unknown action", http.StatusBadRequest)
 				return
@@ -499,6 +593,22 @@ func (s *Server) handleWindsAvui(w http.ResponseWriter, r *http.Request) {
 		if !found {
 			http.Error(w, "unknown card", http.StatusNotFound)
 			return
+		}
+		if watch != "" {
+			after := avuiNoes(list, watch, now)
+			for _, at := range []int{3, 5} {
+				if before >= at || after < at {
+					continue
+				}
+				paused, err := s.respEase(watch, at)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				if paused != nil {
+					list = append(list, s.avuiPauseCard(paused))
+				}
+			}
 		}
 		if err := saveAvui(s, list); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -538,9 +648,22 @@ func (s *Server) handleWindsAvuiSettings(w http.ResponseWriter, r *http.Request)
 		if req.Tune != nil {
 			st.Tune = oneLine(*req.Tune, 600)
 		}
-		raw, _ := json.Marshal(st)
-		_ = os.MkdirAll(filepath.Dir(avuiSettingsPath(s)), 0o700)
-		if err := os.WriteFile(avuiSettingsPath(s), raw, 0o600); err != nil {
+		if req.Place != nil {
+			st.Place = oneLine(*req.Place, 120)
+		}
+		if err := s.applyFollowReq(&st, req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := s.saveAvuiSettings(st); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := s.syncFollowJobs(st); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := s.syncLoopsJob(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

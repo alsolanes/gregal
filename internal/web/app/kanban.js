@@ -281,8 +281,8 @@ const term = {
     $('kbWinClose').onclick = () => this.close();
     $('kbWinStop').onclick = () => kb.action(this.id, 'stop');
     $('kbWinRestart').onclick = () => kb.action(this.id, 'restart');
-    $('kbWinTitle').ondblclick = () => {
-      const t = prompt(T('kanban.rename'), $('kbWinTitle').textContent);
+    $('kbWinTitle').ondblclick = async () => {
+      const t = await window.gregalAsk(T('kanban.rename'), $('kbWinTitle').textContent);
       if (t && t.trim()) kb.action(this.id, 'rename', { title: t.trim() });
     };
     const box = $('kbTerm'), inp = $('kbInput');

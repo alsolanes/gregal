@@ -205,6 +205,9 @@ object WindWatch {
     /** Programa la propera passada (exacta si es pot, si no inexacta). */
     fun schedule(ctx: Context, delayMs: Long = INTERVAL_MS) {
         if (!wanted(ctx)) return
+        // El cursor d'un servidor nou comença quan s'arma (en entrar-hi): si
+        // comencés a la primera passada, la novetat que arriba abans no sonaria mai.
+        if (lastTs(ctx) == 0L) saveTs(ctx, System.currentTimeMillis() / 1000)
         // Registra (o refresca) el token de push si n'hi ha; si no, sondeig.
         VentsPush.ensureRegistered(ctx)
         val am = ctx.getSystemService(AlarmManager::class.java)
@@ -306,9 +309,6 @@ class WindWatchService : Service() {
                 for (w in NoticeDedupe.readWinds(noves)) WindNotifications.cancelWind(this, source, w)
                 val candidates = WindWatchLogic.toRing(OfflineLogic.notYetShown(noves, shown)).filter { it.ts > desDe }
                 WindWatch.saveTs(this, nouTs)
-                // Primera passada en aquest servidor/compte: només marca on som.
-                // Avisar de tot el que ja hi havia seria una ràfega de notificacions velles.
-                if (desDe == 0L) { NoticeLedger.claim(this, source, candidates, p.usuari); return }
                 aviat = try { api.windTasks().any { it.running } } catch (_: Exception) { false }
                 // Un sol registre per a push i sondeig: el que ja ha sonat no torna a sonar.
                 // Amb l'app oberta tampoc no sona: la novetat ja és al fil (stream).
@@ -408,9 +408,14 @@ object WindNotifications {
             .setVisibility(Notification.VISIBILITY_PRIVATE)
         // Glif, color i insígnia segons el que diu el vent (resum del matí, recordatori, temps…).
         val kind = NotifLook.apply(ctx, builder, NotifLook.of(n.source, "", n.text, hour = java.time.LocalTime.now().hour))
+        // Un vent conegut hi posa el seu color i la seva cara, per sobre dels de la mena.
+        val face = windLook(ctx, source, n.wind)?.let { (color, face) ->
+            builder.setColor(color).setLargeIcon(android.graphics.drawable.Icon.createWithBitmap(face))
+            face
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             val vent = Person.Builder().setName(nom)
-                .apply { NotifLook.badge(ctx, kind)?.let { setIcon(android.graphics.drawable.Icon.createWithBitmap(it)) } }
+                .apply { (face ?: NotifLook.badge(ctx, kind))?.let { setIcon(android.graphics.drawable.Icon.createWithBitmap(it)) } }
                 .build()
             builder.style = Notification.MessagingStyle(vent)
                 .addMessage(cos, System.currentTimeMillis(), vent)
@@ -431,6 +436,17 @@ object WindNotifications {
         try {
             ctx.getSystemService(NotificationManager::class.java).notify(notifId, builder.build())
         } catch (_: Exception) {
+        }
+    }
+
+    /** El color i la cara del vent, de la còpia de la llista d'aquest origen; null sense còpia (origen local, vent nou) o si no es llegeix. */
+    private fun windLook(ctx: Context, source: String, windId: String): Pair<Int, android.graphics.Bitmap>? {
+        val raw = VentsOffline.store(ctx, source).windsRaw() ?: return null
+        return try {
+            val wind = Wind.parse(raw).firstOrNull { it.id == windId } ?: return null
+            wind.argb.toInt() to windFaceBitmap(wind, avatarThemeOf(raw))
+        } catch (_: org.json.JSONException) {
+            null
         }
     }
 

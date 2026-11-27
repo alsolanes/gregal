@@ -59,6 +59,10 @@ data class GregalPalette(
      *  Per al que s'obre damunt del contingut (calaix, fulls, diàlegs), que
      *  translúcid deixaria llegir el text de sota. */
     val solidSurface: Color get() = if (glass) surface.compositeOver(deepTop) else surface
+    /** El fons d'una pàgina sencera (vents, perfils, xats). Al fosc és el fons
+     *  negre perquè les pantalles AMOLED apaguin el píxel; al clar, i amb Vidre
+     *  (que hi deixa veure les taques de llum), la superfície. */
+    val page: Color get() = if (dark && !glass) deepTop else surface
     // Àlies històrics: noms que ja feia servir tota la UI.
     val pillDark: Color get() = surface
     val bubbleDark: Color get() = surface
@@ -66,9 +70,6 @@ data class GregalPalette(
     /** Enviar: en fosc, el blau suau amb el glif fosc; en clar, el cercle de mar amb el glif blau clar. */
     val sendBg: Color get() = sea
     val sendFg: Color get() = if (dark) onSea else Color(0xFFB0BCF7)
-    /** La teva bombolla: blanc trencat en fosc, mar en clar (com el tauler). */
-    val userBubble: Color get() = if (dark) Color(0xFFE9ECF2) else Color(0xFF17323D)
-    val onUserBubble: Color get() = if (dark) Color(0xFF15181D) else Color(0xFFF2F5EF)
     /** Colors de les sèries dels gràfics: vius en tots dos temes (girar el to
      *  de l'accent donava grisos amb el mar del tema clar). */
     val chart: List<Color> get() = if (dark)
@@ -82,10 +83,10 @@ val DarkPal = GregalPalette(
     sand = Color(0xFFF2B48E),       // arena (avís)
     onada = Color(0xFF7FD6C2),      // aqua juganer
     algua = Color(0xFF2C3137),
-    deepTop = Color(0xFF131518),    // fons
-    deepBottom = Color(0xFF0E1012), // abisme: sidebar/panells
-    surface = Color(0xFF1A1D21),    // night
-    surfaceHi = Color(0xFF24282D),  // superficieAlta
+    deepTop = Color(0xFF000000),    // fons: negre de debò (AMOLED)
+    deepBottom = Color(0xFF000000), // abisme: sidebar/panells
+    surface = Color(0xFF121417),    // night
+    surfaceHi = Color(0xFF1C1F23),  // superficieAlta
     ink = Color(0xFFF2F4F7),
     text = Color(0xFFDEE2E7),
     muted = Color(0xFFA7AEB8),
@@ -96,8 +97,8 @@ val DarkPal = GregalPalette(
     lilaFons = Color(0xFF2A2645),
     line = Color(0x1ACFD6E0),       // gris fred #CFD6E0 al 10%
     lineHi = Color(0x33CFD6E0),     // gris fred al 20%
-    abyss = Color(0xFF0E1012),
-    onSea = Color(0xFF131518),      // sobre l'accent: text fosc (fons)
+    abyss = Color(0xFF000000),
+    onSea = Color(0xFF000000),      // sobre l'accent: text fosc (fons)
     dark = true,
 )
 
@@ -231,7 +232,7 @@ object GregalType {
     /** Capçaleres de secció en majúscules. */
     val overline = TextStyle(fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp)
     /** El cos dels missatges del fil (bombolles de l'assistent i teves). */
-    val chatBody = TextStyle(fontSize = 16.sp, lineHeight = 23.sp)
+    val chatBody = TextStyle(fontSize = 16.sp, lineHeight = 26.sp)
     /** Hores, rebuts i separadors del fil. */
     val chatMeta = TextStyle(fontSize = 12.sp, lineHeight = 16.sp)
 }
@@ -281,6 +282,10 @@ object GregalChat {
     val assistantMax = 520.dp
     /** Ample màxim de la teva bombolla: 78 %. */
     const val userWidth = 0.78f
+    /** Ample màxim d'una resposta sense bombolla: unes 70 lletres del cos del fil. */
+    val readingMax = 560.dp
+    /** L'aire entre blocs d'una resposta (paràgrafs, llistes, codi, taules): un sol ritme. */
+    val blockGap = 12.dp
     val bubblePadH = 14.dp
     val bubblePadV = 10.dp
 }
@@ -485,6 +490,7 @@ val DeepBottom @Composable @ReadOnlyComposable get() = LocalPal.current.deepBott
 // Els noms de superfície en català com al document: `Surface` xocaria amb el
 // composable de Material3 que tots els fitxers importen.
 val Superficie @Composable @ReadOnlyComposable get() = LocalPal.current.surface
+val Pagina @Composable @ReadOnlyComposable get() = LocalPal.current.page
 /** La paleta per al que s'obre damunt del contingut: amb Vidre, les
  *  superfícies opaques (translúcides deixarien llegir el text de sota). */
 fun GregalPalette.solid(): GregalPalette =
@@ -512,8 +518,6 @@ val OnSea @Composable @ReadOnlyComposable get() = LocalPal.current.onSea
 val Lime = Color(0xFFB0BCF7)
 val SendBg @Composable @ReadOnlyComposable get() = LocalPal.current.sendBg
 val SendFg @Composable @ReadOnlyComposable get() = LocalPal.current.sendFg
-val UserBubble @Composable @ReadOnlyComposable get() = LocalPal.current.userBubble
-val OnUserBubble @Composable @ReadOnlyComposable get() = LocalPal.current.onUserBubble
 
 /** El diàleg de l'app: el de Compose amb la paleta opaca ([solid]). */
 @Composable

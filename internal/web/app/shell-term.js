@@ -26,14 +26,17 @@ export const shellTerm = {
     if (this.session === session && this.abort) { this.fit(); this.focus(); return; }
     this.stop();
     this.session = session;
+    const cwd = window.gregalCwd || '', where = $('shellTermCwd');
+    where.textContent = cwd.split(/[\\/]/).filter(Boolean).pop() || '';
+    where.title = cwd;
     this.start();
   },
 
   async start() {
     $('shellHist').innerHTML = ''; $('shellScreen').innerHTML = ''; this.rows = [];
-    this.state('');
+    this.state(T('shellTerm.connecting'), false, 'connecting');
     const d = this.dims();
-    try { await post('/api/terminal', d); } catch (e) { this.state(T('shellTerm.failed') + e.message, true); return; }
+    try { await post('/api/terminal', d); } catch (e) { this.state(T('shellTerm.failed') + e.message, true, 'exited'); return; }
     this.size = d.cols + 'x' + d.rows;
     this.stream();
     this.focus();
@@ -42,8 +45,11 @@ export const shellTerm = {
   stop() { if (this.abort) { this.abort.abort(); this.abort = null; } },
   focus() { const inp = $('shellInput'); if (inp && !$('terminalPage').hidden) inp.focus(); },
 
-  state(text, restart) {
+  // state: el text de sota la pantalla i l'estat de la capçalera
+  // (connecting, live, exited), que pinta el punt i atenua la pantalla.
+  state(text, restart, kind) {
     const st = $('shellTermState');
+    $('shellTermWrap').dataset.state = kind;
     st.textContent = text;
     if (restart) {
       const b = document.createElement('button');
@@ -61,6 +67,10 @@ export const shellTerm = {
     // Com al Kanban: keydown per a les tecles especials i «input» per al
     // text (també el d'un IME o un teclat de mòbil).
     inp.onkeydown = e => this.key(e);
+    $('shellCopy').onclick = () => this.copy();
+    // Ctrl+L: el shell (i el programa que hi corri) redibuixa la pantalla
+    // neta; l'historial d'aquí es buida a mà.
+    $('shellClear').onclick = () => { $('shellHist').innerHTML = ''; this.send('\x0c'); this.focus(); };
     inp.oninput = e => {
       if (e.isComposing) return;
       const v = inp.value; inp.value = '';
@@ -136,7 +146,7 @@ export const shellTerm = {
       // peta, un $SHELL trencat) no es torna a engegar sol en bucle.
       if (!r.ok) {
         exited = true;
-        this.state(T(r.status === 409 ? 'shellTerm.gone' : 'shellTerm.failed') + (r.status === 409 ? '' : 'HTTP ' + r.status), true);
+        this.state(T(r.status === 409 ? 'shellTerm.gone' : 'shellTerm.failed') + (r.status === 409 ? '' : 'HTTP ' + r.status), true, 'exited');
         throw new Error('HTTP ' + r.status);
       }
       const rd = r.body.getReader(), dec = new TextDecoder();
@@ -152,9 +162,9 @@ export const shellTerm = {
           frame.split('\n').forEach(l => { if (l.startsWith('event:')) ev = l.slice(6).trim(); else if (l.startsWith('data:')) data += l.slice(5).trim(); });
           if (!data || this.abort !== ctrl) continue;
           let d; try { d = JSON.parse(data); } catch (e) { continue; }
-          if (ev === 'frame') this.paint(d);
+          if (ev === 'frame') { if (!this.rows.length) this.state('', false, 'live'); this.paint(d); }
           else if (ev === 'history') this.history(d.lines || []);
-          else if (ev === 'exited') { exited = true; this.state(T('shellTerm.exited') + d.exit + '.', true); }
+          else if (ev === 'exited') { exited = true; this.state(T('shellTerm.exited') + d.exit + '.', true, 'exited'); }
         }
       }
     } catch (e) { if (ctrl.signal.aborted) return; }
@@ -162,6 +172,15 @@ export const shellTerm = {
     this.abort = null;
     // Connexió tallada (servidor reiniciat, xarxa): torna a obrir el shell de la sessió.
     if (!exited) setTimeout(() => { if (this.session === session && !this.abort) this.start(); }, 1500);
+  },
+
+  // copy copia el text seleccionat o, si no n'hi ha, tota la sortida.
+  async copy() {
+    const btn = $('shellCopy');
+    const text = String(window.getSelection()) || ($('shellHist').innerText + '\n' + $('shellScreen').innerText).replace(/\s+$/, '');
+    try { await navigator.clipboard.writeText(text); } catch (e) { btn.title = T('shellTerm.copy') + ': ' + e.message; return; }
+    btn.classList.add('done');
+    setTimeout(() => btn.classList.remove('done'), 1400);
   },
 
   atBottom() { const b = $('shellTerm'); return b.scrollHeight - b.scrollTop - b.clientHeight < 4; },

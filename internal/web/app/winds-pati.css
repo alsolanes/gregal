@@ -25,6 +25,10 @@
 }
 .pati-scene.is-night { --pati-sky-a:#16213B; --pati-sky-b:#2B3657; --pati-sand-a:#8E806A; --pati-sand-b:#6F634F; --pati-grass:#4F6E45; --pati-path:#9C927E; --pati-leaves:#3F5E3A; --pati-plot:#A39579; --pati-plaza:#978A6E; }
 .pati-scroller { position:absolute; inset:0; overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; display:flex; align-items:center; }
+/* 132: on hi ha més pati, la vora s'esvaeix (data-fade, de winds-pati.js): un vent a la vora no sembla tallat. */
+.pati-scene[data-fade="end"] .pati-scroller { mask-image:linear-gradient(to right, black calc(100% - 56px), transparent); }
+.pati-scene[data-fade="start"] .pati-scroller { mask-image:linear-gradient(to left, black calc(100% - 56px), transparent); }
+.pati-scene[data-fade="start end"] .pati-scroller { mask-image:linear-gradient(to right, transparent, black 56px, black calc(100% - 56px), transparent); }
 .pati-sizer { position:relative; flex:none; margin:auto; }
 .pati-world { position:absolute; left:0; top:0; transform-origin:0 0; cursor:grab; touch-action:none; }
 .pati-world.is-panning { cursor:grabbing; }

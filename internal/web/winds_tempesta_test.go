@@ -3,6 +3,8 @@ package web
 import (
 	"context"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -97,5 +99,99 @@ func TestTempestaFallsBackToTheBestDraft(t *testing.T) {
 	s.handleWindChatStream(rec, req)
 	if raw := rec.Body.String(); !strings.Contains(raw, "La resposta llarga i amb fonts") {
 		t.Fatalf("sense síntesi, l'esborrany més complet:\n%s", raw)
+	}
+}
+
+// «A fons» és per investigar: si el missatge demana fer una cosa, el torn és
+// normal, amb les eines d'escriure, i la resposta diu per què.
+func TestTempestaWorkRequestRunsAsNormalTurn(t *testing.T) {
+	for _, lang := range []string{"ca", "en"} {
+		t.Run(lang, func(t *testing.T) {
+			t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+			s, _ := companionTestServer(t)
+			s.cwd = t.TempDir()
+			s.mode = "code"
+			s.cfg.Language = lang
+			provider := windPermissionProvider(t, "write", `{"path":"index.html","content":"<h1>hola</h1>"}`)
+			s.cfg.Providers["p"] = config.Provider{BaseURL: provider.URL + "/v1"}
+			makeRotllanaTrio(t, s)
+			rec := postJSON(t, s.handleWindChatStream, `{"wind":"tramuntana","message":"fes-me una web de la meva cuina","tempesta":true}`)
+			raw := rec.Body.String()
+			if data, err := os.ReadFile(filepath.Join(s.cwd, "index.html")); err != nil || string(data) != "<h1>hola</h1>" {
+				t.Fatalf("el write no s'ha fet: %v %q\n%s", err, data, raw)
+			}
+			if strings.Contains(raw, "event: tempesta") {
+				t.Fatalf("no ha de ser Tempesta:\n%s", raw)
+			}
+			want := s.tr("«A fons» és per investigar", "«Deep» is for research")
+			if !strings.Contains(raw, "event: done") || !strings.Contains(raw, want) {
+				t.Fatalf("la resposta ha de dir %q:\n%s", want, raw)
+			}
+		})
+	}
+}
+
+// Les consignes dels agents i de la síntesi diuen que «A fons» només
+// investiga i que, si cal fer una cosa, ho diguin així, mai que el servidor
+// els bloqueja.
+func TestTempestaBriefsSayDeepOnlyResearches(t *testing.T) {
+	s := remindTestServer(t)
+	oldLoop, oldChat := windLoop, petChatter
+	t.Cleanup(func() { waitBackground(); windLoop = oldLoop; petChatter = oldChat })
+	var mu sync.Mutex
+	var briefs []string
+	windLoop = func(_ *Server, _ context.Context, brief string, _ ...*routedRole) (exploracio, error) {
+		mu.Lock()
+		briefs = append(briefs, brief)
+		mu.Unlock()
+		return exploracio{text: "esborrany"}, nil
+	}
+	var synthSystem string
+	petChatter = func(_ context.Context, _ *llm.Client, _ *config.Config, _ config.Provider, _ config.Role, msgs []llm.Message) (string, error) {
+		synthSystem = msgs[0].Content
+		return "resposta", nil
+	}
+	req := httptest.NewRequest("POST", "/api/winds/chat/stream", strings.NewReader(`{"wind":"xaloc","message":"Quin temps farà demà?","tempesta":true}`))
+	s.handleWindChatStream(httptest.NewRecorder(), req)
+	if len(briefs) != tempestaAgentCount {
+		t.Fatalf("agents: %d", len(briefs))
+	}
+	for i, text := range append(briefs, synthSystem) {
+		for _, want := range []string{"Deep mode only researches", "turn Deep off", "never say the server blocked"} {
+			if !strings.Contains(text, want) {
+				t.Fatalf("la consigna %d no diu %q:\n%s", i, want, text)
+			}
+		}
+	}
+}
+
+// «A fons» sap que li demanes fer una cosa encara que no facis servir els
+// verbs de la colla («fes», «crea»): «Vull una pàgina web…», «Escriu-me un
+// fitxer…». Una pregunta o una recerca segueixen sent «A fons».
+func TestTempestaWantsWorkBeyondCrewVerbs(t *testing.T) {
+	for _, m := range []string{
+		"Vull una pàgina web de la recepta de rius, desada a rius2/index.html",
+		"Escriu-me un fitxer amb la llista de la compra",
+		"Necessito un document Word amb l'informe trimestral",
+		"Genera un script que reanomeni les fotos",
+		"I want a landing page for my bakery",
+		"Write me a report.md about the meeting",
+		"Quiero una página web para mi tienda",
+	} {
+		if !tempestaWantsWork(m) {
+			t.Errorf("hauria de ser feina: %q", m)
+		}
+	}
+	for _, m := range []string{
+		"Com funciona una pàgina web per dins?",
+		"Vull saber què diu la premsa de la web de l'ajuntament",
+		"Compara els millors frameworks web d'aquest any",
+		"Investiga quins jocs han sortit aquest mes",
+		"No vull que escriguis cap fitxer, només explica'm la idea",
+		"What do experts say about remote work?",
+	} {
+		if tempestaWantsWork(m) {
+			t.Errorf("hauria de ser recerca: %q", m)
+		}
 	}
 }

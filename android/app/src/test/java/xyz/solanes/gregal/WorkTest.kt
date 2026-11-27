@@ -273,13 +273,43 @@ class WorkTest {
     @Test
     fun progressAndDurations() {
         assertEquals("think", progressLine(mapOf("phase" to "model", "state" to "receiving", "reasoning" to "40", "text" to "0", "tool" to "0"), "en").first)
-        assertEquals("Thinking… …plan the layout", progressLine(mapOf("phase" to "model", "state" to "receiving", "reasoning" to "40", "text" to "0", "tool" to "0", "tail" to "  plan\nthe  layout "), "en").second)
         assertEquals("write", progressLine(mapOf("phase" to "model", "state" to "receiving", "reasoning" to "40", "text" to "12", "tool" to "0"), "en").first)
         assertEquals("model", progressLine(mapOf("phase" to "model", "state" to "waiting"), "en").first)
         assertEquals("Running · Run", progressLine(mapOf("phase" to "tools", "tools" to "bash"), "en").second)
         assertEquals("8s", shortDuration(8_400))
         assertEquals("1m 05s", shortDuration(65_000))
         assertEquals("1h 02m", shortDuration(3_720_000))
+    }
+
+    @Test
+    fun progressNamesTheFileAndTool() {
+        fun line(vararg kv: Pair<String, String>, lang: String = "ca") =
+            progressLine(mapOf("phase" to "model", "state" to "receiving", "reasoning" to "500", "text" to "0") + kv, lang)
+        assertEquals("Escrivint index.html · 12k caràcters", line("tool" to "12000", "tool_name" to "write", "tool_target" to "index.html").second)
+        assertEquals("Writing index.html · 12.3k characters", line("tool" to "12345", "tool_name" to "write", "tool_target" to "index.html", lang = "en").second)
+        assertEquals("Preparant bash · 40 caràcters", line("tool" to "40", "tool_name" to "bash").second)
+        assertEquals("Preparant una eina · 40 caràcters", line("tool" to "40").second)
+        assertEquals("", line("tool" to "40", "tool_name" to "bash", "tail" to "x").third)
+    }
+
+    @Test
+    fun progressThinkingShowsSizeAndTail() {
+        val p = progressLine(mapOf("phase" to "model", "state" to "receiving", "reasoning" to "67000", "text" to "0", "tool" to "0",
+            "tail" to "  plan\nthe  layout "), "ca")
+        assertEquals("think", p.first)
+        assertEquals("Pensant · 67k caràcters", p.second)
+        assertEquals("…plan the layout", p.third)
+        assertEquals("Thinking · 40 characters", progressLine(mapOf("phase" to "model", "state" to "receiving", "reasoning" to "40", "text" to "0", "tool" to "0"), "en").second)
+    }
+
+    @Test
+    fun progressFromOldServerWithoutNewFields() {
+        fun line(vararg kv: Pair<String, String>) = progressLine(mapOf("phase" to "model") + kv, "ca")
+        assertEquals("Esperant el model…", line("state" to "waiting").second)
+        assertEquals("Escrivint…", line("state" to "receiving", "reasoning" to "40", "text" to "12", "tool" to "0").second)
+        assertEquals("Escrivint…", line("state" to "receiving").second)
+        assertEquals("", line("state" to "receiving", "reasoning" to "40", "text" to "0", "tool" to "0").third)
+        assertEquals("Executant · Executa", progressLine(mapOf("phase" to "tools", "tools" to "bash"), "ca").second)
     }
 
     @Test

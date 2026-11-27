@@ -70,8 +70,9 @@ internal fun userDisplayName(saved: String, account: String, local: Boolean, lan
 
 /** Primera lletra del primer i de l'últim mot: «Maria del Mar Puig» → «MP». */
 internal fun userInitials(name: String): String {
-    // (?U): els espais Unicode també separen, com \s a JavaScript.
-    val words = name.trim().split(Regex("(?U)\\s+")).filter { it.isNotEmpty() }
+    // \p{Z}: els espais Unicode també separen, com \s a JavaScript. No (?U):
+    // la regex d'Android (ICU) no l'accepta i l'app es tancava en obrir-se.
+    val words = name.trim().split(Regex("[\\s\\p{Z}]+")).filter { it.isNotEmpty() }
     if (words.isEmpty()) return ""
     fun first(w: String) = String(Character.toChars(w.codePointAt(0))).uppercase()
     return if (words.size == 1) first(words[0]) else first(words.first()) + first(words.last())

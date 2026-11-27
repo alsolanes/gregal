@@ -108,7 +108,7 @@ class MascotMinimalTest {
         val styles = WindEyes.entries.flatMap { eyes -> WindMouth.entries.flatMap { mouth ->
             WindShape.entries.map { shape -> WindStyle(eyes, mouth, shape) }
         } }
-        assertEquals(48, styles.map { it.encode() }.toSet().size)
+        assertEquals(96, styles.map { it.encode() }.toSet().size)
         styles.forEach { assertEquals(it, windStyleOf(it.encode())) }
         ui.setContent {
             CompositionLocalProvider(LocalWindMotion provides false, LocalPal provides palette) {
@@ -300,16 +300,19 @@ class MascotMinimalTest {
         fun lum(x: Float, y: Float) = face.getPixel((face.width * x).toInt(), (face.height * y).toInt())
             .let { android.graphics.Color.red(it) * .2126f + android.graphics.Color.green(it) * .7152f + android.graphics.Color.blue(it) * .0722f }
         assertTrue("Lit from the top left: the body has volume", lum(.35f, .25f) > lum(.68f, .78f) + 12f)
-        for (y in (face.height * .15f).toInt() until (face.height * .85f).toInt()) for (x in (face.width * .15f).toInt() until (face.width * .85f).toInt()) {
+        // Above the eyes: their white catchlights are expression, not glare.
+        for (y in (face.height * .15f).toInt() until (face.height * .38f).toInt()) for (x in (face.width * .15f).toInt() until (face.width * .85f).toInt()) {
             val p = face.getPixel(x, y)
-            assertFalse("Satin, not glossy: no white glare on the body", android.graphics.Color.blue(p) > 200 && android.graphics.Color.green(p) > 230)
+            assertFalse("Satin, not glossy: the clay sheen never burns to white", android.graphics.Color.blue(p) > 235 && android.graphics.Color.green(p) > 240)
         }
         var eyePixels = 0
         val expectedInk = if (contrastWith(accent, Color(0xFF202127)) >= contrastWith(accent, Color.White))
             0xFF202127.toInt() else android.graphics.Color.WHITE
         for (y in (face.height * .35f).toInt() until (face.height * .60f).toInt()) {
             for (x in (face.width * .25f).toInt() until (face.width * .75f).toInt()) {
-                if (face.getPixel(x, y) == expectedInk) eyePixels++
+                // The eye is its ink, the warm glow at its bottom and its white catchlight.
+                val q = face.getPixel(x, y)
+                if (q == expectedInk || q == android.graphics.Color.WHITE || android.graphics.Color.red(q) < 0x90) eyePixels++
             }
         }
         assertTrue("Two bold eyes must survive at avatar size", eyePixels > face.width * face.height * .018f)
@@ -322,7 +325,7 @@ class MascotMinimalTest {
             }
         }
         val face = image("face")
-        val under = face.getPixel(face.width / 2, (face.height * .91f).toInt())
+        val under = face.getPixel(face.width / 2, (face.height * .875f).toInt())
         assertTrue("A soft shadow grounds the wind", android.graphics.Color.red(under) in 150..250)
         assertEquals("No halo beside the silhouette", android.graphics.Color.WHITE, face.getPixel((face.width * .06f).toInt(), face.height / 2))
         assertEquals("No shadow above the head", android.graphics.Color.WHITE, face.getPixel(face.width / 2, (face.height * .06f).toInt()))
@@ -330,7 +333,8 @@ class MascotMinimalTest {
 
     @Test fun smallSpecialistKeepsItsUnclutteredSilhouette() {
         ui.setContent {
-            CompositionLocalProvider(LocalWindMotion provides false) {
+            // The Canvas face, without the clay sheets (167: with them a small Cares face is clay, its trade a badge).
+            CompositionLocalProvider(LocalWindMotion provides false, LocalWindClay provides "no-such-folder") {
                 Row(Modifier.background(Color.White)) {
                     Box(Modifier.testTag("plain")) { WindFace(size = 48, accent = accent) }
                     Box(Modifier.testTag("specialist")) {

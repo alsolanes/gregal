@@ -336,8 +336,8 @@ data class WindNovetat(val ts: Long, val wind: String, val name: String, val sou
     /** Ja llegida (en aquest o en un altre dispositiu). */
     val read: Boolean = false)
 
-/** Una decisió d'una targeta d'«Avui»: obre la conversa amb el vent i li diu [prompt]. */
-data class AvuiAction(val label: String, val prompt: String)
+/** Una decisió d'una targeta d'«Avui»: obre la conversa amb el vent i li diu [prompt], o reprèn el fil [thread] si en porta. */
+data class AvuiAction(val label: String, val prompt: String, val thread: String = "")
 
 /**
  * Una targeta de la safata «Avui»: tot el que un vent diu pel seu compte
@@ -371,6 +371,10 @@ data class AvuiSettings(
     /** calm | normal */
     val level: String = "normal",
     val tune: String = "",
+    /** On ets, per al temps de dalt (un nom de ciutat). */
+    val place: String = "",
+    /** El que segueixes: id, kind (team | other), name i, si cal, el vent que ho mira. */
+    val follows: List<AvuiFollow> = emptyList(),
 ) {
     val calm: Boolean get() = level == "calm"
 }
@@ -384,6 +388,8 @@ data class AvuiView(
     val done: List<AvuiCard>,
     val held: Int,
     val settings: AvuiSettings,
+    /** El temps, el calendari i el que segueixes, a dalt de tot (VentsAvuiGlance.kt). */
+    val glance: AvuiGlance = AvuiGlance(),
 ) {
     val all: List<AvuiCard> get() = now + fyi + ahead
     /** Les que encara demanen alguna cosa (la insígnia de la pestanya). */
@@ -413,7 +419,14 @@ data class JobItem(
     val nextDueAt: String = "",
     /** Dies d'una feina diària (0 = diumenge … 6 = dissabte); buit, cada dia. */
     val days: List<Int> = emptyList(),
+    /** Vent de la feina (rutina, cor…); buit si no és de cap vent. */
+    val wind: String = "",
 )
+
+/** El cor d'un vent: kind event amb id wind-…, que tria el backend (amb
+ *  comptes, un per compte). El cor antic no porta wind: el seu id és wind-<vent>. */
+fun JobItem.isHeartbeatOf(windId: String): Boolean =
+    kind == "event" && id.startsWith("wind-") && (wind == windId || id == "wind-$windId")
 
 /** Dies d'una rutina en paraules: «feiners», «caps de setmana», «dl, dj»; buit si és cada dia. */
 fun jobDaysLabel(days: List<Int>, lang: String): String {

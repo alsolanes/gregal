@@ -169,3 +169,54 @@ func TestMapaIsAnAvatarPack(t *testing.T) {
 		t.Fatalf("avatar desat: %q", got)
 	}
 }
+
+// El Minairó és un pack com els altres, i és el tema de qui anomena els
+// ajudants «minairons» mentre no n'hagi triat cap altre, ni tan sols les cares.
+func TestMinairoIsThePackOfMinairons(t *testing.T) {
+	s := rutinaTestServer(t)
+	if rec := postJSON(t, s.handleWinds, `{"id":"xaloc","name":"Xaloc","avatar":"minairo"}`); rec.Code != 200 {
+		t.Fatalf("avatar minairo: %d %s", rec.Code, rec.Body.String())
+	}
+	setCollective(t, s, "fullet", "fullets")
+	if got := getWinds(t, s).AvatarTheme; got != "cares" {
+		t.Fatalf("amb fullets, les cares de sempre: %q", got)
+	}
+	setCollective(t, s, "minairó", "minairons")
+	if got := getWinds(t, s).AvatarTheme; got != "minairo" {
+		t.Fatalf("amb minairons i sense triar tema, el minairó: %q", got)
+	}
+	if code := setAvatarTheme(t, s, "cares"); code != 200 {
+		t.Fatalf("tema cares: %d", code)
+	}
+	if got := getWinds(t, s).AvatarTheme; got != "cares" {
+		t.Fatalf("qui tria les cares les conserva: %q", got)
+	}
+	if code := setAvatarTheme(t, s, "minairo"); code != 200 {
+		t.Fatalf("tema minairo: %d", code)
+	}
+	setCollective(t, s, "", "")
+	if got := getWinds(t, s).AvatarTheme; got != "minairo" {
+		t.Fatalf("triat a mà, es conserva amb qualsevol nom: %q", got)
+	}
+}
+
+// El Pelut és un pack com el minairó: el tema del compte i el pack de cada
+// vent l'accepten i el servidor el conserva.
+func TestPelutIsAPack(t *testing.T) {
+	s := rutinaTestServer(t)
+	if code := setAvatarTheme(t, s, "pelut"); code != 200 {
+		t.Fatalf("tema pelut: %d", code)
+	}
+	if got := getWinds(t, s).AvatarTheme; got != "pelut" {
+		t.Fatalf("tema desat: %q", got)
+	}
+	if rec := postJSON(t, s.handleWinds, `{"id":"xaloc","name":"Xaloc","avatar":"pelut"}`); rec.Code != 200 {
+		t.Fatalf("avatar pelut: %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := postJSON(t, s.handleWinds, `{"id":"xaloc","name":"Xaloc"}`); rec.Code != 200 {
+		t.Fatalf("desa sense avatar: %d %s", rec.Code, rec.Body.String())
+	}
+	if got := avatarOf(t, s, "xaloc"); got != "pelut" {
+		t.Fatalf("avatar desat: %q", got)
+	}
+}
