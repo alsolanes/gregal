@@ -2514,10 +2514,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         updateWork { it.add(WorkStep("s${nextMsgId()}", kind, label, target, meta, detail, state)) }
     }
 
-    private fun setActivity(key: String, text: String) {
+    private fun setActivity(key: String, text: String, tail: String = "") {
         val a = _activity.value
-        _activity.value = if (a != null && a.key == key) a.copy(text = text)
-            else Activity(key, text, System.currentTimeMillis())
+        _activity.value = if (a != null && a.key == key) a.copy(text = text, tail = tail)
+            else Activity(key, text, System.currentTimeMillis(), tail)
     }
 
     /**
@@ -2672,9 +2672,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             "progress" -> {
                 val p = mutableMapOf<String, String>()
                 o.keys().forEach { k -> p[k] = o.optString(k) }
-                val (k, t) = progressLine(p, lang)
+                val (k, t, tail) = progressLine(p, lang)
                 // Mentre corre una eina concreta, la seva línia és més útil.
-                if (!(k.startsWith("tools") && _activity.value?.key?.startsWith("tool:") == true)) setActivity(k, t)
+                if (!(k.startsWith("tools") && _activity.value?.key?.startsWith("tool:") == true)) setActivity(k, t, tail)
             }
             "status", "route" -> f("message").ifEmpty { text }.takeIf { it.isNotBlank() }?.let { _statusLine.value = it }
             "fallback" -> step(StepKind.Warn, appText("app.chat.fallback", f("model")))

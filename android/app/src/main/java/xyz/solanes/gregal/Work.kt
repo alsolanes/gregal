@@ -656,33 +656,51 @@ fun shortDuration(ms: Long): String {
 /** Final del raonament en una sola línia (camp `tail` de progress), per sota la línia «Pensant…». */
 private fun thinkTail(tail: String?): String {
     val one = tail.orEmpty().replace(Regex("\\s+"), " ").trim()
-    return if (one.isEmpty()) "" else " …" + one.takeLast(90)
+    return if (one.isEmpty()) "" else "…" + one.takeLast(90)
+}
+
+/** Mida en caràcters com la web (model-progress.js): 40, 12k, 12.3k. */
+private fun progressChars(n: String?, lang: String): String {
+    val c = n?.toIntOrNull() ?: 0
+    val s = if (c >= 1000) String.format(java.util.Locale.ROOT, "%.1f", c / 1000.0).removeSuffix(".0") + "k" else c.toString()
+    return tr(lang, "app.work.chars", s)
 }
 
 /**
  * Línia d'activitat en viu a partir d'un event `progress` del servidor
  * (internal/web/progres.go): fase model/tools/review/compact i estat.
- * Torna la clau i el text; la clau canvia quan canvia el que fa.
+ * Torna la clau, el text i la cua del raonament (per sota); la clau canvia
+ * quan canvia el que fa.
  */
-fun progressLine(p: Map<String, String>, lang: String = "ca"): Pair<String, String> {
+fun progressLine(p: Map<String, String>, lang: String = "ca"): Triple<String, String, String> {
     val en = lang == "en"
     return when (p["phase"]) {
         "tools" -> {
             val tools = p["tools"].orEmpty()
             val label = tools.split(',', ' ').firstOrNull { it.isNotBlank() }?.let { summarizeTool(it, "", lang).label } ?: ""
-            ("tools:$tools") to (if (en) "Running" else "Executant") + if (label.isNotEmpty()) " · $label" else "…"
+            Triple("tools:$tools", (if (en) "Running" else "Executant") + if (label.isNotEmpty()) " · $label" else "…", "")
         }
-        "review" -> "review" to (if (en) "Reviewing the change…" else "Revisant el canvi…")
-        "compact" -> "compact" to (if (en) "Compacting the context…" else "Compactant el context…")
+        "review" -> Triple("review", if (en) "Reviewing the change…" else "Revisant el canvi…", "")
+        "compact" -> Triple("compact", if (en) "Compacting the context…" else "Compactant el context…", "")
         else -> when (p["state"]) {
             // Comptadors de caràcters de la crida en curs (progres.go).
             "receiving" -> when {
-                (p["tool"]?.toIntOrNull() ?: 0) > 0 -> "plan" to (if (en) "Preparing the next step…" else "Preparant el pas següent…")
+                (p["tool"]?.toIntOrNull() ?: 0) > 0 -> {
+                    // Sense nom: un servidor Responses que no envia output_item.added.
+                    val target = p["tool_target"].orEmpty()
+                    val name = p["tool_name"].orEmpty()
+                    val what = when {
+                        target.isNotEmpty() -> tr(lang, "app.work.writingFile", target)
+                        name.isNotEmpty() -> tr(lang, "app.work.toolcallNamed", name)
+                        else -> tr(lang, "app.work.toolcall")
+                    }
+                    Triple("plan", what + " · " + progressChars(p["tool"], lang), "")
+                }
                 (p["text"]?.toIntOrNull() ?: 0) == 0 && (p["reasoning"]?.toIntOrNull() ?: 0) > 0 ->
-                    "think" to (if (en) "Thinking…" else "Pensant…") + thinkTail(p["tail"])
-                else -> "write" to (if (en) "Writing…" else "Escrivint…")
+                    Triple("think", tr(lang, "app.work.thinkingChars", progressChars(p["reasoning"], lang)), thinkTail(p["tail"]))
+                else -> Triple("write", if (en) "Writing…" else "Escrivint…", "")
             }
-            else -> "model" to (if (en) "Waiting for the model…" else "Esperant el model…")
+            else -> Triple("model", if (en) "Waiting for the model…" else "Esperant el model…", "")
         }
     }
 }
@@ -719,4 +737,4 @@ fun friendlyError(raw: String, lang: String = "ca"): String {
 }
 
 /** Què fa l'agent ara (clau estable per fase) i des de quan. */
-data class Activity(val key: String, val text: String, val since: Long)
+data class Activity(val key: String, val text: String, val since: Long, val tail: String = "")
