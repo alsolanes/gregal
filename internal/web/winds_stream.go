@@ -353,7 +353,7 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 	intent := s.crewChatIntent(msg)
 	// La Tempesta només llegeix: si li demanes fer una cosa, el torn és
 	// normal (amb les eines d'escriure) i la resposta diu per què.
-	deepSkipped := req.Tempesta && intent == "work"
+	deepSkipped := req.Tempesta && (intent == "work" || tempestaWantsWork(msg))
 	if deepSkipped {
 		req.Tempesta = false
 	}
@@ -501,7 +501,7 @@ func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream b
 	written := reply
 	reply = s.windSubjectPhoto(msg, s.windCardImages(reply))
 	reply += s.windDocLinks(turnStart, reply)
-	reply += s.windWebCards(turnStart, reply)
+	reply += s.windWebCards(turnStart, reply, res.hist)
 	if deepSkipped {
 		reply += "\n\n_" + s.tr("«A fons» és per investigar; això ho he fet en mode normal.", "«Deep» is for research; I did this one in normal mode.") + "_"
 	}
@@ -986,7 +986,7 @@ func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stre
 		}
 		reply = s.windCardImages(reply)
 		reply += s.windDocLinks(tVeu, reply)
-		reply += s.windWebCards(tVeu, reply)
+		reply += s.windWebCards(tVeu, reply, res.hist)
 		conversation = append(conversation, windSteerTaken(rotSteerKey)...)
 		voiceID := newMessageID()
 		conversation = append(conversation, llm.Message{Role: "assistant", Content: reply, SpeakerID: sp.ID, SpeakerName: sp.Name, Ts: time.Now().Unix(), ID: voiceID})

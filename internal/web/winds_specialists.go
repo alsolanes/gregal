@@ -391,7 +391,7 @@ func (s *Server) windDelegate(parent context.Context, wind companion.Wind, task 
 	}
 	reply = s.windSubjectPhoto(msg, s.windCardImages(reply))
 	reply += s.windDocLinks(start, reply)
-	reply += s.windWebCards(start, reply)
+	reply += s.windWebCards(start, reply, res.hist)
 	history = append(history,
 		llm.Message{Role: "user", Content: handoffShown(s.cfg.Lang(), by.Name, task), Ts: time.Now().Unix(), SpeakerID: by.ID, SpeakerName: by.Name},
 		llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix()})

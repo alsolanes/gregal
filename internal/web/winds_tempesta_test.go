@@ -164,3 +164,34 @@ func TestTempestaBriefsSayDeepOnlyResearches(t *testing.T) {
 		}
 	}
 }
+
+// «A fons» sap que li demanes fer una cosa encara que no facis servir els
+// verbs de la colla («fes», «crea»): «Vull una pàgina web…», «Escriu-me un
+// fitxer…». Una pregunta o una recerca segueixen sent «A fons».
+func TestTempestaWantsWorkBeyondCrewVerbs(t *testing.T) {
+	for _, m := range []string{
+		"Vull una pàgina web de la recepta de rius, desada a rius2/index.html",
+		"Escriu-me un fitxer amb la llista de la compra",
+		"Necessito un document Word amb l'informe trimestral",
+		"Genera un script que reanomeni les fotos",
+		"I want a landing page for my bakery",
+		"Write me a report.md about the meeting",
+		"Quiero una página web para mi tienda",
+	} {
+		if !tempestaWantsWork(m) {
+			t.Errorf("hauria de ser feina: %q", m)
+		}
+	}
+	for _, m := range []string{
+		"Com funciona una pàgina web per dins?",
+		"Vull saber què diu la premsa de la web de l'ajuntament",
+		"Compara els millors frameworks web d'aquest any",
+		"Investiga quins jocs han sortit aquest mes",
+		"No vull que escriguis cap fitxer, només explica'm la idea",
+		"What do experts say about remote work?",
+	} {
+		if tempestaWantsWork(m) {
+			t.Errorf("hauria de ser recerca: %q", m)
+		}
+	}
+}

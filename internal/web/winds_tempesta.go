@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -45,6 +46,24 @@ var tempestaAngles = []tempestaAngle{
 	{Key: "direct", Ca: "Directe", En: "Direct", brief: "ANGLE: answer the question directly and carefully. Work it out step by step, check the key facts with tools when they can be checked, and give the most useful concrete answer."},
 	{Key: "sources", Ca: "Fonts", En: "Sources", brief: "ANGLE: evidence first. Look for primary, official and current sources (prices, dates, data, documentation) and base every claim on them; say what you could not verify."},
 	{Key: "skeptic", Ca: "Advocat del diable", En: "Devil's advocate", brief: "ANGLE: be the sceptic. Look for the trap, the edge case, the newer fact or the better alternative that would make the obvious answer wrong or incomplete. If the obvious answer survives, say why."},
+}
+
+// tempestaWantsWork: un missatge que demana fer una cosa, encara que no
+// porti els verbs de la colla (crewCodeAction, conservadors perquè engeguen el
+// pipeline de codi). «Vull una pàgina web…» o «Escriu-me un fitxer…» amb «A
+// fons» acabaven en una negativa educada i sense feina feta.
+var (
+	tempestaWorkVerb   = regexp.MustCompile(`(?i)(?:^|[^\pL])(vull|voldria|necessito|escriu\pL*|redacta|genera|desa|guarda|prepara|munta|want|need|write|draft|generate|save|quiero|quisiera|necesito|escribe|redacta|guarda)(?:$|[^\pL])`)
+	tempestaWorkObject = regexp.MustCompile(`(?i)(?:^|[^\pL])(document|informe|report|word|pdf|presentaci[oó]n?|presentation|full de c[aà]lcul|spreadsheet|carta|letter|landing)(?:$|[^\pL])|[\pL\d_-]+\.(?:html?|css|js|ts|py|go|md|txt|docx|xlsx|pptx|pdf|json|csv)(?:$|[^\pL\d])`)
+	tempestaResearch   = regexp.MustCompile(`(?i)(?:^|[^\pL])(saber|entendre|con[eè]ixer|know|understand|learn|investiga\pL*|research|compara\pL*|compare|cerca|busca|search)(?:$|[^\pL])`)
+)
+
+func tempestaWantsWork(msg string) bool {
+	m := strings.TrimLeft(strings.ToLower(strings.TrimSpace(msg)), "¿")
+	if strings.HasPrefix(m, "?") || crewQuestion.MatchString(m) || crewCodeNegation.MatchString(m) || crewEmbeddedNegation.MatchString(m) || crewExplanation.MatchString(m) || tempestaResearch.MatchString(m) {
+		return false
+	}
+	return (crewCodeAction.MatchString(m) || tempestaWorkVerb.MatchString(m)) && (crewCodeObject.MatchString(m) || tempestaWorkObject.MatchString(m))
 }
 
 // tempestaReadOnlyNote: sense eines d'escriure, el model deia «el servidor em
