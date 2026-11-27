@@ -33,7 +33,7 @@ const val CompanyJobId = "company-checkin-daily"
 const val COMPANY_CHECKIN_PROMPT = "Fes una revisió proactiva i de només lectura del projecte actiu. Consulta els objectius oberts, l’estat documentat dels serveis i les darreres proves o canvis que puguis verificar. No inventis observacions: inclou el fitxer, prova, estat o font que sosté cada afirmació, i acaba amb un únic pas següent recomanat. No modifiquis fitxers, no reiniciïs ni despleguis serveis. Si cal actuar, proposa-ho i espera aprovació explícita. Respon en català, breu i útil."
 
 /** Pantalles de l'app. */
-enum class Screen { Pairing, Chat, Sessions, Goals, Backlog, Jobs, Office, Flows, Automatitzacions, Desat, Notes, Prefs, Retro, Company, Work, Ventet, Carpeta, Preview, Webs, Docs, Activitat }
+enum class Screen { Pairing, Chat, Sessions, Goals, Backlog, Jobs, Office, Flows, Automatitzacions, Desat, Notes, Prefs, Retro, Company, Work, Ventet, Carpeta, Preview, Webs, Docs, Activitat, Settings }
 
 /**
  * On parla l'app. `local` és el servidor d'aquest mateix dispositiu (el
@@ -496,9 +496,21 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     /** Un panell de la portada dels Vents que s'ha demanat des de fora (el calaix):
      *  "directory" (els teus vents) o "explore". La portada l'obre i el buida. */
     val ventsPanel: StateFlow<String?> = _ventsPanel
+    /** Obert des de Configuració: en tancar-lo, Enrere hi torna en lloc de quedar-se a la portada. */
+    private var panelFromSettings = false
+
     fun openVentsPanel(panel: String?) {
+        panelFromSettings = panel != null && _screen.value == Screen.Settings
         _ventsPanel.value = panel
-        if (panel != null) go(Screen.Company)
+        // «A prop teu» s'obre a Automatitzacions (qui la crida hi va), no a la portada.
+        if (panel != null && panel != "local") go(Screen.Company)
+    }
+
+    /** La portada tanca el panell (Enrere, o el full s'ha tancat). */
+    fun closeVentsPanel() {
+        val fromSettings = panelFromSettings && _ventsPanel.value != null
+        openVentsPanel(null)
+        if (fromSettings) back()
     }
 
     fun setGlass(v: Boolean) {
@@ -657,6 +669,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             if (_rotllanaChat.value[bare].isNullOrEmpty()) _rotllanaChatLoading.value = _rotllanaChatLoading.value + bare
         }
         _ventsOpen.value = id
+        // Obrir una conversa és anar endavant: el panell que es tanca ara no torna a Configuració.
+        panelFromSettings = false
         if (id.startsWith("rot:")) followCrew(bare)
         // Tocar una notificació ha d'obrir la conversa que l'ha provocada: si
         // només desàvem el vent, l'app es quedava a la pantalla on era i
@@ -675,7 +689,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             return true
         }
         if (_screen.value == Screen.Company && _ventsPanel.value != null) {
-            openVentsPanel(null)
+            closeVentsPanel()
             return true
         }
         val stack = _backStack.value
