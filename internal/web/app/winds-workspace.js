@@ -101,9 +101,13 @@
  function threadButton(chat,cls='vw-nav-item vw-thread'){const n=btn('',()=>openChat(chat),cls);const label=cleanTitle(chat.name);n.append(el('span','vw-thread-label',label));n.title=label;if(state.view==='chat'&&state.active?.id===chat.id)n.setAttribute('aria-current','page');return n;}
  // Una conversa a soles amb un vent: la seva cara i la primera cosa que li vas demanar.
  function soloButton(th){const w=state.winds.find(w=>w.id===th.wind);const n=btn('',()=>{if(w)talkTo(w,th.name).catch(fail);},'vw-nav-item vw-thread vw-thread-solo');if(w)n.append(face(w,null,20));n.append(el('span','vw-thread-label',th.title||w?.name||''));n.title=(w?w.name+' · ':'')+(th.title||'');if(state.view==='chat'&&state.active?.id===th.name)n.setAttribute('aria-current','page');return n;}
- async function refreshSolo(){try{state.solo=(await call('/api/winds/threads')).threads||[];}catch{}
-  // L'hora de l'últim missatge de cada grup (en segons), per barrejar-los per data amb les converses a soles; sense, van al final.
-  try{state.groupTs=Object.fromEntries(((await call('/api/winds/summaries')).items||[]).map(i=>[i.key,i.ts||0]));}catch{}}
+ async function refreshSolo(){
+  // Les dues peticions alhora, perquè la càrrega no s'allargui. summaries dona l'hora de l'últim missatge de cada grup (en segons),
+  // per barrejar-los per data amb les converses a soles.
+  const [threads,summaries]=await Promise.allSettled([call('/api/winds/threads'),call('/api/winds/summaries')]);
+  // Si una falla, es queda el que ja hi havia: les converses d'abans i, sense hores, els grups al final.
+  if(threads.status==='fulfilled')state.solo=threads.value.threads||[];
+  if(summaries.status==='fulfilled')state.groupTs=Object.fromEntries((summaries.value.items||[]).map(i=>[i.key,i.ts||0]));}
  function threadRow(chat,fav){const row=el('div','vw-thread-row');row.append(threadButton(chat),threadStar('rot:'+chat.id,fav));return row;}
  function renderThreads(nav){
   const m=state.meta||{};const favs=new Set(m.favorites||[]);
