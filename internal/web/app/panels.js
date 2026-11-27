@@ -317,7 +317,7 @@ export const sessions = {
     // sencera per a ＋ i ⎇＋): els dos botons van a la capçalera, al costat
     // del xip del projecte, i la franja no es pinta (refine.css). A
     // l'escriptori sense marc la franja és la barra de títol i s'hi queden.
-    const solo = list.length <= 1 && !document.body.classList.contains('desktop');
+    const solo = list.length <= 1 && (!document.body.classList.contains('desktop') || document.body.classList.contains('tabs-inline'));
     document.querySelectorAll('#topSessionNew').forEach(el => el.remove());
     const crumb = document.querySelector('#top .project-heading');
     if (solo && crumb) {
@@ -384,6 +384,7 @@ export const sessions = {
     if (this._loadedSession === this.current) G().saveSessionView?.(this.current);
     this.current = id;
     window.gregalSession = id;
+    convs.setActiveBySession?.(id, this._lastList);
     const saved = G().restoreSessionView?.(id);
     this._loadedSession = saved ? id : '';
     this._loadingSession = id;

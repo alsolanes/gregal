@@ -273,7 +273,8 @@ html body #side #navRail .nav-item.active .nav-icon { color:var(--accent-hi); }
   border:solid currentColor; border-width:0 1.5px 1.5px 0; transform:rotate(45deg);
 }
 /* ＋ i ⎇＋ al costat del projecte quan només hi ha una sessió (panels.js). */
-body:not(.desktop) #sessionTabs.single:not(:has(.session-error)) { display:none; }
+body:not(.desktop) #sessionTabs.single:not(:has(.session-error)),
+html body.tabs-inline #top #sessionTabs.single:not(:has(.session-error)) { display:none; }
 #toolDockClose { display:inline-grid; }
 #toolDockClose, #sideClose { place-items:center; padding:0; }
 :is(#toolDockClose, #sideClose) .ui-icon { width:16px; height:16px; }
@@ -386,7 +387,10 @@ html body #side .side-foot { padding:8px 10px 8px 22px; }
    porta lupa. */
 html body #side .conv { color:var(--muted); }
 html body #side .conv:hover, html body #side .conv:focus-within { color:var(--ink); }
-html body #side .conv:is(.active,.current) { color:var(--ink); }
+html body #side .conv:is(.active,.current) {
+  color:var(--ink); background:color-mix(in srgb, var(--accent) 13%, var(--surface));
+  font-weight:560; box-shadow:inset 2.5px 0 0 var(--accent);
+}
 html body #projectList .sidebar-project.selected > .sidebar-project-row { background:transparent; }
 html body #projectList .sidebar-project.selected .project-open { color:var(--ink); font-weight:550; }
 html body #projectList .sidebar-project.selected .project-folder-ico { color:var(--accent-hi); }
@@ -996,6 +1000,24 @@ html body:not(.shell-winds) #main details.tool.thinking[open] > .out {
 #main .approve, #main .qcard, #main .verdict { border-radius:14px; padding:14px 16px; }
 #main .verdict.ok { background:color-mix(in srgb, var(--green) 6%, var(--surface)); }
 #main .verdict.no { background:color-mix(in srgb, var(--red) 6%, var(--surface)); }
+
+html body #side #projectList .project-conversations {
+  margin:2px 0 6px 19px; padding:2px 0 2px 8px; border-left:1.5px solid var(--line);
+}
+html body #side #projectList .project-conversations .conv { padding-left:10px; }
+html body:not(.shell-winds) #main > .msg.a .body :is(strong, b) { color:var(--ink); font-weight:600; }
+html body:not(.shell-winds) #main > .msg.a .body :is(ul, ol) > li::marker { color:var(--faint); }
+html body:not(.shell-winds) #main > .msg.a .body .md-table-scroll {
+  border:1px solid var(--line); border-radius:12px; overflow-x:auto;
+  background:color-mix(in srgb, var(--surface) 40%, transparent);
+}
+html body:not(.shell-winds) #main > .msg.a .body table.md th {
+  background:color-mix(in srgb, var(--surface) 75%, transparent);
+}
+html body:not(.shell-winds) #main > .msg.a .body table.md :is(th, td) { padding:9px 13px; }
+html body:not(.shell-winds) #top .project-heading #topSessionNew {
+  border-left:1px solid var(--line); margin-left:4px; padding-left:8px;
+}
 
 @media (max-width:760px) {
   html body:not(.shell-winds) #main > .msg.u .msg-inner { max-width:90%; padding:10px 14px; }

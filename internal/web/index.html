@@ -4348,7 +4348,7 @@ async function doAgent(task, resumed) {
  else if(ev==='verify')verdict(d);
  else if(ev==='done'){
    turnPhase='completed'; turnCompletedUntil=Date.now()+3500; turnNote=''; pintaTurnBar(); updateInspector(state);
-   if(d.reply.trim() && d.reply.trim()!==lastAssistantText){ if(!settleLive(md(d.reply))) add('a','',md(d.reply)); }
+   if(d.reply.trim() && d.reply.trim()!==lastAssistantText){ const bombolla=settleLiveEl(md(d.reply)) || add('a','',md(d.reply)); mdBo(d.reply,bombolla); }
    else if(live){ live=null; acc=''; }
    activityItem('agent', gregalT(goalMode ? 'act.objectiu.fet' : 'act.tasca.fet'), stepLine(),'ok');
    if (legacySummaryActive) { legacySummary?.render?.({status:'completed'}); legacySummaryDone = true; legacySummaryOutcome = 'completed'; }

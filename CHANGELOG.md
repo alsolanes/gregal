@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v1.102.0 - 2026-11-27 - Barra lateral més ràpida, sense tabs redundants i detalls polits
+
+- **Conversa activa marcada i menys pestanyes redundants a Desktop (web i escriptori).**
+  - Clicar una conversa dins d'un projecte la marca a l'instant amb ressaltat d'accent i sincronitza el marcatge en canviar de sessió.
+  - A Desktop, quan només hi ha una sessió oberta, la barra de pestanyes s'amaga i queden només els botons `+` i `⎇+` al costat del projecte; obrir una conversa del lateral reutilitza la sessió lliure en lloc de multiplicar pestanyes.
+- **Llistat de converses més ràpid al backend.** `session.ListMatching` guarda en memòria les metadades dels fitxers de sessió per `ModTime` i mida, i `convs.obre()` evita recàrregues redundants en sèrie.
+- **Polits visuals i qualitat de respostes (web, escriptori i Android).**
+  - Les respostes finals que arriben per `done` també passen pel renderitzador de servidor (`mdBo`) amb ressaltat de sintaxi complet.
+  - Guia vertical per a les converses desplegades dins d'un projecte, taules amb marc arrodonit i capçalera suau, i pastilles `StepChip` amb cantonades de `10.dp` a Android.
+
 ## v1.101.0 - 2026-11-27 - Missatges, eines i raonament més polits al xat
 
 - **Missatges, eines, raonament i tasques més polits al xat (web i escriptori).**

@@ -440,14 +440,14 @@ private fun StepChip(chip: ToolChip, res: ToolOutcome, open: Boolean, onClick: (
         else -> Muted
     }
     Surface(
-        shape = RoundedCornerShape(50),
-        color = color.copy(alpha = if (open) 0.18f else 0.08f),
-        border = BorderStroke(1.dp, color.copy(alpha = 0.3f)),
-        modifier = Modifier.clip(RoundedCornerShape(50)).clickable(role = Role.Button, onClick = onClick),
+        shape = RoundedCornerShape(10.dp),
+        color = if (open) color.copy(alpha = 0.16f) else Superficie,
+        border = BorderStroke(1.dp, color.copy(alpha = if (open) 0.45f else 0.22f)),
+        modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable(role = Role.Button, onClick = onClick),
     ) {
-        Row(Modifier.padding(horizontal = 9.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(chipIcon(chip.icon), null, tint = color, modifier = Modifier.size(13.dp))
-            Spacer(Modifier.width(5.dp))
+            Spacer(Modifier.width(6.dp))
             Text(
                 chip.text + if (res.note.isNotEmpty()) " · ${res.note}" else "",
                 color = if (res.state == "done") Tinta else color, fontSize = 12.sp,

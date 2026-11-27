@@ -78,8 +78,21 @@ export const convs = {
   projects: [],
   _liveSessions: [],
   _liveSignature: '',
+  _activeName: '',
   expandedProjects: new Set(),
   collapsedProjects: new Set(),
+  setActiveName(name) {
+    this._activeName = name || '';
+    this.items.forEach(c => { c.current = !!this._activeName && c.name === this._activeName; });
+    this.draw();
+  },
+  setActiveBySession(sessionId, liveList) {
+    const list = Array.isArray(liveList) ? liveList : this._liveSessions;
+    const hit = list.find(s => s && s.id === sessionId);
+    if (hit && hit.conversation) { this.setActiveName(hit.conversation); return; }
+    const fromItem = this.items.find(c => c.live_session === sessionId);
+    if (fromItem) this.setActiveName(fromItem.name);
+  },
   filtre: '',
   loading: false,
   loadError: false,
@@ -104,6 +117,8 @@ export const convs = {
       this.projects = projects;
       if (r.ok) {
         this.items = (await r.json()) || [];
+        const cur = this.items.find(c => c.current);
+        if (cur) this._activeName = cur.name;
       } else {
         this.items = [];
         this.loadError = true;
@@ -206,7 +221,8 @@ export const convs = {
       const pending = !!(sessionId && window.gregalPendingInteractions?.has(sessionId));
       const status = pending ? '<span class="conv-live-state waiting">' + esc(gregalT('sessions.needsInputLabel') || 'Needs input') + '</span>'
         : busy ? '<span class="conv-live-state busy">' + esc(gregalT('sessions.workingLabel') || 'Working') + '</span>' : '';
-      return '<div class="conv' + (c.current ? ' current' : '') + '" data-name="' + esc(c.name) + '" title="' +
+      const isCurrent = this._activeName ? c.name === this._activeName : !!c.current;
+      return '<div class="conv' + (isCurrent ? ' current' : '') + '" data-name="' + esc(c.name) + '" title="' +
       esc(titolVisible(c) + ' · ' + c.msgs + ' ' + msgsWord + (c.when ? ' · ' + c.when : '')) + '">' +
       '<span class="conv-t">' + esc(titolVisible(c)) + '</span>' + status + (inProject ? '' : xipProjecte(c)) +
       '<button class="conv-pin' + (c.pinned ? ' pinned' : '') + '" title="' + esc(c.pinned ? unpinLabel : pinLabel) + '" aria-label="' + esc(c.pinned ? unpinLabel : pinLabel) + '">★</button>' +
@@ -333,6 +349,7 @@ export const convs = {
       return;
     }
     try {
+      this.setActiveName(name);
       const tabs = window.gregalPanels?.sessions;
       const cached = this.items.find(item => item.name === name);
       const known = cached?.live_session || resumedSessions()[name];
@@ -341,10 +358,10 @@ export const convs = {
         await tabs.switchTo(tab.id);
         return;
       }
-      // Refresh the association at click time. The conversation list may have
-      // been rendered before the agent autosaved the first user message.
-      await this.load();
-      if (version !== this._openVersion) return;
+      if (!this.items.length) {
+        await this.load();
+        if (version !== this._openVersion) return;
+      }
       const sessions = window.gregalPanels?.sessions;
       const reopened = resumedSessions();
       const previous = Object.prototype.hasOwnProperty.call(reopened, name) ? reopened[name] : '';
@@ -370,9 +387,12 @@ export const convs = {
           try { localStorage.setItem(resumedSessionsKey, JSON.stringify(reopened)); } catch (e) {}
         }
       }
-      // Reprendre sobre una sessió ocupada canviaria el context del worker.
-      await sessions.open(G().state.cwd);
-      if (version !== this._openVersion) return;
+      // Reprendre sobre una sessió ocupada canviaria el context del worker;
+      // si la sessió actual és lliure, la reutilitzem sense multiplicar pestanyes.
+      if (G().isBusy?.()) {
+        await sessions.open(G().state.cwd);
+        if (version !== this._openVersion) return;
+      }
       const targetSession = window.gregalSession || 'default';
       const r = await G().api('/api/resume', { method: 'POST', body: JSON.stringify({ name }), headers: { 'X-Gregal-Session': targetSession } });
       if (version !== this._openVersion) return;

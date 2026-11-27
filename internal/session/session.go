@@ -8,11 +8,23 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"gregal/internal/identity"
 	"gregal/internal/llm"
 	"gregal/internal/profile"
+)
+
+type infoCacheEntry struct {
+	modUnix int64
+	size    int64
+	info    Info
+}
+
+var (
+	infoCacheMu sync.RWMutex
+	infoCache   = map[string]infoCacheEntry{}
 )
 
 // Session és una conversa desada.
@@ -204,6 +216,16 @@ func ListMatching(dir string, match func(string) bool) ([]Info, error) {
 		if match != nil && !match(strings.TrimSuffix(filepath.Base(f), ".json")) {
 			continue
 		}
+		st, statErr := os.Stat(f)
+		if statErr == nil {
+			infoCacheMu.RLock()
+			cached, ok := infoCache[f]
+			infoCacheMu.RUnlock()
+			if ok && cached.modUnix == st.ModTime().UnixNano() && cached.size == st.Size() {
+				out = append(out, cached.info)
+				continue
+			}
+		}
 		raw, err := os.ReadFile(f)
 		if err != nil {
 			continue
@@ -218,14 +240,20 @@ func ListMatching(dir string, match func(string) bool) ([]Info, error) {
 			// d'usuari: se'n treu un del contingut si es pot.
 			title = TitleFrom(s.Convo)
 		}
-		out = append(out, Info{
+		info := Info{
 			Name:      s.Name,
 			Title:     title,
 			SavedAt:   s.SavedAt,
 			Msgs:      len(s.Convo),
 			Workspace: s.Workspace,
 			Pinned:    s.Pinned,
-		})
+		}
+		if statErr == nil {
+			infoCacheMu.Lock()
+			infoCache[f] = infoCacheEntry{modUnix: st.ModTime().UnixNano(), size: st.Size(), info: info}
+			infoCacheMu.Unlock()
+		}
+		out = append(out, info)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].SavedAt.After(out[j].SavedAt) })
 	return out, nil
