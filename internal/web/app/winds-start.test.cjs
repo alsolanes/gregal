@@ -2119,3 +2119,11 @@ test('the gradient greeting paints the tail of its g: the text-clipped box reach
   assert.ok(clipped.length, 'the greeting is clipped to its text');
   for (const r of clipped) assert.match(prop(r, 'padding-bottom') || '', /^\d*\.?\d+em$/, 'padding below the baseline on «' + r.sel + '»');
 });
+
+test('on desktop a reply uses the wide column like Claude or Codex: the reading measure is at least 60rem (not ch, which shrinks with the wrapper font) and the user bubble widens with it', () => {
+  const rules = cssRules('winds-workspace.css');
+  const measure = rules.filter(r => r.sel === '.wind-workspace').map(r => prop(r, '--vw-measure')).filter(Boolean).at(-1);
+  assert.ok(parseFloat(measure) >= 60 && /rem$/.test(measure), 'reply measure, got ' + measure);
+  const bubble = rules.filter(r => r.sel === '.vw-messages .vw-user > div').map(r => prop(r, 'max-width')).filter(Boolean).at(-1);
+  assert.match(bubble || '', /^min\(80%, ?(4[8-9]|[5-9]\d)rem\)$/, 'user bubble, got ' + bubble);
+});

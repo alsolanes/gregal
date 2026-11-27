@@ -925,10 +925,10 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 /* ---- Xat (144, abans B1): com Claude o ChatGPT ----
    El vent escriu text corrent sobre la pàgina, sense bombolla, amb la cara
    petita i el nom a l'inici de la ratxa; la persona, una bombolla discreta a
-   la dreta. Una sola amplada de lectura (70ch) i una sola escala: cos 16 px
+   la dreta. Una sola amplada de lectura (64rem, en rem i no en ch perquè no depengui de la lletra del contenidor; ample com Claude o Codex a l'escriptori) i una sola escala: cos 16 px
    amb interlineat 1.6. El color del vent només a la cara, el nom i els
    accents (la barra de les cites). La resposta en directe té ja aquesta forma. */
-.wind-workspace { --vw-bubble:20px; --vw-card:15px; --vw-measure:70ch; }
+.wind-workspace { --vw-bubble:20px; --vw-card:15px; --vw-measure:64rem; }
 .vw-messages .vw-message { padding:28px 0 0; gap:0; }
 .vw-messages .vw-message.vw-run-cont { padding-top:16px; }
 .vw-messages .vw-message-text { font-size:16px; line-height:1.6; }
@@ -940,7 +940,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-messages .vw-message:not(.vw-user):has(> :is(.winds-face,.vw-shared-person)) > div > strong { padding-left:28px; }
 .vw-messages .vw-message.vw-run-cont:not(.vw-user) > div > strong { display:none; }
 .vw-messages .vw-message:not(.vw-user) .vw-message-text { color:var(--text); }
-.vw-messages .vw-user > div { background:var(--surface-hi); color:var(--ink); border:0; border-radius:var(--vw-bubble); padding:10px 16px; max-width:min(80%, 36rem); }
+.vw-messages .vw-user > div { background:var(--surface-hi); color:var(--ink); border:0; border-radius:var(--vw-bubble); padding:10px 16px; max-width:min(80%, 52rem); }
 .vw-messages .vw-user .vw-message-text { font-size:16px; line-height:1.5; color:var(--ink); }
 .vw-messages .vw-user .vw-message-text a { color:inherit; }
 /* En directe: el text creix al seu lloc. L'estat (punts, passos) només es veu mentre encara no
