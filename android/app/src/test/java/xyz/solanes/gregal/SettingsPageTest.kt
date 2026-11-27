@@ -67,7 +67,7 @@ class SettingsPageTest {
 
     @Test fun `the drawer puts the conversations first, then the winds, the other spaces and Settings`() {
         drawer("ca")
-        val order = listOf("Nova conversa", "Avui", "Converses", "Xats", "Nou especialista",
+        val order = listOf("Nova conversa", "Avui", "Converses", "Totes les converses", "Nou especialista",
             "Activitat", "Feina", "Desat", "Gregal Docs", "Els teus vents")
         val tops = order.map(::top)
         for (i in 1 until order.size) assertTrue("${order[i - 1]} above ${order[i]}: $tops", tops[i - 1] < tops[i])

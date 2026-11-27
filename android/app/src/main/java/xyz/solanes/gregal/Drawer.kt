@@ -44,6 +44,8 @@ import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.runtime.mutableStateOf
@@ -197,13 +199,38 @@ private fun SimpleVentsDrawer(
                 Spacer(Modifier.height(4.dp))
                 DrawerRow(if (en) "Today" else "Avui", home && panel == "today", { close(); vm.openVentsPanel("today"); nav(Screen.Company) }, Icons.Rounded.WbSunny)
                 DrawerSection(if (en) "Conversations" else "Converses")
-                DrawerRow(askCopy(lang, "chats"), false, { close(); vm.openVentsPanel("chats") }, Icons.Rounded.Forum)
+                // Les converses, a soles i en grup, de la més nova (com renderThreads a la web):
+                // cinc, i la resta plegada sota «Mostra'n més». La que tens oberta sempre es veu.
+                val chats by vm.windChat.collectAsState()
+                val groups by vm.rotllanes.collectAsState()
+                val groupChats by vm.rotllanaChat.collectAsState()
+                val summaries by vm.summaries.collectAsState()
+                val openConv by vm.ventsOpen.collectAsState()
+                val convs = remember(winds, groups, chats, groupChats, summaries) {
+                    ventsInbox(winds, groups, chats, groupChats, summaries = summaries).filter { it.hasMessages }
+                }
+                var allConvs by rememberSaveable { mutableStateOf(false) }
+                val shownConvs = if (allConvs) convs else convs.filterIndexed { i, c -> i < 5 || c.key == openConv }
+                shownConvs.forEach { c ->
+                    DrawerRow(c.title, home && panel == null && c.key == openConv, { close(); vm.openVentsPanel(null); vm.openVentsChat(c.key) }) {
+                        val w = c.members.singleOrNull()
+                        if (c.key.startsWith("wind:") && w != null) WindHalo(Color(w.argb), w.faceStyle, size = 24, online = false, showKit = false)
+                        else Icon(Icons.Rounded.Groups, null, modifier = Modifier.size(22.dp))
+                    }
+                }
+                if (convs.size > 5) {
+                    val hidden = convs.size - shownConvs.size
+                    if (allConvs) DrawerRow(tr(lang, "app.drawer.showLess"), false, { allConvs = false }, Icons.Rounded.ExpandLess, muted = true)
+                    else if (hidden > 0) DrawerRow(tr(lang, "app.drawer.showMore", hidden), false, { allConvs = true }, Icons.Rounded.ExpandMore, muted = true)
+                }
+                DrawerRow(tr(lang, "app.drawer.allConversations"), false, { close(); vm.openVentsPanel("chats") }, Icons.Rounded.Forum)
                 // Els vents: Gregal primer i tots els especialistes (abans només cinc).
                 DrawerSection(if (en) "Winds" else "Vents")
-                DrawerRow(gregal?.name ?: tr(lang, "nav.company"), home && panel == null, { close(); vm.openVentsPanel(null); vm.openVentsChat(if (gregal != null) "wind:gregal" else null); nav(Screen.Company) }) { DrawerWindIcon(vm) }
+                // Marcada a la portada, o amb el fil de Gregal obert si no surt a Converses: una sola fila marcada.
+                val gregalHere = openConv == null || (openConv == "wind:gregal" && shownConvs.none { it.key == openConv })
+                DrawerRow(gregal?.name ?: tr(lang, "nav.company"), home && panel == null && gregalHere, { close(); vm.openVentsPanel(null); vm.openVentsChat(if (gregal != null) "wind:gregal" else null); nav(Screen.Company) }) { DrawerWindIcon(vm) }
                 // Gregal i els cinc amb qui has parlat fa menys (com l'escriptori); la
                 // resta, a «Tots els vents»: amb 20 o 30 vents el calaix no s'acabava.
-                val chats by vm.windChat.collectAsState()
                 val newsCount by vm.windNewsCount.collectAsState()
                 val arrival by vm.windArrival.collectAsState()
                 val recent = drawerRecentWinds(winds, chats, newsCount)
