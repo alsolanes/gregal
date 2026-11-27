@@ -224,8 +224,8 @@ test('the page CSS takes every font, size and colour from the theme variables', 
   assert.match(rule('#docsBody.doc-paper'), /container-type:inline-size/);
   assert.match(rule('#docsBody.doc-paper'), /background:color-mix\(in srgb,var\(--ink\) 10%,var\(--panel\)\)/, 'a neutral background around the page, in both themes');
   const page = rule('#docsBody .doc-editor');
-  // La pàgina és clara en tots dos temes, com a Word, i fa l'amplada A4
-  // del docx o s'encongeix fins a l'amplada del panell.
+  // La pàgina és clara en els temes clars, com a Word (en els foscos, el test
+  // de sota), i fa l'amplada A4 del docx o s'encongeix fins a l'amplada del panell.
   assert.match(page, /background:#fff/);
   assert.match(page, /--u:min\(1pt,100cqw \/ var\(--doc-page-w\)\)/);
   assert.match(page, /width:calc\(var\(--doc-page-w\) \* var\(--u\)\)/);
@@ -368,4 +368,24 @@ test('closing the pane with its × says the person closed it; the computer takin
   byId('docsClose').click();
   assert.equal(byId('docsPanel').hidden, true);
   assert.ok(dispatched.some(e => e.type === 'gregal:docsclosed'), 'the person closed it');
+});
+
+test('in a dark theme a text document is a dark page, so it does not glare in the dark; light themes keep the white page', async () => {
+  await load;
+  const css = document.head.children.map(s => s.textContent).join('');
+  const dark = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].find(r => r[1].trim().startsWith(':root:not(') && r[1].trim().endsWith('#docsBody .doc-editor'));
+  assert.ok(dark, 'a dark-theme rule for the page');
+  const sel = dark[1].trim();
+  for (const light of ['light', 'gpt', 'claude', 'mistral', 'gemini']) assert.ok(sel.includes(':not([data-theme="' + light + '"])'), 'light theme ' + light + ' keeps the white page');
+  for (const t of ['dark', 'calma', 'opencode', 'grok']) assert.ok(!sel.includes('"' + t + '"'), t + ' is dark');
+  assert.match(dark[2], /background:var\(--surface\)/);
+  for (const v of ['--doc-text:var(--text)', '--doc-muted:var(--muted)', '--doc-h1-color:var(--ink)', '--doc-h2-color:var(--ink)', '--doc-h3-color:var(--ink)', '--doc-light:var(--surface-hi)', '--doc-table-border:var(--line-hi)']) assert.ok(dark[2].includes(v), v);
+});
+
+test('an attached Word file is a dark page in a dark theme too: its colours are inverted, and its images inverted back', () => {
+  const index = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'index.html'), 'utf8');
+  const dark = ':root:not([data-theme="light"]):not([data-theme="gpt"]):not([data-theme="claude"]):not([data-theme="mistral"]):not([data-theme="gemini"]) ';
+  const rule = sel => (index.split(dark + sel + ' {')[1] || '').split('}')[0];
+  assert.match(rule('.doc-text .gregal-docx-wrapper > section.gregal-docx'), /filter:invert\(\.9\) hue-rotate\(180deg\)/);
+  assert.match(rule('.doc-text .gregal-docx-wrapper > section.gregal-docx :is(img,svg)'), /filter:invert\(1\) hue-rotate\(180deg\)/);
 });

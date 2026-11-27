@@ -95,6 +95,12 @@ style.textContent = '#docsPanel[hidden]{display:none}#docsPanel{flex:0 0 460px;w
   '#docsBody .doc-editor{--u:min(1pt,100cqw / var(--doc-page-w));box-sizing:border-box;width:calc(var(--doc-page-w) * var(--u));min-height:calc(var(--doc-page-w) * 1.414 * var(--u));margin:0 auto;' +
   'padding:calc(var(--doc-margin-top) * var(--u)) calc(var(--doc-margin-side) * var(--u));border-radius:2px;background:#fff;color:var(--doc-text);box-shadow:0 0 0 1px rgba(0,0,0,.05),0 1px 3px rgba(0,0,0,.12),0 14px 32px -14px rgba(0,0,0,.4);' +
   'font-family:var(--doc-body-font),sans-serif;font-size:calc(var(--doc-body-size) * var(--u));line-height:1.15;overflow-wrap:break-word}' +
+  // En un tema fosc la pàgina és fosca, que a les fosques el blanc enlluerna:
+  // els colors del docx (text i títols foscos) passen als del tema. Els temes
+  // clars són aquests cinc; la resta (dark, calma, opencode, grok) són foscos.
+  ':root:not([data-theme="light"]):not([data-theme="gpt"]):not([data-theme="claude"]):not([data-theme="mistral"]):not([data-theme="gemini"]) #docsBody .doc-editor{background:var(--surface);' +
+  '--doc-text:var(--text);--doc-muted:var(--muted);--doc-h1-color:var(--ink);--doc-h2-color:var(--ink);--doc-h3-color:var(--ink);--doc-light:var(--surface-hi);--doc-table-border:var(--line-hi);--doc-accent:var(--accent-hi);' +
+  'box-shadow:0 0 0 1px var(--line),0 14px 32px -14px rgba(0,0,0,.6)}' +
   // Els colors del xat (.body strong, li…) no hi entren: tot surt del tema.
   '#docsBody .doc-editor *{color:inherit}#docsBody .doc-editor li>ul,#docsBody .doc-editor li>ol{margin-bottom:0}' +
   '#docsBody .doc-editor ::selection{background:color-mix(in srgb,var(--doc-accent) 28%,transparent)}' +

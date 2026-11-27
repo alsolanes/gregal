@@ -561,10 +561,14 @@ body.doc-minimized #workbench { padding-right:0 !important; }
 .doc-text table.doc-table { border-collapse:collapse; margin:4px 0 10px; font-size:var(--t2); }
 .doc-text table.doc-table td, .doc-text table.doc-table th { border:1px solid var(--line-hi); padding:3px 8px; text-align:left; }
 .doc-text table.doc-table tr:first-child td { color:var(--ink); font-weight:600; background:var(--accent-soft); }
-/* Render fidel docx (docx-preview): pàgines blanques sobre gris, fluid
+/* Render fidel docx (docx-preview): pàgines blanques sobre gris (fosques als temes foscos), fluid
    dins la subfinestra (ignoreWidth). */
 .doc-text .gregal-docx-wrapper { background:var(--surface-hi); padding:10px; }
 .doc-text .gregal-docx-wrapper > section.gregal-docx { box-shadow:0 2px 14px rgba(0,0,0,.4); margin-bottom:10px; }
+/* En un tema fosc la pàgina blanca enlluerna: els colors s'inverteixen (el
+   to es manté) i les imatges es tornen a invertir perquè quedin com són. */
+:root:not([data-theme="light"]):not([data-theme="gpt"]):not([data-theme="claude"]):not([data-theme="mistral"]):not([data-theme="gemini"]) .doc-text .gregal-docx-wrapper > section.gregal-docx { filter:invert(.9) hue-rotate(180deg); }
+:root:not([data-theme="light"]):not([data-theme="gpt"]):not([data-theme="claude"]):not([data-theme="mistral"]):not([data-theme="gemini"]) .doc-text .gregal-docx-wrapper > section.gregal-docx :is(img,svg) { filter:invert(1) hue-rotate(180deg); }
 .doc-text .chip.on { border-color:var(--accent); color:var(--ink); }
 /* Pestanyes de fulls: a baix i en fila, com a l'Excel. A dalt i com a
    píndoles semblaven filtres, i amb un llibre de vuit fulls t'ocupaven
