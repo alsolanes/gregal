@@ -117,7 +117,7 @@ func continuaTallat(ctx context.Context, msgs []Message, maxTokens int, onToken 
 		acc.WriteString(le.Text)
 		trencada := ""
 		for _, c := range le.Calls {
-			if !argsComplets(c.Function.Arguments) {
+			if le.Exhaurit || !argsComplets(c.Function.Arguments) {
 				trencada = c.Function.Name
 				if trencada == "" {
 					trencada = "(sense nom)"
