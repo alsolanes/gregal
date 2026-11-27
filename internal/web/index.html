@@ -2171,6 +2171,7 @@ body.sense-inspector #inspector { display:none; }
 <script src="/app/shell-icons.js"></script>
 <script defer src="/app/palette.js"></script>
 <script src="/app/tool-summary.js"></script>
+<script src="/app/model-progress.js"></script>
 <script src="/app/prompt-nav.js"></script>
 <script src="/app/connectors.js"></script>
 <script src="/app/knowledge.js"></script>
@@ -2716,7 +2717,6 @@ function paintThinkTail(text) {
   el.textContent = '…' + text.trim();
   body.appendChild(el); // sempre l'últim, per sota de les eines ja fetes
 }
-function fmtChars(n) { n = +n || 0; return n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(n); }
 function endWorkGroup(o = {}) {
   paintThinkTail('');
   const g = turnGroup;
@@ -4138,11 +4138,9 @@ async function doAgent(task, resumed) {
         const since = Date.parse(d.since || '') || Date.now();
         const same = k => turnActivity && turnActivity.key === k ? 0 : since;
         if (d.phase === 'model') {
-          if (d.state !== 'receiving') setActivity('model', gregalT('act.now.model'), same('model'));
-          else if (+d.tool > 0) setActivity('model-tool', gregalT('act.now.toolcall'), same('model-tool'));
-          else if (+d.text > 0) setActivity('writing', gregalT('act.now.writing'), same('writing'));
-          else setActivity('thinking', gregalT('act.now.thinking') + (+d.reasoning > 0 ? ' · ' + fmtChars(d.reasoning) : ''), same('thinking'));
-          paintThinkTail(d.tail || '');
+          const p = window.gregalModelProgress.modelProgress(d, gregalT);
+          setActivity(p.key, p.text, same(p.key));
+          paintThinkTail(p.tail);
         } else if (d.phase === 'tools') {
           paintThinkTail('');
           // tool_call ja ha posat una descripció millor («Write notes/a.md»).

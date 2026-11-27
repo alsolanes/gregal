@@ -71,13 +71,28 @@ func WithReasoningText(ctx context.Context, fn func(string)) context.Context {
 	return context.WithValue(ctx, reasoningTextKey{}, fn)
 }
 
+type toolTextKey struct{}
+
+// WithToolText adjunta al context un observador dels arguments de les crides
+// d'eina mentre arriben: rep el nom de l'eina (en quant se sap) i cada tros
+// del JSON d'arguments. StreamProgress només en porta la mida; això deixa
+// que la UI digui «Escrivint index.html» en comptes d'un «Pensant» mut. Amb
+// fn nil no canvia res.
+func WithToolText(ctx context.Context, fn func(name, args string)) context.Context {
+	if fn == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, toolTextKey{}, fn)
+}
+
 // progresResposta és l'estat d'una sola resposta HTTP: recorda si ja s'ha
 // avisat del primer tros. Un punter nil (sense observador) no fa res, de
 // manera que els parsers el poden cridar sense comprovar-ho.
 type progresResposta struct {
-	fn   StreamProgress
-	text func(string)
-	vist bool
+	fn    StreamProgress
+	text  func(string)
+	eines func(name, args string)
+	vist  bool
 }
 
 func nouProgres(ctx context.Context) *progresResposta {
@@ -86,7 +101,8 @@ func nouProgres(ctx context.Context) *progresResposta {
 		return nil
 	}
 	text, _ := ctx.Value(reasoningTextKey{}).(func(string))
-	return &progresResposta{fn: fn, text: text}
+	eines, _ := ctx.Value(toolTextKey{}).(func(name, args string))
+	return &progresResposta{fn: fn, text: text, eines: eines}
 }
 
 // tros marca que ha arribat un tros de dades (avisa la primera vegada).
@@ -107,4 +123,16 @@ func (p *progresResposta) delta(kind, s string) {
 		p.text(s)
 	}
 	p.fn(kind, utf8.RuneCountInString(s))
+}
+
+// eina avisa d'un tros d'arguments de la crida d'eina nom. També amb args
+// buit si ja hi ha nom: el primer delta d'OpenAI només porta el nom.
+func (p *progresResposta) eina(nom, args string) {
+	if p == nil {
+		return
+	}
+	if p.eines != nil && (nom != "" || args != "") {
+		p.eines(nom, args)
+	}
+	p.delta(ProgressTool, args)
 }

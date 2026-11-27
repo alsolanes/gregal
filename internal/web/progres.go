@@ -1,6 +1,8 @@
 package web
 
 import (
+	"encoding/json"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -51,6 +53,9 @@ type progresTorn struct {
 	emesos  [3]int // comptes de l'última emissió
 	emesAt  time.Time
 	cua     string // final del raonament de la crida en curs
+	einaNom string // eina que el model està escrivint
+	einaFi  string // final dels arguments parcials, on es busca el fitxer
+	fitxer  string // path o file dels arguments, quan ja és sencer
 }
 
 func nouProgresTorn(emit func(string, any)) *progresTorn {
@@ -61,6 +66,7 @@ func nouProgresTorn(emit func(string, any)) *progresTorn {
 func (p *progresTorn) iniciModel() {
 	p.mu.Lock()
 	p.fase, p.estat, p.eines, p.cua = faseModel, estatEsperant, "", ""
+	p.einaNom, p.einaFi, p.fitxer = "", "", ""
 	p.des = p.ara()
 	p.comptes, p.emesos = [3]int{}, [3]int{}
 	ev := p.emetLocked()
@@ -99,6 +105,41 @@ func (p *progresTorn) raonament(s string) {
 		r = r[len(r)-cuaRaonament:]
 	}
 	p.cua = string(r)
+}
+
+// finestraEina és quants bytes del final dels arguments es guarden per
+// trobar-hi el fitxer: prou per a un "path": "…" partit entre deltes, sense
+// guardar ni tornar a recórrer els 67k d'un write sencer a cada delta.
+const finestraEina = 512
+
+// clauFitxer troba un "path" o "file" amb el valor ja tancat. Dins d'un
+// string JSON les cometes van escapades (\"path\"), així que un "path" que
+// surti dins del contingut no hi encaixa.
+var clauFitxer = regexp.MustCompile(`"(?:path|file)"\s*:\s*("(?:[^"\\]|\\.)*")`)
+
+// eina és el llm.WithToolText de la crida: apunta quina eina s'escriu i, en
+// quant apareix sencer, el fitxer objectiu. No emet res: surt amb el
+// següent delta de comptadors.
+func (p *progresTorn) eina(nom, args string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.fase != faseModel {
+		return
+	}
+	if nom != "" && nom != p.einaNom {
+		p.einaNom, p.einaFi, p.fitxer = nom, "", ""
+	}
+	fi := p.einaFi + args
+	if m := clauFitxer.FindAllStringSubmatch(fi, -1); m != nil {
+		var f string
+		if json.Unmarshal([]byte(m[len(m)-1][1]), &f) == nil && f != "" {
+			p.fitxer = f
+		}
+	}
+	if len(fi) > finestraEina {
+		fi = fi[len(fi)-finestraEina:]
+	}
+	p.einaFi = fi
 }
 
 // delta és el llm.StreamProgress de la crida al model.
@@ -153,6 +194,7 @@ func (p *progresTorn) faseNova(fase string, eines []string) {
 	p.fase, p.estat = fase, estatCorrent
 	p.eines = strings.Join(eines, ",")
 	p.cua = ""
+	p.einaNom, p.einaFi, p.fitxer = "", "", ""
 	p.des = p.ara()
 	p.comptes, p.emesos = [3]int{}, [3]int{}
 	ev := p.emetLocked()
@@ -178,6 +220,12 @@ func (p *progresTorn) emetLocked() map[string]string {
 		// eina, el raonament ja no és el que passa.
 		if p.cua != "" && p.comptes[1] == 0 && p.comptes[2] == 0 {
 			ev["tail"] = p.cua
+		}
+		if p.einaNom != "" {
+			ev["tool_name"] = p.einaNom
+		}
+		if p.fitxer != "" {
+			ev["tool_target"] = p.fitxer
 		}
 	case faseEines:
 		ev["tools"] = p.eines

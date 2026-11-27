@@ -532,7 +532,7 @@ func anthropicWhole(baseURL string, body io.Reader, rec *usageCall, prog *progre
 	prog.delta(ProgressReasoning, reason.String())
 	prog.delta(ProgressText, res.text)
 	for _, tc := range res.calls {
-		prog.delta(ProgressTool, tc.Function.Arguments)
+		prog.eina(tc.Function.Name, tc.Function.Arguments)
 	}
 	if onReason != nil && reason.Len() > 0 {
 		onReason(reason.String())
@@ -655,7 +655,7 @@ func (c *Client) anthropicStream(ctx context.Context, baseURL string, body io.Re
 				b.signature.WriteString(ev.Delta.Signature)
 			case "input_json_delta":
 				b.args.WriteString(ev.Delta.PartialJSON)
-				prog.delta(ProgressTool, ev.Delta.PartialJSON)
+				prog.eina(b.name, ev.Delta.PartialJSON)
 			}
 		case "message_delta":
 			if ev.Delta.StopReason != "" {

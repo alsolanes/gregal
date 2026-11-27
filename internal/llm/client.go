@@ -1059,7 +1059,7 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 		prog.delta(ProgressReasoning, m.ReasoningContent+m.Reasoning+m.Thought+m.Thinking)
 		prog.delta(ProgressText, m.Content)
 		for i := range m.ToolCalls {
-			prog.delta(ProgressTool, m.ToolCalls[i].Function.Arguments)
+			prog.eina(m.ToolCalls[i].Function.Name, m.ToolCalls[i].Function.Arguments)
 			if m.ToolCalls[i].Type == "" {
 				m.ToolCalls[i].Type = "function"
 			}
@@ -1130,7 +1130,6 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 					}
 					roundTrip.WriteString(ch.Delta.ReasoningContent)
 					for _, tc := range ch.Delta.ToolCalls {
-						prog.delta(ProgressTool, tc.Function.Arguments)
 						cur, ok := byIndex[tc.Index]
 						if !ok {
 							cur = &ToolCall{Type: "function"}
@@ -1147,6 +1146,7 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 							cur.Function.Name += tc.Function.Name
 						}
 						cur.Function.Arguments += tc.Function.Arguments
+						prog.eina(cur.Function.Name, tc.Function.Arguments)
 					}
 					if ch.FinishReason != "" {
 						finish = ch.FinishReason
