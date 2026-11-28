@@ -59,6 +59,7 @@ func (s *Server) handleWindsRutina(w http.ResponseWriter, r *http.Request) {
 		IntervalH float64 `json:"interval_h"`
 		Prompt    string  `json:"prompt"`
 		Name      string  `json:"name"`
+		Notify    *bool   `json:"notify"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "petició il·legible", 400)
@@ -111,15 +112,17 @@ func (s *Server) handleWindsRutina(w http.ResponseWriter, r *http.Request) {
 	if s.user != nil && !s.user.Tothom {
 		owner = s.user.Name
 	}
+	notify := false
+	if req.Notify != nil {
+		notify = *req.Notify
+	}
 	id := fmt.Sprintf("rutina-%s-%d", wind.ID, time.Now().Unix())
 	j, err := s.jobs.Save(jobs.Job{
 		ID: id, Name: name, Prompt: prompt, Kind: kind,
 		Time: timeStr, IntervalH: req.IntervalH,
 		Enabled: true,
-		// Notify:false — l'avís arriba com a novetat del vent al seu xat
-		// (notificació local de l'app); per Telegram hi hauria un duplicat.
-		Notify: false,
-		Wind:   wind.ID, WindOwner: owner,
+		Notify:  notify,
+		Wind:    wind.ID, WindOwner: owner,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), 500)

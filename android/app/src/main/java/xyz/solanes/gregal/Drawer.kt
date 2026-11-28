@@ -105,8 +105,8 @@ fun GregalDrawerContent(
                     GregalMark(36.dp)
                     Spacer(Modifier.width(12.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Gregal", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink, letterSpacing = (-0.3).sp)
-                        Text(if (local) tr(lang, "app.server.thisDevice") else server, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("Gregal", fontSize = GregalSize.title, fontWeight = FontWeight.Bold, color = Ink, letterSpacing = (-0.3).sp)
+                        Text(if (local) tr(lang, "app.server.thisDevice") else server, color = Muted, fontSize = GregalSize.caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 Spacer(Modifier.height(14.dp))
@@ -118,31 +118,22 @@ fun GregalDrawerContent(
                     Modifier.fillMaxWidth().padding(horizontal = 6.dp).testTag("area-switcher"))
                 Spacer(Modifier.height(12.dp))
                 DrawerRow(tr(lang, "nav.new"), false, { vm.newSession(); nav(Screen.Chat) }) { Icon(Icons.Rounded.Add, null, tint = Sea, modifier = Modifier.size(22.dp)) }
-
-                DrawerSection(tr(lang, "app.nav.sectionAgent"))
+                Spacer(Modifier.height(6.dp))
                 DrawerRow(tr(lang, "app.nav.chat"), screen == Screen.Chat, { nav(Screen.Chat) }, Icons.Rounded.ChatBubbleOutline)
                 DrawerRow(tr(lang, "app.work.title"), screen == Screen.Work, { nav(Screen.Work) }, Icons.Rounded.Construction)
                 DrawerRow(tr(lang, "nav.convs"), screen == Screen.Sessions, { nav(Screen.Sessions); vm.loadSessions() }, Icons.Rounded.Forum)
                 DrawerRow(tr(lang, "nav.backlog"), screen == Screen.Backlog, { nav(Screen.Backlog); vm.loadBacklog() }, Icons.Rounded.Checklist)
-
-                DrawerSection(tr(lang, "app.nav.sectionAutomate"))
-                // Activitat i Grafs s'obren des d'Automatitzacions: una sola fila.
                 DrawerRow(tr(lang, "nav.automations"), screen in setOf(Screen.Automatitzacions, Screen.Jobs, Screen.Flows), {
                     nav(Screen.Automatitzacions); vm.loadAutomations(""); vm.loadJobs(); vm.loadFlows()
                 }, Icons.Rounded.Schedule)
-
-                DrawerSection(tr(lang, "app.nav.sectionTools"))
+                Spacer(Modifier.height(6.dp))
                 DrawerRow(tr(lang, "app.carpeta.title"), screen == Screen.Carpeta, { nav(Screen.Carpeta) }, Icons.Rounded.FolderOpen)
                 DrawerRow(tr(lang, "nav.notes"), screen == Screen.Notes, { nav(Screen.Notes); vm.loadNotes() }, Icons.Rounded.EditNote)
-                DrawerRow(webCopy(lang, "title"), screen == Screen.Webs, { nav(Screen.Webs); vm.loadWebs() }, Icons.Rounded.Language)
                 DrawerRow(tr(lang, "docs.home"), screen == Screen.Docs, { close(); vm.openDocsHome() }, Icons.AutoMirrored.Rounded.Article)
-                DrawerRow(tr(lang, "nav.office"), screen == Screen.Office, { nav(Screen.Office) }, Icons.Rounded.Description)
-                DrawerRow(tr(lang, "app.retro.title"), screen == Screen.Retro, { close(); vm.openRetro() }, Icons.Rounded.Tag)
                 // GitHub és de l'administrador del servidor (un altre compte rebria 403),
                 // i al dispositiu no hi ha la CLI gh: només en remot.
                 val admin by vm.isAdmin.collectAsState()
                 if (!local && admin) DrawerRow(tr(lang, "app.nav.github"), false, { close(); vm.obreGithub() }, Icons.Rounded.Code)
-                DrawerRow(tr(lang, "app.nav.undoTurn"), false, { close(); vm.openRewind() }, Icons.AutoMirrored.Rounded.Undo)
             }
             HorizontalDivider(Modifier.padding(vertical = 6.dp, horizontal = 8.dp), color = Line)
             DrawerRow(tr(lang, "prefs.title"), screen == Screen.Prefs, { nav(Screen.Prefs); vm.openPreferences() }, Icons.Rounded.Settings)
@@ -177,8 +168,8 @@ private fun SimpleVentsDrawer(
                     GregalMark(36.dp)
                     Spacer(Modifier.width(12.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Gregal Vents", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink, letterSpacing = (-0.3).sp)
-                        Text(if (local) tr(lang, "app.server.thisDevice") else if (user.isNotBlank()) "$user · $server" else server, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("Gregal Vents", fontSize = GregalSize.title, fontWeight = FontWeight.Bold, color = Ink, letterSpacing = (-0.3).sp)
+                        Text(if (local) tr(lang, "app.server.thisDevice") else if (user.isNotBlank()) "$user · $server" else server, color = Muted, fontSize = GregalSize.caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 Spacer(Modifier.height(18.dp))
@@ -277,7 +268,7 @@ private fun DrawerGroup(label: String, icon: androidx.compose.ui.graphics.vector
 @Composable
 private fun DrawerSection(label: String) {
     Text(
-        label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Faint,
+        label, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold, color = Faint,
         modifier = Modifier.padding(start = 14.dp, top = 20.dp, bottom = 6.dp),
     )
 }
@@ -303,12 +294,12 @@ private fun DrawerRow(label: String, selected: Boolean, onClick: () -> Unit, mut
         }
         Spacer(Modifier.width(14.dp))
         Text(
-            label, fontSize = 15.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            label, fontSize = GregalSize.body, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             color = when { selected -> Ink; muted -> Muted; else -> Tinta },
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
         )
         if (badge > 0) Box(Modifier.background(Sea, CircleShape).padding(horizontal = 7.dp, vertical = 1.dp)) {
-            Text(badge.toString(), color = OnSea, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text(badge.toString(), color = OnSea, fontSize = GregalSize.label, fontWeight = FontWeight.Bold)
         }
 
     }

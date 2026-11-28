@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v1.103.4 - 2026-11-28 - Canvas visual de workflows, barra lateral neta i Android simplificat
+
+- **Constructor visual de *workflows* a Automatitzacions.** Nou canvas en 3 passos (`Trigger → Agent → Output`) a [vents-automations.js](internal/web/app/vents-automations.js) per triar periodicitat, estil de resposta, canal de notificació (*App*, *App + Telegram* o *Silenciós*) i provar-ho al moment; `/api/winds/rutina` accepta `notify`.
+- **Barra lateral i *composer* més airejats (Web / Desktop).** Navegació superior compacta horitzontal dins de `#side` per guanyar espai vertical per a projectes i converses, i *composer* en càpsula suau ([refine.css](internal/web/app/refine.css)).
+- **Calaix de Codi simplificat a Android.** Eliminades les seccions i entrades redundants a [Drawer.kt](android/app/src/main/java/xyz/solanes/gregal/Drawer.kt).
+
 ## v1.103.3 - 2026-11-28 - Minairons squircle, capçalera neta, Docs modernitzat i Vents Android simple
 
 - **Nous Minairons *squircle* i mitologia catalana.** Redissenyat el pack `minairo` amb estil *squircle* net, ulls expressius amb parpelleig natural, barretina icònica i 4 variants (Minairó clàssic, Tió simpàtic, Dama d'Aigua i Follet/Drac) amb animacions suaus.

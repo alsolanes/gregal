@@ -57,7 +57,7 @@
 #side .side-quick-btn, #side .vw-new {
   display:flex; align-items:center; justify-content:flex-start; gap:10px; min-height:40px; margin-bottom:6px;
   padding:0 12px; border:1px solid var(--line); border-radius:10px;
-  background:transparent; color:var(--ink); font-size:14px; font-weight:550!important;
+  background:transparent; color:var(--ink); font-size:var(--t3); font-weight:550!important;
   box-shadow:none;
   transition:background-color .15s, border-color .15s;
 }
@@ -72,17 +72,17 @@
 /* Capçaleres de secció: petites, en minúscula i discretes als dos productes
    (a Vents eren VERSALETES de 10px i a Codi, frases de 12px). */
 #side :is(.sidebar-section-head, .conv-head, .vw-section-label) {
-  font-size:12px; font-weight:600; letter-spacing:0; text-transform:none; color:var(--faint);
+  font-size:var(--t2); font-weight:600; letter-spacing:0; text-transform:none; color:var(--faint);
 }
 #side .vw-section-label { padding:20px 4px 6px 6px; }
-.vw-today-head h2 { font-size:12.5px; letter-spacing:0; text-transform:none; }
-#side .conv-grup { font-size:11.5px; font-weight:600; color:var(--faint); }
+.vw-today-head h2 { font-size:var(--t2); letter-spacing:0; text-transform:none; }
+#side .conv-grup { font-size:var(--t1); font-weight:600; color:var(--faint); }
 #convSearch { border-radius:var(--r-sm); background:var(--hover); border-color:transparent; }
 #convSearch:focus { background:var(--surface); border-color:var(--line-hi); }
 
 /* Pestanyes Codi · Vents: la triada es nota també en temes clars. */
 #side .product-switch { background:var(--hover); border-color:transparent; border-radius:var(--r-md); }
-#side .product-switch button { font-size:13px; }
+#side .product-switch button { font-size:var(--t2); }
 #side .product-switch button[aria-selected="true"] {
   background:var(--surface); color:var(--ink); font-weight:600;
   box-shadow:0 1px 2px rgba(0,0,0,.18), 0 0 0 1px var(--line-hi);
@@ -166,12 +166,12 @@ body.shell-winds .vw-welcome h1 {
 :root[data-theme="gemini"] #hero h1 {
   background-image:linear-gradient(100deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 55%, var(--lila)) 55%, color-mix(in srgb, var(--accent) 40%, var(--onada)) 100%);
 }
-.vw-welcome > p:last-child { font-size:15px; }
+.vw-welcome > p:last-child { font-size:var(--t3); }
 
 /* ---------- Compositor més gran i amb aire ---------- */
 #box, .vw-composer { border-radius:28px; }
 #box { padding:16px 14px 12px 22px; }
-#box textarea { font-size:16px; min-height:30px; }
+#box textarea { font-size:var(--t4); min-height:30px; }
 #hero #box { min-height:118px; }
 #composer #send, .vw-send { width:40px; height:40px; min-width:40px; min-height:40px; border-radius:50%; }
 #box .meta-pill, #box .perm-btn { border:0; background:transparent; }
@@ -220,9 +220,9 @@ html body #side #navRail .nav-item.active .nav-icon { color:var(--accent-hi); }
 }
 
 /* ---------- Peu del compositor: mateixa mida, mateix radi, mateixa fletxa ---------- */
-#composer :is(#modelPill, #thinkPill, #permBtn, #modePicker) { font-size:12px; font-weight:400; border-radius:var(--r-sm); min-height:30px; }
+#composer :is(#modelPill, #thinkPill, #permBtn, #modePicker) { font-size:var(--t2); font-weight:400; border-radius:var(--r-sm); min-height:30px; }
 #composer :is(#modelPill, #thinkPill) { color:var(--muted); padding:4px 8px; }
-#composer :is(#modelPill, #thinkPill) b { font-size:12px; font-weight:400; color:inherit; }
+#composer :is(#modelPill, #thinkPill) b { font-size:var(--t2); font-weight:400; color:inherit; }
 #composer :is(#modelPill, #thinkPill):hover { background:var(--hover); color:var(--ink); }
 #composer :is(#modelPill, #thinkPill):hover b { color:var(--ink); }
 #composer .think-pill { margin-left:0; display:inline-flex; align-items:center; white-space:nowrap; flex:none; }
@@ -231,7 +231,7 @@ html body #side #navRail .nav-item.active .nav-icon { color:var(--accent-hi); }
   border:solid currentColor; border-width:0 1.5px 1.5px 0; transform:rotate(45deg); color:var(--faint);
 }
 /* «Planifica primer»: un interruptor a la mateixa mida que les altres pastilles; encès, amb l'accent. */
-#composer .plan-first { display:inline-flex; align-items:center; gap:6px; min-height:30px; padding:4px 9px; border:1px solid transparent; border-radius:var(--r-sm); background:transparent; color:var(--muted); font:inherit; font-size:12px; font-weight:400; white-space:nowrap; cursor:pointer; }
+#composer .plan-first { display:inline-flex; align-items:center; gap:6px; min-height:30px; padding:4px 9px; border:1px solid transparent; border-radius:var(--r-sm); background:transparent; color:var(--muted); font:inherit; font-size:var(--t2); font-weight:400; white-space:nowrap; cursor:pointer; }
 #composer .plan-first:hover { background:var(--hover); color:var(--ink); }
 #composer .plan-first[aria-pressed="true"] { border-color:color-mix(in srgb, var(--accent) 50%, var(--line)); background:var(--accent-soft); color:var(--ink); }
 #composer .plan-first[aria-pressed="true"] svg { color:var(--accent-hi); }
@@ -281,7 +281,7 @@ body.desktop.mac #top { padding-left:82px; padding-right:14px; }
 body.desktop #top :is(button, .folder-chip, .top-meta, .top-session-title) { -webkit-app-region:no-drag; }
 .top-session-title {
   min-width:0; max-width:clamp(140px, 30vw, 420px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-  color:var(--muted); font-size:13px; font-weight:500; padding-left:8px; border-left:1px solid var(--line);
+  color:var(--muted); font-size:var(--t2); font-weight:500; padding-left:8px; border-left:1px solid var(--line);
 }
 @media (max-width:760px) { .top-session-title { display:none; } }
 #toolDockClose { display:inline-grid; }
@@ -341,7 +341,7 @@ body.desktop #top :is(button, .folder-chip, .top-meta, .top-session-title) { -we
 #toolDock .tool-dock-head { position:absolute; top:7px; right:10px; min-height:0; padding:0; border:0; z-index:1; }
 #toolDock #toolDockTitle { display:none; }
 #toolDock .tool-dock-tabs { min-height:50px; align-items:center; padding:8px 52px 8px 12px; }
-#toolDock .tool-dock-tabs button { font-size:12.5px; padding:6px 10px; }
+#toolDock .tool-dock-tabs button { font-size:var(--t2); padding:6px 10px; }
 #toolDock .page-head h1, #toolDock .page-title { display:none; }
 #toolDock .page-head { align-items:center; }
 #toolDock .page-head > .page-copy { flex:1 1 220px; margin:0; }
@@ -358,8 +358,8 @@ body.desktop #top :is(button, .folder-chip, .top-meta, .top-session-title) { -we
 .mp-search-icon { display:inline-grid; place-items:center; }
 .mp-search-icon .ui-icon { width:14px; height:14px; }
 #mpick :is(.mp-search, .mp-item, .mp-prov, .mp-foot) { font-family:inherit; }
-#mpick .mp-item { font-size:13px; }
-#mpick .mp-prov { font-size:10.5px; letter-spacing:.06em; }
+#mpick .mp-item { font-size:var(--t2); }
+#mpick .mp-prov { font-size:var(--t1); letter-spacing:.06em; }
 #suggest .sg-item { font-family:inherit; align-items:baseline; }
 #suggest .sg-item b { font-family:var(--mono); font-size:.95em; }
 
@@ -372,6 +372,7 @@ html body #side .brand { padding:0 14px 0 18px; }
 html body #side #productSwitch { margin:6px 10px 12px; }
 html body #side .side-quick { margin:0 10px 10px; }
 html body #side .side-quick-btn { margin-bottom:0; padding:0 11px; gap:12px; }
+html body #side #sideCompact { display:none !important; }
 html body #side #navRail { padding:0 10px; }
 html body #side #navRail .rail-main { gap:2px; }
 html body #side #navRail .rail-main > .nav-item, html body #side #sideMore > summary { min-height:34px; padding:0 12px; gap:12px; }
@@ -419,14 +420,14 @@ html body #side #convSearch:focus { background:var(--surface); border-color:var(
    Files de 34 px com a Codi, etiquetes alineades i «Nova conversa» sense
    vora. Les capçaleres mantenen l'alçada també quan porten el botó +. */
 html body:is(.shell-winds,.winds-side) #side .vw-nav { padding:12px 10px 20px; gap:2px; }
-html body:is(.shell-winds,.winds-side) #side .vw-nav .vw-new { min-height:34px; height:34px; padding:0 12px; gap:12px; border:0; border-radius:8px; margin-bottom:8px; background:transparent; font-size:14px; }
+html body:is(.shell-winds,.winds-side) #side .vw-nav .vw-new { min-height:34px; height:34px; padding:0 12px; gap:12px; border:0; border-radius:8px; margin-bottom:8px; background:transparent; font-size:var(--t3); }
 html body:is(.shell-winds,.winds-side) #side .vw-new > .vw-ic { color:var(--accent-hi); flex:0 0 18px; }
 html body:is(.shell-winds,.winds-side) #side .vw-new:hover { background:var(--surface); }
 html body:is(.shell-winds,.winds-side) #side .vw-nav :is(.vw-nav-item.vw-nav-icon,.vw-nav-item.vw-project,.vw-nav-item.vw-nav-channel,.vw-nav-item.vw-thread) { display:flex; align-items:center; box-sizing:border-box; min-height:34px; height:34px; padding:0 12px; gap:12px; }
 html body:is(.shell-winds,.winds-side) #side .vw-nav :is(.vw-nav-svg,.vw-folder,.winds-face) { width:18px; height:18px; margin-inline:0; flex:0 0 18px; }
 html body:is(.shell-winds,.winds-side) #side .vw-nav .vw-section-label { box-sizing:border-box; height:44px; min-height:44px; padding:14px 12px 6px; align-items:center; line-height:24px; }
 html body:is(.shell-winds,.winds-side) #side .vw-section-label .vw-small { width:24px; height:24px; }
-html body:is(.shell-winds,.winds-side) #side .vw-nav .vw-nav-channel { font-size:14px!important; }
+html body:is(.shell-winds,.winds-side) #side .vw-nav .vw-nav-channel { font-size:var(--t3)!important; }
 html body:is(.shell-winds,.winds-side) #side .vw-nav .vw-thread { color:var(--muted); }
 html body:is(.shell-winds,.winds-side) #side .vw-thread:is(:hover,:focus-visible,[aria-current="page"]) { color:var(--ink); }
 html body:is(.shell-winds,.winds-side) #side .vw-nav .vw-project[data-selected="true"] { background:transparent; font-weight:550; color:var(--ink); }
@@ -437,13 +438,15 @@ html body:is(.shell-winds,.winds-side) #side .vw-project[data-selected="true"] .
    A amplades mòbils es conserva la composició existent. */
 @media (min-width:761px) {
   html body:not(.shell-winds) #top { gap:12px; padding:0 16px; }
+  html body.desktop:not(.shell-winds) #top { padding-right:148px; }
+  html body.desktop.mac:not(.shell-winds) #top { padding-left:82px; padding-right:16px; }
   html body:not(.shell-winds) #top #menu, html body:not(.shell-winds) #top .top-meta .icon-btn, html body:not(.shell-winds) #topSessionNew .icon-btn { width:32px; height:32px; flex:none; border-radius:8px; color:var(--muted); }
   html body:not(.shell-winds) #top :is(#menu,.top-meta .icon-btn):hover, html body:not(.shell-winds) #topSessionNew .icon-btn:hover { background:var(--surface); color:var(--ink); }
-  html body:not(.shell-winds) #top .breadcrumb { flex:0 1 auto; min-width:0; }
+  html body:not(.shell-winds) #top .breadcrumb { flex:0 1 auto; min-width:0; flex-direction:row; align-items:center; gap:10px; }
   html body:not(.shell-winds) #top .project-heading { gap:8px; min-width:0; }
   html body:not(.shell-winds) #top .folder-chip { flex:0 1 auto; min-width:0; border-radius:8px; height:32px; background:transparent; border:0; }
   html body:not(.shell-winds) #top .folder-chip-main { gap:8px; padding:0 8px; }
-  html body:not(.shell-winds) #top #project { font-size:13px; font-weight:550; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  html body:not(.shell-winds) #top #project { font-size:var(--t2); font-weight:550; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   html body:not(.shell-winds) #top .folder-chip-caret { width:24px; flex:none; border-left:0; }
   html body:not(.shell-winds) #topSessionNew { flex:none; margin-left:0; padding-left:8px; gap:2px; border-left:1px solid var(--line); }
   html body:not(.shell-winds) #top .top-meta { gap:4px; flex:none; }
@@ -455,9 +458,9 @@ html body:is(.shell-winds,.winds-side) #side .vw-project[data-selected="true"] .
    Els controls passen de línia quan falta amplada. */
 @media (min-width:761px) {
   html body:not(.shell-winds) #composer #box { padding:16px 16px 12px 20px; }
-  html body:not(.shell-winds) #box textarea#in { font-size:16px; line-height:1.5; min-height:36px; }
+  html body:not(.shell-winds) #box textarea#in { font-size:var(--t4); line-height:1.5; min-height:36px; }
   html body:not(.shell-winds) #composer .composer-row { margin-top:12px; gap:6px; align-items:center; display:flex; flex-wrap:wrap; row-gap:8px; }
-  html body:not(.shell-winds) #composer :is(#modelPill,#thinkPill,#planFirst,#permBtn) { min-height:32px; height:32px; font-size:12px; }
+  html body:not(.shell-winds) #composer :is(#modelPill,#thinkPill,#planFirst,#permBtn) { min-height:32px; height:32px; font-size:var(--t2); }
   html body:not(.shell-winds) #composer :is(#micBtn,#attach) { width:32px; height:32px; min-width:32px; border-radius:8px; color:var(--muted); }
   html body:not(.shell-winds) #composer :is(#micBtn,#attach):hover { background:var(--hover); color:var(--ink); }
   html body:not(.shell-winds) #composer #modelPill { max-width:240px; order:0; }
@@ -504,7 +507,7 @@ html body:not(.shell-winds) #main .wg-body .tool[open] { background:var(--hover)
 html body:not(.shell-winds) #main .wg-body .tool summary { min-height:20px; }
 html body:not(.shell-winds) #main .wg-body .tool summary::before { content:none; }
 html body:not(.shell-winds) #main .wg-body .tool summary > b { font-weight:500; color:var(--muted); }
-html body:not(.shell-winds) #main .wg-body .tool .targs { font-size:12px; }
+html body:not(.shell-winds) #main .wg-body .tool .targs { font-size:var(--t2); }
 html body:not(.shell-winds) #main .wg-body .tool.done .tspin { color:var(--faint); }
 html body:not(.shell-winds) #main .wg-body .tool.failed summary > b { color:var(--red); }
 html body:not(.shell-winds) #main .wg-body > .msg.t + .msg.t { margin-top:-6px; }
@@ -528,13 +531,13 @@ html body:not(.shell-winds) #main .explore-fold > .body > .tool[open], html body
 html body:not(.shell-winds) #main .wg-body > :is(.msg.t[data-call], .explore-fold) > .body > details.tool[open] {
   margin:2px 0 8px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--surface);
 }
-#main details.tool[open] > .out { max-height:320px; overflow:auto; font-size:12.5px; line-height:1.5; }
+#main details.tool[open] > .out { max-height:320px; overflow:auto; font-size:var(--t2); line-height:1.5; }
 #main details.tool[open] > .out :is(p, ul, ol, pre) { margin:0 0 4px; }
 #main details.tool[open] > .tool-args { margin-top:0; padding-top:0; border-top:0; }
 #main :is(.msg.t[data-call], .explore-fold):not(.explore-list > .msg.t) > .body > details.tool[open] > .out { margin-top:0; padding-top:0; border-top:0; }
 #main :is(.msg.t[data-call], .explore-fold):not(.explore-list > .msg.t) > .body > details.tool[open] > .tool-args + .out { margin-top:7px; padding-top:7px; border-top:1px solid var(--line); }
 #main details.tool[open] > .out :is(ul, ol) { padding-left:18px; }
-#main details.tool .out pre.tool-term { margin:0; padding:0; background:transparent; border:0; font:12px/1.5 var(--mono); white-space:pre-wrap; word-break:break-word; }
+#main details.tool .out pre.tool-term { margin:0; padding:0; background:transparent; border:0; font:var(--t2)/1.5 var(--mono); white-space:pre-wrap; word-break:break-word; }
 #main .wg-body > .msg.t.step-auto, #main .msg.a.working + .msg.t.step-auto { margin:0; }
 #main .step-auto .body { font-size:var(--t3); line-height:1.6; color:var(--faint); }
 #main .step-auto .body p { margin:0; }
@@ -542,7 +545,7 @@ html body:not(.shell-winds) #main .wg-body > :is(.msg.t[data-call], .explore-fol
 #main .step-chip {
   display:inline-flex; align-items:center; gap:5px; height:20px; max-width:340px; padding:0 7px;
   border:1px solid var(--line); border-radius:6px; background:transparent; color:var(--muted);
-  font:12px/1 var(--mono, ui-monospace, monospace); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer;
+  font:var(--t2)/1 var(--mono, ui-monospace, monospace); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer;
 }
 #main .step-chip::before {
   content:''; flex:none; width:12px; height:12px; background:currentColor;
@@ -569,17 +572,17 @@ body.working #main .step-chip.pending::before { animation:pulse 1.1s ease-in-out
 /* ---------- Preferències i panells: opció A ---------- */
 @media (min-width:761px) {
 html body #prefsModal .pf-nav { padding:12px 10px; gap:2px; }
-html body #prefsModal .pf-nav button { min-height:34px; padding:0 12px; gap:12px; font-size:13px; }
+html body #prefsModal .pf-nav button { min-height:34px; padding:0 12px; gap:12px; font-size:var(--t2); }
 html body #prefsModal .pf-nav button.on { background:var(--accent-soft); color:var(--ink); }
 html body #prefsModal .pf-search { background-color:var(--hover); border-color:transparent; }
-html body #prefsModal .pf-gtitle { font-size:22px; font-weight:550; }
-html body #prefsModal .pf-gdesc { font-size:13px; line-height:1.55; margin:6px 0 10px; }
-html body #prefsModal .pf-lab b { font-size:14px; font-weight:550; }
-html body #prefsModal .pf-lab > span { font-size:12.5px; line-height:1.55; }
+html body #prefsModal .pf-gtitle { font-size:var(--t5); font-weight:550; }
+html body #prefsModal .pf-gdesc { font-size:var(--t2); line-height:1.55; margin:6px 0 10px; }
+html body #prefsModal .pf-lab b { font-size:var(--t3); font-weight:550; }
+html body #prefsModal .pf-lab > span { font-size:var(--t2); line-height:1.55; }
 html body #prefsModal .pf-row { padding:12px 0; }
 html body #toolDock .tool-dock-tabs { min-height:50px; gap:4px; }
-html body #toolDock .tool-dock-tabs button { min-height:32px; padding:5px 10px; font-size:13px; }
-html body #toolDock .page-copy { font-size:13px; line-height:1.55; }
+html body #toolDock .tool-dock-tabs button { min-height:32px; padding:5px 10px; font-size:var(--t2); }
+html body #toolDock .page-copy { font-size:var(--t2); line-height:1.55; }
 }@media (min-width:761px) {
 html body #prefsModal .pf-main { background:var(--bg); }
 html body #prefsModal .pf-nav { background:var(--sidebar); border-right:0; }
@@ -592,7 +595,7 @@ html body #toolDock .tool-dock-tabs button:hover { background:var(--hover); }
 @media (min-width:761px) {
 html body #toolDock .page-head { gap:8px; align-items:center; }
 html body #toolDock .page-head > .page-copy { flex:1 1 100%; margin:0 0 4px; }
-html body #toolDock .page-head > button { min-height:32px; padding:5px 10px; font-size:13px; }
+html body #toolDock .page-head > button { min-height:32px; padding:5px 10px; font-size:var(--t2); }
 }
 
 /* ---------- Capçalera de Codi: una sola barra ----------
@@ -608,7 +611,7 @@ html body.tabs-inline #top #sessionTabs {
 html body.tabs-inline #top #sessionTabs.single { justify-content:flex-start; height:auto; min-height:0; }
 html body.tabs-inline #top .session-tab {
   height:30px; padding:0 10px; border:0; border-radius:8px; background:transparent;
-  box-shadow:none; font-size:13px;
+  box-shadow:none; font-size:var(--t2);
 }
 html body.tabs-inline #top .session-tab:hover { background:var(--hover); color:var(--ink); }
 html body.tabs-inline #top .session-tab.active { background:var(--surface); color:var(--ink); font-weight:550; }
@@ -705,7 +708,7 @@ html body:not(.shell-winds) #main > .msg.a .body code.fref:hover {
 html body:not(.shell-winds) #main .msg.sys.err {
   width:min(var(--lectura, 820px), 100%); padding:10px 14px; border-radius:12px;
   border:1px solid color-mix(in srgb, var(--red) 35%, transparent);
-  background:var(--red-soft); color:var(--red); text-align:left; font-family:inherit; font-size:13px; opacity:1;
+  background:var(--red-soft); color:var(--red); text-align:left; font-family:inherit; font-size:var(--t2); opacity:1;
 }
 
 /* Botó flotant «Ves al final» */
@@ -713,7 +716,7 @@ html body:not(.shell-winds) #main .msg.sys.err {
   top:-44px; padding:6px 14px; border:1px solid var(--line-hi); border-radius:999px;
   background:color-mix(in srgb, var(--surface) 88%, transparent);
   backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
-  color:var(--text); font-size:12.5px; font-weight:500; box-shadow:0 8px 24px var(--ombra);
+  color:var(--text); font-size:var(--t2); font-weight:500; box-shadow:0 8px 24px var(--ombra);
   transition:transform .15s var(--ease-out), border-color .15s, color .15s;
 }
 #toBottom:hover { transform:translateX(-50%) translateY(-1px); border-color:var(--accent); color:var(--ink); }
@@ -724,12 +727,12 @@ html body:not(.shell-winds) #main .work-group {
 }
 html body:not(.shell-winds) #main .work-group > summary {
   min-height:28px; padding:4px 6px; gap:8px; border:0; border-radius:8px;
-  background:transparent; color:var(--muted); font-size:13px;
+  background:transparent; color:var(--muted); font-size:var(--t2);
   transition:background-color .15s, color .15s;
 }
 html body:not(.shell-winds) #main .work-group > summary::before { display:none; }
 html body:not(.shell-winds) #main .work-group > summary::after {
-  content:'›'; font-size:14px; line-height:1; color:var(--faint);
+  content:'›'; font-size:var(--t3); line-height:1; color:var(--faint);
   transition:transform .15s ease, color .15s ease; order:4;
 }
 html body:not(.shell-winds) #main .work-group[open] > summary::after {
@@ -773,11 +776,11 @@ html body:not(.shell-winds) #main .work-group:not(.failed) .wg-dot { display:non
 html body:not(.shell-winds) #main .work-group.failed .wg-dot {
   width:7px; height:7px; background:var(--red); box-shadow:none; order:0;
 }
-html body:not(.shell-winds) #main .work-group .wg-time { order:2; color:var(--faint); font-size:12.5px; }
-html body:not(.shell-winds) #main .work-group .wg-meta { order:3; color:var(--faint); font-size:12px; }
+html body:not(.shell-winds) #main .work-group .wg-time { order:2; color:var(--faint); font-size:var(--t2); }
+html body:not(.shell-winds) #main .work-group .wg-meta { order:3; color:var(--faint); font-size:var(--t2); }
 html body:not(.shell-winds) #main .work-group .wg-now {
   margin-left:0; padding:0; border-radius:0; order:1;
-  font-size:13px; line-height:1.4; max-width:72%;
+  font-size:var(--t2); line-height:1.4; max-width:72%;
 }
 html body:not(.shell-winds) #main .work-group.stalled .wg-now {
   background:transparent; color:var(--amber);
@@ -790,7 +793,7 @@ html body:not(.shell-winds) #main .work-group.running .wg-body {
   border-left-color:color-mix(in srgb, var(--accent) 32%, var(--line));
 }
 html body:not(.shell-winds) #main .wg-body > .msg.a .body {
-  font-size:13.5px; line-height:1.58; color:color-mix(in srgb, var(--text) 88%, var(--muted));
+  font-size:var(--t2); line-height:1.58; color:color-mix(in srgb, var(--text) 88%, var(--muted));
 }
 html body:not(.shell-winds) #main .wg-body > .msg.a.working .body {
   color:color-mix(in srgb, var(--text) 86%, var(--muted));
@@ -800,7 +803,7 @@ html body:not(.shell-winds) #main .wg-body > .msg.a.working + .msg.t,
 html body:not(.shell-winds) #main .wg-body > .msg.t + .msg.a.working { margin-top:0; }
 
 /* --- Eines (línies de text clicables sense caixes ni pastilles) --- */
-#main .step-auto .body { font-size:13px; line-height:1.5; color:var(--muted); }
+#main .step-auto .body { font-size:var(--t2); line-height:1.5; color:var(--muted); }
 #main .step-auto .step-text { font-weight:480; color:var(--muted); }
 #main .step-chips {
   display:flex; flex-direction:column; align-items:flex-start; gap:2px;
@@ -809,13 +812,13 @@ html body:not(.shell-winds) #main .wg-body > .msg.t + .msg.a.working { margin-to
 #main .step-chip {
   display:inline-flex; align-items:center; gap:7px; height:auto; min-height:24px; max-width:100%;
   padding:2px 8px; border:0; border-radius:6px; background:transparent;
-  color:var(--muted); font:12.5px/1.45 var(--sans, system-ui);
+  color:var(--muted); font:var(--t2)/1.45 var(--sans, system-ui);
   overflow:visible; text-align:left;
   transition:background-color .14s, color .14s;
 }
 #main .step-chip::before { width:13px; height:13px; opacity:.72; transition:opacity .14s, color .14s; }
 #main .step-chip::after {
-  content:'›'; margin-left:2px; font-size:13px; line-height:1; color:var(--faint);
+  content:'›'; margin-left:2px; font-size:var(--t2); line-height:1; color:var(--faint);
   opacity:0; transition:opacity .14s, transform .14s;
 }
 #main .step-chip:hover {
@@ -832,7 +835,7 @@ html body:not(.shell-winds) #main .wg-body > .msg.t + .msg.a.working { margin-to
 #main .step-chip .chip-txt { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 #main .step-chip .chip-rep {
   flex:none; padding:0; border-radius:0; background:transparent;
-  color:var(--faint); font:500 11.5px/1 var(--sans, system-ui);
+  color:var(--faint); font:500 var(--t1)/1 var(--sans, system-ui);
 }
 #main .step-chip[data-icon="edit"]::before { color:var(--accent-hi); }
 #main .step-chip[data-icon="search"]::before,
@@ -863,20 +866,20 @@ html body:not(.shell-winds) #main .wg-body > :is(.msg.t[data-call], .explore-fol
 #main :is(.msg.t[data-call], .explore-fold):not(.explore-list > .msg.t) > .body > details.tool[open] > summary {
   display:flex !important; align-items:center; gap:8px; padding:8px 12px;
   border-bottom:1px solid var(--line); background:color-mix(in srgb, var(--surface-hi) 45%, transparent);
-  font-size:12.5px; cursor:pointer;
+  font-size:var(--t2); cursor:pointer;
 }
 #main details.tool[open] > .tool-args { padding:10px 12px 0; margin:0; border-top:0; }
 #main details.tool[open] > .tool-args .tool-copy { top:17px; right:18px; opacity:.75; }
 #main details.tool[open] > .tool-args:hover .tool-copy { opacity:1; }
 #main details.tool[open] > .out {
-  padding:10px 12px 12px; margin:0; border-top:0; max-height:340px; font-size:12.5px; line-height:1.55;
+  padding:10px 12px 12px; margin:0; border-top:0; max-height:340px; font-size:var(--t2); line-height:1.55;
 }
 #main details.tool[open] > .tool-args + .out {
   margin-top:8px; padding-top:10px; border-top:1px solid var(--line);
 }
 #main details.tool .out pre.tool-term {
   padding:10px 12px; border:1px solid var(--line); border-radius:8px;
-  background:var(--codi-fons); font:12px/1.55 var(--mono);
+  background:var(--codi-fons); font:var(--t2)/1.55 var(--mono);
 }
 #main .explore-fold > .body > .tool[open] .explore-list {
   margin:0; padding:8px 10px 10px 14px; border-left:0; gap:4px;
@@ -919,7 +922,7 @@ html body:not(.shell-winds) #main .wg-think {
 }
 #main .wg-think-head {
   display:flex; align-items:center; gap:7px; margin-bottom:6px;
-  font-size:11.5px; font-weight:600; color:var(--lila); letter-spacing:.01em;
+  font-size:var(--t1); font-weight:600; color:var(--lila); letter-spacing:.01em;
 }
 #main .wg-think-ico {
   width:13px; height:13px; flex:none; background:currentColor;
@@ -927,7 +930,7 @@ html body:not(.shell-winds) #main .wg-think {
   animation:pulse 1.5s ease-in-out infinite;
 }
 #main .wg-think-body {
-  color:var(--muted); font-size:12.5px; line-height:1.58; white-space:pre-wrap; overflow-wrap:anywhere;
+  color:var(--muted); font-size:var(--t2); line-height:1.58; white-space:pre-wrap; overflow-wrap:anywhere;
   max-height:8.5em; overflow:hidden;
   -webkit-mask-image:linear-gradient(to bottom, #000 68%, transparent);
   mask-image:linear-gradient(to bottom, #000 68%, transparent);
@@ -942,7 +945,7 @@ html body:not(.shell-winds) #main details.tool.thinking:hover {
 }
 html body:not(.shell-winds) #main details.tool.thinking > summary {
   display:flex !important; align-items:center; gap:8px; padding:4px 8px; min-height:26px;
-  color:var(--muted); font-size:12.5px; cursor:pointer;
+  color:var(--muted); font-size:var(--t2); cursor:pointer;
 }
 html body:not(.shell-winds) #main details.tool.thinking > summary::before { content:none; }
 html body:not(.shell-winds) #main details.tool.thinking > summary::after {
@@ -962,7 +965,7 @@ html body:not(.shell-winds) #main details.tool.thinking summary b {
 }
 html body:not(.shell-winds) #main details.tool.thinking[open] > .out {
   padding:10px 14px 12px; border-top:1px solid color-mix(in srgb, var(--lila) 16%, var(--line));
-  font-family:inherit; font-size:13px; line-height:1.62; color:var(--muted); max-height:340px;
+  font-family:inherit; font-size:var(--t2); line-height:1.62; color:var(--muted); max-height:340px;
 }
 
 /* --- Checklist de tasques (#todoBox i .todo al fil) --- */
@@ -972,7 +975,7 @@ html body:not(.shell-winds) #main details.tool.thinking[open] > .out {
 }
 #todoBox .todo-cap {
   padding:9px 14px; border:0; border-radius:0; background:transparent;
-  color:var(--text); font-size:13px; gap:9px; transition:background-color .14s;
+  color:var(--text); font-size:var(--t2); gap:9px; transition:background-color .14s;
 }
 #todoBox .todo-cap:hover { background:var(--hover); }
 #todoBox .todo-fletxa {
@@ -987,7 +990,7 @@ html body:not(.shell-winds) #main details.tool.thinking[open] > .out {
 }
 #todoBox .todo-comptador {
   padding:2px 7px; border-radius:999px; background:var(--accent-soft);
-  color:var(--accent-hi); font:600 11px/1.3 var(--mono); font-variant-numeric:tabular-nums;
+  color:var(--accent-hi); font:600 var(--t1)/1.3 var(--mono); font-variant-numeric:tabular-nums;
 }
 .todo-bar {
   width:54px; height:4px; border-radius:999px; background:var(--surface-hi); overflow:hidden; flex:none;
@@ -995,13 +998,13 @@ html body:not(.shell-winds) #main details.tool.thinking[open] > .out {
 .todo-bar > i {
   display:block; height:100%; border-radius:999px; background:var(--accent); transition:width .25s var(--ease-out);
 }
-#todoBox .todo-ara { color:var(--text); font-size:12.5px; }
+#todoBox .todo-ara { color:var(--text); font-size:var(--t2); }
 #todoBox .todo-llista {
   margin-top:0; padding:8px 14px 12px; border:0; border-top:1px solid var(--line);
   border-radius:0; background:transparent; max-height:220px; display:flex; flex-direction:column; gap:3px;
 }
 #todoBox .todo-llista .trow, #main .todo .trow {
-  align-items:flex-start; gap:9px; padding:4px 6px; border-radius:7px; line-height:1.48; font-size:13px;
+  align-items:flex-start; gap:9px; padding:4px 6px; border-radius:7px; line-height:1.48; font-size:var(--t2);
 }
 #todoBox .todo-llista .trow.working, #main .todo .trow.working {
   background:color-mix(in srgb, var(--amber) 8%, transparent); color:var(--ink); font-weight:500;
@@ -1026,7 +1029,7 @@ html body:not(.shell-winds) #main details.tool.thinking[open] > .out {
   border:1px solid var(--line-hi); border-radius:14px; padding:12px 14px; background:var(--surface);
   display:flex; flex-direction:column; gap:3px;
 }
-#main .todo > b { margin-bottom:4px; font-size:13px; color:var(--ink); }
+#main .todo > b { margin-bottom:4px; font-size:var(--t2); color:var(--ink); }
 
 /* --- Targetes d'aprovació, preguntes i veredicte --- */
 #main .approve, #main .qcard, #main .verdict { border-radius:14px; padding:14px 16px; }
@@ -1084,7 +1087,7 @@ html body:not(.shell-winds) #top .project-heading #topSessionNew {
   border:1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
   background:var(--surface); box-shadow:0 6px 20px -10px var(--ombra);
 }
-#main .qcard b.q { margin-bottom:10px; color:var(--ink); font-size:14.5px; }
+#main .qcard b.q { margin-bottom:10px; color:var(--ink); font-size:var(--t3); }
 #main .qcard .qopt {
   padding:9px 12px; border-radius:10px; border-color:var(--line);
   background:color-mix(in srgb, var(--surface-hi) 45%, transparent);
@@ -1125,6 +1128,86 @@ html body:not(.shell-winds) #top .project-heading #topSessionNew {
   #main .qcard .qopt, #heroMore .home-recent-row { transition:none; }
 }
 
+/* ---------- Desena passada: Barra lateral més neta i airejada + composer lleuger ---------- */
+html body #side #sideCompact { display:none !important; }
+html body #side #navRail {
+  padding:2px 10px 6px;
+}
+html body #side #navRail .rail-main {
+  display:flex; flex-direction:row; flex-wrap:wrap; gap:4px;
+}
+html body #side #navRail .rail-main > .nav-item,
+html body #side #sideMore > summary {
+  min-height:30px; padding:0 9px; gap:6px; border-radius:9px;
+  font-size:12px; width:auto; flex:0 0 auto;
+}
+html body #side #navRail .rail-main > .nav-item .nav-icon { font-size:13px; }
+html body #side .side-quick { padding:4px 12px 6px; }
+html body #side .side-quick-btn.primary {
+  height:34px; border-radius:11px; font-size:13px; font-weight:550;
+}
+html body #side .conv,
+html body #side .project-row {
+  border-radius:10px; padding-top:6px; padding-bottom:6px;
+}
+html body:not(.shell-winds) #composer {
+  border-radius:20px; padding:8px 12px;
+  background:color-mix(in srgb, var(--surface) 88%, var(--panel));
+  border-color:var(--line);
+  box-shadow:0 8px 26px -16px var(--ombra);
+}
+html body:not(.shell-winds) #composer:focus-within {
+  border-color:color-mix(in srgb, var(--accent) 45%, var(--line-hi));
+}
+
+/* ---------- Novena passada: Canvas visual de workflows (Trigger -> Agent -> Output) ---------- */
+.wf-canvas {
+  display:flex; flex-direction:column; gap:10px; padding:18px;
+  border:1px solid var(--line); border-radius:16px;
+  background-color:color-mix(in srgb, var(--bg) 82%, var(--surface));
+  background-image:radial-gradient(color-mix(in srgb, var(--line-hi) 65%, transparent) 1px, transparent 1px);
+  background-size:18px 18px;
+}
+@media (min-width:920px) {
+  .wf-canvas { flex-direction:row; align-items:stretch; gap:0; }
+}
+.wf-node {
+  flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:10px;
+  padding:14px; border:1px solid var(--line-hi); border-radius:14px;
+  background:color-mix(in srgb, var(--surface) 92%, var(--panel));
+  box-shadow:0 8px 24px -14px var(--ombra);
+}
+.wf-node-head { display:flex; align-items:center; gap:8px; font-size:var(--t2); color:var(--ink); }
+.wf-node-tag {
+  padding:2px 8px; border-radius:999px; font-size:var(--t1); font-weight:600;
+  background:var(--accent-soft); color:var(--accent-hi);
+}
+.wf-node input, .wf-node select, .wf-node textarea {
+  width:100%; box-sizing:border-box; padding:8px 10px;
+  border:1px solid var(--line); border-radius:9px;
+  background:var(--bg); color:var(--ink); font:inherit; font-size:var(--t2);
+}
+.wf-node textarea { resize:vertical; min-height:74px; line-height:1.45; }
+.wf-row { display:flex; gap:8px; }
+.wf-row > * { flex:1 1 0; min-width:0; }
+.wf-hint { margin:0; font-size:var(--t2); color:var(--muted); line-height:1.45; }
+.wf-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:auto; padding-top:4px; }
+.wf-conn {
+  display:flex; align-items:center; justify-content:center; flex:none; padding:2px 0;
+}
+@media (min-width:920px) {
+  .wf-conn { width:34px; padding:0; position:relative; }
+  .wf-conn::before {
+    content:''; position:absolute; left:0; right:0; top:50%;
+    border-top:1.5px dashed var(--line-hi);
+  }
+}
+.wf-conn-dot {
+  position:relative; z-index:1; width:24px; height:24px; border-radius:50%;
+  display:grid; place-items:center; font-size:var(--t2); font-weight:600;
+  background:var(--panel); border:1px solid var(--line-hi); color:var(--muted);
+}
+
 /* ---------- Vuitena passada: Gregal Docs modernitzat ---------- */
 #docsPanel {
   background:color-mix(in srgb, var(--panel) 95%, var(--bg));
@@ -1144,7 +1227,7 @@ html body:not(.shell-winds) #top .project-heading #topSessionNew {
   background:color-mix(in srgb, var(--panel) 90%, transparent);
   backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
 }
-#docsPanel .docs-home h2 { font-size:21px; font-weight:650; letter-spacing:-.015em; }
+#docsPanel .docs-home h2 { font-size:var(--t5); font-weight:650; letter-spacing:-.015em; }
 #docsPanel .docs-home-new { gap:10px; }
 #docsPanel .docs-home-new input {
   height:42px; padding:0 14px; border-radius:12px; border-color:var(--line);
@@ -1177,7 +1260,7 @@ html body #side #productSwitch {
   background:color-mix(in srgb, var(--hover) 70%, transparent);
 }
 html body #side #productSwitch button {
-  min-height:26px; padding:0 8px; border-radius:7px; font-size:12px;
+  min-height:26px; padding:0 8px; border-radius:7px; font-size:var(--t2);
 }
 @media (prefers-reduced-motion:reduce) {
   html body:not(.shell-winds) #main .work-group.running .wg-label,
