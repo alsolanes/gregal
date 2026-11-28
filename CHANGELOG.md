@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.104.0 - 2026-11-28 - Llegendes de feltre, escala tipogràfica i capçalera endreçada
+
 - **Llegendes: avatars de feltre per defecte (web, escriptori i Android).** Cada vent és un minairó, una dona d'aigua o un tió de pelfa renderitzats amb Blender ([felt.py](tools/characters/felt.py)), tenyits amb el color del vent; només els ulls es mouen (parpelleig i alguna mirada), i el mateix vent és el mateix personatge a tot arreu. Nou pack `folk`, el tema per defecte dels comptes que no n'han triat cap.
 - **Una sola escala tipogràfica.** Web: sis mides (`--t1`…`--t6`) en lloc de 96 mides soltes; Android: `GregalSize` en lloc d'uns 1.000 `fontSize` fixos.
 - **Capçalera de Codi endreçada.** Tres grups separats (eines de la sessió · Notes i Docs · vista), icones diferents per a Canvis, Notes i Docs, i el mateix ¶ per a Gregal Docs a la barra lateral i a dalt.
