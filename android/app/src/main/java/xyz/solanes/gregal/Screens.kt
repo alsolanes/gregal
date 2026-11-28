@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.lazy.LazyColumn
@@ -163,7 +164,8 @@ val ChatMaxWidth = 760.dp
 fun GregalBg(content: @Composable () -> Unit) = SeaBackdrop(Modifier.fillMaxSize(), content)
 
 @Composable
-fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
+/** [intro]: la benvinguda dels vents abans del formulari (fals si ja s'ha vist en aquesta obertura). */
+fun PairingScreen(vm: GregalViewModel, prefs: Prefs, intro: Boolean = true) {
     val lang by vm.idioma.collectAsState()
     var host by remember { mutableStateOf(prefs.host) }
     var port by remember { mutableStateOf(prefs.port.ifEmpty { "8097" }) }
@@ -190,15 +192,30 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 28.dp, vertical = 36.dp),
             verticalArrangement = Arrangement.Center,
         ) {
-            Spacer(Modifier.height(32.dp))
-            GregalMark(64.dp, alive = true)
-            Spacer(Modifier.height(14.dp))
+            // Els vents de feltre donen la benvinguda (FolkIntro.kt) cada cop que
+            // s'obre la configuració: la primera vegada i en canviar de servidor.
+            // Quan acaben (o si se salta), entra el formulari i ells el guien.
+            // 0: l'animació 3D; 1: el recorregut (què és Gregal); 2: el formulari.
+            var stage by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(if (intro) 0 else 2) }
+            if (stage < 2) FolkIntro(lang, play = stage == 0 && windMotionEnabled(), onDone = { if (stage == 0) stage = 1 },
+                modifier = Modifier.widthIn(max = if (stage == 0) 380.dp else 240.dp).align(Alignment.CenterHorizontally))
+            if (stage == 1) FolkTour(lang, onDone = { stage = 2 }, modifier = Modifier.widthIn(max = 460.dp).align(Alignment.CenterHorizontally))
+            val introDone = stage == 2
+            androidx.compose.animation.AnimatedVisibility(introDone,
+                enter = androidx.compose.animation.fadeIn(tween(450)) + androidx.compose.animation.slideInVertically(tween(450)) { it / 12 }) {
+            Column {
             // La build de Vents es presenta com a Vents; la de codi, com sempre.
             val vents = LocalContext.current.packageName.endsWith(".vents")
-            Text(if (vents) tr(lang, "app.pair.title") else "Gregal", style = MaterialTheme.typography.displaySmall, color = Ink)
-            Text(if (vents) tr(lang, "app.pair.subtitle") else if (lang == "ca") "L'agent de codi de casa, al mòbil" else "Your home coding agent, on mobile", color = Muted, style = MaterialTheme.typography.bodyLarge)
-            Spacer(Modifier.height(28.dp))
+            Text(if (vents) tr(lang, "app.pair.title") else "Gregal", style = MaterialTheme.typography.displaySmall, color = Ink,
+                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            Text(if (vents) tr(lang, "app.pair.subtitle") else if (lang == "ca") "L'agent de codi de casa, al mòbil" else "Your home coding agent, on mobile", color = Muted, style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(20.dp))
+            FolkSays("minairo", tr(lang, "app.pair.say.hello"))
+            Spacer(Modifier.height(18.dp))
             if (localOk) {
+                FolkSays("tio", tr(lang, "app.pair.say.device"))
+                Spacer(Modifier.height(10.dp))
                 // Aquest dispositiu: el mateix backend que l'escriptori, dins l'app.
                 GlassCard(Modifier.fillMaxWidth(), hi = !remot) {
                     Column(Modifier.padding(16.dp)) {
@@ -240,6 +257,8 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
                     }
                     Spacer(Modifier.height(12.dp))
                 }
+                FolkSays("minairo", tr(lang, "app.pair.say.host"))
+                Spacer(Modifier.height(10.dp))
                 Text(tr(lang, "app.server.remoteHelp"), color = Muted, style = GregalType.bodySmall)
                 Spacer(Modifier.height(10.dp))
                 ServerDiscovery(lang) { address, discoveredPort -> host = address; port = discoveredPort }
@@ -262,6 +281,8 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
                     ambUsuari = m != "key"; registre = m == "invite"
                 }
                 Spacer(Modifier.height(12.dp))
+                FolkSays(if (ambUsuari) "dona" else "tio", tr(lang, if (ambUsuari) "app.pair.say.user" else "app.pair.say.key"))
+                Spacer(Modifier.height(10.dp))
                 if (!ambUsuari) {
                     OutlinedTextField(token, { token = it }, label = { Text(tr(lang, "app.pair.key")) },
                         leadingIcon = { Icon(Icons.Rounded.Lock, null, tint = Muted) }, shape = field,
@@ -331,6 +352,8 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
                         else -> vm.connectRemote(host.trim(), port.trim(), token.replace(" ", "").trim())
                     }
                 })
+            }
+            }
             }
         }
     }

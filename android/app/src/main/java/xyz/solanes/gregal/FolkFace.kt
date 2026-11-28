@@ -69,28 +69,42 @@ private object FolkAssets {
         tinted.get(key)?.let { return it }
         val body = image(assets, "$who.webp")?.asAndroidBitmap() ?: return null
         val mask = image(assets, "$who.mask.webp")?.asAndroidBitmap() ?: return null
-        val out = body.copy(android.graphics.Bitmap.Config.ARGB_8888, true)
-        val canvas = android.graphics.Canvas(out)
-        // The mask in the wind's colour, then multiplied onto the body where the mask is.
-        val tint = android.graphics.Bitmap.createBitmap(mask.width, mask.height, android.graphics.Bitmap.Config.ARGB_8888)
-        android.graphics.Canvas(tint).drawBitmap(mask, 0f, 0f, android.graphics.Paint().apply {
-            colorFilter = PorterDuffColorFilter(accent.toArgb(), PorterDuff.Mode.SRC_IN)
-        })
-        val dst = android.graphics.Rect(0, 0, out.width, out.height)
-        canvas.drawBitmap(tint, null, dst, android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG).apply {
-            xfermode = PorterDuffXfermode(PorterDuff.Mode.MULTIPLY)
-        })
-        // MULTIPLY also multiplies alpha where the body is clear: keep the body's own outline.
-        canvas.drawBitmap(body, 0f, 0f, android.graphics.Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN) })
+        // Multiply by hand, like the web's mix-blend-mode: body × colour where the
+        // mask is, the body as it is elsewhere, and the body's own alpha everywhere.
+        // (PorterDuff MULTIPLY multiplies alpha too and wiped the barretina.)
+        val w = body.width
+        val h = body.height
+        val px = IntArray(w * h)
+        body.getPixels(px, 0, w, 0, 0, w, h)
+        val m = android.graphics.Bitmap.createScaledBitmap(mask, w, h, true)
+        val mp = IntArray(w * h)
+        m.getPixels(mp, 0, w, 0, 0, w, h)
+        val argb = accent.toArgb()
+        val tr = (argb shr 16) and 0xff
+        val tg = (argb shr 8) and 0xff
+        val tb = argb and 0xff
+        for (i in px.indices) {
+            val k = (mp[i] ushr 24) and 0xff
+            if (k == 0) continue
+            val c = px[i]
+            val r = (c shr 16) and 0xff
+            val g = (c shr 8) and 0xff
+            val b = c and 0xff
+            val nr = r + ((r * tr / 255 - r) * k) / 255
+            val ng = g + ((g * tg / 255 - g) * k) / 255
+            val nb = b + ((b * tb / 255 - b) * k) / 255
+            px[i] = (c and 0xff000000.toInt()) or (nr shl 16) or (ng shl 8) or nb
+        }
+        val out = android.graphics.Bitmap.createBitmap(px, w, h, android.graphics.Bitmap.Config.ARGB_8888)
         return out.asImageBitmap().also { tinted.put(key, it) }
     }
 }
 
 /** A felt face, or false when the character's files are not in the APK (the caller draws Cares). */
 @Composable
-internal fun FolkFace(size: Int, mood: WindMood, accent: Color, windId: String, motion: Boolean, modifier: Modifier): Boolean {
+internal fun FolkFace(size: Int, mood: WindMood, accent: Color, windId: String, motion: Boolean, modifier: Modifier, character: String? = null): Boolean {
     val assets = LocalContext.current.assets
-    val who = remember(windId) { folkCharacter(windId) }
+    val who = remember(windId, character) { character?.takeIf { it in folkCast } ?: folkCharacter(windId) }
     val body = remember(who, accent) { FolkAssets.body(assets, who, accent) } ?: return false
     val eyes = remember(who) { FolkAssets.image(assets, "$who.eyes.webp") } ?: return false
     // Only the eyes move: a blink every ~6.4 s and a small glance every ~13 s, each wind on its own phase.
@@ -137,4 +151,13 @@ internal fun FolkFace(size: Int, mood: WindMood, accent: Color, windId: String, 
         }
     }
     return true
+}
+
+/** Each character's own colour when it speaks for itself (the setup screen): no wind behind it. */
+private val folkOwnColour = mapOf("minairo" to Color(0xFFF2DCC0), "dona" to Color(0xFF7C9BE8), "tio" to Color(0xFFEAD9C2))
+
+/** One felt character by name, blinking, in its own colours. */
+@Composable
+internal fun FolkPortrait(who: String, size: Int, modifier: Modifier = Modifier) {
+    FolkFace(size, WindMood.IDLE, folkOwnColour[who] ?: Color.White, "folk-$who", windMotionEnabled(), modifier, character = who)
 }

@@ -63,6 +63,7 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
@@ -149,6 +150,10 @@ class Prefs(val ctx: Context) {
     val ventSingular: String get() = p.getString("ventSingular", "") ?: ""
     val ventPlural: String get() = p.getString("ventPlural", "") ?: ""
     fun desaNomsDelVent(sing: String, plur: String) = VentNom.desa(p, sing, plur)
+    /** Ja s'ha vist la benvinguda dels vents de feltre (FolkIntro.kt): el primer cop que obres l'app. */
+    var welcomed: Boolean
+        get() = p.getBoolean("folkWelcomed", false)
+        set(v) { p.edit().putBoolean("folkWelcomed", v).apply() }
     /** Ja s'ha preguntat com es diuen els ajudants (el primer cop que obres l'app). */
     var collectiveAsked: Boolean
         get() = p.getBoolean("collectiveAsked", false)
@@ -315,14 +320,23 @@ class MainActivity : ComponentActivity() {
                 // L'avis d'actualització viu per sobre de qualsevol pantalla:
                 // si l'has silenciada o no n'hi ha, no es veu res.
                 Box(Modifier.fillMaxSize().windTouch()) {
+                // El primer cop: la benvinguda dels vents (animació i recorregut) per
+                // sobre de tot, encara que l'app ja s'hagi connectat sola al mòbil.
+                // La configuració del servidor no la torna a fer en aquesta obertura.
+                val firstLaunch = androidx.compose.runtime.remember {
+                    // La benvinguda ja explica què pot fer Gregal: la guia (GregalGuide)
+                    // no s'obre sola a sobre; continua al menú.
+                    (!prefs.welcomed).also { if (it) prefs.ctx.getSharedPreferences("gregal_guide", android.content.Context.MODE_PRIVATE).edit().putBoolean("seen", true).apply() }
+                }
+                var welcoming by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(firstLaunch) }
                 if (!connected) {
-                    PairingScreen(vm, prefs)
+                    PairingScreen(vm, prefs, intro = !firstLaunch)
                 } else {
                     val drawer = rememberDrawerState(DrawerValue.Closed)
                     val scope = rememberCoroutineScope()
                     // El primer cop: com vols dir als teus ajudants (vents, fullets…).
                     val askCollective by vm.askCollective.collectAsState()
-                    if (askCollective) CollectivePickerDialog(vm, lang)
+                    if (askCollective && !welcoming) CollectivePickerDialog(vm, lang)
                     fun nav(s: Screen) {
                         scope.launch { drawer.close() }
                         vm.go(s)
@@ -391,6 +405,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 UpdateAvis(vm)
+                if (welcoming) FolkWelcome(lang) { prefs.welcomed = true; welcoming = false }
                 }
             }
             }

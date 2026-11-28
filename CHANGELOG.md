@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Benvinguda dels vents de feltre (Android).** El primer cop que obres l'app i quan tornes a configurar el servidor: una animació 3D on el minairó, la dona d'aigua i el tió engeguen un petit servidor i surt Gregal al fons ([intro.py](tools/characters/intro.py)); després, quatre escenes on t'expliquen amb bafarades què fan mentre una mini finestra de l'app ho fa en directe (una web publicada, el resum del dia, una feina que acaba sola, tot a casa), i a la configuració cadascun et demana la seva part (servidor, usuari, clau).
 - **Comptes de Google (preparat).** Connexió OAuth pròpia (PKCE, accés offline, tokens xifrats al Vault) a Preferències › Connexions, web i Android. Els vents hi llegeixen el calendari, el correu i el Drive, i amb el teu permís hi creen esdeveniments i esborranys (mai envien). Cal crear un client OAuth un cop: [docs/google.md](docs/google.md).
 
 ## v1.104.0 - 2026-11-28 - Llegendes de feltre, escala tipogràfica i capçalera endreçada

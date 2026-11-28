@@ -371,7 +371,10 @@ def shoot(sc, path):
     print("wrote", sc.render.filepath)
 
 
-for name, build in CAST.items():
+# intro.py (and others) import the builders without rendering anything.
+LIBRARY = os.environ.get("FELT_LIBRARY") == "1"
+
+for name, build in ({} if LIBRARY else CAST).items():
     if ONLY and name not in ONLY.split(","):
         continue
     bpy.ops.wm.read_factory_settings(use_empty=True)
