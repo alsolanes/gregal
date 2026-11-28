@@ -313,11 +313,16 @@ export const sessions = {
     iso.title = T('sessions.newWorktree');
     iso.setAttribute('aria-label', T('sessions.newWorktree'));
     iso.onclick = () => this.openWorktree();
-    // Al navegador, amb una sola sessió la franja quedava buida (una fila
-    // sencera per a ＋ i ⎇＋): els dos botons van a la capçalera, al costat
-    // del xip del projecte, i la franja no es pinta (refine.css). A
-    // l'escriptori sense marc la franja és la barra de títol i s'hi queden.
-    const solo = list.length <= 1 && (!document.body.classList.contains('desktop') || document.body.classList.contains('tabs-inline'));
+    // Les converses ja són al lateral: actualitzem el títol de la sessió activa a la capçalera.
+    const cur = list.find(s => s.id === this.current);
+    const titleEl = $('topSessionTitle');
+    if (titleEl) {
+      const t = cur ? (cur.title || (cur.id === 'default' ? '' : T('sessions.untitled'))) : '';
+      titleEl.textContent = t;
+      titleEl.title = cur ? (t ? t + '\n' : '') + (cur.cwd || '') : '';
+      titleEl.hidden = !t;
+    }
+    const solo = true;
     document.querySelectorAll('#topSessionNew').forEach(el => el.remove());
     const crumb = document.querySelector('#top .project-heading');
     if (solo && crumb) {

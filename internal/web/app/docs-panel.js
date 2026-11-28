@@ -338,6 +338,7 @@ async function home() {
   }
 }
 $('docsHomeBtn')?.addEventListener('click', home);
+$('topDocsBtn')?.addEventListener('click', () => (state.visible ? close() : home()));
 // Un document del projecte és de la sessió d'abans: es tanca. Un dels meus
 // documents no és de cap projecte i es queda; l'inici es torna a llegir.
 document.addEventListener('gregal:session', () => {

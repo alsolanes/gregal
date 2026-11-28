@@ -1728,6 +1728,7 @@ body.sense-inspector #inspector { display:none; }
            carpeta; ▾ = menú (canviar, obrir a l'explorador, copiar ruta). -->
       <span class="folder-chip" id="folderChip"><button id="folderChipBtn" type="button" class="folder-chip-main" data-i18n-aria="ui.changeWorkspace" aria-label="Change working folder"><svg class="folder-ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M1.75 4.25c0-.83.67-1.5 1.5-1.5h3l1.5 1.75h5c.83 0 1.5.67 1.5 1.5v6.25c0 .83-.67 1.5-1.5 1.5H3.25c-.83 0-1.5-.67-1.5-1.5z"/></svg><span id="project">project</span></button><button id="folderChipMenu" type="button" class="folder-chip-caret" data-i18n-title="folder.actions" data-i18n-aria="folder.actions" title="Folder actions" aria-label="Folder actions" aria-haspopup="menu" aria-expanded="false">▾</button></span><span class="sep">/</span><span id="branch">workspace</span><span id="hdrWorktree" class="wt-badge hdr-worktree" hidden></span>
       </div>
+      <span id="topSessionTitle" class="top-session-title" hidden></span>
       <button id="activeWorkspace" type="button" class="workspace-location" data-i18n-title="ui.changeWorkspace" data-i18n-aria="ui.changeWorkspace" title="Change working folder" aria-label="Change working folder"><span id="activeWorkspacePath"></span></button>
     </div>
     <span class="spacer"><span class="tide" aria-hidden="true"></span></span>
@@ -1735,6 +1736,7 @@ body.sense-inspector #inspector { display:none; }
       <button class="icon-btn" data-view="fitxers" data-i18n-title="nav.files" data-i18n-aria="nav.files" title="Files" aria-label="Files">▤</button>
       <button class="icon-btn" data-view="canvis" data-i18n-title="nav.changes" data-i18n-aria="nav.changes" title="Changes" aria-label="Changes">±<span class="nav-badge" id="navChangesBadge" hidden></span></button>
       <button class="icon-btn" data-view="terminal" data-i18n-title="nav.terminal" data-i18n-aria="nav.terminal" title="Terminal" aria-label="Terminal"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7l5 5-5 5 M12 18h7"/></svg></button>
+      <button class="icon-btn" id="topDocsBtn" type="button" title="Gregal Docs" aria-label="Gregal Docs"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z M14 3v6h6 M16 13H8 M16 17H8 M10 9H8"/></svg></button>
       <button class="icon-btn" id="inspToggle" data-i18n-title="ui.toggleInspector" title="Toggle inspector" data-i18n-aria="ui.toggleInspector" aria-label="Toggle inspector" aria-pressed="false">▥</button>
       <button class="icon-btn" id="previewToggle" title="Preview" aria-label="Preview" aria-pressed="false">▣</button>
       <div id="moreWrap">
@@ -2654,7 +2656,7 @@ function beginWorkGroup() {
   showMain(true);
   const g = document.createElement('details');
   g.className = 'msg work-group running';
-  g.open = true;
+  g.open = false;
   g.innerHTML = '<summary><span class="wg-dot" aria-hidden="true"></span><span class="wg-label"></span><span class="wg-time"></span><span class="wg-meta"></span></summary><div class="wg-body"></div>';
   main.appendChild(g);
   turnGroup = g;

@@ -67,15 +67,15 @@ class SettingsPageTest {
 
     @Test fun `the drawer puts the conversations first, then the winds, the other spaces and Settings`() {
         drawer("ca")
-        val order = listOf("Nova conversa", "Avui", "Converses", "Totes les converses", "Nou especialista",
-            "Activitat", "Feina", "Desat", "Gregal Docs", "Els teus vents")
+        val order = listOf("Nova conversa", "Avui", "Converses", "Totes les converses",
+            "Gregal Docs", "Automatitzacions", "Desat")
         val tops = order.map(::top)
         for (i in 1 until order.size) assertTrue("${order[i - 1]} above ${order[i]}: $tops", tops[i - 1] < tops[i])
         // Configuració is pinned at the foot: scrolling to the last space leaves it below, where it was.
         val settings = top("Configuració")
-        ui.onNodeWithText("Els teus vents").performScrollTo()
+        ui.onNodeWithText("Desat").performScrollTo()
         assertEquals(settings, top("Configuració"))
-        assertTrue(top("Els teus vents") < settings)
+        assertTrue(top("Desat") < settings)
     }
 
     @Test fun `Settings is one row that opens the settings page instead of unfolding`() {

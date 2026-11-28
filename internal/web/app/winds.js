@@ -689,89 +689,95 @@
     const start = idHash(w) % barretines.length, gap = c => { const d = Math.abs(hue(c) - hue(fill)); return Math.min(d, 360 - d); };
     return barretines.map((_, i) => barretines[(start + i) % barretines.length][1]).find(c => gap(c) >= 30);
   }
+  // Minairó (squircle net estil modern + mitologia catalana divertida: clàssic, Tió, Dama d'Aigua i Follet/Drac).
   function minairo(svg, w, s, fill, ink, large, small, seed) {
     const full = !!large, id = 'wf' + (++faceSerial), defs = svgNode('defs', {}), url = suffix => 'url(#' + id + suffix + ')', space = { gradientUnits:'userSpaceOnUse' };
-    const [rx, ry, cy] = { o:[24, 23.5, 49], n:[26.5, 22, 50.5], s:[22, 25, 48] }[s[2]], top = cy - ry, R = Math.max(rx, ry);
-    const L = small ? 67 : { n:63.5, s:67.5, o:71, t:74.5 }[s[1]], deg = direction(w), fold = deg % 180 ? (deg < 180 ? -1 : 1) : seed % 2 ? 1 : -1;
-    const deep = mix(fill, '#1B1530', .4), core = mix(fill, '#1B1530', .6), band = '#17141A', crease = mix(beardBottom, '#1B1530', .25), barretina = barretinaOf(w, fill);
-    const mouthInk = mix(red, '#1B1530', .65), nose = mix(fill, '#E4577A', .5), mirror = { transform:'matrix(-1 0 0 1 80 0)' };
-    // Moduli prime to the 2 and 3 above, so ids one letter apart still differ.
-    const brows = small ? '' : ['straight', 'arched', 'bushy'][seed % 7 % 3], moustache = small ? 'lobes' : ['lobes', 'walrus', 'handlebar'][seed % 11 % 3];
+    const variant = seed % 4; // 0: Minairó, 1: Tió, 2: Dama d'Aigua, 3: Follet/Drac
+    const baseFill = variant === 1 ? mix(fill, '#8B5A3C', .62) : fill;
+    const deg = direction(w), fold = deg % 180 ? (deg < 180 ? -1 : 1) : seed % 2 ? 1 : -1;
+    const deep = mix(baseFill, '#141126', .42), hi = mix(baseFill, '#FFFFFF', .34), band = '#17141A', barretina = barretinaOf(w, baseFill);
+    const mirror = { transform:'matrix(-1 0 0 1 80 0)' };
+    const bx = 16, by = 26, bw = 48, bh = 43, br = 16;
     defs.append(
-      shapes(svgNode('radialGradient', { id:id + 'v', ...space, cx:num(40 - .38 * rx), cy:num(cy - .5 * ry), r:num(1.9 * R) }), stops([[0, mix(fill, '#FFFFFF', .3), 1], [.45, fill, 1], [1, deep, 1]])),
-      shapes(svgNode('radialGradient', { id:id + 'h', cx:.3, cy:.2, r:.95 }), stops([[0, mix(barretina, '#FFFFFF', .3), 1], [.5, barretina, 1], [1, mix(barretina, '#1B1530', .35), 1]])),
-      shapes(svgNode('linearGradient', { id:id + 'f', x1:0, y1:0, x2:.25, y2:1 }), stops([[0, beardTop, 1], [.55, beardTop, 1], [1, beardBottom, 1]])),
-      shapes(svgNode('radialGradient', { id:id + 'q', cx:.35, cy:.3, r:.7 }), stops([[0, mix(nose, '#FFFFFF', .45), 1], [1, nose, 1]])),
-      shapes(svgNode('radialGradient', { id:id + 'b' }), stops([[0, '#E4577A', .45], [1, '#E4577A', 0]])),
-      shapes(svgNode('radialGradient', { id:id + 'i', cy:.4 }), stops([[0, core, .4], [1, core, 0]])),
-      shapes(svgNode('clipPath', { id:id + 'c' }), [['ellipse', { cx:40, cy, rx, ry }]]));
+      shapes(svgNode('linearGradient', { id:id + 'v', ...space, x1:20, y1:24, x2:60, y2:72 }), stops([[0, hi, 1], [.42, baseFill, 1], [1, deep, 1]])),
+      shapes(svgNode('linearGradient', { id:id + 'h', x1:0, y1:0, x2:.8, y2:1 }), stops([[0, mix(barretina, '#FFFFFF', .32), 1], [.55, barretina, 1], [1, mix(barretina, '#1B1530', .38), 1]])),
+      shapes(svgNode('radialGradient', { id:id + 'b' }), stops([[0, '#FF6B8B', .48], [1, '#FF6B8B', 0]])),
+      shapes(svgNode('clipPath', { id:id + 'c' }), [['rect', { x:bx, y:by, width:bw, height:bh, rx:br }]]));
     svg.append(defs);
     svg.setAttribute('data-avatar', 'minairo');
-    svg.setAttribute('data-barretina', barretina); // the clay minairó (characters.js) tints its barretina with it
+    svg.setAttribute('data-barretina', barretina);
     if (large === true) {
-      const ground = mix(fill, '#0B0C14', .72);
-      defs.append(shapes(svgNode('radialGradient', { id:id + 'g' }), stops([[0, ground, .5], [1, ground, 0]])));
-      shapes(svg, [['ellipse', { class:'wf-ground', cx:40, cy:73, rx:22, ry:4.2, fill:url('g') }]]);
+      const ground = mix(baseFill, '#0B0C14', .72);
+      defs.append(shapes(svgNode('radialGradient', { id:id + 'g' }), stops([[0, ground, .45], [1, ground, 0]])));
+      shapes(svg, [['ellipse', { class:'wf-ground', cx:40, cy:73.5, rx:20, ry:3.8, fill:url('g') }]]);
     }
-    const head = group(group(group(svg, 'wf-pose'), 'wf-figure'), '', full ? { transform:'translate(4 3) scale(.9)' } : {});
-    // Accessories are drawn on the right and mirrored to the side away from the tip.
-    const away = fold > 0 ? mirror : {}, thing = small ? -1 : seed % 3;
-    if (thing === 2) shapes(group(head, 'wf-pedra', away), [['ellipse', { cx:num(40 + rx + 5), cy:num(cy + ry - 2), rx:5.2, ry:3.8, fill:pebbleGrey }],
-      ['ellipse', { cx:num(40 + rx + 3.6), cy:num(cy + ry - 3.6), rx:2.2, ry:1.1, fill:'#FFFFFF', opacity:.45 }]]);
-    shapes(head, [-1, 1].map(side => ['ellipse', { class:'wf-foot wf-foot-' + (side < 0 ? 'l' : 'r'), cx:num(40 + side * .42 * rx), cy:num(cy + ry - .5), rx:5.6, ry:3.4, fill:deep }]));
-    shapes(head, [['ellipse', { class:'wf-body', cx:40, cy, rx, ry, fill:url('v') }]]);
-    shapes(group(head, '', { 'clip-path':url('c') }), [...relief(defs, id, fill, 40, cy, rx, ry, small).filter(([, a]) => a.class === 'wf-shade' || a.class === 'wf-rim'),
-      // The barretina sits into the head and shades the brow under it.
-      ['ellipse', { cx:40, cy:num(top + 11), rx:num(rx * .9), ry:3.6, fill:core, opacity:.28 }]]);
-    shapes(head, [-1, 1].map(side => ['ellipse', { cx:num(40 + side * .66 * rx), cy:num(cy - 3.5), rx:4.6, ry:3.2, fill:url('b') }]));
-    eyePair(head, defs, id, { s, fill, ink, volume:url('v'), inset:full && url('i'), small, xs:[num(40 - .34 * rx), num(40 + .34 * rx)], y:cy - 10, k:.84 });
-    // The beard's right half as cubic segments from under the nose to the tip,
-    // in (share of the body's half width, y); the left half goes back mirrored.
-    const beard = group(head, 'wf-beard'), pt = (f, y) => num(40 + f * rx) + ' ' + num(y);
-    const half = side => [[[.28, cy - .5], [.58, cy - 1], [.82, cy - 5.5]], [[.94, cy + 1], [.84, L - 12], [.58, L - 5.5]], [[.47, L - 2.5], [.34, L - 4], [.25, L - 2]], [[.16, L], [.07, L], [0, L + .8]]]
-      .map(c => c.map(([f, y]) => pt(side * f, y)));
-    const right = half(1), left = half(-1);
-    shapes(beard, [['path', { d:`M${pt(0, cy - 2.5)}` + right.map(c => 'C' + c.join(' ')).join('') + [3, 2, 1, 0].map(i => `C${left[i][1]} ${left[i][0]} ${i ? left[i - 1][2] : pt(0, cy - 2.5)}`).join('') + 'Z', fill:url('f') }]]);
-    if (!small) shapes(beard, [['path', { d:[-.4, 0, .4].map(f => `M${pt(f, cy + 7)}Q${pt(f * 1.15, (cy + L) / 2)} ${pt(f * .55, L - 6)}`).join(''), fill:'none', stroke:crease, 'stroke-width':1, 'stroke-linecap':'round', opacity:.6 }]]);
-    const mouth = group(beard, 'wf-mouth');
-    if (s[1] === 'o') shapes(mouth, [['ellipse', { cx:40, cy:cy + 5.4, rx:2.6, ry:2.4, fill:mouthInk }]]);
-    else shapes(mouth, [['path', { d:s[1] === 'n' ? `M37.6 ${cy + 5.2}h4.8` : `M37.2 ${cy + 4.4}q2.8 3 5.6 0`, fill:'none', stroke:mouthInk, 'stroke-width':1.8, 'stroke-linecap':'round' }]]);
-    shapes(group(beard, 'wf-worry', { display:'none' }), [['path', { d:`M36.8 ${cy + 6}q1.6-1.6 3.2 0t3.2 0`, fill:'none', stroke:mouthInk, 'stroke-width':1.8, 'stroke-linecap':'round' }]]);
-    // The moustache from under the nose, over the mouth and clear of it: two
-    // soft lobes, drooping walrus ends, or handlebar ends curled up.
-    const lip = { lobes:[[[.2, -5.4], [.6, -4.6], [.66, .2]], [[.52, 3.2], [.2, 2.8], [0, .6]]],
-      walrus:[[[.24, -5.6], [.72, -4.4], [.74, 3.8]], [[.5, 4.2], [.2, 2.4], [0, .6]]],
-      handlebar:[[[.2, -5.2], [.55, -4.4], [.74, -1.4]], [[.84, -.2], [1, -1.8], [.94, -4.8]], [[.92, 1.4], [.4, 3.2], [0, .6]]] }[moustache];
-    shapes(group(beard, 'wf-moustache wf-moustache-' + moustache), [-1, 1].map(side => ['path', { d:`M${pt(0, cy - 1.8)}` + lip.map(c => 'C' + c.map(([f, dy]) => pt(side * f, cy + dy)).join(' ')).join('') + 'Z', fill:beardTop, stroke:crease, 'stroke-width':small ? 0 : .8 }]));
-    shapes(head, [['circle', { cx:40, cy:num(cy - 2.6), r:small ? 4.4 : 3.8, fill:url('q') }]]);
-    // The barretina, drawn for the round body and fitted to this one: a low
-    // crown, and the tube rising off it, folding over and hanging by the head.
-    const cap = group(head, 'wf-barretina', { transform:`translate(40 ${num(top - 25.5)}) scale(${num(rx / 24)} 1) translate(-40 0)` });
-    shapes(cap, [['path', { d:'M17 32C17.5 22 27.5 16 40 16S62.5 22 63 32Z', fill:url('h') }]]);
+    const head = group(group(group(svg, 'wf-pose'), 'wf-figure'), '', full ? { transform:'translate(4 2) scale(.9)' } : {});
+    const away = fold > 0 ? mirror : {};
+
+    // Cos squircle net amb brillantor superior suau
+    shapes(head, [['rect', { class:'wf-body', x:bx, y:by, width:bw, height:bh, rx:br, fill:url('v') }]]);
+    shapes(group(head, '', { 'clip-path':url('c') }), [
+      ['ellipse', { cx:40, cy:27, rx:22, ry:6, fill:'#FFFFFF', opacity:.16 }],
+      ['rect', { x:bx, y:by, width:bw, height:bh, rx:br, fill:'none', stroke:'#FFFFFF', 'stroke-opacity':.16, 'stroke-width':1.2 }],
+      ...(variant === 1 && !small ? [
+        ['path', { d:'M20 40c6 1.5 11 0 16 1M46 58c5-1.5 10 0 14-1', fill:'none', stroke:deep, 'stroke-width':1.3, 'stroke-linecap':'round', opacity:.35 }]
+      ] : [])
+    ]);
+
+    // Ulls expressius estil modern (grans, nets i amb reflex)
+    const eyeFill = variant === 1 ? '#FFF8EE' : '#FFFFFF';
+    const eyes = group(group(head, 'wf-eyes'), 'wf-aim');
+    [-1, 1].forEach(side => {
+      const ex = 40 + side * 9.5, ey = 46.5;
+      shapes(eyes, [
+        ['rect', { class:'wf-eye', x:num(ex - 3.8), y:num(ey - 5.2), width:7.6, height:10.4, rx:3.8, fill:eyeFill }],
+        ...(small ? [] : [['circle', { cx:num(ex + 1.2), cy:num(ey - 2.2), r:1.35, fill:deep, opacity:.18 }]])
+      ]);
+    });
+
+    // Galtes i somriure suau per al Tió (o quan s'alegra)
+    if (!small || variant === 1) {
+      shapes(head, [-1, 1].map(side => ['ellipse', { cx:num(40 + side * 14.5), cy:53.5, rx:4.2, ry:2.6, fill:url('b') }]));
+    }
+    if (variant === 1 && !small) {
+      shapes(group(head, 'wf-mouth'), [['path', { d:'M35.5 56q4.5 3.6 9 0', fill:'none', stroke:'#FFF8EE', 'stroke-width':2, 'stroke-linecap':'round', opacity:.9 }]]);
+    }
+
+    // Barretina minimalista i icònica al capdamunt
+    const cap = group(head, 'wf-barretina', { transform:'translate(0 -2)' });
+    shapes(cap, [['path', { d:'M21 29C22 19.5 30 14 40 14S58 19.5 59 29Z', fill:url('h') }]]);
     shapes(group(group(cap, '', fold < 0 ? mirror : {}), 'wf-tip'), [
-      ['path', { d:'M30 18C28.5 8.5 33 1.5 42.5 1C52.5 .5 60.5 5 64 12.5C67 18.5 68 27 67 34.5C66.6 37.6 62.8 37.8 62.5 34.5C62.2 29 60.5 23.5 57 20C54.5 17.5 51.5 16.5 49 16.5C43 16 36 16.5 30 18Z', fill:url('h') }],
-      // The hanging part turns away from the light and lies on the crown.
-      ['path', { d:'M64 12.5C67 18.5 68 27 67 34.5C66.6 37.6 62.8 37.8 62.5 34.5C62.2 29 60.5 23.5 57 20Z', fill:band, opacity:.32 }],
-      ...small ? [] : [['path', { d:'M62.5 34.5C62.2 29 60.5 23.5 57 20C54.5 17.5 51.5 16.5 49 16.5', fill:'none', stroke:band, 'stroke-width':1.2, 'stroke-linecap':'round', opacity:.6 }]]]);
-    shapes(cap, [['path', { class:'wf-band', d:'M15.5 37.5C19 32 29 30.5 40 30.5S61 32 64.5 37.5L63.2 29C59 24.5 50 22.5 40 22.5S21 24.5 16.8 29Z', fill:band }],
-      ...small ? [] : [['path', { d:'M17.5 29.4C22 25.6 31 24 40 24S58 25.6 62.5 29.4', fill:'none', stroke:'#FFFFFF', 'stroke-width':.9, 'stroke-linecap':'round', opacity:.18 }]]]);
-    // Glasses and white brows sit over the band's edge, so both read on it and on the body.
-    const eyeAt = side => ({ x:40 + side * .34 * rx, y:cy - 10 }), at = (side, dx, dy) => { const e = eyeAt(side); return num(e.x + side * dx) + ' ' + num(e.y + dy); };
-    if (!small && seed % 13 === 5) shapes(group(head, 'wf-glasses'), [
-      ...[-1, 1].map(side => ['circle', { cx:num(eyeAt(side).x), cy:cy - 10, r:7.4, fill:'#FFFFFF', 'fill-opacity':.14, stroke:'#2B2530', 'stroke-width':1.4 }]),
-      ['path', { d:`M${at(-1, -7.4, 0)}Q40 ${cy - 12.5} ${at(1, -7.4, 0)}`, fill:'none', stroke:'#2B2530', 'stroke-width':1.4 }]]);
-    if (brows) shapes(group(head, 'wf-brows wf-brows-' + brows), [-1, 1].map(side => ['path', { d:{
-      straight:`M${at(side, -5, -8.2)}L${at(side, 5, -7.4)}L${at(side, 5, -5.2)}L${at(side, -5, -6)}Z`,
-      arched:`M${at(side, -5.6, -5.6)}Q${at(side, 0, -11.6)} ${at(side, 5.8, -5.8)}Q${at(side, 0, -8.6)} ${at(side, -5.6, -5.6)}Z`,
-      bushy:`M${at(side, -6.4, -5)}C${at(side, -5, -10.8)} ${at(side, 4, -11.6)} ${at(side, 7.2, -7.6)}C${at(side, 6, -5.4)} ${at(side, 2, -6.4)} ${at(side, -1, -5.2)}C${at(side, -3, -4.6)} ${at(side, -5, -4.2)} ${at(side, -6.4, -5)}Z`,
-    }[brows], fill:beardTop, stroke:crease, 'stroke-width':.8, 'stroke-linejoin':'round' }]));
-    if (thing === 1) shapes(group(cap, 'wf-herba', away), [['path', { d:'M58 30C61 24 63 19 67 14.5', fill:'none', stroke:leaf, 'stroke-width':1.4, 'stroke-linecap':'round' }],
-      ['ellipse', { cx:62.6, cy:22.5, rx:3, ry:1.3, transform:'rotate(-40 62.6 22.5)', fill:leaf }], ['ellipse', { cx:65.4, cy:20.2, rx:2.6, ry:1.1, transform:'rotate(25 65.4 20.2)', fill:leaf }],
-      ...[0, 72, 144, 216, 288].map(a => ['ellipse', { cx:67, cy:11.9, rx:1.5, ry:2.4, transform:`rotate(${a} 67 14.5)`, fill:wort }]), ['circle', { cx:67, cy:14.5, r:1.3, fill:mix(wort, barretina, .4) }]]);
-    // The needle case stands by its feet, as tall as half of it.
-    if (thing === 0) shapes(group(group(head, 'wf-canut', away), '', { transform:`translate(${num(40 + rx + 4.5)} ${num(cy + ry - 9)}) rotate(8)` }), [
-      ['rect', { x:-3.4, y:-9, width:6.8, height:18, rx:3, fill:boxwood }], ['rect', { x:-3.7, y:-10, width:7.4, height:4, rx:1.8, fill:mix(boxwood, '#1B1530', .35) }],
-      ['path', { d:'M-1.5-4v10', stroke:'#FFFFFF', 'stroke-width':1.2, 'stroke-linecap':'round', opacity:.45 }], ['path', { d:'M-3.4 3h6.8', stroke:mix(boxwood, '#1B1530', .2), 'stroke-width':.8 }]]);
+      ['path', { d:'M31 16C30 8 34.5 2 43 2C51.5 2 58 6.5 60.5 13.5C62.5 19 63 25.5 61.5 30.5C61 32.8 57.8 32.8 57.6 30C57.4 25 56 20.5 53 18C50.5 16 46 15.5 31 16Z', fill:url('h') }],
+      ['path', { d:'M58 14C60.5 18.5 61.5 25 60.5 30.5C60 32.2 58 32.2 57.8 30C57.5 25.5 56.2 21 53.8 18.5Z', fill:band, opacity:.24 }]
+    ]);
+    shapes(cap, [['path', { class:'wf-band', d:'M19.5 31.5C23.5 27.2 31.5 26 40 26S56.5 27.2 60.5 31.5L59.4 25.5C55.5 22 48 20.5 40 20.5S24.5 22 20.6 25.5Z', fill:band }]]);
+
+    // Detalls de mitologia catalana divertida (només quan no és minúscul)
+    if (!small) {
+      if (variant === 0) {
+        // Canut màgic dels Minairons al costat
+        shapes(group(group(head, 'wf-canut wf-spark', away), '', { transform:'translate(66 57) rotate(10)' }), [
+          ['rect', { x:-3, y:-7.5, width:6, height:15, rx:2.8, fill:boxwood }],
+          ['rect', { x:-3.3, y:-8.2, width:6.6, height:3.4, rx:1.5, fill:mix(boxwood, '#1B1530', .35) }],
+          ['path', { d:'M-1.2-3v7.5', stroke:'#FFFFFF', 'stroke-width':1, 'stroke-linecap':'round', opacity:.4 }]
+        ]);
+      } else if (variant === 2) {
+        // Dama d'Aigua: espurna lluminosa i gota d'aigua flotant
+        shapes(group(head, 'wf-fada wf-spark', away), [
+          ['path', { d:'M66 35C66 35 70 40.5 70 43.2A4 4 0 1 1 62 43.2C62 40.5 66 35 66 35Z', fill:mix(baseFill, '#9BE7FF', .65) }],
+          ['path', { d:'M63 26l1.1 2.6 2.6 1.1-2.6 1.1-1.1 2.6-1.1-2.6-2.6-1.1 2.6-1.1Z', fill:'#FFFFFF', opacity:.85 }]
+        ]);
+      } else if (variant === 3) {
+        // Follet / Drac simpàtic: banyetes daurades suaus i espurna càlida
+        shapes(group(head, 'wf-drac'), [-1, 1].map(side =>
+          ['path', { d:`M${num(40 + side * 14)} 24Q${num(40 + side * 20)} 15 ${num(40 + side * 23)} 18Q${num(40 + side * 21)} 23 ${num(40 + side * 17)} 26Z`, fill:'#F5B841' }]
+        ));
+        shapes(group(head, 'wf-spark', away), [
+          ['circle', { cx:67, cy:36, r:2.6, fill:'#FFB84D' }],
+          ['circle', { cx:67, cy:36, r:5, fill:'#FFB84D', opacity:.25 }]
+        ]);
+      }
+    }
     return svg;
   }
   // Pelut (155): a round ball of short fur in the wind's colour, a smooth face

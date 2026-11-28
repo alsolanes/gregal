@@ -273,8 +273,17 @@ html body #side #navRail .nav-item.active .nav-icon { color:var(--accent-hi); }
   border:solid currentColor; border-width:0 1.5px 1.5px 0; transform:rotate(45deg);
 }
 /* ＋ i ⎇＋ al costat del projecte quan només hi ha una sessió (panels.js). */
-body:not(.desktop) #sessionTabs.single:not(:has(.session-error)),
-html body.tabs-inline #top #sessionTabs.single:not(:has(.session-error)) { display:none; }
+/* Les pestanyes superiors s'amaguen (les converses viuen al lateral); només es mostra si hi ha error de sessió. */
+#sessionTabs:not(:has(.session-error)),
+html body.tabs-inline #top #sessionTabs:not(:has(.session-error)) { display:none !important; }
+body.desktop #top { -webkit-app-region:drag; padding-right:148px; }
+body.desktop.mac #top { padding-left:82px; padding-right:14px; }
+body.desktop #top :is(button, .folder-chip, .top-meta, .top-session-title) { -webkit-app-region:no-drag; }
+.top-session-title {
+  min-width:0; max-width:clamp(140px, 30vw, 420px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  color:var(--muted); font-size:13px; font-weight:500; padding-left:8px; border-left:1px solid var(--line);
+}
+@media (max-width:760px) { .top-session-title { display:none; } }
 #toolDockClose { display:inline-grid; }
 #toolDockClose, #sideClose { place-items:center; padding:0; }
 :is(#toolDockClose, #sideClose) .ui-icon { width:16px; height:16px; }
@@ -714,9 +723,17 @@ html body:not(.shell-winds) #main .work-group {
   border:0; border-radius:0; background:transparent;
 }
 html body:not(.shell-winds) #main .work-group > summary {
-  min-height:28px; padding:4px 8px; gap:8px; border:0; border-radius:8px;
+  min-height:28px; padding:4px 6px; gap:8px; border:0; border-radius:8px;
   background:transparent; color:var(--muted); font-size:13px;
   transition:background-color .15s, color .15s;
+}
+html body:not(.shell-winds) #main .work-group > summary::before { display:none; }
+html body:not(.shell-winds) #main .work-group > summary::after {
+  content:'›'; font-size:14px; line-height:1; color:var(--faint);
+  transition:transform .15s ease, color .15s ease; order:4;
+}
+html body:not(.shell-winds) #main .work-group[open] > summary::after {
+  transform:rotate(90deg); color:var(--muted);
 }
 html body:not(.shell-winds) #main .work-group.running > summary {
   background:transparent; border:0; color:var(--ink);
@@ -733,24 +750,34 @@ html body:not(.shell-winds) #main .work-group[open] > summary {
 html body:not(.shell-winds) #main .work-group:not(.running):not(.failed)[open] > summary {
   border-bottom:0;
 }
-html body:not(.shell-winds) #main .work-group .wg-label { color:var(--muted); font-weight:500; }
-html body:not(.shell-winds) #main .work-group.running .wg-label { color:var(--ink); font-weight:550; }
+@keyframes textShimmer {
+  0% { background-position:120% 0; }
+  100% { background-position:-100% 0; }
+}
+html body:not(.shell-winds) #main .work-group .wg-label { color:var(--muted); font-weight:450; order:1; }
+html body:not(.shell-winds) #main .work-group.running > summary:has(.wg-now:not(:empty)) .wg-label { display:none; }
+html body:not(.shell-winds) #main .work-group.running .wg-label,
+html body:not(.shell-winds) #main .work-group.running .wg-now,
+#main .step-chip.pending .chip-txt,
+#main .wg-think-head {
+  font-weight:500;
+  background:linear-gradient(90deg, var(--muted) 0%, var(--muted) 35%, var(--ink) 50%, var(--muted) 65%, var(--muted) 100%);
+  background-size:220% 100%;
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+  animation:textShimmer 2.1s linear infinite;
+}
 html body:not(.shell-winds) #main .work-group > summary:hover .wg-label { color:var(--ink); }
-html body:not(.shell-winds) #main .work-group .wg-dot {
-  width:7px; height:7px; background:var(--green); box-shadow:none; opacity:.85;
-}
-html body:not(.shell-winds) #main .work-group.running .wg-dot {
-  width:12px; height:12px; background:transparent; box-shadow:none; opacity:1;
-  border:1.6px solid color-mix(in srgb, var(--accent) 26%, transparent);
-  border-top-color:var(--accent-hi); animation:wgSpin .85s linear infinite;
-}
+html body:not(.shell-winds) #main .work-group:not(.failed) .wg-dot { display:none; }
 html body:not(.shell-winds) #main .work-group.failed .wg-dot {
-  background:var(--red); box-shadow:none;
+  width:7px; height:7px; background:var(--red); box-shadow:none; order:0;
 }
+html body:not(.shell-winds) #main .work-group .wg-time { order:2; color:var(--faint); font-size:12.5px; }
+html body:not(.shell-winds) #main .work-group .wg-meta { order:3; color:var(--faint); font-size:12px; }
 html body:not(.shell-winds) #main .work-group .wg-now {
-  margin-left:auto; padding:0; border-radius:0;
-  background:transparent; color:var(--faint);
-  font-size:12px; font-weight:450; line-height:1.4; max-width:48%;
+  margin-left:0; padding:0; border-radius:0; order:1;
+  font-size:13px; line-height:1.4; max-width:72%;
 }
 html body:not(.shell-winds) #main .work-group.stalled .wg-now {
   background:transparent; color:var(--amber);
@@ -1098,6 +1125,52 @@ html body:not(.shell-winds) #top .project-heading #topSessionNew {
   #main .qcard .qopt, #heroMore .home-recent-row { transition:none; }
 }
 
+/* ---------- Vuitena passada: Gregal Docs modernitzat ---------- */
+#docsPanel {
+  background:color-mix(in srgb, var(--panel) 95%, var(--bg));
+  border-left-color:var(--line);
+}
+#docsPanel header {
+  min-height:50px; padding:8px 12px; gap:6px;
+  background:color-mix(in srgb, var(--panel) 90%, transparent);
+  backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+}
+#docsList { border-radius:9px; padding:0 10px; font-weight:600; }
+#docsDownload { border-radius:9px; }
+#docsWindow, #docsClose { border-radius:8px; }
+#docsBody { padding:18px 22px; }
+#docsBody .doc-toolbar {
+  margin:0 -22px 22px; padding:8px 14px;
+  background:color-mix(in srgb, var(--panel) 90%, transparent);
+  backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+}
+#docsPanel .docs-home h2 { font-size:21px; font-weight:650; letter-spacing:-.015em; }
+#docsPanel .docs-home-new { gap:10px; }
+#docsPanel .docs-home-new input {
+  height:42px; padding:0 14px; border-radius:12px; border-color:var(--line);
+  background:var(--surface); transition:border-color .15s, box-shadow .15s;
+}
+#docsPanel .docs-home-new input:focus {
+  outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);
+}
+#docsPanel .docs-home-new button {
+  padding:14px; border-radius:14px; border-color:var(--line);
+  background:color-mix(in srgb, var(--surface) 88%, transparent);
+  transition:border-color .16s, background-color .16s, transform .16s, box-shadow .16s;
+}
+#docsPanel .docs-home-new button:hover {
+  transform:translateY(-1px); box-shadow:var(--ombra-suau);
+}
+#docsPanel .docs-home-item {
+  padding:10px 12px; border-radius:12px; border:1px solid transparent;
+  transition:background-color .14s, border-color .14s;
+}
+#docsPanel .docs-home-item:hover {
+  background:var(--surface); border-color:var(--line);
+}
+#docsPanel .docs-kind { width:36px; height:36px; border-radius:10px; }
+#docsPanel .docs-home-empty { border-radius:14px; padding:22px; }
+
 /* ---------- Setena passada: #productSwitch discret ---------- */
 html body #side #productSwitch {
   margin:2px 12px 8px; padding:2px; border-radius:9px;
@@ -1107,6 +1180,10 @@ html body #side #productSwitch button {
   min-height:26px; padding:0 8px; border-radius:7px; font-size:12px;
 }
 @media (prefers-reduced-motion:reduce) {
+  html body:not(.shell-winds) #main .work-group.running .wg-label,
+  html body:not(.shell-winds) #main .work-group.running .wg-now,
+  #main .step-chip.pending .chip-txt,
+  #main .wg-think-head { animation:none; background:none; color:var(--ink); -webkit-background-clip:border-box; background-clip:border-box; }
 }
 
 /* ---------- Sisena passada: autocompletat, cua, inspector, fitxers i modals ---------- */

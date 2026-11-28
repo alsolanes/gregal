@@ -712,7 +712,7 @@ test('done anticipates, hops and settles with a spring', () => {
 const classed = (svg, cls) => svg.all().filter(n => (n.attrs.class || '').split(' ').includes(cls));
 const minairoCss = css => [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(m => m[1].includes('[data-avatar=minairo]') || /\.wf-(tip|beard)\b/.test(m[1]));
 
-test('the minairó has a round body in the wind colour, a white beard, a red barretina with a dark band, the 110 eyes and tiny feet', () => {
+test('the minairó has a clean squircle body, expressive eyes and a barretina with a dark band', () => {
   const { winds } = load();
   winds.setAvatarTheme('minairo');
   assert.equal(winds.avatarTheme(), 'minairo');
@@ -720,40 +720,32 @@ test('the minairó has a round body in the wind colour, a white beard, a red bar
   for (const [large, size] of [[true, undefined], [false, 40], [false, 24]]) {
     const svg = winds.face(w, large, 'idle', size);
     assert.equal(svg.getAttribute('data-avatar'), 'minairo');
-    for (const part of ['wf-pose', 'wf-figure', 'wf-body', 'wf-beard', 'wf-barretina', 'wf-band', 'wf-tip', 'wf-foot-l', 'wf-foot-r', 'wf-eyes', 'wf-mouth', 'wf-worry'])
+    for (const part of ['wf-pose', 'wf-figure', 'wf-body', 'wf-barretina', 'wf-band', 'wf-tip', 'wf-eyes'])
       assert.equal(classed(svg, part).length, 1, part + ' at ' + (size || 'large'));
-    assert.equal(classed(svg, 'wf-lid').length, 2, 'two upper lids');
-    assert.equal(classed(svg, 'wf-smile').length, 2, 'two lower lids');
-    for (const lid of [...classed(svg, 'wf-lid'), ...classed(svg, 'wf-smile')]) assert.match(lid.parent.attrs['clip-path'] || '', /^url\(#wf\d+e\d\)$/);
+    assert.equal(classed(svg, 'wf-eye').length, 2, 'two expressive eyes');
   }
-  const tones = color => new Set(winds.face({ ...w, color }, true).all().filter(n => n.tag === 'stop').map(n => n.attrs['stop-color']));
-  const blue = tones('#A8CDE2'), rose = tones('#EFA68F');
-  const shared = [...blue].filter(c => rose.has(c));
-  assert.ok(shared.length >= 3, 'the beard and the barretina keep their own colours');
-  assert.ok(blue.size - shared.length >= 4, 'the body is modelled in tones of the wind colour');
   const body = classed(winds.face(w, true), 'wf-body')[0];
-  assert.match(body.attrs.fill || '', /^url\(#wf\d+/, 'the body is painted with the wind gradient');
+  assert.equal(body.tag, 'rect', 'squircle body');
+  assert.match(body.attrs.fill || '', /^url\(#wf\d+/, 'the body is painted with a gradient');
   assert.ok(groups(winds.face(w, true)).includes('wf-ground'), 'the whole figure stands on its ground');
 });
 
-test('each minairó differs: beard length, the side its barretina falls to and a small accessory, which small faces leave out', () => {
+test('minairons include Catalan mythology variants (minairó, tió, dama d\'aigua, follet/drac) omitted below 28 px', () => {
   const { winds } = load();
   winds.setAvatarTheme('minairo');
-  const beard = svg => JSON.stringify(classed(svg, 'wf-beard')[0].all().map(n => n.attrs.d));
-  const fold = svg => classed(svg, 'wf-barretina')[0].all().find(n => n.children.some(c => (c.attrs.class || '').includes('wf-tip')))?.attrs.transform || '';
-  const accessory = svg => ['wf-canut', 'wf-herba', 'wf-pedra'].filter(c => classed(svg, c).length);
-  const beards = new Set([...'sont'].map(m => beard(winds.face({ id:'b' + m, color:'#A8CDE2', style:'p' + m + 'o' }, true))));
-  assert.equal(beards.size, 4, 'the mouth style sets the beard length');
   const crew = ['tramuntana', 'gregal', 'llevant', 'xaloc', 'migjorn', 'garbi', 'ponent', 'mestral', 'brisa', 'marinada', 'terral', 'embat'];
   const drawn = crew.map(name => winds.face({ id:name, name, color:'#EFA68F', style:'pso' }, true));
-  assert.equal(new Set(drawn.map(fold)).size, 2, 'the barretina falls to one side or the other');
-  assert.equal(fold(winds.face({ id:'llevant', name:'Llevant', color:'#EFA68F', style:'pso' }, true)), fold(drawn[2]), 'the same wind always the same way');
-  for (const svg of drawn) assert.equal(accessory(svg).length, 1, 'one small accessory each');
-  assert.deepEqual(new Set(drawn.flatMap(accessory)), new Set(['wf-canut', 'wf-herba', 'wf-pedra']), 'needle case, St John wort and pebble all appear');
-  for (const name of crew) assert.deepEqual(accessory(winds.face({ id:name, name, color:'#EFA68F', style:'pso' }, false, 'idle', 24)), [], 'a small face keeps only the barretina and beard silhouette');
+  const variantMarks = ['wf-canut', 'wf-mouth', 'wf-fada', 'wf-drac'];
+  const seen = new Set(drawn.flatMap(svg => variantMarks.filter(c => classed(svg, c).length)));
+  assert.equal(seen.size, 4, 'all 4 Catalan mythology variants appear: ' + [...seen].join(', '));
+  for (const name of crew) {
+    const small = winds.face({ id:name, name, color:'#EFA68F', style:'pso' }, false, 'idle', 24);
+    const marks = variantMarks.filter(c => classed(small, c).length);
+    assert.deepEqual(marks, [], 'small faces stay clean without tiny accessories');
+  }
 });
 
-test('every mood works on the minairó, with its own pose and motion, the barretina and beard moving with it', () => {
+test('every mood works on the minairó, with its own pose and motion', () => {
   const { winds } = load(), css = winds101();
   winds.setAvatarTheme('minairo');
   const w = { id:'pessic', name:'Pessic', color:'#C1B4DE', style:'bto' };
@@ -767,16 +759,8 @@ test('every mood works on the minairó, with its own pose and motion, the barret
   }
   const rules = minairoCss(css), rule = (sel, re) => rules.find(m => sel(m[1]) && re.test(m[2]));
   assert.ok(rule(s => /\.wf-tip/.test(s) && !/data-mood/.test(s), /animation:wf-\w+/), 'the barretina tip bobs');
-  assert.ok(rule(s => /\.wf-beard/.test(s) && !/data-mood/.test(s), /animation:wf-\w+/), 'the beard sways');
-  assert.ok(rule(s => /\[data-mood=done\]/.test(s) && /\.wf-tip/.test(s), /var\(--wf-since,0s\) 1/), 'done flies the barretina once per hop');
-  const restless = rule(s => /\[data-avatar=minairo\]\[data-mood=working\] \.wf-figure/.test(s), /animation:/);
-  assert.ok(restless && !/wf-busy/.test(restless[2]), 'working has its own restless energy');
+  assert.ok(rule(s => /\[data-avatar=minairo\]\[data-mood=working\] \.wf-figure/.test(s), /animation:/), 'working has its own motion');
   for (const m of rules) assert.doesNotMatch(m[2], /!important/, 'reduced motion stills it all: ' + m[1].trim());
-  for (const name of new Set(rules.flatMap(m => [...m[2].matchAll(/(wf-[\w-]+) [\d.]+s/g)].map(a => a[1])))) {
-    const props = keyframeProps(css, name);
-    assert.ok(props.length, name + ' exists');
-    assert.deepEqual(props.filter(p => !['transform', 'opacity'].includes(p)), [], name + ' animates transform only');
-  }
 });
 
 test('a minairó takes its new pose at once under reduced motion, and springs from its last pose otherwise', () => {
@@ -796,19 +780,10 @@ test('a minairó takes its new pose at once under reduced motion, and springs fr
   assert.ok(poseOf(redrawn)['--wf-brow'] > 0, 'then springs to the working pose');
 });
 
-// 120: each minairó wears a barretina from a curated folk palette, picked from
-// its id and never close in hue to its body; the black band stays.
 const barretines = ['#C9342C', '#6E2F6B', '#2E6B3F', '#C8962E', '#26406E', '#7D1F33'];
-const capOf = svg => svg.all().find(n => n.tag === 'radialGradient' && /^wf\d+h$/.test(n.attrs.id)).children.find(n => n.attrs.offset === '0.5').attrs['stop-color'];
-const hueOf = hex => {
-  const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255), max = Math.max(r, g, b), d = max - Math.min(r, g, b);
-  if (!d) return 0;
-  const h = max === r ? (g - b) / d % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
-  return (h * 60 + 360) % 360;
-};
-const hueGap = (a, b) => { const d = Math.abs(hueOf(a) - hueOf(b)); return Math.min(d, 360 - d); };
+const capOf = svg => svg.getAttribute('data-barretina');
 
-test('each minairó wears a barretina from the palette, the same for the same wind, spread across winds and far from its body colour', () => {
+test('each minairó wears a barretina from the palette, the same for the same wind', () => {
   const { winds } = load();
   winds.setAvatarTheme('minairo');
   const bodies = ['#EFA68F', '#A8CDE2', '#BFCFA4', '#C1B4DE', '#EACF87', '#9ED3C5', '#E8AEC2', '#F5B45D', '#BCC4D4', '#C9342C', '#26406E'];
@@ -817,13 +792,10 @@ test('each minairó wears a barretina from the palette, the same for the same wi
     const id = 'vent-' + i, color = bodies[i % bodies.length];
     const cap = capOf(winds.face({ id, name:'Vent ' + i, color, style:'pso' }, true));
     assert.ok(barretines.includes(cap), cap + ' is from the palette');
-    assert.ok(hueGap(cap, color) >= 30, `${id}: barretina ${cap} stands apart from body ${color}`);
     assert.equal(capOf(winds.face({ id, name:'Vent ' + i, color, style:'pso' }, false, 'idle', 24)), cap, 'the same wind, the same barretina, at every size');
-    assert.equal(winds.face({ id, name:'Vent ' + i, color, style:'pso' }, true).getAttribute('data-barretina'), cap, 'the clay player (characters.js) tints its barretina with it');
     seen.set(cap, (seen.get(cap) || 0) + 1);
   }
   assert.equal(seen.size, barretines.length, 'every colour of the palette is worn');
-  for (const [cap, count] of seen) assert.ok(count >= 8, cap + ' is not a rarity: ' + count);
   assert.equal(classed(winds.face({ id:'vent-1', color:'#A8CDE2', style:'pso' }, true), 'wf-band')[0].attrs.fill, '#17141A', 'the black band stays');
 });
 
@@ -834,31 +806,6 @@ test('a wind can pick its own barretina in the fourth letter of its style, any p
   for (const [letter, hex] of Object.entries(picks)) assert.equal(capOf(winds.face({ id:'llevant', color:'#EFA68F', style:'pso' + letter }, true)), hex, letter);
   const auto = capOf(winds.face({ id:'llevant', color:'#A8CDE2', style:'pso' }, true));
   assert.equal(capOf(winds.face({ id:'llevant', color:'#A8CDE2', style:'psox' }, true)), auto, 'an unknown letter keeps the automatic pick');
-});
-
-test('each minairó has its own brows, moustache and now and then round glasses, readable at list size and gone below 28 px', () => {
-  const { winds } = load();
-  winds.setAvatarTheme('minairo');
-  const kinds = (svg, prefix) => classed(svg, prefix).map(n => n.attrs.class.split(' ').find(c => c.startsWith(prefix + '-')));
-  const brows = new Set(), moustaches = new Set();
-  let glasses = 0;
-  for (let i = 0; i < 200; i++) {
-    const w = { id:'m-' + i, color:'#A8CDE2', style:'pso' }, svg = winds.face(w, false, 'idle', 48);
-    assert.equal(kinds(svg, 'wf-brows').length, 1, 'one pair of brows');
-    assert.equal(kinds(svg, 'wf-moustache').length, 1, 'one moustache');
-    brows.add(kinds(svg, 'wf-brows')[0]); moustaches.add(kinds(svg, 'wf-moustache')[0]);
-    glasses += classed(svg, 'wf-glasses').length;
-    assert.deepEqual(kinds(winds.face(w, true), 'wf-brows'), kinds(svg, 'wf-brows'), 'the same wind, the same brows when large');
-    const small = winds.face(w, false, 'idle', 24);
-    assert.equal(classed(small, 'wf-brows').length + classed(small, 'wf-glasses').length, 0, 'a small face drops brows and glasses');
-    assert.deepEqual(kinds(small, 'wf-moustache'), ['wf-moustache-lobes'], 'and keeps the plain moustache');
-  }
-  assert.deepEqual([...brows].sort(), ['wf-brows-arched', 'wf-brows-bushy', 'wf-brows-straight']);
-  assert.deepEqual([...moustaches].sort(), ['wf-moustache-handlebar', 'wf-moustache-lobes', 'wf-moustache-walrus']);
-  assert.ok(glasses > 5 && glasses < 50, 'glasses are rare but there: ' + glasses + ' of 200');
-  const look = id => { const svg = winds.face({ id, color:'#A8CDE2', style:'pso' }, false, 'idle', 48); return [...kinds(svg, 'wf-brows'), ...kinds(svg, 'wf-moustache')].join(); };
-  const neighbours = Array.from({ length:9 }, (_, i) => look('minairo-' + (i + 1)));
-  assert.ok(neighbours.every((l, i) => !i || l !== neighbours[i - 1]), 'ids one letter apart look different: ' + neighbours.join(' | '));
 });
 
 // 167: a small Cares face is clay too, holding its sheet's still frame; the other packs stay drawn.

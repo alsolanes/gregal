@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v1.103.3 - 2026-11-28 - Minairons squircle, capçalera neta, Docs modernitzat i Vents Android simple
+
+- **Nous Minairons *squircle* i mitologia catalana.** Redissenyat el pack `minairo` amb estil *squircle* net, ulls expressius amb parpelleig natural, barretina icònica i 4 variants (Minairó clàssic, Tió simpàtic, Dama d'Aigua i Follet/Drac) amb animacions suaus.
+- **Línia de treball viva amb *shimmer* gris-blanc.** El bloc de treball comença plegat en una sola línia clicable amb l'activitat actual animada i fletxa `›`.
+- **Capçalera sense pestanyes i Gregal Docs modernitzat.** S'amaga la barra de pestanyes superior, s'hi mostra el títol de la sessió activa (`#topSessionTitle`) i el botó directe de **Gregal Docs** (`#topDocsBtn`), amb panell de documents renovat.
+- **Calaix lateral de Gregal Vents Android simplificat.** Eliminades les seccions redundants i grups niuats a [Drawer.kt](android/app/src/main/java/xyz/solanes/gregal/Drawer.kt).
+
 ## v1.103.2 - 2026-11-27 - Eines clicables estil Claude/Codex i selector de presència del vent
 
 - **Bloc de treball, eines i raonament en línies de text clicables.** A [refine.css](internal/web/app/refine.css), les crides d'eines, la capçalera de treball i el raonament plegat es mostren com a línies de text netes i sense caixes que s'estenen en fer clic (estil Claude / Codex).

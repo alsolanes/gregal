@@ -244,24 +244,11 @@ private fun SimpleVentsDrawer(
                 }
                 if (winds.size > recent.size + 1) DrawerRow((if (en) "All winds · " else "Tots els vents · ") + winds.size, home && panel == "directory",
                     { close(); vm.openVentsPanel("directory") }, Icons.Rounded.Groups, muted = true)
-                DrawerRow(if (en) "New specialist" else "Nou especialista", false, { close(); vm.showWindCreator(true) }, Icons.Rounded.Add, muted = true)
-                Spacer(Modifier.height(16.dp))
-                DrawerRow(tr(lang, "winds.activity.title"), screen == Screen.Activitat, { close(); vm.openWindActivity("") }, Icons.Rounded.History)
+                Spacer(Modifier.height(12.dp))
                 val running = tasks.orEmpty().count { it.running }
-                var workOpen by rememberSaveable { mutableStateOf(false) }
-                DrawerGroup(if (en) "Work" else "Feina", Icons.Rounded.Construction, workOpen || screen == Screen.Automatitzacions, { workOpen = !workOpen }, badge = running) {
-                    DrawerRow(if (en) "In progress" else "En marxa", false, { close(); vm.openVentsPanel("work") }, Icons.Rounded.Construction)
-                    DrawerRow(if (en) "Watching" else "Vigilant", false, { close(); vm.openVentsPanel("watch") }, Icons.Rounded.Visibility)
-                    DrawerRow(if (en) "Automations" else "Automatitzacions", screen == Screen.Automatitzacions && panel != "local", { nav(Screen.Automatitzacions) }, Icons.Rounded.Alarm)
-                }
-                var savedOpen by rememberSaveable { mutableStateOf(false) }
-                DrawerGroup(if (en) "Saved" else "Desat", Icons.Rounded.Bookmark, savedOpen || screen in setOf(Screen.Desat, Screen.Notes, Screen.Webs), { savedOpen = !savedOpen }) {
-                    DrawerRow(tr(lang, "saved.tab.replies"), screen == Screen.Desat, { nav(Screen.Desat) }, Icons.Rounded.Bookmark)
-                    DrawerRow(tr(lang, "nav.notes"), screen == Screen.Notes, { nav(Screen.Notes); vm.loadNotes() }, Icons.Rounded.EditNote)
-                    DrawerRow(webCopy(lang, "title"), screen == Screen.Webs, { nav(Screen.Webs); vm.loadWebs() }, Icons.Rounded.Language)
-                }
                 DrawerRow(tr(lang, "docs.home"), screen == Screen.Docs, { close(); vm.openDocsHome() }, Icons.AutoMirrored.Rounded.Article)
-                DrawerRow(if (en) "Your winds" else "Els teus vents", false, { close(); vm.openVentsPanel(null); nav(Screen.Company); vm.openCrew() }, Icons.Rounded.Groups)
+                DrawerRow(tr(lang, "nav.automations"), screen == Screen.Automatitzacions, { nav(Screen.Automatitzacions) }, Icons.Rounded.Alarm, badge = running)
+                DrawerRow(if (en) "Saved" else "Desat", screen == Screen.Desat, { nav(Screen.Desat) }, Icons.Rounded.Bookmark)
             }
             HorizontalDivider(Modifier.padding(vertical = 6.dp, horizontal = 8.dp), color = Line)
             DrawerRow(tr(lang, "app.settings.title"), screen == Screen.Settings || screen == Screen.Prefs, { nav(Screen.Settings) }, Icons.Rounded.Settings)
