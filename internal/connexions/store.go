@@ -27,6 +27,7 @@ const (
 	ServiceICS      = "calendar-ics" // calendari per adreça secreta iCal
 	ServiceIMAP     = "mail-imap"    // correu IMAP amb contrasenya d'aplicació
 	ServiceBrowser  = "browser"      // sessió iniciada al navegador de l'ordinador
+	ServiceGoogle   = "google"       // compte de Google amb OAuth propi (calendari, correu, Drive)
 	MethodAPI       = "api"
 	MethodBrowser   = "browser"
 	CapRead         = "read"

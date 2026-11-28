@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Comptes de Google (preparat).** Connexió OAuth pròpia (PKCE, accés offline, tokens xifrats al Vault) a Preferències › Connexions, web i Android. Els vents hi llegeixen el calendari, el correu i el Drive, i amb el teu permís hi creen esdeveniments i esborranys (mai envien). Cal crear un client OAuth un cop: [docs/google.md](docs/google.md).
+
 ## v1.104.0 - 2026-11-28 - Llegendes de feltre, escala tipogràfica i capçalera endreçada
 
 - **Llegendes: avatars de feltre per defecte (web, escriptori i Android).** Cada vent és un minairó, una dona d'aigua o un tió de pelfa renderitzats amb Blender ([felt.py](tools/characters/felt.py)), tenyits amb el color del vent; només els ulls es mouen (parpelleig i alguna mirada), i el mateix vent és el mateix personatge a tot arreu. Nou pack `folk`, el tema per defecte dels comptes que no n'han triat cap.

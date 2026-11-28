@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"gregal/internal/connexions"
+	"gregal/internal/google"
 	"gregal/internal/mcp"
 )
 
@@ -255,7 +256,7 @@ func (s *Server) connexioStatusFor(err error) (string, string) {
 	var ia *imapAuthError
 	var ih *icsHTTPError
 	switch {
-	case errors.As(err, &ia), errors.As(err, &ih) && ih.revoked(), mcp.IsAuthRequired(err), mcp.IsGrantRevoked(err), errors.Is(err, errNeedsSession), errors.Is(err, connexions.ErrNoSecret):
+	case errors.As(err, &ia), errors.As(err, &ih) && ih.revoked(), mcp.IsAuthRequired(err), mcp.IsGrantRevoked(err), errors.Is(err, errNeedsSession), errors.Is(err, connexions.ErrNoSecret), errors.Is(err, google.ErrRevoked):
 		return connexions.NeedsSession, s.tr("Cal tornar a iniciar sessió: torna a connectar el compte.", "The session expired: connect the account again.")
 	}
 	msg := strings.TrimSpace(err.Error())
@@ -334,6 +335,10 @@ func (s *Server) checkConnexio(ctx context.Context, id string) (connexions.Conne
 		// La sessió viu al navegador de l'ordinador: es comprova quan la
 		// feina hi torna (handoff, BrowserLoginCheck). Aquí no s'obre res.
 		return conn, nil
+	case connexions.ServiceGoogle:
+		if _, err = v.Get(owner, conn.AuthRef); err == nil {
+			_, err = s.googleClient(conn).Whoami(ctx)
+		}
 	}
 	status, msg := s.connexioStatusFor(err)
 	out, merr := st.Modify(conn.ID, func(c *connexions.Connexio) error {
@@ -374,6 +379,8 @@ type pendingConnexio struct {
 	Provider string          `json:"provider"`
 	ReturnTo string          `json:"return_to,omitempty"`
 	Auth     mcp.AccountAuth `json:"auth"`
+	// Google: el pendent d'un compte de Google (OAuth propi, sense MCP).
+	Google *google.Pending `json:"google,omitempty"`
 }
 
 // returnToRe: només un esquema propi d'app (mai http/https/javascript): el
@@ -585,6 +592,9 @@ func (s *Server) finishConnexioAuth(ctx context.Context, p pendingConnexio, code
 	}
 	cctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
+	if p.Google != nil {
+		return s.finishGoogleAuth(cctx, p, conn, code, fail)
+	}
 	tok, err := mcp.ExchangeAccountCode(cctx, s.mcpManager().HTTP(), p.Auth, code)
 	if err != nil {
 		return fail(err)
@@ -631,6 +641,14 @@ func (s *Server) disconnectConnexio(ctx context.Context, id string) (connexions.
 			if err != nil && !errors.Is(err, mcp.ErrNoRevocation) {
 				log.Printf("connexions: %s: la revocació al proveïdor ha fallat (es desconnecta igualment)", id)
 			}
+		}
+	}
+	if conn.Service == connexions.ServiceGoogle {
+		var tok google.Token
+		if v.GetJSON(owner, conn.AuthRef, &tok) == nil {
+			rctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+			revoked = google.Revoke(rctx, s.mcpManager().HTTP(), tok) == nil
+			cancel()
 		}
 	}
 	if err := v.Delete(owner, conn.AuthRef); err != nil {
@@ -687,6 +705,8 @@ func (s *Server) connexioCatalogue() []map[string]any {
 	for _, n := range names {
 		out = append(out, map[string]any{"service": connexions.ServiceMCP, "provider": n, "method": connexions.MethodAPI, "how": "oauth"})
 	}
+	out = append(out, map[string]any{"service": connexions.ServiceGoogle, "provider": "google", "method": connexions.MethodAPI, "how": "oauth",
+		"available": s.googleConfig().Configured(), "capabilities": []string{connexions.CapRead, connexions.CapSend}})
 	out = append(out, map[string]any{"service": connexions.ServiceBrowser, "method": connexions.MethodBrowser, "how": "viewer", "available": s.handoffReachable()})
 	return out
 }
@@ -697,7 +717,7 @@ func (s *Server) sweepConnexions() {
 	owner, v, st := s.remindOwner(), s.vault(), s.connexioStore()
 	limit := connexions.PendingTTL + time.Minute
 	for _, c := range st.List() {
-		if c.Status != connexions.Connecting || c.Service != connexions.ServiceMCP {
+		if c.Status != connexions.Connecting || (c.Service != connexions.ServiceMCP && c.Service != connexions.ServiceGoogle) {
 			continue
 		}
 		since := c.LastCheckedAt
@@ -799,6 +819,22 @@ func (s *Server) handleConnexioConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	switch service {
 	case connexions.ServiceMCP:
+	case connexions.ServiceGoogle:
+		conn, authURL, err := s.connectGoogleAccount(r, req.ID, req.Label, strings.TrimSpace(req.ReturnTo))
+		if errors.Is(err, os.ErrNotExist) {
+			s.connexioNotFound(w)
+			return
+		}
+		if errors.Is(err, google.ErrNotConfigured) {
+			writeJSONStatus(w, http.StatusBadGateway, map[string]any{"error": "needs_client_id: the server administrator has to add google.client_id and google.client_secret (docs/google.md)", "code": "needs_client_id"})
+			return
+		}
+		if err != nil {
+			writeJSONStatus(w, http.StatusBadGateway, map[string]any{"error": err.Error(), "code": "error"})
+			return
+		}
+		writeJSON(w, map[string]any{"connexio": conn.Public(), "authUrl": authURL})
+		return
 	case connexions.ServiceICS, connexions.ServiceIMAP:
 		writeJSONStatus(w, http.StatusBadRequest, map[string]any{"error": "use the calendar and email form", "code": "form"})
 		return
@@ -1145,6 +1181,9 @@ func (s *Server) runConnectorTool(ctx context.Context, argsJSON string) (string,
 		return "", fmt.Errorf("%s is %s: use connector request with this connection so the user can connect it; the task will wait", conn.ID, conn.Status)
 	}
 	act := strings.ToLower(a.Action)
+	if conn.Service == connexions.ServiceGoogle {
+		return s.runGoogleTool(ctx, conn, act, a.Tool, string(a.Arguments))
+	}
 	if act == "act" && !conn.Can(connexions.CapSend) {
 		return "", fmt.Errorf("the user has not allowed actions (send) on %s; they can allow it in Connections. Prepare a draft for them instead", conn.ID)
 	}
@@ -1236,6 +1275,9 @@ func (s *Server) connectorList() string {
 		avail = append(avail, n)
 	}
 	sort.Strings(avail)
+	if s.googleConfig().Configured() {
+		avail = append(avail, "google")
+	}
 	if len(avail) > 0 {
 		b.WriteString("\nConnectors the user can connect (request with provider): " + strings.Join(avail, ", "))
 	}
@@ -1247,11 +1289,11 @@ func (s *Server) connectorList() string {
 func (s *Server) connectorBrief() string {
 	n := 0
 	for _, c := range s.connexioStore().List() {
-		if c.Service == connexions.ServiceMCP || c.Service == connexions.ServiceBrowser {
+		if c.Service == connexions.ServiceMCP || c.Service == connexions.ServiceBrowser || c.Service == connexions.ServiceGoogle {
 			n++
 		}
 	}
-	if n == 0 && len(s.mcpManager().RemoteServers()) == 0 {
+	if n == 0 && len(s.mcpManager().RemoteServers()) == 0 && !s.googleConfig().Configured() {
 		return ""
 	}
 	return "\nCONNECTED ACCOUNTS: the connector tool lists the user's other connected accounts (connectors and signed-in sites) with their real status. If one is needed and not connected, use connector request: the task waits for the user."

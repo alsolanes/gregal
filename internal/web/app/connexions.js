@@ -34,6 +34,7 @@ export function serviceText(c) {
     case 'mcp': return L('Connector', 'Connector') + (c.provider ? ' · ' + c.provider : '');
     case 'calendar-ics': return L('Calendari (iCal)', 'Calendar (iCal)');
     case 'mail-imap': return L('Correu (IMAP)', 'Email (IMAP)');
+    case 'google': return 'Google · ' + L('calendari, correu i Drive', 'calendar, email and Drive');
     case 'browser': return L("Sessió al navegador de l'ordinador", "Session on the computer's browser") + (c.provider ? ' · ' + c.provider : '');
   }
   return c.service || '';
@@ -91,7 +92,7 @@ export const connexions = {
       if (c.status !== 'disconnected') main.append(el('small', '', permsText(c)));
       if (c.error) main.append(el('small', 'pf-warn', c.error));
       const acts = el('div', 'pf-btns');
-      if (c.service === 'mcp' && (c.status === 'needs_session' || c.status === 'disconnected' || c.status === 'error')) {
+      if ((c.service === 'mcp' || c.service === 'google') && (c.status === 'needs_session' || c.status === 'disconnected' || c.status === 'error')) {
         acts.append(boto(L('Torna a connectar', 'Reconnect'), () => this.connecta({ id: c.id }, diu, torna)));
       }
       if (c.status !== 'disconnected') {
@@ -115,6 +116,16 @@ export const connexions = {
     const add = el('div', 'pf-btns');
     for (const k of cat.filter(k => k.service === 'mcp')) {
       add.append(boto(L('Connecta un compte de ', 'Connect an account of ') + k.provider, () => this.connecta({ service: 'mcp', provider: k.provider }, diu, torna)));
+    }
+    // Google: el seu propi OAuth (docs/google.md). Sense client configurat, el botó diu què falta.
+    const gg = cat.find(k => k.service === 'google');
+    if (gg) {
+      const b = boto(L('Connecta un compte de Google', 'Connect a Google account'), () => this.connecta({ service: 'google' }, diu, torna));
+      if (!gg.available) {
+        b.disabled = true;
+        b.title = L("Cal que l'administrador hi posi google.client_id i google.client_secret (docs/google.md).", 'The administrator has to add google.client_id and google.client_secret (docs/google.md).');
+      }
+      add.append(b);
     }
     const br = cat.find(k => k.service === 'browser');
     const help = el('p', 'pf-skills-help', br && br.available

@@ -72,6 +72,9 @@ internal fun connexioCopy(lang: String, key: String): String {
         "notChecked" -> if (en) "not checked yet" else "encara no comprovat"
         "checkedAt" -> if (en) "checked" else "comprovat"
         "svc.mcp" -> if (en) "Connector" else "Connector"
+        "svc.google" -> if (en) "Google · calendar, email and Drive" else "Google · calendari, correu i Drive"
+        "connectGoogle" -> if (en) "Connect a Google account" else "Connecta un compte de Google"
+        "googleSetup" -> if (en) "Google needs the administrator to add google.client_id and google.client_secret (docs/google.md)." else "Per a Google, l'administrador hi ha de posar google.client_id i google.client_secret (docs/google.md)."
         "svc.calendar-ics" -> if (en) "Calendar (iCal)" else "Calendari (iCal)"
         "svc.mail-imap" -> if (en) "Email (IMAP)" else "Correu (IMAP)"
         "svc.browser" -> if (en) "Session on the computer's browser" else "Sessió al navegador de l'ordinador"
@@ -174,7 +177,7 @@ internal fun connexioPermsText(lang: String, c: ConnexioItem): String {
 
 /** El que es pot fer amb una connexió (pur: les regles de la pantalla). */
 internal fun connexioActions(c: ConnexioItem): List<String> = buildList {
-    if (c.service == "mcp" && c.status in setOf("needs_session", "disconnected", "error")) add("reconnect")
+    if ((c.service == "mcp" || c.service == "google") && c.status in setOf("needs_session", "disconnected", "error")) add("reconnect")
     if (c.status != "disconnected") {
         add("check")
         if ("send" in c.capabilities) add(if ("send" in c.allowed) "readOnly" else "allowSend")
@@ -259,6 +262,12 @@ internal fun ConnexionsSheet(conn: Conn, lang: String, onClose: () -> Unit) {
                 ConnButton(connexioCopy(lang, "connectOf") + k.provider, primary = true, modifier = Modifier.fillMaxWidth().testTag("connexio-connect-" + k.provider)) {
                     connect(JSONObject().put("service", "mcp").put("provider", k.provider))
                 }
+            }
+            // Google: OAuth propi del servidor (docs/google.md); sense client configurat, s'explica què falta.
+            state.catalogue.firstOrNull { it.service == "google" }?.let { g ->
+                if (g.available) ConnButton(connexioCopy(lang, "connectGoogle"), primary = true, modifier = Modifier.fillMaxWidth().testTag("connexio-connect-google")) {
+                    connect(JSONObject().put("service", "google"))
+                } else Text(connexioCopy(lang, "googleSetup"), color = Muted, fontSize = GregalSize.caption, lineHeight = 16.sp)
             }
             state.catalogue.firstOrNull { it.service == "browser" }?.let { b ->
                 Text(connexioCopy(lang, if (b.available) "browserHelp" else "noBrowser"), color = Muted, fontSize = GregalSize.caption, lineHeight = 16.sp)

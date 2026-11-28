@@ -555,6 +555,8 @@ type Config struct {
 	Salutacio string                  `yaml:"salutacio"`
 	MCP       map[string]MCPServerCfg `yaml:"mcp"`
 	Telegram  TelegramCfg             `yaml:"telegram"`
+	// Google és el client OAuth per connectar comptes de Google (docs/google.md).
+	Google GoogleCfg `yaml:"google,omitempty"`
 	// Users són els comptes que poden entrar al servidor web i a l'app
 	// (nom → contrasenya i carpetes permeses). Sense secció `users:` tot
 	// queda com abans: només el token únic de sempre.
@@ -640,6 +642,15 @@ type BrowserCfg struct {
 // El token s'escriu al config (0600) o s'hi posa ${GREGAL_TELEGRAM_TOKEN}.
 // allowed_users és la llista d'usuaris que poden fer servir el bot i aprovar
 // eines; allow_groups permet fer-lo servir en grups on el bot sigui present.
+// GoogleCfg: el client OAuth (tipus «Web application») que qui instal·la
+// Gregal crea a Google Cloud. El secret pot ser ${VAR}: s'expandeix en fer-lo
+// servir, així Save no el congela. Scopes buit = els de google.DefaultScopes.
+type GoogleCfg struct {
+	ClientID     string   `yaml:"client_id,omitempty"`
+	ClientSecret string   `yaml:"client_secret,omitempty"`
+	Scopes       []string `yaml:"scopes,omitempty"`
+}
+
 type TelegramCfg struct {
 	Token        string  `yaml:"token"`
 	AllowedUsers []int64 `yaml:"allowed_users"`
