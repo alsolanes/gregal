@@ -71,10 +71,10 @@ internal fun CornerRow(lang: String, onClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("✦", color = Sea, fontSize = 20.sp)
+            Text("✦", color = Sea, fontSize = GregalSize.title)
             Column(Modifier.weight(1f)) {
-                Text(tr(lang, "app.corner.title"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                Text(tr(lang, "app.corner.row"), color = Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(tr(lang, "app.corner.title"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body)
+                Text(tr(lang, "app.corner.row"), color = Muted, fontSize = GregalSize.small, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -125,7 +125,7 @@ internal fun CornerDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Un
             Column(Modifier.fillMaxSize().padding(top = 12.dp)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(tr(lang, "app.corner.title"), color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(tr(lang, "app.corner.title"), color = Ink, fontWeight = FontWeight.Bold, fontSize = GregalSize.large)
                         val s = st
                         val status = when {
                             s == null -> ""
@@ -136,10 +136,10 @@ internal fun CornerDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Un
                                 else tr(lang, "app.corner.versionBy", v.n, v.builder, v.reviewer)
                             } ?: ""
                         }
-                        if (status.isNotBlank()) Text(status, color = Muted, fontSize = 12.sp, maxLines = 2)
+                        if (status.isNotBlank()) Text(status, color = Muted, fontSize = GregalSize.caption, maxLines = 2)
                     }
                     TextButton(onClick = { journalOpen = !journalOpen }) { Text(tr(lang, if (journalOpen) "app.corner.page" else "app.corner.journal")) }
-                    IconButton(onClick = onDismiss) { Text("✕", color = Muted, fontSize = 16.sp) }
+                    IconButton(onClick = onDismiss) { Text("✕", color = Muted, fontSize = GregalSize.large) }
                 }
                 st?.let { s ->
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
@@ -150,13 +150,13 @@ internal fun CornerDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Un
                         if (s.paused) Button(onClick = { act(JSONObject().put("action", "resume")) }) { Text(tr(lang, "app.corner.resume")) }
                         else OutlinedButton(onClick = { act(JSONObject().put("action", "pause")) }) { Text(tr(lang, "app.corner.pause")) }
                         Spacer(Modifier.weight(1f))
-                        Text(tr(lang, "app.corner.spend", s.calls, s.maxCalls), color = Muted, fontSize = 11.sp)
+                        Text(tr(lang, "app.corner.spend", s.calls, s.maxCalls), color = Muted, fontSize = GregalSize.label)
                     }
                 }
-                err?.let { Text(it, color = Muted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                err?.let { Text(it, color = Muted, fontSize = GregalSize.caption, modifier = Modifier.padding(horizontal = 16.dp)) }
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     if (journalOpen) CornerJournal(lang, st, onRevert = { n -> act(JSONObject().put("action", "revert").put("version", n)) })
-                    else if (doc == null) Text(tr(lang, "app.corner.blank"), color = Muted, fontSize = 14.sp, lineHeight = 20.sp,
+                    else if (doc == null) Text(tr(lang, "app.corner.blank"), color = Muted, fontSize = GregalSize.body, lineHeight = 20.sp,
                         modifier = Modifier.align(Alignment.Center).padding(32.dp))
                     else key(shownVersion) {
                         AndroidView(modifier = Modifier.fillMaxSize(), factory = { ctx ->
@@ -200,7 +200,7 @@ internal fun CornerDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Un
                 }
                 Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(value = comment, onValueChange = { comment = it.take(1000) }, modifier = Modifier.weight(1f),
-                        placeholder = { Text(tr(lang, "app.corner.commentHint"), fontSize = 13.sp) }, maxLines = 3)
+                        placeholder = { Text(tr(lang, "app.corner.commentHint"), fontSize = GregalSize.small) }, maxLines = 3)
                     TextButton(enabled = comment.isNotBlank(), onClick = {
                         val text = comment.trim(); comment = ""
                         act(JSONObject().put("action", "comment").put("text", text))
@@ -216,27 +216,27 @@ private fun CornerJournal(lang: String, st: CornerState?, onRevert: (Int) -> Uni
     val s = st ?: return
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
         if (s.versions.isNotEmpty()) item {
-            Text(tr(lang, "app.corner.versions").uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+            Text(tr(lang, "app.corner.versions").uppercase(), color = Muted, fontSize = GregalSize.label, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(vertical = 6.dp))
         }
         items(s.versions, key = { "v" + it.n }) { v ->
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("v${v.n} · " + v.summary, color = Ink, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    if (v.builder.isNotBlank()) Text(v.builder + " · " + v.reviewer, color = Muted, fontSize = 11.sp)
+                    Text("v${v.n} · " + v.summary, color = Ink, fontSize = GregalSize.small, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (v.builder.isNotBlank()) Text(v.builder + " · " + v.reviewer, color = Muted, fontSize = GregalSize.label)
                 }
                 if (v.n != s.current) TextButton(onClick = { onRevert(v.n) }) { Text(tr(lang, "app.corner.back")) }
             }
         }
         item {
-            Text(tr(lang, "app.corner.journal").uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+            Text(tr(lang, "app.corner.journal").uppercase(), color = Muted, fontSize = GregalSize.label, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(top = 12.dp, bottom = 6.dp))
         }
-        if (s.journal.isEmpty()) item { Text(tr(lang, "app.corner.nothing"), color = Muted, fontSize = 13.sp) }
+        if (s.journal.isEmpty()) item { Text(tr(lang, "app.corner.nothing"), color = Muted, fontSize = GregalSize.small) }
         items(s.journal) { e ->
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(cornerIcon(e.kind), fontSize = 14.sp)
-                Text((if (e.name.isNotBlank()) e.name + ": " else "") + e.text, color = Ink, fontSize = 13.sp, lineHeight = 18.sp)
+                Text(cornerIcon(e.kind), fontSize = GregalSize.body)
+                Text((if (e.name.isNotBlank()) e.name + ": " else "") + e.text, color = Ink, fontSize = GregalSize.small, lineHeight = 18.sp)
             }
         }
     }

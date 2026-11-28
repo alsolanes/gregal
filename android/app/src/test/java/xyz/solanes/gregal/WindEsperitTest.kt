@@ -142,10 +142,10 @@ class WindEsperitTest {
         assertEquals(listOf("", "esperit"), themed.winds.value.map { it.avatar })
         assertEquals(listOf("esperit", "esperit"), themed.winds.value.map { windPack(themed.avatarTheme.value, it.faceStyle) })
         val free = load("free")
-        assertEquals(listOf("cares", "esperit"), free.winds.value.map { windPack(free.avatarTheme.value, it.faceStyle) })
-        assertEquals("An unknown theme is Cares", "cares", load("rainbow").avatarTheme.value)
+        assertEquals(listOf("folk", "esperit"), free.winds.value.map { windPack(free.avatarTheme.value, it.faceStyle) })
+        assertEquals("An unknown theme is Llegendes", "folk", load("rainbow").avatarTheme.value)
 
-        // WindFace draws what windPack says: Bit in Free is the Cares face, under the Esperit theme it is not.
+        // WindFace draws what windPack says: Bit in Free (no pack of its own) is Llegendes, not Cares; Esperit is neither.
         val bit = free.winds.value.first()
         ui.setContent {
             CompositionLocalProvider(LocalWindMotion provides false) {
@@ -158,7 +158,7 @@ class WindEsperitTest {
                 }
             }
         }
-        assertTrue(identical(image("free"), image("cares")))
+        assertFalse(identical(image("free"), image("cares")))
         assertFalse(identical(image("esperit"), image("cares")))
     }
 

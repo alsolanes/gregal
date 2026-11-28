@@ -134,7 +134,7 @@ internal fun MessageLinks(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Les fonts, lleugeres (direcció visual §4): un punt i el nom; tocar copia l'enllaç, mantenir premut l'obre.
-        Text(if (lang == "en") "Sources" else "Fonts", color = Muted, fontSize = 12.sp)
+        Text(if (lang == "en") "Sources" else "Fonts", color = Muted, fontSize = GregalSize.caption)
         links.forEach { l ->
             Row(
                 Modifier.clip(RoundedCornerShape(8.dp))
@@ -153,7 +153,7 @@ internal fun MessageLinks(
                 Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(link.copy(alpha = 0.55f)))
                 Spacer(Modifier.width(5.dp))
                 Text(
-                    l.label, color = link, fontSize = 12.5.sp, fontWeight = FontWeight.Medium,
+                    l.label, color = link, fontSize = GregalSize.caption, fontWeight = FontWeight.Medium,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.widthIn(max = 170.dp),
                 )

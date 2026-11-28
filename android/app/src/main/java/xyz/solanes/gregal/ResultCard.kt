@@ -106,7 +106,7 @@ internal fun ResultCard(
                 if (leading != null) Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { leading() }
                 else ResultTypeIcon(kind)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(title, color = Ink, fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold,
+                    Text(title, color = Ink, fontSize = GregalSize.body, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold,
                         maxLines = 2, overflow = TextOverflow.Ellipsis)
                     if (subtitle.isNotBlank()) Text(subtitle, color = Muted, style = GregalType.caption,
                         maxLines = 2, overflow = TextOverflow.Ellipsis)

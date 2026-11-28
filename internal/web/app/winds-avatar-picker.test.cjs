@@ -39,7 +39,7 @@ function load(theme, characters) {
 const faces = n => n.all().filter(c => c.tag === 'svg');
 // Cares is the plain face, the only pack without a data-avatar mark.
 const packOf = svg => svg.getAttribute('data-avatar') || 'cares';
-const packs = ['cares', 'esperit', 'cap', 'rosa', 'mapa', 'minairo', 'pelut'];
+const packs = ['folk', 'cares', 'esperit', 'cap', 'rosa', 'mapa', 'minairo', 'pelut'];
 
 test('Preferences › Avatars shows a sample face of each pack on its choice and keeps the chosen one marked', async () => {
   const { winds, document, posts } = load('esperit');
@@ -56,10 +56,11 @@ test('Preferences › Avatars shows a sample face of each pack on its choice and
   assert.equal(winds.avatarTheme(), 'esperit', 'drawing the samples leaves the account theme alone');
   const marked = () => choices.filter(c => c.getAttribute('aria-pressed') === 'true' && c.classList.contains('on')).map(c => c.getAttribute('data-v'));
   assert.deepEqual(marked(), ['esperit']);
-  await choices[3].click();
+  await choices[4].click();
   assert.deepEqual(posts, [{ theme:'rosa' }]);
   assert.deepEqual(marked(), ['rosa']);
-  assert.equal(packOf(faces(choices[0])[0]), 'cares');
+  assert.equal(packOf(faces(choices[1])[0]), 'cares');
+  assert.equal(packOf(faces(choices[0])[0]), 'folk');
 });
 
 test('the Lliure avatar field offers each pack as a sample in the wind colour, chosen with arrow keys or a click', () => {
@@ -72,24 +73,25 @@ test('the Lliure avatar field offers each pack as a sample in the wind colour, c
   const radios = field.all().filter(n => n.getAttribute('role') === 'radio');
   assert.deepEqual(radios.map(r => packOf(faces(r)[0])), packs);
   assert.ok(radios.every(r => r.textContent.trim()), 'each sample keeps its name');
-  assert.ok(faces(radios[0])[0].all().some(n => n.getAttribute('stop-color') === '#123456'), 'drawn in the wind colour');
+  assert.ok(faces(radios[1])[0].all().some(n => n.getAttribute('stop-color') === '#123456'), 'drawn in the wind colour');
+  assert.ok(faces(radios[0])[0].all().some(n => n.getAttribute('fill') === '#123456'), 'Llegendes tinted in the wind colour');
   const checked = () => radios.filter(r => r.getAttribute('aria-checked') === 'true').map(r => packOf(faces(r)[0]));
   assert.deepEqual(checked(), ['rosa']);
-  assert.deepEqual(radios.map(r => r.getAttribute('tabindex')), ['-1', '-1', '-1', '0', '-1', '-1', '-1'], 'one tab stop, on the chosen pack');
+  assert.deepEqual(radios.map(r => r.getAttribute('tabindex')), ['-1', '-1', '-1', '-1', '0', '-1', '-1', '-1'], 'one tab stop, on the chosen pack');
   let changes = 0; field.addEventListener('change', () => changes++);
-  radios[3].dispatchEvent(new KeyboardEvent('keydown', { key:'ArrowRight' }));
-  assert.equal(field.value, 'mapa'); assert.deepEqual(checked(), ['mapa']); assert.equal(document.activeElement, radios[4]);
-  radios[4].dispatchEvent(new KeyboardEvent('keydown', { key:'ArrowDown' }));
-  assert.equal(field.value, 'minairo');
+  radios[4].dispatchEvent(new KeyboardEvent('keydown', { key:'ArrowRight' }));
+  assert.equal(field.value, 'mapa'); assert.deepEqual(checked(), ['mapa']); assert.equal(document.activeElement, radios[5]);
   radios[5].dispatchEvent(new KeyboardEvent('keydown', { key:'ArrowDown' }));
-  assert.equal(field.value, 'pelut');
+  assert.equal(field.value, 'minairo');
   radios[6].dispatchEvent(new KeyboardEvent('keydown', { key:'ArrowDown' }));
-  assert.equal(field.value, 'cares', 'the arrows wrap around');
+  assert.equal(field.value, 'pelut');
+  radios[7].dispatchEvent(new KeyboardEvent('keydown', { key:'ArrowDown' }));
+  assert.equal(field.value, 'folk', 'the arrows wrap around');
   radios[0].dispatchEvent(new KeyboardEvent('keydown', { key:'ArrowLeft' }));
   assert.equal(field.value, 'pelut');
-  radios[1].click();
+  radios[2].click();
   assert.equal(field.value, 'esperit'); assert.deepEqual(checked(), ['esperit']);
-  radios[1].click();
+  radios[2].click();
   assert.equal(changes, 6, 'every new pick, and only a new one, tells the editor to redraw its preview');
 });
 

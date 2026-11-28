@@ -174,10 +174,10 @@ fun OfficeScreen(vm: GregalViewModel, onMenu: () -> Unit, onAskAgent: () -> Unit
                 } else {
                     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = PillDark)) {
                         Column(Modifier.padding(14.dp)) {
-                            Text(doc.name.ifBlank { tr(lang, "app.off.document") }, color = Ink, fontSize = 16.sp)
-                            if (doc.kind.isNotBlank()) Text(doc.kind, color = Muted, fontSize = 13.sp)
-                            if (doc.result.isNotBlank()) Text(doc.result, color = Sea, fontSize = 13.sp)
-                            if (doc.error.isNotBlank()) Text(doc.error, color = Sand, fontSize = 13.sp)
+                            Text(doc.name.ifBlank { tr(lang, "app.off.document") }, color = Ink, fontSize = GregalSize.large)
+                            if (doc.kind.isNotBlank()) Text(doc.kind, color = Muted, fontSize = GregalSize.small)
+                            if (doc.result.isNotBlank()) Text(doc.result, color = Sea, fontSize = GregalSize.small)
+                            if (doc.error.isNotBlank()) Text(doc.error, color = Sand, fontSize = GregalSize.small)
                         }
                     }
                     Spacer(Modifier.height(10.dp))
@@ -192,7 +192,7 @@ fun OfficeScreen(vm: GregalViewModel, onMenu: () -> Unit, onAskAgent: () -> Unit
                         OfficeRender(vm, doc, Modifier.fillMaxWidth())
                     } else if (doc.text.isNotBlank()) {
                         Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = CodeDark)) {
-                            Text(doc.text, color = Ink, fontSize = 13.sp, fontFamily = FontFamily.Monospace,
+                            Text(doc.text, color = Ink, fontSize = GregalSize.small, fontFamily = FontFamily.Monospace,
                                 modifier = Modifier.padding(12.dp).heightIn(max = 320.dp).verticalScroll(rememberScrollState()))
                         }
                     }
@@ -218,7 +218,7 @@ fun OfficeScreen(vm: GregalViewModel, onMenu: () -> Unit, onAskAgent: () -> Unit
                         }, modifier = Modifier.weight(1f)) { Text(tr(lang, "app.off.download")) }
                     }
                     Spacer(Modifier.height(14.dp))
-                    Text(tr(lang, "app.off.edit"), color = Ink, fontSize = 15.sp)
+                    Text(tr(lang, "app.off.edit"), color = Ink, fontSize = GregalSize.body)
                     Spacer(Modifier.height(6.dp))
                     if (doc.kind == "xlsx") {
                         OutlinedTextField(full, { full = it }, Modifier.fillMaxWidth(),
@@ -254,7 +254,7 @@ fun OfficeScreen(vm: GregalViewModel, onMenu: () -> Unit, onAskAgent: () -> Unit
                 }
                 if (notice.isNotBlank()) {
                     Spacer(Modifier.height(8.dp))
-                    Text(notice, color = Sand, fontSize = 13.sp)
+                    Text(notice, color = Sand, fontSize = GregalSize.small)
                 }
             }
         }

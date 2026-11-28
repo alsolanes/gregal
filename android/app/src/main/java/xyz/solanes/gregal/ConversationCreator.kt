@@ -39,12 +39,12 @@ internal fun WindMemberRow(lang: String, wind: Wind, resum: GregalApi.WindResum?
         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         WindFace(size = faceSize, accent = Color(wind.argb), style = wind.faceStyle)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text(wind.name, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            Text(wind.name, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body)
             val rol = resum?.rol?.ifBlank { null } ?: wind.role
-            if (rol.isNotBlank()) Text(rol, color = Muted, fontSize = 13.sp)
+            if (rol.isNotBlank()) Text(rol, color = Muted, fontSize = GregalSize.small)
             val experts = resum?.coneixements.orEmpty().map { it.titol.ifBlank { it.nom } }.filter { it.isNotBlank() }
             if (experts.isNotEmpty()) Text(tr(lang, "app.vents.knowsAbout", experts.joinToString(", ")),
-                color = Muted, fontSize = 12.sp)
+                color = Muted, fontSize = GregalSize.caption)
         }
         Checkbox(checked = checked, onCheckedChange = onToggle)
     }
@@ -99,13 +99,13 @@ internal fun GroupHelpCard(lang: String) {
         Row(Modifier.fillMaxWidth().clickable { open = !open },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(tr(lang, "app.vents.groupHelpTitle"), color = Sea, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            Text("▾", color = Muted, fontSize = 12.sp)
+            Text(tr(lang, "app.vents.groupHelpTitle"), color = Sea, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body)
+            Text("▾", color = Muted, fontSize = GregalSize.caption)
         }
         if (open) Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(tr(lang, "app.vents.groupHelpTalk"), color = Muted, fontSize = 13.sp)
-            Text(tr(lang, "app.vents.groupHelpBuild"), color = Muted, fontSize = 13.sp)
-            Text(tr(lang, "app.vents.groupHelpOne"), color = Muted, fontSize = 13.sp)
+            Text(tr(lang, "app.vents.groupHelpTalk"), color = Muted, fontSize = GregalSize.small)
+            Text(tr(lang, "app.vents.groupHelpBuild"), color = Muted, fontSize = GregalSize.small)
+            Text(tr(lang, "app.vents.groupHelpOne"), color = Muted, fontSize = GregalSize.small)
         }
     }
 }
@@ -132,11 +132,11 @@ internal fun GroupProfileDialog(vm: GregalViewModel, lang: String, rot: Rotllana
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                                 Text(wind.name, color = Ink)
                                 val rol = resum[wind.id]?.rol?.ifBlank { null } ?: wind.role
-                                if (rol.isNotBlank()) Text(rol, color = Muted, fontSize = 13.sp)
+                                if (rol.isNotBlank()) Text(rol, color = Muted, fontSize = GregalSize.small)
                                 val experts = resum[wind.id]?.coneixements.orEmpty()
                                     .map { it.titol.ifBlank { it.nom } }.filter { it.isNotBlank() }
                                 if (experts.isNotEmpty()) Text(tr(lang, "app.vents.knowsAbout", experts.joinToString(", ")),
-                                    color = Muted, fontSize = 12.sp)
+                                    color = Muted, fontSize = GregalSize.caption)
                             }
                         }
                         Checkbox(checked = wind.id in members, enabled = !saving, onCheckedChange = { checked -> members = if (checked) members + wind.id else members - wind.id })

@@ -115,7 +115,7 @@ private fun BriefCard(lang: String, b: WindBrief, onRun: (AvuiCard, AvuiAction) 
         b.proposes?.let { c ->
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(tr(lang, "app.avui.brief.proposes"), color = Muted, style = GregalType.caption)
-                Text(c.title, color = Ink, style = GregalType.heading.copy(fontSize = 16.sp, lineHeight = 21.sp), maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(c.title, color = Ink, style = GregalType.heading.copy(fontSize = GregalSize.large, lineHeight = 21.sp), maxLines = 3, overflow = TextOverflow.Ellipsis)
                 if (c.why.isNotBlank()) Text(c.why, color = Muted, style = GregalType.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
         }
@@ -125,7 +125,7 @@ private fun BriefCard(lang: String, b: WindBrief, onRun: (AvuiCard, AvuiAction) 
                     .padding(horizontal = 14.dp).testTag("avui-brief-act"),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
             ) {
-                Text(a.label, color = Superficie, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(a.label, color = Superficie, fontSize = GregalSize.small, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = Superficie, modifier = Modifier.size(14.dp))
             }
         }

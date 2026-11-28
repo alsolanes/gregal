@@ -96,7 +96,7 @@ internal fun WhereChip(vm: GregalViewModel, lang: String, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
-        Text(label, color = Ink, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, color = Ink, fontSize = GregalSize.small, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -114,19 +114,19 @@ internal fun WhereStatus(vm: GregalViewModel, lang: String) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.size(9.dp).clip(CircleShape).background(if (offline) Sand else Green))
-            Text(server, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(tr(lang, if (offline) "app.offline.state" else "app.offline.online"), color = Muted, fontSize = 13.sp)
+            Text(server, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(tr(lang, if (offline) "app.offline.state" else "app.offline.online"), color = Muted, fontSize = GregalSize.small)
         }
         if (offline) {
             val whenText = offlineCopyWhen(lang, copyAt)
             Text(if (whenText.isBlank()) tr(lang, "app.offline.copy") else tr(lang, "app.offline.copyAt", whenText),
-                color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
-            if (outbox.isNotEmpty()) Text(tr(lang, "app.offline.queued", outbox.size), color = Ink, fontSize = 13.sp)
+                color = Muted, fontSize = GregalSize.small, lineHeight = 18.sp)
+            if (outbox.isNotEmpty()) Text(tr(lang, "app.offline.queued", outbox.size), color = Ink, fontSize = GregalSize.small)
             TextButton(onClick = { vm.retryServerNow() }, contentPadding = PaddingValues(horizontal = 0.dp)) {
                 Text(tr(lang, "app.offline.retry"), color = Sea, fontWeight = FontWeight.SemiBold)
             }
         } else {
-            Text(tr(lang, "app.where.serverHint"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
+            Text(tr(lang, "app.where.serverHint"), color = Muted, fontSize = GregalSize.small, lineHeight = 18.sp)
         }
     }
 }
@@ -142,14 +142,14 @@ internal fun WhereDialog(vm: GregalViewModel, lang: String, onClose: () -> Unit)
     GregalDialog(onDismissRequest = onClose) {
         Surface(shape = RoundedCornerShape(24.dp), color = Superficie) {
             Column(Modifier.padding(vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(tr(lang, "app.where.title"), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                Text(tr(lang, "app.where.title"), color = Ink, fontSize = GregalSize.large, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 22.dp))
                 if (!conn.local) WhereStatus(vm, lang)
                 if (showSwitch) WhereSwitch(vm, lang)
                 Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically) {
                     if (!showSwitch) TextButton(onClick = { showSwitch = true }) {
-                        Text(tr(lang, "app.where.change"), color = Muted, fontSize = 13.sp)
+                        Text(tr(lang, "app.where.change"), color = Muted, fontSize = GregalSize.small)
                     } else Spacer(Modifier.width(1.dp))
                     TextButton(onClick = onClose) { Text(tr(lang, "app.cap.close"), color = Sea) }
                 }
@@ -199,7 +199,7 @@ internal fun RunningWorkLine(lang: String, running: Int, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         CircularProgressIndicator(Modifier.size(16.dp), color = Sea, strokeWidth = 2.dp)
-        Text(tr(lang, "app.feines.runningLine", running), color = Ink, fontSize = 14.sp, modifier = Modifier.weight(1f))
+        Text(tr(lang, "app.feines.runningLine", running), color = Ink, fontSize = GregalSize.body, modifier = Modifier.weight(1f))
         Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = Muted, modifier = Modifier.size(20.dp))
     }
 }
@@ -221,7 +221,7 @@ internal fun DirectoryRow(lang: String, w: Wind, onProfile: () -> Unit, onTalk: 
         WindHalo(Color(w.argb), w.faceStyle, size = 44, online = false, showKit = true)
         // El nom es mesura primer: la pastilla es queda amb el que sobra.
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(w.name, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(w.name, color = Ink, fontSize = GregalSize.large, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             WindRolePill(w)
         }
         OutlinedButton(
@@ -229,7 +229,7 @@ internal fun DirectoryRow(lang: String, w: Wind, onProfile: () -> Unit, onTalk: 
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
             modifier = Modifier.semantics { contentDescription = tr(lang, "app.vents.talkToNamed", w.name) },
         ) {
-            Text(tr(lang, "app.vents.talk"), color = Ink, fontSize = 14.sp)
+            Text(tr(lang, "app.vents.talk"), color = Ink, fontSize = GregalSize.body)
         }
     }
 }
@@ -263,7 +263,7 @@ internal fun HomeFacesRow(
                 WindHalo(Color(w.argb), w.faceStyle, size = 46,
                     mood = when { w.id in busy -> WindMood.THINKING; fresh -> WindMood.NEWS; else -> WindMood.IDLE },
                     online = false)
-                Text(w.name, color = if (fresh) Ink else Muted, fontSize = 12.sp,
+                Text(w.name, color = if (fresh) Ink else Muted, fontSize = GregalSize.caption,
                     fontWeight = if (fresh) FontWeight.SemiBold else FontWeight.Medium,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -281,7 +281,7 @@ internal fun HomeFacesRow(
                         Icon(Icons.Rounded.Groups, null, tint = Ink, modifier = Modifier.size(22.dp))
                     }
                 }
-                Text(tr(lang, "app.vents.homeAll"), color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                Text(tr(lang, "app.vents.homeAll"), color = Muted, fontSize = GregalSize.caption, fontWeight = FontWeight.Medium, maxLines = 1)
             }
         }
     }
@@ -371,7 +371,7 @@ internal fun WindRolePill(wind: Wind, modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         windKitIcon(wind.faceStyle.kit)?.let { Icon(it, null, tint = tint, modifier = Modifier.size(12.dp).testTag("role-pill-icon")) }
-        Text(wind.role, color = tint, fontSize = 11.5.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium,
+        Text(wind.role, color = tint, fontSize = GregalSize.label, lineHeight = 14.sp, fontWeight = FontWeight.Medium,
             maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

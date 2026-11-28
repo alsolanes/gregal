@@ -9,26 +9,26 @@ body:is(.shell-winds,.winds-side) #side > .brand,body:is(.shell-winds,.winds-sid
 body:is(.shell-winds,.winds-side) #side { background:var(--panel); width:230px; min-width:230px; }
 body:is(.shell-winds,.winds-side) #windContextNav { border:0; padding:0; min-height:0; }
 body.shell-winds .side-scroll { overflow:auto; }
-.wind-workspace { display:flex; flex-direction:column; height:100%; min-height:0; color:var(--text); font-size:14px; line-height:1.65; background:var(--bg); }
+.wind-workspace { display:flex; flex-direction:column; height:100%; min-height:0; color:var(--text); font-size:var(--t3); line-height:1.65; background:var(--bg); }
 .wind-workspace *,.vw-nav *,.vw-dialog * { box-sizing:border-box; }
 .wind-workspace button,.vw-nav button,.vw-dialog button { font:inherit; cursor:pointer; transition:background .15s,color .15s; }
 .wind-workspace [hidden],.vw-dialog [hidden] { display:none!important; }
 .wind-workspace :is(button,summary,a):focus-visible,.vw-nav :is(button,summary):focus-visible,.vw-dialog :is(button,summary):focus-visible,.vw-model-pop button:focus-visible { outline:2px solid var(--vw-accent-text); outline-offset:2px; }
 .vw-nav { display:flex; flex-direction:column; gap:1px; padding:22px 10px 24px; }
 .vw-new { text-align:left; background:transparent; border:1px solid var(--line); color:var(--ink); border-radius:10px; padding:0 12px; min-height:40px; margin-bottom:6px; font-weight:550!important; }
-.vw-nav-item { min-width:0; text-align:left; padding:8px 12px; background:transparent; border:0; border-radius:8px; color:var(--muted); font-size:12px!important; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.vw-nav-item { min-width:0; text-align:left; padding:8px 12px; background:transparent; border:0; border-radius:8px; color:var(--muted); font-size:var(--t2)!important; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .vw-nav-item:hover { background:var(--surface); color:var(--ink); }
 .vw-nav-item[aria-current="page"],.vw-nav-item[data-selected="true"] { background:var(--accent-soft); color:var(--ink); }
-.vw-section-label { display:flex; justify-content:space-between; align-items:center; padding:22px 10px 7px; font-size:10px; letter-spacing:.09em; color:var(--faint); font-weight:600; }
+.vw-section-label { display:flex; justify-content:space-between; align-items:center; padding:22px 10px 7px; font-size:var(--t1); letter-spacing:.09em; color:var(--faint); font-weight:600; }
 .vw-small { display:grid; place-items:center; width:28px; height:28px; padding:0; background:transparent; color:var(--muted); border:0; border-radius:var(--r-sm,8px); }
 .vw-small:hover { background:var(--hover-alt); color:var(--ink); }
 .vw-small .vw-ic { width:16px; height:16px; }
-.vw-nav-empty { font-size:12px; color:var(--faint); padding:2px 12px; }
+.vw-nav-empty { font-size:var(--t2); color:var(--faint); padding:2px 12px; }
 .vw-project { display:flex; align-items:center; gap:12px; }
 .vw-project span { overflow:hidden; text-overflow:ellipsis; }
 .vw-folder { width:17px; height:17px; margin-inline:.5px; flex:none; }
-.vw-nested { margin-left:18px; font-size:11px!important; }
-.vw-top { display:flex; align-items:center; flex:none; gap:13px; min-height:56px; padding:0 30px; border-bottom:1px solid var(--line); color:var(--muted); font-size:12px; }
+.vw-nested { margin-left:18px; font-size:var(--t1)!important; }
+.vw-top { display:flex; align-items:center; flex:none; gap:13px; min-height:56px; padding:0 30px; border-bottom:1px solid var(--line); color:var(--muted); font-size:var(--t2); }
 .vw-separator { color:var(--faint); }
 .vw-top > span:last-of-type { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .vw-content { flex:1; min-height:0; overflow:auto; width:100%; padding:44px max(28px,calc((100% - 940px)/2)); scrollbar-width:thin; scrollbar-color:var(--line-hi) transparent; overscroll-behavior:contain; }
@@ -38,9 +38,9 @@ body.shell-winds .side-scroll { overflow:auto; }
 .vw-home { display:flex; flex-direction:column; align-items:stretch; padding-top:clamp(36px,9vh,115px); }
 .vw-welcome { text-align:center; margin:0 auto 30px; }
 .vw-welcome > .winds-face { width:65px; height:65px; margin-bottom:7px; }
-.vw-eyebrow { color:var(--muted); font-size:11px; letter-spacing:.1em; margin:5px 0 12px!important; }
+.vw-eyebrow { color:var(--muted); font-size:var(--t1); letter-spacing:.1em; margin:5px 0 12px!important; }
 .vw-welcome h1 { color:var(--ink); font:400 clamp(32px,3.6vw,48px)/1.15 Georgia,serif; margin:12px 0 17px; letter-spacing:-.035em; }
-.vw-welcome > p:last-child { color:var(--muted); font-size:14px; margin:0; }
+.vw-welcome > p:last-child { color:var(--muted); font-size:var(--t3); margin:0; }
 /* El compositor és el #box de Codi: mateix farcit, radi, vora, fons i anell de focus (la regla
    compartida «#box, .vw-composer» és a refine.css). */
 .vw-composer { position:relative; flex:none; background:var(--composer, var(--surface)); border:1px solid var(--line-hi); border-radius:28px; padding:12px 14px 9px; }
@@ -51,7 +51,7 @@ body.shell-winds .side-scroll { overflow:auto; }
 /* «Amb qui parles» i el model: les pastilles planes del peu del compositor de Codi (#modePicker i
    #modelPill a refine.css). La fletxa del desplegable és la compartida (--ico-chev, refine.css). */
 .vw-select { position:relative; display:inline-flex; min-width:0; max-width:42%; }
-.vw-composer-foot select { -webkit-appearance:none; appearance:none; field-sizing:content; min-width:0; max-width:100%; min-height:30px; padding:3px 24px 3px 9px; border:0; border-radius:var(--r-sm,8px); background:transparent; color:var(--muted); font:inherit; font-size:12px; font-weight:500; text-overflow:ellipsis; cursor:pointer; }
+.vw-composer-foot select { -webkit-appearance:none; appearance:none; field-sizing:content; min-width:0; max-width:100%; min-height:30px; padding:3px 24px 3px 9px; border:0; border-radius:var(--r-sm,8px); background:transparent; color:var(--muted); font:inherit; font-size:var(--t2); font-weight:500; text-overflow:ellipsis; cursor:pointer; }
 .vw-composer-foot select:hover { background:var(--hover); color:var(--ink); }
 .vw-composer-foot select option { background:var(--surface); color:var(--text); }
 /* El mateix botó de model que a Codi: icona, nom en negreta, 32 px i a
@@ -59,23 +59,23 @@ body.shell-winds .side-scroll { overflow:auto; }
    margin-left:auto). Abans era un text prim enganxat al botó d'enviar.
    Si el nom no hi cap sencer, salta a una segona línia que el botó (d'una línia
    d'alt) retalla i queda només la icona: tallat deia «G…», que no diu res. */
-button.vw-model { display:inline-flex; flex-wrap:wrap; align-content:flex-start; align-items:center; column-gap:7px; overflow:hidden; font-size:12.5px; font-weight:550; line-height:32px; color:var(--ink); background:transparent; border:0; border-radius:var(--r-sm,8px); min-width:0; max-width:46%; height:32px; white-space:nowrap; padding:0 10px; cursor:pointer; }
+button.vw-model { display:inline-flex; flex-wrap:wrap; align-content:flex-start; align-items:center; column-gap:7px; overflow:hidden; font-size:var(--t2); font-weight:550; line-height:32px; color:var(--ink); background:transparent; border:0; border-radius:var(--r-sm,8px); min-width:0; max-width:46%; height:32px; white-space:nowrap; padding:0 10px; cursor:pointer; }
 button.vw-model .ui-icon { flex:none; width:15px; height:15px; margin:8.5px 0; color:var(--accent-hi); }
 button.vw-model:hover,button.vw-model:focus-visible { color:var(--ink); background:var(--hover); }
 .vw-model-name { flex:none; }
 .vw-model-chev { display:inline-block; flex:none; width:5px; height:5px; margin:0 1px 3px 7px; border:solid currentColor; border-width:0 1.5px 1.5px 0; transform:rotate(45deg); color:var(--faint); }
 .vw-model-pop { position:fixed; z-index:60; display:flex; flex-direction:column; gap:8px; padding:12px; background:var(--surface); border:1px solid var(--line-hi); border-radius:14px; box-shadow:0 14px 36px color-mix(in srgb,var(--ombra) 35%,transparent); }
-.vw-model-head { margin:0; font-size:12px; color:var(--muted); }
-.vw-model-filter { width:100%; background:var(--bg); border:1px solid var(--line); border-radius:8px; color:var(--text); font:inherit; font-size:13px; padding:7px 10px; }
+.vw-model-head { margin:0; font-size:var(--t2); color:var(--muted); }
+.vw-model-filter { width:100%; background:var(--bg); border:1px solid var(--line); border-radius:8px; color:var(--text); font:inherit; font-size:var(--t2); padding:7px 10px; }
 .vw-model-list { overflow:auto; min-height:0; display:flex; flex-direction:column; }
-.vw-model-prov { margin:8px 4px 4px; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); }
-.vw-model-row { display:flex; justify-content:space-between; align-items:center; gap:8px; text-align:left; background:transparent; border:0; border-radius:8px; color:var(--text); font:inherit; font-size:13px; padding:7px 9px; cursor:pointer; }
+.vw-model-prov { margin:8px 4px 4px; font-size:var(--t1); letter-spacing:.06em; text-transform:uppercase; color:var(--faint); }
+.vw-model-row { display:flex; justify-content:space-between; align-items:center; gap:8px; text-align:left; background:transparent; border:0; border-radius:8px; color:var(--text); font:inherit; font-size:var(--t2); padding:7px 9px; cursor:pointer; }
 .vw-model-row span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.vw-model-row small { flex:none; font-size:10.5px; color:var(--faint); }
+.vw-model-row small { flex:none; font-size:var(--t1); color:var(--faint); }
 .vw-model-row:hover,.vw-model-row:focus-visible { background:var(--surface-hi); }
 .vw-model-row[aria-selected="true"] { background:var(--accent-soft); }
 .vw-model-row[aria-selected="true"] span::before { content:'✓ '; color:var(--accent-hi); }
-.vw-model-empty { margin:6px 4px; font-size:12px; color:var(--faint); }
+.vw-model-empty { margin:6px 4px; font-size:var(--t2); color:var(--faint); }
 /* Enviar: el #send de Codi (40 px, accent del tema, fletxa de 17 px, hover amb --accent-hi). */
 .vw-send { display:grid; place-items:center; flex:0 0 44px; margin-left:auto; width:44px; min-width:44px; height:44px; min-height:44px; padding:0; border-radius:50%; border:0; background:var(--send-bg, var(--accent)); color:var(--send-fg, var(--on-accent, var(--bg))); line-height:0; align-self:center; box-shadow:0 6px 18px -6px var(--send-glow, transparent); transition:transform .14s ease, box-shadow .14s ease, background .14s ease, opacity .14s ease; }
 .vw-send svg { display:block; width:20px; height:20px; pointer-events:none; transform:translate(-1px,1px); transition:transform .18s ease; }
@@ -90,39 +90,39 @@ button.vw-model:hover,button.vw-model:focus-visible { color:var(--ink); backgrou
 .vw-send[data-busy="true"] { background:var(--send-bg, var(--accent)); color:var(--send-fg, var(--bg)); box-shadow:0 0 0 4px var(--accent-soft); animation:vw-send-pulse 1.6s ease-in-out infinite; }
 @keyframes vw-send-pulse { 50% { box-shadow:0 0 0 7px var(--accent-soft); } }
 @media (prefers-reduced-motion: reduce) { .vw-send, .vw-send svg { transition:none; } .vw-send[data-busy="true"] { animation:none; } }
-.vw-folder-under { margin:6px 18px 0; font-size:10.5px; opacity:.8; }
+.vw-folder-under { margin:6px 18px 0; font-size:var(--t1); opacity:.8; }
 .vw-folder-under .vw-folder { width:13px; height:13px; }
 .vw-folder-under span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.vw-folder-hint,.vw-project-path { display:flex; align-items:center; gap:7px; font-size:11px; color:var(--faint); overflow-wrap:anywhere; margin-top:10px; }
+.vw-folder-hint,.vw-project-path { display:flex; align-items:center; gap:7px; font-size:var(--t1); color:var(--faint); overflow-wrap:anywhere; margin-top:10px; }
 .vw-prompts { display:flex; flex-wrap:wrap; gap:9px; justify-content:center; margin:19px 0 36px; }
 /* Botons: el principal i el secundari de Codi (button.primary i .raco-actions button a polish.css).
    «button.» davant: la regla «.wind-workspace button { font:inherit }» de dalt pesa més que una classe sola. */
-button.vw-button { min-height:36px; border:1px solid var(--line-hi); border-radius:8px; padding:6px 12px; background:transparent; color:var(--text); font-size:14px!important; font-weight:400; line-height:1.4; }
+button.vw-button { min-height:36px; border:1px solid var(--line-hi); border-radius:8px; padding:6px 12px; background:transparent; color:var(--text); font-size:var(--t3)!important; font-weight:400; line-height:1.4; }
 button.vw-button:hover { border-color:var(--accent); background:var(--surface-hi); color:var(--ink); }
 .wind-workspace :is(.vw-button,.vw-crew-chip,.vw-prompt,.vw-choice):active:not(:disabled) {
   box-shadow:inset 0 0 0 2px var(--line-hi); transition:none;
 }
 /* El mateix parell que enviar: en fosc, el blau del logo; en clar, el mar amb el blau del logo a sobre. */
-:is(button,a).vw-primary { min-height:36px; background:var(--send-bg, var(--accent)); color:var(--send-fg, var(--on-accent, var(--bg))); border:1px solid transparent; border-radius:8px; padding:6px 14px; font-size:14px!important; font-weight:600; line-height:1.4; }
+:is(button,a).vw-primary { min-height:36px; background:var(--send-bg, var(--accent)); color:var(--send-fg, var(--on-accent, var(--bg))); border:1px solid transparent; border-radius:8px; padding:6px 14px; font-size:var(--t3)!important; font-weight:600; line-height:1.4; }
 :is(button,a).vw-primary:not(:disabled):hover { background:var(--accent-hi); }
 :is(button,a).vw-primary:disabled { opacity:.5; cursor:default; }
-.vw-subtitle { color:var(--muted); font-size:12px; font-weight:500; margin:26px 0 12px; }
-.vw-recent { text-align:left; border:0; border-bottom:1px solid var(--line); padding:15px 2px; color:var(--text); background:transparent; font-size:13px!important; width:100%; }
+.vw-subtitle { color:var(--muted); font-size:var(--t2); font-weight:500; margin:26px 0 12px; }
+.vw-recent { text-align:left; border:0; border-bottom:1px solid var(--line); padding:15px 2px; color:var(--text); background:transparent; font-size:var(--t2)!important; width:100%; }
 .vw-tabs { display:flex; gap:2px; width:max-content; max-width:100%; margin:20px 0 24px; padding:3px; border-radius:var(--r-md,12px); background:var(--hover); overflow-x:auto; scrollbar-width:none; }
-.vw-tabs button { min-height:30px; background:transparent; border:0; border-radius:7px; color:var(--muted); padding:0 14px; font-size:13px!important; font-weight:500; line-height:1.3; white-space:nowrap; }
+.vw-tabs button { min-height:30px; background:transparent; border:0; border-radius:7px; color:var(--muted); padding:0 14px; font-size:var(--t2)!important; font-weight:500; line-height:1.3; white-space:nowrap; }
 .vw-tabs button:hover { background:transparent; color:var(--ink); }
 .vw-tabs button[data-selected="true"] { background:var(--surface); color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.18), 0 0 0 1px var(--line-hi); }
 .vw-member { display:flex; align-items:center; gap:15px; padding:20px 0; border-bottom:1px solid var(--line); }
 .vw-member > .winds-face { width:58px; height:58px; flex:none; }
 .vw-member > div,.vw-member > strong { flex:1; min-width:0; }
-.vw-member h2,.vw-library-item h2 { font-size:15px; color:var(--ink); margin:0 0 3px; font-weight:550; }
-.vw-empty { padding:45px 20px; text-align:center; color:var(--muted); font-size:13px; }
+.vw-member h2,.vw-library-item h2 { font-size:var(--t3); color:var(--ink); margin:0 0 3px; font-weight:550; }
+.vw-empty { padding:45px 20px; text-align:center; color:var(--muted); font-size:var(--t2); }
 p.vw-empty { max-width:560px; margin-inline:auto; line-height:1.6; }
 .vw-empty .winds-face { width:60px; height:60px; }
-.vw-empty h2 { font-weight:600; font-size:22px; line-height:1.3; font-family:inherit; letter-spacing:-.02em; color:var(--ink); margin:14px 0 0; }
+.vw-empty h2 { font-weight:600; font-size:var(--t5); line-height:1.3; font-family:inherit; letter-spacing:-.02em; color:var(--ink); margin:14px 0 0; }
 .vw-empty p { max-width:460px; margin:14px auto 24px; }
 /* L'estat i els errors, alineats amb la columna del contingut (no enganxats a la vora). */
-.vw-status { flex:none; font-size:12px; color:var(--muted); padding:0 max(28px,calc((100% - 940px)/2)) 6px; overflow-wrap:anywhere; max-height:70px; overflow:auto; }
+.vw-status { flex:none; font-size:var(--t2); color:var(--muted); padding:0 max(28px,calc((100% - 940px)/2)) 6px; overflow-wrap:anywhere; max-height:70px; overflow:auto; }
 .vw-status:empty { display:none; }
 .vw-status[role="alert"] { color:var(--red); padding-top:4px; padding-bottom:10px; }
 .vw-session-list { display:grid; gap:6px; max-height:45dvh; overflow:auto; }
@@ -132,18 +132,18 @@ p.vw-empty { max-width:560px; margin-inline:auto; line-height:1.6; }
 .vw-thread-empty { min-height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:24px 12px; }
 .vw-thread-empty h1 { font-size:clamp(22px,3vw,34px); margin:0; }
 .vw-thread-empty p { color:var(--muted); margin:6px 0 0; }
-.vw-error,.vw-describe-error { color:var(--red); font-size:12px; overflow-wrap:anywhere; }
+.vw-error,.vw-describe-error { color:var(--red); font-size:var(--t2); overflow-wrap:anywhere; }
 /* Diàlegs: la finestra de les modals de Codi (#prefsModal): radi, capçalera, botó de tancar i teló. */
-.vw-dialog { margin:auto; border:1px solid var(--line-hi); background:var(--surface); color:var(--text); padding:20px; border-radius:var(--r-md,12px); width:min(600px,calc(100vw - 32px)); max-height:85dvh; overflow:auto; box-shadow:var(--lift), 0 30px 80px -24px var(--ombra); font-size:13px; }
+.vw-dialog { margin:auto; border:1px solid var(--line-hi); background:var(--surface); color:var(--text); padding:20px; border-radius:var(--r-md,12px); width:min(600px,calc(100vw - 32px)); max-height:85dvh; overflow:auto; box-shadow:var(--lift), 0 30px 80px -24px var(--ombra); font-size:var(--t2); }
 .vw-dialog::backdrop { background:color-mix(in srgb, var(--bg) 55%, rgba(0,0,0,.5)); backdrop-filter:blur(2px); }
 .vw-dialog > header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:-8px -6px 12px 0; }
-.vw-dialog h2 { font-weight:590; font-size:16px; line-height:1.3; font-family:inherit; letter-spacing:0; color:var(--ink); margin:0; overflow-wrap:anywhere; }
+.vw-dialog h2 { font-weight:590; font-size:var(--t4); line-height:1.3; font-family:inherit; letter-spacing:0; color:var(--ink); margin:0; overflow-wrap:anywhere; }
 .vw-close { display:grid; place-items:center; flex:none; width:32px; height:32px; padding:0; border:0; border-radius:var(--r-sm,8px); background:transparent; color:var(--muted); }
 .vw-close:hover { background:var(--hover); color:var(--ink); }
 .vw-close .vw-ic { width:18px; height:18px; }
 .vw-dialog > .winds-face { width:55px; height:55px; }
-.vw-field { display:flex; flex-direction:column; gap:7px; color:var(--muted); margin:17px 0; font-size:12px; }
-.vw-field input,.vw-field textarea,.vw-dialog select,.vw-search { padding:7px 10px; border:1px solid var(--line-hi); border-radius:8px; background:var(--bg); color:var(--text); font:inherit; font-size:14px; line-height:1.45; width:100%; }
+.vw-field { display:flex; flex-direction:column; gap:7px; color:var(--muted); margin:17px 0; font-size:var(--t2); }
+.vw-field input,.vw-field textarea,.vw-dialog select,.vw-search { padding:7px 10px; border:1px solid var(--line-hi); border-radius:8px; background:var(--bg); color:var(--text); font:inherit; font-size:var(--t3); line-height:1.45; width:100%; }
 /* Els camps dels diàlegs tenen la mateixa lletra que els de les pàgines (14 px); l'etiqueta queda petita. */
 :is(.vw-field,.vw-dialog) :is(input:not([type=checkbox],[type=radio],[type=color],[type=file]),textarea,select):focus, input.vw-search:focus { border-color:color-mix(in srgb, var(--accent) 55%, var(--line)); box-shadow:var(--ring); outline:none; }
 /* Desplegables: sense la fletxa del sistema, amb la del joc d'icones (--ico-chev, refine.css). */
@@ -151,50 +151,50 @@ p.vw-empty { max-width:560px; margin-inline:auto; line-height:1.6; }
 .vw-wind-suggestions { display:grid; grid-template-columns:repeat(auto-fit,minmax(135px,1fr)); gap:7px; margin:16px 0; }
 .vw-wind-suggestion { display:flex; flex-direction:column; gap:3px; text-align:left; padding:10px 11px; border:1px solid var(--line); border-radius:11px; background:var(--bg); color:var(--text); }
 .vw-wind-suggestion:hover { border-color:var(--line-hi); background:var(--hover-alt); }
-.vw-wind-suggestion span { color:var(--muted); font-size:11px; }
+.vw-wind-suggestion span { color:var(--muted); font-size:var(--t1); }
 .vw-wind-preview { display:flex; justify-content:center; padding:8px; }
 .vw-wind-preview .winds-face { width:96px; height:96px; }
 .vw-wind-appearance { display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:10px; align-items:end; }
 .vw-wind-appearance .vw-field { margin:8px 0 18px; }
 .vw-wind-appearance input[type=color] { height:40px; padding:3px; cursor:pointer; }
 .vw-field textarea { resize:vertical; line-height:1.6; }
-.vw-muted { color:var(--muted); font-size:12px; }
-.vw-archive { background:transparent; border:0; border-top:1px solid var(--line); color:var(--muted); padding:20px 0 0; margin-top:20px; text-align:left; font-size:11px!important; }
-.vw-document { border-top:1px solid var(--line); padding:14px 0; font-size:12px; }
+.vw-muted { color:var(--muted); font-size:var(--t2); }
+.vw-archive { background:transparent; border:0; border-top:1px solid var(--line); color:var(--muted); padding:20px 0 0; margin-top:20px; text-align:left; font-size:var(--t1)!important; }
+.vw-document { border-top:1px solid var(--line); padding:14px 0; font-size:var(--t2); }
 .vw-document p { white-space:pre-wrap; }
 .vw-library-item { display:flex; align-items:flex-start; gap:16px; padding:24px 0; border-bottom:1px solid var(--line); }
 .vw-library-item > .winds-face { flex:none; width:43px; height:43px; }
 .vw-library-item > div:nth-child(2) { flex:1; min-width:0; }
-.vw-library-item p { font-size:12px; margin:3px 0; }
+.vw-library-item p { font-size:var(--t2); margin:3px 0; }
 .vw-actions { display:flex; flex-wrap:wrap; gap:6px; max-width:200px; justify-content:flex-end; }
-.vw-library-text { white-space:pre-wrap; overflow-wrap:anywhere; font:13px/1.7 inherit; background:var(--bg); padding:12px; border-radius:8px; }
+.vw-library-text { white-space:pre-wrap; overflow-wrap:anywhere; font:var(--t2)/1.7 inherit; background:var(--bg); padding:12px; border-radius:8px; }
 .vw-check { display:flex; align-items:center; gap:9px; padding:9px 0; }
-.vw-search { margin:0 0 14px; max-width:360px; font-size:14px; }
+.vw-search { margin:0 0 14px; max-width:360px; font-size:var(--t3); }
 .vw-task-row { display:flex; flex-direction:column; text-align:left; gap:6px; background:transparent; color:var(--text); border:0; border-bottom:1px solid var(--line); padding:20px 0; width:100%; }
-.vw-task-row strong { font-size:14px; font-weight:500; }
-.vw-task-row small { font-size:11px; color:var(--faint); overflow-wrap:anywhere; }
+.vw-task-row strong { font-size:var(--t3); font-weight:500; }
+.vw-task-row small { font-size:var(--t1); color:var(--faint); overflow-wrap:anywhere; }
 .vw-routine { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:18px 0; border-bottom:1px solid var(--line); }
-.vw-routine > strong { flex:1; font-size:13px; font-weight:500; }
+.vw-routine > strong { flex:1; font-size:var(--t2); font-weight:500; }
 .vw-thread-view { display:flex; flex-direction:column; overflow:hidden; padding-top:28px; padding-bottom:25px; }
 .vw-thread-view .vw-heading { flex:none; margin-bottom:18px; }
-.vw-thread-view .vw-heading h1 { font-family:inherit; font-size:17px; font-weight:500; line-height:1.5; }
+.vw-thread-view .vw-heading h1 { font-family:inherit; font-size:var(--t4); font-weight:500; line-height:1.5; }
 .vw-messages,.vw-work { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:var(--line-hi) transparent; padding:0 3px 24px; }
 .vw-message { display:flex; align-items:flex-start; gap:13px; padding:20px 0; }
 .vw-message > .winds-face { width:38px; height:38px; flex:none; }
 /* Capçalera d'un xat compartit: qui hi és a l'esquerra, «Surt del xat» a la dreta en una sola línia. */
 .vw-shared-info { display:flex; align-items:center; justify-content:space-between; gap:12px; flex:none; margin:0 0 12px; min-width:0; }
-.vw-shared-info > .vw-muted { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12.5px; }
-.vw-shared-info > button.vw-small { width:auto; height:auto; min-height:30px; padding:0 10px; white-space:nowrap; font-size:12.5px; border:1px solid var(--line); }
+.vw-shared-info > .vw-muted { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:var(--t2); }
+.vw-shared-info > button.vw-small { width:auto; height:auto; min-height:30px; padding:0 10px; white-space:nowrap; font-size:var(--t2); border:1px solid var(--line); }
 .vw-shared-info > button.vw-small:hover { border-color:var(--line-hi); }
 /* El diàleg d'un xat compartit: persones i vents com a targetes que es marquen. */
 
 .vw-shared-pick { border:0; padding:0; margin:16px 0 4px; min-width:0; display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; }
 
-.vw-shared-pick > legend { padding:0; margin:0 0 8px; color:var(--muted); font-size:12px; font-weight:500; }
+.vw-shared-pick > legend { padding:0; margin:0 0 8px; color:var(--muted); font-size:var(--t2); font-weight:500; }
 
 .vw-shared-pick > .vw-muted { grid-column:1/-1; margin:0; }
 
-label.vw-pick-card { display:flex; align-items:center; gap:10px; padding:8px 12px 8px 10px; border:1px solid var(--line); border-radius:var(--r-md,12px); background:var(--bg); color:var(--text); font-size:14px; cursor:pointer; transition:border-color .15s, background-color .15s; }
+label.vw-pick-card { display:flex; align-items:center; gap:10px; padding:8px 12px 8px 10px; border:1px solid var(--line); border-radius:var(--r-md,12px); background:var(--bg); color:var(--text); font-size:var(--t3); cursor:pointer; transition:border-color .15s, background-color .15s; }
 
 label.vw-pick-card:hover { border-color:var(--line-hi); }
 
@@ -204,25 +204,25 @@ label.vw-pick-card:has(input:focus-visible) { box-shadow:var(--ring); }
 
 label.vw-pick-card input { margin:0; flex:none; accent-color:var(--accent); }
 
-label.vw-pick-card > :is(.winds-face,.vw-shared-person) { width:26px; height:26px; flex:none; font-size:12px; }
+label.vw-pick-card > :is(.winds-face,.vw-shared-person) { width:26px; height:26px; flex:none; font-size:var(--t2); }
 
 label.vw-pick-card > span:last-child { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
-.vw-shared-person { display:grid; place-items:center; width:38px; height:38px; flex:none; border-radius:50%; background:var(--hover-alt); color:var(--ink); font-size:14px; font-weight:600; }
+.vw-shared-person { display:grid; place-items:center; width:38px; height:38px; flex:none; border-radius:50%; background:var(--hover-alt); color:var(--ink); font-size:var(--t3); font-weight:600; }
 .vw-message > div { max-width:calc(100% - 51px); min-width:0; }
 /* El missatge que s'obre des d'una novetat (Activitat), com .winds-message-focus a winds.css. */
 .vw-message-focus > div { outline:2px solid var(--accent); outline-offset:3px; border-radius:13px; }
-.vw-message strong { font-size:12px; color:var(--ink); font-weight:550; }
-.vw-message-text { font-size:15px; line-height:1.72; white-space:pre-wrap; overflow-wrap:anywhere; }
+.vw-message strong { font-size:var(--t2); color:var(--ink); font-weight:550; }
+.vw-message-text { font-size:var(--t3); line-height:1.72; white-space:pre-wrap; overflow-wrap:anywhere; }
 .vw-user { justify-content:flex-end; }
 /* La bombolla de qui escriu: la de Codi (superfície, vora fina, radi de 17 px, 14 px de lletra). */
 .vw-user > div { background:var(--surface); border:1px solid var(--line); padding:9px 14px; border-radius:17px; max-width:72%; }
-.vw-user .vw-message-text { font-size:14px; line-height:1.6; color:var(--ink); }
+.vw-user .vw-message-text { font-size:var(--t3); line-height:1.6; color:var(--ink); }
 .vw-user strong { display:none; }
 /* La resposta en curs ocupa el mateix lloc que la que la substituirà: res no salta en acabar. */
 .vw-pending { padding-top:14px; padding-bottom:24px; }
 .vw-pending-copy > strong { display:block; margin-bottom:3px; }
-.vw-thinking { display:flex; align-items:center; gap:10px; color:var(--muted); font-size:13px; min-height:22px; }
+.vw-thinking { display:flex; align-items:center; gap:10px; color:var(--muted); font-size:var(--t2); min-height:22px; }
 /* 162: la cara del vent a qui es pregunta, al costat del pas. */
 .vw-asking { display:inline-flex; gap:2px; }
 .vw-asking > * { width:20px; height:20px; }
@@ -232,26 +232,26 @@ label.vw-pick-card > span:last-child { min-width:0; overflow:hidden; text-overfl
 .vw-thinking-dots i:nth-child(3) { animation-delay:.3s; }
 .vw-stream-text { margin-top:12px; }
 @keyframes vw-thinking { 0%,60%,100% { opacity:.35; transform:translateY(0); } 30% { opacity:1; transform:translateY(-2px); } }
-.vw-live-agent { display:flex; align-items:center; gap:10px; padding:11px 0; font-size:12px; }
+.vw-live-agent { display:flex; align-items:center; gap:10px; padding:11px 0; font-size:var(--t2); }
 .vw-live-agent .winds-face { width:32px; height:32px; }
 .vw-live-agent span { margin-left:auto; color:var(--muted); }
-.vw-progress { color:var(--muted); font-size:12px; }
-.vw-result-text { white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; line-height:1.72; padding:20px 0; }
+.vw-progress { color:var(--muted); font-size:var(--t2); }
+.vw-result-text { white-space:pre-wrap; overflow-wrap:anywhere; font-size:var(--t3); line-height:1.72; padding:20px 0; }
 .vw-message-text,.vw-result-text { white-space:normal; }
-.vw-message-text pre,.vw-result-text pre { overflow:auto; white-space:pre; max-width:100%; padding:14px; border-radius:9px; background:var(--panel); font-size:12px; }
+.vw-message-text pre,.vw-result-text pre { overflow:auto; white-space:pre; max-width:100%; padding:14px; border-radius:9px; background:var(--panel); font-size:var(--t2); }
 .vw-message-text p,.vw-result-text p { margin:8px 0; }
 /* Images a wind chose to show: framed and bounded, never full-size in the thread. */
 .vw-message-text img.md-img,.vw-result-text img.md-img { display:block; max-width:min(100%,440px); max-height:340px; width:auto; height:auto; object-fit:contain; border-radius:12px; margin:12px 0; background:var(--surface); border:1px solid var(--line); }
 .vw-message-text img.gregal-img,.vw-result-text img.gregal-img { cursor:zoom-in; min-height:120px; }
-.vw-back { flex:none; align-self:flex-start; background:transparent; color:var(--muted); border:0; font-size:12px!important; padding:0 0 12px; }
+.vw-back { flex:none; align-self:flex-start; background:transparent; color:var(--muted); border:0; font-size:var(--t2)!important; padding:0 0 12px; }
 .vw-deliverable { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:20px; margin:15px 0; display:flex; flex-wrap:wrap; gap:9px; }
-.vw-deliverable h2 { width:100%; font-size:14px; font-weight:500; margin:0 0 8px; }
-.vw-log { font-size:11px; color:var(--muted); margin-top:25px; }
+.vw-deliverable h2 { width:100%; font-size:var(--t3); font-weight:500; margin:0 0 8px; }
+.vw-log { font-size:var(--t1); color:var(--muted); margin-top:25px; }
 .vw-log summary { cursor:pointer; padding:10px 0; }
 .vw-log p { padding:7px 0; margin:0; border-bottom:1px solid var(--line); overflow-wrap:anywhere; }
-.vw-log-detail { margin-left:8px; color:var(--faint); font-family:var(--mono,ui-monospace,monospace); font-size:10.5px; }
+.vw-log-detail { margin-left:8px; color:var(--faint); font-family:var(--mono,ui-monospace,monospace); font-size:var(--t1); }
 .vw-review { border-top:1px solid var(--line); margin-top:4px; }
-.vw-review > summary { cursor:pointer; padding:12px 0; color:var(--muted); font-size:12px; }
+.vw-review > summary { cursor:pointer; padding:12px 0; color:var(--muted); font-size:var(--t2); }
 .vw-review > .vw-result-text { padding-top:4px; }
 .vw-mobile-nav { display:none; }
 /* La barra de Vents a les pàgines del Racó i d'Automatitzacions (només al telèfon, només a Vents). */
@@ -271,15 +271,15 @@ label.vw-pick-card > span:last-child { min-width:0; overflow:hidden; text-overfl
  .vw-prompts { gap:7px; }
  .vw-select { max-width:46%; } button.vw-model { max-width:42%; } .vw-user > div { max-width:86%; }
  .vw-member { gap:10px; } .vw-member > .winds-face { width:48px; height:48px; } .vw-member button { padding:7px 9px; }
- .vw-member h2 { font-size:14px; }
+ .vw-member h2 { font-size:var(--t3); }
  .vw-mobile-nav { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); flex:none; gap:2px; border-top:1px solid var(--line); background:var(--panel); padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px)); }
- .vw-mobile-nav button { display:flex; flex-direction:column; align-items:center; gap:3px; min-height:48px; min-width:0; border:0; background:transparent; color:var(--muted); font-size:11px!important; line-height:1.2; padding:6px 2px; border-radius:var(--r-md,12px); }
+ .vw-mobile-nav button { display:flex; flex-direction:column; align-items:center; gap:3px; min-height:48px; min-width:0; border:0; background:transparent; color:var(--muted); font-size:var(--t1)!important; line-height:1.2; padding:6px 2px; border-radius:var(--r-md,12px); }
  .vw-mobile-nav button > span { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
  .vw-mobile-nav .vw-nav-svg { width:20px; height:20px; }
  .vw-mobile-nav button[data-selected="true"] { color:var(--ink); background:var(--accent-soft); }
  .vw-mobile-nav button[data-selected="true"] .vw-nav-svg { color:var(--accent-hi); }
  .vw-library-item { flex-wrap:wrap; gap:10px; } .vw-actions { max-width:none; width:100%; justify-content:flex-start; padding-left:53px; }
- .vw-thread-view { padding-top:18px; padding-bottom:12px; } .vw-heading h1 { font-size:24px; }
+ .vw-thread-view { padding-top:18px; padding-bottom:12px; } .vw-heading h1 { font-size:var(--t6); }
  body:is(.shell-winds,.winds-side) #side.vw-open { display:flex; visibility:visible; margin-left:0; width:230px; min-width:230px; }
  body.shell-winds:not(.vw-drawer) #navRail { display:none; }
  /* La barra de Vents (Vents · Racó · Automatitzacions) viu dins del calaix, sota la marca:
@@ -291,11 +291,11 @@ label.vw-pick-card > span:last-child { min-width:0; overflow:hidden; text-overfl
 /* Wiki: pages as readable cards, opened in a wider reading dialog. */
 .vw-wiki-row { display:flex; flex-direction:column; gap:4px; width:100%; text-align:left; background:transparent; color:var(--text); border:0; border-bottom:1px solid var(--line); padding:18px 2px; }
 .vw-wiki-row:hover { background:var(--hover-alt); }
-.vw-wiki-row strong { font-size:15px; font-weight:550; color:var(--ink); }
-.vw-wiki-row span { font-size:13px; color:var(--muted); }
-.vw-wiki-row small { font-size:11px; color:var(--faint); }
+.vw-wiki-row strong { font-size:var(--t3); font-weight:550; color:var(--ink); }
+.vw-wiki-row span { font-size:var(--t2); color:var(--muted); }
+.vw-wiki-row small { font-size:var(--t1); color:var(--faint); }
 .vw-dialog.vw-wiki-dialog { width:min(860px,calc(100vw - 32px)); }
-.vw-wiki-lede { font-size:15px; color:var(--text); margin:0 0 6px; }
+.vw-wiki-lede { font-size:var(--t3); color:var(--text); margin:0 0 6px; }
 .vw-wiki-dialog .plot-card { margin:16px 0; }
 /* Navegació amb icones de traç i feines amb qui, quan, on i què. */
 .vw-nav-icon { display:flex; align-items:center; gap:12px; }
@@ -307,7 +307,7 @@ label.vw-pick-card > span:last-child { min-width:0; overflow:hidden; text-overfl
 .vw-task-faces { display:flex; flex:none; }
 .vw-task-faces .winds-face { width:26px; height:26px; margin-right:-6px; }
 .vw-task-faces:empty { display:none; }
-.vw-task-state { flex:none; font-size:11px; font-weight:500; line-height:1.5; padding:2px 8px; border-radius:999px; border:1px solid var(--line); color:var(--muted); }
+.vw-task-state { flex:none; font-size:var(--t1); font-weight:500; line-height:1.5; padding:2px 8px; border-radius:999px; border:1px solid var(--line); color:var(--muted); }
 .vw-task-state.is-done { color:var(--green, #6fbf73); border-color:color-mix(in srgb,var(--green, #6fbf73) 40%,transparent); }
 .vw-task-state.is-stopped { color:var(--amber, #d9a441); border-color:color-mix(in srgb,var(--amber, #d9a441) 40%,transparent); }
 .vw-task-state.is-running { color:var(--accent-hi); border-color:color-mix(in srgb,var(--accent) 40%,transparent); }
@@ -336,13 +336,13 @@ label.vw-pick-card > span:last-child { min-width:0; overflow:hidden; text-overfl
 .vw-orb .winds-face { position:relative; width:92px; height:92px; margin:0; }
 @keyframes vw-breathe { 0%,100% { transform:scale(.92); opacity:.7; } 50% { transform:scale(1.08); opacity:1; } }
 .vw-welcome h1 { font:600 clamp(34px,4.4vw,52px)/1.08 var(--sans, "Inter", "Segoe UI Variable Display", system-ui, sans-serif); letter-spacing:-.04em; margin:0 0 10px; }
-.vw-welcome > p:last-child { font-size:15px; }
+.vw-welcome > p:last-child { font-size:var(--t3); }
 /* Colles: el control segmentat del canvi Codi · Vents i dels segments de preferències. */
 /* A l'inici el camp respira una mica més, com el de la portada de Codi. */
 .vw-home .vw-composer textarea { min-height:36px; }
 /* Una sola pastilla per a la colla, els suggeriments i les respostes ràpides: vora fina, radi
    complet i 13 px. L'estat d'una feina (.vw-task-state) és la mateixa forma en petit. */
-button.vw-crew-chip,button.vw-prompt,button.vw-choice { display:inline-flex; align-items:center; gap:8px; min-height:32px; padding:4px 13px; border:1px solid var(--line); border-radius:999px; background:transparent; color:var(--text); font-size:13px; font-weight:500; line-height:1.3; white-space:nowrap; }
+button.vw-crew-chip,button.vw-prompt,button.vw-choice { display:inline-flex; align-items:center; gap:8px; min-height:32px; padding:4px 13px; border:1px solid var(--line); border-radius:999px; background:transparent; color:var(--text); font-size:var(--t2); font-weight:500; line-height:1.3; white-space:nowrap; }
 button:is(.vw-crew-chip,.vw-prompt,.vw-choice):hover { border-color:var(--line-hi); background:var(--hover); color:var(--ink); }
 button.vw-crew-chip { padding:2px 13px 2px 3px; }
 .vw-crew-chip .winds-face { width:26px; height:26px; flex:none; }
@@ -352,8 +352,8 @@ button.vw-choice { white-space:normal; text-align:left; }
 .vw-today { margin:48px 0 26px; }
 .vw-today:empty { display:none; }
 .vw-today-head { display:flex; align-items:baseline; justify-content:space-between; margin:0 2px 12px; }
-.vw-today-head h2 { margin:0; font-size:13px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); }
-.vw-today-more { display:inline-flex; align-items:center; gap:5px; border:0; border-radius:var(--r-sm,8px); padding:4px 6px; background:transparent; color:var(--muted); font-size:12.5px!important; }
+.vw-today-head h2 { margin:0; font-size:var(--t2); font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); }
+.vw-today-more { display:inline-flex; align-items:center; gap:5px; border:0; border-radius:var(--r-sm,8px); padding:4px 6px; background:transparent; color:var(--muted); font-size:var(--t2)!important; }
 .vw-today-more .vw-ic { width:14px; height:14px; }
 .vw-today-more:hover { color:var(--ink); }
 .vw-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:10px; }
@@ -363,14 +363,14 @@ button.vw-choice { white-space:normal; text-align:left; }
 .vw-card-ic > .vw-ic { width:18px; height:18px; }
 .vw-card-ic .winds-face { width:30px; height:30px; }
 .vw-card-copy { display:flex; flex-direction:column; min-width:0; gap:1px; }
-.vw-card-copy small { color:var(--faint); font-size:11px; letter-spacing:.04em; }
-.vw-card-copy strong { font-weight:600; font-size:14px; line-height:1.35; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
-.vw-card-copy span { color:var(--muted); font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.vw-card-copy small { color:var(--faint); font-size:var(--t1); letter-spacing:.04em; }
+.vw-card-copy strong { font-weight:600; font-size:var(--t3); line-height:1.35; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.vw-card-copy span { color:var(--muted); font-size:var(--t2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 /* Portada d'inici: les cares dels vents a dalt i les converses recents sota el compositor. */
 .vw-start-faces { display:flex; justify-content:safe center; gap:6px; margin:0 0 26px; overflow-x:auto; scrollbar-width:none; }
 /* Amb un lateral obert (l'ordinador, un document) la portada s'estreny: les cares baixen de fila en lloc de quedar tallades. */
 @media(min-width:761px) { .vw-start-faces { flex-wrap:wrap; overflow-x:visible; } }
-button.vw-start-face { display:flex; flex-direction:column; align-items:center; gap:5px; min-width:68px; max-width:148px; flex:none; padding:6px 4px; background:transparent; border:0; border-radius:12px; color:var(--muted); font-size:12px; }
+button.vw-start-face { display:flex; flex-direction:column; align-items:center; gap:5px; min-width:68px; max-width:148px; flex:none; padding:6px 4px; background:transparent; border:0; border-radius:12px; color:var(--muted); font-size:var(--t2); }
 button.vw-start-face:hover { background:var(--hover); color:var(--ink); }
 .vw-start-face .winds-face { width:40px; height:40px; }
 .vw-start-face > span { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -395,20 +395,20 @@ button.vw-start-face:hover { background:var(--hover); color:var(--ink); }
 .vw-pati-raco { display:inline-flex; align-items:center; gap:6px; margin-left:auto; }
 .vw-pati-raco .vw-nav-svg { width:15px; height:15px; }
 .vw-start-recent { display:flex; flex-direction:column; gap:2px; margin:28px 0 0; }
-.vw-start-recent > h2 { margin:0 0 6px 6px; color:var(--muted); font-size:13px; font-weight:600; }
+.vw-start-recent > h2 { margin:0 0 6px 6px; color:var(--muted); font-size:var(--t2); font-weight:600; }
 button.vw-start-row { display:flex; align-items:center; gap:11px; min-height:48px; padding:6px; background:transparent; border:0; border-radius:12px; text-align:left; }
 button.vw-start-row:hover { background:var(--hover); }
 .vw-start-row .winds-face { width:28px; height:28px; flex:none; }
 .vw-start-row-copy { display:flex; flex-direction:column; min-width:0; }
-.vw-start-row-copy > strong { color:var(--ink); font-size:14px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.vw-start-row-copy > small { color:var(--muted); font-size:12px; }
+.vw-start-row-copy > strong { color:var(--ink); font-size:var(--t3); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.vw-start-row-copy > small { color:var(--muted); font-size:var(--t2); }
 .vw-settings-list { display:flex; flex-direction:column; gap:2px; max-width:560px; }
 button.vw-settings-row { display:flex; align-items:center; gap:14px; min-height:56px; padding:8px 10px; background:transparent; border:0; border-radius:12px; color:var(--ink); text-align:left; cursor:pointer; }
 button.vw-settings-row:hover { background:var(--hover); }
 .vw-settings-row > .vw-nav-svg { width:20px; height:20px; flex:none; color:var(--muted); }
 .vw-settings-copy { display:flex; flex-direction:column; gap:2px; min-width:0; }
-.vw-settings-copy > strong { font-size:14px; font-weight:500; }
-.vw-settings-copy > small { color:var(--muted); font-size:12.5px; }
+.vw-settings-copy > strong { font-size:var(--t3); font-weight:500; }
+.vw-settings-copy > small { color:var(--muted); font-size:var(--t2); }
 .vw-top > button.vw-crumb { padding:0; background:transparent; border:0; color:inherit; font:inherit; cursor:pointer; }
 .vw-top > button.vw-crumb:hover { color:var(--ink); text-decoration:underline; }
 @media(max-width:760px) { .vw-home { padding-top:28px; } .vw-cards { grid-template-columns:1fr; } }
@@ -418,17 +418,17 @@ button.vw-settings-row:hover { background:var(--hover); }
 .vw-asks { display:flex; flex-direction:column; gap:10px; margin:0 0 10px; }
 .vw-asks:empty { display:none; }
 .vw-ask { display:flex; flex-direction:column; gap:9px; padding:14px 16px; border:1px solid var(--line-hi); border-radius:var(--r-md,12px); background:var(--surface); box-shadow:var(--lift); }
-.vw-ask > strong { color:var(--ink); font-size:14.5px; font-weight:600; }
-.vw-ask-wait { color:var(--muted); font-size:11.5px; margin-top:-6px; }
-.vw-ask code { display:block; white-space:pre-wrap; word-break:break-all; font-size:12.5px; padding:9px 11px; border-radius:8px; background:var(--bg); color:var(--ink); max-height:6.5em; overflow:auto; }
+.vw-ask > strong { color:var(--ink); font-size:var(--t3); font-weight:600; }
+.vw-ask-wait { color:var(--muted); font-size:var(--t1); margin-top:-6px; }
+.vw-ask code { display:block; white-space:pre-wrap; word-break:break-all; font-size:var(--t2); padding:9px 11px; border-radius:8px; background:var(--bg); color:var(--ink); max-height:6.5em; overflow:auto; }
 .vw-ask-actions { display:flex; gap:8px; }
-.vw-ask-actions button { flex:1; min-height:36px; border-radius:8px; font-size:14px; font-weight:400; border:1px solid var(--line-hi); background:transparent; color:var(--text); }
+.vw-ask-actions button { flex:1; min-height:36px; border-radius:8px; font-size:var(--t3); font-weight:400; border:1px solid var(--line-hi); background:transparent; color:var(--text); }
 .vw-ask-actions button:hover { border-color:var(--accent); background:var(--surface-hi); color:var(--ink); }
 .vw-ask-actions .vw-ask-allow { background:var(--accent); border-color:transparent; color:var(--on-accent, var(--bg)); font-weight:600; }
 .vw-ask-actions .vw-ask-allow:hover { background:var(--accent-hi); border-color:transparent; color:var(--on-accent, var(--bg)); }
 .vw-ask-option { display:flex; flex-direction:column; align-items:flex-start; gap:2px; text-align:left; padding:10px 12px; border-radius:var(--r-md,12px); border:1px solid var(--line); background:var(--bg); color:var(--ink); font-weight:500; }
 .vw-ask-option:hover { border-color:var(--line-hi); background:var(--surface-hi); }
-.vw-ask-option small { color:var(--muted); font-weight:400; font-size:12px; }
+.vw-ask-option small { color:var(--muted); font-weight:400; font-size:var(--t2); }
 .vw-ask-free { padding:9px 12px; border-radius:8px; border:1px solid var(--line-hi); background:var(--bg); color:var(--ink); font:inherit; }
 input.vw-ask-free:focus { border-color:color-mix(in srgb, var(--accent) 55%, var(--line)); box-shadow:var(--ring); outline:none; }
 /* Targeta de permís com a la maqueta: dins del fil, sota l'últim missatge,
@@ -437,13 +437,13 @@ input.vw-ask-free:focus { border-color:color-mix(in srgb, var(--accent) 55%, var
 .vw-asks-inline { margin:6px 0 4px 58px; max-width:760px; }
 .vw-ask.vw-ask-plan { border-radius:18px; border-color:var(--line-hi); background:var(--surface); box-shadow:none; gap:10px; }
 .vw-ask-head { display:flex; gap:10px; align-items:flex-start; }
-.vw-ask-head strong { display:block; color:var(--ink); font-size:15px; font-weight:600; line-height:1.35; }
-.vw-ask-sub { display:block; color:var(--muted); font-size:13px; margin-top:2px; line-height:1.4; }
+.vw-ask-head strong { display:block; color:var(--ink); font-size:var(--t3); font-weight:600; line-height:1.35; }
+.vw-ask-sub { display:block; color:var(--muted); font-size:var(--t2); margin-top:2px; line-height:1.4; }
 .vw-ask-shield { flex:none; width:20px; height:20px; margin-top:1px; color:var(--accent-hi); }
-.vw-ask-step { color:var(--muted); font-size:12px; margin-bottom:-4px; }
+.vw-ask-step { color:var(--muted); font-size:var(--t2); margin-bottom:-4px; }
 .vw-ask-preview { display:flex; flex-direction:column; gap:2px; min-width:0; padding:10px 12px; border-radius:12px; border:1px solid var(--line); background:var(--bg); }
-.vw-ask-preview strong { color:var(--ink); font-size:14px; font-weight:600; overflow-wrap:anywhere; }
-.vw-ask-preview small { color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
+.vw-ask-preview strong { color:var(--ink); font-size:var(--t3); font-weight:600; overflow-wrap:anywhere; }
+.vw-ask-preview small { color:var(--muted); font-size:var(--t2); overflow-wrap:anywhere; }
 .vw-ask-preview[data-kind="command"] { padding:0; border:0; }
 .vw-ask-preview code { margin:0; max-height:12em; }
 .vw-ask-plan .vw-ask-actions button { min-height:40px; border-radius:12px; font-weight:600; }
@@ -452,12 +452,12 @@ input.vw-ask-free:focus { border-color:color-mix(in srgb, var(--accent) 55%, var
 .vw-ask.vw-ask-wind, .vw-messages .vw-asks-inline .vw-ask.vw-ask-wind { border-color:color-mix(in srgb, var(--vw-wind) 45%, var(--line-hi)); background:color-mix(in srgb, var(--vw-wind) 5%, var(--surface)); box-shadow:inset 3px 0 0 var(--vw-wind); }
 .vw-ask-head > div { min-width:0; }
 .vw-ask-head > .winds-face { flex:none; width:28px; height:28px; margin-top:-2px; }
-.vw-ask-why { display:block; color:var(--muted); font-size:12.5px; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.vw-ask-why { display:block; color:var(--muted); font-size:var(--t2); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .vw-ask-wind .vw-ask-actions .vw-ask-allow, .vw-ask-wind .vw-ask-actions .vw-ask-allow:hover { background:var(--vw-allow, var(--accent)); color:var(--vw-allow-ink, var(--on-accent, var(--bg))); }
 .vw-ask-wind .vw-ask-actions .vw-ask-allow:hover { box-shadow:inset 0 0 0 2px color-mix(in srgb, var(--vw-allow-ink, var(--bg)) 22%, transparent); }
 /* Respost: la targeta queda en una línia, i el vent de la cantonada assenteix (Permet) o fa que no (No),
    per sobre de la postura «t'espera» si encara n'hi ha d'altres. */
-.vw-ask-done { margin:4px 0 8px 58px; color:var(--muted); font-size:13px; overflow-wrap:anywhere; }
+.vw-ask-done { margin:4px 0 8px 58px; color:var(--muted); font-size:var(--t2); overflow-wrap:anywhere; }
 @media (prefers-reduced-motion:no-preference) {
   .vw-ask-done { animation:vw-ask-in .2s ease-out both; }
   .wind-workspace .vw-wind-corner[data-react="nod"] > .winds-face { animation:vw-corner-nod .8s ease-in-out; }
@@ -475,8 +475,8 @@ input.vw-ask-free:focus { border-color:color-mix(in srgb, var(--accent) 55%, var
 /* Un sol sistema amb Codi: la barra lateral amb les mides de #navRail (calma.css); el compositor,
    l'enviament, els botons i les pastilles surten de les mateixes mides que Codi (refine.css,
    polish.css), i tots dos productes tenen un sol accent: el del tema. */
-html body:is(.shell-winds,.winds-side) .vw-nav-item.vw-nav-icon, html body:is(.shell-winds,.winds-side) .vw-nav-item.vw-project { font-size:14px!important; padding:8px 12px; color:var(--text); }
-html body:is(.shell-winds,.winds-side) .vw-nav-item.vw-thread { font-size:13px!important; }
+html body:is(.shell-winds,.winds-side) .vw-nav-item.vw-nav-icon, html body:is(.shell-winds,.winds-side) .vw-nav-item.vw-project { font-size:var(--t3)!important; padding:8px 12px; color:var(--text); }
+html body:is(.shell-winds,.winds-side) .vw-nav-item.vw-thread { font-size:var(--t2)!important; }
 html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(.shell-winds,.winds-side) .vw-send:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
 
 /* ---- Passada de qualitat: un sol joc d'icones, files que s'escurcen bé,
@@ -494,7 +494,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-recent .vw-ic { color:var(--faint); }
 .vw-recent:hover, .vw-recent:hover .vw-ic { color:var(--ink); }
 .vw-deliverable button { display:inline-flex; align-items:center; gap:7px; }
-.vw-project-parent { margin-left:auto; padding-left:8px; max-width:45%; color:var(--faint); font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.vw-project-parent { margin-left:auto; padding-left:8px; max-width:45%; color:var(--faint); font-size:var(--t1); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
 /* Missatges: el nom enganxat al text, bombolles sense marges sobrants i una amplada de lectura. */
 .vw-message { padding:14px 0; }
@@ -507,12 +507,12 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 /* Diàlegs: perfil amb cara, rol i fitxes en una fila; crear un vent amb l'acció sempre a la vista. */
 .vw-profile-head { display:flex; align-items:center; gap:14px; margin:2px 0 16px; }
 .vw-profile-head > .winds-face { width:64px; height:64px; }
-.vw-profile-head > p { flex:1; min-width:0; margin:0; font-size:13px; }
+.vw-profile-head > p { flex:1; min-width:0; margin:0; font-size:var(--t2); }
 .vw-dialog-foot { position:sticky; bottom:-20px; z-index:1; display:flex; justify-content:flex-end; gap:8px; margin:20px -20px -20px; padding:12px 20px; background:var(--surface); border-top:1px solid var(--line); }
 .vw-dialog .vw-tabs { margin:8px 0 16px; }
 
 /* Títols de pàgina com els de Codi (.page-title); la portada conserva la seva salutació. */
-.vw-thread-view .vw-heading h1 { font-size:17px; font-weight:550; letter-spacing:-.01em; }
+.vw-thread-view .vw-heading h1 { font-size:var(--t4); font-weight:550; letter-spacing:-.01em; }
 
 /* Racó i Automatitzacions, dins de Vents: els botons, l'etiqueta i l'actiu de la barra són els
    de Codi (polish.css, refine.css); aquí no hi ha res a sobreescriure. */
@@ -521,13 +521,13 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
  .vw-message:not(.vw-user) > div { max-width:calc(100% - 46px); }
  .vw-message > :is(.winds-face,.vw-shared-person) { width:32px; height:32px; }
  .vw-choices { margin-left:45px; }
- .vw-tabs button { padding:0 11px; font-size:12.5px!important; }
+ .vw-tabs button { padding:0 11px; font-size:var(--t2)!important; }
 }
 /* Al telèfon la resposta d'un vent fa servir tota l'amplada, com la de Codi: la cara i el nom en
    fan la capçalera i el text (i les taules) no perden la columna de la cara. */
 @media(max-width:600px) {
  .vw-message:not(.vw-user) { display:block; position:relative; }
- .vw-message:not(.vw-user) > :is(.winds-face,.vw-shared-person) { position:absolute; left:0; top:14px; width:26px; height:26px; font-size:12px; }
+ .vw-message:not(.vw-user) > :is(.winds-face,.vw-shared-person) { position:absolute; left:0; top:14px; width:26px; height:26px; font-size:var(--t2); }
  .vw-message:not(.vw-user) > div { max-width:100%; }
  .vw-message:not(.vw-user) > div > strong { min-height:26px; line-height:26px; margin-bottom:6px; }
  .vw-message:not(.vw-user):has(> :is(.winds-face,.vw-shared-person)) > div > strong { padding-left:35px; }
@@ -547,8 +547,8 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .collective-dialog { border:1px solid var(--line-hi); border-radius:var(--r-lg,22px); background:var(--surface); color:var(--text); max-width:460px; box-shadow:var(--lift), 0 30px 80px -20px var(--ombra); }
 .collective-dialog::backdrop { background:color-mix(in srgb, var(--bg) 60%, transparent); backdrop-filter:blur(3px); }
 .collective-form { gap:8px; padding:24px 24px 20px; }
-.collective-form h2 { font-size:19px; font-weight:650; line-height:1.3; letter-spacing:-.01em; color:var(--ink); }
-.collective-help { margin:0 0 8px; opacity:1; color:var(--muted); font-size:13.5px; line-height:1.5; }
+.collective-form h2 { font-size:var(--t5); font-weight:650; line-height:1.3; letter-spacing:-.01em; color:var(--ink); }
+.collective-help { margin:0 0 8px; opacity:1; color:var(--muted); font-size:var(--t2); line-height:1.5; }
 .collective-opt { align-items:flex-start; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:var(--r-md,12px); background:var(--bg); transition:border-color .15s, background-color .15s; }
 .collective-opt:hover { background:var(--bg); border-color:var(--line-hi); }
 .collective-opt:has(input:checked) { border-color:color-mix(in srgb, var(--accent) 65%, var(--line)); background:var(--accent-soft); }
@@ -556,14 +556,14 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .collective-opt input { -webkit-appearance:none; appearance:none; flex:none; width:16px; height:16px; margin:2px 0 0; border:1.5px solid var(--faint); border-radius:50%; background:transparent; cursor:pointer; transition:border-color .15s; }
 .collective-opt input:checked { border-color:var(--accent); background:radial-gradient(circle, var(--accent) 0 3.5px, transparent 4px); }
 .collective-opt input:focus-visible { outline:none; box-shadow:none; }
-.collective-opt b { font-size:14px; font-weight:600; color:var(--ink); }
-.collective-opt small { opacity:1; color:var(--muted); font-size:12px; }
+.collective-opt b { font-size:var(--t3); font-weight:600; color:var(--ink); }
+.collective-opt small { opacity:1; color:var(--muted); font-size:var(--t2); }
 .collective-custom { gap:10px; margin-top:4px; }
-.collective-custom label { color:var(--muted); font-size:12.5px; }
-.collective-custom input { min-height:38px; padding:0 12px; border-radius:8px; border:1px solid var(--line-hi); background:var(--bg); color:var(--ink); font:inherit; font-size:14px; }
+.collective-custom label { color:var(--muted); font-size:var(--t2); }
+.collective-custom input { min-height:38px; padding:0 12px; border-radius:8px; border:1px solid var(--line-hi); background:var(--bg); color:var(--ink); font:inherit; font-size:var(--t3); }
 .collective-custom input:focus { border-color:color-mix(in srgb, var(--accent) 60%, var(--line)); box-shadow:var(--ring); outline:none; }
 .collective-actions { justify-content:flex-end; gap:8px; margin-top:10px; }
-.collective-actions button { min-height:36px; padding:0 14px; border-radius:8px; font:inherit; font-size:14px; font-weight:400; cursor:pointer; }
+.collective-actions button { min-height:36px; padding:0 14px; border-radius:8px; font:inherit; font-size:var(--t3); font-weight:400; cursor:pointer; }
 .collective-actions #collectiveLater { border:1px solid var(--line-hi); background:transparent; color:var(--text); }
 .collective-actions #collectiveLater:hover { border-color:var(--accent); background:var(--surface-hi); color:var(--ink); }
 .collective-actions #collectiveOk { border:1px solid transparent; background:var(--accent); color:var(--on-accent, var(--bg)); font-weight:600; }
@@ -579,7 +579,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
    color del vent i les lletres el barregen amb la tinta del tema, perquè els
    colors pastel es llegeixin tant en clar com en fosc. Un rol llarg s'escurça; la
    línia del text és més alta que la lletra perquè l'overflow no talli la cua de la g. */
-.vw-tag { display:inline-flex; align-items:center; gap:4px; box-sizing:border-box; height:20px; max-width:100%; min-width:0; flex:0 1 auto; padding:0 7px; border-radius:6px; font-size:11.5px; font-weight:500; line-height:1; white-space:nowrap; background:color-mix(in srgb,var(--c) 18%,transparent); color:color-mix(in srgb,var(--c) 50%,var(--ink)); }
+.vw-tag { display:inline-flex; align-items:center; gap:4px; box-sizing:border-box; height:20px; max-width:100%; min-width:0; flex:0 1 auto; padding:0 7px; border-radius:6px; font-size:var(--t1); font-weight:500; line-height:1; white-space:nowrap; background:color-mix(in srgb,var(--c) 18%,transparent); color:color-mix(in srgb,var(--c) 50%,var(--ink)); }
 .vw-tag > span { overflow:hidden; text-overflow:ellipsis; line-height:1.4; }
 .vw-tag-ic { width:12px; height:12px; flex:none; }
 .vw-tag-ic path { stroke-width:1.6; }
@@ -588,13 +588,13 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 /* A qui parles, en un grup: «Qualsevol» o la cara d'un vent. */
 .vw-address { display:flex; align-items:center; gap:4px; min-width:0; overflow-x:auto; scrollbar-width:none; }
 .vw-address > button { display:grid; place-items:center; flex:none; min-height:30px; border:1px solid transparent; border-radius:999px; background:transparent; color:var(--muted); padding:0; transition:border-color .15s, background-color .15s, opacity .15s; }
-.vw-address > .vw-address-any { padding:0 10px; font-size:12px; font-weight:500; }
+.vw-address > .vw-address-any { padding:0 10px; font-size:var(--t2); font-weight:500; }
 .vw-address > .vw-address-wind { width:32px; height:32px; opacity:.55; }
 .vw-address > .vw-address-wind .winds-face { width:26px; height:26px; }
 .vw-address > button:hover { opacity:1; background:var(--hover); color:var(--ink); }
 .vw-address > button[aria-checked="true"] { opacity:1; border-color:color-mix(in srgb, var(--accent) 60%, var(--line)); background:var(--accent-soft); color:var(--ink); }
 /* Un altre vent agafa el fil: una línia discreta, no un missatge. */
-.vw-handoff { margin:6px 0 0 51px; color:var(--faint); font-size:12px; letter-spacing:.01em; }
+.vw-handoff { margin:6px 0 0 51px; color:var(--faint); font-size:var(--t2); letter-spacing:.01em; }
 /* Un encàrrec d'un altre vent: la seva cara i «Encàrrec de X» damunt del text. */
 .vw-handoff-task { flex-direction:column; gap:4px; }
 .vw-handoff-task > .vw-handoff { display:flex; align-items:center; gap:8px; margin:0; }
@@ -602,9 +602,9 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 /* «La Marinada en sap més de compres»: la tria és teva. */
 .vw-suggest { display:flex; align-items:center; gap:10px; margin:6px 0 4px 51px; padding:8px 8px 8px 10px; max-width:560px; border:1px solid var(--line); border-radius:var(--r-md,12px); background:var(--surface); animation:vw-suggest-in .25s ease-out; }
 .vw-suggest > .winds-face { width:28px; height:28px; flex:none; }
-.vw-suggest > span { flex:1; min-width:0; color:var(--muted); font-size:13px; }
+.vw-suggest > span { flex:1; min-width:0; color:var(--muted); font-size:var(--t2); }
 .vw-suggest > span strong { color:var(--ink); font-weight:600; }
-.vw-suggest > button.vw-button { min-height:32px; padding:4px 12px; font-size:13px!important; }
+.vw-suggest > button.vw-button { min-height:32px; padding:4px 12px; font-size:var(--t2)!important; }
 @keyframes vw-suggest-in { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
 @media(max-width:600px) { .vw-handoff, .vw-suggest { margin-left:0; } .vw-owner > .vw-tag { display:none; } }
 @media(prefers-reduced-motion:reduce) { .vw-suggest { animation:none; } }
@@ -620,12 +620,12 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-avui:empty { display:none; }
 .vw-avui-head { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin:0 2px 14px; }
 .vw-avui-title { display:flex; align-items:baseline; gap:10px; min-width:0; }
-.vw-avui-title h2 { margin:0; color:var(--ink); font-size:19px; font-weight:650; letter-spacing:-.01em; }
-.vw-avui-date { color:var(--muted); font-size:13px; text-transform:none; }
+.vw-avui-title h2 { margin:0; color:var(--ink); font-size:var(--t5); font-weight:650; letter-spacing:-.01em; }
+.vw-avui-date { color:var(--muted); font-size:var(--t2); text-transform:none; }
 .vw-avui-date::first-letter { text-transform:uppercase; }
-.vw-avui-held { margin:-4px 2px 14px; color:var(--muted); font-size:12.5px; }
+.vw-avui-held { margin:-4px 2px 14px; color:var(--muted); font-size:var(--t2); }
 .vw-avui-group { margin:0 0 18px; }
-.vw-avui-group > h3 { margin:0 2px 8px; color:var(--faint); font-size:10.5px; font-weight:650; letter-spacing:.11em; text-transform:uppercase; }
+.vw-avui-group > h3 { margin:0 2px 8px; color:var(--faint); font-size:var(--t1); font-weight:650; letter-spacing:.11em; text-transform:uppercase; }
 .vw-avui-group[data-section="now"] > h3 { color:var(--accent-hi); }
 .vw-avui-card { display:grid; grid-template-columns:34px minmax(0,1fr); gap:12px; align-items:start; margin:0 0 8px; padding:14px 14px 10px 14px; border:1px solid var(--line); border-radius:16px; background:var(--surface); transition:border-color .15s, transform .25s ease, opacity .25s ease, max-height .25s ease; animation:vw-avui-in .35s ease-out both; animation-delay:calc(var(--i, 0) * 45ms); max-height:900px; overflow:hidden; }
 .vw-avui-card:hover { border-color:var(--line-hi); }
@@ -633,33 +633,33 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-avui-group[data-section="now"] .vw-avui-card { border-color:color-mix(in srgb, var(--accent) 22%, var(--line)); }
 .vw-avui-copy { min-width:0; }
 .vw-avui-card-title { display:block; width:100%; padding:0; border:0; background:transparent; color:var(--ink); text-align:left; font:inherit; cursor:pointer; }
-.vw-avui-card-title strong { display:block; font-size:15px; font-weight:600; line-height:1.4; }
-.vw-avui-why { margin:3px 0 0; color:var(--text); font-size:13.5px; line-height:1.5; }
-.vw-avui-meta { display:flex; flex-wrap:wrap; gap:8px; margin:5px 0 0; color:var(--faint); font-size:12px; }
+.vw-avui-card-title strong { display:block; font-size:var(--t3); font-weight:600; line-height:1.4; }
+.vw-avui-why { margin:3px 0 0; color:var(--text); font-size:var(--t2); line-height:1.5; }
+.vw-avui-meta { display:flex; flex-wrap:wrap; gap:8px; margin:5px 0 0; color:var(--faint); font-size:var(--t2); }
 .vw-avui-age { color:var(--amber, #d9a441); }
-.vw-avui-body { display:none; margin:10px 0 2px; padding-top:10px; border-top:1px solid var(--line); font-size:14px; }
+.vw-avui-body { display:none; margin:10px 0 2px; padding-top:10px; border-top:1px solid var(--line); font-size:var(--t3); }
 .vw-avui-card.is-open .vw-avui-body { display:block; }
 .vw-avui-acts { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:10px; }
-.vw-avui-chip { min-height:30px; padding:3px 12px; border:1px solid var(--line); border-radius:999px; background:transparent; color:var(--text); font-size:12.5px!important; font-weight:500; }
+.vw-avui-chip { min-height:30px; padding:3px 12px; border:1px solid var(--line); border-radius:999px; background:transparent; color:var(--text); font-size:var(--t2)!important; font-weight:500; }
 .vw-avui-chip:hover { border-color:var(--line-hi); background:var(--hover); color:var(--ink); }
 .vw-avui-decide { display:flex; align-items:center; gap:2px; margin-left:auto; }
 .vw-avui-decide .vw-small { width:30px; height:30px; color:var(--faint); }
 .vw-avui-decide .vw-small:hover { color:var(--ink); }
 .vw-avui-decide .vw-small[aria-pressed="true"] { color:var(--accent-hi); }
 .vw-avui-decide .vw-ic { width:15px; height:15px; }
-.vw-avui-done { display:inline-flex; align-items:center; gap:6px; min-height:30px; margin-left:4px; padding:0 12px; border:1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); border-radius:999px; background:var(--accent-soft); color:var(--ink); font-size:12.5px!important; font-weight:600; }
+.vw-avui-done { display:inline-flex; align-items:center; gap:6px; min-height:30px; margin-left:4px; padding:0 12px; border:1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); border-radius:999px; background:var(--accent-soft); color:var(--ink); font-size:var(--t2)!important; font-weight:600; }
 .vw-avui-done .vw-ic { width:14px; height:14px; color:var(--accent-hi); }
 .vw-avui-done:hover { background:var(--accent); border-color:transparent; color:var(--on-accent, var(--bg)); }
 .vw-avui-done:hover .vw-ic { color:inherit; }
 .vw-avui-card.is-leaving { opacity:0; transform:translateX(14px); max-height:0; padding-top:0; padding-bottom:0; margin-bottom:0; border-width:0; }
 .vw-avui-end { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin:18px 2px 0; padding-top:14px; border-top:1px dashed var(--line); }
-.vw-avui-fin { margin:0; color:var(--muted); font-size:13.5px; }
+.vw-avui-fin { margin:0; color:var(--muted); font-size:var(--t2); }
 /* Text del cos subratllat: --accent-hi és un enllaç blau en fosc però gairebé tinta en clar. */
-.vw-avui-tune { min-height:30px; padding:0 4px; border:0; background:transparent; color:var(--text); text-decoration:underline; text-decoration-color:var(--line-hi); text-underline-offset:3px; font-size:13px!important; font-weight:500; }
+.vw-avui-tune { min-height:30px; padding:0 4px; border:0; background:transparent; color:var(--text); text-decoration:underline; text-decoration-color:var(--line-hi); text-underline-offset:3px; font-size:var(--t2)!important; font-weight:500; }
 .vw-avui-tune:hover { text-decoration-color:currentColor; }
 .vw-avui-cta { display:inline-flex; align-items:center; gap:8px; }
 .vw-avui-resume { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:22px 2px 0; }
-.vw-avui-resume > span { color:var(--faint); font-size:12px; margin-right:4px; }
+.vw-avui-resume > span { color:var(--faint); font-size:var(--t2); margin-right:4px; }
 .vw-avui-resume .vw-crew-chip > span { max-width:22ch; overflow:hidden; text-overflow:ellipsis; }
 .vw-avui-hours { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 .vw-avui-hours .vw-field { margin:12px 0 4px; }
@@ -678,7 +678,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 /* El temps i el partit ja porten el seu dibuix: la lluïssor sobra. */
 .vw-glance-wx::before, .vw-glance-follow[data-kind="team"]::before { display:none; }
 .vw-glance-card > * { position:relative; }
-.vw-glance-kicker { margin:0; color:var(--faint); font-size:10.5px; font-weight:650; letter-spacing:.11em; text-transform:uppercase; }
+.vw-glance-kicker { margin:0; color:var(--faint); font-size:var(--t1); font-weight:650; letter-spacing:.11em; text-transform:uppercase; }
 /* El temps: el color del cel tenyeix la targeta. */
 .vw-glance-wx { --gl-tint:var(--gl-sun); background:linear-gradient(155deg, color-mix(in srgb, var(--gl-tint) 20%, var(--surface)), var(--surface) 72%); }
 .vw-glance-wx:is([data-kind="cloudy"],[data-kind="fog"]) { --gl-tint:var(--gl-cloud-mid); }
@@ -701,70 +701,70 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-gi-bolt { fill:var(--gl-sun); }
 .vw-glance-temp { display:flex; flex-direction:column; line-height:1.05; }
 .vw-glance-temp b { color:var(--ink); font-size:40px; font-weight:680; letter-spacing:-.04em; font-variant-numeric:tabular-nums; }
-.vw-glance-range { color:var(--muted); font-size:13px; font-variant-numeric:tabular-nums; }
+.vw-glance-range { color:var(--muted); font-size:var(--t2); font-variant-numeric:tabular-nums; }
 .vw-glance-min { color:var(--gl-rain); font-weight:600; }
 .vw-glance-max { color:var(--ink); font-weight:600; }
 .vw-glance-sep { color:var(--faint); }
-.vw-glance-place { position:absolute; top:14px; right:14px; display:flex; flex-direction:column; align-items:flex-end; gap:1px; max-width:45%; padding:0; border:0; background:transparent; color:var(--muted); font:inherit; font-size:12.5px; text-align:right; cursor:pointer; }
-.vw-glance-place strong { max-width:100%; overflow:hidden; color:var(--ink); font-size:15px; font-weight:650; text-overflow:ellipsis; white-space:nowrap; border-bottom:1px dashed var(--line-hi); }
+.vw-glance-place { position:absolute; top:14px; right:14px; display:flex; flex-direction:column; align-items:flex-end; gap:1px; max-width:45%; padding:0; border:0; background:transparent; color:var(--muted); font:inherit; font-size:var(--t2); text-align:right; cursor:pointer; }
+.vw-glance-place strong { max-width:100%; overflow:hidden; color:var(--ink); font-size:var(--t3); font-weight:650; text-overflow:ellipsis; white-space:nowrap; border-bottom:1px dashed var(--line-hi); }
 .vw-glance-place:hover strong { border-bottom-color:currentColor; }
 .vw-glance-hours { display:grid; grid-template-columns:repeat(24, minmax(0, 1fr)); gap:2px; align-items:end; height:16px; margin-top:4px; }
 .vw-glance-hour { display:block; height:5px; border-radius:2px; background:var(--line-hi); }
 .vw-glance-hour.is-rain { height:14px; background:var(--gl-rain); }
 .vw-glance-hour.is-now { box-shadow:0 0 0 1.5px var(--ink); }
-.vw-glance-rain { margin:0; color:var(--muted); font-size:12.5px; }
+.vw-glance-rain { margin:0; color:var(--muted); font-size:var(--t2); }
 .vw-glance-rain.is-wet { color:var(--gl-rain); font-weight:600; }
-.vw-glance-sunline { display:flex; gap:14px; margin:0; color:var(--faint); font-size:12px; font-variant-numeric:tabular-nums; }
+.vw-glance-sunline { display:flex; gap:14px; margin:0; color:var(--faint); font-size:var(--t2); font-variant-numeric:tabular-nums; }
 .vw-glance-rise::before, .vw-glance-set::before { content:""; display:inline-block; width:8px; height:8px; margin-right:5px; border-radius:50%; background:var(--gl-sun); vertical-align:1px; }
 .vw-glance-set::before { background:transparent; box-shadow:inset 0 -4px 0 var(--gl-sun); }
 /* El calendari: l'hora a l'esquerra, com una agenda de paper. */
 .vw-glance-cal { --gl-tint:var(--gl-other); }
 .vw-glance-events { display:flex; flex-direction:column; gap:8px; margin:2px 0 0; padding:0; list-style:none; }
 .vw-glance-event { display:grid; grid-template-columns:auto minmax(0, 1fr); gap:10px; align-items:baseline; padding-left:9px; border-left:3px solid color-mix(in srgb, var(--accent) 55%, transparent); }
-.vw-glance-time { color:var(--accent-hi); font-size:12.5px; font-weight:650; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.vw-glance-time { color:var(--accent-hi); font-size:var(--t2); font-weight:650; font-variant-numeric:tabular-nums; white-space:nowrap; }
 .vw-glance-what { display:flex; flex-direction:column; min-width:0; }
-.vw-glance-what strong { overflow:hidden; color:var(--ink); font-size:14px; font-weight:600; text-overflow:ellipsis; white-space:nowrap; }
-.vw-glance-what small { color:var(--faint); font-size:11.5px; }
+.vw-glance-what strong { overflow:hidden; color:var(--ink); font-size:var(--t3); font-weight:600; text-overflow:ellipsis; white-space:nowrap; }
+.vw-glance-what small { color:var(--faint); font-size:var(--t1); }
 /* El que segueixes: el partit amb el compte enrere. */
 .vw-glance-follow { --gl-tint:var(--gl-other); }
 .vw-glance-follow[data-kind="team"] { --gl-tint:var(--gl-match); }
 .vw-glance-follow-head { display:flex; align-items:center; gap:8px; }
 .vw-glance-follow-head .vw-glance-kicker { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.vw-glance-badge { display:grid; place-items:center; flex:none; width:26px; height:26px; border-radius:50%; background:var(--gl-tint); color:var(--bg); font-size:13px; font-weight:750; }
+.vw-glance-badge { display:grid; place-items:center; flex:none; width:26px; height:26px; border-radius:50%; background:var(--gl-tint); color:var(--bg); font-size:var(--t2); font-weight:750; }
 .vw-glance-follow[data-kind="team"] .vw-glance-badge { width:34px; height:34px; border-radius:0; background:none; }
 .vw-glance-badge svg, .vw-brief-art svg { display:block; width:100%; height:100%; overflow:visible; }
 .vw-match-ball { transform-box:fill-box; transform-origin:center; }
-.vw-glance-remove { display:grid; place-items:center; width:26px; height:26px; margin:-4px -6px -4px 0; padding:0; border:0; border-radius:50%; background:transparent; color:var(--faint); font-size:17px; line-height:1; cursor:pointer; }
+.vw-glance-remove { display:grid; place-items:center; width:26px; height:26px; margin:-4px -6px -4px 0; padding:0; border:0; border-radius:50%; background:transparent; color:var(--faint); font-size:var(--t4); line-height:1; cursor:pointer; }
 .vw-glance-remove:hover { background:var(--hover); color:var(--ink); }
-.vw-glance-title { color:var(--ink); font-size:17px; font-weight:680; line-height:1.25; letter-spacing:-.01em; }
-.vw-glance-when { display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; margin:0; color:var(--text); font-size:13px; }
+.vw-glance-title { color:var(--ink); font-size:var(--t4); font-weight:680; line-height:1.25; letter-spacing:-.01em; }
+.vw-glance-when { display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; margin:0; color:var(--text); font-size:var(--t2); }
 .vw-glance-when::first-letter { text-transform:uppercase; }
-.vw-glance-count { display:inline-block; padding:2px 9px; border-radius:999px; background:color-mix(in srgb, var(--gl-tint) 20%, transparent); color:var(--ink); font-size:11.5px; font-weight:650; font-variant-numeric:tabular-nums; }
-.vw-glance-detail { margin:0; color:var(--muted); font-size:12.5px; }
-.vw-glance-pending { margin:2px 0 0; color:var(--muted); font-size:13px; line-height:1.45; }
-.vw-glance-error { margin:2px 0 0; color:var(--red); font-size:13px; line-height:1.45; }
-.vw-glance-link { align-self:flex-start; margin-top:auto; color:var(--accent-hi); font-size:12.5px; font-weight:600; text-decoration:none; }
+.vw-glance-count { display:inline-block; padding:2px 9px; border-radius:999px; background:color-mix(in srgb, var(--gl-tint) 20%, transparent); color:var(--ink); font-size:var(--t1); font-weight:650; font-variant-numeric:tabular-nums; }
+.vw-glance-detail { margin:0; color:var(--muted); font-size:var(--t2); }
+.vw-glance-pending { margin:2px 0 0; color:var(--muted); font-size:var(--t2); line-height:1.45; }
+.vw-glance-error { margin:2px 0 0; color:var(--red); font-size:var(--t2); line-height:1.45; }
+.vw-glance-link { align-self:flex-start; margin-top:auto; color:var(--accent-hi); font-size:var(--t2); font-weight:600; text-decoration:none; }
 .vw-glance-link::after { content:" →"; }
 .vw-glance-link:hover { text-decoration:underline; }
 /* Convits, i el control «Segueix…». */
 .vw-glance-invite { justify-content:space-between; border-style:dashed; border-color:var(--line-hi); background:transparent; }
 .vw-glance-invite .vw-glance-icon { width:40px; height:40px; }
-.vw-glance-invite p { margin:0; color:var(--text); font-size:13.5px; line-height:1.45; }
-.vw-glance-chip { align-self:flex-start; min-height:30px; padding:3px 13px; border:1px solid var(--line-hi); border-radius:999px; background:transparent; color:var(--ink); font:inherit; font-size:12.5px; font-weight:600; cursor:pointer; }
+.vw-glance-invite p { margin:0; color:var(--text); font-size:var(--t2); line-height:1.45; }
+.vw-glance-chip { align-self:flex-start; min-height:30px; padding:3px 13px; border:1px solid var(--line-hi); border-radius:999px; background:transparent; color:var(--ink); font:inherit; font-size:var(--t2); font-weight:600; cursor:pointer; }
 .vw-glance-chip:hover { background:var(--hover); }
 .vw-glance-chip.is-primary { border-color:transparent; background:var(--accent); color:var(--on-accent, var(--bg)); }
 .vw-glance-bar { display:flex; align-items:center; gap:10px; margin-top:8px; }
 .vw-glance-toggle[aria-expanded="true"] { background:var(--accent-soft); }
-.vw-glance-status { margin:0; color:var(--red); font-size:12.5px; }
+.vw-glance-status { margin:0; color:var(--red); font-size:var(--t2); }
 .vw-glance-form { display:flex; flex-direction:column; gap:8px; margin-top:8px; padding:12px 14px; border:1px solid var(--line); border-radius:16px; background:var(--surface); }
 .vw-glance-form[hidden] { display:none; }
-.vw-glance-formlabel { color:var(--muted); font-size:12px; font-weight:600; }
+.vw-glance-formlabel { color:var(--muted); font-size:var(--t2); font-weight:600; }
 .vw-glance-kinds { display:flex; gap:6px; }
-.vw-glance-kind { min-height:30px; padding:3px 12px; border:1px solid var(--line); border-radius:999px; background:transparent; color:var(--text); font:inherit; font-size:12.5px; cursor:pointer; }
+.vw-glance-kind { min-height:30px; padding:3px 12px; border:1px solid var(--line); border-radius:999px; background:transparent; color:var(--text); font:inherit; font-size:var(--t2); cursor:pointer; }
 .vw-glance-kind[aria-pressed="true"] { border-color:transparent; background:var(--accent-soft-hi); color:var(--ink); font-weight:600; }
 .vw-glance-add, .vw-glance-placeform { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
 .vw-glance-placeform { margin-top:4px; padding-top:10px; border-top:1px solid var(--line); }
-.vw-glance-add input, .vw-glance-placeform input { flex:1; min-width:150px; min-height:34px; padding:4px 12px; border:1px solid var(--line-hi); border-radius:10px; background:var(--bg); color:var(--ink); font:inherit; font-size:13.5px; }
+.vw-glance-add input, .vw-glance-placeform input { flex:1; min-width:150px; min-height:34px; padding:4px 12px; border:1px solid var(--line-hi); border-radius:10px; background:var(--bg); color:var(--ink); font:inherit; font-size:var(--t2); }
 /* El resum del dia (vents-avui-glance.js renderBrief): una targeta per vent del seu color, que llisca amb el
    paginador de les comparacions (.gregal-compare .gx-carousel, md.js); la següent treu el nas a la vora. */
 .vw-brief { display:flex; flex-direction:column; gap:6px; }
@@ -774,17 +774,17 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-brief-head { display:flex; align-items:center; gap:12px; }
 .vw-brief-face { display:grid; place-items:center; flex:none; width:40px; height:40px; border-radius:12px; background:var(--surface); }
 .vw-brief-face > * { width:34px; height:34px; }
-.vw-brief-name { flex:1; min-width:0; overflow:hidden; color:var(--ink); font-size:16px; font-weight:680; text-overflow:ellipsis; white-space:nowrap; }
+.vw-brief-name { flex:1; min-width:0; overflow:hidden; color:var(--ink); font-size:var(--t4); font-weight:680; text-overflow:ellipsis; white-space:nowrap; }
 .vw-brief-art { display:block; flex:none; width:52px; height:52px; }
-.vw-brief-label { color:var(--muted); font-size:11.5px; }
+.vw-brief-label { color:var(--muted); font-size:var(--t1); }
 .vw-brief-did { display:flex; align-items:flex-start; gap:8px; margin:0; }
 .vw-brief-tick svg { display:block; width:15px; height:15px; margin-top:2px; fill:none; stroke:var(--wind); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
 .vw-brief-copy, .vw-brief-proposes { display:flex; flex-direction:column; gap:2px; min-width:0; }
-.vw-brief-what, .vw-brief-why { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; margin:0; font-size:13.5px; line-height:1.4; }
+.vw-brief-what, .vw-brief-why { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; margin:0; font-size:var(--t2); line-height:1.4; }
 .vw-brief-what { color:var(--ink); }
-.vw-brief-why { color:var(--muted); font-size:13px; }
-.vw-brief-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden; color:var(--ink); font-size:16px; font-weight:650; line-height:1.3; }
-.vw-brief-act { align-self:flex-start; display:inline-flex; align-items:center; gap:6px; max-width:100%; min-height:36px; margin-top:auto; padding:0 14px; border:0; border-radius:999px; background:var(--ink); color:var(--surface); font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
+.vw-brief-why { color:var(--muted); font-size:var(--t2); }
+.vw-brief-title { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; overflow:hidden; color:var(--ink); font-size:var(--t4); font-weight:650; line-height:1.3; }
+.vw-brief-act { align-self:flex-start; display:inline-flex; align-items:center; gap:6px; max-width:100%; min-height:36px; margin-top:auto; padding:0 14px; border:0; border-radius:999px; background:var(--ink); color:var(--surface); font:inherit; font-size:var(--t2); font-weight:600; cursor:pointer; }
 .vw-brief-act > span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .vw-brief-act:hover { background:color-mix(in srgb, var(--ink) 86%, var(--wind)); }
 .vw-brief-arrow svg { display:block; width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
@@ -826,21 +826,21 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 /* ---- L'ofici al perfil: nivell, fonts i vigilàncies ---- */
 .vw-trade { margin:4px 0 16px; padding:14px 16px; border:1px solid var(--line); border-radius:var(--r-md,12px); background:var(--bg); }
 .vw-trade-head { display:flex; align-items:center; gap:10px; }
-.vw-trade-head > strong { color:var(--ink); font-size:15px; font-weight:650; }
-.vw-trade-level { color:var(--accent-hi); font-size:12px; font-weight:600; }
+.vw-trade-head > strong { color:var(--ink); font-size:var(--t3); font-weight:650; }
+.vw-trade-level { color:var(--accent-hi); font-size:var(--t2); font-weight:600; }
 .vw-trade-meter { flex:1; height:6px; max-width:180px; margin-left:auto; border-radius:99px; background:linear-gradient(90deg, var(--accent) calc(var(--lvl, 1) * 10%), var(--hover) 0); }
-.vw-trade > .vw-muted { margin:6px 0 10px; font-size:12.5px; }
+.vw-trade > .vw-muted { margin:6px 0 10px; font-size:var(--t2); }
 .vw-trade-sources { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:0 0 6px; }
-.vw-trade-sources > span:first-child { color:var(--faint); font-size:12px; margin-right:2px; }
-.vw-trade-source { padding:2px 9px; border:1px solid var(--line); border-radius:999px; color:var(--text); font-size:12px; }
-.vw-trade > h3 { margin:14px 0 6px; color:var(--faint); font-size:10.5px; font-weight:650; letter-spacing:.11em; text-transform:uppercase; }
+.vw-trade-sources > span:first-child { color:var(--faint); font-size:var(--t2); margin-right:2px; }
+.vw-trade-source { padding:2px 9px; border:1px solid var(--line); border-radius:999px; color:var(--text); font-size:var(--t2); }
+.vw-trade > h3 { margin:14px 0 6px; color:var(--faint); font-size:var(--t1); font-weight:650; letter-spacing:.11em; text-transform:uppercase; }
 .vw-trade-watch { display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--line); }
-.vw-trade-watch > span { flex:1; min-width:0; color:var(--ink); font-size:13.5px; }
-.vw-trade-watch > small { color:var(--faint); font-size:12px; white-space:nowrap; }
-.vw-trade-watch > button.vw-button { min-height:30px; padding:2px 12px; font-size:13px!important; }
+.vw-trade-watch > span { flex:1; min-width:0; color:var(--ink); font-size:var(--t2); }
+.vw-trade-watch > small { color:var(--faint); font-size:var(--t2); white-space:nowrap; }
+.vw-trade-watch > button.vw-button { min-height:30px; padding:2px 12px; font-size:var(--t2)!important; }
 .vw-trade-watch > button.is-on { border-color:color-mix(in srgb, var(--accent) 45%, var(--line)); background:var(--accent-soft); color:var(--ink); }
 .vw-trade > .vw-avui-tune { margin-top:8px; padding-left:0; }
-.vw-expert-status { min-height:1.4em; margin:8px 0 0; color:var(--accent-hi); font-size:13px; }
+.vw-expert-status { min-height:1.4em; margin:8px 0 0; color:var(--accent-hi); font-size:var(--t2); }
 
 /* Els enllaços de Vents (missatges, Avui, notes, diàlegs): l'accent clar del tema, com a Codi.
    Sense regla, el navegador hi posava el blau per defecte, il·legible en fosc. */
@@ -851,42 +851,42 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 /* ---- El calaix del vent: prestatges amb la vista de cada mena ---- */
 .vw-shelf { margin:14px 0 18px; }
 .vw-shelf-head { display:flex; align-items:baseline; gap:10px; margin:0 0 8px; }
-.vw-shelf-head h3 { margin:0; color:var(--ink); font-size:14px; font-weight:650; }
-.vw-shelf-head small { color:var(--faint); font-size:12px; }
+.vw-shelf-head h3 { margin:0; color:var(--ink); font-size:var(--t3); font-weight:650; }
+.vw-shelf-head small { color:var(--faint); font-size:var(--t2); }
 .vw-shelf-head .vw-avui-chip { margin-left:auto; }
-.vw-shelf-empty { margin:0; padding:12px 14px; border:1px dashed var(--line-hi); border-radius:var(--r-md,12px); color:var(--muted); font-size:13px; }
-.vw-shelf-month { margin:12px 2px 6px; color:var(--faint); font-size:10.5px; font-weight:650; letter-spacing:.11em; text-transform:uppercase; }
+.vw-shelf-empty { margin:0; padding:12px 14px; border:1px dashed var(--line-hi); border-radius:var(--r-md,12px); color:var(--muted); font-size:var(--t2); }
+.vw-shelf-month { margin:12px 2px 6px; color:var(--faint); font-size:var(--t1); font-weight:650; letter-spacing:.11em; text-transform:uppercase; }
 .vw-release { display:flex; align-items:center; gap:12px; padding:8px 0; border-top:1px solid var(--line); }
 .vw-release.is-past { opacity:.5; }
 .vw-release-day { display:grid; place-items:center; flex:none; width:44px; height:44px; border-radius:12px; background:var(--accent-soft); color:var(--ink); line-height:1; }
-.vw-release-day b { font-size:17px; font-weight:700; }
-.vw-release-day small { font-size:10px; color:var(--muted); text-transform:uppercase; }
+.vw-release-day b { font-size:var(--t4); font-weight:700; }
+.vw-release-day small { font-size:var(--t1); color:var(--muted); text-transform:uppercase; }
 .vw-release-copy { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
-.vw-release-copy strong { color:var(--ink); font-size:14px; font-weight:600; }
-.vw-release-copy small { color:var(--muted); font-size:12.5px; }
-.vw-release-link { color:var(--accent-hi); font-size:12.5px; }
+.vw-release-copy strong { color:var(--ink); font-size:var(--t3); font-weight:600; }
+.vw-release-copy small { color:var(--muted); font-size:var(--t2); }
+.vw-release-link { color:var(--accent-hi); font-size:var(--t2); }
 .vw-row-x { width:26px!important; height:26px!important; color:var(--faint)!important; opacity:.6; }
 .vw-row-x:hover { opacity:1; color:var(--ink)!important; }
 .vw-row-x .vw-ic { width:13px; height:13px; }
 .vw-recipe { margin:0 0 8px; border:1px solid var(--line); border-radius:var(--r-md,12px); background:var(--bg); }
 .vw-recipe > summary { display:flex; align-items:baseline; gap:10px; padding:11px 14px; cursor:pointer; list-style:none; }
 .vw-recipe > summary::-webkit-details-marker { display:none; }
-.vw-recipe > summary strong { color:var(--ink); font-size:14.5px; font-weight:600; }
-.vw-recipe > summary small { color:var(--muted); font-size:12.5px; }
+.vw-recipe > summary strong { color:var(--ink); font-size:var(--t3); font-weight:600; }
+.vw-recipe > summary small { color:var(--muted); font-size:var(--t2); }
 .vw-recipe[open] > summary { border-bottom:1px solid var(--line); }
-.vw-recipe-body { position:relative; padding:4px 16px 12px; color:var(--text); font-size:13.5px; line-height:1.6; }
-.vw-recipe-body h4 { margin:12px 0 4px; color:var(--faint); font-size:10.5px; font-weight:650; letter-spacing:.11em; text-transform:uppercase; }
+.vw-recipe-body { position:relative; padding:4px 16px 12px; color:var(--text); font-size:var(--t2); line-height:1.6; }
+.vw-recipe-body h4 { margin:12px 0 4px; color:var(--faint); font-size:var(--t1); font-weight:650; letter-spacing:.11em; text-transform:uppercase; }
 .vw-recipe-body ul, .vw-recipe-body ol { margin:0; padding-left:20px; }
 .vw-recipe-tip { margin:10px 0 0; padding:8px 12px; border-left:3px solid var(--accent); background:var(--accent-soft); border-radius:0 8px 8px 0; }
 .vw-recipe-body > .vw-row-x { position:absolute; top:6px; right:8px; }
-.vw-place { display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--line); color:var(--ink); font-size:14px; }
+.vw-place { display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--line); color:var(--ink); font-size:var(--t3); }
 .vw-place > span { flex:1; }
-.vw-place-main { padding:1px 8px; border-radius:99px; background:var(--accent-soft); color:var(--accent-hi); font-size:11.5px; font-weight:600; }
+.vw-place-main { padding:1px 8px; border-radius:99px; background:var(--accent-soft); color:var(--accent-hi); font-size:var(--t1); font-weight:600; }
 .vw-shelf-chips { display:flex; flex-wrap:wrap; gap:6px; }
 .vw-shelf-chips .vw-trade-source { display:inline-flex; align-items:center; gap:2px; padding-right:2px; }
 .vw-shelf-table { margin:0; }
 .vw-newcomers { display:flex; align-items:center; gap:12px; margin:0 0 18px; padding:12px 14px; border:1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius:var(--r-md,12px); background:var(--accent-soft); }
-.vw-newcomers > span:nth-child(2) { flex:1; min-width:0; color:var(--text); font-size:13.5px; }
+.vw-newcomers > span:nth-child(2) { flex:1; min-width:0; color:var(--text); font-size:var(--t2); }
 .vw-newcomers strong { color:var(--ink); }
 .vw-place-results { display:flex; flex-direction:column; gap:4px; margin-top:8px; }
 .vw-place-result { display:flex; align-items:baseline; gap:10px; padding:9px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--ink); text-align:left; }
@@ -900,24 +900,24 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-wx-now { display:flex; align-items:center; gap:12px; }
 .vw-wx-temp { display:flex; flex-direction:column; line-height:1.05; }
 .vw-wx-temp b { color:var(--ink); font-size:40px; font-weight:650; letter-spacing:-.03em; }
-.vw-wx-temp span { color:var(--muted); font-size:13px; }
+.vw-wx-temp span { color:var(--muted); font-size:var(--t2); }
 .vw-wx-place { display:flex; flex-direction:column; align-items:flex-end; gap:3px; text-align:right; min-width:0; }
 .vw-wx-placebtn { padding:0; border:0; background:transparent; color:var(--ink); font:inherit; cursor:pointer; }
-.vw-wx-placebtn strong { font-size:15px; font-weight:650; border-bottom:1px dashed var(--line-hi); }
-.vw-wx-place small { color:var(--muted); font-size:12px; }
+.vw-wx-placebtn strong { font-size:var(--t3); font-weight:650; border-bottom:1px dashed var(--line-hi); }
+.vw-wx-place small { color:var(--muted); font-size:var(--t2); }
 .vw-wx-by { display:inline-flex; align-items:center; gap:6px; }
 .vw-wx-by .winds-face { width:18px; height:18px; }
 .vw-wx-chartbox { margin:8px -4px 4px; }
 .vw-wx-chart { display:block; width:100%; height:auto; overflow:visible; }
-.vw-wx-hour { fill:var(--faint); font-size:12px; }
-.vw-wx-tlabel { fill:var(--ink); font-size:13px; font-weight:650; }
-.vw-wx-rainlabel { fill:var(--wx-rain); font-size:11px; font-weight:600; }
+.vw-wx-hour { fill:var(--faint); font-size:var(--t2); }
+.vw-wx-tlabel { fill:var(--ink); font-size:var(--t2); font-weight:650; }
+.vw-wx-rainlabel { fill:var(--wx-rain); font-size:var(--t1); font-weight:600; }
 .vw-wx-days { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:4px; margin-top:6px; padding-top:10px; border-top:1px solid var(--line); }
-.vw-wx-day { display:flex; flex-direction:column; align-items:center; gap:2px; font-size:12px; color:var(--muted); }
+.vw-wx-day { display:flex; flex-direction:column; align-items:center; gap:2px; font-size:var(--t2); color:var(--muted); }
 .vw-wx-day small { text-transform:capitalize; color:var(--faint); }
-.vw-wx-day b { color:var(--ink); font-size:13.5px; }
+.vw-wx-day b { color:var(--ink); font-size:var(--t2); }
 .vw-wx-min { color:var(--faint); }
-.vw-wx-p { color:var(--wx-rain); font-size:11px; font-weight:600; }
+.vw-wx-p { color:var(--wx-rain); font-size:var(--t1); font-weight:600; }
 .vw-wx.is-compact { padding:12px 14px 8px; }
 .vw-wx.is-compact .vw-wx-temp b { font-size:32px; }
 @media(max-width:600px) { .vw-wx-days { grid-template-columns:repeat(7, minmax(38px,1fr)); overflow-x:auto; } .vw-wx-temp b { font-size:32px; } }
@@ -931,17 +931,17 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .wind-workspace { --vw-bubble:20px; --vw-card:15px; --vw-measure:64rem; }
 .vw-messages .vw-message { padding:28px 0 0; gap:0; }
 .vw-messages .vw-message.vw-run-cont { padding-top:16px; }
-.vw-messages .vw-message-text { font-size:16px; line-height:1.6; }
+.vw-messages .vw-message-text { font-size:var(--t4); line-height:1.6; }
 .vw-messages .vw-message:not(.vw-user) { display:block; position:relative; }
 .vw-messages .vw-message:not(.vw-user) > div { max-width:min(100%, var(--vw-measure)); padding:0; background:none; border-radius:0; }
-.vw-messages .vw-message:not(.vw-user) > :is(.winds-face,.vw-shared-person) { position:absolute; left:0; top:30px; width:20px; height:20px; margin:0; font-size:10px; }
-.vw-messages .vw-message:not(.vw-user) > div > strong { display:block; min-height:0; margin:0 0 6px; padding:0; font-size:13px; line-height:24px; font-weight:600; letter-spacing:.005em;
+.vw-messages .vw-message:not(.vw-user) > :is(.winds-face,.vw-shared-person) { position:absolute; left:0; top:30px; width:20px; height:20px; margin:0; font-size:var(--t1); }
+.vw-messages .vw-message:not(.vw-user) > div > strong { display:block; min-height:0; margin:0 0 6px; padding:0; font-size:var(--t2); line-height:24px; font-weight:600; letter-spacing:.005em;
   color:color-mix(in srgb, var(--vw-wind, var(--accent)) 40%, var(--ink)); }
 .vw-messages .vw-message:not(.vw-user):has(> :is(.winds-face,.vw-shared-person)) > div > strong { padding-left:28px; }
 .vw-messages .vw-message.vw-run-cont:not(.vw-user) > div > strong { display:none; }
 .vw-messages .vw-message:not(.vw-user) .vw-message-text { color:var(--text); }
 .vw-messages .vw-user > div { background:var(--surface-hi); color:var(--ink); border:0; border-radius:var(--vw-bubble); padding:10px 16px; max-width:min(80%, 52rem); }
-.vw-messages .vw-user .vw-message-text { font-size:16px; line-height:1.5; color:var(--ink); }
+.vw-messages .vw-user .vw-message-text { font-size:var(--t4); line-height:1.5; color:var(--ink); }
 .vw-messages .vw-user .vw-message-text a { color:inherit; }
 /* En directe: el text creix al seu lloc. L'estat (punts, passos) només es veu mentre encara no
    escriu: si es quedés a sota del text, en acabar marxaria i el fil, enganxat al final, baixaria. */
@@ -949,16 +949,16 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-messages .vw-pending-copy > .vw-thinking { margin-top:4px; }
 .vw-messages .vw-stream-text ~ * { display:none; }
 .vw-messages .vw-steps { display:flex; flex-wrap:wrap; gap:4px 6px; margin-top:6px; }
-.vw-messages .vw-step { font-size:12px; line-height:18px; padding:0 8px; border-radius:999px; background:color-mix(in srgb, var(--ink) 6%, transparent); color:var(--muted); }
+.vw-messages .vw-step { font-size:var(--t2); line-height:18px; padding:0 8px; border-radius:999px; background:color-mix(in srgb, var(--ink) 6%, transparent); color:var(--muted); }
 .vw-messages .vw-step::before { content:"✓ "; color:var(--green); }
 .vw-messages .vw-step-more::before { content:""; }
 .vw-messages .vw-choices { margin-left:0; }
 /* «Per què?» (B6), sota el text, discret. */
-.vw-messages .vw-why { display:inline-block; margin-top:6px; padding:2px 10px; border:1px solid var(--line-hi); border-radius:999px; background:transparent; color:var(--muted); font-size:12px; text-decoration:none; cursor:pointer; }
+.vw-messages .vw-why { display:inline-block; margin-top:6px; padding:2px 10px; border:1px solid var(--line-hi); border-radius:999px; background:transparent; color:var(--muted); font-size:var(--t2); text-decoration:none; cursor:pointer; }
 .vw-messages .vw-why:hover { color:var(--ink); border-color:var(--ink); }
 .vw-handoff { margin-top:14px; }
 /* Compositor: 28 px de radi, text 16 px. */
-.vw-composer textarea { font-size:16px; line-height:23px; }
+.vw-composer textarea { font-size:var(--t4); line-height:23px; }
 /* 101: el missatge nou entra amb una molla (el teu també, quan ja l'espera la bombolla del vent), la
    bombolla d'espera respira mentre el vent pensa i els panells de l'ordinador i de Docs hi llisquen. */
 @media(prefers-reduced-motion:no-preference) {
@@ -981,7 +981,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
   background:radial-gradient(80% 70% at 50% 0, color-mix(in srgb, var(--vw-wind) 16%, transparent), transparent 78%);
 }
 .wind-workspace.vw-wind-chat .vw-top { border-bottom-color:transparent; }
-.vw-wind-mark { flex:none; padding:1px 9px; border-radius:999px; font-size:12px; line-height:18px; font-weight:600; color:var(--ink);
+.vw-wind-mark { flex:none; padding:1px 9px; border-radius:999px; font-size:var(--t2); line-height:18px; font-weight:600; color:var(--ink);
   background:color-mix(in srgb, var(--vw-wind, var(--accent)) 22%, transparent); border:1px solid color-mix(in srgb, var(--vw-wind, var(--accent)) 45%, transparent); }
 .vw-wind-mark[data-mark="working"]::before { content:""; display:inline-block; width:6px; height:6px; margin-right:6px; border-radius:50%; background:currentColor; vertical-align:1px; }
 @media(prefers-reduced-motion:no-preference) { .vw-wind-mark[data-mark="working"]::before { animation:vw-thinking 1.4s ease-in-out infinite; } }
@@ -1107,13 +1107,13 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
   background:var(--bg); border:1px solid var(--line-hi); }
 .vw-dialog.vw-guide::before { content:""; position:absolute; inset:0 0 auto 0; height:220px; z-index:-1; pointer-events:none; opacity:.24;
   background:radial-gradient(48% 70% at 50% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 75%); }
-.vw-guide-close { position:absolute; top:14px; right:16px; width:36px; height:36px; border:0; border-radius:50%; background:transparent; color:var(--muted); font-size:24px; line-height:1; cursor:pointer; }
+.vw-guide-close { position:absolute; top:14px; right:16px; width:36px; height:36px; border:0; border-radius:50%; background:transparent; color:var(--muted); font-size:var(--t6); line-height:1; cursor:pointer; }
 .vw-guide-close:hover { background:var(--hover); color:var(--ink); }
-.vw-guide-head h2 { margin:0 0 6px; font-size:24px; line-height:1.2; color:var(--ink); letter-spacing:-.01em; }
-.vw-guide-head p { margin:0 0 18px; max-width:620px; color:var(--muted); font-size:15px; line-height:1.5; }
+.vw-guide-head h2 { margin:0 0 6px; font-size:var(--t6); line-height:1.2; color:var(--ink); letter-spacing:-.01em; }
+.vw-guide-head p { margin:0 0 18px; max-width:620px; color:var(--muted); font-size:var(--t3); line-height:1.5; }
 .vw-guide-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:12px; }
 .vw-guide-card { display:flex; flex-direction:column; gap:8px; padding:14px; border-radius:15px; border:1px solid var(--line); background:color-mix(in srgb, var(--surface-hi) 60%, transparent); }
-.vw-guide-more { display:block; margin:16px auto 0; padding:8px 18px; border-radius:999px; border:1px solid var(--line-hi); background:transparent; color:var(--ink); font-size:14px; font-weight:550; }
+.vw-guide-more { display:block; margin:16px auto 0; padding:8px 18px; border-radius:999px; border:1px solid var(--line-hi); background:transparent; color:var(--ink); font-size:var(--t3); font-weight:550; }
 .vw-guide-more:hover { background:var(--hover-alt); }
 @media(prefers-reduced-motion:no-preference) {
   .vw-dialog.vw-guide[open] { animation:vw-guide-sheet .2s cubic-bezier(.2,.8,.2,1); }
@@ -1123,18 +1123,18 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 @keyframes vw-guide-sheet { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:none; } }
 @keyframes vw-guide-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
 .vw-guide-top { display:flex; align-items:center; gap:10px; }
-.vw-guide-top h3 { margin:0; font-size:16px; color:var(--ink); }
-.vw-guide-icon { display:grid; place-items:center; width:36px; height:36px; border-radius:12px; font-size:18px; background:var(--surface-hi); }
-.vw-guide-how { margin:0; color:var(--muted); font-size:14px; line-height:1.45; }
-.vw-guide-try { text-align:left; padding:9px 13px; border-radius:14px; border:1px solid var(--line-hi); background:transparent; color:var(--ink); font:inherit; font-size:14px; line-height:1.4; cursor:pointer; }
+.vw-guide-top h3 { margin:0; font-size:var(--t4); color:var(--ink); }
+.vw-guide-icon { display:grid; place-items:center; width:36px; height:36px; border-radius:12px; font-size:var(--t4); background:var(--surface-hi); }
+.vw-guide-how { margin:0; color:var(--muted); font-size:var(--t3); line-height:1.45; }
+.vw-guide-try { text-align:left; padding:9px 13px; border-radius:14px; border:1px solid var(--line-hi); background:transparent; color:var(--ink); font:inherit; font-size:var(--t3); line-height:1.4; cursor:pointer; }
 .vw-guide-try:hover { background:var(--hover-alt); border-color:var(--accent); }
-@media(max-width:600px) { .vw-dialog.vw-guide { width:100%; max-width:100%; margin:auto 0 0; padding:24px 18px calc(18px + env(safe-area-inset-bottom)); border-radius:20px 20px 0 0; border-bottom:0; } .vw-guide-head h2 { font-size:22px; } }
+@media(max-width:600px) { .vw-dialog.vw-guide { width:100%; max-width:100%; margin:auto 0 0; padding:24px 18px calc(18px + env(safe-area-inset-bottom)); border-radius:20px 20px 0 0; border-bottom:0; } .vw-guide-head h2 { font-size:var(--t5); } }
 .vw-dialog.vw-guide header.vw-guide-head { display:block; padding:0 40px 0 0; margin:0; border:0; }
 
 /* Ordinador en mode local: el navegador de Gregal en directe, en un panell al costat del xat (#workbench) com Gregal Docs. */
 .vw-computer-pane { flex:0 0 clamp(380px, 42%, 640px); min-width:0; display:flex; flex-direction:column; border-left:1px solid var(--line); background:var(--panel); color:var(--text); overflow:hidden; }
 .vw-computer-pane > header { display:flex; align-items:center; gap:8px; min-height:48px; padding:8px 8px 8px 16px; border-bottom:1px solid var(--line); }
-.vw-computer-pane h2 { flex:1; min-width:0; margin:0; font-size:14px; font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.vw-computer-pane h2 { flex:1; min-width:0; margin:0; font-size:var(--t3); font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .vw-computer-pane .vw-close { cursor:pointer; }
 .vw-computer-pane .vw-close:focus-visible, .vw-computer-pane .vw-live-btn:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
 .vw-computer-body { flex:1; overflow:auto; overscroll-behavior:contain; padding:12px 16px 16px; }
@@ -1152,18 +1152,18 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-pane-grip::after { content:""; position:absolute; left:3px; top:0; bottom:0; width:3px; background:transparent; transition:background .12s; }
 .vw-pane-grip:hover::after, .vw-pane-grip:focus-visible::after, body.redimensionant .vw-pane-grip::after { background:var(--accent); }
 .vw-pane-grip:focus-visible { outline:none; }
-.vw-live-where { margin:6px 0 8px; color:var(--muted); font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.vw-live-where { margin:6px 0 8px; color:var(--muted); font-size:var(--t2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .vw-live-stage { position:relative; width:fit-content; max-width:100%; margin:0 auto; }
 .vw-live-shot { display:block; max-width:100%; max-height:calc(85dvh - 250px); width:auto; height:auto; border-radius:12px; border:1px solid var(--line); background:var(--surface); cursor:pointer; }
 .vw-live-computer.is-acting .vw-live-shot { opacity:.85; }
 .vw-live-tap { position:absolute; width:26px; height:26px; margin:-13px 0 0 -13px; border-radius:50%; border:2px solid var(--accent, #7c8cff); background:color-mix(in srgb, var(--accent, #7c8cff) 25%, transparent); pointer-events:none; animation:vw-live-tap .7s ease-out forwards; }
 @keyframes vw-live-tap { from { transform:scale(.4); opacity:1; } to { transform:scale(1.4); opacity:0; } }
 .vw-live-bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:10px; }
-.vw-live-text { flex:1 1 220px; min-width:0; height:36px; padding:0 12px; border-radius:10px; border:1px solid var(--line); background:var(--surface); color:var(--text); font:inherit; font-size:14px; }
-.vw-live-btn { height:36px; padding:0 12px; border-radius:10px; border:1px solid var(--line); background:transparent; color:var(--text); font:inherit; font-size:13px; cursor:pointer; white-space:nowrap; }
+.vw-live-text { flex:1 1 220px; min-width:0; height:36px; padding:0 12px; border-radius:10px; border:1px solid var(--line); background:var(--surface); color:var(--text); font:inherit; font-size:var(--t3); }
+.vw-live-btn { height:36px; padding:0 12px; border-radius:10px; border:1px solid var(--line); background:transparent; color:var(--text); font:inherit; font-size:var(--t2); cursor:pointer; white-space:nowrap; }
 .vw-live-btn:hover { background:var(--surface); }
 .vw-live-icon { width:36px; padding:0; }
-.vw-live-mine { display:flex; align-items:center; gap:10px; margin:0 0 4px; padding:4px 4px 4px 12px; border-radius:10px; background:color-mix(in srgb, var(--accent, #7c8cff) 14%, transparent); font-size:13px; }
+.vw-live-mine { display:flex; align-items:center; gap:10px; margin:0 0 4px; padding:4px 4px 4px 12px; border-radius:10px; background:color-mix(in srgb, var(--accent, #7c8cff) 14%, transparent); font-size:var(--t2); }
 .vw-live-mine span { flex:1; }
 .vw-live-mine[hidden], .vw-live-bar[hidden], .vw-live-computer .vw-muted[hidden] { display:none; }
 .vw-live-mine .vw-live-btn { height:30px; }
@@ -1172,21 +1172,21 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 /* Targeta de resultat de Gregal (```gregal-result```), com a Android. */
 .gregal-result { margin:8px 0; border:1px solid var(--line-hi); border-radius:18px; overflow:hidden; background:var(--surface); max-width:560px; }
 .gregal-result .gr-head { display:flex; align-items:center; gap:10px; padding:12px 14px 8px; }
-.gregal-result .gr-head strong { display:block; font-size:15px; color:var(--ink); }
-.gregal-result .gr-head small { display:block; font-size:12px; color:var(--muted); }
+.gregal-result .gr-head strong { display:block; font-size:var(--t3); color:var(--ink); }
+.gregal-result .gr-head small { display:block; font-size:var(--t2); color:var(--muted); }
 .gregal-result .gr-icon { display:grid; place-items:center; width:30px; height:30px; border-radius:10px; background:var(--surface-hi); }
-.gregal-result .gr-row { display:flex; gap:12px; align-items:center; padding:9px 14px; border-top:1px solid var(--line); color:var(--ink); text-decoration:none; font-size:13.5px; font-weight:400; }
+.gregal-result .gr-row { display:flex; gap:12px; align-items:center; padding:9px 14px; border-top:1px solid var(--line); color:var(--ink); text-decoration:none; font-size:var(--t2); font-weight:400; }
 .gregal-result .gr-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
-.gregal-result .gr-lead { font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.gregal-result .gr-text { font-size:13px; line-height:18px; color:var(--muted); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.gregal-result .gr-lead { font-size:var(--t3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.gregal-result .gr-text { font-size:var(--t2); line-height:18px; color:var(--muted); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .gregal-result .gr-text.gr-solo { color:var(--ink); }
 .gregal-result .gr-value { white-space:nowrap; }
 .gregal-result a.gr-row:hover { background:var(--hover); }
 .gregal-result .gr-pick { background:color-mix(in srgb, #1E9E6A 10%, transparent); }
 .gregal-result .gr-lead, .gregal-result .gr-value { font-weight:700; font-variant-numeric:tabular-nums; }
-.gregal-result .gr-main em { display:block; font-style:normal; font-size:10.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); }
+.gregal-result .gr-main em { display:block; font-style:normal; font-size:var(--t1); font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); }
 .gregal-result .gr-pick .gr-main em { color:#1E9E6A; }
-:is(.gregal-result,.gregal-card) .gr-foot { display:flex; align-items:center; gap:10px; padding:10px 14px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); }
+:is(.gregal-result,.gregal-card) .gr-foot { display:flex; align-items:center; gap:10px; padding:10px 14px; border-top:1px solid var(--line); font-size:var(--t2); color:var(--muted); }
 /* Com la maqueta (docs/design/gregal-android/gregal-target-2.png): cada fila
    en una línia —hora o nom · descripció curta i etiqueta · preu · ›— i el peu
    amb els punts de les fonts superposats, «N fonts · fa X min» i «Veure tots ›».
@@ -1196,7 +1196,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .gregal-result .gr-lead { flex:none; min-width:112px; max-width:45%; }
 .gregal-result .gr-text { flex:1 1 auto; min-width:0; -webkit-line-clamp:1; color:var(--text); }
 .gregal-result .gr-main em { flex:none; white-space:nowrap; }
-.gregal-result a.gr-row::after { content:'›'; flex:none; color:var(--faint); font-size:18px; line-height:1; margin-left:-4px; }
+.gregal-result a.gr-row::after { content:'›'; flex:none; color:var(--faint); font-size:var(--t4); line-height:1; margin-left:-4px; }
 .gregal-result a.gr-row:hover::after { color:var(--ink); }
 :is(.gregal-result,.gregal-card) .gr-sources { display:inline-flex; align-items:center; gap:8px; }
 :is(.gregal-result,.gregal-card) .gr-dots { display:inline-flex; }
@@ -1221,8 +1221,8 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 /* El mapa de preguntes a la dreta, discret fins que hi passes el ratolí. */
 .wind-workspace .pnav { opacity:.12; transition:opacity .15s; }
 .wind-workspace .pnav:hover, .wind-workspace .pnav:focus-within { opacity:1; }
-.vw-ask .vw-ask-plain { margin:6px 0 4px; font-size:14px; color:var(--ink); }
-.vw-ask code.vw-ask-raw { font-size:11.5px; opacity:.7; }
+.vw-ask .vw-ask-plain { margin:6px 0 4px; font-size:var(--t3); color:var(--ink); }
+.vw-ask code.vw-ask-raw { font-size:var(--t1); opacity:.7; }
 /* Mentre una targeta de permís espera, el vent no «treballa en la resposta»:
    t'espera a tu. La bombolla de treballant sobrava (i sortia sota la targeta). */
 .vw-messages:has(.vw-asks-inline .vw-ask) .vw-pending:not(:has(.vw-stream-text)) { display:none; }
@@ -1232,7 +1232,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-feina-sec[hidden] { display:none; }
 .vw-feina-sec .vw-muted { font-size:var(--t3); }
 .vw-feina-h { display:flex; align-items:center; gap:8px; margin:0 0 10px; font-size:var(--t3); font-weight:600; color:var(--muted); }
-.vw-feina-n { font-size:11.5px; font-weight:700; color:var(--on-accent, var(--bg)); background:var(--accent); border-radius:999px; padding:1px 7px; }
+.vw-feina-n { font-size:var(--t1); font-weight:700; color:var(--on-accent, var(--bg)); background:var(--accent); border-radius:999px; padding:1px 7px; }
 .vw-feina-n[hidden] { display:none; }
 .vw-feina-asks { margin:0; }
 /* 136: una feina en marxa és una targeta amb la cara de qui la porta, tenyida del seu color, que s'obre al lloc. */
@@ -1241,7 +1241,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-feina-card-head { display:flex; align-items:center; gap:12px; width:100%; padding:12px 14px; border:0; background:transparent; color:var(--ink); text-align:left; }
 .vw-feina-card-head:hover { background:var(--hover); }
 .vw-feina-card-head .winds-face { flex:none; width:36px; height:36px; }
-.vw-feina-card-head strong { flex:1; min-width:0; font-size:14px; font-weight:550; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.vw-feina-card-head strong { flex:1; min-width:0; font-size:var(--t3); font-weight:550; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .vw-feina-chev { flex:none; width:7px; height:7px; margin:0 4px 3px 2px; border:solid var(--muted); border-width:0 1.5px 1.5px 0; transform:rotate(45deg); }
 .vw-feina-card.open .vw-feina-chev { transform:translateY(3px) rotate(-135deg); }
 .vw-feina-card-body { display:grid; grid-template-rows:0fr; }
@@ -1249,7 +1249,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-feina-card-inner { min-height:0; overflow:hidden; padding:0 14px 0 62px; }
 .vw-feina-card.open .vw-feina-card-inner { padding-bottom:14px; }
 .vw-feina-steps { display:flex; flex-direction:column; gap:6px; margin:0; padding:0; list-style:none; }
-.vw-feina-steps li { display:flex; align-items:baseline; gap:8px; font-size:13px; line-height:1.45; color:var(--text); overflow-wrap:anywhere; }
+.vw-feina-steps li { display:flex; align-items:baseline; gap:8px; font-size:var(--t2); line-height:1.45; color:var(--text); overflow-wrap:anywhere; }
 .vw-feina-steps li::before { content:""; flex:none; width:6px; height:6px; border-radius:50%; background:var(--line-hi); transform:translateY(-1px); }
 .vw-feina-steps li:last-child::before { background:var(--vw-card, var(--accent)); }
 .vw-feina-links { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
@@ -1262,31 +1262,31 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 
 /* Captures del torn sota la resposta («Ho he fet així») */
 .vw-shots { margin-top:10px; }
-.vw-shots-head { display:flex; gap:8px; align-items:baseline; font-size:12px; color:var(--muted); margin-bottom:6px; }
+.vw-shots-head { display:flex; gap:8px; align-items:baseline; font-size:var(--t2); color:var(--muted); margin-bottom:6px; }
 .vw-shots-head span:first-child { color:var(--ink); font-weight:600; }
 .vw-shots-row { display:flex; gap:8px; overflow-x:auto; padding-bottom:2px; scrollbar-width:thin; }
 .vw-shot { flex:none; display:flex; flex-direction:column; gap:4px; width:132px; padding:0; border:0; background:none; color:var(--muted); cursor:pointer; text-align:left; font:inherit; }
 .vw-shot img { display:block; width:132px; height:84px; object-fit:cover; object-position:top; border-radius:8px; border:1px solid var(--line); background:var(--surface); }
 .vw-shot:hover img, .vw-shot:focus-visible img { border-color:var(--accent); }
-.vw-shot-cap { font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.vw-shot-cap { font-size:var(--t1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .vw-shot.is-gone { display:none; }
 .vw-dialog.vw-shots-view { width:min(1100px, calc(100vw - 32px)); }
 .vw-shots-big { display:block; max-width:100%; max-height:calc(85dvh - 200px); margin:0 auto; border-radius:12px; border:1px solid var(--line); background:var(--surface); }
-.vw-shots-nav { display:flex; justify-content:center; align-items:center; gap:14px; margin-top:10px; font-size:13px; color:var(--muted); }
+.vw-shots-nav { display:flex; justify-content:center; align-items:center; gap:14px; margin-top:10px; font-size:var(--t2); color:var(--muted); }
 .vw-shots-nav button:disabled { opacity:.35; cursor:default; }
 
 /* Diverses feines alhora: el que escrius mentre treballa s'afegeix al torn en curs. */
-.vw-steer-tag { display:block; margin-top:4px; font-size:11px; color:var(--muted); text-align:right; }
+.vw-steer-tag { display:block; margin-top:4px; font-size:var(--t1); color:var(--muted); text-align:right; }
 .vw-steer-tag::before { content:"↳ "; }
 
 /* Avisos programats en aquest torn (l'Android ho fa amb TurnActionCard). */
 .vw-turn-acts { display:grid; gap:6px; margin:8px 0 4px 46px; max-width:560px; }
 .vw-turn-act { display:flex; align-items:center; gap:10px; padding:8px 12px; border:1px solid color-mix(in srgb, var(--accent) 35%, transparent); background:var(--surface-hi); border-radius:14px; }
-.vw-turn-act-icon { font-size:17px; }
-.vw-turn-act-copy { flex:1; min-width:0; display:grid; gap:1px; font-size:13px; }
+.vw-turn-act-icon { font-size:var(--t4); }
+.vw-turn-act-copy { flex:1; min-width:0; display:grid; gap:1px; font-size:var(--t2); }
 .vw-turn-act-copy strong { color:var(--ink); font-weight:600; }
 .vw-turn-act-copy span { color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.vw-turn-act-undo { background:transparent; border:0; color:var(--ink); font-weight:600; font-size:13px; padding:10px 8px; border-radius:8px; cursor:pointer; }
+.vw-turn-act-undo { background:transparent; border:0; color:var(--ink); font-weight:600; font-size:var(--t2); padding:10px 8px; border-radius:8px; cursor:pointer; }
 .vw-turn-act-undo:hover { background:color-mix(in srgb, var(--ink) 8%, transparent); }
 /* La marca del que has afegit mentre treballava, llegible dins la bombolla. */
 .vw-user .vw-steer-tag { color:inherit; opacity:.72; }
@@ -1295,63 +1295,63 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-rules { display:grid; gap:14px; max-width:720px; }
 .vw-rule-sec { border:1px solid var(--line); border-radius:14px; padding:14px 16px; background:var(--surface); display:grid; gap:10px; }
 .vw-rule-head { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
-.vw-rule-head strong { font-size:15px; color:var(--ink); }
-.vw-rule-head small { color:var(--muted); font-size:12.5px; }
+.vw-rule-head strong { font-size:var(--t3); color:var(--ink); }
+.vw-rule-head small { color:var(--muted); font-size:var(--t2); }
 .vw-rule-dot { width:9px; height:9px; border-radius:50%; align-self:center; background:var(--muted); }
 .vw-rule-alone .vw-rule-dot { background:#4ec98a; }
 .vw-rule-ask .vw-rule-dot { background:#e9b24a; }
 .vw-rule-never .vw-rule-dot { background:#ef6b6b; }
 .vw-rule-list { list-style:none; margin:0; padding:0; display:grid; gap:6px; }
-.vw-rule { display:flex; align-items:center; gap:8px; padding:6px 6px 6px 12px; border-radius:10px; background:color-mix(in srgb, var(--ink) 5%, transparent); font-size:14px; color:var(--ink); }
+.vw-rule { display:flex; align-items:center; gap:8px; padding:6px 6px 6px 12px; border-radius:10px; background:color-mix(in srgb, var(--ink) 5%, transparent); font-size:var(--t3); color:var(--ink); }
 .vw-rule > span { flex:1; min-width:0; }
 .vw-rule-x { display:grid; place-items:center; width:32px; height:32px; padding:0; border:0; border-radius:8px; background:transparent; color:var(--muted); cursor:pointer; }
 .vw-rule-x > span:last-child { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
 .vw-rule-x:hover { background:color-mix(in srgb, var(--ink) 8%, transparent); color:var(--ink); }
-.vw-rule-add { width:100%; box-sizing:border-box; padding:9px 12px; border:1px dashed var(--line); border-radius:10px; background:transparent; color:var(--ink); font:inherit; font-size:14px; }
+.vw-rule-add { width:100%; box-sizing:border-box; padding:9px 12px; border:1px dashed var(--line); border-radius:10px; background:transparent; color:var(--ink); font:inherit; font-size:var(--t3); }
 .vw-rule-add:focus { outline:none; border-style:solid; border-color:var(--accent); }
 .vw-rule-examples { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
-.vw-rule-examples small { color:var(--muted); font-size:12px; margin-right:2px; }
-.vw-rule-example { border:1px solid var(--line); background:transparent; color:var(--ink); border-radius:999px; padding:5px 11px; font-size:12.5px; cursor:pointer; }
+.vw-rule-examples small { color:var(--muted); font-size:var(--t2); margin-right:2px; }
+.vw-rule-example { border:1px solid var(--line); background:transparent; color:var(--ink); border-radius:999px; padding:5px 11px; font-size:var(--t2); cursor:pointer; }
 .vw-rule-example:hover { border-color:var(--accent); }
 /* La targeta de permís que cita una regla. */
 .vw-ask-rule { color:var(--muted); }
 
 /* Formulari segur per a una contrasenya o una clau. */
 .vw-secret-form { display:flex; gap:8px; margin-top:8px; }
-.vw-secret-input { flex:1; min-width:0; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--ink); font:inherit; font-size:14px; letter-spacing:.04em; }
+.vw-secret-input { flex:1; min-width:0; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--ink); font:inherit; font-size:var(--t3); letter-spacing:.04em; }
 .vw-secret-input:focus { outline:none; border-color:var(--accent); }
-.vw-secret-show { border:1px solid var(--line); background:transparent; color:var(--ink); border-radius:10px; padding:0 14px; font-size:13px; cursor:pointer; }
+.vw-secret-show { border:1px solid var(--line); background:transparent; color:var(--ink); border-radius:10px; padding:0 14px; font-size:var(--t2); cursor:pointer; }
 .vw-secret-note { display:block; margin-top:6px; color:var(--muted); }
 
 
 /* Fes: plantilles per començar (com la pestanya Do de Duet). */
 .vw-fes { display:grid; gap:22px; max-width:980px; }
-.vw-fes-group h2 { font-size:13px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin:0 0 10px; }
+.vw-fes-group h2 { font-size:var(--t2); font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin:0 0 10px; }
 .vw-fes-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px; }
 .vw-fes-card { border:1px solid var(--line); border-radius:14px; background:var(--surface); display:grid; gap:8px; padding:4px; position:relative; }
 .vw-fes-main { display:flex; align-items:flex-start; gap:12px; text-align:left; padding:12px; border:0; border-radius:11px; background:transparent; color:var(--ink); cursor:pointer; font:inherit; }
 .vw-fes-main:hover { background:color-mix(in srgb, var(--ink) 5%, transparent); }
-.vw-fes-icon { font-size:22px; line-height:1; margin-top:1px; }
+.vw-fes-icon { font-size:var(--t5); line-height:1; margin-top:1px; }
 .vw-fes-text { display:grid; gap:3px; min-width:0; }
-.vw-fes-text strong { font-size:14.5px; font-weight:600; }
-.vw-fes-text small { font-size:12.5px; color:var(--muted); }
+.vw-fes-text strong { font-size:var(--t3); font-weight:600; }
+.vw-fes-text small { font-size:var(--t2); color:var(--muted); }
 .vw-fes-form { display:none; gap:6px; padding:0 8px 8px; }
 .vw-fes-card.is-open .vw-fes-form { display:flex; }
-.vw-fes-input { flex:1; min-width:0; padding:9px 11px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--ink); font:inherit; font-size:14px; }
+.vw-fes-input { flex:1; min-width:0; padding:9px 11px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--ink); font:inherit; font-size:var(--t3); }
 .vw-fes-input:focus { outline:none; border-color:var(--accent); }
 .vw-fes-go { border:0; border-radius:10px; background:var(--accent); color:var(--on-accent, #0d0e11); font-weight:600; padding:0 14px; cursor:pointer; }
-.vw-fes-daily { position:absolute; top:10px; right:10px; border:1px solid var(--line); background:transparent; color:var(--muted); border-radius:999px; font-size:11.5px; padding:4px 9px; cursor:pointer; }
+.vw-fes-daily { position:absolute; top:10px; right:10px; border:1px solid var(--line); background:transparent; color:var(--muted); border-radius:999px; font-size:var(--t1); padding:4px 9px; cursor:pointer; }
 .vw-fes-daily:hover { color:var(--ink); border-color:var(--accent); }
 .vw-fes-card:has(.vw-fes-daily) .vw-fes-main { padding-right:86px; }
 
 
 /* «Ho recordaré»: el que ha après del torn. */
-.vw-memory { display:flex; align-items:center; gap:10px; margin:2px 0 8px 46px; padding:8px 8px 8px 12px; max-width:560px; border:1px dashed var(--line); border-radius:12px; font-size:13px; }
-.vw-memory-icon { font-size:15px; }
+.vw-memory { display:flex; align-items:center; gap:10px; margin:2px 0 8px 46px; padding:8px 8px 8px 12px; max-width:560px; border:1px dashed var(--line); border-radius:12px; font-size:var(--t2); }
+.vw-memory-icon { font-size:var(--t3); }
 .vw-memory-copy { flex:1; min-width:0; display:grid; gap:1px; }
-.vw-memory-copy strong { color:var(--ink); font-weight:600; font-size:12.5px; }
+.vw-memory-copy strong { color:var(--ink); font-weight:600; font-size:var(--t2); }
 .vw-memory-copy span { color:var(--muted); }
-.vw-memory-undo { border:0; background:transparent; color:var(--ink); font-weight:600; font-size:12.5px; padding:8px 10px; border-radius:8px; cursor:pointer; }
+.vw-memory-undo { border:0; background:transparent; color:var(--ink); font-weight:600; font-size:var(--t2); padding:8px 10px; border-radius:8px; cursor:pointer; }
 .vw-memory-undo:hover { background:color-mix(in srgb, var(--ink) 8%, transparent); }
 .vw-memory.is-forgot { opacity:.6; }
 .vw-apres .vw-rule-head .vw-face, .vw-apres .vw-rule-head > span:first-child { width:22px; height:22px; }
@@ -1364,7 +1364,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-voice-mic, .vw-voice-talk { display:grid; place-items:center; width:36px; height:36px; padding:0; border:0; border-radius:50%; background:transparent; color:var(--muted); cursor:pointer; }
 .vw-voice-mic:hover, .vw-voice-talk:hover { color:var(--ink); background:color-mix(in srgb, var(--ink) 7%, transparent); }
 .vw-voice-mic.is-on, .vw-voice-talk.is-on { color:var(--on-accent, #0d0e11); background:var(--accent); }
-.vw-voice-strip { display:flex; align-items:center; gap:10px; margin:0 auto 8px; padding:8px 8px 8px 14px; max-width:420px; border:1px solid color-mix(in srgb, var(--accent) 45%, transparent); background:var(--surface-hi); border-radius:999px; font-size:13.5px; color:var(--ink); }
+.vw-voice-strip { display:flex; align-items:center; gap:10px; margin:0 auto 8px; padding:8px 8px 8px 14px; max-width:420px; border:1px solid color-mix(in srgb, var(--accent) 45%, transparent); background:var(--surface-hi); border-radius:999px; font-size:var(--t2); color:var(--ink); }
 .vw-voice-strip[hidden] { display:none; }
 .vw-voice-label { flex:1; }
 .vw-voice-bars { display:inline-flex; gap:3px; align-items:center; height:16px; }
@@ -1373,7 +1373,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-voice-strip[data-phase="thinking"] .vw-voice-bars i { animation-duration:2.2s; opacity:.6; }
 @keyframes vw-voice { 0%,100% { height:5px; } 50% { height:16px; } }
 @media (prefers-reduced-motion: reduce) { .vw-voice-bars i { animation:none; height:10px; } }
-.vw-voice-stop { border:0; border-radius:999px; background:var(--ink); color:var(--bg); font-weight:600; font-size:12.5px; padding:6px 12px; cursor:pointer; }
+.vw-voice-stop { border:0; border-radius:999px; background:var(--ink); color:var(--bg); font-weight:600; font-size:var(--t2); padding:6px 12px; cursor:pointer; }
 
 /* Targetes riques del xat (md.js): foto a dalt, recepta, pla en línia de temps,
    opcions numerades, galeria i checklists que es poden marcar. Una foto val més
@@ -1382,25 +1382,25 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 :is(.gregal-result,.gregal-card) .gc-hero { display:block; width:100%; height:auto; max-height:260px; aspect-ratio:16/9; object-fit:cover; background:var(--panel); border:0; margin:0; }
 :is(.gregal-result,.gregal-card) img.gc-hero.gregal-img { cursor:zoom-in; }
 .gregal-card .gc-body { display:flex; flex-direction:column; gap:10px; padding:16px; }
-.gregal-card .gc-kicker { font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--accent-hi); }
-.gregal-card .gc-title { font-size:21px; line-height:1.2; font-weight:750; letter-spacing:-.01em; color:var(--ink); }
+.gregal-card .gc-kicker { font-size:var(--t1); font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--accent-hi); }
+.gregal-card .gc-title { font-size:var(--t5); line-height:1.2; font-weight:750; letter-spacing:-.01em; color:var(--ink); }
 .gregal-card .gc-kicker + .gc-title { margin-top:-6px; }
-.gregal-card .gc-subtitle { font-size:13px; color:var(--muted); margin-top:-6px; }
-.gregal-card .gc-meta { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:13px; color:var(--muted); }
+.gregal-card .gc-subtitle { font-size:var(--t2); color:var(--muted); margin-top:-6px; }
+.gregal-card .gc-meta { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:var(--t2); color:var(--muted); }
 .gregal-card .gc-meta > span::before { margin-right:5px; }
 .gregal-card .gc-meta-time::before { content:'⏱'; }
 .gregal-card .gc-meta-level::before { content:'👩‍🍳'; }
 .gregal-card .gc-meta-serves::before { content:'🍽'; }
 .gregal-card .gc-meta b { font-weight:600; color:var(--text); }
-.gregal-card .gc-sub { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-top:10px; border-top:1px solid var(--line); font-size:15px; font-weight:700; color:var(--ink); }
+.gregal-card .gc-sub { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-top:10px; border-top:1px solid var(--line); font-size:var(--t3); font-weight:700; color:var(--ink); }
 .gregal-card .gc-stepper { display:inline-flex; align-items:center; gap:10px; }
 .gregal-card .gc-stepper b { min-width:18px; text-align:center; font-variant-numeric:tabular-nums; }
-.gregal-card .gc-stepper button { width:32px; height:32px; border-radius:10px; border:0; background:var(--surface-hi); color:var(--accent-hi); font-size:18px; line-height:1; cursor:pointer; }
+.gregal-card .gc-stepper button { width:32px; height:32px; border-radius:10px; border:0; background:var(--surface-hi); color:var(--accent-hi); font-size:var(--t4); line-height:1; cursor:pointer; }
 .gregal-card .gc-stepper button:hover { background:var(--hover-alt); }
 .gregal-card ul.gc-checks { list-style:none; margin:-4px 0 0; padding:0; }
 .gregal-card .gc-checks li { border-bottom:1px solid var(--line); margin:0; }
 .gregal-card .gc-checks li:last-child { border-bottom:0; }
-.gregal-card .gc-checks li > label:has(> input) { display:flex; width:100%; align-items:center; gap:12px; padding:9px 0; cursor:pointer; font-size:14px; color:inherit; }
+.gregal-card .gc-checks li > label:has(> input) { display:flex; width:100%; align-items:center; gap:12px; padding:9px 0; cursor:pointer; font-size:var(--t3); color:inherit; }
 .gregal-card .gc-name { flex:1; min-width:0; }
 .gregal-card .gc-qty { flex:none; color:var(--muted); font-variant-numeric:tabular-nums; }
 :is(.gregal-card,.vw-message-text,.vw-result-text) input[type=checkbox] { appearance:none; flex:none; width:20px; height:20px; margin:0; border:1.5px solid var(--line-hi); border-radius:6px; display:inline-grid; place-items:center; cursor:pointer; background:transparent; vertical-align:-4px; }
@@ -1408,13 +1408,13 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 :is(.gregal-card,.vw-message-text,.vw-result-text) input[type=checkbox]:checked::after { content:''; width:10px; height:5px; border:2px solid var(--on-accent, #fff); border-top:0; border-right:0; transform:translateY(-1px) rotate(-45deg); }
 :is(.gregal-card,.vw-message-text,.vw-result-text) label:has(input:checked) > span:not(.gc-qty) { color:var(--muted); text-decoration:line-through; text-decoration-color:color-mix(in srgb, var(--muted) 60%, transparent); }
 .gregal-card ol.gc-steps { list-style:none; margin:0; padding:0; }
-.gregal-card .gc-steps li { counter-increment:gc; position:relative; display:flex; align-items:flex-start; gap:10px; padding:0 0 14px 42px; margin:0; font-size:14px; line-height:1.5; }
+.gregal-card .gc-steps li { counter-increment:gc; position:relative; display:flex; align-items:flex-start; gap:10px; padding:0 0 14px 42px; margin:0; font-size:var(--t3); line-height:1.5; }
 .gregal-card ol.gc-steps { counter-reset:gc; }
-.gregal-card .gc-steps li::before { content:counter(gc); position:absolute; left:0; top:-3px; width:28px; height:28px; border-radius:50%; display:grid; place-items:center; font-size:13px; font-weight:700; background:var(--surface-hi); color:var(--accent-hi); }
+.gregal-card .gc-steps li::before { content:counter(gc); position:absolute; left:0; top:-3px; width:28px; height:28px; border-radius:50%; display:grid; place-items:center; font-size:var(--t2); font-weight:700; background:var(--surface-hi); color:var(--accent-hi); }
 .gregal-card .gc-steps li:not(:last-child)::after { content:''; position:absolute; left:13.5px; top:28px; bottom:2px; width:1px; background:var(--line-hi); }
 .gregal-card .gc-steps li:last-child { padding-bottom:0; }
 .gregal-card .gc-steps li > span { flex:1; }
-.gregal-card .gc-timer { flex:none; font-style:normal; font-size:12px; font-weight:600; padding:2px 9px; border-radius:999px; background:var(--surface-hi); color:var(--accent-hi); white-space:nowrap; }
+.gregal-card .gc-timer { flex:none; font-style:normal; font-size:var(--t2); font-weight:600; padding:2px 9px; border-radius:999px; background:var(--surface-hi); color:var(--accent-hi); white-space:nowrap; }
 .gregal-card .gc-timer::after { content:' ⏱'; }
 .gregal-card .gc-tip, :is(.vw-message-text,.vw-result-text) blockquote { margin:2px 0 0; padding:2px 0 2px 14px; border-left:3px solid var(--accent); font-style:italic; color:var(--text); }
 :is(.vw-message-text,.vw-result-text) blockquote { margin:12px 0; }
@@ -1429,10 +1429,10 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .gregal-card .gc-time:empty { display:none; }
 .gregal-card .gc-what { display:flex; flex-direction:column; gap:1px; min-width:0; }
 .gregal-card .gc-what b { font-weight:600; color:var(--ink); }
-.gregal-card .gc-what small { font-size:13px; color:var(--muted); }
-.gregal-card .gc-total { display:flex; justify-content:space-between; align-items:baseline; padding-top:10px; border-top:1px solid var(--line); font-size:14px; color:var(--text); }
-.gregal-card .gc-total b { font-size:18px; font-weight:750; color:var(--ink); }
-.gregal-result .gr-rank { flex:none; min-width:22px; font-size:13px; font-weight:700; color:var(--faint); font-variant-numeric:tabular-nums; }
+.gregal-card .gc-what small { font-size:var(--t2); color:var(--muted); }
+.gregal-card .gc-total { display:flex; justify-content:space-between; align-items:baseline; padding-top:10px; border-top:1px solid var(--line); font-size:var(--t3); color:var(--text); }
+.gregal-card .gc-total b { font-size:var(--t4); font-weight:750; color:var(--ink); }
+.gregal-result .gr-rank { flex:none; min-width:22px; font-size:var(--t2); font-weight:700; color:var(--faint); font-variant-numeric:tabular-nums; }
 /* Galeria: un paràgraf només de fotos. Una, gran; dues o tres, en fila. */
 :is(.vw-message-text,.vw-result-text) .md-gallery { display:grid; gap:6px; margin:12px 0; max-width:560px; }
 :is(.vw-message-text,.vw-result-text) .md-gallery-2 { grid-template-columns:1fr 1fr; }
@@ -1449,7 +1449,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
    counter-reset quan la llista no comença per 1). */
 :is(.vw-message-text,.vw-result-text) ol:not([class]) { list-style:none; counter-reset:md-step; padding-left:0; }
 :is(.vw-message-text,.vw-result-text) ol:not([class]) > li { counter-increment:md-step; position:relative; padding-left:36px; margin:8px 0; }
-:is(.vw-message-text,.vw-result-text) ol:not([class]) > li::before { content:counter(md-step); position:absolute; left:0; top:0; width:24px; height:24px; border-radius:50%; display:grid; place-items:center; font-size:12px; font-weight:700; line-height:1; background:var(--surface-hi); color:var(--accent-hi); }
+:is(.vw-message-text,.vw-result-text) ol:not([class]) > li::before { content:counter(md-step); position:absolute; left:0; top:0; width:24px; height:24px; border-radius:50%; display:grid; place-items:center; font-size:var(--t2); font-weight:700; line-height:1; background:var(--surface-hi); color:var(--accent-hi); }
 
 /* Targetes, estil del disseny «Escapades»: pla compacte amb l'hora en
    píndola, pressupost amb icona, «Detalls» que obre la resta, botons d'acció
@@ -1457,20 +1457,20 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .gregal-card ol.gc-agenda { list-style:none; margin:2px 0 0; padding:0; }
 .gregal-card .gc-agenda li { display:flex; align-items:baseline; gap:14px; margin:0; padding:9px 0; border-bottom:1px solid var(--line); }
 .gregal-card .gc-agenda li:last-child { border-bottom:0; }
-.gregal-card .gc-pill { flex:none; min-width:62px; text-align:center; padding:3px 10px; border-radius:10px; font-weight:700; font-size:15px; font-variant-numeric:tabular-nums; background:var(--surface-hi); color:var(--accent-hi); }
+.gregal-card .gc-pill { flex:none; min-width:62px; text-align:center; padding:3px 10px; border-radius:10px; font-weight:700; font-size:var(--t3); font-variant-numeric:tabular-nums; background:var(--surface-hi); color:var(--accent-hi); }
 .gregal-card .gc-agenda .gc-what { display:flex; flex-direction:column; gap:2px; min-width:0; }
-.gregal-card .gc-agenda .gc-what b { font-weight:500; font-size:16px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.gregal-card .gc-agenda .gc-detail { font-size:13px; color:var(--muted); display:none; }
+.gregal-card .gc-agenda .gc-what b { font-weight:500; font-size:var(--t4); color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.gregal-card .gc-agenda .gc-detail { font-size:var(--t2); color:var(--muted); display:none; }
 .gregal-card .gc-agenda .gc-extra { display:none; }
-.gregal-card .gc-moreitems { font-size:12px; font-weight:650; color:var(--muted); margin-top:-6px; }
+.gregal-card .gc-moreitems { font-size:var(--t2); font-weight:650; color:var(--muted); margin-top:-6px; }
 .gregal-card.gc-open .gc-agenda .gc-extra { display:flex; }
 .gregal-card.gc-open .gc-agenda .gc-detail { display:block; }
 .gregal-card.gc-open .gc-agenda .gc-what b { white-space:normal; }
 .gregal-card.gc-open .gc-moreitems { display:none; }
-.gregal-card .gc-budget { display:flex; align-items:center; gap:10px; padding-top:4px; font-size:15px; color:var(--muted); }
+.gregal-card .gc-budget { display:flex; align-items:center; gap:10px; padding-top:4px; font-size:var(--t3); color:var(--muted); }
 .gregal-card .gc-budget b { color:var(--ink); font-weight:750; }
 .gregal-card .gc-ico { flex:none; width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linejoin:round; }
-:is(.gregal-result,.gregal-card) .gc-toggle { margin-left:auto; display:inline-flex; align-items:center; gap:4px; border:0; background:none; padding:0; font:inherit; font-size:13px; font-weight:650; color:var(--accent-hi); cursor:pointer; }
+:is(.gregal-result,.gregal-card) .gc-toggle { margin-left:auto; display:inline-flex; align-items:center; gap:4px; border:0; background:none; padding:0; font:inherit; font-size:var(--t2); font-weight:650; color:var(--accent-hi); cursor:pointer; }
 .gregal-card .gc-toggle svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; transition:transform .15s; }
 .gregal-card .gc-toggle .gc-close-l, .gregal-card.gc-open .gc-toggle .gc-open-l { display:none; }
 .gregal-card.gc-open .gc-toggle .gc-close-l { display:inline; }
@@ -1478,17 +1478,17 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 
 .gc-actions { display:none; flex-direction:column; align-items:stretch; gap:6px; margin:12px 0 4px; max-width:560px; }
 .gc-sayable .gc-actions { display:flex; }
-.gc-actions .gc-cta { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:15px 22px; border:0; border-radius:16px; background:var(--accent); color:var(--on-accent); box-shadow:0 8px 22px -10px var(--send-glow, transparent); font:inherit; font-size:18px; font-weight:750; cursor:pointer; text-align:left; transition:transform .12s, filter .12s; }
+.gc-actions .gc-cta { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:15px 22px; border:0; border-radius:16px; background:var(--accent); color:var(--on-accent); box-shadow:0 8px 22px -10px var(--send-glow, transparent); font:inherit; font-size:var(--t4); font-weight:750; cursor:pointer; text-align:left; transition:transform .12s, filter .12s; }
 .gc-actions .gc-cta:hover { filter:brightness(1.08); }
 .gc-actions .gc-cta:active { transform:scale(.99); }
 .gc-actions .gc-cta svg { flex:none; width:26px; height:26px; fill:none; stroke:var(--send-fg, var(--on-accent)); stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
-.gc-actions .gc-note { font-size:12px; color:var(--muted); padding:0 4px; }
-.gc-actions .gc-alt { align-self:center; border:0; background:none; padding:6px 10px; font:inherit; font-size:15px; font-weight:600; color:var(--accent-hi); cursor:pointer; }
+.gc-actions .gc-note { font-size:var(--t2); color:var(--muted); padding:0 4px; }
+.gc-actions .gc-alt { align-self:center; border:0; background:none; padding:6px 10px; font:inherit; font-size:var(--t3); font-weight:600; color:var(--accent-hi); cursor:pointer; }
 .gc-actions .gc-alt:hover { text-decoration:underline; }
 /* La proposta de desar (md.js gregal-keep): només on share-msg.js la fa funcionar. */
 .gc-keep-row { display:none; margin:10px 0 2px; }
 .gc-sayable .gc-keep-row { display:flex; }
-.gc-keep { border:1px solid var(--line); border-radius:999px; background:none; padding:6px 14px; font:inherit; font-size:14px; font-weight:600; color:var(--accent-hi); cursor:pointer; }
+.gc-keep { border:1px solid var(--line); border-radius:999px; background:none; padding:6px 14px; font:inherit; font-size:var(--t3); font-weight:600; color:var(--accent-hi); cursor:pointer; }
 .gc-keep:hover { background:var(--accent-soft); }
 .gc-keep.gc-kept { color:var(--ink); }
 
@@ -1496,31 +1496,31 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .gregal-route .gc-leg { display:flex; align-items:center; gap:12px; margin-top:2px; }
 .gregal-route .gc-end { display:flex; flex-direction:column; gap:2px; }
 .gregal-route .gc-end b { font-size:34px; line-height:1; font-weight:750; letter-spacing:-.02em; font-variant-numeric:tabular-nums; color:var(--ink); }
-.gregal-route .gc-end small { font-size:13px; color:var(--muted); }
+.gregal-route .gc-end small { font-size:var(--t2); color:var(--muted); }
 .gregal-route .gc-arr { text-align:right; align-items:flex-end; }
 .gregal-route .gc-line { flex:1; display:flex; align-items:center; gap:8px; min-width:40px; padding-bottom:18px; }
 .gregal-route .gc-line i { flex:1; height:1.5px; background:var(--line-hi); }
-.gregal-route .gc-line span { font-size:18px; line-height:1; }
-.gregal-route .gc-legfoot { display:flex; align-items:center; gap:10px; padding-top:12px; border-top:1px solid var(--line); font-size:14px; color:var(--muted); }
-.gregal-route .gc-badge { font-style:normal; font-size:12px; font-weight:650; padding:3px 9px; border-radius:8px; background:var(--lime, var(--accent)); color:#10202A; white-space:nowrap; }
-.gregal-route .gc-price { margin-left:auto; font-size:20px; font-weight:750; color:var(--ink); white-space:nowrap; }
+.gregal-route .gc-line span { font-size:var(--t4); line-height:1; }
+.gregal-route .gc-legfoot { display:flex; align-items:center; gap:10px; padding-top:12px; border-top:1px solid var(--line); font-size:var(--t3); color:var(--muted); }
+.gregal-route .gc-badge { font-style:normal; font-size:var(--t2); font-weight:650; padding:3px 9px; border-radius:8px; background:var(--lime, var(--accent)); color:#10202A; white-space:nowrap; }
+.gregal-route .gc-price { margin-left:auto; font-size:var(--t5); font-weight:750; color:var(--ink); white-space:nowrap; }
 .gregal-route ul.gc-alts { list-style:none; margin:0; padding:0 16px; border-top:1px solid var(--line); }
 .gregal-route .gc-alts li { margin:0; border-bottom:1px solid var(--line); }
 .gregal-route .gc-alts li:last-child { border-bottom:0; }
-.gregal-route .gc-alts :is(a,div) { display:flex; align-items:center; gap:10px; padding:11px 0; color:var(--ink); text-decoration:none; font-size:15px; font-variant-numeric:tabular-nums; }
+.gregal-route .gc-alts :is(a,div) { display:flex; align-items:center; gap:10px; padding:11px 0; color:var(--ink); text-decoration:none; font-size:var(--t3); font-variant-numeric:tabular-nums; }
 .gregal-route .gc-alts span { flex:1; font-weight:600; }
 .gregal-route .gc-alts b { font-weight:600; }
-.gregal-route .gc-alts i { font-style:normal; color:var(--muted); font-size:18px; }
+.gregal-route .gc-alts i { font-style:normal; color:var(--muted); font-size:var(--t4); }
 .gregal-route .gc-mode { width:22px; height:22px; fill:none; stroke:var(--ink); stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
 
 /* ---- Acabat professional (15/11) ----
    «Ho recordaré» en una línia; línies de lectura de ~75 caràcters. */
 
-.vw-memory { gap:8px; margin:0 0 10px 46px; padding:2px 0; max-width:740px; border:0; border-radius:0; font-size:12.5px; }
+.vw-memory { gap:8px; margin:0 0 10px 46px; padding:2px 0; max-width:740px; border:0; border-radius:0; font-size:var(--t2); }
 .vw-memory-icon { display:grid; place-items:center; width:18px; height:18px; border-radius:50%; background:var(--accent-soft-hi); }
 .vw-memory-icon svg { width:12px; height:12px; fill:none; stroke:var(--accent-hi); stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; }
 .vw-memory-copy { display:flex; align-items:baseline; gap:6px; min-width:0; }
-.vw-memory-copy strong { flex:none; color:var(--text); font-weight:600; font-size:12.5px; }
+.vw-memory-copy strong { flex:none; color:var(--text); font-weight:600; font-size:var(--t2); }
 .vw-memory-copy strong::after { content:'·'; margin-left:6px; color:var(--faint); font-weight:400; }
 .vw-memory-copy span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); }
 .vw-memory-undo { padding:2px 6px; font-weight:500; color:var(--muted); }
@@ -1531,9 +1531,9 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 .vw-messages .vw-memory { margin-top:12px; }
 /* Permís: a la columna de lectura, compacte; els botons a la mida del text. */
 .vw-messages .vw-asks-inline .vw-ask, .vw-messages .vw-ask { max-width:740px; margin-left:0; padding:12px 14px; gap:8px; box-shadow:none; border-color:color-mix(in srgb, var(--accent) 35%, var(--line-hi)); }
-.vw-messages .vw-ask > strong { font-size:14px; }
+.vw-messages .vw-ask > strong { font-size:var(--t3); }
 .vw-messages .vw-ask-actions { justify-content:flex-start; }
-.vw-messages .vw-ask-actions button { flex:0 0 auto; min-height:34px; padding:0 18px; font-size:13.5px; }
+.vw-messages .vw-ask-actions button { flex:0 0 auto; min-height:34px; padding:0 18px; font-size:var(--t2); }
 
 /* Comparteix un missatge (share-msg.js): un botó discret que apareix en passar
    per sobre i un menú petit (text, WhatsApp, Telegram, persona, enllaç). */
@@ -1545,23 +1545,23 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 @media (hover:none) { .gshare-btn { opacity:.7; } }
 /* Desa (share-msg.js): al costat de Comparteix; un cop desat (o si falla) es queda visible amb el text. */
 .gsave-btn { right:36px; }
-.gsave-btn.gsave-text { width:auto; padding:0 10px; font:inherit; font-size:12px; white-space:nowrap; color:var(--ink); opacity:1; }
+.gsave-btn.gsave-text { width:auto; padding:0 10px; font:inherit; font-size:var(--t2); white-space:nowrap; color:var(--ink); opacity:1; }
 .gshare-menu { position:fixed; z-index:1000; width:270px; padding:6px; border-radius:14px; background:var(--surface-hi, var(--surface)); border:1px solid var(--line); box-shadow:0 18px 50px rgba(0,0,0,.35); display:flex; flex-direction:column; gap:1px; }
-.gshare-item { display:flex; flex-direction:column; align-items:flex-start; gap:1px; text-align:left; padding:9px 11px; border:0; border-radius:9px; background:none; color:var(--ink); font:inherit; font-size:14px; cursor:pointer; }
-.gshare-item small { color:var(--muted); font-size:12px; }
+.gshare-item { display:flex; flex-direction:column; align-items:flex-start; gap:1px; text-align:left; padding:9px 11px; border:0; border-radius:9px; background:none; color:var(--ink); font:inherit; font-size:var(--t3); cursor:pointer; }
+.gshare-item small { color:var(--muted); font-size:var(--t2); }
 .gshare-item:hover, .gshare-item:focus-visible { background:var(--hover-alt); outline:none; }
 .gshare-item:disabled { opacity:.6; cursor:progress; }
 .gshare-sep { margin-top:4px; border-top:1px solid var(--line); border-radius:0 0 9px 9px; padding-top:11px; }
 .gshare-people { display:flex; flex-wrap:wrap; gap:6px; padding:6px 8px; }
-.gshare-person { border:1px solid var(--line); border-radius:999px; background:none; color:var(--text); padding:5px 11px; font:inherit; font-size:13px; cursor:pointer; }
+.gshare-person { border:1px solid var(--line); border-radius:999px; background:none; color:var(--text); padding:5px 11px; font:inherit; font-size:var(--t2); cursor:pointer; }
 .gshare-person.on { background:var(--accent); color:var(--on-accent, var(--bg)); border-color:var(--accent); }
-.gshare-send { margin-left:auto; border:0; border-radius:999px; background:var(--send-bg, var(--accent)); color:var(--send-fg, var(--bg)); padding:6px 14px; font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
+.gshare-send { margin-left:auto; border:0; border-radius:999px; background:var(--send-bg, var(--accent)); color:var(--send-fg, var(--bg)); padding:6px 14px; font:inherit; font-size:var(--t2); font-weight:600; cursor:pointer; }
 .gshare-send:disabled { opacity:.45; cursor:default; }
-.gshare-status { margin:0; padding:0 11px; font-size:12.5px; color:var(--muted); white-space:pre-wrap; overflow-wrap:anywhere; }
+.gshare-status { margin:0; padding:0 11px; font-size:var(--t2); color:var(--muted); white-space:pre-wrap; overflow-wrap:anywhere; }
 .gshare-status:not(:empty) { padding:8px 11px 6px; }
 .gshare-status.bad { color:var(--peach, #F2B48E); }
 /* Desat: el que t'ha enviat algú de l'app, pintat com al xat. */
-.saved-received .saved-md { max-height:340px; overflow:auto; font-size:14px; }
+.saved-received .saved-md { max-height:340px; overflow:auto; font-size:var(--t3); }
 .saved-received.unread { border-color:var(--accent); }
 .saved-actions { display:flex; gap:8px; align-items:center; margin-top:8px; }
 .saved-actions .gshare-btn { position:static; opacity:1; }
@@ -1569,9 +1569,9 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 /* Vista prèvia dels blocs html/svg (md-preview.js): pàgina funcionant en un iframe aïllat. */
 .codeblock.gc-preview .codehead { gap:6px; }
 .codeblock.gc-preview .codehead > span { margin-right:4px; }
-.gc-prev-tab { border:0; background:transparent; color:var(--muted); font:inherit; font-size:12px; padding:3px 9px; border-radius:999px; cursor:pointer; }
+.gc-prev-tab { border:0; background:transparent; color:var(--muted); font:inherit; font-size:var(--t2); padding:3px 9px; border-radius:999px; cursor:pointer; }
 .gc-prev-tab.on { background:var(--surface-hi); color:var(--accent-hi); }
-.gc-prev-grow { margin-left:auto; border:0; background:transparent; color:var(--muted); font-size:15px; cursor:pointer; padding:2px 6px; border-radius:6px; }
+.gc-prev-grow { margin-left:auto; border:0; background:transparent; color:var(--muted); font-size:var(--t3); cursor:pointer; padding:2px 6px; border-radius:6px; }
 .gc-prev-grow:hover, .gc-prev-tab:hover { color:var(--ink); background:var(--hover-alt); }
 .codeblock.gc-preview .copybtn { margin-left:0; }
 .gc-prev-view { background:#fff; border-top:1px solid var(--line); }
@@ -1579,7 +1579,7 @@ html body:is(.shell-winds,.winds-side) .vw-nav-item:focus-visible, html body:is(
 dialog.gc-prev-full { width:min(1200px,94vw); height:88vh; padding:0; border:1px solid var(--line-hi); border-radius:14px; background:var(--surface); overflow:hidden; }
 dialog.gc-prev-full::backdrop { background:rgba(0,0,0,.55); }
 .gc-prev-fullbar { display:flex; justify-content:flex-end; padding:6px 8px; background:var(--surface); }
-.gc-prev-fullbar button { border:0; background:transparent; color:var(--ink); font-size:16px; cursor:pointer; padding:4px 8px; border-radius:8px; }
+.gc-prev-fullbar button { border:0; background:transparent; color:var(--ink); font-size:var(--t4); cursor:pointer; padding:4px 8px; border-radius:8px; }
 dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize:none; }
 
 /* La web d'un vent (gregal-web): capçalera amb el nom i «Obre», i la pàgina funcionant. */
@@ -1587,16 +1587,16 @@ dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize
 .gregal-web .gw-head { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--line); }
 .gregal-web .gw-icon { width:30px; height:30px; display:grid; place-items:center; border-radius:9px; background:var(--surface-hi); color:var(--accent-hi); flex:none; }
 .gregal-web .gw-name { display:flex; flex-direction:column; min-width:0; flex:1; }
-.gregal-web .gw-name strong { color:var(--ink); font-size:14.5px; }
-.gregal-web .gw-name small { color:var(--muted); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.gregal-web .gw-open { color:var(--accent-hi); text-decoration:none; font-weight:600; font-size:13px; padding:5px 10px; border-radius:999px; background:var(--surface-hi); flex:none; }
+.gregal-web .gw-name strong { color:var(--ink); font-size:var(--t3); }
+.gregal-web .gw-name small { color:var(--muted); font-size:var(--t2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.gregal-web .gw-open { color:var(--accent-hi); text-decoration:none; font-weight:600; font-size:var(--t2); padding:5px 10px; border-radius:999px; background:var(--surface-hi); flex:none; }
 .gregal-web .gw-open:hover { background:var(--hover-alt); }
 .gregal-web .gw-frame { background:#fff; }
 
 /* Barra d'un sol nivell (renderNav): començar i cercar a dalt, grups, vents, converses i configuració plegada. */
 .vw-nav-top { display:flex; flex-direction:column; gap:2px; margin-bottom:6px; }
 .vw-nav-search { color:var(--muted); }
-.vw-nav-search kbd { margin-left:auto; font:inherit; font-size:11px; color:var(--faint); border:1px solid var(--line); border-radius:6px; padding:1px 6px; }
+.vw-nav-search kbd { margin-left:auto; font:inherit; font-size:var(--t1); color:var(--faint); border:1px solid var(--line); border-radius:6px; padding:1px 6px; }
 /* Pestanyes dins d'un grup (Feina, Desat). */
 .vw-heading:has(+ .vw-page-tabs) { margin-bottom:16px; }
 .vw-page-tabs { display:flex; gap:4px; margin:0 0 24px; padding:3px; border-radius:999px; background:var(--surface); border:1px solid var(--line); width:max-content; max-width:100%; overflow-x:auto; }
@@ -1616,27 +1616,27 @@ dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize
 .vw-tempesta-toggle:hover { color:var(--ink); background:var(--hover); }
 .vw-tempesta-toggle.on { color:var(--accent-hi); background:var(--surface-hi); font-weight:600; }
 /* «A fons»: avís curt sobre el quadre d'escriure; desapareix sol. */
-.vw-storm-hint { position:absolute; right:14px; bottom:calc(100% + 8px); max-width:min(360px, calc(100% - 28px)); padding:6px 12px; border-radius:999px; background:var(--surface-hi); color:var(--muted); font-size:12.5px; line-height:1.35; box-shadow:0 2px 10px rgba(0,0,0,.18); pointer-events:none; animation:vw-storm-hint-in .18s ease-out; transition:opacity .3s; }
+.vw-storm-hint { position:absolute; right:14px; bottom:calc(100% + 8px); max-width:min(360px, calc(100% - 28px)); padding:6px 12px; border-radius:999px; background:var(--surface-hi); color:var(--muted); font-size:var(--t2); line-height:1.35; box-shadow:0 2px 10px rgba(0,0,0,.18); pointer-events:none; animation:vw-storm-hint-in .18s ease-out; transition:opacity .3s; }
 .vw-storm-hint.out { opacity:0; }
 @keyframes vw-storm-hint-in { from { opacity:0; transform:translateY(4px); } }
 @media (prefers-reduced-motion: reduce) { .vw-storm-hint { animation:none; transition:none; } }
 .vw-tempesta { margin-top:8px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:var(--surface); display:flex; flex-direction:column; gap:6px; max-width:520px; }
-.vw-tempesta-head { font-size:12.5px; color:var(--muted); font-weight:600; }
-.vw-tempesta-agent { display:flex; flex-wrap:wrap; align-items:center; gap:2px 8px; font-size:13px; color:var(--text); }
-.vw-tempesta-desc { flex-basis:100%; padding-left:16px; color:var(--muted); font-size:12px; line-height:1.35; }
-.vw-tempesta-agent small { color:var(--faint); font-size:11.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
+.vw-tempesta-head { font-size:var(--t2); color:var(--muted); font-weight:600; }
+.vw-tempesta-agent { display:flex; flex-wrap:wrap; align-items:center; gap:2px 8px; font-size:var(--t2); color:var(--text); }
+.vw-tempesta-desc { flex-basis:100%; padding-left:16px; color:var(--muted); font-size:var(--t2); line-height:1.35; }
+.vw-tempesta-agent small { color:var(--faint); font-size:var(--t1); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
 .vw-tempesta-dot { width:8px; height:8px; border-radius:50%; background:var(--faint); flex:none; }
 .vw-tempesta-working .vw-tempesta-dot { background:var(--accent); animation:vwTempestaPulse 1.2s ease-in-out infinite; }
 .vw-tempesta-done .vw-tempesta-dot { background:var(--green); }
 .vw-tempesta-failed .vw-tempesta-dot { background:var(--red); }
-.vw-tempesta-state { color:var(--muted); font-size:12px; }
+.vw-tempesta-state { color:var(--muted); font-size:var(--t2); }
 .vw-tempesta-done .vw-tempesta-state { color:var(--green); }
 @keyframes vwTempestaPulse { 50% { opacity:.35; } }
 @media (prefers-reduced-motion: reduce) { .vw-tempesta-working .vw-tempesta-dot { animation:none; } }
 
 /* Les veus d'un grup que ha treballat alhora, plegades sobre la resposta conjunta. */
 .vw-debate { margin:6px 0 2px 48px; border:1px solid var(--line); border-radius:12px; background:var(--surface); max-width:760px; }
-.vw-debate-head { display:flex; align-items:center; gap:10px; padding:9px 12px; cursor:pointer; list-style:none; color:var(--text); font-size:13px; font-weight:600; }
+.vw-debate-head { display:flex; align-items:center; gap:10px; padding:9px 12px; cursor:pointer; list-style:none; color:var(--text); font-size:var(--t2); font-weight:600; }
 .vw-debate-head::-webkit-details-marker { display:none; }
 .vw-debate-head::after { content:'▾'; margin-left:auto; color:var(--muted); }
 .vw-debate[open] .vw-debate-head::after { content:'▴'; }
@@ -1644,26 +1644,26 @@ dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize
 .vw-debate-faces { display:inline-flex; }
 .vw-debate-faces > * { width:22px; height:22px; margin-right:-6px; }
 .vw-debate-voice { padding:10px 14px; border-top:1px solid var(--line); }
-.vw-debate-who { display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:13px; }
+.vw-debate-who { display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:var(--t2); }
 .vw-debate-who > :first-child { width:22px; height:22px; }
 
 /* «Tots els vents · N» a la barra: la resta de vents, fora de la llista curta. */
 .vw-nav-more { color:var(--muted); }
-.vw-nav-count { margin-left:auto; color:var(--faint); font-size:12px; }
+.vw-nav-count { margin-left:auto; color:var(--faint); font-size:var(--t2); }
 
 /* «Posa ordre» (winds_tidy.go): avís a la pàgina dels vents i el diàleg. */
-.vw-tidy-chip { display:inline-flex; align-items:center; margin-top:10px; min-height:28px; padding:2px 12px; border:1px solid var(--line-hi); border-radius:999px; background:transparent; color:var(--muted); font:inherit; font-size:12.5px; cursor:pointer; }
+.vw-tidy-chip { display:inline-flex; align-items:center; margin-top:10px; min-height:28px; padding:2px 12px; border:1px solid var(--line-hi); border-radius:999px; background:transparent; color:var(--muted); font:inherit; font-size:var(--t2); cursor:pointer; }
 .vw-tidy-chip:hover { background:var(--hover); color:var(--ink); }
 .vw-dialog.vw-tidy { width:min(640px, calc(100vw - 32px)); }
 .vw-tidy-body { display:flex; flex-direction:column; gap:16px; }
 .vw-tidy-group { border:1px solid var(--line); border-radius:14px; padding:12px 14px; display:flex; flex-direction:column; gap:8px; }
-.vw-tidy-group h3 { margin:0 0 2px; font-size:14px; color:var(--ink); }
+.vw-tidy-group h3 { margin:0 0 2px; font-size:var(--t3); color:var(--ink); }
 .vw-tidy-row { display:flex; align-items:center; gap:10px; padding:4px 0; }
 .vw-tidy-row > span { display:flex; flex-direction:column; flex:1; min-width:0; }
-.vw-tidy-row small { color:var(--muted); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.vw-tidy-row small { color:var(--muted); font-size:var(--t2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .vw-tidy-row input[type=radio] { accent-color:var(--accent); }
 .vw-tidy-group > .vw-primary { align-self:flex-start; margin-top:4px; }
-.vw-tidy-status { margin:0; color:var(--muted); font-size:13px; }
+.vw-tidy-status { margin:0; color:var(--muted); font-size:var(--t2); }
 /* «Avui» com a pàgina pròpia: sense el marge de quan anava sota el compositor. */
 .vw-today-page .vw-avui { margin-top:8px; }
 /* Llegir les respostes (vents, 144): un ritme en em sobre el cos de 16/1.6.
@@ -1688,7 +1688,7 @@ dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize
 .vw-messages .vw-message:not(.vw-user) .vw-message-text > :is(h4,h5,h6) { font-size:1em; }
 .vw-messages .vw-message:not(.vw-user) .vw-message-text > hr { margin:1.5em 0; border:0; border-top:1px solid var(--line-hi); }
 .vw-messages .vw-message:not(.vw-user) .vw-message-text > :is(pre,.codeblock,.md-table-scroll,table) { margin:.5em 0 1em; }
-.vw-messages .vw-message:not(.vw-user) .vw-message-text pre { font-size:13.5px; line-height:1.55; }
+.vw-messages .vw-message:not(.vw-user) .vw-message-text pre { font-size:var(--t2); line-height:1.55; }
 .vw-messages .vw-message-text :not(pre) > code { font-family:var(--mono); font-size:.875em; padding:.1em .35em; border-radius:5px; background:var(--surface-hi); color:var(--ink); }
 .vw-messages .vw-message:not(.vw-user) .vw-message-text blockquote { margin:.5em 0 1em; padding:.1em 0 .1em 1em; border-left:3px solid color-mix(in srgb, var(--vw-wind, var(--accent)) 70%, var(--line-hi)); font-style:normal; color:var(--text); }
 .vw-messages .vw-message:not(.vw-user) .vw-message-text > :first-child { margin-top:0; }
@@ -1705,14 +1705,14 @@ dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize
 .vw-owner-who { display:inline-flex; align-items:center; gap:10px; min-width:0; margin-left:-6px; padding:2px 10px 2px 6px; border:0; border-radius:12px; background:transparent; color:var(--ink); font:inherit; cursor:pointer; }
 .vw-owner-who:hover:not(:has(.vw-wind-corner[data-at="corner"]:hover)) { background:var(--hover); }
 .vw-owner-who:focus-visible, .vw-more-item:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-.vw-owner-who > strong { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:15px; font-weight:650; letter-spacing:-.005em; }
+.vw-owner-who > strong { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:var(--t3); font-weight:650; letter-spacing:-.005em; }
 .vw-top :is(.vw-pane-toggle, .vw-top-browser, .vw-more-btn) { display:grid; place-items:center; width:34px; height:34px; padding:0; border:0; border-radius:10px; background:transparent; color:var(--muted); cursor:pointer; }
 .vw-top :is(.vw-pane-toggle, .vw-top-browser, .vw-more-btn):hover, .vw-top .vw-more-btn[aria-expanded="true"] { background:var(--hover-alt); color:var(--ink); }
 .vw-top :is(.vw-pane-toggle, .vw-top-browser, .vw-more-btn) .vw-ic { width:18px; height:18px; }
 .vw-more { position:relative; flex:none; margin-left:2px; }
 .vw-more-list { position:absolute; top:calc(100% + 6px); right:0; z-index:40; display:flex; flex-direction:column; gap:1px; min-width:228px; padding:6px; background:var(--surface); border:1px solid var(--line-hi); border-radius:14px; box-shadow:0 14px 36px color-mix(in srgb, var(--ombra) 35%, transparent); }
 .vw-more-list[hidden] { display:none; }
-.vw-more-item { display:flex; align-items:center; gap:10px; width:100%; min-height:36px; padding:0 10px; border:0; border-radius:9px; background:transparent; color:var(--text); font-size:13.5px; line-height:1.3; text-align:left; cursor:pointer; }
+.vw-more-item { display:flex; align-items:center; gap:10px; width:100%; min-height:36px; padding:0 10px; border:0; border-radius:9px; background:transparent; color:var(--text); font-size:var(--t2); line-height:1.3; text-align:left; cursor:pointer; }
 .vw-more-item:hover { background:var(--hover-alt); color:var(--ink); }
 .vw-more-item .vw-ic { color:var(--muted); }
 @media(prefers-reduced-motion:no-preference) { .vw-more-list:not([hidden]) { animation:vw-more-in .14s ease-out; transform-origin:100% 0; } }
@@ -1721,10 +1721,10 @@ dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize
    compositor), el motiu en petit i «Torna-ho a provar» amb el color del vent. */
 .vw-messages .vw-message.vw-failed > div { display:flex; flex-direction:column; align-items:flex-start; gap:4px; width:fit-content; padding:12px 16px 14px; border:1px solid color-mix(in srgb, var(--red) 16%, var(--line-hi)); border-radius:var(--vw-card); background:color-mix(in srgb, var(--red) 4%, var(--surface)); }
 .vw-messages .vw-message.vw-failed > div > strong { margin:0; }
-.vw-failed-say { display:flex; align-items:center; gap:8px; margin:0; color:var(--ink); font-size:16px; line-height:1.6; }
+.vw-failed-say { display:flex; align-items:center; gap:8px; margin:0; color:var(--ink); font-size:var(--t4); line-height:1.6; }
 .vw-failed-say .vw-ic { width:18px; height:18px; color:var(--red); }
-.vw-failed-why { margin:0; color:var(--muted); font-size:13px; line-height:1.5; overflow-wrap:anywhere; }
-.vw-retry { margin-top:8px; padding:6px 14px; border:1px solid color-mix(in srgb, var(--vw-wind, var(--accent)) 50%, var(--line-hi)); border-radius:999px; background:color-mix(in srgb, var(--vw-wind, var(--accent)) 14%, transparent); color:var(--ink); font-size:13px; font-weight:600; cursor:pointer; }
+.vw-failed-why { margin:0; color:var(--muted); font-size:var(--t2); line-height:1.5; overflow-wrap:anywhere; }
+.vw-retry { margin-top:8px; padding:6px 14px; border:1px solid color-mix(in srgb, var(--vw-wind, var(--accent)) 50%, var(--line-hi)); border-radius:999px; background:color-mix(in srgb, var(--vw-wind, var(--accent)) 14%, transparent); color:var(--ink); font-size:var(--t2); font-weight:600; cursor:pointer; }
 .vw-retry:hover { background:color-mix(in srgb, var(--vw-wind, var(--accent)) 24%, transparent); }
 @media(prefers-reduced-motion:no-preference) { .vw-messages .vw-failed { animation:vw-in .5s ease-out; transform-origin:0 100%; } }
 :is(.vw-browser-toggle, .vw-pane-toggle)[aria-pressed="true"] { color:var(--accent); border-color:color-mix(in srgb, var(--accent) 55%, transparent); background:var(--accent-soft-hi); }
@@ -1744,26 +1744,26 @@ dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize
 .gregal-compare .gx-photo { width:100%; height:100%; object-fit:cover; display:block; min-width:0; }
 .gregal-compare .gx-logo { width:100%; height:100%; object-fit:contain; display:block; min-width:0; padding:18%; box-sizing:border-box; background:color-mix(in srgb, var(--surface-hi) 60%, var(--surface)); }
 .gregal-compare .gx-name { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:10px 0 6px; }
-.gregal-compare .gx-name b { font-size:15px; color:var(--ink); line-height:1.25; }
+.gregal-compare .gx-name b { font-size:var(--t3); color:var(--ink); line-height:1.25; }
 .gregal-compare .gx-name a { color:inherit; text-decoration:none; }
 .gregal-compare .gx-name a:hover { text-decoration:underline; }
-.gregal-compare .gx-badge { font-style:normal; font-size:11px; font-weight:650; padding:2px 8px; border-radius:999px; background:var(--accent-soft-hi); color:var(--accent-hi); }
-.gregal-compare .gx-fact { display:flex; flex-direction:column; gap:2px; margin:0; padding:7px 0; border-top:1px solid var(--line); font-size:13.5px; line-height:1.45; min-width:0; overflow-wrap:anywhere; }
-.gregal-compare .gx-key { color:var(--muted); font-size:12px; }
+.gregal-compare .gx-badge { font-style:normal; font-size:var(--t1); font-weight:650; padding:2px 8px; border-radius:999px; background:var(--accent-soft-hi); color:var(--accent-hi); }
+.gregal-compare .gx-fact { display:flex; flex-direction:column; gap:2px; margin:0; padding:7px 0; border-top:1px solid var(--line); font-size:var(--t2); line-height:1.45; min-width:0; overflow-wrap:anywhere; }
+.gregal-compare .gx-key { color:var(--muted); font-size:var(--t2); }
 .gregal-compare .gx-val { color:var(--text); }
-.gregal-compare .gx-verdict { margin:12px 0 0; padding:10px 12px; border-radius:12px; background:var(--accent-soft); color:var(--text); font-size:14px; line-height:1.5; }
+.gregal-compare .gx-verdict { margin:12px 0 0; padding:10px 12px; border-radius:12px; background:var(--accent-soft); color:var(--text); font-size:var(--t3); line-height:1.5; }
 /* Pàgines: la fitxa fa tota l'amplada i s'atura a cada una. */
 .gregal-compare.gx-paged .gx-track { grid-auto-columns:100%; gap:0 16px; scroll-snap-stop:always; }
 .gregal-compare.gx-paged .gx-item { scroll-snap-stop:always; padding:12px; }
 .gregal-compare.gx-paged .gx-media { aspect-ratio:2/1; }
-.gregal-compare.gx-paged .gx-name b { font-size:18px; }
-.gregal-compare .gx-points { margin:0 0 6px; padding-left:20px; display:flex; flex-direction:column; gap:6px; font-size:14px; line-height:1.5; color:var(--text); }
+.gregal-compare.gx-paged .gx-name b { font-size:var(--t4); }
+.gregal-compare .gx-points { margin:0 0 6px; padding-left:20px; display:flex; flex-direction:column; gap:6px; font-size:var(--t3); line-height:1.5; color:var(--text); }
 .gregal-compare .gx-dots { display:flex; justify-content:center; gap:4px; padding-top:4px; }
 .gregal-compare .gx-dots button { width:24px; height:24px; padding:0; border:0; background:none; cursor:pointer; display:grid; place-items:center; }
 .gregal-compare .gx-dots button::before { content:''; width:8px; height:8px; border-radius:50%; background:var(--line-hi); }
 .gregal-compare .gx-dots button[aria-current="true"]::before { background:var(--accent); width:18px; border-radius:4px; }
 /* Fletxes: només amb ratolí; al mòbil es llisca amb el dit. */
-.gregal-compare .gx-step { position:absolute; top:calc(50% - 18px); width:36px; height:36px; border-radius:50%; border:1px solid var(--line-hi); background:var(--surface); color:var(--ink); font-size:22px; line-height:1; cursor:pointer; display:none; place-items:center; box-shadow:0 2px 8px var(--ombra); }
+.gregal-compare .gx-step { position:absolute; top:calc(50% - 18px); width:36px; height:36px; border-radius:50%; border:1px solid var(--line-hi); background:var(--surface); color:var(--ink); font-size:var(--t5); line-height:1; cursor:pointer; display:none; place-items:center; box-shadow:0 2px 8px var(--ombra); }
 .gregal-compare .gx-prev { left:6px; }
 .gregal-compare .gx-next { right:6px; }
 .gregal-compare .gx-step:disabled { opacity:0; pointer-events:none; }
@@ -1775,9 +1775,9 @@ dialog.gc-prev-full .gc-prev-frame { height:calc(100% - 40px) !important; resize
 .gregal-facts .gf-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-top:10px; }
 .gregal-facts .gc-title + .gf-grid { margin-top:12px; }
 .gregal-facts .gf-tile { display:flex; flex-direction:column; gap:3px; padding:12px 14px; border-radius:14px; background:var(--surface-hi); }
-.gregal-facts .gf-tile b { font-size:24px; line-height:1.1; font-weight:750; letter-spacing:-.01em; color:var(--accent-hi); font-variant-numeric:tabular-nums; }
-.gregal-facts .gf-tile span { font-size:13px; color:var(--text); line-height:1.35; }
-.gregal-facts .gf-tile small { font-size:12px; color:var(--muted); line-height:1.35; }
+.gregal-facts .gf-tile b { font-size:var(--t6); line-height:1.1; font-weight:750; letter-spacing:-.01em; color:var(--accent-hi); font-variant-numeric:tabular-nums; }
+.gregal-facts .gf-tile span { font-size:var(--t2); color:var(--text); line-height:1.35; }
+.gregal-facts .gf-tile small { font-size:var(--t2); color:var(--muted); line-height:1.35; }
 
 /* Peu del compositor: tots els botons d'icona fan 36 px, amb la icona centrada exactament
    (svg en bloc, sense línia base) i a la mateixa mida; el quadrat d'aturar no porta el
@@ -1798,11 +1798,11 @@ button.vw-model .ui-icon { display:block; }
 @keyframes vw-bounce { 0%,100% { transform:none; } 25% { transform:translateY(-6px) scale(1.08); } 50% { transform:translateY(0) scale(.96,1.04); } 70% { transform:translateY(-2px); } }
 .vw-toasts { position:fixed; right:18px; bottom:18px; z-index:80; display:flex; flex-direction:column; gap:8px; width:min(380px,calc(100vw - 36px)); }
 .vw-toast { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:2px 4px; padding:6px; background:var(--surface); color:var(--text); border:1px solid var(--line-hi); border-radius:14px; box-shadow:var(--lift), 0 18px 40px -18px var(--ombra); animation:vw-toast-in .32s cubic-bezier(.2,.9,.3,1.2); }
-button.vw-toast-open { display:flex; align-items:center; gap:10px; min-width:0; padding:6px 8px; background:transparent; border:0; border-radius:10px; color:inherit; font-size:13px!important; text-align:left; }
+button.vw-toast-open { display:flex; align-items:center; gap:10px; min-width:0; padding:6px 8px; background:transparent; border:0; border-radius:10px; color:inherit; font-size:var(--t2)!important; text-align:left; }
 button.vw-toast-open:hover { background:var(--hover); }
 .vw-toast-open > .winds-face { width:28px; height:28px; flex:none; }
 .vw-toast-open > span { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-button.vw-toast-ask { grid-row:2; grid-column:1; justify-self:start; margin:0 0 4px 46px; padding:6px 10px; background:transparent; border:1px solid var(--line-hi); border-radius:8px; color:var(--muted); font-size:12px!important; }
+button.vw-toast-ask { grid-row:2; grid-column:1; justify-self:start; margin:0 0 4px 46px; padding:6px 10px; background:transparent; border:1px solid var(--line-hi); border-radius:8px; color:var(--muted); font-size:var(--t2)!important; }
 button.vw-toast-close { grid-row:1; grid-column:2; display:grid; place-items:center; width:30px; height:30px; padding:0; background:transparent; border:0; border-radius:8px; color:var(--muted); }
 button.vw-toast-close .ui-icon { width:16px; height:16px; }
 @keyframes vw-toast-in { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:none; } }

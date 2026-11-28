@@ -164,13 +164,13 @@ private fun NamedWebRow(lang: String, w: NamedWeb, ctx: Context, act: (String, S
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.size(9.dp).clip(CircleShape).background(dot))
-            Text(w.host, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            Text(w.host, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f))
-            Text(tr(lang, "webs.vis." + w.visibility), color = Muted, fontSize = 12.sp)
+            Text(tr(lang, "webs.vis." + w.visibility), color = Muted, fontSize = GregalSize.caption)
         }
         Text(tr(lang, "webs.version") + " " + (if (w.version > 0) w.version.toString() else "–") + " · " + tr(lang, "webs.state." + w.state),
-            color = Muted, fontSize = 12.sp)
-        if (w.problems.isNotEmpty()) Text(w.problems.joinToString("; "), color = Red, fontSize = 11.5.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            color = Muted, fontSize = GregalSize.caption)
+        if (w.problems.isNotEmpty()) Text(w.problems.joinToString("; "), color = Red, fontSize = GregalSize.label, maxLines = 3, overflow = TextOverflow.Ellipsis)
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (w.version > 0) {
                 WebAction(tr(lang, "webs.open")) { act(w.name, "open", JSONObject()) }
@@ -182,7 +182,7 @@ private fun NamedWebRow(lang: String, w: NamedWeb, ctx: Context, act: (String, S
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             for (v in WEB_VISIBILITIES) {
                 val on = v == w.visibility
-                Text(tr(lang, "webs.vis.$v"), color = if (on) Superficie else Ink, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                Text(tr(lang, "webs.vis.$v"), color = if (on) Superficie else Ink, fontSize = GregalSize.caption, fontWeight = FontWeight.Medium,
                     modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(if (on) Ink else Ink.copy(alpha = .07f))
                         .clickable(enabled = !on) {
                             if (v == "public") askPublic = true
@@ -281,13 +281,13 @@ fun WebsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad)) {
             if (!st.loaded) Text(webCopy(lang, "loading"), color = Muted, modifier = Modifier.padding(20.dp))
-            else if (st.items.isEmpty() && named.sites.isEmpty()) Text(webCopy(lang, "empty"), color = Muted, fontSize = 14.sp, lineHeight = 20.sp,
+            else if (st.items.isEmpty() && named.sites.isEmpty()) Text(webCopy(lang, "empty"), color = Muted, fontSize = GregalSize.body, lineHeight = 20.sp,
                 modifier = Modifier.padding(24.dp).testTag("webs-empty"))
             else LazyColumn(Modifier.fillMaxSize().testTag("webs-list"), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 110.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (named.sites.isNotEmpty()) {
                     item(key = "h-named") {
-                        Text(tr(lang, "webs.list").uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                        Text(tr(lang, "webs.list").uppercase(), color = Muted, fontSize = GregalSize.label, fontWeight = FontWeight.SemiBold,
                             letterSpacing = 0.9.sp, modifier = Modifier.padding(start = 4.dp, top = 14.dp))
                     }
                     items(named.sites, key = { "named:" + it.name }) { w -> NamedWebRow(lang, w, ctx, namedAction) }
@@ -296,7 +296,7 @@ fun WebsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     val group = st.items.filter { it.kind == kind }
                     if (group.isEmpty()) continue
                     item(key = "h-$kind") {
-                        Text(webCopy(lang, title).uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                        Text(webCopy(lang, title).uppercase(), color = Muted, fontSize = GregalSize.label, fontWeight = FontWeight.SemiBold,
                             letterSpacing = 0.9.sp, modifier = Modifier.padding(start = 4.dp, top = 14.dp))
                     }
                     items(group, key = { it.kind + ":" + it.id }) { w -> WebRow(lang, w, ctx, vm) }
@@ -316,15 +316,15 @@ private fun WebRow(lang: String, w: WebItem, ctx: Context, vm: GregalViewModel) 
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.size(9.dp).clip(CircleShape).background(statusColor(w.status, ok, bad, mid)))
-            Text(w.name, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            Text(w.name, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f))
-            Text(webCopy(lang, w.status), color = Muted, fontSize = 12.sp)
+            Text(webCopy(lang, w.status), color = Muted, fontSize = GregalSize.caption)
         }
         // Un túnel ja es diu com el seu enllaç: repetir-lo no diu res.
         val link = shortLink(w.url)
-        if (w.url.isNotBlank() && link != w.name) Text(link, color = Sea, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        if (w.url.isNotBlank() && link != w.name) Text(link, color = Sea, fontSize = GregalSize.caption, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.clickable { openUrl(ctx, w.url) })
-        if (w.detail.isNotBlank() && w.kind != "site") Text(w.detail, color = Muted, fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (w.detail.isNotBlank() && w.kind != "site") Text(w.detail, color = Muted, fontSize = GregalSize.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (w.url.isNotBlank()) {
                 WebAction(webCopy(lang, "open")) { openUrl(ctx, w.url) }
@@ -346,7 +346,7 @@ private fun WebRow(lang: String, w: WebItem, ctx: Context, vm: GregalViewModel) 
 
 @Composable
 private fun WebAction(label: String, onClick: () -> Unit) {
-    Text(label, color = Ink, fontSize = 12.5.sp, fontWeight = FontWeight.Medium,
+    Text(label, color = Ink, fontSize = GregalSize.caption, fontWeight = FontWeight.Medium,
         modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(Ink.copy(alpha = .07f)).clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 7.dp))
 }

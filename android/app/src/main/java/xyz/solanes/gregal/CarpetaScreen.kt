@@ -86,7 +86,7 @@ fun CarpetaScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Text(
                                     projecte.ifBlank { t("app.carpeta.none") },
-                                    color = Ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
+                                    color = Ink, fontSize = GregalSize.large, fontWeight = FontWeight.SemiBold,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 )
                                 CamiEnUnaLinia(actual, 12.5.sp)
@@ -95,7 +95,7 @@ fun CarpetaScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             if (branca.isNotBlank()) Etiqueta(branca, Sea)
                         }
                         Spacer(Modifier.height(10.dp))
-                        Text(t("app.carpeta.help"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+                        Text(t("app.carpeta.help"), color = Muted, fontSize = GregalSize.caption, lineHeight = 17.sp)
                     }
                 }
 
@@ -106,7 +106,7 @@ fun CarpetaScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Icon(Icons.Rounded.ErrorOutline, null, tint = Red, modifier = Modifier.size(20.dp))
                                 Column(Modifier.weight(1f)) {
-                                    Text(missatgeCarpeta(error.orEmpty(), idioma), color = Ink, fontSize = 14.sp, lineHeight = 19.sp)
+                                    Text(missatgeCarpeta(error.orEmpty(), idioma), color = Ink, fontSize = GregalSize.body, lineHeight = 19.sp)
                                     TextButton(onClick = { vm.reintentarCarpeta() }) { Text(t("app.carpeta.retry"), color = Sea) }
                                 }
                             }
@@ -121,7 +121,7 @@ fun CarpetaScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     GCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
                         if (llista.isEmpty()) {
                             Text(
-                                t("app.carpeta.noProjects"), color = Muted, fontSize = 13.sp,
+                                t("app.carpeta.noProjects"), color = Muted, fontSize = GregalSize.small,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                             )
                         }
@@ -156,7 +156,7 @@ fun CarpetaScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             Column(Modifier.weight(1f)) {
                                 Text(
                                     d?.name?.ifBlank { d.path.substringAfterLast('/') } ?: "…",
-                                    color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                                    color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 )
                                 CamiEnUnaLinia(d?.path.orEmpty(), 11.5.sp)
@@ -186,13 +186,13 @@ fun CarpetaScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         if (!d?.hidden.isNullOrZero()) {
                             Text(
                                 t("app.carpeta.hidden", d?.hidden ?: 0),
-                                color = Muted, fontSize = 11.5.sp,
+                                color = Muted, fontSize = GregalSize.label,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                             )
                         }
                         if (d?.truncated == true) {
                             Text(
-                                t("app.carpeta.truncated"), color = Muted, fontSize = 11.5.sp,
+                                t("app.carpeta.truncated"), color = Muted, fontSize = GregalSize.label,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                             )
                         }
@@ -210,7 +210,7 @@ fun CarpetaScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             if (prev.webs.isEmpty()) {
                                 Text(
                                     if (prevErr.isBlank()) t("app.preview.none") else prevErr,
-                                    color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp,
+                                    color = Muted, fontSize = GregalSize.caption, lineHeight = 17.sp,
                                 )
                             } else {
                                 prev.webs.forEach { w ->
@@ -220,8 +220,8 @@ fun CarpetaScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                                     ) {
                                         Column(Modifier.weight(1f)) {
-                                            Text(w.name, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                                            Text("${w.path} · ${w.size / 1024} kB", color = Muted, fontSize = 11.5.sp)
+                                            Text(w.name, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.Medium)
+                                            Text("${w.path} · ${w.size / 1024} kB", color = Muted, fontSize = GregalSize.label)
                                         }
                                         TextButton(onClick = { vm.openPreview(w.path, w.name) }) {
                                             Text(t("app.preview.open"), color = Sea, fontWeight = FontWeight.SemiBold)
@@ -233,7 +233,7 @@ fun CarpetaScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             // obrir fitxers sense tenir-los a la llista.
                             if (prev.base.isNotBlank()) {
                                 TextButton(onClick = { vm.openPreview("", t("app.preview.webs")) }) {
-                                    Text(t("app.preview.title") + " →", color = Sea, fontSize = 13.sp)
+                                    Text(t("app.preview.title") + " →", color = Sea, fontSize = GregalSize.small)
                                 }
                             }
                         }
@@ -264,8 +264,8 @@ fun CarpetaScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                 value = manual,
                                 onValueChange = { manual = it },
                                 singleLine = true,
-                                label = { Text(t("app.carpeta.typePath"), fontSize = 12.sp) },
-                                textStyle = LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace, fontSize = 13.sp),
+                                label = { Text(t("app.carpeta.typePath"), fontSize = GregalSize.caption) },
+                                textStyle = LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace, fontSize = GregalSize.small),
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(14.dp),
                             )
@@ -304,7 +304,7 @@ private fun FilaCarpeta(
         Icon(icona, null, tint = if (activa) Sea else Muted, modifier = Modifier.size(20.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                nom, color = if (enabled) Ink else Muted, fontSize = 14.5.sp,
+                nom, color = if (enabled) Ink else Muted, fontSize = GregalSize.body,
                 fontWeight = if (activa) FontWeight.SemiBold else FontWeight.Normal,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
@@ -340,7 +340,7 @@ private fun Etiqueta(text: String, color: Color) {
     Text(
         text,
         color = color,
-        fontSize = 10.5.sp,
+        fontSize = GregalSize.label,
         fontWeight = FontWeight.SemiBold,
         maxLines = 1,
         modifier = Modifier
@@ -351,7 +351,7 @@ private fun Etiqueta(text: String, color: Color) {
 
 @Composable
 private fun TitolSeccio(text: String) {
-    Text(text.uppercase(), color = Muted, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp)
+    Text(text.uppercase(), color = Muted, fontSize = GregalSize.label, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp)
 }
 
 private fun Int?.isNullOrZero(): Boolean = this == null || this == 0

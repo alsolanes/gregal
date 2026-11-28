@@ -52,6 +52,16 @@ func TestCharactersManifestMatchesSheets(t *testing.T) {
 			}
 		}
 	}
+	// Llegendes (folk) are not sheets: three still layers per character (tools/characters/felt.py).
+	for _, who := range []string{"minairo", "dona", "tio"} {
+		for _, layer := range []string{".webp", ".mask.webp", ".eyes.webp"} {
+			path := "app/characters/folk/" + who + layer
+			if _, err := fs.Stat(assets, path); err != nil {
+				t.Errorf("falta %s: %v", path, err)
+			}
+			expected[path] = true
+		}
+	}
 	err := fs.WalkDir(assets, "app/characters", func(path string, d fs.DirEntry, err error) error {
 		if err == nil && !d.IsDir() && !expected[path] {
 			t.Errorf("%s no és al manifest", path)

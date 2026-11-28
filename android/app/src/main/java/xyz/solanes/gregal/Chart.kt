@@ -202,7 +202,7 @@ fun ChartBlock(spec: ChartSpec, accent: Color, dark: Boolean, height: androidx.c
     ) {
         val inViewer = LocalInViewer.current
         if (spec.title.isNotBlank() || !inViewer) Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(spec.title, fontSize = 14.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = ink, modifier = Modifier.weight(1f))
+            Text(spec.title, fontSize = GregalSize.body, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = ink, modifier = Modifier.weight(1f))
             // Gran, a pantalla completa (Viewer.kt).
             if (!inViewer) ExpandChip(Viewer.lang) { Viewer.show(ViewItem.Chart(spec)) }
         }
@@ -311,8 +311,8 @@ private fun ChartLegend(spec: ChartSpec, palette: List<Color>, ink: Color) {
 private fun ChartLegendRow(color: Color, name: String, value: Float?, ink: Color) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(color))
-        Text(name, fontSize = 12.sp, color = ink)
-        if (value != null) Text(fmtNum(value), fontSize = 12.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = ink)
+        Text(name, fontSize = GregalSize.caption, color = ink)
+        if (value != null) Text(fmtNum(value), fontSize = GregalSize.caption, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = ink)
     }
 }
 

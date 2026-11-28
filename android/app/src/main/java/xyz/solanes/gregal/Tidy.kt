@@ -90,10 +90,10 @@ internal fun TidySheet(vm: GregalViewModel, lang: String, onDismiss: () -> Unit)
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = SuperficieOpaca) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 6.dp).testTag("tidy-sheet"),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(if (en) "Tidy up your winds" else "Posa ordre als vents", color = Ink, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+            Text(if (en) "Tidy up your winds" else "Posa ordre als vents", color = Ink, fontSize = GregalSize.title, fontWeight = FontWeight.SemiBold)
             Text(if (en) "Merging moves everything from one wind into the other (memory, chats, routines and groups) and archives the leftover. Archived winds can be restored from the library."
                 else "Ajuntar porta tot el d'un vent a l'altre (memòria, converses, rutines i grups) i arxiva el que sobra. Arxivat vol dir que el pots recuperar des de la biblioteca.",
-                color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
+                color = Muted, fontSize = GregalSize.small, lineHeight = 18.sp)
             val r = report
             if (r == null) {
                 if (status.isBlank()) CircularProgressIndicator(Modifier.size(24.dp), color = Sea, strokeWidth = 2.dp)
@@ -137,9 +137,9 @@ internal fun TidySheet(vm: GregalViewModel, lang: String, onDismiss: () -> Unit)
                         }
                     }
                 }
-                if (r.issues == 0) Text(if (en) "All tidy: no duplicates or test winds." else "Tot en ordre: no hi ha duplicats ni vents de prova.", color = Ink, fontSize = 14.sp)
+                if (r.issues == 0) Text(if (en) "All tidy: no duplicates or test winds." else "Tot en ordre: no hi ha duplicats ni vents de prova.", color = Ink, fontSize = GregalSize.body)
             }
-            if (status.isNotBlank()) Text(status, color = Muted, fontSize = 13.sp, modifier = Modifier.testTag("tidy-status"))
+            if (status.isNotBlank()) Text(status, color = Muted, fontSize = GregalSize.small, modifier = Modifier.testTag("tidy-status"))
             Spacer(Modifier.height(16.dp))
         }
     }
@@ -170,7 +170,7 @@ internal fun TidySheet(vm: GregalViewModel, lang: String, onDismiss: () -> Unit)
 private fun TidyBox(title: String, content: @Composable ColumnScope.() -> Unit) {
     val shape = RoundedCornerShape(14.dp)
     Column(Modifier.fillMaxWidth().clip(shape).border(1.dp, Line, shape).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(title, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text(title, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
         content()
     }
 }
@@ -178,7 +178,7 @@ private fun TidyBox(title: String, content: @Composable ColumnScope.() -> Unit) 
 @Composable
 private fun TidyName(lang: String, w: TidyWind, modifier: Modifier) {
     Column(modifier) {
-        Text(w.name, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-        Text(TidyLogic.line(lang, w), color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(w.name, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
+        Text(TidyLogic.line(lang, w), color = Muted, fontSize = GregalSize.caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

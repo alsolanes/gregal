@@ -96,9 +96,9 @@ fun FlowsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             colors = CardDefaults.cardColors(containerColor = PillDark),
                         ) {
                             Column(Modifier.padding(14.dp)) {
-                                Text(fl.name, color = Ink, fontSize = 16.sp)
-                                if (fl.desc.isNotBlank()) Text(fl.desc, color = Muted, fontSize = 13.sp)
-                                Text(tr(lang, "app.flow.steps", fl.steps), color = Sea, fontSize = 12.sp)
+                                Text(fl.name, color = Ink, fontSize = GregalSize.large)
+                                if (fl.desc.isNotBlank()) Text(fl.desc, color = Muted, fontSize = GregalSize.small)
+                                Text(tr(lang, "app.flow.steps", fl.steps), color = Sea, fontSize = GregalSize.caption)
                             }
                         }
                     }
@@ -106,7 +106,7 @@ fun FlowsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
             } else {
                 LazyColumn(Modifier.fillMaxSize().padding(pad).padding(12.dp)) {
                     if (f.desc.isNotBlank()) item {
-                        Text(f.desc, color = Muted, fontSize = 13.sp)
+                        Text(f.desc, color = Muted, fontSize = GregalSize.small)
                         Spacer(Modifier.height(8.dp))
                     }
                     items(f.nodes) { n ->
@@ -114,11 +114,11 @@ fun FlowsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 when (n.kind) { "agent" -> "◆"; "tool" -> "🔧"; else -> "📝" },
-                                fontSize = 16.sp)
+                                fontSize = GregalSize.large)
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(n.label(), color = Ink, fontSize = 15.sp)
-                                if (n.detail().isNotBlank()) Text(n.detail(), color = Muted, fontSize = 12.sp)
+                                Text(n.label(), color = Ink, fontSize = GregalSize.body)
+                                if (n.detail().isNotBlank()) Text(n.detail(), color = Muted, fontSize = GregalSize.caption)
                             }
                         }
                     }
@@ -142,21 +142,21 @@ fun FlowsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     }
                     if (log.isNotEmpty()) item {
                         Spacer(Modifier.height(10.dp))
-                        Text(tr(lang, "app.flow.progress"), color = Muted, fontSize = 13.sp)
+                        Text(tr(lang, "app.flow.progress"), color = Muted, fontSize = GregalSize.small)
                     }
                     items(log) { s ->
                         val tit = s.title.ifBlank { s.node }.ifBlank { tr(lang, "app.flow.step") }
                         Text((if (s.error.isNotBlank()) "✗ " else "✓ ") + tit +
                             (if (s.ms > 0) " · ${s.ms} ms" else ""),
-                            color = if (s.error.isNotBlank()) Sand else Ink, fontSize = 13.sp,
+                            color = if (s.error.isNotBlank()) Sand else Ink, fontSize = GregalSize.small,
                             modifier = Modifier.padding(vertical = 2.dp))
-                        if (s.error.isNotBlank()) Text(s.error, color = Sand, fontSize = 12.sp)
+                        if (s.error.isNotBlank()) Text(s.error, color = Sand, fontSize = GregalSize.caption)
                     }
                     if (answer.isNotBlank()) item {
                         Spacer(Modifier.height(10.dp))
                         Card(Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = BubbleDark)) {
-                            Text(answer, color = Ink, fontSize = 14.sp,
+                            Text(answer, color = Ink, fontSize = GregalSize.body,
                                 modifier = Modifier.padding(12.dp))
                         }
                         Spacer(Modifier.height(8.dp))
@@ -171,7 +171,7 @@ fun FlowsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 AlertDialog(
                     onDismissRequest = { confirma = null },
                     title = { Text(tr(lang, "btn.delete"), color = Ink) },
-                    text = { Text(nom, color = Muted, fontSize = 14.sp) },
+                    text = { Text(nom, color = Muted, fontSize = GregalSize.body) },
                     confirmButton = {
                         TextButton(onClick = { vm.deleteFlow(nom); confirma = null }) {
                             Text(tr(lang, "btn.delete"), color = Sea)

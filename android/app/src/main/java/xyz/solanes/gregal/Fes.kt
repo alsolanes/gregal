@@ -95,13 +95,13 @@ internal fun FesDialog(lang: String, onSend: (String) -> Unit, onDismiss: () -> 
         Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxWidth().fillMaxHeight(0.9f).padding(top = 16.dp).testTag("fes-dialog")) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (en) "Do" else "Fes", color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.weight(1f))
-                    IconButton(onClick = onDismiss, modifier = Modifier.semantics { contentDescription = if (en) "Close" else "Tanca" }) { Text("✕", color = Muted, fontSize = 16.sp) }
+                    Text(if (en) "Do" else "Fes", color = Ink, fontWeight = FontWeight.Bold, fontSize = GregalSize.large, modifier = Modifier.weight(1f))
+                    IconButton(onClick = onDismiss, modifier = Modifier.semantics { contentDescription = if (en) "Close" else "Tanca" }) { Text("✕", color = Muted, fontSize = GregalSize.large) }
                 }
                 Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(if (en) "Templates to get going: one tap and Gregal gets on it. The daily ones can run every day."
                         else "Plantilles per començar: un toc i Gregal s'hi posa. Les del dia es poden fer cada dia.",
-                        color = Muted, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(horizontal = 4.dp))
+                        color = Muted, fontSize = GregalSize.small, lineHeight = 18.sp, modifier = Modifier.padding(horizontal = 4.dp))
                     FesContent(lang) { onSend(it); onDismiss() }
                 }
             }
@@ -115,7 +115,7 @@ internal fun FesContent(lang: String, onSend: (String) -> Unit) {
     val en = lang == "en"
     var open by remember { mutableStateOf("") }
     for ((group, items) in fesTemplates(lang)) {
-        Text(group.uppercase(), color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp, start = 4.dp))
+        Text(group.uppercase(), color = Muted, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp, start = 4.dp))
         for (tpl in items) {
             var draft by remember(tpl.title) { mutableStateOf("") }
             val expanded = open == tpl.title
@@ -129,13 +129,13 @@ internal fun FesContent(lang: String, onSend: (String) -> Unit) {
                     }.padding(14.dp),
                     verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text(tpl.icon, fontSize = 22.sp)
+                    Text(tpl.icon, fontSize = GregalSize.title)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(tpl.title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                        Text(tpl.sub, color = Muted, fontSize = 13.sp)
+                        Text(tpl.title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body)
+                        Text(tpl.sub, color = Muted, fontSize = GregalSize.small)
                     }
                     if (tpl.daily.isNotEmpty()) {
-                        Text(if (en) "Every day" else "Cada dia", color = Muted, fontSize = 12.sp,
+                        Text(if (en) "Every day" else "Cada dia", color = Muted, fontSize = GregalSize.caption,
                             modifier = Modifier.clip(RoundedCornerShape(999.dp)).border(1.dp, Line, RoundedCornerShape(999.dp))
                                 .clickable { onSend(fesMessage(lang, tpl, everyDay = true)) }
                                 .padding(horizontal = 10.dp, vertical = 8.dp).testTag("fes-daily-" + tpl.title))
@@ -146,7 +146,7 @@ internal fun FesContent(lang: String, onSend: (String) -> Unit) {
                     Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(value = draft, onValueChange = { draft = it.take(300) }, singleLine = true,
-                            placeholder = { Text(tpl.blank, fontSize = 14.sp) },
+                            placeholder = { Text(tpl.blank, fontSize = GregalSize.body) },
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send), keyboardActions = KeyboardActions(onSend = { go() }),
                             modifier = Modifier.weight(1f).testTag("fes-input"))
                         Button(onClick = go, enabled = draft.isNotBlank(), modifier = Modifier.testTag("fes-go")) { Text(if (en) "Do it" else "Fes-ho") }

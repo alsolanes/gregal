@@ -101,7 +101,7 @@ internal fun WindArrivalBanner(vm: GregalViewModel, lang: String, winds: List<Wi
                     WindHalo(wind?.let { Color(it.argb) } ?: Sea, wind?.faceStyle ?: windStyleOf("pso"), size = 30,
                         mood = WindMood.HAPPY, online = false)
                 }
-                Text(tr(lang, "app.vents.arrival", name, arrivalPreview(a.text)), color = Ink, fontSize = 14.sp,
+                Text(tr(lang, "app.vents.arrival", name, arrivalPreview(a.text)), color = Ink, fontSize = GregalSize.body,
                     fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             }
         }
@@ -130,6 +130,6 @@ internal fun NewsBadge(n: Int, modifier: Modifier = Modifier) {
     val text = unreadBadge(n)
     if (text.isEmpty()) return
     Box(modifier.background(Sea, CircleShape).padding(horizontal = 6.dp, vertical = 1.dp)) {
-        Text(text, color = OnSea, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text(text, color = OnSea, fontSize = GregalSize.label, fontWeight = FontWeight.Bold)
     }
 }

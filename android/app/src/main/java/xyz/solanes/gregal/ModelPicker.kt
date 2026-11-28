@@ -29,7 +29,7 @@ fun configuredModelChoices(providers: List<ProviderInfo>, models: Map<String, Li
 @Composable
 fun ProviderSettingsCta(lang: String, onSettings: () -> Unit) {
     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(tr(lang, "app.picker.setupHelp"), color = Muted, fontSize = 13.sp)
+        Text(tr(lang, "app.picker.setupHelp"), color = Muted, fontSize = GregalSize.small)
         TextButton(onClick = onSettings, modifier = Modifier.testTag("provider-settings-cta")) {
             Text(tr(lang, "prefs.title"))
         }
@@ -56,10 +56,10 @@ fun ModelPickerContent(lang: String, providers: List<ProviderInfo>, models: Map<
                 groups.forEach { (provider, choices) ->
                     item(key = "provider:$provider") {
                         Text(provider, Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            color = Muted, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                            color = Muted, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.caption)
                     }
                     items(choices, key = { it.ref }) { choice ->
-                        DropdownMenuItem(text = { Text(prettyModelName(choice.model), fontSize = 14.sp) },
+                        DropdownMenuItem(text = { Text(prettyModelName(choice.model), fontSize = GregalSize.body) },
                             trailingIcon = { if (state.provider == choice.provider && state.model == choice.model) Text("✓", color = Sea) },
                             onClick = { onSelect(choice.ref) })
                     }

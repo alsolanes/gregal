@@ -102,8 +102,8 @@ internal fun SharedInvitePopup(vm: GregalViewModel, lang: String, onAccepted: (S
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(tr(lang, "app.shared.inviteText", inv.owner, inv.name), color = Ink)
                 val others = inv.people.map { it.name }.filter { it != SharedChatsStore.me.value }
-                if (others.isNotEmpty()) Text(tr(lang, "app.shared.alsoInvited", others.joinToString(", ")), color = Muted, fontSize = 13.sp)
-                if (inv.winds.isNotEmpty()) Text(tr(lang, "app.shared.windsInChat", inv.winds.joinToString(", ") { it.name }), color = Muted, fontSize = 13.sp)
+                if (others.isNotEmpty()) Text(tr(lang, "app.shared.alsoInvited", others.joinToString(", ")), color = Muted, fontSize = GregalSize.small)
+                if (inv.winds.isNotEmpty()) Text(tr(lang, "app.shared.windsInChat", inv.winds.joinToString(", ") { it.name }), color = Muted, fontSize = GregalSize.small)
             }
         },
         confirmButton = { TextButton(enabled = !working, onClick = { answer(true) }) { Text(tr(lang, "app.shared.accept"), color = Sea) } },
@@ -131,23 +131,23 @@ internal fun SharedChatCreator(vm: GregalViewModel, lang: String, winds: List<Wi
         title = { Text(tr(lang, "app.shared.new")) },
         text = {
             Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(tr(lang, "app.shared.help"), color = Muted, fontSize = 13.sp)
+                Text(tr(lang, "app.shared.help"), color = Muted, fontSize = GregalSize.small)
                 OutlinedTextField(name, { name = it }, singleLine = true, label = { Text(tr(lang, "app.shared.name")) }, modifier = Modifier.fillMaxWidth())
                 Text(tr(lang, "app.shared.people"), fontWeight = FontWeight.SemiBold, color = Ink, modifier = Modifier.padding(top = 8.dp))
                 when {
                     people == null -> Text("…", color = Muted)
-                    people!!.isEmpty() -> Text(error.ifBlank { tr(lang, "app.shared.noPeople") }, color = Muted, fontSize = 13.sp)
+                    people!!.isEmpty() -> Text(error.ifBlank { tr(lang, "app.shared.noPeople") }, color = Muted, fontSize = GregalSize.small)
                     else -> people!!.forEach { p ->
                         PickRow(p, p in pickedPeople) { if (p in pickedPeople) pickedPeople.remove(p) else pickedPeople.add(p) }
                     }
                 }
                 Text(tr(lang, "app.shared.winds"), fontWeight = FontWeight.SemiBold, color = Ink, modifier = Modifier.padding(top = 8.dp))
-                if (winds.isEmpty()) Text(tr(lang, "app.shared.noWinds"), color = Muted, fontSize = 13.sp)
+                if (winds.isEmpty()) Text(tr(lang, "app.shared.noWinds"), color = Muted, fontSize = GregalSize.small)
                 winds.forEach { w ->
                     PickRow(w.name, w.id in pickedWinds, Color(w.argb)) { if (w.id in pickedWinds) pickedWinds.remove(w.id) else pickedWinds.add(w.id) }
                 }
-                Text(tr(lang, "app.shared.privacy"), color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
-                if (error.isNotBlank() && people?.isNotEmpty() == true) Text(error, color = Color(0xFFB3261E), fontSize = 13.sp)
+                Text(tr(lang, "app.shared.privacy"), color = Muted, fontSize = GregalSize.caption, modifier = Modifier.padding(top = 8.dp))
+                if (error.isNotBlank() && people?.isNotEmpty() == true) Text(error, color = Color(0xFFB3261E), fontSize = GregalSize.small)
             }
         },
         confirmButton = {
@@ -210,7 +210,7 @@ internal fun SharedChatConversation(vm: GregalViewModel, lang: String, chat: Sha
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = listState,
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) {
             if (msgs.isEmpty()) item {
-                Text(tr(lang, "app.shared.empty", chat.humans.filter { it != SharedChatsStore.me.value }.joinToString(", ")), color = Muted, fontSize = 14.sp,
+                Text(tr(lang, "app.shared.empty", chat.humans.filter { it != SharedChatsStore.me.value }.joinToString(", ")), color = Muted, fontSize = GregalSize.body,
                     modifier = Modifier.fillMaxWidth().padding(24.dp))
             }
             items(msgs.size, key = { i -> keys[i] }) { idx ->
@@ -227,14 +227,14 @@ internal fun SharedChatConversation(vm: GregalViewModel, lang: String, chat: Sha
             if (busy) item {
                 Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                     TypingDots(accent)
-                    Text("  " + tr(lang, "app.company.groupThinking"), fontSize = 12.sp, color = accent)
+                    Text("  " + tr(lang, "app.company.groupThinking"), fontSize = GregalSize.caption, color = accent)
                 }
             }
             chatReserve(follow)
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(field, { field = it }, modifier = Modifier.weight(1f), maxLines = 5,
-                placeholder = { Text(tr(lang, "app.shared.hint"), fontSize = 14.sp) }, shape = RoundedCornerShape(22.dp))
+                placeholder = { Text(tr(lang, "app.shared.hint"), fontSize = GregalSize.body) }, shape = RoundedCornerShape(22.dp))
             IconButton(enabled = field.isNotBlank() && !busy, onClick = {
                 val text = field.trim(); field = ""
                 follow.send()
@@ -259,13 +259,13 @@ private fun SharedChatInfoDialog(vm: GregalViewModel, lang: String, chat: Shared
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(tr(lang, "app.shared.people"), fontWeight = FontWeight.SemiBold, color = Ink)
-                Text("• " + chat.owner + " — " + tr(lang, "app.shared.status.owner"), color = Ink, fontSize = 14.sp)
+                Text("• " + chat.owner + " — " + tr(lang, "app.shared.status.owner"), color = Ink, fontSize = GregalSize.body)
                 chat.people.forEach { p ->
-                    Text("• " + p.name + " — " + tr(lang, "app.shared.status." + p.status.ifBlank { "invited" }), color = Ink, fontSize = 14.sp)
+                    Text("• " + p.name + " — " + tr(lang, "app.shared.status." + p.status.ifBlank { "invited" }), color = Ink, fontSize = GregalSize.body)
                 }
                 Text(tr(lang, "app.shared.winds"), fontWeight = FontWeight.SemiBold, color = Ink, modifier = Modifier.padding(top = 6.dp))
-                Text(chat.winds.joinToString(", ") { it.name }, color = Ink, fontSize = 14.sp)
-                if (confirm) Text(tr(lang, if (chat.mine) "app.shared.deleteConfirm" else "app.shared.leaveConfirm"), color = Color(0xFFB3261E), fontSize = 13.sp)
+                Text(chat.winds.joinToString(", ") { it.name }, color = Ink, fontSize = GregalSize.body)
+                if (confirm) Text(tr(lang, if (chat.mine) "app.shared.deleteConfirm" else "app.shared.leaveConfirm"), color = Color(0xFFB3261E), fontSize = GregalSize.small)
             }
         },
         confirmButton = {

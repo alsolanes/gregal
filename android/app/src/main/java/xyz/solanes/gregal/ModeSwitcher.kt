@@ -56,7 +56,7 @@ private fun ModeChoice(lang: String, area: AppArea, selected: Boolean, dot: Bool
     ) {
         Icon(if (area == AppArea.Vents) Icons.Rounded.Groups else Icons.Rounded.Code, null,
             tint = if (selected) Sea else Muted, modifier = Modifier.padding(vertical = 2.dp))
-        Text(label, color = if (selected) Ink else Muted, fontSize = 14.sp,
+        Text(label, color = if (selected) Ink else Muted, fontSize = GregalSize.body,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
         if (dot) {
             val desc = tr(lang, "app.mode.ventsAttention")

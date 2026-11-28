@@ -7,7 +7,7 @@
   max-height:none; overflow:hidden; border-radius:var(--r-md, 12px); box-shadow:var(--lift), 0 30px 80px -24px var(--ombra); }
 #prefsModal .pf-head { position:static; flex:none; gap:12px; padding:12px 14px 12px 20px; }
 #prefsModal .pf-head h2 { flex:none; }
-#prefsModal #prefsClose { flex:none; width:32px; height:32px; display:grid; place-items:center; border-radius:var(--r-sm, 8px); color:var(--muted); font-size:18px; }
+#prefsModal #prefsClose { flex:none; width:32px; height:32px; display:grid; place-items:center; border-radius:var(--r-sm, 8px); color:var(--muted); font-size:var(--t4); }
 #prefsModal #prefsClose:hover { background:var(--hover); color:var(--ink); }
 #prefsModal #prefsClose .ui-icon { width:17px; height:17px; }
 .pf-search { flex:1; min-width:0; max-width:340px; min-height:34px; margin-left:auto; padding:0 10px 0 32px;
@@ -17,19 +17,19 @@
 #prefsBody { flex:1; min-height:0; display:grid; grid-template-columns:200px minmax(0,1fr); padding:0; }
 #prefsModal [hidden] { display:none!important; }
 #prefsModal .pf-group { border-bottom:0; padding:24px 0 20px; }
-#prefsModal .pf-gtitle { font-size:22px; font-weight:550; letter-spacing:-.02em; }
+#prefsModal .pf-gtitle { font-size:var(--t5); font-weight:550; letter-spacing:-.02em; }
 #prefsModal .pf-ghead { margin-bottom:20px; }
-#prefsModal .pf-gbody .pf-sec { font-size:14px; font-weight:550; letter-spacing:0; text-transform:none; color:var(--ink); margin:24px 0 8px; }
-#prefsModal .pf-nav-label { padding:18px 10px 6px; color:var(--faint); font-size:11px; }
+#prefsModal .pf-gbody .pf-sec { font-size:var(--t3); font-weight:550; letter-spacing:0; text-transform:none; color:var(--ink); margin:24px 0 8px; }
+#prefsModal .pf-nav-label { padding:18px 10px 6px; color:var(--faint); font-size:var(--t1); }
 #prefsModal .pf-nav-label:first-child { padding-top:4px; }
-.pf-back { border:0; background:transparent; color:var(--muted); padding:0; margin-bottom:18px; font:inherit; font-size:12px; cursor:pointer; }
+.pf-back { border:0; background:transparent; color:var(--muted); padding:0; margin-bottom:18px; font:inherit; font-size:var(--t2); cursor:pointer; }
 .pf-back:hover { color:var(--ink); }
 .pf-page-cards { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
 .pf-page-card { min-height:108px; padding:16px; border:1px solid var(--line); border-radius:10px; background:transparent; color:var(--text); text-align:left; font:inherit; cursor:pointer; }
 .pf-page-card:hover { background:var(--hover); border-color:var(--line-hi); }
 .pf-page-card b, .pf-page-card span, .pf-search-result b, .pf-search-result span { display:block; }
-.pf-page-card b, .pf-search-result b { color:var(--ink); font-size:14px; font-weight:550; }
-.pf-page-card span, .pf-search-result span { margin-top:5px; color:var(--muted); font-size:12.5px; line-height:1.5; }
+.pf-page-card b, .pf-search-result b { color:var(--ink); font-size:var(--t3); font-weight:550; }
+.pf-page-card span, .pf-search-result span { margin-top:5px; color:var(--muted); font-size:var(--t2); line-height:1.5; }
 #prefsSearchResults { padding-top:24px; }
 .pf-search-result { width:100%; border:0; border-bottom:1px solid var(--line); background:transparent; color:var(--text); padding:16px 0; text-align:left; font:inherit; cursor:pointer; }
 .pf-search-result:hover b { color:var(--accent-hi); }
@@ -42,7 +42,7 @@
 .publications-pane .pf-sec:first-child { margin-top:0; }
 #publicacionsPage .page-inner { max-width:980px; }
 #memoriaPage .page-inner { max-width:900px; }
-#memoriaPage .mem-notes { max-height:none; font-size:14px; }
+#memoriaPage .mem-notes { max-height:none; font-size:var(--t3); }
 
 /* Índex dels grups */
 .pf-nav { display:flex; flex-direction:column; gap:2px; padding:12px 8px; overflow:auto;
@@ -154,7 +154,7 @@
 
 /* Poders de servidor */
 .pf-notes { width:100%; box-sizing:border-box; min-height:120px; margin:8px 0 0; padding:10px; border:1px solid var(--line-hi); border-radius:var(--r-sm, 8px);
-  color:var(--ink); background:var(--bg); font:13px/1.45 var(--mono); resize:vertical; }
+  color:var(--ink); background:var(--bg); font:var(--t2)/1.45 var(--mono); resize:vertical; }
 /* Formulari antic d'altres mòduls que encara el facin servir. */
 .pf-account-form { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:12px 0 22px; }
 .pf-account-form input { min-width:180px; flex:1 1 180px; }

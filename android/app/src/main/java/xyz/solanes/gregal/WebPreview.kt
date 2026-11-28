@@ -172,15 +172,15 @@ internal fun WebCardBlock(spec: WebSpec, link: Color, lang: String) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(SuperficieAlta), contentAlignment = Alignment.Center) {
-                Text("◧", color = link, fontSize = 15.sp)
+                Text("◧", color = link, fontSize = GregalSize.body)
             }
             Column(Modifier.weight(1f)) {
-                Text(spec.title, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (spec.path.isNotBlank()) Text(spec.path, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(spec.title, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (spec.path.isNotBlank()) Text(spec.path, color = Muted, fontSize = GregalSize.caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             // «Obre»: a pantalla completa dins l'app (el visor té «obre al navegador»).
             val inViewer = LocalInViewer.current
-            Text(if (lang == "en") "Open ⤢" else "Obre ⤢", color = link, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+            Text(if (lang == "en") "Open ⤢" else "Obre ⤢", color = link, fontSize = GregalSize.small, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.clip(RoundedCornerShape(50)).background(SuperficieAlta)
                     .clickable {
                         if (!inViewer) Viewer.show(ViewItem.Web(spec))
@@ -201,10 +201,10 @@ internal fun CodePreviewBlock(kind: String, code: String, lang: String) {
     Column(Modifier.fillMaxWidth().clip(shape).background(CodeDark).border(1.dp, Line, shape).testTag("md-code-preview")) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(kind, color = Muted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 6.dp))
+            Text(kind, color = Muted, fontSize = GregalSize.caption, modifier = Modifier.padding(horizontal = 6.dp))
             listOf(false to (if (lang == "en") "Preview" else "Vista"), true to (if (lang == "en") "Code" else "Codi")).forEach { (isCode, label) ->
                 val on = showCode == isCode
-                Text(label, color = if (on) Sea else Muted, fontSize = 12.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
+                Text(label, color = if (on) Sea else Muted, fontSize = GregalSize.caption, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
                     modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) SuperficieAlta else Color.Transparent)
                         .clickable { showCode = isCode }.padding(horizontal = 10.dp, vertical = 4.dp))
             }
@@ -212,7 +212,7 @@ internal fun CodePreviewBlock(kind: String, code: String, lang: String) {
             if (!LocalInViewer.current) ExpandChip(lang) { Viewer.show(ViewItem.Html(kind, code)) }
         }
         if (showCode) {
-            Text(code, color = Ink, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(10.dp))
+            Text(code, color = Ink, fontSize = GregalSize.caption, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(10.dp))
         } else {
             PreviewWebView(Modifier.fillMaxWidth().height(if (kind == "svg") 260.dp else 360.dp), html = doc)
         }

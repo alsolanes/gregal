@@ -209,7 +209,7 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
                         val starting = local is LocalState.Starting
                         Button(onClick = { vm.useThisDevice() }, enabled = !starting, shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                            Text(tr(lang, if (starting) "app.server.starting" else "app.server.useThisDevice"), fontSize = 16.sp)
+                            Text(tr(lang, if (starting) "app.server.starting" else "app.server.useThisDevice"), fontSize = GregalSize.large)
                         }
                         if (starting) {
                             Spacer(Modifier.height(8.dp))
@@ -221,7 +221,7 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
                             Text(tr(lang, "app.local.failed", failed.message), color = Sand, style = GregalType.bodySmall)
                             if (failed.log.isNotBlank()) {
                                 Spacer(Modifier.height(6.dp))
-                                Text(failed.log.takeLast(1200), color = Muted, fontSize = 11.sp,
+                                Text(failed.log.takeLast(1200), color = Muted, fontSize = GregalSize.label,
                                     fontFamily = FontFamily.Monospace)
                             }
                         }
@@ -230,13 +230,13 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
                 Spacer(Modifier.height(14.dp))
                 TextButton(onClick = { remot = !remot }, modifier = Modifier.fillMaxWidth()) {
                     Text(tr(lang, if (remot) "app.server.hideRemote" else "app.server.showRemote"),
-                        color = Muted, fontSize = 13.sp)
+                        color = Muted, fontSize = GregalSize.small)
                 }
             }
             if (remot) {
                 if (reason.isNotEmpty()) {
                     Surface(shape = RoundedCornerShape(16.dp), color = SeaSoft(0.12f), modifier = Modifier.fillMaxWidth()) {
-                        Text(reason, color = Ink, fontSize = 14.sp, modifier = Modifier.padding(14.dp))
+                        Text(reason, color = Ink, fontSize = GregalSize.body, modifier = Modifier.padding(14.dp))
                     }
                     Spacer(Modifier.height(12.dp))
                 }
@@ -267,7 +267,7 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
                         leadingIcon = { Icon(Icons.Rounded.Lock, null, tint = Muted) }, shape = field,
                         modifier = Modifier.fillMaxWidth(), singleLine = true)
                     Spacer(Modifier.height(6.dp))
-                    Text(tr(lang, "app.pair.keyHelp"), color = Muted, fontSize = 12.sp, lineHeight = 16.sp)
+                    Text(tr(lang, "app.pair.keyHelp"), color = Muted, fontSize = GregalSize.caption, lineHeight = 16.sp)
                     Spacer(Modifier.height(14.dp))
                     PairButton(tr(lang, "app.pair.connect"), primary = !localOk, enabled = host.isNotBlank() && token.isNotBlank()) {
                         vm.connectRemote(host.trim(), port.trim(), token.replace(" ", "").trim())
@@ -316,7 +316,7 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
             }
             if (ver != null) {
                 Spacer(Modifier.height(16.dp))
-                Text("Gregal Android v$ver", color = Muted, fontSize = 12.sp,
+                Text("Gregal Android v$ver", color = Muted, fontSize = GregalSize.caption,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             }
             if (notice.isNotEmpty()) {
@@ -432,7 +432,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 2.dp),
                     ) {
                         Text(tr(lang, "app.chat.queued"),
-                            color = Sea, fontSize = 13.sp, textAlign = TextAlign.Center,
+                            color = Sea, fontSize = GregalSize.small, textAlign = TextAlign.Center,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp))
                     }
                 }
@@ -444,13 +444,13 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     ) {
                         Column(Modifier.padding(14.dp)) {
                             Text(if (planning) tr(lang, "app.chat.planning") else tr(lang, "app.chat.planLabel"),
-                                color = Sea, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                color = Sea, fontWeight = FontWeight.Bold, fontSize = GregalSize.small)
                             if (plan != null) {
                                 Spacer(Modifier.height(6.dp))
                                 val codeBg = CodeDark
                                 val rendered = remember(plan) { renderMd(plan!!.take(1500), codeBg) }
                                 Text(rendered,
-                                    color = Ink, fontSize = 13.sp)
+                                    color = Ink, fontSize = GregalSize.small)
                                 Spacer(Modifier.height(8.dp))
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     FilledTonalButton(onClick = {
@@ -474,13 +474,13 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("🖼×${pendingImgs.size}", color = Sea, fontSize = 14.sp)
+                        Text("🖼×${pendingImgs.size}", color = Sea, fontSize = GregalSize.body)
                         Spacer(Modifier.width(8.dp))
                         pendingImgs.forEachIndexed { i, _ ->
                             TextButton(onClick = { vm.removeImage(i) }, modifier = Modifier.semantics {
                                 contentDescription = tr(lang, "btn.delete") + " ${i + 1}"
                             }) {
-                                Text("✕${i + 1}", color = Muted, fontSize = 13.sp)
+                                Text("✕${i + 1}", color = Muted, fontSize = GregalSize.small)
                             }
                         }
                     }
@@ -496,7 +496,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         )
                         if (p.kind != "url") TextButton(onClick = {
                             if (published.site == null) vm.publishPreview() else vm.showPublished(true)
-                        }) { Text(tr(lang, if (published.site == null) "app.publish.action" else "app.publish.link"), fontSize = 13.sp) }
+                        }) { Text(tr(lang, if (published.site == null) "app.publish.action" else "app.publish.link"), fontSize = GregalSize.small) }
                     }
                 }
                 // Xips del que no és el normal: mode avançat, autonomia total
@@ -544,7 +544,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 val queued by vm.queue.collectAsState()
                 QueuedMessages(queued, lang, canSteer = sending, onSteer = { vm.steerQueued(it) }, onRemove = { vm.removeQueued(it) })
                 if (busy && input.isNotBlank()) {
-                    Text(tr(lang, "app.steer.hint"), color = Faint, fontSize = 11.5.sp,
+                    Text(tr(lang, "app.steer.hint"), color = Faint, fontSize = GregalSize.label,
                         modifier = Modifier.padding(start = 26.dp, bottom = 2.dp))
                 }
                 // Mesurador de context fora de la pastilla (estil ChatGPT: el
@@ -688,7 +688,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         st.modelName.ifEmpty { prettyModelName(st.model) }.ifEmpty { st.currentRole.ifEmpty { "Gregal" } },
-                                        color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                                        color = Ink, fontSize = GregalSize.large, fontWeight = FontWeight.SemiBold,
                                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                                     )
                                     Icon(Icons.Rounded.KeyboardArrowDown, null, tint = Muted, modifier = Modifier.size(18.dp))
@@ -696,7 +696,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                 if (st.project.isNotBlank()) {
                                     Text(
                                         st.project + if (st.branch.isNotBlank()) " · " + st.branch else "",
-                                        color = Faint, fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                        color = Faint, fontSize = GregalSize.label, maxLines = 1, overflow = TextOverflow.Ellipsis,
                                     )
                                 }
                             }
@@ -849,14 +849,14 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
             title = { Text("🔐 ${toolTitle(a.name, lang)}") },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
-                    Text(summary, color = Ink, fontSize = 14.sp)
+                    Text(summary, color = Ink, fontSize = GregalSize.body)
                     Spacer(Modifier.height(8.dp))
                     Surface(
                         shape = RoundedCornerShape(10.dp), color = CodeDark,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
-                            pretty.take(800), color = Sand, fontSize = 12.sp,
+                            pretty.take(800), color = Sand, fontSize = GregalSize.caption,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                             modifier = Modifier.padding(10.dp),
                         )
@@ -893,7 +893,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
             title = { Text(tr(lang, "app.chat.questionTitle")) },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
-                    Text(q.query, color = Ink, fontSize = 15.sp)
+                    Text(q.query, color = Ink, fontSize = GregalSize.body)
                     if (q.options.isNotEmpty()) {
                         Spacer(Modifier.height(10.dp))
                         q.options.forEach { o ->
@@ -902,9 +902,9 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                 vm.answerQuestion(q.key, o.label)
                             }, modifier = Modifier.fillMaxWidth()) {
                                 Column(Modifier.fillMaxWidth()) {
-                                    Text("◇ ${o.label}", color = Sea, fontSize = 15.sp)
+                                    Text("◇ ${o.label}", color = Sea, fontSize = GregalSize.body)
                                     if (o.description.isNotEmpty()) {
-                                        Text(o.description, color = Muted, fontSize = 12.sp)
+                                        Text(o.description, color = Muted, fontSize = GregalSize.caption)
                                     }
                                 }
                             }
@@ -918,7 +918,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(tr(lang, "app.chat.questionTimeoutHelp"),
-                        color = Faint, fontSize = 11.sp)
+                        color = Faint, fontSize = GregalSize.label)
                 }
             },
             confirmButton = {
@@ -960,14 +960,14 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     Text(tr(lang, "app.chat.rewindDescription"),
-                        color = Muted, fontSize = 13.sp)
+                        color = Muted, fontSize = GregalSize.small)
                     Spacer(Modifier.height(8.dp))
                     if (checkpoints.isEmpty()) {
-                        Text(tr(lang, "app.chat.rewindEmpty"), color = Ink, fontSize = 14.sp)
+                        Text(tr(lang, "app.chat.rewindEmpty"), color = Ink, fontSize = GregalSize.body)
                     } else {
                         checkpoints.forEach { c ->
                             TextButton(onClick = { vm.rewindTo(c.seq) }) {
-                                Text("#${c.seq} ${c.op} ${c.path}", color = Sea, fontSize = 14.sp)
+                                Text("#${c.seq} ${c.op} ${c.path}", color = Sea, fontSize = GregalSize.body)
                             }
                         }
                     }
@@ -1014,8 +1014,8 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     OutlinedTextField(ghNumber, { ghNumber = it }, label = { Text(tr(lang, "app.chat.githubNumber")) }, singleLine = true)
                     OutlinedTextField(ghQuery, { ghQuery = it }, label = { Text(tr(lang, "app.chat.githubSearch")) }, singleLine = true)
                     OutlinedTextField(ghRepo, { ghRepo = it }, label = { Text(tr(lang, "app.chat.githubRepo")) }, singleLine = true)
-                    if (gh.error.isNotBlank()) Text("⚠️ ${gh.error}", color = Red, fontSize = 12.sp)
-                    if (gh.output.isNotBlank()) Text(gh.output.take(5000), color = Ink, fontSize = 11.sp,
+                    if (gh.error.isNotBlank()) Text("⚠️ ${gh.error}", color = Red, fontSize = GregalSize.caption)
+                    if (gh.output.isNotBlank()) Text(gh.output.take(5000), color = Ink, fontSize = GregalSize.label,
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
                 }
             },
@@ -1035,9 +1035,9 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
 fun ConnectionNotice(text: String, lang: String, onRetry: () -> Unit) {
     Surface(shape = RoundedCornerShape(16.dp), color = Red.copy(alpha = 0.14f), modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("!", color = Red, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("!", color = Red, fontWeight = FontWeight.Bold, fontSize = GregalSize.large)
             Spacer(Modifier.width(8.dp))
-            Text(text, color = Ink, modifier = Modifier.weight(1f), fontSize = 14.sp)
+            Text(text, color = Ink, modifier = Modifier.weight(1f), fontSize = GregalSize.body)
             TextButton(onClick = onRetry) { Text(tr(lang, "app.chat.retry"), color = Sea) }
         }
     }
@@ -1055,7 +1055,7 @@ fun PairModeTabs(lang: String, mode: String, onMode: (String) -> Unit) {
                 val on = m == mode
                 Surface(shape = RoundedCornerShape(12.dp), color = if (on) SeaSoft(0.22f) else androidx.compose.ui.graphics.Color.Transparent,
                     modifier = Modifier.weight(1f).clickable { onMode(m) }) {
-                    Text(tr(lang, k), color = if (on) Ink else Muted, fontSize = 14.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
+                    Text(tr(lang, k), color = if (on) Ink else Muted, fontSize = GregalSize.body, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
                         textAlign = TextAlign.Center, modifier = Modifier.padding(vertical = 10.dp))
                 }
             }
@@ -1067,7 +1067,7 @@ fun PairModeTabs(lang: String, mode: String, onMode: (String) -> Unit) {
 fun PairButton(label: String, primary: Boolean, enabled: Boolean, busy: Boolean = false, onClick: () -> Unit) {
     val content: @Composable () -> Unit = {
         if (busy) LinearProgressIndicator(Modifier.width(48.dp), color = Sea, trackColor = Line)
-        else Text(label, fontSize = 16.sp)
+        else Text(label, fontSize = GregalSize.large)
     }
     if (primary) Button(onClick = onClick, enabled = enabled, shape = RoundedCornerShape(14.dp),
         modifier = Modifier.fillMaxWidth().height(52.dp)) { content() }
@@ -1080,7 +1080,7 @@ fun AgentBusyStrip(lang: String) {
     Surface(color = CodeDark, shape = RoundedCornerShape(14.dp),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 2.dp)) {
         Text(tr(lang, "app.chat.busyNotice"),
-            color = Sea, fontSize = 13.sp, textAlign = TextAlign.Center,
+            color = Sea, fontSize = GregalSize.small, textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp))
     }
 }
@@ -1094,7 +1094,7 @@ fun ModeBadge(mode: String, modifier: Modifier = Modifier, lang: String = "ca") 
         else -> "app.modeBadgeCode"
     })
     Surface(shape = RoundedCornerShape(10.dp), color = CodeDark, modifier = modifier) {
-        Text(label, color = Sea, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+        Text(label, color = Sea, fontSize = GregalSize.label, fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp))
     }
 }
@@ -1139,7 +1139,7 @@ fun DayDivider(label: String) {
         HorizontalDivider(Modifier.weight(1f), color = Muted.copy(alpha = 0.35f))
         Surface(color = CodeDark, shape = RoundedCornerShape(10.dp),
             modifier = Modifier.padding(horizontal = 8.dp)) {
-            Text(label, color = Muted, fontSize = 11.sp,
+            Text(label, color = Muted, fontSize = GregalSize.label,
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp))
         }
         HorizontalDivider(Modifier.weight(1f), color = Muted.copy(alpha = 0.35f))
@@ -1191,7 +1191,7 @@ fun BodyText(t: AnnotatedString) {
     ClickableText(
         t,
         style = MaterialTheme.typography.bodyLarge.copy(
-            fontSize = 16.sp, lineHeight = 25.sp, color = Ink,
+            fontSize = GregalSize.large, lineHeight = 25.sp, color = Ink,
         ),
         onClick = { off ->
             t.getStringAnnotations("URL", off, off).firstOrNull()?.let {
@@ -1222,13 +1222,13 @@ fun CodeBlock(lang: String, code: String, uiLang: String = "ca") {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    lang.ifEmpty { tr(uiLang, "app.code.language") }, color = Muted, fontSize = 12.sp,
+                    lang.ifEmpty { tr(uiLang, "app.code.language") }, color = Muted, fontSize = GregalSize.caption,
                     fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f),
                 )
                 TextButton(onClick = { clipboard.setText(AnnotatedString(code)) }) {
                     Icon(Icons.Rounded.ContentCopy, tr(uiLang, "app.code.copy"), tint = Muted, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text(tr(uiLang, "app.code.copy"), color = Muted, fontSize = 12.sp)
+                    Text(tr(uiLang, "app.code.copy"), color = Muted, fontSize = GregalSize.caption)
                 }
             }
             // Cada línia sencera i el bloc es desplaça de costat: partides a
@@ -1236,7 +1236,7 @@ fun CodeBlock(lang: String, code: String, uiLang: String = "ca") {
             // llegia com un paràgraf. La capçalera queda fora del desplaçament.
             Text(
                 code.trimEnd(), color = Ink, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                fontSize = 13.sp, lineHeight = 19.sp, softWrap = false,
+                fontSize = GregalSize.small, lineHeight = 19.sp, softWrap = false,
                 modifier = Modifier.horizontalScroll(rememberScrollState()).padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
             )
         }
@@ -1266,7 +1266,7 @@ fun MdTable(headers: List<String>, rows: List<List<String>>, lang: String = "ca"
                     .then(if (widths != null) Modifier.width(widths.sum().dp) else Modifier))
                 shown.forEach { TableRow(it, header = false, widths = widths) }
                 if (rows.size > 12) {
-                    Text(tr(lang, "app.table.moreFiles", rows.size - 12), color = Muted, fontSize = 12.sp,
+                    Text(tr(lang, "app.table.moreFiles", rows.size - 12), color = Muted, fontSize = GregalSize.caption,
                         modifier = Modifier.padding(4.dp))
                 }
             }
@@ -1310,7 +1310,7 @@ private fun TableRow(cells: List<String>, header: Boolean, widths: List<Int>? = 
                 modifier = (if (w == null) Modifier.weight(1f) else Modifier.width(w.dp)).padding(4.dp),
                 fontWeight = if (header) FontWeight.Bold else FontWeight.Normal,
                 color = if (header) Sand else Ink,
-                fontSize = 13.sp,
+                fontSize = GregalSize.small,
             )
         }
     }
@@ -1340,16 +1340,16 @@ fun ActivityCluster(steps: List<ChatMsg>, lang: String = "ca") {
     ) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(if (expanded) "⌃" else "⌄", color = Sea, fontSize = 16.sp)
+                Text(if (expanded) "⌃" else "⌄", color = Sea, fontSize = GregalSize.large)
                 Spacer(Modifier.width(8.dp))
-                Text(title, color = Muted, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                Text(title, color = Muted, fontSize = GregalSize.small, fontWeight = FontWeight.Medium,
                     modifier = Modifier.weight(1f))
-                Text(tr(lang, if (expanded) "app.activity.hide" else "app.activity.show"), color = Sea, fontSize = 12.sp)
+                Text(tr(lang, if (expanded) "app.activity.hide" else "app.activity.show"), color = Sea, fontSize = GregalSize.caption)
             }
             if (expanded) {
                 Spacer(Modifier.height(8.dp))
                 steps.forEach { step ->
-                    Text(step.text.take(900), color = Ink, fontSize = 13.sp,
+                    Text(step.text.take(900), color = Ink, fontSize = GregalSize.small,
                         modifier = Modifier.padding(start = 24.dp, bottom = 7.dp))
                 }
             }
@@ -1371,12 +1371,12 @@ fun ProjectPill(project: String, branch: String) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Rounded.FolderOpen, null, tint = Sand, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
-            Text(project, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+            Text(project, color = Ink, fontSize = GregalSize.small, fontWeight = FontWeight.Medium, maxLines = 1)
             if (branch.isNotBlank()) {
                 Spacer(Modifier.width(8.dp))
                 Icon(Icons.Rounded.ForkRight, null, tint = Muted, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(2.dp))
-                Text(branch, color = Muted, fontSize = 12.5.sp, maxLines = 1)
+                Text(branch, color = Muted, fontSize = GregalSize.caption, maxLines = 1)
             }
         }
     }
@@ -1388,8 +1388,8 @@ fun EmptyBoardText(mark: String, title: String, subtitle: String) {
         horizontalAlignment = Alignment.CenterHorizontally) {
         Text(mark, fontSize = 44.sp, color = Sea.copy(alpha = 0.7f))
         Spacer(Modifier.height(8.dp))
-        Text(title, color = Ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-        Text(subtitle, color = Muted, fontSize = 13.sp, textAlign = TextAlign.Center,
+        Text(title, color = Ink, fontSize = GregalSize.large, fontWeight = FontWeight.SemiBold)
+        Text(subtitle, color = Muted, fontSize = GregalSize.small, textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 4.dp))
     }
 }
@@ -1415,17 +1415,17 @@ fun MsgRow(m: ChatMsg, stable: Int, lang: String = "ca", onCopyNotice: () -> Uni
             ) {
                 Column(Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
                     Text(m.text, color = Ink, style = MaterialTheme.typography.bodyLarge.copy(
-                        fontSize = 15.sp, lineHeight = 22.sp))
+                        fontSize = GregalSize.body, lineHeight = 22.sp))
                 }
             }
         }
         m.kind == "activity" -> Text(
             m.text, Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 3.dp),
-            color = Muted, fontSize = 14.sp, fontStyle = FontStyle.Italic,
+            color = Muted, fontSize = GregalSize.body, fontStyle = FontStyle.Italic,
         )
         m.kind == "error" -> Text(
             m.text, Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 3.dp),
-            color = if (LocalPal.current.dark) Red else LightPal.red, fontSize = 15.sp,
+            color = if (LocalPal.current.dark) Red else LightPal.red, fontSize = GregalSize.body,
         )
         // L'animació corre un sol cop per missatge nou (clau = posició):
         // el streaming actualitza el text al mateix índex sense rellançar-la.
@@ -1482,13 +1482,13 @@ fun ModelMenu(
         HorizontalDivider(color = Line)
         if (st.thinkOptions.isNotEmpty()) {
             Text(tr(lang, "app.think.title"), Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                color = Muted, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                color = Muted, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.caption)
             val shown = st.think.ifEmpty { "default" }
             st.thinkOptions.forEach { level ->
                 DropdownMenuItem(
                     text = { Column {
-                        Text(tr(lang, "app.think.$level"), fontSize = 14.sp)
-                        Text(tr(lang, "app.think.help.$level"), color = Muted, fontSize = 11.5.sp)
+                        Text(tr(lang, "app.think.$level"), fontSize = GregalSize.body)
+                        Text(tr(lang, "app.think.help.$level"), color = Muted, fontSize = GregalSize.label)
                     } },
                     trailingIcon = { if (shown == level) Icon(Icons.Rounded.Check, null, tint = Sea) },
                     onClick = { vm.setThink(level); onClose() })
@@ -1633,7 +1633,7 @@ fun SessionsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 }
                 grups.forEach { (g, items) ->
                     item {
-                        Text(convGroupLabel(g, lang), color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        Text(convGroupLabel(g, lang), color = Muted, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.padding(start = 4.dp, top = 16.dp, bottom = 6.dp))
                     }
                     items(items, key = { it.name }) { s ->
@@ -1653,14 +1653,14 @@ fun SessionsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             }
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(look.title, fontWeight = if (s.current) FontWeight.SemiBold else FontWeight.Normal, fontSize = 15.5.sp, color = if (s.current) Ink else Tinta,
+                                Text(look.title, fontWeight = if (s.current) FontWeight.SemiBold else FontWeight.Normal, fontSize = GregalSize.body, color = if (s.current) Ink else Tinta,
                                     maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 val count = if (s.msgs == 1) tr(lang, "app.sess.oneMessage")
                                     else tr(lang, "app.sess.messages", s.msgs)
                                 val kind = tr(lang, when (look.kind) { ConvKind.WIND -> "app.sess.kindWind"; ConvKind.GROUP -> "app.sess.kindGroup"; ConvKind.AGENT -> "app.sess.kindAgent" })
                                 Text("$kind · $count · ${ago(s.moment, lang = lang)}" +
                                     if (s.current) " · ${tr(lang, "app.sess.current")}" else "",
-                                    fontSize = 12.5.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    fontSize = GregalSize.caption, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                             var menu by remember(s.name) { mutableStateOf(false) }
                             Box {
@@ -1681,7 +1681,7 @@ fun SessionsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 AlertDialog(
                     onDismissRequest = { confirma = null },
                     title = { Text(tr(lang, "app.sess.delete"), color = Ink) },
-                    text = { Text(nom, color = Muted, fontSize = 14.sp) },
+                    text = { Text(nom, color = Muted, fontSize = GregalSize.body) },
                     confirmButton = {
                         TextButton(onClick = { vm.deleteSession(nom); confirma = null }) {
                             Text(tr(lang, "app.sess.delete"), color = Sea)
@@ -1711,7 +1711,7 @@ fun ActiveAgentCard(run: ActiveAgent, lang: String = "ca") {
                 Spacer(Modifier.width(8.dp))
                 Text(tr(lang, "app.sess.activeTitle"), color = Ink, fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f))
-                Text(tr(lang, if (expanded) "app.sess.hide" else "app.sess.show"), color = Sea, fontSize = 12.sp)
+                Text(tr(lang, if (expanded) "app.sess.hide" else "app.sess.show"), color = Sea, fontSize = GregalSize.caption)
             }
             val mode = tr(lang, when (run.mode) {
                 "chat", "inspect" -> "app.modeLabelChat"
@@ -1719,16 +1719,16 @@ fun ActiveAgentCard(run: ActiveAgent, lang: String = "ca") {
                 "goal" -> "app.modeLabelGoal"
                 else -> "app.modeLabelCode"
             })
-            Text("${run.project} · ${run.role} · $mode", color = Sand, fontSize = 12.sp,
+            Text("${run.project} · ${run.role} · $mode", color = Sand, fontSize = GregalSize.caption,
                 modifier = Modifier.padding(top = 4.dp))
-            Text(stripMdForTitle(run.task).take(180), color = Ink, fontSize = 14.sp,
+            Text(stripMdForTitle(run.task).take(180), color = Ink, fontSize = GregalSize.body,
                 modifier = Modifier.padding(top = 7.dp))
-            Text(tr(lang, "app.sess.readOnlyRefresh"), color = Muted, fontSize = 12.sp,
+            Text(tr(lang, "app.sess.readOnlyRefresh"), color = Muted, fontSize = GregalSize.caption,
                 modifier = Modifier.padding(top = 7.dp))
             if (expanded) {
                 Spacer(Modifier.height(9.dp))
                 if (run.events.isEmpty()) {
-                    Text(tr(lang, "app.sess.noActivity"), color = Muted, fontSize = 13.sp)
+                    Text(tr(lang, "app.sess.noActivity"), color = Muted, fontSize = GregalSize.small)
                 } else {
                     val codeBg = CodeDark
                     // Es repinta cada 3 s amb el sondeig: el markdown, només si canvia.
@@ -1737,11 +1737,11 @@ fun ActiveAgentCard(run: ActiveAgent, lang: String = "ca") {
                     }
                     run.events.forEachIndexed { i, event ->
                         Text(rendered[i], color = if (event.kind == "error") MaterialTheme.colorScheme.error else Ink,
-                            fontSize = 13.sp, modifier = Modifier.padding(vertical = 3.dp))
+                            fontSize = GregalSize.small, modifier = Modifier.padding(vertical = 3.dp))
                     }
                 }
             } else if (run.events.isNotEmpty()) {
-                Text(stripMdForTitle(run.events.last().text).take(110), color = Muted, fontSize = 12.sp,
+                Text(stripMdForTitle(run.events.last().text).take(110), color = Muted, fontSize = GregalSize.caption,
                     modifier = Modifier.padding(top = 8.dp))
             }
         }
@@ -1792,12 +1792,12 @@ fun UpdateAvis(vm: GregalViewModel) {
             Column(Modifier.padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Gregal ${info.latestVersion}", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        Text("Gregal ${info.latestVersion}", color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         Text(info.changelog.ifBlank { tr(lang, "app.update.currentVersion", info.currentVersion) },
-                            color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            color = Muted, fontSize = GregalSize.caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     if (prog < 0) {
-                        TextButton(onClick = { vm.baixaIInstalla() }) { Text(tr(lang, "app.update.downloadInstall"), fontSize = 13.sp) }
+                        TextButton(onClick = { vm.baixaIInstalla() }) { Text(tr(lang, "app.update.downloadInstall"), fontSize = GregalSize.small) }
                         IconButton(onClick = { vm.descartaAvis() }, modifier = Modifier.size(40.dp)) {
                             Icon(Icons.Rounded.Close, tr(lang, "app.update.later"), tint = Muted, modifier = Modifier.size(18.dp))
                         }
@@ -1806,7 +1806,7 @@ fun UpdateAvis(vm: GregalViewModel) {
                 if (prog >= 0) {
                     Spacer(Modifier.height(6.dp))
                     LinearProgressIndicator(progress = { prog / 100f }, modifier = Modifier.fillMaxWidth().padding(end = 10.dp), color = Sea, trackColor = Line)
-                    Text(tr(lang, "app.update.downloadProgress", prog), color = Muted, fontSize = 11.sp)
+                    Text(tr(lang, "app.update.downloadProgress", prog), color = Muted, fontSize = GregalSize.label)
                 }
             }
         }

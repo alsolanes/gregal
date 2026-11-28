@@ -239,13 +239,13 @@ internal fun ResponsabilitatsSheet(conn: Conn, lang: String, winds: List<Wind>, 
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 16.dp).verticalScroll(rememberScrollState())
             .testTag("resp-sheet"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(respCopy(lang, "title"), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.SemiBold,
+            Text(respCopy(lang, "title"), color = Ink, fontSize = GregalSize.large, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.semantics { heading() })
-            Text(respCopy(lang, "intro"), color = Muted, fontSize = 13.sp)
+            Text(respCopy(lang, "intro"), color = Muted, fontSize = GregalSize.small)
             when {
-                error.isNotBlank() -> Text(error, color = Red, fontSize = 13.sp)
+                error.isNotBlank() -> Text(error, color = Red, fontSize = GregalSize.small)
                 items == null -> {}
-                items!!.isEmpty() && !creating -> Text(respCopy(lang, "empty"), color = Muted, fontSize = 14.sp, modifier = Modifier.testTag("resp-empty"))
+                items!!.isEmpty() && !creating -> Text(respCopy(lang, "empty"), color = Muted, fontSize = GregalSize.body, modifier = Modifier.testTag("resp-empty"))
             }
             items.orEmpty().forEach { r ->
                 RespCard(r, lang, acc, onAction = { a -> act(a, r.id) },
@@ -284,22 +284,22 @@ internal fun RespCard(r: RespItem, lang: String, accent: Color, onAction: (Strin
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Rounded.Visibility, null, tint = if (r.state == "active") accent else Muted, modifier = Modifier.size(18.dp))
             Text(if (r.kind == "heartbeat") respCopy(lang, "heartbeat") + (if (r.windName.isNotBlank()) " · " + r.windName else "")
-                else r.windName, color = Muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
-            Text(respCopy(lang, stateKey), color = if (r.state == "active") accent else Muted, fontSize = 12.sp,
+                else r.windName, color = Muted, fontSize = GregalSize.caption, modifier = Modifier.weight(1f))
+            Text(respCopy(lang, stateKey), color = if (r.state == "active") accent else Muted, fontSize = GregalSize.caption,
                 fontWeight = FontWeight.SemiBold, modifier = Modifier.testTag("resp-state"))
         }
-        Text(r.objective, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Text(r.objective, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
         if (r.sources.isNotEmpty()) {
             Text(respCopy(lang, "sources") + ": " + r.sources.joinToString(" · ") { respSourceLabel(it) },
-                color = Muted, fontSize = 12.sp, maxLines = 2)
+                color = Muted, fontSize = GregalSize.caption, maxLines = 2)
         }
-        r.sources.firstOrNull { it.error.isNotBlank() }?.let { Text(it.error, color = Red, fontSize = 12.sp) }
+        r.sources.firstOrNull { it.error.isNotBlank() }?.let { Text(it.error, color = Red, fontSize = GregalSize.caption) }
         Text(respCopy(lang, "canDo") + ": " + respCanDo(lang, r) + ". " + respCopy(lang, "askAlways") + ".",
-            color = Muted, fontSize = 12.sp)
+            color = Muted, fontSize = GregalSize.caption)
         Text(respBudgetLine(lang, r) + if (r.pending > 0) " · ${r.pending} " + respCopy(lang, "pending") else "",
-            color = Muted, fontSize = 12.sp)
+            color = Muted, fontSize = GregalSize.caption)
         r.log.firstOrNull()?.let { last ->
-            Text(respCopy(lang, "act." + last.kind), color = Tinta, fontSize = 12.sp, modifier = Modifier.testTag("resp-last"))
+            Text(respCopy(lang, "act." + last.kind), color = Tinta, fontSize = GregalSize.caption, modifier = Modifier.testTag("resp-last"))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             respActions(r).forEach { a ->
@@ -319,7 +319,7 @@ private fun RespButton(label: String, primary: Boolean, accent: Color, modifier:
             .then(if (primary) Modifier else Modifier.border(1.dp, Line, GregalShape.sm))
             .semantics { role = Role.Button }.clickable(onClick = onClick).padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
-    ) { Text(label, color = if (primary) OnSea else Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
+    ) { Text(label, color = if (primary) OnSea else Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold) }
 }
 
 @Composable
@@ -332,21 +332,21 @@ private fun RespCreateForm(lang: String, winds: List<Wind>, accent: Color, onCan
     var every by remember { mutableStateOf("60") }
     Column(Modifier.fillMaxWidth().clip(GregalShape.card).border(1.dp, Line, GregalShape.card).padding(14.dp).testTag("resp-form"),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(respCopy(lang, "new"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Text(respCopy(lang, "new"), color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             winds.take(6).forEach { w ->
                 val sel = w.id == wind
                 Box(Modifier.heightIn(min = 40.dp).clip(GregalShape.sm).background(if (sel) Color(w.argb).copy(alpha = .25f) else Color.Transparent)
                     .border(1.dp, if (sel) Color(w.argb) else Line, GregalShape.sm).semantics { role = Role.RadioButton }
                     .clickable { wind = w.id }.padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
-                    Text(w.name, color = Ink, fontSize = 13.sp)
+                    Text(w.name, color = Ink, fontSize = GregalSize.small)
                 }
             }
         }
         OutlinedTextField(objective, { objective = it }, label = { Text(respCopy(lang, "objective")) }, modifier = Modifier.fillMaxWidth().testTag("resp-objective"))
         OutlinedTextField(url, { url = it }, label = { Text(respCopy(lang, "url")) }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("resp-url"))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(respCopy(lang, "agenda"), color = Ink, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            Text(respCopy(lang, "agenda"), color = Ink, fontSize = GregalSize.body, modifier = Modifier.weight(1f))
             Switch(agenda, { agenda = it })
         }
         OutlinedTextField(every, { v -> every = v.filter { it.isDigit() }.take(5) }, label = { Text(respCopy(lang, "every")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -391,29 +391,29 @@ internal fun RespWhySheetContent(why: RespWhy?, lang: String, onClose: () -> Uni
 @Composable
 internal fun RespWhyBody(why: RespWhy?, lang: String) {
     Column(Modifier.fillMaxWidth().testTag("resp-why-body"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(respCopy(lang, "why"), color = Ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
+        Text(respCopy(lang, "why"), color = Ink, fontSize = GregalSize.large, fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
         if (why == null) {
-            Text(respCopy(lang, "notFromResp"), color = Muted, fontSize = 14.sp)
+            Text(respCopy(lang, "notFromResp"), color = Muted, fontSize = GregalSize.body)
             return@Column
         }
         val r = why.item
         val a = why.act
-        Label(respCopy(lang, "objective")); Text(r.objective, color = Ink, fontSize = 14.sp)
+        Label(respCopy(lang, "objective")); Text(r.objective, color = Ink, fontSize = GregalSize.body)
         Label(respCopy(lang, "sources"))
-        (a.sources.ifEmpty { r.sources.map { respSourceLabel(it) } }).forEach { Text("· $it", color = Ink, fontSize = 13.sp) }
+        (a.sources.ifEmpty { r.sources.map { respSourceLabel(it) } }).forEach { Text("· $it", color = Ink, fontSize = GregalSize.small) }
         if (a.changes.isNotEmpty()) {
             Label(respCopy(lang, "changes"))
-            a.changes.forEach { Text(it, color = Tinta, fontSize = 13.sp, maxLines = 8) }
+            a.changes.forEach { Text(it, color = Tinta, fontSize = GregalSize.small, maxLines = 8) }
         }
-        Label(respCopy(lang, "canDo")); Text(respCanDo(lang, r) + ". " + respCopy(lang, "askAlways") + ".", color = Ink, fontSize = 13.sp)
+        Label(respCopy(lang, "canDo")); Text(respCanDo(lang, r) + ". " + respCopy(lang, "askAlways") + ".", color = Ink, fontSize = GregalSize.small)
         if (a.proposal.isNotBlank()) {
-            Label(respCopy(lang, "proposal")); Text(a.proposal, color = Ink, fontSize = 13.sp)
+            Label(respCopy(lang, "proposal")); Text(a.proposal, color = Ink, fontSize = GregalSize.small)
         }
-        if (a.held) Text(respCopy(lang, "held"), color = Muted, fontSize = 12.sp)
+        if (a.held) Text(respCopy(lang, "held"), color = Muted, fontSize = GregalSize.caption)
     }
 }
 
 @Composable
 private fun Label(text: String) {
-    Text(text, color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
+    Text(text, color = Muted, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
 }

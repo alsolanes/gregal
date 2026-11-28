@@ -276,9 +276,9 @@ internal fun OrdinadorSheet(
                 Icon(Icons.Rounded.Computer, null, tint = acc, modifier = Modifier.size(24.dp))
                 Column(Modifier.weight(1f)) {
                     Text(if (local) ordinadorCopy(lang, "local") else if (error.isNotBlank()) ordinadorCopy(lang, "title") else ordinadorCopy(lang, key),
-                        color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.testTag("ordinador-state"))
+                        color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold, modifier = Modifier.testTag("ordinador-state"))
                     Text(if (localHeld) ordinadorCopy(lang, "localMine") else if (local) ordinadorCopy(lang, "localSub") else error.ifBlank { ordinadorCopy(lang, key + "Sub") },
-                        color = if (localHeld) acc else Muted, fontSize = 12.sp, modifier = Modifier.testTag("ordinador-sub"))
+                        color = if (localHeld) acc else Muted, fontSize = GregalSize.caption, modifier = Modifier.testTag("ordinador-sub"))
                 }
                 if (localHeld) OrdButton(ordinadorCopy(lang, "giveShort"), primary = false,
                     modifier = Modifier.testTag("ordinador-local-give")) { giveBackLocal() }
@@ -289,7 +289,7 @@ internal fun OrdinadorSheet(
                 }
             }
             if (handoffKey.isNotBlank()) {
-                Text(ordinadorCopy(lang, "handoffHint"), color = Muted, fontSize = 12.sp)
+                Text(ordinadorCopy(lang, "handoffHint"), color = Muted, fontSize = GregalSize.caption)
             } else if (!replay && (error.isBlank() || local)) {
                 // B13: el que ha fet l'agent quan no s'hi mirava, amb les captures marcades.
                 OrdButton(accionsCopy(lang, "last"), primary = false, modifier = Modifier.testTag("ordinador-last")) { replay = true }
@@ -356,7 +356,7 @@ private fun OrdButton(label: String, primary: Boolean, modifier: Modifier = Modi
             .then(if (primary) Modifier else Modifier.border(1.dp, Line, GregalShape.sm))
             .semantics { role = Role.Button }.clickable(onClick = onClick).padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
-    ) { Text(label, color = fg, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
+    ) { Text(label, color = fg, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold) }
 }
 
 /** Targeta de handoff al fil: la feina espera que la persona faci una cosa a l'ordinador. */
@@ -371,12 +371,12 @@ internal fun HandoffCard(conn: Conn, lang: String, a: GregalApi.WindAsk, accent:
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Icon(Icons.Rounded.Computer, null, tint = accent, modifier = Modifier.size(22.dp))
             Column {
-                Text(ordinadorCopy(lang, "handoffTitle"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Text(askUi(lang, "waiting"), color = Muted, fontSize = 11.sp)
+                Text(ordinadorCopy(lang, "handoffTitle"), color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
+                Text(askUi(lang, "waiting"), color = Muted, fontSize = GregalSize.label)
             }
         }
-        if (a.what.isNotBlank()) Text(a.what, color = Ink, fontSize = 14.sp, lineHeight = 20.sp)
-        Text(ordinadorCopy(lang, "handoffHint"), color = Muted, fontSize = 12.sp)
+        if (a.what.isNotBlank()) Text(a.what, color = Ink, fontSize = GregalSize.body, lineHeight = 20.sp)
+        Text(ordinadorCopy(lang, "handoffHint"), color = Muted, fontSize = GregalSize.caption)
         OrdButton(ordinadorCopy(lang, "open"), primary = true, accent = accent, modifier = Modifier.fillMaxWidth().testTag("handoff-open")) { open = true }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
             OrdButton(ordinadorCopy(lang, "cancel"), primary = false, modifier = Modifier.weight(1f).testTag("handoff-cancel"), onClick = onCancel)
@@ -394,8 +394,8 @@ internal fun LocalLiveView(lang: String, shot: OrdinadorLive?, onTap: (Float, Fl
     }
     Column(Modifier.fillMaxSize().padding(10.dp).testTag("ordinador-local"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (shot?.live == true && bmp != null) {
-            Text(shot.title.ifBlank { shot.url }, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-            if (shot.title.isNotBlank()) Text(shot.url, color = Muted, fontSize = 11.sp, maxLines = 1)
+            Text(shot.title.ifBlank { shot.url }, color = Ink, fontSize = GregalSize.small, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            if (shot.title.isNotBlank()) Text(shot.url, color = Muted, fontSize = GregalSize.label, maxLines = 1)
             androidx.compose.foundation.Image(bmp, ordinadorCopy(lang, "screen"),
                 modifier = Modifier.fillMaxWidth().weight(1f).clip(GregalShape.sm).testTag("ordinador-local-shot")
                     .pointerInput(bmp) {
@@ -407,7 +407,7 @@ internal fun LocalLiveView(lang: String, shot: OrdinadorLive?, onTap: (Float, Fl
                 contentScale = androidx.compose.ui.layout.ContentScale.Fit, alignment = Alignment.TopCenter)
         } else {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(ordinadorCopy(lang, "localIdle"), color = Muted, fontSize = 14.sp, lineHeight = 20.sp,
+                Text(ordinadorCopy(lang, "localIdle"), color = Muted, fontSize = GregalSize.body, lineHeight = 20.sp,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(24.dp))
             }
         }
@@ -426,7 +426,7 @@ internal fun LocalLiveControls(lang: String, accent: Color, onAct: (JSONObject) 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             androidx.compose.foundation.text.BasicTextField(
                 value = text, onValueChange = { text = it }, singleLine = true,
-                textStyle = androidx.compose.ui.text.TextStyle(color = Ink, fontSize = 15.sp),
+                textStyle = androidx.compose.ui.text.TextStyle(color = Ink, fontSize = GregalSize.body),
                 cursorBrush = androidx.compose.ui.graphics.SolidColor(accent),
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Send),
                 keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { send() }),
@@ -434,7 +434,7 @@ internal fun LocalLiveControls(lang: String, accent: Color, onAct: (JSONObject) 
                     .border(1.dp, Line, GregalShape.sm).testTag("ordinador-local-text"),
                 decorationBox = { inner ->
                     Box(Modifier.padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) {
-                        if (text.isEmpty()) Text(ordinadorCopy(lang, "typeHint"), color = Muted, fontSize = 14.sp, maxLines = 1)
+                        if (text.isEmpty()) Text(ordinadorCopy(lang, "typeHint"), color = Muted, fontSize = GregalSize.body, maxLines = 1)
                         inner()
                     }
                 },

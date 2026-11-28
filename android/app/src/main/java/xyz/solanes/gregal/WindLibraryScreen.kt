@@ -44,11 +44,11 @@ internal fun WindLibraryDialog(vm: GregalViewModel, lang: String, onDismiss: () 
                 Column(Modifier.fillMaxWidth().fillMaxHeight(.90f).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(tr(lang, "app.library.title"), color = Ink, fontWeight = FontWeight.SemiBold,
-                            fontSize = 18.sp, modifier = Modifier.weight(1f))
+                            fontSize = GregalSize.large, modifier = Modifier.weight(1f))
                         TextButton(onClick = dismiss, enabled = !pending) { Text(tr(lang, "app.library.close")) }
                     }
                     if (selected == null) {
-                        Text(tr(lang, "app.library.about"), color = Muted, fontSize = 13.sp)
+                        Text(tr(lang, "app.library.about"), color = Muted, fontSize = GregalSize.small)
                         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             listOf("archive", "active", "history").forEach { f ->
                                 FilterChip(selected = filter == f, onClick = { filter = f },
@@ -63,15 +63,15 @@ internal fun WindLibraryDialog(vm: GregalViewModel, lang: String, onDismiss: () 
                     }
                     if (pending || state.loading) {
                         LinearProgressIndicator(Modifier.fillMaxWidth(), color = Sea)
-                        Text(tr(lang, if (pending) "app.library.pending" else "app.library.loading"), color = Muted, fontSize = 13.sp)
+                        Text(tr(lang, if (pending) "app.library.pending" else "app.library.loading"), color = Muted, fontSize = GregalSize.small)
                     }
                     state.error?.let { error ->
-                        Text(error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                        Text(error, color = MaterialTheme.colorScheme.error, fontSize = GregalSize.small)
                         if (selected == null) TextButton(onClick = vm::loadWindLibrary, enabled = !pending) {
                             Text(tr(lang, "app.library.retry"))
                         }
                     }
-                    if (completed) Text(tr(lang, "app.library.success"), color = Ink, fontSize = 13.sp)
+                    if (completed) Text(tr(lang, "app.library.success"), color = Ink, fontSize = GregalSize.small)
                     val item = selected
                     if (item == null) {
                         val rows = state.items.orEmpty().filter {
@@ -86,10 +86,10 @@ internal fun WindLibraryDialog(vm: GregalViewModel, lang: String, onDismiss: () 
                                     shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
                                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                         Text(record.wind.name, color = Ink, fontWeight = FontWeight.SemiBold)
-                                        Text(libraryKind(lang, record.kind), color = Muted, fontSize = 12.sp)
-                                        if (record.wind.role.isNotBlank()) Text(record.wind.role, color = Muted, fontSize = 13.sp)
-                                        if (record.created.isNotBlank() && record.kind != "active") Text(libraryDate(record.created, lang), color = Muted, fontSize = 11.sp)
-                                        Text(tr(lang, "app.library.inspect") + " ›", color = Sea, fontSize = 13.sp)
+                                        Text(libraryKind(lang, record.kind), color = Muted, fontSize = GregalSize.caption)
+                                        if (record.wind.role.isNotBlank()) Text(record.wind.role, color = Muted, fontSize = GregalSize.small)
+                                        if (record.created.isNotBlank() && record.kind != "active") Text(libraryDate(record.created, lang), color = Muted, fontSize = GregalSize.label)
+                                        Text(tr(lang, "app.library.inspect") + " ›", color = Sea, fontSize = GregalSize.small)
                                     }
                                 }
                             }
@@ -99,11 +99,11 @@ internal fun WindLibraryDialog(vm: GregalViewModel, lang: String, onDismiss: () 
                         val identityActive = state.items.orEmpty().any { it.kind == "active" && it.wind.id == item.wind.id }
                         LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             item {
-                                Text(item.wind.name, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 19.sp)
-                                Text(libraryKind(lang, item.kind), color = Muted, fontSize = 12.sp)
+                                Text(item.wind.name, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.title)
+                                Text(libraryKind(lang, item.kind), color = Muted, fontSize = GregalSize.caption)
                                 if (item.wind.role.isNotBlank()) Text(item.wind.role, color = Muted)
-                                if (!item.restorable) Text(tr(lang, "app.library.versionHint"), color = Muted, fontSize = 13.sp)
-                                else if (identityActive) Text(tr(lang, "app.library.identityActive"), color = Muted, fontSize = 13.sp)
+                                if (!item.restorable) Text(tr(lang, "app.library.versionHint"), color = Muted, fontSize = GregalSize.small)
+                                else if (identityActive) Text(tr(lang, "app.library.identityActive"), color = Muted, fontSize = GregalSize.small)
                             }
                             if (assigning) {
                                 val targets = state.items.orEmpty().filter { it.kind == "active" && it.wind.id != item.wind.id }
@@ -140,7 +140,7 @@ internal fun WindLibraryDialog(vm: GregalViewModel, lang: String, onDismiss: () 
                         }
                         if (confirm) {
                             Text(if (assigning) tr(lang, "app.library.assignConfirm", item.wind.name, target?.name.orEmpty())
-                                else tr(lang, "app.library.restoreConfirm", item.wind.name), color = Ink, fontSize = 13.sp)
+                                else tr(lang, "app.library.restoreConfirm", item.wind.name), color = Ink, fontSize = GregalSize.small)
                             Row {
                                 TextButton(enabled = !pending, onClick = { confirm = false }) { Text(tr(lang, "app.library.cancel")) }
                                 Button(enabled = !pending, onClick = {
@@ -176,7 +176,7 @@ private fun libraryKind(lang: String, kind: String): String = tr(lang,
 @Composable
 private fun LibraryBody(title: String, body: String, lang: String) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-        SelectionContainer { Text(body.ifBlank { tr(lang, "app.library.noContent") }, color = Muted, fontSize = 13.sp) }
+        Text(title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body)
+        SelectionContainer { Text(body.ifBlank { tr(lang, "app.library.noContent") }, color = Muted, fontSize = GregalSize.small) }
     }
 }

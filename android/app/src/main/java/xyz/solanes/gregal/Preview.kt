@@ -128,10 +128,10 @@ fun PublishDialog(st: PublishState, conn: Conn, lang: String, onRepublish: () ->
                 st.site?.let { site ->
                     SelectionContainerText(site.link)
                     when (publishedReach(site, conn)) {
-                        "phone" -> Text(tr(lang, "app.publish.onlyPhone"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
-                        "network" -> Text(tr(lang, "app.publish.onlyNetwork"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
+                        "phone" -> Text(tr(lang, "app.publish.onlyPhone"), color = Muted, fontSize = GregalSize.small, lineHeight = 18.sp)
+                        "network" -> Text(tr(lang, "app.publish.onlyNetwork"), color = Muted, fontSize = GregalSize.small, lineHeight = 18.sp)
                     }
-                    Text(tr(lang, "app.publish.snapshot"), color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+                    Text(tr(lang, "app.publish.snapshot"), color = Muted, fontSize = GregalSize.caption, lineHeight = 17.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(site.link)); copied = true }) {
                             Text(tr(lang, if (copied) "app.publish.copied" else "app.publish.copy"))
@@ -156,7 +156,7 @@ fun PublishDialog(st: PublishState, conn: Conn, lang: String, onRepublish: () ->
 @Composable
 private fun SelectionContainerText(link: String) {
     androidx.compose.foundation.text.selection.SelectionContainer {
-        Text(link, color = Sea, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Text(link, color = Sea, fontSize = GregalSize.body, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -181,12 +181,12 @@ fun PreviewSheet(req: PreviewReq, conn: Conn, lang: String, published: Published
         Column(Modifier.fillMaxSize().background(Pagina)) {
             Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 4.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onClose) { Text("✕", color = Ink, fontSize = 18.sp) }
+                IconButton(onClick = onClose) { Text("✕", color = Ink, fontSize = GregalSize.large) }
                 Column(Modifier.weight(1f)) {
-                    Text(req.title.ifBlank { tr(lang, "app.preview.title") }, color = Ink, fontSize = 16.sp,
+                    Text(req.title.ifBlank { tr(lang, "app.preview.title") }, color = Ink, fontSize = GregalSize.large,
                         fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(url ?: tr(lang, if (req.kind == "markdown") "app.preview.markdown" else "app.preview.html"),
-                        color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        color = Muted, fontSize = GregalSize.caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 if (url != null) TextButton(onClick = { openExternal() }) { Text(tr(lang, "app.preview.openBrowser")) }
                 // Una adreça de localhost no es pot copiar: és un servidor viu, no una pàgina.
@@ -200,7 +200,7 @@ fun PreviewSheet(req: PreviewReq, conn: Conn, lang: String, published: Published
                         MdPageBody(req.content, lang)
                     }
                     failed -> Column(Modifier.align(Alignment.Center).padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(tr(lang, "app.preview.unreachable", url ?: req.content), color = Muted, fontSize = 14.sp, lineHeight = 20.sp)
+                        Text(tr(lang, "app.preview.unreachable", url ?: req.content), color = Muted, fontSize = GregalSize.body, lineHeight = 20.sp)
                         if (url != null) {
                             Spacer(Modifier.height(12.dp))
                             Button(onClick = { openExternal() }) { Text(tr(lang, "app.preview.openBrowser")) }

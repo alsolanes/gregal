@@ -96,7 +96,8 @@ function load({ files = null, reduced = false, winds = {}, real = false } = {}) 
       mood(svg, mood) { moods.push(mood); svg.setAttribute('data-mood', mood); return svg; },
     },
   };
-  if (real) { delete window.gregalWinds; vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'winds.js'), 'utf8'), { window }); }
+  // The real winds.js, drawing the clay Cares (the default pack is Llegendes, which has no sheets).
+  if (real) { delete window.gregalWinds; vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'winds.js'), 'utf8'), { window }); window.gregalWinds.setAvatarTheme('cares'); }
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'characters.js'), 'utf8'), { window });
   return {
     chars: window.gregalCharacters, doc, fetched, moods, events, face: (...args) => window.gregalWinds.face(...args), kitIcon: kit => window.gregalWinds.kitIcon(kit),

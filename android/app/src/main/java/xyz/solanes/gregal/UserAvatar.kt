@@ -130,11 +130,11 @@ internal fun UserAvatarRow(vm: GregalViewModel, lang: String, onClick: () -> Uni
         } else {
             Box(Modifier.size(30.dp).background(fill, CircleShape).clearAndSetSemantics { testTag = "user-avatar-initials" },
                 contentAlignment = Alignment.Center) {
-                Text(userInitials(name), color = windInk(fill), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Text(userInitials(name), color = windInk(fill), fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold, maxLines = 1)
             }
         }
         Spacer(Modifier.width(12.dp))
-        Text(name, color = Tinta, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(name, color = Tinta, fontSize = GregalSize.body, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
     }
 }
 
@@ -153,7 +153,7 @@ internal fun UserProfileFields(vm: GregalViewModel, lang: String) {
             placeholder = { Text(userDisplayName("", me.user, me.local, lang)) },
             supportingText = { Text(tr(lang, "app.prefs.userNameHelp")) },
             modifier = Modifier.fillMaxWidth())
-        Text(tr(lang, "app.prefs.userColor"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Text(tr(lang, "app.prefs.userColor"), color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
         Row(Modifier.fillMaxWidth()) {
             userColors.forEach { s ->
                 val selected = s.color == color
@@ -170,10 +170,10 @@ internal fun UserProfileFields(vm: GregalViewModel, lang: String) {
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { vm.saveUserProfile(name, color) { done = true } }) { Text(tr(lang, "app.prefs.userSave")) }
-            if (done) Text(tr(lang, "app.prefs.userSaved"), color = Sea, fontSize = 12.5.sp)
+            if (done) Text(tr(lang, "app.prefs.userSaved"), color = Sea, fontSize = GregalSize.caption)
         }
-        Text(tr(lang, "app.prefs.userPhoto"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-        Text(tr(lang, "app.prefs.userPhotoHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+        Text(tr(lang, "app.prefs.userPhoto"), color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
+        Text(tr(lang, "app.prefs.userPhotoHelp"), color = Muted, fontSize = GregalSize.caption, lineHeight = 17.sp)
         val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
             if (uri != null) vm.uploadUserPhoto(uri)
         }

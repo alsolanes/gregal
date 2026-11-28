@@ -19,7 +19,6 @@ const fixture = () => ({
   lock: JSON.stringify({ name: 'gregal-desktop', version: '1.2.3', lockfileVersion: 3, packages: { '': { version: '1.2.3' }, 'node_modules/x': { version: '1.2.3' } } }, null, 2) + '\n',
   changelog: '# Changelog\n\n## Unreleased\n\n- New thing.\n\n## v1.2.3 - 2026-01-01 - Old\n\n- Old thing.\n',
   android: 'versionCode = 37\n        versionName = "0.9.8"\n',
-  vscode: '{ "version": "0.3.2" }\n',
 });
 
 test('bump updates every version and opens a fresh Unreleased section', () => {

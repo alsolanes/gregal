@@ -163,8 +163,8 @@ fun SettingsRow(
             Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Ink)
-            if (!subtitle.isNullOrBlank()) Text(subtitle, fontSize = 12.5.sp, color = Muted, lineHeight = 17.sp)
+            Text(title, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold, color = Ink)
+            if (!subtitle.isNullOrBlank()) Text(subtitle, fontSize = GregalSize.caption, color = Muted, lineHeight = 17.sp)
         }
         trailing?.invoke()
     }
@@ -179,7 +179,7 @@ fun StatusPill(text: String, color: Color, modifier: Modifier = Modifier) {
     ) {
         Box(Modifier.size(7.dp).background(color, CircleShape))
         Spacer(Modifier.width(6.dp))
-        Text(text, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Tinta, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(text, fontSize = GregalSize.caption, fontWeight = FontWeight.Medium, color = Tinta, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -211,7 +211,7 @@ fun PrimaryPill(label: String, onClick: () -> Unit, modifier: Modifier = Modifie
         contentPadding = PaddingValues(horizontal = 22.dp, vertical = 12.dp),
     ) {
         if (icon != null) { Icon(icon, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)) }
-        Text(label, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+        Text(label, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body)
     }
 }
 
@@ -231,10 +231,10 @@ fun EmptyState(
     ) {
         EmptyArt(icon)
         Spacer(Modifier.height(20.dp))
-        Text(title, color = Ink, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+        Text(title, color = Ink, fontSize = GregalSize.title, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
         if (body.isNotBlank()) {
             Spacer(Modifier.height(8.dp))
-            Text(body, color = Muted, fontSize = 14.sp, lineHeight = 20.sp, textAlign = TextAlign.Center)
+            Text(body, color = Muted, fontSize = GregalSize.body, lineHeight = 20.sp, textAlign = TextAlign.Center)
         }
         if (actionLabel != null && onAction != null) {
             Spacer(Modifier.height(22.dp))
@@ -262,10 +262,10 @@ fun ErrorBoard(
     ) {
         EmptyArt(Icons.Rounded.ErrorOutline, tint = Red)
         Spacer(Modifier.height(20.dp))
-        Text(title, color = Ink, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+        Text(title, color = Ink, fontSize = GregalSize.title, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
         if (body.isNotBlank() && body != title) {
             Spacer(Modifier.height(8.dp))
-            Text(body, color = Muted, fontSize = 14.sp, lineHeight = 20.sp, textAlign = TextAlign.Center)
+            Text(body, color = Muted, fontSize = GregalSize.body, lineHeight = 20.sp, textAlign = TextAlign.Center)
         }
         if (onRetry != null) {
             Spacer(Modifier.height(22.dp))
@@ -294,7 +294,7 @@ fun ChoicePills(options: List<Pair<String, String>>, selected: String, onSelect:
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    label, fontSize = 14.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium,
+                    label, fontSize = GregalSize.body, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium,
                     color = if (on) OnSea else Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }

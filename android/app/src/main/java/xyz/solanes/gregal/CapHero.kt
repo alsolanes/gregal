@@ -100,16 +100,16 @@ fun VentetProfile(vm: GregalViewModel, lang: String, onClose: () -> Unit) {
         ) {
             CapCreature(st, mood, asleep, bursts, onTap = { vm.capPlay("pet"); burst("💛") }, onLongTap = { renaming = true })
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(st.name, color = Ink, fontWeight = FontWeight.Bold, fontSize = 22.sp,
+                Text(st.name, color = Ink, fontWeight = FontWeight.Bold, fontSize = GregalSize.title,
                     modifier = Modifier.combinedClickable(onClick = { renaming = true }, onLongClick = { renaming = true }))
                 Surface(color = accent.copy(alpha = .35f), shape = RoundedCornerShape(10.dp)) {
-                    Text(tr(lang, "app.cap.level", pet.level), color = Ink, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                    Text(tr(lang, "app.cap.level", pet.level), color = Ink, fontSize = GregalSize.caption, fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
                 }
             }
-            Text(tr(lang, "app.cap.role"), color = Muted, fontSize = 14.sp)
+            Text(tr(lang, "app.cap.role"), color = Muted, fontSize = GregalSize.body)
             Surface(color = SuperficieAlta.copy(alpha = .6f), shape = RoundedCornerShape(18.dp)) {
-                Text(says, color = Tinta, fontSize = 15.sp, lineHeight = 21.sp,
+                Text(says, color = Tinta, fontSize = GregalSize.body, lineHeight = 21.sp,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp).testTag("cap-says"))
             }
             CapStats(lang, pet, accent)
@@ -187,7 +187,7 @@ internal fun CapCreature(st: CapState, mood: WindMood, asleep: Boolean, bursts: 
         if (asleep) {
             // Mida i posició a la capa gràfica: canviar fontSize/offset a cada
             // fotograma recomponia (i tornava a mesurar) el cap mentre dorm.
-            Text("z", fontSize = 11.sp, color = Muted, fontWeight = FontWeight.Bold,
+            Text("z", fontSize = GregalSize.label, color = Muted, fontWeight = FontWeight.Bold,
                 modifier = Modifier.align(Alignment.TopEnd)
                     .graphicsLayer {
                         val k = 1f + 6f / 11f * zz
@@ -205,7 +205,7 @@ internal fun CapCreature(st: CapState, mood: WindMood, asleep: Boolean, bursts: 
                     p.animateTo(1f, tween(1100))
                     bursts.remove(b)
                 }
-                if (p.value > 0f) Text(b.emoji, fontSize = 16.sp,
+                if (p.value > 0f) Text(b.emoji, fontSize = GregalSize.large,
                     modifier = Modifier.align(Alignment.Center)
                         .offset(x = (b.dx * (0.4f + p.value)).dp, y = (-20 - 60 * p.value).dp)
                         .graphicsLayer { alpha = 1f - p.value; scaleX = 0.7f + p.value * .6f; scaleY = scaleX })
@@ -229,7 +229,7 @@ internal fun CapStats(lang: String, pet: CapPet, accent: Color) {
 private fun CapBar(icon: String, value: Int, accent: Color, label: String, modifier: Modifier) {
     Row(modifier.semantics { contentDescription = "$label $value%" }, verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-        Text(icon, fontSize = 11.sp)
+        Text(icon, fontSize = GregalSize.label)
         Box(Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)).background(SuperficieAlta)) {
             Box(Modifier.fillMaxHeight().fillMaxWidth(value.coerceIn(0, 100) / 100f).clip(RoundedCornerShape(3.dp))
                 .background(if (value < 30) Red else accent))
@@ -272,8 +272,8 @@ private fun CapChip(icon: String, label: String, highlight: Boolean = false, ena
         color = if (highlight) SeaSoft(.25f) else Superficie.copy(alpha = .7f)) {
         Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(icon, fontSize = 13.sp)
-            Text(label, color = if (enabled) Ink else Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(icon, fontSize = GregalSize.small)
+            Text(label, color = if (enabled) Ink else Muted, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -302,7 +302,7 @@ internal fun CapDecisionRow(vm: GregalViewModel, lang: String, p: GregalViewMode
             d.create.forEach { n ->
                 Box {
                     WindFace(size = 30, accent = Color(n.argb), style = windStyleOf(n.style))
-                    Text("✨", fontSize = 10.sp, modifier = Modifier.align(Alignment.TopEnd))
+                    Text("✨", fontSize = GregalSize.label, modifier = Modifier.align(Alignment.TopEnd))
                 }
             }
             val names = who.map { it.name } + d.create.map { it.name }
@@ -312,13 +312,13 @@ internal fun CapDecisionRow(vm: GregalViewModel, lang: String, p: GregalViewMode
                     "rotllana" -> tr(lang, "app.cap.toGroup", capRotllanaName(names, lang))
                     else -> tr(lang, "app.cap.toWind", names.firstOrNull().orEmpty())
                 },
-                color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f),
+                color = Ink, fontSize = GregalSize.small, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f),
                 maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
         }
         if (d.create.isNotEmpty()) {
             Text(tr(lang, "app.cap.newSpecialists", d.create.joinToString(", ") { it.name + " (" + it.role + ")" }),
-                color = Muted, fontSize = 12.sp, lineHeight = 16.sp)
+                color = Muted, fontSize = GregalSize.caption, lineHeight = 16.sp)
         }
         val learners = d.novices.mapNotNull { id -> winds.firstOrNull { it.id == id }?.name } + d.create.map { it.name }
         if (learners.isNotEmpty()) {
@@ -329,8 +329,8 @@ internal fun CapDecisionRow(vm: GregalViewModel, lang: String, p: GregalViewMode
                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Checkbox(checked = course, onCheckedChange = { vm.capToggleCourse() }, modifier = Modifier.size(20.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(tr(lang, "app.cap.course", capRotllanaName(learners, lang)), color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        Text(tr(lang, "app.cap.courseHelp"), color = Muted, fontSize = 11.sp, lineHeight = 14.sp)
+                        Text(tr(lang, "app.cap.course", capRotllanaName(learners, lang)), color = Ink, fontSize = GregalSize.small, fontWeight = FontWeight.SemiBold)
+                        Text(tr(lang, "app.cap.courseHelp"), color = Muted, fontSize = GregalSize.label, lineHeight = 14.sp)
                     }
                 }
             }

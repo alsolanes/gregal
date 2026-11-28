@@ -74,26 +74,26 @@ object TempestaModels {
 internal fun TempestaModelsSection(lang: String, chosen: Map<String, String>, models: Map<String, List<String>>, onPick: (slot: String, model: String) -> Unit) {
     val all = models.toSortedMap().flatMap { (provider, ids) -> ids.map { "$provider/$it" } }
     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(tr(lang, "app.tempesta.help"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+        Text(tr(lang, "app.tempesta.help"), color = Muted, fontSize = GregalSize.caption, lineHeight = 17.sp)
         TempestaModels.SLOTS.forEach { slot ->
             val current = chosen[slot].orEmpty()
             var open by remember { mutableStateOf(false) }
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(tr(lang, "app.tempesta.$slot"), color = Ink, fontSize = 15.sp)
-                    Text(tr(lang, "app.tempesta.${slot}Help"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+                    Text(tr(lang, "app.tempesta.$slot"), color = Ink, fontSize = GregalSize.body)
+                    Text(tr(lang, "app.tempesta.${slot}Help"), color = Muted, fontSize = GregalSize.caption, lineHeight = 17.sp)
                 }
                 Box {
                     OutlinedButton(onClick = { open = true }, modifier = Modifier.widthIn(max = 170.dp).testTag("tempesta-model-$slot")) {
-                        Text(current.ifBlank { tr(lang, "app.tempesta.auto") }, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(current.ifBlank { tr(lang, "app.tempesta.auto") }, fontSize = GregalSize.small, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     DropdownMenu(open, { open = false }) {
                         DropdownMenuItem(text = { Text(tr(lang, "app.tempesta.auto")) }, onClick = { open = false; onPick(slot, "") },
                             modifier = Modifier.testTag("tempesta-option-auto"))
                         // Un model triat que el proveïdor ja no llista segueix sortint: el servidor fa servir l'automàtic.
                         (if (current.isNotBlank() && current !in all) listOf(current) + all else all).forEach { m ->
-                            DropdownMenuItem(text = { Text(m, fontSize = 14.sp) }, onClick = { open = false; onPick(slot, m) })
+                            DropdownMenuItem(text = { Text(m, fontSize = GregalSize.body) }, onClick = { open = false; onPick(slot, m) })
                         }
                     }
                 }
@@ -121,21 +121,21 @@ internal fun TempestaPanel(lang: String, agents: List<TempestaAgent>) {
     Column(Modifier.padding(start = 48.dp, end = 16.dp, top = 2.dp, bottom = 8.dp).widthIn(max = 420.dp).clip(shape).background(Superficie)
         .border(1.dp, Line, shape).padding(horizontal = 12.dp, vertical = 10.dp).testTag("tempesta-panel"),
         verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(tempestaHeadline(lang, agents), color = Muted, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+        Text(tempestaHeadline(lang, agents), color = Muted, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold)
         agents.forEach { a ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 val dot = when (a.state) { "done" -> Green; "failed" -> Red; else -> Sea }
                 Box(Modifier.size(8.dp).alpha(if (a.state == "working" && motion) pulse else 1f).clip(CircleShape).background(dot))
-                Text(a.label(lang), color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                Text(a.model, color = Faint, fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Text(a.label(lang), color = Ink, fontSize = GregalSize.small, fontWeight = FontWeight.SemiBold)
+                Text(a.model, color = Faint, fontSize = GregalSize.label, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 Text(when (a.state) {
                     "done" -> "✓"
                     "failed" -> if (lang == "en") "failed" else "no ha pogut"
                     else -> if (lang == "en") "working" else "treballant"
-                }, color = if (a.state == "done") Green else Muted, fontSize = 12.sp)
+                }, color = if (a.state == "done") Green else Muted, fontSize = GregalSize.caption)
             }
             a.desc(lang).takeIf { it.isNotBlank() }?.let {
-                Text(it, color = Muted, fontSize = 12.sp, lineHeight = 16.sp,
+                Text(it, color = Muted, fontSize = GregalSize.caption, lineHeight = 16.sp,
                     modifier = Modifier.padding(start = 16.dp).offset(y = (-4).dp).testTag("tempesta-desc"))
             }
         }

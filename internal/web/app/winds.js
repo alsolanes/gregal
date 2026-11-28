@@ -406,10 +406,11 @@
   const num = value => +value.toFixed(2);
   // Avatar packs: the account's theme draws every wind with one pack, or 'free'
   // lets each wind use its own `avatar` (empty is Cares). The server keeps both.
-  const packs = ['cares', 'esperit', 'cap', 'rosa', 'mapa', 'minairo', 'pelut'];
-  let theme = 'cares';
-  function setAvatarTheme(value) { theme = value === 'free' || packs.includes(value) ? value : 'cares'; }
-  function avatarPack(w) { return theme !== 'free' ? theme : packs.includes(w.avatar) ? w.avatar : 'cares'; }
+  // 'folk' (Llegendes) is the default: felt minairons, dones d'aigua and tions.
+  const packs = ['folk', 'cares', 'esperit', 'cap', 'rosa', 'mapa', 'minairo', 'pelut'];
+  let theme = 'folk';
+  function setAvatarTheme(value) { theme = value === 'free' || packs.includes(value) ? value : 'folk'; }
+  function avatarPack(w) { return theme !== 'free' ? theme : packs.includes(w.avatar) ? w.avatar : 'folk'; }
   // Compass bearing (0 = N) a wind blows from: the eight Catalan winds by name,
   // case and accents aside; any other wind one of the eight from its id.
   // Android's WindFace mirrors both: h = h * 31 + each UTF-16 unit, unsigned 32
@@ -690,6 +691,26 @@
     return barretines.map((_, i) => barretines[(start + i) % barretines.length][1]).find(c => gap(c) >= 30);
   }
   // Minairó (squircle net estil modern + mitologia catalana divertida: clàssic, Tió, Dama d'Aigua i Follet/Drac).
+  // Llegendes: each wind is one of three felt characters (tools/characters/felt.py),
+  // picked from its id so Android draws the same one (WindFace.kt folkCharacter).
+  // The body is a still render; the wind's colour is multiplied over its mask (the
+  // minairó's body, the dona d'aigua's hair, the tió's blanket); the eyes are their
+  // own layer, which blinks and glances (winds.css). No poses, no props: calm.
+  const folkCast = ['minairo', 'dona', 'tio'];
+  const folkCharacter = w => folkCast[idHash(w) % folkCast.length];
+  function folk(svg, w, fill) {
+    const who = folkCharacter(w), id = 'wf' + (++faceSerial), base = '/app/characters/folk/' + who;
+    svg.setAttribute('data-avatar', 'folk'); svg.setAttribute('data-folk', who);
+    const box = { x:0, y:0, width:80, height:80 };
+    const mask = svgNode('mask', { id:id + 'm', maskUnits:'userSpaceOnUse', ...box });
+    mask.append(svgNode('image', { href:base + '.mask.webp', ...box }));
+    const defs = svgNode('defs', {}); defs.append(mask); svg.append(defs);
+    const figure = group(svg, 'wf-folk');
+    figure.append(svgNode('image', { href:base + '.webp', ...box }));
+    figure.append(svgNode('rect', { class:'wf-folk-tint', ...box, fill, mask:'url(#' + id + 'm)' }));
+    group(figure, 'wf-folk-gaze').append(svgNode('image', { class:'wf-folk-eyes', href:base + '.eyes.webp', ...box }));
+    return svg;
+  }
   function minairo(svg, w, s, fill, ink, large, small, seed) {
     const full = !!large, id = 'wf' + (++faceSerial), defs = svgNode('defs', {}), url = suffix => 'url(#' + id + suffix + ')', space = { gradientUnits:'userSpaceOnUse' };
     const variant = seed % 4; // 0: Minairó, 1: Tió, 2: Dama d'Aigua, 3: Follet/Drac
@@ -868,6 +889,7 @@
     svg.style.setProperty('--wf-look', [-3.5, -2.5, 3, 3.5, -3, 2.5][seed % 6] + 'px');
     faceKeys.set(svg, key); faceTones.set(svg, tone);
     const pack = avatarPack(w);
+    if (pack === 'folk') return setMood(folk(svg, w, fill), mood, key);
     if (pack === 'esperit') return setMood(esperit(svg, w, fill, ink, large === true, size < 28), mood, key);
     if (pack === 'cap') return setMood(cap(svg, w, fill, ink, size < 28, large === true), mood, key);
     if (pack === 'rosa') return setMood(rosa(svg, w, fill, size < 28, large === true), mood, key);
@@ -968,7 +990,7 @@
     {name:'Migjorn', color:'#9ED3C5', style:'bss', role:'natura i escapades', persona:'Ets alegre i observador. T’agrada la natura i proposes descobertes adaptades al que l’usuari explica.'}
   ];
   // Packs by name; the first ones are the packs a wind can pick in Free mode.
-  const themeChoices = () => [['cares', tr('winds.avatarCares', 'Cares')], ['esperit', tr('winds.avatarEsperit', 'Esperit de vent')], ['cap', tr('winds.avatarCap', 'Cap de vent')], ['rosa', tr('winds.avatarRosa', 'Rosa de rellotge')], ['mapa', tr('winds.avatarMapa', 'Mapa de vent')], ['minairo', tr('winds.avatarMinairo', 'Minairons')], ['pelut', tr('winds.avatarPelut', 'Pelut')], ['free', tr('winds.avatarFree', 'Lliure')]];
+  const themeChoices = () => [['folk', tr('winds.avatarFolk', 'Llegendes')], ['cares', tr('winds.avatarCares', 'Cares')], ['esperit', tr('winds.avatarEsperit', 'Esperit de vent')], ['cap', tr('winds.avatarCap', 'Cap de vent')], ['rosa', tr('winds.avatarRosa', 'Rosa de rellotge')], ['mapa', tr('winds.avatarMapa', 'Mapa de vent')], ['minairo', tr('winds.avatarMinairo', 'Minairons')], ['pelut', tr('winds.avatarPelut', 'Pelut')], ['free', tr('winds.avatarFree', 'Lliure')]];
   // The editor offers a pack only in Free mode; with a theme it names the pack
   // that draws every wind, and saving leaves the wind's own choice untouched.
   function avatarField(parent, w) {
@@ -998,7 +1020,7 @@
       pick(packs[(packs.indexOf(group.value) + step + packs.length) % packs.length], true);
     });
     group.append(...radios); wrap.append(title, group); parent.append(wrap);
-    pick(packs.includes(w?.avatar) ? w.avatar : 'cares');
+    pick(packs.includes(w?.avatar) ? w.avatar : 'folk');
     return group;
   }
   // The Vents workspace editors' barretina picker; empty is the automatic colour.

@@ -170,7 +170,7 @@ internal fun EditReminderDialog(vm: GregalViewModel, lang: String, a: WindAutoma
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(text, { text = it }, label = { Text(trB8(lang, "b8.text")) }, minLines = 2, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(at, { at = it }, label = { Text(trB8(lang, "b8.when")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Text(trB8(lang, "b8.whenHelp", ZoneId.systemDefault().id), color = Muted, fontSize = 12.sp)
+                Text(trB8(lang, "b8.whenHelp", ZoneId.systemDefault().id), color = Muted, fontSize = GregalSize.caption)
             }
         },
         confirmButton = {
@@ -203,7 +203,7 @@ internal fun EditRoutineDialog(vm: GregalViewModel, lang: String, a: WindAutomat
                 OutlinedTextField(howto, { howto = it }, label = { Text(trB8(lang, "b8.howto")) }, minLines = 3, modifier = Modifier.fillMaxWidth())
                 if (a.refs > 0) Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(clearRefs, { clearRefs = it })
-                    Text(trB8(lang, "b8.refsClear") + " (" + a.refs + ")", fontSize = 13.sp)
+                    Text(trB8(lang, "b8.refsClear") + " (" + a.refs + ")", fontSize = GregalSize.small)
                 }
             }
         },
@@ -233,11 +233,11 @@ internal fun TeachRoutineDialog(vm: GregalViewModel, lang: String, a: WindAutoma
         title = { Text(trB8(lang, "b8.teachTitle")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(trB8(lang, "b8.teachHelp"), color = Muted, fontSize = 13.sp)
+                Text(trB8(lang, "b8.teachHelp"), color = Muted, fontSize = GregalSize.small)
                 OutlinedTextField(instruction, { instruction = it }, label = { Text(trB8(lang, "b8.instruction")) }, minLines = 2, modifier = Modifier.fillMaxWidth())
                 if (a.lastStatus == "ok") Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(useLast, { useLast = it })
-                    Text(trB8(lang, "b8.useLast"), fontSize = 13.sp)
+                    Text(trB8(lang, "b8.useLast"), fontSize = GregalSize.small)
                 }
             }
         },
@@ -258,8 +258,8 @@ internal fun AutomationB8Actions(vm: GregalViewModel, lang: String, a: WindAutom
     val isReminder = a.kind == "reminder" || a.kind == "task" || a.kind == "followup"
     val isRoutine = a.kind == "routine"
     if (!isReminder && !isRoutine) return
-    if (isRoutine && a.howto.isNotBlank()) Text(trB8(lang, "b8.howtoShown", a.howto.lines().map { it.trim().removePrefix("- ").trim() }.filter { it.isNotBlank() }.joinToString(" · ")), color = Tinta, fontSize = 13.sp, lineHeight = 18.sp)
-    if (isRoutine && a.refs > 0) Text(trB8(lang, "b8.refs", a.refs.toString()), color = Muted, fontSize = 12.sp)
+    if (isRoutine && a.howto.isNotBlank()) Text(trB8(lang, "b8.howtoShown", a.howto.lines().map { it.trim().removePrefix("- ").trim() }.filter { it.isNotBlank() }.joinToString(" · ")), color = Tinta, fontSize = GregalSize.small, lineHeight = 18.sp)
+    if (isRoutine && a.refs > 0) Text(trB8(lang, "b8.refs", a.refs.toString()), color = Muted, fontSize = GregalSize.caption)
     Row(Modifier.horizontalScrollCompat(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         AssistChip(onClick = { dialog = "edit" }, label = { Text(trB8(lang, "b8.edit")) })
         if (isReminder) {

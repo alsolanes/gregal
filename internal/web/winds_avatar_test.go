@@ -45,11 +45,11 @@ func setAvatarTheme(t *testing.T, s *Server, theme string) int {
 	return postJSON(t, s.handleWindsAvatarTheme, `{"theme":"`+theme+`"}`).Code
 }
 
-// Sense triar res, les cares de sempre; el tema es desa i un pack que no
+// Sense triar res, les Llegendes de feltre (folk); el tema es desa i un pack que no
 // existeix no.
-func TestAvatarThemeDefaultsToCaresAndRejectsUnknownPacks(t *testing.T) {
+func TestAvatarThemeDefaultsToFolkAndRejectsUnknownPacks(t *testing.T) {
 	s := rutinaTestServer(t)
-	if got := getWinds(t, s).AvatarTheme; got != "cares" {
+	if got := getWinds(t, s).AvatarTheme; got != "folk" {
 		t.Fatalf("tema per defecte: %q", got)
 	}
 	for _, theme := range []string{"esperit", "free", "cares"} {
@@ -117,7 +117,7 @@ func TestAvatarThemeIsPerAccount(t *testing.T) {
 	if code := setAvatarTheme(t, anna, "esperit"); code != 200 {
 		t.Fatalf("anna: %d", code)
 	}
-	if got := getWinds(t, bert).AvatarTheme; got != "cares" {
+	if got := getWinds(t, bert).AvatarTheme; got != "folk" {
 		t.Fatalf("en Bert veu el tema de l'Anna: %q", got)
 	}
 	if got := getWinds(t, anna).AvatarTheme; got != "esperit" {
@@ -178,8 +178,8 @@ func TestMinairoIsThePackOfMinairons(t *testing.T) {
 		t.Fatalf("avatar minairo: %d %s", rec.Code, rec.Body.String())
 	}
 	setCollective(t, s, "fullet", "fullets")
-	if got := getWinds(t, s).AvatarTheme; got != "cares" {
-		t.Fatalf("amb fullets, les cares de sempre: %q", got)
+	if got := getWinds(t, s).AvatarTheme; got != "folk" {
+		t.Fatalf("amb fullets, les Llegendes per defecte: %q", got)
 	}
 	setCollective(t, s, "minairó", "minairons")
 	if got := getWinds(t, s).AvatarTheme; got != "minairo" {

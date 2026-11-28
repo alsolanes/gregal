@@ -14,7 +14,6 @@ const FILES = {
   lock: 'desktop/package-lock.json',
   changelog: 'CHANGELOG.md',
   android: 'android/app/build.gradle.kts',
-  vscode: 'vscode-gregal/package.json',
 };
 
 function mainVersion(src) {

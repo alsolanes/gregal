@@ -250,12 +250,12 @@ internal fun CardActions(actions: List<CardAction>, link: Color) {
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Sea)
             .clickable(role = Role.Button) { say(main.prompt) }.heightIn(min = 56.dp).padding(horizontal = 22.dp).testTag("card-cta"),
             verticalAlignment = Alignment.CenterVertically) {
-            Text(main.label, color = OnSea, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            Text(main.label, color = OnSea, fontSize = GregalSize.large, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = SendFg, modifier = Modifier.size(26.dp))
         }
-        if (main.note.isNotEmpty()) Text(main.note, color = Muted, fontSize = 12.sp, modifier = Modifier.fillMaxWidth().padding(start = 4.dp))
+        if (main.note.isNotEmpty()) Text(main.note, color = Muted, fontSize = GregalSize.caption, modifier = Modifier.fillMaxWidth().padding(start = 4.dp))
         actions.getOrNull(1)?.let { alt ->
-            Text(alt.label, color = link, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+            Text(alt.label, color = link, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button) { say(alt.prompt) }
                     .padding(horizontal = 10.dp, vertical = 8.dp).testTag("card-alt"))
         }
@@ -291,13 +291,13 @@ internal fun ResultHero(url: String, alt: String, lang: String) = CardHero(url, 
 
 @Composable
 internal fun CardTitle(text: String) =
-    Text(text, color = Ink, fontSize = 21.sp, lineHeight = 25.sp, fontWeight = FontWeight.Bold)
+    Text(text, color = Ink, fontSize = GregalSize.title, lineHeight = 25.sp, fontWeight = FontWeight.Bold)
 
 @Composable
 private fun SubHead(text: String, end: @Composable () -> Unit = {}) {
     HorizontalDivider(color = Line)
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(text, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        Text(text, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
         end()
     }
 }
@@ -308,7 +308,7 @@ private fun Tick(on: Boolean, link: Color, modifier: Modifier = Modifier) {
         .background(if (on) link else Color.Transparent)
         .border(1.5.dp, if (on) link else Line, RoundedCornerShape(6.dp)),
         contentAlignment = Alignment.Center) {
-        if (on) Text("✓", color = Superficie, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        if (on) Text("✓", color = Superficie, fontSize = GregalSize.small, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -322,7 +322,7 @@ private fun RecipeCard(spec: RecipeSpec, link: Color, lang: String) {
             spec.level.takeIf { it.isNotEmpty() }?.let { "👩‍🍳 $it" },
             if (spec.servings > 0) "🍽 " + tr(lang, "app.card.serves").replace("{n}", serves.toString()) else null,
         )
-        if (meta.isNotEmpty()) Text(meta.joinToString("   "), color = Muted, fontSize = 13.sp)
+        if (meta.isNotEmpty()) Text(meta.joinToString("   "), color = Muted, fontSize = GregalSize.small)
         if (spec.ingredients.isNotEmpty()) {
             SubHead(tr(lang, "app.card.ingredients")) {
                 if (spec.servings > 0) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -340,9 +340,9 @@ private fun RecipeCard(spec: RecipeSpec, link: Color, lang: String) {
                         .heightIn(min = 44.dp).padding(vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Tick(on, link)
-                        Text(ing.name, color = if (on) Muted else Ink, fontSize = 14.sp,
+                        Text(ing.name, color = if (on) Muted else Ink, fontSize = GregalSize.body,
                             textDecoration = if (on) TextDecoration.LineThrough else null, modifier = Modifier.weight(1f))
-                        if (ing.qty.isNotEmpty()) Text(scaleQty(ing.qty, spec.servings, serves), color = Muted, fontSize = 14.sp,
+                        if (ing.qty.isNotEmpty()) Text(scaleQty(ing.qty, spec.servings, serves), color = Muted, fontSize = GregalSize.body,
                             modifier = Modifier.testTag("recipe-qty"))
                     }
                 }
@@ -354,10 +354,10 @@ private fun RecipeCard(spec: RecipeSpec, link: Color, lang: String) {
                 spec.steps.forEachIndexed { i, st ->
                     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Box(Modifier.size(28.dp).clip(CircleShape).background(LocalPal.current.surfaceHi), contentAlignment = Alignment.Center) {
-                            Text((i + 1).toString(), color = link, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text((i + 1).toString(), color = link, fontSize = GregalSize.small, fontWeight = FontWeight.Bold)
                         }
-                        Text(st.text, color = Ink, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.weight(1f).padding(top = 3.dp))
-                        if (st.minutes > 0) Text("${st.minutes} min ⏱", color = link, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        Text(st.text, color = Ink, fontSize = GregalSize.body, lineHeight = 20.sp, modifier = Modifier.weight(1f).padding(top = 3.dp))
+                        if (st.minutes > 0) Text("${st.minutes} min ⏱", color = link, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.clip(RoundedCornerShape(50)).background(LocalPal.current.surfaceHi).padding(horizontal = 9.dp, vertical = 3.dp))
                     }
                 }
@@ -373,7 +373,7 @@ private fun StepButton(label: String, link: Color, description: String, onClick:
     Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(LocalPal.current.surfaceHi)
         .clickable(role = Role.Button, onClick = onClick).semantics { contentDescription = description },
         contentAlignment = Alignment.Center) {
-        Text(label, color = link, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text(label, color = link, fontSize = GregalSize.large, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -381,7 +381,7 @@ private fun StepButton(label: String, link: Color, description: String, onClick:
 private fun Tip(text: String, link: Color) {
     Row(Modifier.height(IntrinsicSize.Min)) {
         Box(Modifier.width(3.dp).fillMaxHeight().background(link))
-        Text(renderSegs(parseInline(text), CodeDark, link = link).text, color = Ink, fontSize = 14.sp, fontStyle = FontStyle.Italic,
+        Text(renderSegs(parseInline(text), CodeDark, link = link).text, color = Ink, fontSize = GregalSize.body, fontStyle = FontStyle.Italic,
             modifier = Modifier.padding(start = 12.dp))
     }
 }
@@ -398,7 +398,7 @@ internal fun Sources(sources: List<Pair<String, String>>, lang: String, end: @Co
                     .then(if (url.isNotEmpty()) Modifier.clickable(role = Role.Button) { uri.openUri(url) } else Modifier))
             }
         }
-        if (sources.isNotEmpty()) Text("  " + resultFootText(lang, resultSourceNames(sources).size, 0L), color = Muted, fontSize = 12.sp)
+        if (sources.isNotEmpty()) Text("  " + resultFootText(lang, resultSourceNames(sources).size, 0L), color = Muted, fontSize = GregalSize.caption)
         Spacer(Modifier.weight(1f))
         end()
     }
@@ -412,21 +412,21 @@ private fun PlanCard(spec: PlanSpec, link: Color, lang: String) {
     val show = if (open) spec.items else spec.items.take(4)
     val hidden = spec.items.size > 4 || spec.items.any { it.detail.isNotEmpty() }
     CardFrame("gregal-plan", spec.image, spec.title, lang) {
-        if (spec.kicker.isNotEmpty()) Text(spec.kicker.uppercase(), color = link, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
+        if (spec.kicker.isNotEmpty()) Text(spec.kicker.uppercase(), color = link, fontSize = GregalSize.label, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
         CardTitle(spec.title)
-        if (spec.subtitle.isNotEmpty()) Text(spec.subtitle, color = Muted, fontSize = 13.sp)
+        if (spec.subtitle.isNotEmpty()) Text(spec.subtitle, color = Muted, fontSize = GregalSize.small)
         Column {
             show.forEachIndexed { i, it ->
                 if (i > 0) HorizontalDivider(color = Line)
                 Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     // Neutra amb l'hora en llima (barrejar la llima amb el fons feia oliva).
-                    if (it.time.isNotEmpty()) Text(it.time, color = link, fontWeight = FontWeight.Bold, fontSize = 15.sp,
+                    if (it.time.isNotEmpty()) Text(it.time, color = link, fontWeight = FontWeight.Bold, fontSize = GregalSize.body,
                         modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(LocalPal.current.surfaceHi).widthIn(min = 62.dp)
                             .padding(horizontal = 10.dp, vertical = 3.dp).testTag("plan-time"),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     Column(Modifier.weight(1f).padding(top = 2.dp)) {
-                        Text(it.title, color = Ink, fontSize = 16.sp, maxLines = if (open) 3 else 1, overflow = TextOverflow.Ellipsis)
-                        if (open && it.detail.isNotEmpty()) Text(it.detail, color = Muted, fontSize = 13.sp)
+                        Text(it.title, color = Ink, fontSize = GregalSize.large, maxLines = if (open) 3 else 1, overflow = TextOverflow.Ellipsis)
+                        if (open && it.detail.isNotEmpty()) Text(it.detail, color = Muted, fontSize = GregalSize.small)
                     }
                 }
             }
@@ -437,12 +437,12 @@ private fun PlanCard(spec: PlanSpec, link: Color, lang: String) {
                 val label = spec.totalLabel.ifEmpty { tr(lang, "app.card.total") }
                 append("$label · ")
                 pushStyle(androidx.compose.ui.text.SpanStyle(color = Ink, fontWeight = FontWeight.Bold)); append(spec.totalValue); pop()
-            }, color = Muted, fontSize = 15.sp)
+            }, color = Muted, fontSize = GregalSize.body)
         }
         if (spec.sources.isNotEmpty() || hidden) Sources(spec.sources, lang) {
             if (hidden) Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button) { open = !open }
                 .padding(horizontal = 6.dp, vertical = 4.dp).testTag("plan-details"), verticalAlignment = Alignment.CenterVertically) {
-                Text(tr(lang, if (open) "app.card.less_details" else "app.card.details"), color = link, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text(tr(lang, if (open) "app.card.less_details" else "app.card.details"), color = link, fontSize = GregalSize.small, fontWeight = FontWeight.SemiBold)
                 Icon(Icons.Rounded.NorthEast, null, tint = link, modifier = Modifier.size(15.dp))
             }
         }
@@ -467,12 +467,12 @@ private fun RouteCard(spec: RouteSpec, link: Color, lang: String) {
     Column(Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(cardShape).background(Superficie).border(1.dp, Line, cardShape).testTag("gregal-route")) {
         if (spec.image.isNotEmpty()) CardHero(spec.image, spec.title, lang)
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text((spec.from + "  →  " + spec.to).uppercase(), color = link, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
+            Text((spec.from + "  →  " + spec.to).uppercase(), color = link, fontSize = GregalSize.label, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
             if (spec.title.isNotEmpty()) CardTitle(spec.title)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column {
                     Text(spec.depart, color = Ink, fontSize = 32.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold)
-                    Text(spec.fromStop, color = Muted, fontSize = 13.sp)
+                    Text(spec.fromStop, color = Muted, fontSize = GregalSize.small)
                 }
                 Row(Modifier.weight(1f).padding(bottom = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(Modifier.weight(1f).height(1.5.dp).background(Line))
@@ -482,18 +482,18 @@ private fun RouteCard(spec: RouteSpec, link: Color, lang: String) {
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text(spec.arrive, color = Ink, fontSize = 32.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold)
-                    Text(spec.toStop, color = Muted, fontSize = 13.sp)
+                    Text(spec.toStop, color = Muted, fontSize = GregalSize.small)
                 }
             }
             val meta = listOf(spec.service, spec.duration).filter { it.isNotEmpty() }.joinToString(" · ")
             if (meta.isNotEmpty() || spec.badge.isNotEmpty() || spec.price.isNotEmpty()) {
                 HorizontalDivider(color = Line)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (meta.isNotEmpty()) Text(meta, color = Muted, fontSize = 14.sp)
-                    if (spec.badge.isNotEmpty()) Text(spec.badge, color = Color(0xFF10202A), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                    if (meta.isNotEmpty()) Text(meta, color = Muted, fontSize = GregalSize.body)
+                    if (spec.badge.isNotEmpty()) Text(spec.badge, color = Color(0xFF10202A), fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold, maxLines = 1,
                         modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Lime).padding(horizontal = 9.dp, vertical = 3.dp))
                     Spacer(Modifier.weight(1f))
-                    if (spec.price.isNotEmpty()) Text(spec.price, color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    if (spec.price.isNotEmpty()) Text(spec.price, color = Ink, fontSize = GregalSize.title, fontWeight = FontWeight.Bold, maxLines = 1)
                 }
             }
         }
@@ -502,9 +502,9 @@ private fun RouteCard(spec: RouteSpec, link: Color, lang: String) {
                 HorizontalDivider(color = Line)
                 Row(Modifier.fillMaxWidth().then(if (a.url.isNotEmpty()) Modifier.clickable(role = Role.Button) { uri.openUri(a.url) } else Modifier)
                     .heightIn(min = 44.dp).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(listOf(a.time, a.service).filter { it.isNotEmpty() }.joinToString(" · "), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    Text(a.price, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                    if (a.url.isNotEmpty()) Text("  ›", color = Muted, fontSize = 18.sp)
+                    Text(listOf(a.time, a.service).filter { it.isNotEmpty() }.joinToString(" · "), color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text(a.price, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
+                    if (a.url.isNotEmpty()) Text("  ›", color = Muted, fontSize = GregalSize.large)
                 }
             }
         }
@@ -548,7 +548,7 @@ private fun ListBlock(items: List<Seg.Item>, link: Color) {
             Row(Modifier.fillMaxWidth().padding(start = (item.level * 20).dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (item.marker.isNotEmpty()) {
                     Box(Modifier.padding(top = 1.dp).size(22.dp).clip(CircleShape).background(pal.ink.copy(alpha = if (pal.dark) .10f else .07f)), contentAlignment = Alignment.Center) {
-                        Text(item.marker.trimEnd('.'), color = link, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text(item.marker.trimEnd('.'), color = link, fontSize = GregalSize.caption, fontWeight = FontWeight.Bold, maxLines = 1)
                     }
                 } else {
                     Box(Modifier.width(22.dp).height(23.dp), contentAlignment = Alignment.Center) {

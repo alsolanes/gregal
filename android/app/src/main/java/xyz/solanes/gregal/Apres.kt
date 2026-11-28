@@ -80,13 +80,13 @@ internal fun MemoryNotice(lang: String, facts: List<String>, onForget: () -> Uni
             .border(1.dp, Line, RoundedCornerShape(12.dp)).padding(start = 12.dp).testTag("memory-notice"),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text("📝", fontSize = 15.sp)
+        Text("📝", fontSize = GregalSize.body)
         Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
-            Text(apresCopy(lang, "remember"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-            Text(if (forgot) apresCopy(lang, "forgotten") else facts.joinToString(" · "), color = Muted, fontSize = 13.sp)
+            Text(apresCopy(lang, "remember"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.caption)
+            Text(if (forgot) apresCopy(lang, "forgotten") else facts.joinToString(" · "), color = Muted, fontSize = GregalSize.small)
         }
         if (!forgot) TextButton(onClick = { forgot = true; onForget() }, modifier = Modifier.testTag("memory-forget")) {
-            Text(apresCopy(lang, "forget"), color = Ink, fontSize = 13.sp)
+            Text(apresCopy(lang, "forget"), color = Ink, fontSize = GregalSize.small)
         }
     }
 }
@@ -106,18 +106,18 @@ internal fun ApresDialog(conn: Conn, lang: String, onDismiss: () -> Unit) {
         Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxWidth().fillMaxHeight(0.9f).padding(top = 16.dp).testTag("apres-dialog")) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(apresCopy(lang, "title"), color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.weight(1f))
-                    IconButton(onClick = onDismiss, modifier = Modifier.semantics { contentDescription = if (lang == "en") "Close" else "Tanca" }) { Text("✕", color = Muted, fontSize = 16.sp) }
+                    Text(apresCopy(lang, "title"), color = Ink, fontWeight = FontWeight.Bold, fontSize = GregalSize.large, modifier = Modifier.weight(1f))
+                    IconButton(onClick = onDismiss, modifier = Modifier.semantics { contentDescription = if (lang == "en") "Close" else "Tanca" }) { Text("✕", color = Muted, fontSize = GregalSize.large) }
                 }
                 Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(apresCopy(lang, "help"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(horizontal = 4.dp))
+                    Text(apresCopy(lang, "help"), color = Muted, fontSize = GregalSize.small, lineHeight = 18.sp, modifier = Modifier.padding(horizontal = 4.dp))
                     val g = groups
                     when {
                         g != null -> ApresContent(lang, g) { wind, fact ->
                             groups = g.map { if (it.wind == wind) it.copy(notes = it.notes - fact) else it }.filter { it.notes.isNotEmpty() }
                             scope.launch { runCatching { withContext(Dispatchers.IO) { conn.api().forgetApres(wind, listOf(fact)) } } }
                         }
-                        error -> Text(apresCopy(lang, "error"), color = Muted, fontSize = 14.sp)
+                        error -> Text(apresCopy(lang, "error"), color = Muted, fontSize = GregalSize.body)
                         else -> CircularProgressIndicator(Modifier.size(24.dp))
                     }
                 }
@@ -129,21 +129,21 @@ internal fun ApresDialog(conn: Conn, lang: String, onDismiss: () -> Unit) {
 /** Els grups (personal i per vent), amb ✕ per oblidar. Pura (ApresTest). */
 @Composable
 internal fun ApresContent(lang: String, groups: List<ApresGroup>, onForget: (wind: String, fact: String) -> Unit) {
-    if (groups.isEmpty()) { Text(apresCopy(lang, "empty"), color = Muted, fontSize = 14.sp); return }
+    if (groups.isEmpty()) { Text(apresCopy(lang, "empty"), color = Muted, fontSize = GregalSize.body); return }
     for (g in groups) {
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(SuperficieAlta).border(1.dp, Line, RoundedCornerShape(14.dp)).padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(if (g.wind.isEmpty()) apresCopy(lang, "personal") else g.name, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-            Text(if (g.wind.isEmpty()) apresCopy(lang, "personalSub") else apresCopy(lang, "windSub", g.name), color = Muted, fontSize = 12.sp)
+            Text(if (g.wind.isEmpty()) apresCopy(lang, "personal") else g.name, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body)
+            Text(if (g.wind.isEmpty()) apresCopy(lang, "personalSub") else apresCopy(lang, "windSub", g.name), color = Muted, fontSize = GregalSize.caption)
             g.notes.forEachIndexed { i, n ->
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Ink.copy(alpha = 0.05f)).padding(start = 12.dp),
                     verticalAlignment = Alignment.CenterVertically) {
-                    Text(n, color = Ink, fontSize = 14.sp, modifier = Modifier.weight(1f).padding(vertical = 8.dp))
+                    Text(n, color = Ink, fontSize = GregalSize.body, modifier = Modifier.weight(1f).padding(vertical = 8.dp))
                     Box(Modifier.size(48.dp).semantics { role = Role.Button; contentDescription = apresCopy(lang, "forget") + ": " + n }
                         .clickable { onForget(g.wind, n) }.testTag("apres-x-${g.wind}-$i"), contentAlignment = Alignment.Center) {
-                        Text("✕", color = Muted, fontSize = 14.sp)
+                        Text("✕", color = Muted, fontSize = GregalSize.body)
                     }
                 }
             }

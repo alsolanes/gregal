@@ -126,7 +126,7 @@ fun ViewerItemsFrom(texts: List<String>) {
 /** Botó petit per obrir en gran (sobre una targeta). */
 @Composable
 internal fun ExpandChip(lang: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Text(if (lang == "en") "⤢ Expand" else "⤢ Amplia", color = Muted, fontSize = 12.sp,
+    Text(if (lang == "en") "⤢ Expand" else "⤢ Amplia", color = Muted, fontSize = GregalSize.caption,
         modifier = modifier.clip(RoundedCornerShape(50)).clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 4.dp).testTag("viewer-expand"))
 }
@@ -151,9 +151,9 @@ fun ViewerOverlay(lang: String) {
                         Icon(Icons.Rounded.Close, contentDescription = if (lang == "en") "Close" else "Tanca", tint = Ink)
                     }
                     Column(Modifier.weight(1f)) {
-                        Text(ViewerLogic.title(item, lang), color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                        Text(ViewerLogic.title(item, lang), color = Ink, fontSize = GregalSize.large, fontWeight = FontWeight.SemiBold,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        if (items.size > 1) Text("${pager.currentPage + 1} / ${items.size}", color = Muted, fontSize = 12.sp,
+                        if (items.size > 1) Text("${pager.currentPage + 1} / ${items.size}", color = Muted, fontSize = GregalSize.caption,
                             modifier = Modifier.testTag("viewer-count"))
                     }
                     if (item is ViewItem.Html) {
@@ -190,7 +190,7 @@ fun ViewerOverlay(lang: String) {
                             Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, contentDescription = if (lang == "en") "Previous" else "Anterior", tint = Ink)
                         }
                         Text(if (lang == "en") "Everything shown in this chat" else "Tot el que s'ha ensenyat en aquesta conversa",
-                            color = Muted, fontSize = 12.sp)
+                            color = Muted, fontSize = GregalSize.caption)
                         IconButton(onClick = { scope.launch { pager.animateScrollToPage(pager.currentPage + 1) } }, enabled = pager.currentPage < items.lastIndex,
                             modifier = Modifier.testTag("viewer-next")) {
                             Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = if (lang == "en") "Next" else "Següent", tint = Ink)
@@ -209,7 +209,7 @@ private fun ViewerPage(item: ViewItem, lang: String, base: String, showCode: Boo
         is ViewItem.Web -> PreviewWebView(Modifier.fillMaxSize(), url = base.trimEnd('/') + item.spec.url, allowStorage = true)
         is ViewItem.Html -> if (showCode) {
             Box(Modifier.fillMaxSize().background(CodeDark).verticalScroll(rememberScrollState()).horizontalScroll(rememberScrollState())) {
-                Text(item.code, color = Ink, fontSize = 12.sp, fontFamily = FontFamily.Monospace, softWrap = false, modifier = Modifier.padding(14.dp))
+                Text(item.code, color = Ink, fontSize = GregalSize.caption, fontFamily = FontFamily.Monospace, softWrap = false, modifier = Modifier.padding(14.dp))
             }
         } else {
             val doc = remember(item) { WebPreviewLogic.srcdoc(item.kind, item.code, fill = true) }
@@ -248,7 +248,7 @@ private fun ZoomableChatImage(url: String, alt: String, lang: String) {
             else -> CircularProgressIndicator(Modifier.size(28.dp), color = Sea, strokeWidth = 2.dp)
         }
         val caption = chatImageCaption(alt, url)
-        if (caption.isNotEmpty()) Text(caption, color = Color.White, fontSize = 13.sp,
+        if (caption.isNotEmpty()) Text(caption, color = Color.White, fontSize = GregalSize.small,
             modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(alpha = 0.55f)).padding(12.dp))
     }
 }

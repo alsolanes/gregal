@@ -200,7 +200,7 @@ fun TideLine(width: Int, working: Boolean, modifier: Modifier = Modifier) {
     Text(
         run, modifier,
         color = if (working) SeaClara else LocalPal.current.lineHi,
-        fontFamily = FontFamily.Monospace, fontSize = 10.sp,
+        fontFamily = FontFamily.Monospace, fontSize = GregalSize.label,
         maxLines = 1, softWrap = false,
     )
 }
@@ -270,7 +270,7 @@ fun TideGaugeBar(used: Int, window: Int, cells: Int = 8, modifier: Modifier = Mo
         }
         Spacer(Modifier.width(6.dp))
         Text(
-            "$pct%", color = if (pct >= 50) col else Faint, fontSize = 10.sp,
+            "$pct%", color = if (pct >= 50) col else Faint, fontSize = GregalSize.label,
             fontWeight = if (pct >= 80) FontWeight.Bold else FontWeight.Medium,
         )
     }
@@ -423,11 +423,11 @@ fun WorkingStrip(t0: Long, lang: String = "ca", modifier: Modifier = Modifier) {
         ShimmerText(tr(lang, "app.chat.workingCaps"))
         if (t0 > 0) {
             Spacer(Modifier.width(7.dp))
-            Text("·", color = LocalPal.current.lineHi, fontSize = 12.sp)
+            Text("·", color = LocalPal.current.lineHi, fontSize = GregalSize.caption)
             Spacer(Modifier.width(7.dp))
             Text(
                 elapsedShort(ms), color = Muted,
-                fontFamily = FontFamily.Monospace, fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace, fontSize = GregalSize.caption,
             )
             // `now` només hi és perquè el recompose cada segon.
             if (now < 0) Spacer(Modifier.size(0.dp))

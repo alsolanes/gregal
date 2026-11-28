@@ -3,7 +3,7 @@
 [English](README.md) | [Català](README.ca.md)
 
 Gregal és un agent de programació de codi obert amb interfícies de terminal,
-escriptori i web, i clients per a Android, Telegram i VS Code. Es connecta a
+escriptori i web, i clients per a Android i Telegram. Es connecta a
 endpoints de models compatibles amb OpenAI i inclou eines de projecte,
 aprovacions, checkpoints, MCP i sessions persistents.
 
@@ -48,15 +48,6 @@ Per iniciar la interfície web local, executa `go run . --serve` i obre l'adreç
 que mostra el terminal. Per a la resta de clients i l'API HTTP, consulta el
 [contracte de l'API](docs/api-contract.md) i les
 [notes de compatibilitat](docs/compatibility.md).
-
-### VS Code
-
-L'instal·lador d'un clic `Gregal-VSCode-Setup-x64.exe` i l'ordre
-`install-vscode.ps1` necessiten una publicació amb el paquet `.vsix` i el
-backend independent, i les publicacions actuals no els porten (l'última va ser
-la v1.13.1). Mentrestant, compila l'extensió des del codi tal com explica la
-[guia de VS Code](vscode-gregal/README.md) i connecta-la al backend de l'app
-d'escriptori (`http://127.0.0.1:8097`) o a `go run . --serve`.
 
 ## Contribuir
 

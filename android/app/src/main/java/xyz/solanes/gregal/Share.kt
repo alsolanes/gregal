@@ -202,7 +202,7 @@ fun KeepChip(vm: GregalViewModel, lang: String, text: String, keep: Rich.Keep, t
                 saved != null -> tr(lang, "saved.reply.done")
                 failed != null -> tr(lang, "saved.keep.failed", failed)
                 else -> tr(lang, "saved.keep.ask", keep.title)
-            }, fontSize = 13.sp)
+            }, fontSize = GregalSize.small)
         },
         modifier = Modifier.testTag("keep-chip"),
     )
@@ -310,7 +310,7 @@ fun ShareSheetBody(vm: GregalViewModel, lang: String, target: ShareTarget, onDis
     Box {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp).testTag("share-sheet"),
             verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(w("title"), color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.padding(start = 8.dp, bottom = 8.dp))
+            Text(w("title"), color = Ink, fontWeight = FontWeight.Bold, fontSize = GregalSize.large, modifier = Modifier.padding(start = 8.dp, bottom = 8.dp))
             ShareOption(Icons.Rounded.Share, w("text"), w("textSub"), "share-text") {
                 shareTextIntent(ctx, plain, w("chooser")); onDismiss()
             }
@@ -332,7 +332,7 @@ fun ShareSheetBody(vm: GregalViewModel, lang: String, target: ShareTarget, onDis
             } else Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp).testTag("share-saved"),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 Icon(Icons.Rounded.Bookmark, contentDescription = null, tint = Sea, modifier = Modifier.size(22.dp))
-                Text(tr(lang, "saved.reply.done"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                Text(tr(lang, "saved.reply.done"), color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
                 TextButton(onClick = { vm.openSavedNote(kept.id); onDismiss() }) { Text(tr(lang, "saved.reply.open"), color = Sea, fontWeight = FontWeight.SemiBold) }
             }
             HorizontalDivider(Modifier.padding(vertical = 6.dp), color = Ink.copy(alpha = 0.08f))
@@ -370,7 +370,7 @@ fun ShareSheetBody(vm: GregalViewModel, lang: String, target: ShareTarget, onDis
                     Text(w("shareLink"), color = Sea, fontWeight = FontWeight.SemiBold)
                 }
             }
-            if (status.isNotBlank()) Text(status, color = if (bad) Sand else Muted, fontSize = 13.sp,
+            if (status.isNotBlank()) Text(status, color = if (bad) Sand else Muted, fontSize = GregalSize.small,
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp).testTag("share-status"))
         }
     }
@@ -382,8 +382,8 @@ private fun ShareOption(icon: ImageVector, title: String, sub: String?, tag: Str
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         Icon(icon, contentDescription = null, tint = Ink.copy(alpha = 0.8f), modifier = Modifier.size(22.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-            if (sub != null) Text(sub, color = Muted, fontSize = 12.sp)
+            Text(title, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.Medium)
+            if (sub != null) Text(sub, color = Muted, fontSize = GregalSize.caption)
         }
     }
 }
@@ -400,11 +400,11 @@ fun ReceivedCard(vm: GregalViewModel, lang: String, s: WindSaved, onRemoved: () 
         modifier = Modifier.fillMaxWidth().testTag("saved-received")) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("📨", fontSize = 18.sp)
+                Text("📨", fontSize = GregalSize.large)
                 Column(Modifier.weight(1f)) {
-                    Text(s.title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text(s.title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body)
                     Text(listOfNotNull(ShareText.word(lang, "from").format(s.from), s.windName.ifBlank { null },
-                        if (s.ts > 0) savedDay(lang, s.ts) else null).joinToString(" · "), color = Muted, fontSize = 12.sp)
+                        if (s.ts > 0) savedDay(lang, s.ts) else null).joinToString(" · "), color = Muted, fontSize = GregalSize.caption)
                 }
             }
             WindBubble(GregalViewModel.PetMsg(from = s.windName.ifBlank { "gregal" }, text = s.text), Sea, lang = lang, showMeta = false,

@@ -213,7 +213,7 @@ fun WorkGroupCard(work: WorkGroup, activity: Activity?, statusLine: String, lang
                         label = "activitat",
                     ) { _ ->
                         Text(
-                            title, color = if (running) Ink else Muted, fontSize = 14.sp,
+                            title, color = if (running) Ink else Muted, fontSize = GregalSize.body,
                             fontWeight = if (running) FontWeight.SemiBold else FontWeight.Medium,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
@@ -226,7 +226,7 @@ fun WorkGroupCard(work: WorkGroup, activity: Activity?, statusLine: String, lang
                         else -> ""
                     }
                     if (sub.isNotBlank()) {
-                        Text(sub, color = if (stalled) Sand else Faint, fontSize = 12.sp, maxLines = 1,
+                        Text(sub, color = if (stalled) Sand else Faint, fontSize = GregalSize.caption, maxLines = 1,
                             overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp))
                     }
                 }
@@ -237,9 +237,9 @@ fun WorkGroupCard(work: WorkGroup, activity: Activity?, statusLine: String, lang
                         modifier = Modifier.padding(end = 4.dp).clip(RoundedCornerShape(50)).clickable(onClick = onRetro),
                     ) {
                         Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("#", color = Sea, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text("#", color = Sea, fontWeight = FontWeight.Bold, fontSize = GregalSize.small)
                             Spacer(Modifier.width(3.dp))
-                            Text(tr(lang, "app.retro.open"), color = Sea, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp)
+                            Text(tr(lang, "app.retro.open"), color = Sea, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.caption)
                         }
                     }
                 }
@@ -251,7 +251,7 @@ fun WorkGroupCard(work: WorkGroup, activity: Activity?, statusLine: String, lang
                         Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Rounded.Refresh, null, tint = Red, modifier = Modifier.size(14.dp))
                             Spacer(Modifier.width(3.dp))
-                            Text(tr(lang, "app.chat.retry"), color = Red, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp)
+                            Text(tr(lang, "app.chat.retry"), color = Red, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.caption)
                         }
                     }
                 }
@@ -279,7 +279,7 @@ fun WorkGroupCard(work: WorkGroup, activity: Activity?, statusLine: String, lang
 private fun StatusDot(color: Color, mark: String?) {
     Box(Modifier.size(20.dp).background(color.copy(alpha = 0.16f), CircleShape), contentAlignment = Alignment.Center) {
         if (mark == null) Icon(Icons.Rounded.Check, null, tint = color, modifier = Modifier.size(13.dp))
-        else Text(mark, color = color, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        else Text(mark, color = color, fontSize = GregalSize.caption, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -313,16 +313,16 @@ private fun StepRow(s: WorkStep, last: Boolean, lang: String, fold: List<WorkSte
             // A la fila «Explorat» només la capçalera plega: tocar un pas de dins no la tanca.
             Column(if (fold.isNotEmpty()) Modifier.fillMaxWidth().clickable(role = Role.Button) { showDetail = !showDetail } else Modifier) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(s.label, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    Text(s.label, color = Ink, fontSize = GregalSize.small, fontWeight = FontWeight.SemiBold,
                         maxLines = if (s.kind == StepKind.Note || s.kind == StepKind.Info) 2 else 1,
                         overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     if (s.meta.isNotBlank()) {
                         Spacer(Modifier.width(6.dp))
-                        Text(s.meta, color = Faint, fontSize = 12.sp, maxLines = 1)
+                        Text(s.meta, color = Faint, fontSize = GregalSize.caption, maxLines = 1)
                     }
                 }
                 if (s.target.isNotBlank()) {
-                    Text(s.target, color = Muted, fontSize = 12.sp,
+                    Text(s.target, color = Muted, fontSize = GregalSize.caption,
                         fontFamily = if (s.kind == StepKind.Tool && fold.isEmpty()) FontFamily.Monospace else FontFamily.Default,
                         maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
@@ -335,7 +335,7 @@ private fun StepRow(s: WorkStep, last: Boolean, lang: String, fold: List<WorkSte
                 Surface(shape = RoundedCornerShape(8.dp), color = CodeDark,
                     modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
                     Text(
-                        toolOutputShown(s.tool, s.detail).take(2500), color = Tinta, fontSize = 12.sp, lineHeight = 16.sp,
+                        toolOutputShown(s.tool, s.detail).take(2500), color = Tinta, fontSize = GregalSize.caption, lineHeight = 16.sp,
                         fontFamily = FontFamily.Monospace, maxLines = 24, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.heightIn(max = 360.dp).horizontalScroll(rememberScrollState()).padding(10.dp),
                     )
@@ -392,9 +392,9 @@ private fun SentenceRow(line: WorkLine, last: Boolean, lang: String) {
     TimelineRow(color, running = running, last = last) {
         Column(Modifier.weight(1f).padding(start = 6.dp, end = 4.dp, top = 2.dp, bottom = 8.dp)) {
             if (note != null) {
-                Text(note.detail.ifBlank { note.label }, color = Ink, fontSize = 13.sp)
+                Text(note.detail.ifBlank { note.label }, color = Ink, fontSize = GregalSize.small)
             } else {
-                Text(toolSentence(line.calls.flatten().map { it.tool to it.args }, lang), color = Muted, fontSize = 13.sp)
+                Text(toolSentence(line.calls.flatten().map { it.tool to it.args }, lang), color = Muted, fontSize = GregalSize.small)
             }
             FlowRow(
                 Modifier.padding(top = 5.dp),
@@ -450,7 +450,7 @@ private fun StepChip(chip: ToolChip, res: ToolOutcome, open: Boolean, onClick: (
             Spacer(Modifier.width(6.dp))
             Text(
                 chip.text + if (res.note.isNotEmpty()) " · ${res.note}" else "",
-                color = if (res.state == "done") Tinta else color, fontSize = 12.sp,
+                color = if (res.state == "done") Tinta else color, fontSize = GregalSize.caption,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
@@ -513,7 +513,7 @@ fun PlanFirstToggle(on: Boolean, enabled: Boolean, lang: String, onToggle: () ->
         horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         Icon(Icons.Rounded.Checklist, null, tint = if (on) Sea else Muted, modifier = Modifier.size(16.dp))
-        Text(tr(lang, "app.mode.planFirst"), color = if (on) Sea else Tinta, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        Text(tr(lang, "app.mode.planFirst"), color = if (on) Sea else Tinta, fontSize = GregalSize.small, fontWeight = FontWeight.SemiBold, maxLines = 1)
     }
 }
 
@@ -527,7 +527,7 @@ fun ComposerChip(text: String, color: Color, icon: (@Composable () -> Unit)?, on
     ) {
         Row(Modifier.padding(start = 10.dp, end = if (onClose != null) 2.dp else 12.dp), verticalAlignment = Alignment.CenterVertically) {
             if (icon != null) { icon(); Spacer(Modifier.width(6.dp)) }
-            Text(text, color = color, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold,
+            Text(text, color = color, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, modifier = Modifier.padding(vertical = 7.dp))
             if (onClose != null) {
                 IconButton(onClick = onClose, modifier = Modifier.size(44.dp)) {
@@ -600,8 +600,8 @@ fun ComposerPlusMenu(
                 enabled = enabled,
                 text = {
                     Column {
-                        Text(label, color = if (enabled) Ink else Faint, fontSize = 14.sp)
-                        if (help.isNotEmpty()) Text(help, color = Faint, fontSize = 12.sp, maxLines = 2)
+                        Text(label, color = if (enabled) Ink else Faint, fontSize = GregalSize.body)
+                        if (help.isNotEmpty()) Text(help, color = Faint, fontSize = GregalSize.caption, maxLines = 2)
                     }
                 },
                 trailingIcon = if (checked) ({ Icon(Icons.Rounded.Check, null, tint = Sea) }) else null,
@@ -613,7 +613,7 @@ fun ComposerPlusMenu(
         item(tr(lang, "app.composer.compare"), enabled = canUseInput, onClick = onCompare)
         androidx.compose.material3.HorizontalDivider(color = Line)
         Text(tr(lang, "app.mode.more"), Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-            color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            color = Muted, fontSize = GregalSize.caption, fontWeight = FontWeight.Bold)
         item(tr(lang, "app.mode.goal"), tr(lang, "app.mode.goalHelp"), checked = st.mode == "goal") { onMode("goal") }
         item(tr(lang, "app.mode.debug"), tr(lang, "app.mode.debugHelp"), checked = st.mode == "debug") { onMode("debug") }
         if (st.mode in setOf("goal", "debug")) item(tr(lang, "app.mode.exit")) { onMode("act") }
@@ -635,7 +635,7 @@ fun PermissionDialog(st: ServerState, lang: String, onPick: (String) -> Unit, on
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 // Al pla no es canvia res fins que l'aproves: triar-ne un passa a Actua.
                 if (uiModeOf(st.mode) == "plan" || (!readOnly && uiModeOf(st.mode) != "act")) {
-                    Text(tr(lang, "app.perm.appliesInAct"), color = Muted, fontSize = 12.sp)
+                    Text(tr(lang, "app.perm.appliesInAct"), color = Muted, fontSize = GregalSize.caption)
                 }
                 (if (readOnly) PERM_CHOICES else ACCESSES).forEach { id ->
                     val l = "app.perm.$id"
@@ -652,8 +652,8 @@ fun PermissionDialog(st: ServerState, lang: String, onPick: (String) -> Unit, on
                             PermIcon(id == "full", if (id == "full") Sand else if (sel) Sea else Muted)
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(tr(lang, l), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                                Text(tr(lang, h), color = Muted, fontSize = 12.sp)
+                                Text(tr(lang, l), color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
+                                Text(tr(lang, h), color = Muted, fontSize = GregalSize.caption)
                             }
                             if (sel) Icon(Icons.Rounded.Check, null, tint = Sea, modifier = Modifier.size(18.dp))
                         }
@@ -678,16 +678,16 @@ fun QueuedMessages(queue: List<String>, lang: String, canSteer: Boolean, onSteer
             Surface(shape = RoundedCornerShape(14.dp), color = PillDark, border = BorderStroke(1.dp, Line),
                 modifier = Modifier.fillMaxWidth().testTag("queued-item")) {
                 Row(Modifier.padding(start = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(tr(lang, "app.queue.tag"), color = Faint, fontSize = 12.sp, modifier = Modifier.padding(end = 8.dp))
-                    Text(text, color = Ink, fontSize = 13.5.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    Text(tr(lang, "app.queue.tag"), color = Faint, fontSize = GregalSize.caption, modifier = Modifier.padding(end = 8.dp))
+                    Text(text, color = Ink, fontSize = GregalSize.small, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f).clickable(enabled = canSteer) { onSteer(i) }.padding(vertical = 10.dp))
                     if (canSteer) {
-                        Text(tr(lang, "app.queue.now"), color = OnSea, fontSize = 12.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                        Text(tr(lang, "app.queue.now"), color = OnSea, fontSize = GregalSize.caption, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                             modifier = Modifier.padding(horizontal = 4.dp).clip(RoundedCornerShape(10.dp)).background(Sea)
                                 .clickable { onSteer(i) }.padding(horizontal = 10.dp, vertical = 5.dp)
                                 .semantics { contentDescription = tr(lang, "app.queue.nowHelp") }.testTag("queued-now"))
                     }
-                    Text("×", color = Muted, fontSize = 18.sp,
+                    Text("×", color = Muted, fontSize = GregalSize.large,
                         modifier = Modifier.clip(CircleShape).clickable { onRemove(i) }.padding(horizontal = 12.dp, vertical = 12.dp)
                             .semantics { contentDescription = tr(lang, "app.queue.remove") }.testTag("queued-remove"))
                 }

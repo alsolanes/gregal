@@ -19,7 +19,7 @@
 .br-sw { display:flex; flex-wrap:wrap; gap:8px; }
 .br-swatch { display:flex; flex-direction:column; align-items:center; gap:3px; width:64px; }
 .br-swatch i { width:40px; height:40px; border-radius:8px; border:1px solid var(--edge); display:block; }
-.br-swatch small { color:var(--muted); font-size:10.5px; text-align:center; line-height:1.25; font-family:var(--mono); }
+.br-swatch small { color:var(--muted); font-size:var(--t1); text-align:center; line-height:1.25; font-family:var(--mono); }
 .br-fonts { display:flex; flex-direction:column; gap:2px; color:var(--text); font-size:var(--t2); }
 .br-actions { display:flex; flex-wrap:wrap; gap:6px; }
 .br-actions .br-primary { border-color:var(--accent); color:var(--accent); }
@@ -35,11 +35,11 @@
 .br-drop span { font-size:var(--t1); }
 .br-drop:hover, .br-drop:focus-visible, .br-drop.over { border-color:var(--accent); background:var(--accent-soft); color:var(--text); outline:none; }
 /* Miniatura de l'app amb els colors d'un paquet. */
-.br-mock { display:flex; height:110px; border-radius:8px; overflow:hidden; border:1px solid var(--edge); font-size:12px; }
+.br-mock { display:flex; height:110px; border-radius:8px; overflow:hidden; border:1px solid var(--edge); font-size:var(--t2); }
 .br-mock-side { width:30%; display:flex; flex-direction:column; gap:6px; padding:8px; border-right:1px solid; }
 .br-mock-side img { height:18px; width:auto; max-width:100%; object-fit:contain; align-self:flex-start; }
 .br-mock-side i { width:18px; height:18px; border-radius:5px; display:block; }
-.br-mock-side b { font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.br-mock-side b { font-size:var(--t1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .br-mock-side span { height:8px; border-radius:4px; opacity:.6; font-size:7px; line-height:8px; padding-left:3px; }
 .br-mock-side span:nth-of-type(n+2) { background:currentColor; opacity:.12; }
 .br-mock-main { flex:1; display:flex; flex-direction:column; justify-content:space-between; padding:10px; }
@@ -61,8 +61,8 @@
 .br-col input[type="color"] { width:30px; height:30px; padding:0; border:0; background:none; cursor:pointer; flex:none; }
 .br-col input[data-empty] { opacity:.35; }
 .br-col > span { margin:0 !important; display:flex !important; flex-direction:column; color:var(--text) !important; font-size:var(--t1); min-width:0; }
-.br-col small { color:var(--muted); font-family:var(--mono); font-size:10.5px; }
-.br-x { position:absolute; top:2px; right:4px; border:0; background:none; color:var(--faint); cursor:pointer; font-size:13px; line-height:1; }
+.br-col small { color:var(--muted); font-family:var(--mono); font-size:var(--t1); }
+.br-x { position:absolute; top:2px; right:4px; border:0; background:none; color:var(--faint); cursor:pointer; font-size:var(--t2); line-height:1; }
 .br-x:hover { color:var(--red); }
 .br-logo-row { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
 .br-logo-row small { color:var(--muted); font-size:var(--t1); flex-basis:100%; }

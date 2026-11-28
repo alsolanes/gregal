@@ -342,7 +342,7 @@ private fun GlanceWeather(lang: String, w: AvuiWeather, now: ZonedDateTime, moti
         ) {
             Icon(Icons.Rounded.Umbrella, tr(lang, "app.avui.glance.rainHours"), tint = Onada, modifier = Modifier.size(15.dp))
             w.rainHours.forEach { h ->
-                Text(tr(lang, "app.avui.glance.hour", h), color = Ink, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                Text(tr(lang, "app.avui.glance.hour", h), color = Ink, fontSize = GregalSize.caption, fontWeight = FontWeight.Medium,
                     modifier = Modifier.clip(GregalShape.pill).background(Onada.copy(alpha = .22f)).padding(horizontal = 8.dp, vertical = 3.dp))
             }
             val mm = Math.round(w.rainMm)
@@ -487,7 +487,7 @@ private fun PlaceInvite(lang: String, place: String, error: String, modifier: Mo
         )
         Text(
             tr(lang, if (place.isBlank()) "app.avui.glance.placeSet" else "app.avui.glance.placeChange"),
-            color = p.onSea, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+            color = p.onSea, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold, maxLines = 1,
             modifier = Modifier.clip(GregalShape.pill).background(p.sea).clickable(onClick = onPlace)
                 .padding(horizontal = 12.dp, vertical = 8.dp).testTag("glance-place"),
         )
@@ -522,7 +522,7 @@ private fun GlanceEvents(lang: String, events: List<AvuiEvent>, now: ZonedDateTi
                 Modifier.fillMaxWidth().graphicsLayer { alpha = if (past) .5f else 1f },
                 verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(GlanceLogic.eventTime(lang, e, now.zone), color = if (isNext) p.sea else Ink, fontSize = 13.sp,
+                Text(GlanceLogic.eventTime(lang, e, now.zone), color = if (isNext) p.sea else Ink, fontSize = GregalSize.small,
                     fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.width(64.dp))
                 Box(Modifier.width(3.dp).height(34.dp).clip(GregalShape.pill).background(if (isNext) p.sea else LineHi))
                 Column(Modifier.weight(1f)) {
@@ -586,7 +586,7 @@ private fun AddPill(lang: String, onAdd: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Icon(Icons.Rounded.Add, null, tint = p.onSea, modifier = Modifier.size(15.dp))
-        Text(tr(lang, "app.avui.glance.follow"), color = p.onSea, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        Text(tr(lang, "app.avui.glance.follow"), color = p.onSea, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold, maxLines = 1)
     }
 }
 
@@ -631,7 +631,7 @@ private fun FollowCard(lang: String, f: AvuiFollow, accent: Color, now: ZonedDat
                     modifier = Modifier.graphicsLayer { alpha = .55f + .45f * kotlin.math.abs(1f - 2f * breathe.value) })
                 return@Column
             }
-            Text(f.title, color = Ink, style = GregalType.heading.copy(fontSize = 16.sp, lineHeight = 21.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(f.title, color = Ink, style = GregalType.heading.copy(fontSize = GregalSize.large, lineHeight = 21.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
             val whenText = GlanceLogic.whenLabel(lang, f.at, now)
             if (whenText.isNotEmpty()) Text(whenText, color = Ink.copy(alpha = .82f), style = GregalType.bodySmall)
             if (countdown.isNotEmpty()) Row(
@@ -641,14 +641,14 @@ private fun FollowCard(lang: String, f: AvuiFollow, accent: Color, now: ZonedDat
                 val pulse = phase(motion && live, 1400, "follow-live")
                 Box(Modifier.size(6.dp).graphicsLayer { alpha = 1f - .6f * pulse.value; scaleX = 1f + .5f * pulse.value; scaleY = 1f + .5f * pulse.value }
                     .clip(CircleShape).background(if (live) Red else accent))
-                Text(countdown, color = Ink, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Text(countdown, color = Ink, fontSize = GregalSize.label, fontWeight = FontWeight.SemiBold, maxLines = 1)
             }
             if (f.detail.isNotBlank()) Text(f.detail, color = Muted, style = GregalType.caption, maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (f.url.isNotBlank()) Row(
                 Modifier.clip(GregalShape.pill).clickable { uri.openUri(f.url) }.padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp),
             ) {
-                Text(tr(lang, "app.avui.glance.open"), color = accent, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+                Text(tr(lang, "app.avui.glance.open"), color = accent, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold)
                 Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = accent, modifier = Modifier.size(13.dp))
             }
         }
@@ -678,8 +678,8 @@ private fun GlanceEditor(
             // La tecla del teclat també desa: abans només tancava el teclat i semblava que no feia res.
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { if (text.isNotBlank()) onSave(kind, text.trim()) }),
-            placeholder = { Text(hint, fontSize = 13.sp, color = Muted) },
-            textStyle = GregalType.bodySmall.copy(color = Ink, fontSize = 14.sp), shape = GregalShape.sm,
+            placeholder = { Text(hint, fontSize = GregalSize.small, color = Muted) },
+            textStyle = GregalType.bodySmall.copy(color = Ink, fontSize = GregalSize.body), shape = GregalShape.sm,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = Superficie.copy(alpha = .6f), unfocusedContainerColor = Superficie.copy(alpha = .6f),
                 focusedBorderColor = p.sea, unfocusedBorderColor = Line, cursorColor = p.sea,
@@ -689,7 +689,7 @@ private fun GlanceEditor(
         if (kinds) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("team" to "app.avui.glance.team", "other" to "app.avui.glance.other").forEach { (k, label) ->
                 val on = kind == k
-                Text(tr(lang, label), color = if (on) p.onSea else Ink, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                Text(tr(lang, label), color = if (on) p.onSea else Ink, fontSize = GregalSize.small, fontWeight = FontWeight.Medium,
                     modifier = Modifier.clip(GregalShape.pill).background(if (on) p.sea else Color.Transparent)
                         .border(1.dp, if (on) p.sea else Line, GregalShape.pill).clickable { kind = k }
                         .padding(horizontal = 12.dp, vertical = 8.dp))

@@ -359,12 +359,12 @@ internal fun WeatherCard(lang: String, f: WeatherForecast, accent: Color, compac
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp),
                         modifier = Modifier.weight(1f)) {
                         Text(if (i == 0) tr(lang, "app.weather.today") else date?.let { CalaixFmt.weekday(lang, it) } ?: d.date,
-                            color = if (i == 0) Ink else Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            color = if (i == 0) Ink else Muted, fontSize = GregalSize.label, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         val ds = WeatherJson.sky(d.code)
                         Icon(skyIcon(ds, true), null, tint = skyTint(ds, accent), modifier = Modifier.size(20.dp))
-                        Text(WeatherJson.deg(d.max), color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        Text(WeatherJson.deg(d.min), color = Muted, fontSize = 12.sp)
-                        Text(if (d.rainProb > 0) "${d.rainProb}%" else " ", color = Onada, fontSize = 10.5.sp, fontWeight = FontWeight.Medium)
+                        Text(WeatherJson.deg(d.max), color = Ink, fontSize = GregalSize.small, fontWeight = FontWeight.SemiBold)
+                        Text(WeatherJson.deg(d.min), color = Muted, fontSize = GregalSize.caption)
+                        Text(if (d.rainProb > 0) "${d.rainProb}%" else " ", color = Onada, fontSize = GregalSize.label, fontWeight = FontWeight.Medium)
                     }
                 }
             }
@@ -377,8 +377,8 @@ internal fun WeatherCard(lang: String, f: WeatherForecast, accent: Color, compac
 private fun WeatherChart(hours: List<WeatherHour>, accent: Color, height: Int) {
     val measurer = rememberTextMeasurer()
     val ink = Ink; val muted = Muted; val rainColor = Onada
-    val label = TextStyle(color = muted, fontSize = 10.sp)
-    val tempLabel = TextStyle(color = ink, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold)
+    val label = TextStyle(color = muted, fontSize = GregalSize.label)
+    val tempLabel = TextStyle(color = ink, fontSize = GregalSize.label, fontWeight = FontWeight.SemiBold)
     Canvas(Modifier.fillMaxWidth().height(height.dp).testTag("weather-chart")) {
         val bottomLabels = 14.dp.toPx()
         val top = 14.dp.toPx()
@@ -483,13 +483,13 @@ private fun TableView(items: List<Map<String, Any?>>, remove: (Map<String, Any?>
     Column(Modifier.fillMaxWidth().clip(GregalShape.md).background(SuperficieAlta.copy(alpha = .35f)).border(1.dp, Line, GregalShape.md)
         .horizontalScroll(rememberScrollState()).padding(vertical = 4.dp)) {
         Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-            cols.forEach { c -> Text(c, color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+            cols.forEach { c -> Text(c, color = Muted, fontSize = GregalSize.label, fontWeight = FontWeight.SemiBold, maxLines = 1,
                 modifier = Modifier.width(if (cols.indexOf(c) == 0) 130.dp else 70.dp)) }
         }
         items.forEach { r ->
             Row(Modifier.padding(start = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 cols.forEachIndexed { i, c ->
-                    Text(CalaixJson.cell(r[c]), color = if (i == 0) Ink else Tinta, fontSize = 13.sp,
+                    Text(CalaixJson.cell(r[c]), color = if (i == 0) Ink else Tinta, fontSize = GregalSize.small,
                         fontWeight = if (i == 0) FontWeight.Medium else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.width(if (i == 0) 130.dp else 70.dp))
                 }
@@ -517,11 +517,11 @@ private fun ReleasesView(lang: String, items: List<Map<String, Any?>>, accent: C
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Column(Modifier.width(44.dp).clip(GregalShape.sm).background(accent.copy(alpha = .16f * alpha + .04f)).padding(vertical = 5.dp),
                         horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(date?.dayOfMonth?.toString() ?: "–", color = Ink.copy(alpha = alpha), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                        Text(date?.let { CalaixFmt.weekday(lang, it) }.orEmpty(), color = Muted.copy(alpha = alpha), fontSize = 10.sp)
+                        Text(date?.dayOfMonth?.toString() ?: "–", color = Ink.copy(alpha = alpha), fontSize = GregalSize.large, fontWeight = FontWeight.SemiBold)
+                        Text(date?.let { CalaixFmt.weekday(lang, it) }.orEmpty(), color = Muted.copy(alpha = alpha), fontSize = GregalSize.label)
                     }
                     Column(Modifier.weight(1f)) {
-                        Text(CalaixJson.str(r, "title", "name"), color = Ink.copy(alpha = alpha), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                        Text(CalaixJson.str(r, "title", "name"), color = Ink.copy(alpha = alpha), fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold,
                             maxLines = 2, overflow = TextOverflow.Ellipsis)
                         val sub = listOf(CalaixJson.str(r, "artist", "author"), CalaixJson.str(r, "type"), CalaixJson.str(r, "publisher"))
                             .filter { it.isNotBlank() }.joinToString(" · ")
@@ -564,7 +564,7 @@ private fun RecipesView(lang: String, items: List<Map<String, Any?>>, accent: Co
                         Text(tr(lang, "app.calaix.steps").uppercase(), color = Muted, style = GregalType.overline, modifier = Modifier.padding(top = 4.dp))
                         steps.forEachIndexed { i, s ->
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("${i + 1}", color = accent, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(16.dp))
+                                Text("${i + 1}", color = accent, fontSize = GregalSize.small, fontWeight = FontWeight.Bold, modifier = Modifier.width(16.dp))
                                 Text(s, color = Tinta, style = GregalType.bodySmall, modifier = Modifier.weight(1f))
                             }
                         }
@@ -590,7 +590,7 @@ private fun ListView(items: List<Map<String, Any?>>, accent: Color, remove: (Map
             Row(Modifier.clip(GregalShape.pill).background(accent.copy(alpha = .12f)).padding(start = 12.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 Text(CalaixJson.str(r, "name", "title", "nom", "titol").ifBlank { CalaixJson.cell(r.values.firstOrNull()) },
-                    color = Ink, fontSize = 13.sp, maxLines = 1)
+                    color = Ink, fontSize = GregalSize.small, maxLines = 1)
                 RemoveX { remove(r) }
             }
         }
@@ -611,10 +611,10 @@ private fun PlacesView(
                 .padding(start = 12.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(if (primary) Icons.Rounded.Star else Icons.Rounded.Place, null, tint = if (primary) accent else Muted, modifier = Modifier.size(18.dp))
-                Text(CalaixJson.str(r, "name"), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-                if (primary) Text(tr(lang, "app.calaix.primary"), color = accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text(CalaixJson.str(r, "name"), color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                if (primary) Text(tr(lang, "app.calaix.primary"), color = accent, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold)
                 else TextButton(onClick = { onAction(sh.name, "primary", CalaixJson.rowKey(r), null) }) {
-                    Text(tr(lang, "app.calaix.makePrimary"), fontSize = 12.sp, color = accent)
+                    Text(tr(lang, "app.calaix.makePrimary"), fontSize = GregalSize.caption, color = accent)
                 }
                 RemoveX { onAction(sh.name, "remove", CalaixJson.rowKey(r), null) }
             }
@@ -638,17 +638,17 @@ private fun PlaceSearch(lang: String, accent: Color, search: suspend (String) ->
         }
     }
     OutlinedTextField(q, { q = it }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("place-search"),
-        placeholder = { Text(tr(lang, "app.calaix.addPlace"), fontSize = 13.sp, color = Muted) },
+        placeholder = { Text(tr(lang, "app.calaix.addPlace"), fontSize = GregalSize.small, color = Muted) },
         leadingIcon = { Icon(Icons.Rounded.Place, null, tint = Muted) }, shape = GregalShape.sm,
         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = accent, unfocusedBorderColor = Line, cursorColor = accent))
     results.forEach { p ->
         Row(Modifier.fillMaxWidth().clip(GregalShape.sm).clickable { onPick(p); q = ""; results = emptyList() }.padding(10.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Column(Modifier.weight(1f)) {
-                Text(p.name, color = Ink, fontSize = 14.sp)
+                Text(p.name, color = Ink, fontSize = GregalSize.body)
                 if (p.where.isNotBlank()) Text(p.where, color = Muted, style = GregalType.caption)
             }
-            Text(tr(lang, "app.calaix.follow"), color = accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(tr(lang, "app.calaix.follow"), color = accent, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold)
         }
     }
 }

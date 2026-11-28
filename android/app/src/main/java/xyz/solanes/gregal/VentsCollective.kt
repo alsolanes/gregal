@@ -73,8 +73,8 @@ internal fun CollectivePickerDialog(vm: GregalViewModel, lang: String) {
         Surface(shape = RoundedCornerShape(24.dp), color = Superficie, modifier = Modifier.testTag("collective-picker")) {
             // Amb el teclat obert, el camp «un» i els botons han de quedar a l'abast.
             Column(Modifier.imePadding().verticalScroll(rememberScrollState()).padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(tr(lang, "collective.title"), color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Text(tr(lang, "collective.help"), color = Muted, fontSize = 13.5.sp, lineHeight = 19.sp)
+                Text(tr(lang, "collective.title"), color = Ink, fontSize = GregalSize.title, fontWeight = FontWeight.Bold)
+                Text(tr(lang, "collective.help"), color = Muted, fontSize = GregalSize.small, lineHeight = 19.sp)
                 options.forEach { o ->
                     CollectiveRow(o.plural, o.hint, selected = !custom && picked == o) { custom = false; picked = o }
                 }
@@ -110,8 +110,8 @@ private fun CollectiveRow(title: String, hint: String, selected: Boolean, onClic
         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         RadioButton(selected = selected, onClick = onClick)
         Column(Modifier.weight(1f)) {
-            Text(title, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            Text(hint, color = Muted, fontSize = 12.5.sp)
+            Text(title, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
+            Text(hint, color = Muted, fontSize = GregalSize.caption)
         }
     }
 }

@@ -130,10 +130,10 @@ internal fun VentsChatHeader(
                 Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                     // El nom es mesura primer: la pastilla es queda amb el que sobra.
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(title, color = Ink, fontSize = 15.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(title, color = Ink, fontSize = GregalSize.body, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         if (wind != null) WindRolePill(wind)
                     }
-                    if (subtitle.isNotBlank()) Text(subtitle, color = Muted, fontSize = 11.5.sp, lineHeight = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (subtitle.isNotBlank()) Text(subtitle, color = Muted, fontSize = GregalSize.label, lineHeight = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -441,7 +441,7 @@ private fun CenteredChatHeader(
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             WindHalo(accent, style, size = if (compact) 38 else GregalChat.headerAvatar, mood = mood, stacked = faces.drop(1), online = false, showKit = faces.size <= 1)
-            if (!compact) Text(title, color = Ink, fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold,
+            if (!compact) Text(title, color = Ink, fontSize = GregalSize.body, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (subtitle.isNotBlank()) Text(subtitle, color = Muted, style = GregalType.chatMeta,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("chat-header-status"))
@@ -543,7 +543,7 @@ internal fun VentsComposer(
                         Icon(Icons.Rounded.FolderOpen, null, tint = Muted, modifier = Modifier.size(13.dp))
                         Text(
                             st.project + if (st.branch.isNotBlank()) " · " + st.branch else "",
-                            color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            color = Muted, fontSize = GregalSize.caption, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
@@ -578,8 +578,8 @@ internal fun VentsComposer(
                                 leadingIcon = { Icon(Icons.Rounded.Description, null, tint = Sea) },
                                 text = {
                                     Column {
-                                        Text(tr(lang, "app.composer.attachDoc"), color = Ink, fontSize = 14.sp)
-                                        Text(tr(lang, "app.composer.attachDocHelp"), color = Muted, fontSize = 12.sp, maxLines = 2)
+                                        Text(tr(lang, "app.composer.attachDoc"), color = Ink, fontSize = GregalSize.body)
+                                        Text(tr(lang, "app.composer.attachDocHelp"), color = Muted, fontSize = GregalSize.caption, maxLines = 2)
                                     }
                                 },
                                 onClick = { showPlus = false; onAttachDoc() },
@@ -590,8 +590,8 @@ internal fun VentsComposer(
                                 leadingIcon = { Icon(Icons.Rounded.Image, null, tint = Sea) },
                                 text = {
                                     Column {
-                                        Text(tr(lang, "app.composer.attachImage"), color = Ink, fontSize = 14.sp)
-                                        Text(tr(lang, "app.composer.attachImageHelp"), color = Muted, fontSize = 12.sp, maxLines = 2)
+                                        Text(tr(lang, "app.composer.attachImage"), color = Ink, fontSize = GregalSize.body)
+                                        Text(tr(lang, "app.composer.attachImageHelp"), color = Muted, fontSize = GregalSize.caption, maxLines = 2)
                                     }
                                 },
                                 onClick = { showPlus = false; onAttachImage() },
@@ -602,9 +602,9 @@ internal fun VentsComposer(
                                 leadingIcon = { Icon(Icons.Rounded.FolderOpen, null, tint = Sea) },
                                 text = {
                                     Column {
-                                        Text(tr(lang, "app.carpeta.title"), color = Ink, fontSize = 14.sp)
+                                        Text(tr(lang, "app.carpeta.title"), color = Ink, fontSize = GregalSize.body)
                                         if (st != null && st.project.isNotBlank()) {
-                                            Text(st.project + if (st.branch.isNotBlank()) " · " + st.branch else "", color = Muted, fontSize = 12.sp)
+                                            Text(st.project + if (st.branch.isNotBlank()) " · " + st.branch else "", color = Muted, fontSize = GregalSize.caption)
                                         }
                                     }
                                 },
@@ -616,8 +616,8 @@ internal fun VentsComposer(
                                 leadingIcon = { Icon(Icons.Rounded.Language, null, tint = Sea) },
                                 text = {
                                     Column {
-                                        Text(tr(lang, "app.preview.open"), color = Ink, fontSize = 14.sp)
-                                        Text(tr(lang, "app.preview.webs"), color = Muted, fontSize = 12.sp, maxLines = 1)
+                                        Text(tr(lang, "app.preview.open"), color = Ink, fontSize = GregalSize.body)
+                                        Text(tr(lang, "app.preview.webs"), color = Muted, fontSize = GregalSize.caption, maxLines = 1)
                                     }
                                 },
                                 onClick = { showPlus = false; onPreview() },
@@ -626,7 +626,7 @@ internal fun VentsComposer(
                         if (onVoiceTalk != null) {
                             DropdownMenuItem(
                                 leadingIcon = { Icon(Icons.Rounded.GraphicEq, null, tint = Sea) },
-                                text = { Text(voiceTalkCopy(lang, "talk"), color = Ink, fontSize = 14.sp) },
+                                text = { Text(voiceTalkCopy(lang, "talk"), color = Ink, fontSize = GregalSize.body) },
                                 onClick = { showPlus = false; onVoiceTalk() },
                                 modifier = Modifier.testTag("voice-talk"),
                             )
@@ -635,7 +635,7 @@ internal fun VentsComposer(
                             HorizontalDivider(color = Line)
                             DropdownMenuItem(
                                 leadingIcon = { Icon(Icons.Rounded.Lock, null, tint = Sand) },
-                                text = { Text(tr(lang, "app.perm.title") + " · " + tr(lang, "app.perm." + st.access), color = Ink, fontSize = 14.sp) },
+                                text = { Text(tr(lang, "app.perm.title") + " · " + tr(lang, "app.perm." + st.access), color = Ink, fontSize = GregalSize.body) },
                                 onClick = { showPlus = false; onPerm() },
                             )
                         }
@@ -725,7 +725,7 @@ internal fun GregalFloatingHeader(lang: String, accent: Color, style: WindStyle,
                 Box(Modifier.softBacking(SuperficieAlta).clickable(onClick = onProfile, role = Role.Button).padding(4.dp)) {
                     WindHalo(accent, style, size = 34, mood = mood, online = false, showKit = false)
                 }
-                if (working) Text(threadCopy(lang, "working"), color = Muted, fontSize = 11.sp, lineHeight = 14.sp,
+                if (working) Text(threadCopy(lang, "working"), color = Muted, fontSize = GregalSize.label, lineHeight = 14.sp,
                     modifier = Modifier.padding(top = 2.dp).testTag("gregal-working"))
             }
             IconButton(onClick = onComputer, modifier = Modifier.softBacking(SuperficieAlta).testTag("home-computer")) {
@@ -762,7 +762,7 @@ internal fun TempestaHint(on: Boolean, lang: String) {
         }
     }
     androidx.compose.ui.window.Popup(popupPositionProvider = above, properties = androidx.compose.ui.window.PopupProperties(focusable = false)) {
-        Text(text, color = Ink, fontSize = 12.5.sp, lineHeight = 17.sp,
+        Text(text, color = Ink, fontSize = GregalSize.caption, lineHeight = 17.sp,
             modifier = Modifier.widthIn(max = 280.dp).clip(RoundedCornerShape(14.dp)).background(SuperficieAlta)
                 .padding(horizontal = 12.dp, vertical = 7.dp).testTag("tempesta-hint")
                 .semantics { liveRegion = LiveRegionMode.Polite })

@@ -31,7 +31,7 @@ internal fun HandoffRow(m: GregalViewModel.PetMsg, by: MsgBy, asker: Wind?, lang
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier.padding(start = 6.dp, bottom = 2.dp)) {
             WindFace(size = 20, accent = accent, style = w.faceStyle)
-            Text(tr(lang, "app.vents.handoffFrom", by.name), color = Muted, fontSize = 12.sp, modifier = Modifier.testTag("handoff-from"))
+            Text(tr(lang, "app.vents.handoffFrom", by.name), color = Muted, fontSize = GregalSize.caption, modifier = Modifier.testTag("handoff-from"))
         }
         WindBubble(m.copy(from = "pet", text = handoffBody(m.text, by.name), by = null), accent, lang = lang, onCopy = onCopy)
     }

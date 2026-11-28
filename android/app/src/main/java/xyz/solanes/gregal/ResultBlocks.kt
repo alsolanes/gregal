@@ -99,10 +99,10 @@ internal fun GregalResultCard(spec: ResultSpec, accent: Color, lang: String = "c
         Row(Modifier.padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (spec.icon.isNotEmpty()) Box(Modifier.size(30.dp).clip(RoundedCornerShape(10.dp)).background(accent.copy(alpha = .14f)),
-                contentAlignment = Alignment.Center) { Text(spec.icon, fontSize = 15.sp) }
+                contentAlignment = Alignment.Center) { Text(spec.icon, fontSize = GregalSize.body) }
             Column(Modifier.weight(1f)) {
-                Text(spec.title, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (spec.subtitle.isNotEmpty()) Text(spec.subtitle, color = Muted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(spec.title, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (spec.subtitle.isNotEmpty()) Text(spec.subtitle, color = Muted, fontSize = GregalSize.caption, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
         }
         spec.rows.forEachIndexed { k, r ->
@@ -111,17 +111,17 @@ internal fun GregalResultCard(spec: ResultSpec, accent: Color, lang: String = "c
                 .then(if (r.url.isNotEmpty()) Modifier.clickable(role = Role.Button) { uri.openUri(r.url) } else Modifier)
                 .heightIn(min = 44.dp).padding(start = 14.dp, end = if (r.url.isNotEmpty()) 8.dp else 14.dp, top = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (spec.numbered) Text((k + 1).toString().padStart(2, '0'), color = Faint, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                if (r.lead.isNotEmpty()) Text(r.lead, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+                if (spec.numbered) Text((k + 1).toString().padStart(2, '0'), color = Faint, fontSize = GregalSize.small, fontWeight = FontWeight.Bold)
+                if (r.lead.isNotEmpty()) Text(r.lead, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.Bold, maxLines = 1,
                     overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(min = 96.dp, max = 160.dp))
                 Column(Modifier.weight(1f)) {
-                    if (r.text.isNotEmpty()) Text(r.text, color = Ink, fontSize = 13.sp, maxLines = if (r.lead.isNotEmpty()) 1 else 2,
+                    if (r.text.isNotEmpty()) Text(r.text, color = Ink, fontSize = GregalSize.small, maxLines = if (r.lead.isNotEmpty()) 1 else 2,
                         overflow = TextOverflow.Ellipsis)
-                    if (r.tag.isNotEmpty()) Text(r.tag.uppercase(), color = if (r.pick) ok else Muted, fontSize = 10.5.sp, fontWeight = FontWeight.Bold,
+                    if (r.tag.isNotEmpty()) Text(r.tag.uppercase(), color = if (r.pick) ok else Muted, fontSize = GregalSize.label, fontWeight = FontWeight.Bold,
                         maxLines = 1)
                 }
-                if (r.value.isNotEmpty()) Text(r.value, color = Ink, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                if (r.url.isNotEmpty()) Text("›", color = Faint, fontSize = 18.sp)
+                if (r.value.isNotEmpty()) Text(r.value, color = Ink, fontSize = GregalSize.small, fontWeight = FontWeight.Bold, maxLines = 1)
+                if (r.url.isNotEmpty()) Text("›", color = Faint, fontSize = GregalSize.large)
             }
         }
         if (spec.sources.isNotEmpty() || spec.moreLabel.isNotEmpty()) {
@@ -135,8 +135,8 @@ internal fun GregalResultCard(spec: ResultSpec, accent: Color, lang: String = "c
                     }
                 }
                 Text((if (spec.sources.isNotEmpty()) "  " else "") + resultFootText(lang, resultSourceNames(spec.sources).size, atMs),
-                    color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                if (spec.moreLabel.isNotEmpty()) Text(spec.moreLabel + " ›", color = link, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    color = Muted, fontSize = GregalSize.caption, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                if (spec.moreLabel.isNotEmpty()) Text(spec.moreLabel + " ›", color = link, fontSize = GregalSize.small, fontWeight = FontWeight.SemiBold,
                     maxLines = 1, modifier = Modifier.clickable(role = Role.Button) { if (spec.moreUrl.isNotEmpty()) uri.openUri(spec.moreUrl) }
                         .padding(start = 8.dp, top = 6.dp, bottom = 6.dp))
             }

@@ -6,7 +6,7 @@
   border-radius:99px; background:var(--surface); color:var(--muted); font:inherit; font-size:var(--t1); cursor:pointer; vertical-align:middle; }
 .replay-open:hover { color:var(--ink); border-color:var(--accent); }
 .replay-open:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-.replay-open-icon { color:var(--accent); font-size:10px; }
+.replay-open-icon { color:var(--accent); font-size:var(--t1); }
 .replay-group { margin-left:8px; }
 .work-group > summary .replay-group { margin-left:auto; }
 .work-group > summary .replay-group + .retro-open, .work-group > summary .retro-open + .replay-group { margin-left:6px; }
@@ -19,7 +19,7 @@
 .replay-dialog:not([open]), .wrapped-dialog:not([open]) { display:none; }
 .replay-dialog::backdrop, .wrapped-dialog::backdrop { background:color-mix(in srgb, var(--bg) 55%, transparent); }
 .replay-head, .wrapped-head { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--line); background:var(--surface); flex-wrap:wrap; }
-.replay-head h2, .wrapped-head h2 { margin:0; font-size:17px; color:var(--ink); }
+.replay-head h2, .wrapped-head h2 { margin:0; font-size:var(--t4); color:var(--ink); }
 .replay-run { margin-left:auto; max-width:min(420px, 60vw); background:var(--panel); color:var(--text); border:1px solid var(--line-hi); border-radius:8px; padding:4px 8px; font:inherit; }
 .replay-run[hidden] { display:none; }
 .replay-icon, .wrapped-icon { margin-left:4px; width:30px; height:30px; border:1px solid transparent; border-radius:8px; background:transparent; color:var(--muted); cursor:pointer; font:inherit; }
@@ -55,13 +55,13 @@
 .wrapped-highlights { margin:0; padding-left:18px; display:grid; gap:4px; color:var(--ink); }
 .wrapped-tiles { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(140px, 42%), 1fr)); gap:10px; }
 .wrapped-tile { display:flex; flex-direction:column; gap:4px; padding:12px; border:1px solid var(--line); border-radius:12px; background:var(--surface); min-width:0; }
-.wrapped-num { font-size:22px; font-weight:700; color:var(--ink); overflow-wrap:anywhere; }
+.wrapped-num { font-size:var(--t5); font-weight:700; color:var(--ink); overflow-wrap:anywhere; }
 .wrapped-lab { color:var(--muted); font-size:var(--t1); }
 .wrapped-section h3 { margin:0 0 8px; font-size:var(--t3); color:var(--ink); }
 .wrapped-bars { list-style:none; margin:0; padding:0; display:flex; align-items:flex-end; gap:4px; height:120px; }
 .wrapped-bar { flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:4px; height:100%; min-width:0; }
 .wrapped-bar-fill { width:100%; max-width:36px; min-height:2px; border-radius:4px 4px 0 0; background:var(--accent); }
-.wrapped-bar-day { color:var(--faint); font-size:10px; white-space:nowrap; }
+.wrapped-bar-day { color:var(--faint); font-size:var(--t1); white-space:nowrap; }
 .wrapped-kinds { list-style:none; margin:0; padding:0; display:grid; gap:6px; }
 .wrapped-kind { display:grid; grid-template-columns:110px 1fr 48px; align-items:center; gap:8px; font-size:var(--t2); }
 .wrapped-kind-bar { height:8px; border-radius:99px; background:var(--surface-hi); overflow:hidden; }
@@ -75,7 +75,7 @@
 /* --- Wrapped: targeta de la pàgina d'inici --- */
 /* Una sola línia discreta, no una targeta: el resum sencer és a «Mira-ho tot». */
 .wrapped-card { display:flex; align-items:center; gap:10px; margin:10px auto 0; max-width:var(--doc-w, 760px); width:max-content; padding:5px 6px 5px 14px;
-  border:1px solid var(--line); border-radius:999px; background:var(--surface); color:var(--muted); font-size:13px; }
+  border:1px solid var(--line); border-radius:999px; background:var(--surface); color:var(--muted); font-size:var(--t2); }
 .wrapped-card[hidden] { display:none; }
 .wrapped-card-line { display:flex; align-items:center; gap:8px; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .wrapped-card-line > * { flex:none; }
@@ -84,7 +84,7 @@
 .wrapped-card-title { font-weight:600; color:var(--text); }
 .wrapped-card-see { border:0; background:transparent; color:var(--accent); font:inherit; font-weight:600; padding:3px 6px; border-radius:8px; cursor:pointer; white-space:nowrap; }
 .wrapped-card-see:hover { background:var(--accent-soft); }
-.wrapped-card-close { border:0; background:transparent; color:var(--faint); font-size:12px; width:24px; height:24px; border-radius:50%; cursor:pointer; }
+.wrapped-card-close { border:0; background:transparent; color:var(--faint); font-size:var(--t2); width:24px; height:24px; border-radius:50%; cursor:pointer; }
 .wrapped-card-close:hover { color:var(--ink); background:var(--hover); }
 @media (max-width:640px) { .wrapped-card { width:auto; border-radius:14px; } }
 

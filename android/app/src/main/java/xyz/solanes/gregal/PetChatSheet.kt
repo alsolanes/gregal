@@ -48,8 +48,8 @@ fun PetChatSheet(vm: GregalViewModel, pet: Pet, onBack: () -> Unit) {
                         PetAvatar(pet.id, size = 28)
                         Spacer(Modifier.width(10.dp))
                         Column {
-                            Text(pet.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
-                            Text(pet.role, fontSize = 12.sp, color = Muted)
+                            Text(pet.name, fontSize = GregalSize.large, fontWeight = FontWeight.Bold, color = Ink)
+                            Text(pet.role, fontSize = GregalSize.caption, color = Muted)
                         }
                     }
                 },
@@ -75,7 +75,7 @@ fun PetChatSheet(vm: GregalViewModel, pet: Pet, onBack: () -> Unit) {
                 if (msgs.isEmpty()) {
                     Text(
                         tr(lang, "app.company.chatEmpty"),
-                        fontSize = 14.sp,
+                        fontSize = GregalSize.body,
                         color = Muted,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
@@ -85,7 +85,7 @@ fun PetChatSheet(vm: GregalViewModel, pet: Pet, onBack: () -> Unit) {
                     PetBubble(m, accent)
                 }
                 if (busy.contains(pet.id)) {
-                    Text("…", fontSize = 16.sp, color = Muted)
+                    Text("…", fontSize = GregalSize.large, color = Muted)
                 }
                 Spacer(Modifier.height(8.dp))
             }
@@ -101,7 +101,7 @@ fun PetChatSheet(vm: GregalViewModel, pet: Pet, onBack: () -> Unit) {
                 OutlinedTextField(
                     value = text,
                     onValueChange = { text = it },
-                    placeholder = { Text(tr(lang, "app.company.chatHint"), fontSize = 14.sp) },
+                    placeholder = { Text(tr(lang, "app.company.chatHint"), fontSize = GregalSize.body) },
                     shape = RoundedCornerShape(22.dp),
                     modifier = Modifier.weight(1f),
                     maxLines = 3,
@@ -140,7 +140,7 @@ private fun PetBubble(m: GregalViewModel.PetMsg, accent: Long) {
         ) {
             Text(
                 m.text,
-                fontSize = 14.sp,
+                fontSize = GregalSize.body,
                 color = if (mine) Tinta else Color(accent.toInt()),
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             )

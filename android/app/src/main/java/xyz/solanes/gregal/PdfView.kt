@@ -109,15 +109,15 @@ fun PdfPages(vm: GregalViewModel, doc: OfficeDoc, modifier: Modifier = Modifier)
         Column(Modifier.padding(8.dp).heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             when {
-                error.isNotBlank() -> Text(error, color = Ink, fontSize = 13.sp, modifier = Modifier.padding(4.dp))
-                pages.isEmpty() -> Text(tr(lang, "app.off.renderLoading"), color = Muted, fontSize = 13.sp, modifier = Modifier.padding(4.dp))
+                error.isNotBlank() -> Text(error, color = Ink, fontSize = GregalSize.small, modifier = Modifier.padding(4.dp))
+                pages.isEmpty() -> Text(tr(lang, "app.off.renderLoading"), color = Muted, fontSize = GregalSize.small, modifier = Modifier.padding(4.dp))
                 else -> {
                     pages.forEach { bmp ->
                         Image(bmp, contentDescription = null, contentScale = ContentScale.FillWidth,
                             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(Color.White))
                     }
                     if (total > pages.size) {
-                        Text(tr(lang, "app.off.pdfMorePages", pages.size, total), color = Muted, fontSize = 12.sp)
+                        Text(tr(lang, "app.off.pdfMorePages", pages.size, total), color = Muted, fontSize = GregalSize.caption)
                     }
                 }
             }

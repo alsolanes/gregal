@@ -158,9 +158,11 @@ func CSSRoot() string {
 		b.WriteString(fileta(CSSColors(t)))
 		if i == 0 {
 			b.WriteString("  --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,\"Liberation Mono\",monospace;\n")
-			b.WriteString("  /* Escala tipogràfica: cinc mides i prou, res per sota d'11.5px.\n")
-			b.WriteString("     --fs és la del cos i la mou Preferències; la resta hi van lligades. */\n")
-			b.WriteString("  --t1:11.5px; --t2:12.5px; --t3:14px; --t4:16px; --t5:26px;\n")
+			b.WriteString("  /* Escala tipogràfica: sis mides i prou, res per sota d'11.5px.\n")
+			b.WriteString("     t1 peus i etiquetes · t2 la interfície · t3 text destacat · t4 títols\n")
+			b.WriteString("     de targeta · t5 títols de pantalla · t6 portades. --fs és la del cos\n")
+			b.WriteString("     de lectura i la mou Preferències. Cap font-size en px fora d'aquí. */\n")
+			b.WriteString("  --t1:11.5px; --t2:12.5px; --t3:14px; --t4:16px; --t5:20px; --t6:26px;\n")
 			b.WriteString("  --lh:1.55; --lh-titol:1.3; --llegible:720px;\n")
 			b.WriteString("  --fs:14px; --gap:20px; --pad:24px;\n")
 		}

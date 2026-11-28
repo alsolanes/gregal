@@ -563,13 +563,13 @@ internal fun AgileNote(vm: GregalViewModel, lang: String, start: NoteInput, page
                     .padding(horizontal = 20.dp, vertical = 8.dp).testTag("agile-note"),
                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     androidx.compose.foundation.text.BasicTextField(title, { title = it }, Modifier.fillMaxWidth().testTag("agile-title"),
-                        singleLine = true, textStyle = LocalTextStyle.current.copy(color = Ink, fontSize = 24.sp, fontFamily = FontFamily.Serif, lineHeight = 30.sp),
+                        singleLine = true, textStyle = LocalTextStyle.current.copy(color = Ink, fontSize = GregalSize.display, fontFamily = FontFamily.Serif, lineHeight = 30.sp),
                         cursorBrush = androidx.compose.ui.graphics.SolidColor(Sea),
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next),
                         keyboardActions = KeyboardActions(onNext = { runCatching { focus.requestFocus() } }),
                         decorationBox = { inner ->
                             Box {
-                                if (title.isEmpty()) Text(tr(lang, "notes.fieldTitle"), color = Faint, fontSize = 24.sp, fontFamily = FontFamily.Serif)
+                                if (title.isEmpty()) Text(tr(lang, "notes.fieldTitle"), color = Faint, fontSize = GregalSize.display, fontFamily = FontFamily.Serif)
                                 inner()
                             }
                         })
@@ -581,12 +581,12 @@ internal fun AgileNote(vm: GregalViewModel, lang: String, start: NoteInput, page
                     }, color = if (status == "error") Red else Faint, style = GregalType.caption, modifier = Modifier.testTag("agile-status"))
                     androidx.compose.foundation.text.BasicTextField(body, { body = it },
                         Modifier.fillMaxWidth().heightIn(min = 320.dp).focusRequester(focus).testTag("agile-body"),
-                        textStyle = LocalTextStyle.current.copy(color = Tinta, fontSize = 16.sp, lineHeight = 24.sp),
+                        textStyle = LocalTextStyle.current.copy(color = Tinta, fontSize = GregalSize.large, lineHeight = 24.sp),
                         cursorBrush = androidx.compose.ui.graphics.SolidColor(Sea),
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         decorationBox = { inner ->
                             Box {
-                                if (body.isEmpty()) Text(tr(lang, "notes.bodyHint"), color = Faint, fontSize = 16.sp)
+                                if (body.isEmpty()) Text(tr(lang, "notes.bodyHint"), color = Faint, fontSize = GregalSize.large)
                                 inner()
                             }
                         })
@@ -630,7 +630,7 @@ private fun NotesList(vm: GregalViewModel, lang: String, page: NotesPage?, onMen
     }) { pad ->
         LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 96.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            item(key = "help") { Text(tr(lang, "notes.help"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp) }
+            item(key = "help") { Text(tr(lang, "notes.help"), color = Muted, fontSize = GregalSize.small, lineHeight = 18.sp) }
             // Captura ràpida: escrius i desa, sense obrir l'editor.
             item(key = "quick") {
                 OutlinedTextField(quick, { quick = it }, Modifier.fillMaxWidth(), singleLine = true,
@@ -667,21 +667,21 @@ private fun NotesList(vm: GregalViewModel, lang: String, page: NotesPage?, onMen
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(q.tag.isBlank() && q.notebook.isBlank() && q.project.isBlank() && !pinnedOnly, {
                         pinnedOnly = false; vm.loadNotes(q.copy(tag = "", notebook = "", project = ""))
-                    }, { Text(tr(lang, "notes.all"), fontSize = 13.sp) })
+                    }, { Text(tr(lang, "notes.all"), fontSize = GregalSize.small) })
                     ProjectFilterChip(vm, lang, p, q)
-                    if (pinnedOnly || p.notes.any { it.pinned }) FilterChip(pinnedOnly, { pinnedOnly = !pinnedOnly }, { Text("📌 " + tr(lang, "notes.pinned"), fontSize = 13.sp) })
+                    if (pinnedOnly || p.notes.any { it.pinned }) FilterChip(pinnedOnly, { pinnedOnly = !pinnedOnly }, { Text("📌 " + tr(lang, "notes.pinned"), fontSize = GregalSize.small) })
                     for (nb in p.notebooks.take(12)) FilterChip(q.notebook == nb.name, {
                         vm.loadNotes(q.copy(notebook = if (q.notebook == nb.name) "" else nb.name))
-                    }, { Text("📓 " + nb.name, fontSize = 13.sp) })
+                    }, { Text("📓 " + nb.name, fontSize = GregalSize.small) })
                     for (t in p.tags.take(16)) FilterChip(foldNote(q.tag) == foldNote(t.name), {
                         vm.loadNotes(q.copy(tag = if (foldNote(q.tag) == foldNote(t.name)) "" else t.name))
-                    }, { Text("#" + t.name, fontSize = 13.sp) })
+                    }, { Text("#" + t.name, fontSize = GregalSize.small) })
                 }
             }
             val shown = if (pinnedOnly) p.notes.filter { it.pinned } else p.notes
             if (shown.isEmpty()) item(key = "empty") {
                 Surface(color = Ink.copy(alpha = 0.04f), shape = MaterialTheme.shapes.medium) {
-                    Text(tr(lang, if (p.total == 0) "notes.empty" else "notes.noneHere"), color = Tinta, fontSize = 14.sp, lineHeight = 20.sp,
+                    Text(tr(lang, if (p.total == 0) "notes.empty" else "notes.noneHere"), color = Tinta, fontSize = GregalSize.body, lineHeight = 20.sp,
                         modifier = Modifier.padding(16.dp))
                 }
             }
@@ -695,13 +695,13 @@ private fun AgendaCard(vm: GregalViewModel, lang: String, items: List<AgendaItem
     val groups = remember(items) { agendaGroups(items) }
     Surface(color = SeaSoft(0.08f), shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(tr(lang, "notes.agenda").uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp)
+            Text(tr(lang, "notes.agenda").uppercase(), color = Muted, fontSize = GregalSize.label, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp)
             var shown = 0
             for (k in listOf("overdue", "today", "week", "later")) {
                 val list = groups[k].orEmpty()
                 if (list.isEmpty() || shown >= 10) continue
                 Text(tr(lang, "notes.agenda.$k"), color = if (k == "overdue") Red else Faint,
-                    fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp))
+                    fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp))
                 for (item in list.take(10 - shown)) {
                     shown++
                     key(item.noteId + ":" + item.index) {
@@ -709,10 +709,10 @@ private fun AgendaCard(vm: GregalViewModel, lang: String, items: List<AgendaItem
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { vm.openNote(item.noteId) }) {
                             Checkbox(done, { v -> done = v; vm.tickAgenda(item) })
                             Column(Modifier.weight(1f)) {
-                                Text(item.text.ifBlank { item.noteTitle }, color = Tinta, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text(item.text.ifBlank { item.noteTitle }, color = Tinta, fontSize = GregalSize.body, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 val day = if (k == "today") "" else agendaDay(lang, item.due)
                                 Text(listOf(day, item.time, item.noteTitle).filter { it.isNotBlank() }.joinToString(" · ") + if (item.remindAt.isNotBlank()) " · 🔔" else "",
-                                    color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    color = Muted, fontSize = GregalSize.caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }
@@ -733,12 +733,12 @@ private fun NoteRow(lang: String, n: Note, onOpen: () -> Unit) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(listOfNotNull(if (n.pinned) "📌" else null, n.title.ifBlank { tr(lang, "notes.untitled") },
                 if (n.private) "🙈" else null, if (n.locked) "🔒" else null).joinToString(" "),
-                color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body, maxLines = 2, overflow = TextOverflow.Ellipsis)
             val text = n.snippet.ifBlank { n.excerpt }
-            if (text.isNotBlank()) Text(text, color = Tinta, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (text.isNotBlank()) Text(text, color = Tinta, fontSize = GregalSize.small, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             val tags = n.allTags.take(4)
             val meta = noteMeta(lang, n) + if (tags.isEmpty()) "" else " · #" + tags.joinToString(" #")
-            Text(meta, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(meta, color = Muted, fontSize = GregalSize.caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -773,19 +773,19 @@ private fun NoteView(vm: GregalViewModel, lang: String, d: NoteDetail, onEdit: (
         Column(Modifier.fillMaxSize().padding(pad).verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (aiBusy) NoteAIWorking(lang)
-            Text(n.title.ifBlank { tr(lang, "notes.untitled") }, color = Ink, fontSize = 24.sp, fontFamily = FontFamily.Serif, lineHeight = 30.sp)
+            Text(n.title.ifBlank { tr(lang, "notes.untitled") }, color = Ink, fontSize = GregalSize.display, fontFamily = FontFamily.Serif, lineHeight = 30.sp)
             val meta = listOfNotNull(
                 noteMeta(lang, n).ifBlank { null },
                 if (n.by.isNotBlank() && n.by != n.editedBy) tr(lang, "notes.createdBy", n.by) else null,
                 if (n.private) "🙈 " + tr(lang, "notes.privateOn") else null,
                 if (n.locked) "🔒 " + tr(lang, "notes.lockedOn") else null,
             ).joinToString(" · ")
-            if (meta.isNotBlank()) Text(meta, color = Muted, fontSize = 12.sp, lineHeight = 16.sp)
+            if (meta.isNotBlank()) Text(meta, color = Muted, fontSize = GregalSize.caption, lineHeight = 16.sp)
             if (n.allTags.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (t in n.allTags) AssistChip(onClick = { vm.closeNote(); vm.loadNotes(NotesQuery(tag = t)) }, label = { Text("#$t", fontSize = 12.sp) })
+                for (t in n.allTags) AssistChip(onClick = { vm.closeNote(); vm.loadNotes(NotesQuery(tag = t)) }, label = { Text("#$t", fontSize = GregalSize.caption) })
             }
             val blocks = remember(n.body) { noteBlocks(n.body) }
-            if (blocks.isEmpty()) Text(tr(lang, "notes.emptyNote"), color = Muted, fontSize = 13.sp)
+            if (blocks.isEmpty()) Text(tr(lang, "notes.emptyNote"), color = Muted, fontSize = GregalSize.small)
             for (b in blocks) when (b) {
                 is NoteBlock.Text -> MdPageBody(linkifyNotes(b.md), lang) { url ->
                     val title = noteLinkTitle(url)
@@ -795,15 +795,15 @@ private fun NoteView(vm: GregalViewModel, lang: String, d: NoteDetail, onEdit: (
                     verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(b.done, { vm.toggleNoteTask(n, b.index) })
                     val rich = remember(b.text) { renderMd(b.text, Color.Transparent) }
-                    Text(rich, color = if (b.done) Muted else Tinta, fontSize = 15.sp, lineHeight = 21.sp,
+                    Text(rich, color = if (b.done) Muted else Tinta, fontSize = GregalSize.body, lineHeight = 21.sp,
                         textDecoration = if (b.done) androidx.compose.ui.text.style.TextDecoration.LineThrough else null)
                 }
             }
             if (d.backlinks.isNotEmpty()) {
                 HorizontalDivider(color = Line, modifier = Modifier.padding(top = 8.dp))
-                Text(tr(lang, "notes.backlinks").uppercase(), color = Faint, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp)
+                Text(tr(lang, "notes.backlinks").uppercase(), color = Faint, fontSize = GregalSize.label, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    for ((id, title) in d.backlinks) AssistChip(onClick = { vm.openNote(id) }, label = { Text(title, fontSize = 12.sp) })
+                    for ((id, title) in d.backlinks) AssistChip(onClick = { vm.openNote(id) }, label = { Text(title, fontSize = GregalSize.caption) })
                 }
             }
             if (!n.private) OutlinedButton(onClick = {
@@ -873,13 +873,13 @@ private fun NoteEditor(vm: GregalViewModel, lang: String, start: NoteInput, onDo
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences))
             OutlinedTextField(body, { body = it }, Modifier.fillMaxWidth().heightIn(min = 260.dp), label = { Text(tr(lang, "notes.fieldBody")) },
                 placeholder = { Text(tr(lang, "notes.bodyHint"), color = Faint) },
-                textStyle = LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace, fontSize = 14.sp, lineHeight = 20.sp),
+                textStyle = LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace, fontSize = GregalSize.body, lineHeight = 20.sp),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences))
             ProjectPicker(vm, lang, project) { project = it }
             OutlinedTextField(notebook, { notebook = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text(tr(lang, "notes.fieldNotebook")) })
             val notebooks = vm.notes.collectAsState().value?.notebooks.orEmpty().filter { it.name != notebook }
             if (notebooks.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (nb in notebooks.take(10)) SuggestionChip(onClick = { notebook = nb.name }, label = { Text(nb.name, fontSize = 12.sp) })
+                for (nb in notebooks.take(10)) SuggestionChip(onClick = { notebook = nb.name }, label = { Text(nb.name, fontSize = GregalSize.caption) })
             }
             OutlinedTextField(tags, { tags = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text(tr(lang, "notes.fieldTags")) },
                 placeholder = { Text(tr(lang, "notes.tagsHint"), color = Faint) })
@@ -924,7 +924,7 @@ private fun ProjectFilterChip(vm: GregalViewModel, lang: String, page: NotesPage
     val counts = page.projects.associate { it.name to it.count }
     fun pick(v: String) { open = false; if (v != q.project) vm.loadNotes(q.copy(project = v)) }
     Box {
-        FilterChip(q.project.isNotBlank(), { open = true }, { Text("📁 $label", fontSize = 13.sp, maxLines = 1) },
+        FilterChip(q.project.isNotBlank(), { open = true }, { Text("📁 $label", fontSize = GregalSize.small, maxLines = 1) },
             trailingIcon = { Icon(Icons.Rounded.ArrowDropDown, tr(lang, "notes.project"), Modifier.size(18.dp)) })
         DropdownMenu(open, { open = false }) {
             DropdownMenuItem(text = { Text(tr(lang, "notes.project.all")) }, onClick = { pick("") })
@@ -939,7 +939,7 @@ private fun ProjectFilterChip(vm: GregalViewModel, lang: String, page: NotesPage
 private fun CountLabel(name: String, count: Int) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-        if (count > 0) Text("  $count", color = Muted, fontSize = 12.sp)
+        if (count > 0) Text("  $count", color = Muted, fontSize = GregalSize.caption)
     }
 }
 
@@ -963,7 +963,7 @@ private fun ProjectPicker(vm: GregalViewModel, lang: String, value: String, onPi
                 text = {
                     Column {
                         Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(path, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(path, color = Muted, fontSize = GregalSize.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 },
                 onClick = { open = false; onPick(path) },
@@ -984,7 +984,7 @@ private fun NoteAIButton(lang: String, busy: Boolean, onRun: (action: String, in
                 text = {
                     Column {
                         Text(tr(lang, "notes.ai.$a"), fontWeight = FontWeight.Medium)
-                        Text(tr(lang, "notes.ai.$a.help"), color = Muted, fontSize = 12.sp)
+                        Text(tr(lang, "notes.ai.$a.help"), color = Muted, fontSize = GregalSize.caption)
                     }
                 },
                 onClick = { open = false; onRun(a, "") },
@@ -1015,7 +1015,7 @@ private fun NoteAIButton(lang: String, busy: Boolean, onRun: (action: String, in
 private fun NoteAIWorking(lang: String) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         LinearProgressIndicator(Modifier.fillMaxWidth(), color = Sea)
-        Text(tr(lang, "notes.ai.working"), color = Muted, fontSize = 12.sp)
+        Text(tr(lang, "notes.ai.working"), color = Muted, fontSize = GregalSize.caption)
     }
 }
 
@@ -1027,7 +1027,7 @@ private fun NoteAIProposal(lang: String, proposal: String, onApply: () -> Unit, 
         title = { Text(tr(lang, "notes.ai.proposal")) },
         text = {
             Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(tr(lang, "notes.ai.proposalHelp"), color = Muted, fontSize = 12.sp)
+                Text(tr(lang, "notes.ai.proposalHelp"), color = Muted, fontSize = GregalSize.caption)
                 MdPageBody(linkifyNotes(proposal), lang) { }
             }
         },
@@ -1039,7 +1039,7 @@ private fun NoteAIProposal(lang: String, proposal: String, onApply: () -> Unit, 
 @Composable
 private fun SwitchRow(label: String, on: Boolean, set: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth().clickable { set(!on) }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = Tinta, fontSize = 14.sp, lineHeight = 19.sp, modifier = Modifier.weight(1f))
+        Text(label, color = Tinta, fontSize = GregalSize.body, lineHeight = 19.sp, modifier = Modifier.weight(1f))
         Spacer(Modifier.width(12.dp))
         Switch(on, set)
     }

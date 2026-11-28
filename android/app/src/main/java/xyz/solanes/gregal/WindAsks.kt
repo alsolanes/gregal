@@ -236,8 +236,8 @@ private fun AskPreviewBox(p: AskPreview, accent: Color) {
         val icon = when (p.kind) { "url" -> Icons.Rounded.Language; "doc" -> Icons.Rounded.Description; else -> Icons.Rounded.FormatQuote }
         Icon(icon, null, tint = accent, modifier = Modifier.size(18.dp))
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            if (p.title.isNotEmpty()) Text(p.title, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (p.body.isNotEmpty()) Text(p.body, color = if (p.title.isEmpty()) Ink else Muted, fontSize = 13.sp, lineHeight = 18.sp,
+            if (p.title.isNotEmpty()) Text(p.title, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (p.body.isNotEmpty()) Text(p.body, color = if (p.title.isEmpty()) Ink else Muted, fontSize = GregalSize.small, lineHeight = 18.sp,
                 maxLines = if (p.kind == "text") 8 else 2, overflow = TextOverflow.Ellipsis)
         }
     }
@@ -264,7 +264,7 @@ private fun AnsweredLine(lang: String, a: GregalApi.WindAsk, ok: Boolean, face: 
                     if (ok) translationY = swing else translationX = swing
                 }.testTag(if (ok) "ask-face-nod" else "ask-face-shake"))
         }
-        Text(askUi(lang, if (ok) "allowed" else "declined") + what, color = Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(askUi(lang, if (ok) "allowed" else "declined") + what, color = Muted, fontSize = GregalSize.small, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -282,24 +282,24 @@ private fun ApproveCard(lang: String, a: GregalApi.WindAsk, accent: Color, face:
     val full = a.detail.ifBlank { a.what }
     Box(Modifier.fillMaxWidth().padding(top = if (face != null) 16.dp else 0.dp)) {
         AskShell(accent, "approve-card", edge = true) {
-            Text(askStep(lang, a), color = Muted, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            Text(askStep(lang, a), color = Muted, fontSize = GregalSize.caption, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(start = if (face != null) 42.dp else 0.dp).testTag("ask-step"))
             Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 // La cara del vent ja és a la targeta; l'escut, per a un vent que no coneixem (o el del xat, que és a la cantonada).
                 if (face == null) Icon(Icons.Rounded.Shield, null, tint = accent, modifier = Modifier.size(22.dp).testTag("ask-shield"))
                 Column {
-                    Text(plan.question, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                    if (plan.sub.isNotEmpty()) Text(plan.sub, color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
-                    if (a.reason.isNotBlank()) Text(a.reason, color = Muted, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 1,
+                    Text(plan.question, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
+                    if (plan.sub.isNotEmpty()) Text(plan.sub, color = Muted, fontSize = GregalSize.small, lineHeight = 18.sp)
+                    if (a.reason.isNotBlank()) Text(a.reason, color = Muted, fontSize = GregalSize.small, lineHeight = 18.sp, maxLines = 1,
                         overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("ask-why"))
                 }
             }
             if (preview != null) AskPreviewBox(preview, accent)
             else if (full.isNotBlank()) {
-                Text((if (showCmd) "▾ " else "▸ ") + if (lang == "en") "See the command" else "Veure l'ordre", color = Muted, fontSize = 12.5.sp,
+                Text((if (showCmd) "▾ " else "▸ ") + if (lang == "en") "See the command" else "Veure l'ordre", color = Muted, fontSize = GregalSize.caption,
                     modifier = Modifier.clickable { showCmd = !showCmd }.padding(vertical = 2.dp).testTag("ask-command-toggle"))
                 if (showCmd) Text(
-                    full, color = Ink, fontSize = 12.5.sp, fontFamily = FontFamily.Monospace,
+                    full, color = Ink, fontSize = GregalSize.caption, fontFamily = FontFamily.Monospace,
                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Superficie.copy(alpha = .7f)).padding(10.dp),
                 )
             }
@@ -319,15 +319,15 @@ private fun QuestionCard(lang: String, a: GregalApi.WindAsk, accent: Color, onAn
     AskShell(accent, "question-card") {
         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Icon(Icons.Rounded.HelpOutline, null, tint = accent, modifier = Modifier.size(22.dp).padding(top = 1.dp))
-            Text(a.query, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, lineHeight = 20.sp)
+            Text(a.query, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold, lineHeight = 20.sp)
         }
         a.options.forEach { (label, desc) ->
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Superficie.copy(alpha = .7f))
                     .border(1.dp, Line, RoundedCornerShape(14.dp)).clickable { onAnswer(label) }.padding(horizontal = 14.dp, vertical = 11.dp).testTag("ask-option"),
             ) {
-                Text(label, color = Ink, fontSize = 14.5.sp, fontWeight = FontWeight.Medium)
-                if (desc.isNotBlank()) Text(desc, color = Muted, fontSize = 12.sp)
+                Text(label, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.Medium)
+                if (desc.isNotBlank()) Text(desc, color = Muted, fontSize = GregalSize.caption)
             }
         }
         Row(
@@ -336,9 +336,9 @@ private fun QuestionCard(lang: String, a: GregalApi.WindAsk, accent: Color, onAn
             verticalAlignment = Alignment.CenterVertically,
         ) {
             BasicTextField(
-                free, { free = it }, singleLine = true, textStyle = TextStyle(color = Ink, fontSize = 14.sp), cursorBrush = SolidColor(Ink),
+                free, { free = it }, singleLine = true, textStyle = TextStyle(color = Ink, fontSize = GregalSize.body), cursorBrush = SolidColor(Ink),
                 modifier = Modifier.weight(1f).testTag("ask-free"),
-                decorationBox = { inner -> Box { if (free.isEmpty()) Text(askUi(lang, "other"), color = Muted, fontSize = 14.sp); inner() } },
+                decorationBox = { inner -> Box { if (free.isEmpty()) Text(askUi(lang, "other"), color = Muted, fontSize = GregalSize.body); inner() } },
             )
             Box(
                 Modifier.size(36.dp).clip(RoundedCornerShape(50)).background(if (free.isNotBlank()) Ink else Ink.copy(alpha = .12f))
@@ -376,7 +376,7 @@ private fun AskButton(label: String, primary: Boolean, modifier: Modifier = Modi
         modifier.heightIn(min = 46.dp).clip(RoundedCornerShape(14.dp)).background(bg)
             .then(if (primary) Modifier else Modifier.border(1.dp, Line, RoundedCornerShape(14.dp))).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { Text(label, color = fg, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold) }
+    ) { Text(label, color = fg, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold) }
 }
 
 /** Respostes ràpides: sota l'últim missatge del vent; un toc les envia com a resposta. */
@@ -387,7 +387,7 @@ internal fun ChoiceChips(options: List<String>, accent: Color, onPick: (String) 
     FlowRow(Modifier.fillMaxWidth().padding(top = 8.dp).testTag("choice-chips"),
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         options.forEach { o ->
-            Text(o, color = Ink, fontSize = 13.5.sp, fontWeight = FontWeight.Medium,
+            Text(o, color = Ink, fontSize = GregalSize.small, fontWeight = FontWeight.Medium,
                 modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(accent.copy(alpha = .14f))
                     .border(1.dp, accent.copy(alpha = .45f), RoundedCornerShape(999.dp)).clickable { onPick(o) }
                     .padding(horizontal = 14.dp, vertical = 9.dp).testTag("choice-chip"))
@@ -423,14 +423,14 @@ internal fun SecretCard(lang: String, a: GregalApi.WindAsk, accent: Color, onSav
         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Icon(Icons.Rounded.Shield, null, tint = accent, modifier = Modifier.size(20.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(secretCopy(lang, "need") + a.query.ifBlank { a.name }, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                if (a.reason.isNotBlank()) Text(a.reason, color = Muted, fontSize = 13.sp)
+                Text(secretCopy(lang, "need") + a.query.ifBlank { a.name }, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body)
+                if (a.reason.isNotBlank()) Text(a.reason, color = Muted, fontSize = GregalSize.small)
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             androidx.compose.material3.OutlinedTextField(
                 value = value, onValueChange = { value = it.take(8192) }, singleLine = true,
-                placeholder = { Text(secretCopy(lang, "hint"), fontSize = 14.sp) },
+                placeholder = { Text(secretCopy(lang, "hint"), fontSize = GregalSize.body) },
                 visualTransformation = if (visible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                     keyboardType = androidx.compose.ui.text.input.KeyboardType.Password, autoCorrectEnabled = false),
@@ -440,7 +440,7 @@ internal fun SecretCard(lang: String, a: GregalApi.WindAsk, accent: Color, onSav
                 Text(secretCopy(lang, if (visible) "hide" else "show"), color = Ink)
             }
         }
-        Text(secretCopy(lang, "note"), color = Muted, fontSize = 12.sp, lineHeight = 16.sp)
+        Text(secretCopy(lang, "note"), color = Muted, fontSize = GregalSize.caption, lineHeight = 16.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             androidx.compose.material3.Button(onClick = { val v = value; if (v.isNotBlank()) { value = ""; onSave(v) } },
                 enabled = value.isNotBlank(), modifier = Modifier.testTag("secret-save")) { Text(secretCopy(lang, "save")) }

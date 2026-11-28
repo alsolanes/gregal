@@ -25,7 +25,10 @@
     model:'M8 4h8v4h4v8h-4v4H8v-4H4V8h4z M9 9h6v6H9z',
     plus:'M12 5v14 M5 12h14',
     // Capçalera de Codi i barra de pestanyes: abans eren glifs de text (±, ▤, ▣, ⎇＋).
-    diff:'M12 4v7 M8.5 7.5h7 M8.5 17h7 M5 3h14v18H5z',
+    // Sense marc: a la capçalera només porten marc els dos plafons (barra
+    // lateral i inspector); Canvis, Notes i Docs eren tres fulls iguals.
+    diff:'M12 4v8 M8 8h8 M8 18h8',
+    docs:'M13 4v16 M17 4v16 M19 4h-9.5a4.5 4.5 0 0 0 0 9H13',
     files:'M3 7V5h7l2 2h9v13H3z',
     preview:'M3 5h18v14H3z M3 9h18 M6 7h.01 M8.5 7h.01',
     branchPlus:'M6 4v12 M6 16a2 2 0 1 0 0 4 2 2 0 0 0 0-4 M6 8a8 8 0 0 0 8 0 M14 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4 M18 14v6 M15 17h6',
@@ -44,7 +47,7 @@
     plug:'M9 3v5 M15 3v5 M7 8h10v3a5 5 0 0 1-10 0z M12 16v5',
     // Superfícies comunes (Preferències, notes, paleta, primer inici):
     // abans hi havia ★ ☐ ↵ ⚠ ⬇ ▶ ⓘ 🔊 i emojis als plugins.
-    note:'M6 3h9l4 4v14H6z M14 3v5h5 M9 12h7 M9 16h5',
+    note:'M5 4h14v10l-6 6H5z M13 20v-6h6',
     star:'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z',
     trash:'M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13 M10 11v6 M14 11v6',
     task:'M4 5h6v6H4z M5.5 8l1.5 1.5L9.5 6 M13 8h7 M4 15h6v6H4z M13 18h7',
@@ -80,6 +83,11 @@
     const text = button && [...button.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
     if (text) { text.remove(); button.insertAdjacentHTML('afterbegin', svg(icon)); }
   }
+  // Gregal Docs: el mateix ¶ a la barra lateral i a la capçalera.
+  const docsTop = document.getElementById('topDocsBtn');
+  if (docsTop) docsTop.innerHTML = svg('docs');
+  const docsSide = document.querySelector('#docsHomeBtn .nav-icon');
+  if (docsSide) docsSide.innerHTML = svg('docs');
   // Perquè altres mòduls (pestanyes, paleta) facin servir el mateix joc.
   window.gregalIcon = name => (paths[name] ? svg(name) : '');
   for (const [id, icon] of [['newchat','plus'], ['newproject','fitxers']]) {

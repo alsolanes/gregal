@@ -1139,24 +1139,26 @@ html body #side #navRail .rail-main {
 html body #side #navRail .rail-main > .nav-item,
 html body #side #sideMore > summary {
   min-height:30px; padding:0 9px; gap:6px; border-radius:9px;
-  font-size:12px; width:auto; flex:0 0 auto;
+  font-size:var(--t2); width:auto; flex:0 0 auto;
 }
-html body #side #navRail .rail-main > .nav-item .nav-icon { font-size:13px; }
+html body #side #navRail .rail-main > .nav-item .nav-icon { font-size:var(--t2); }
 html body #side .side-quick { padding:4px 12px 6px; }
 html body #side .side-quick-btn.primary {
-  height:34px; border-radius:11px; font-size:13px; font-weight:550;
+  height:34px; border-radius:11px; font-size:var(--t2); font-weight:550;
 }
 html body #side .conv,
 html body #side .project-row {
   border-radius:10px; padding-top:6px; padding-bottom:6px;
 }
-html body:not(.shell-winds) #composer {
-  border-radius:20px; padding:8px 12px;
-  background:color-mix(in srgb, var(--surface) 88%, var(--panel));
+/* Només la caixa d'escriure porta color i ombra; la franja del voltant
+   (#composer) és del mateix fons que el fil, o es veia una banda grisa
+   a sota de les respostes. */
+html body:not(.shell-winds) #composer { background:var(--bg); }
+html body:not(.shell-winds) #box {
   border-color:var(--line);
   box-shadow:0 8px 26px -16px var(--ombra);
 }
-html body:not(.shell-winds) #composer:focus-within {
+html body:not(.shell-winds) #box:focus-within {
   border-color:color-mix(in srgb, var(--accent) 45%, var(--line-hi));
 }
 
@@ -1303,3 +1305,14 @@ html body #side #productSwitch button {
 
 #prefsModal, #keysModal { backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); }
 #prefsModal .card, #keysModal .card { border-radius:18px; }
+
+/* Grups de dates de la llista de converses («Avui», «Ahir», «Aquesta
+   setmana»): abans tenien la mida, el pes i el sagnat d'una conversa i es
+   llegien com un xat més. Ara són una etiqueta de secció: petita, en
+   versaletes espaiades, més apagada i amb aire a dalt. */
+html body #side .conv-grup {
+  padding:16px 12px 6px; font-size:var(--t1); font-weight:600;
+  text-transform:uppercase; letter-spacing:.07em; color:var(--faint);
+  opacity:.8; pointer-events:none; user-select:none;
+}
+html body #side .conv-grup:first-child { padding-top:6px; }

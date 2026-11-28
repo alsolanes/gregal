@@ -68,10 +68,10 @@ internal fun GamesRow(lang: String, onClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("🏈", fontSize = 20.sp)
+            Text("🏈", fontSize = GregalSize.title)
             Column(Modifier.weight(1f)) {
-                Text(tr("en", "app.games.title"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                Text(tr("en", "app.games.row"), color = Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(tr("en", "app.games.title"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body)
+                Text(tr("en", "app.games.row"), color = Muted, fontSize = GregalSize.small, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -98,19 +98,19 @@ internal fun GamesDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Uni
         Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().padding(top = 12.dp)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(tr("en", "app.games.title"), color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.weight(1f))
-                    IconButton(onClick = onDismiss) { Text("✕", color = Muted, fontSize = 16.sp) }
+                    Text(tr("en", "app.games.title"), color = Ink, fontWeight = FontWeight.Bold, fontSize = GregalSize.large, modifier = Modifier.weight(1f))
+                    IconButton(onClick = onDismiss) { Text("✕", color = Muted, fontSize = GregalSize.large) }
                 }
                 val s = st
-                err?.let { Text(it, color = Muted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                if (s != null && s.error.isNotBlank()) Text(s.error, color = Muted, fontSize = 13.sp, modifier = Modifier.padding(16.dp))
+                err?.let { Text(it, color = Muted, fontSize = GregalSize.caption, modifier = Modifier.padding(horizontal = 16.dp)) }
+                if (s != null && s.error.isNotBlank()) Text(s.error, color = Muted, fontSize = GregalSize.small, modifier = Modifier.padding(16.dp))
                 LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (s != null) items(s.teams) { t ->
                         val c = hexColor(t.color, Sea)
                         Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(c, c.copy(alpha = .6f))), RoundedCornerShape(14.dp)).padding(14.dp)) {
-                            Text(t.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                            Text(t.record, color = hexColor(t.color2, Color.White), fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            if (t.stars.isNotBlank()) Text(t.stars, color = Color.White.copy(alpha = .85f), fontSize = 12.sp, lineHeight = 16.sp)
+                            Text(t.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = GregalSize.large)
+                            Text(t.record, color = hexColor(t.color2, Color.White), fontWeight = FontWeight.Bold, fontSize = GregalSize.small)
+                            if (t.stars.isNotBlank()) Text(t.stars, color = Color.White.copy(alpha = .85f), fontSize = GregalSize.caption, lineHeight = 16.sp)
                         }
                     }
                     if (s != null) item {
@@ -133,17 +133,17 @@ internal fun GamesDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Uni
                                     busy = false; refresh()
                                 }
                             }) { Text(tr("en", "app.games.play")) }
-                            Text(tr("en", "app.games.today", s.today, s.max), color = Muted, fontSize = 12.sp)
+                            Text(tr("en", "app.games.today", s.today, s.max), color = Muted, fontSize = GregalSize.caption)
                         }
                     }
                     if (s != null && s.games.isNotEmpty()) item {
-                        Text(tr("en", "app.games.list").uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        Text(tr("en", "app.games.list").uppercase(), color = Muted, fontSize = GregalSize.label, fontWeight = FontWeight.SemiBold)
                     }
                     if (s != null) items(s.games, key = { it.id }) { g ->
                         Surface(onClick = { watching = g.id }, shape = RoundedCornerShape(12.dp), color = SuperficieAlta.copy(alpha = .45f), modifier = Modifier.fillMaxWidth()) {
                             Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text("${g.home} ${g.score.first} - ${g.score.second} ${g.away}", color = Ink, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                                Text(tr("en", "app.games.status." + g.status), color = if (g.status == "live") Sea else Muted, fontSize = 12.sp)
+                                Text("${g.home} ${g.score.first} - ${g.score.second} ${g.away}", color = Ink, fontWeight = FontWeight.Bold, fontSize = GregalSize.body, modifier = Modifier.weight(1f))
+                                Text(tr("en", "app.games.status." + g.status), color = if (g.status == "live") Sea else Muted, fontSize = GregalSize.caption)
                             }
                         }
                     }
@@ -172,7 +172,7 @@ private fun GameViewer(conn: Conn, lang: String, id: String, onClose: () -> Unit
                     loadUrl(baseUrlOf(conn.host, conn.port) + "/app/football-viewer.html#" + hash)
                 }
             })
-            IconButton(onClick = onClose, modifier = Modifier.align(Alignment.TopStart).padding(4.dp)) { Text("✕", color = Color.White, fontSize = 18.sp) }
+            IconButton(onClick = onClose, modifier = Modifier.align(Alignment.TopStart).padding(4.dp)) { Text("✕", color = Color.White, fontSize = GregalSize.large) }
         }
     }
 }

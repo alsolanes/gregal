@@ -53,7 +53,7 @@ fun WorkScreen(vm: GregalViewModel, openDrawer: () -> Unit) {
                     Box(Modifier.size(40.dp).background(Sand.copy(alpha = 0.16f), RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
                         Icon(Icons.Rounded.Construction, null, tint = Sand, modifier = Modifier.size(22.dp))
                     }
-                    Text(tr(lang, "app.company.workTitle"), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Ink)
+                    Text(tr(lang, "app.company.workTitle"), fontSize = GregalSize.large, fontWeight = FontWeight.Bold, color = Ink)
                 }
                 Spacer(Modifier.height(14.dp))
                 OutlinedTextField(
@@ -95,7 +95,7 @@ fun WorkScreen(vm: GregalViewModel, openDrawer: () -> Unit) {
                 }
             }
             // Com funciona: tres passos clars en lloc d'un paràgraf dens.
-            Text(tr(lang, "app.work.how").uppercase(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.4.sp,
+            Text(tr(lang, "app.work.how").uppercase(), fontSize = GregalSize.label, fontWeight = FontWeight.SemiBold, letterSpacing = 1.4.sp,
                 color = Faint, modifier = Modifier.padding(start = 4.dp, top = 8.dp))
             GCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
                 SettingsRow(Icons.Rounded.TravelExplore, tr(lang, "app.company.inspect"), tr(lang, "app.work.howInspect"), tint = Onada)

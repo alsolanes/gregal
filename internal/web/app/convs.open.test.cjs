@@ -71,6 +71,38 @@ test('live session state clears a stale working badge from the saved list', asyn
   assert.match(box.innerHTML,/conv-live-state busy/);
 });
 
+test('a working badge disappears when its session is gone from the live list (finished, closed or server restarted)', async () => {
+  const {convs,document} = await loadConvs();
+  const box={innerHTML:'',querySelectorAll(){return [];}};
+  document.getElementById=id=>id==='convs'?box:null;
+  // La llista desada es va carregar mentre tres converses treballaven.
+  convs.items=[
+    {name:'web',live_session:'old-1',live_busy:true},
+    {name:'word',live_session:'old-2',live_busy:true},
+    {name:'com-anem',live_session:'live-1',live_busy:true},
+  ];
+  convs.draw();
+  assert.equal((box.innerHTML.match(/conv-live-state busy/g)||[]).length,3);
+  // Després del reinici només en queda una de viva i treballant; les altres no hi són.
+  convs.updateLiveSessions([{id:'default',busy:false},{id:'live-1',conversation:'com-anem',busy:true}]);
+  assert.equal((box.innerHTML.match(/conv-live-state busy/g)||[]).length,1);
+  assert.match(box.innerHTML,/data-name="com-anem"[^>]*>[^]*?conv-live-state busy/);
+  // Sense cap sessió viva (servidor acabat d'arrencar), cap etiqueta.
+  convs.updateLiveSessions([]);
+  assert.doesNotMatch(box.innerHTML,/conv-live-state busy/);
+});
+
+test('a conversation running in a session the sidebar did not know about still shows working', async () => {
+  const {convs,document} = await loadConvs();
+  const box={innerHTML:'',querySelectorAll(){return [];}};
+  document.getElementById=id=>id==='convs'?box:null;
+  convs.items=[{name:'saved-beta'}];
+  convs.updateLiveSessions([{id:'mobile',conversation:'saved-beta',busy:true}]);
+  assert.match(box.innerHTML,/conv-live-state busy/);
+  convs.updateLiveSessions([{id:'mobile',conversation:'saved-beta',busy:false}]);
+  assert.doesNotMatch(box.innerHTML,/conv-live-state busy/);
+});
+
 test('registered folders remain visible without saved conversations and reopen after loading', async () => {
   const {convs,document,window} = await loadConvs();
   const projectBox={innerHTML:'',querySelectorAll(){return [];}};

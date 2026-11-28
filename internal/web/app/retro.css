@@ -5,8 +5,8 @@
 .retro-dialog:not([open]) { display:none; }
 .retro-dialog::backdrop { background:color-mix(in srgb, var(--bg) 55%, transparent); }
 .retro-head { display:flex; align-items:center; gap:8px; padding:12px 16px; border-bottom:1px solid var(--line); background:var(--surface); min-width:0; }
-.retro-hash { color:var(--muted); font-size:20px; font-weight:700; }
-.retro-head h2 { margin:0; font-size:17px; font-weight:700; color:var(--ink); }
+.retro-hash { color:var(--muted); font-size:var(--t5); font-weight:700; }
+.retro-head h2 { margin:0; font-size:var(--t4); font-weight:700; color:var(--ink); }
 .retro-sub { flex:1; min-width:0; color:var(--muted); font-size:var(--t2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .retro-people { display:flex; gap:2px; }
 .retro-people .retro-avatar { width:26px; height:26px; }
@@ -115,7 +115,7 @@
 .retro-mention-opt[aria-selected="true"], .retro-mention-opt:hover { background:var(--hover); }
 .retro-picker { position:absolute; z-index:3; display:flex; gap:2px; padding:4px; background:var(--raised); border:1px solid var(--line-hi); border-radius:10px; box-shadow:0 8px 24px var(--ombra); }
 .retro-picker[hidden] { display:none; }
-.retro-emoji { width:34px; height:34px; border:0; border-radius:8px; background:transparent; font-size:18px; cursor:pointer; }
+.retro-emoji { width:34px; height:34px; border:0; border-radius:8px; background:transparent; font-size:var(--t4); cursor:pointer; }
 .retro-emoji:hover, .retro-emoji:focus { background:var(--hover); }
 .retro-notice { position:absolute; left:50%; bottom:84px; transform:translateX(-50%); display:flex; align-items:center; gap:10px; padding:8px 12px;
   background:var(--raised); border:1px solid var(--line-hi); border-radius:10px; box-shadow:0 8px 24px var(--ombra); font-size:var(--t2); }
@@ -128,12 +128,12 @@
 /* Entrada de la barra lateral (retro.js): mateix aspecte que la resta. */
 #retroNav { display:flex; align-items:center; gap:10px; width:100%; margin:1px 0; border:0;
   background:transparent; color:var(--muted); text-align:left; cursor:pointer; font:inherit; font-size:var(--t3); }
-#retroNav::before { content:'#'; flex:none; width:17px; margin:0 .5px; text-align:center; font-weight:700; font-size:16px; line-height:17px; }
+#retroNav::before { content:'#'; flex:none; width:17px; margin:0 .5px; text-align:center; font-weight:700; font-size:var(--t4); line-height:17px; }
 #retroNav:hover { background:var(--hover); color:var(--ink); }
 #retroNav .retro-nav-label { flex:1; }
 #retroNav .retro-nav-dot { width:8px; height:8px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
 #side.compact #retroNav { width:44px; justify-content:center; padding:9px 0; font-size:0; }
-#side.compact #retroNav::before { font-size:16px; }
+#side.compact #retroNav::before { font-size:var(--t4); }
 #side.compact #retroNav .retro-nav-dot { position:absolute; margin:-14px 0 0 18px; }
 .retro-open-hash { font-weight:700; color:var(--accent); }
 .run-summary-actions .retro-open { margin-left:6px; }

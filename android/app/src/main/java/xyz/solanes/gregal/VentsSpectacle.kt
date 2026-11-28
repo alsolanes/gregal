@@ -161,7 +161,7 @@ internal fun windTurnCue(mood: WindMood, accent: Color, shrugs: Boolean): Modifi
 @Composable
 fun TypingDots(accent: Color = Sea) {
     if (!windMotionEnabled()) {
-        Text("•••", color = accent, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text("•••", color = accent, fontSize = GregalSize.large, fontWeight = FontWeight.Bold)
         return
     }
     val t = rememberInfiniteTransition(label = "typing")
@@ -190,7 +190,7 @@ fun TypingDots(accent: Color = Sea) {
 @Composable
 fun TypingCursor(accent: Color = Sea) {
     if (!windMotionEnabled()) {
-        Text("▍", color = accent, fontSize = 15.sp)
+        Text("▍", color = accent, fontSize = GregalSize.body)
         return
     }
     val t = rememberInfiniteTransition(label = "cursor")
@@ -200,6 +200,6 @@ fun TypingCursor(accent: Color = Sea) {
         label = "blink"
     )
     // Fase de dibuixat: el parpelleig no recomposa la bombolla del missatge.
-    Text("▍", color = accent, fontSize = 15.sp,
+    Text("▍", color = accent, fontSize = GregalSize.body,
         modifier = Modifier.graphicsLayer { alpha = 0.15f + 0.85f * a })
 }

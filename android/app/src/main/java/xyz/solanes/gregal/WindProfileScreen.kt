@@ -90,7 +90,7 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
             }
         },
         topBar = { TopAppBar(
-            title = { Text(tr(lang, "app.vents.profile"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
+            title = { Text(tr(lang, "app.vents.profile"), fontSize = GregalSize.large, fontWeight = FontWeight.SemiBold) },
             navigationIcon = { IconButton(onClick = onDismiss, enabled = !saving) { Icon(Icons.Rounded.ArrowBack, tr(lang, "app.vents.back")) } },
             actions = {
                 IconButton(onClick = { onDismiss(); vm.openWindActivity(wind.id) }, enabled = !saving) { Icon(Icons.Rounded.History, tr(lang, "winds.activity.title")) }
@@ -105,8 +105,8 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
             Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 14.dp, bottom = 10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 WindHalo(accent = accent, style = wind.faceStyle, size = 88, mood = WindMood.HAPPY, tappable = true, clay = true)
-                Text(wind.name, color = Ink, fontWeight = FontWeight.Bold, fontSize = 24.sp, textAlign = TextAlign.Center)
-                Text(wind.role.ifBlank { tr(lang, "app.vents.noPersonality") }, color = Muted, fontSize = 14.sp,
+                Text(wind.name, color = Ink, fontWeight = FontWeight.Bold, fontSize = GregalSize.display, textAlign = TextAlign.Center)
+                Text(wind.role.ifBlank { tr(lang, "app.vents.noPersonality") }, color = Muted, fontSize = GregalSize.body,
                     lineHeight = 19.sp, textAlign = TextAlign.Center)
             }
             }
@@ -128,8 +128,8 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text(tr(lang, "app.vents.behindScenes"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                            Text(tr(lang, "app.vents.behindScenesHelp"), color = Muted, fontSize = 12.5.sp)
+                            Text(tr(lang, "app.vents.behindScenes"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body)
+                            Text(tr(lang, "app.vents.behindScenesHelp"), color = Muted, fontSize = GregalSize.caption)
                         }
                         Icon(if (behind) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = Muted)
                     }
@@ -180,7 +180,7 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                 when (tabs.getOrNull(tab)) {
                     "memory" -> if (profile != null) {
                         Text(tr(lang, "app.vents.topicMemory"), color = Ink, fontWeight = FontWeight.SemiBold)
-                        Text(tr(lang, "app.vents.topicMemoryHelp"), color = Muted, fontSize = 13.sp)
+                        Text(tr(lang, "app.vents.topicMemoryHelp"), color = Muted, fontSize = GregalSize.small)
                         if (editing) {
                             OutlinedTextField(draft, { draft = it }, enabled = !saving, minLines = 5,
                                 label = { Text(tr(lang, "app.vents.topicMemory")) }, modifier = Modifier.fillMaxWidth())
@@ -201,7 +201,7 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                         if (saveError) Text(tr(lang, "app.vents.saveError"), color = MaterialTheme.colorScheme.error)
                         HorizontalDivider(color = Muted.copy(alpha = .15f))
                         Text(tr(lang, "app.vents.personalMemory"), color = Ink, fontWeight = FontWeight.SemiBold)
-                        Text(tr(lang, "app.vents.personalMemoryHelp"), color = Muted, fontSize = 13.sp)
+                        Text(tr(lang, "app.vents.personalMemoryHelp"), color = Muted, fontSize = GregalSize.small)
                         SelectionContainer { Text(profile.personalMemory.ifBlank { tr(lang, "app.vents.noPersonalMemory") }, color = Tinta, lineHeight = 23.sp) }
                         HorizontalDivider(color = Muted.copy(alpha = .15f))
                         VentMemorySection(vm, lang, wind)
@@ -209,7 +209,7 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                         VentSkillsSection(vm, lang, wind)
                     }
                     "saved" -> {
-                        Text(tr(lang, "saved.help"), color = Muted, fontSize = 13.sp)
+                        Text(tr(lang, "saved.help"), color = Muted, fontSize = GregalSize.small)
                         WindSavedGallery(vm, lang, wind.id)
                         HorizontalDivider(color = Muted.copy(alpha = .15f))
                         WindCardsSection(vm, lang, wind)
@@ -219,7 +219,7 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                         onAction = { shelf, action, key, item -> vm.calaixAction(wind.id, shelf, action, key, item) },
                         onSearchPlaces = { q -> vm.searchWeatherPlaces(q) })
                     "scheduled" -> {
-                        Text(tr(lang, "app.vents.plansHelp"), color = Muted, fontSize = 13.sp)
+                        Text(tr(lang, "app.vents.plansHelp"), color = Muted, fontSize = GregalSize.small)
                         Button(onClick = { createRoutine = true }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Ink, contentColor = Superficie)) {
                             Text(if (lang == "en") "Create routine" else "Crea una rutina")
                         }
@@ -255,7 +255,7 @@ private fun bgHealthRow(lang: String, vm: GregalViewModel) {
         color = Red.copy(alpha = 0.12f),
         border = androidx.compose.foundation.BorderStroke(1.dp, Red.copy(alpha = 0.5f))) {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(tr(lang, "app.vents.exactAlarmNeeded"), color = Ink, fontSize = 13.sp)
+            Text(tr(lang, "app.vents.exactAlarmNeeded"), color = Ink, fontSize = GregalSize.small)
             OutlinedButton(onClick = { ctx.startActivity(JobAlarms.exactAlarmSettings(ctx)) }) {
                 Text(tr(lang, "app.vents.exactAlarmAllow"))
             }
@@ -265,7 +265,7 @@ private fun bgHealthRow(lang: String, vm: GregalViewModel) {
         color = Red.copy(alpha = 0.12f),
         border = androidx.compose.foundation.BorderStroke(1.dp, Red.copy(alpha = 0.5f))) {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(tr(lang, "app.vents.notifNeeded"), color = Ink, fontSize = 13.sp)
+            Text(tr(lang, "app.vents.notifNeeded"), color = Ink, fontSize = GregalSize.small)
             OutlinedButton(onClick = { ctx.startActivity(JobAlarms.notificationSettings(ctx)) }) {
                 Text(tr(lang, "app.vents.notifAllow"))
             }
@@ -275,7 +275,7 @@ private fun bgHealthRow(lang: String, vm: GregalViewModel) {
         color = Red.copy(alpha = 0.12f),
         border = androidx.compose.foundation.BorderStroke(1.dp, Red.copy(alpha = 0.5f))) {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(tr(lang, "app.vents.batteryNeeded"), color = Ink, fontSize = 13.sp)
+            Text(tr(lang, "app.vents.batteryNeeded"), color = Ink, fontSize = GregalSize.small)
             OutlinedButton(onClick = { ctx.startActivity(JobAlarms.batterySettings(ctx)) }) {
                 Text(tr(lang, "app.vents.batteryAllow"))
             }
@@ -296,11 +296,11 @@ private fun heartbeatRow(lang: String, vm: GregalViewModel, wind: Wind) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(tr(lang, "app.company.windHeartbeat"), color = Ink, fontWeight = FontWeight.SemiBold)
-            Text(tr(lang, "app.company.windHeartbeatOn"), color = Muted, fontSize = 13.sp)
+            Text(tr(lang, "app.company.windHeartbeatOn"), color = Muted, fontSize = GregalSize.small)
             if (job != null && job.nextDue.isNotBlank() && job.enabled)
-                Text(tr(lang, "app.company.windHeartbeatNext", job.nextDue), color = Muted, fontSize = 12.sp)
+                Text(tr(lang, "app.company.windHeartbeatNext", job.nextDue), color = Muted, fontSize = GregalSize.caption)
             if (job != null && job.lastAt.isNotBlank())
-                Text(tr(lang, "app.company.windHeartbeatLast", job.lastAt), color = Muted, fontSize = 12.sp)
+                Text(tr(lang, "app.company.windHeartbeatLast", job.lastAt), color = Muted, fontSize = GregalSize.caption)
         }
         Switch(checked = job?.enabled == true, onCheckedChange = { on ->
             if (!pending) {
@@ -321,7 +321,7 @@ private fun VentMemorySection(vm: GregalViewModel, lang: String, wind: Wind) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(tr(lang, "app.vents.memoryTitle"), color = Ink, fontWeight = FontWeight.SemiBold)
         // B8: la memòria són les preferències de treball del vent i val per a tots els seus encàrrecs.
-        Text(trB8(lang, "b8.prefsApply"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
+        Text(trB8(lang, "b8.prefsApply"), color = Muted, fontSize = GregalSize.small, lineHeight = 18.sp)
         if (editing) {
             var saving by remember(wind.id) { mutableStateOf(false) }
             OutlinedTextField(draft, { draft = it }, enabled = !saving, minLines = 4, modifier = Modifier.fillMaxWidth())
@@ -331,7 +331,7 @@ private fun VentMemorySection(vm: GregalViewModel, lang: String, wind: Wind) {
             }
         } else {
             SelectionContainer {
-                Text(mem.ifBlank { tr(lang, "app.vents.memoryEmpty") }, color = Tinta, fontSize = 14.sp, lineHeight = 22.sp)
+                Text(mem.ifBlank { tr(lang, "app.vents.memoryEmpty") }, color = Tinta, fontSize = GregalSize.body, lineHeight = 22.sp)
             }
             OutlinedButton(onClick = { draft = mem; editing = true }) { Text(tr(lang, "app.vents.memoryEdit")) }
         }
@@ -359,8 +359,8 @@ private fun expertRow(vm: GregalViewModel, lang: String, wind: Wind) {
                             else -> WindMood.SEARCHING
                         })
                     Column(Modifier.weight(1f)) {
-                        Text(tr(lang, "app.vents.expertStudying"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                        Text(tr(lang, "app.vents.expertStudyingHelp", est.tema.ifBlank { wind.role }), color = Muted, fontSize = 12.sp)
+                        Text(tr(lang, "app.vents.expertStudying"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body)
+                        Text(tr(lang, "app.vents.expertStudyingHelp", est.tema.ifBlank { wind.role }), color = Muted, fontSize = GregalSize.caption)
                     }
                 }
                 LinearProgressIndicator(progress = { est.progres }, modifier = Modifier.fillMaxWidth(),
@@ -370,8 +370,8 @@ private fun expertRow(vm: GregalViewModel, lang: String, wind: Wind) {
             Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 WindFace(size = 44, accent = Color(wind.argb), style = wind.faceStyle, mood = WindMood.DONE)
                 Column(Modifier.weight(1f)) {
-                    Text(tr(lang, "app.vents.expertDone"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                    Text(tr(lang, "app.vents.expertDoneHelp", est.tema.ifBlank { wind.role }), color = Muted, fontSize = 12.sp)
+                    Text(tr(lang, "app.vents.expertDone"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body)
+                    Text(tr(lang, "app.vents.expertDoneHelp", est.tema.ifBlank { wind.role }), color = Muted, fontSize = GregalSize.caption)
                 }
                 TextButton(onClick = { vm.startWindExpert(wind.id, wind.role) }) { Text(tr(lang, "app.vents.expertAgain")) }
             }
@@ -379,8 +379,8 @@ private fun expertRow(vm: GregalViewModel, lang: String, wind: Wind) {
             Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 WindFace(size = 44, accent = Color(wind.argb), style = wind.faceStyle, mood = WindMood.IDLE)
                 Column(Modifier.weight(1f)) {
-                    Text(tr(lang, "app.vents.expertTitle"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                    Text(tr(lang, "app.vents.expertHelp", wind.role), color = Muted, fontSize = 12.sp)
+                    Text(tr(lang, "app.vents.expertTitle"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body)
+                    Text(tr(lang, "app.vents.expertHelp", wind.role), color = Muted, fontSize = GregalSize.caption)
                 }
                 Button(onClick = { vm.startWindExpert(wind.id, wind.role) }, colors = ButtonDefaults.buttonColors(containerColor = Color(wind.argb))) {
                     Text(tr(lang, "app.vents.expertGo"))
@@ -403,14 +403,14 @@ private fun VentSkillsSection(vm: GregalViewModel, lang: String, wind: Wind) {
             Text(tr(lang, "app.vents.skillsTitle"), color = Ink, fontWeight = FontWeight.SemiBold)
             TextButton(onClick = { creating = true }) { Text("+ " + tr(lang, "app.vents.skillsNew")) }
         }
-        if (coneix.isEmpty()) Text(tr(lang, "app.vents.skillsEmpty"), color = Muted, fontSize = 13.sp)
+        if (coneix.isEmpty()) Text(tr(lang, "app.vents.skillsEmpty"), color = Muted, fontSize = GregalSize.small)
         coneix.forEach { c ->
             Surface(shape = RoundedCornerShape(14.dp), color = Color(wind.argb).copy(alpha = 0.07f),
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(wind.argb).copy(alpha = 0.30f)),
                 modifier = Modifier.fillMaxWidth().clickable { editor = c }) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(if (c.titol.isNotBlank()) c.titol else c.nom, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                    if (c.descripcio.isNotBlank()) Text(c.descripcio, color = Muted, fontSize = 13.sp)
+                    Text(if (c.titol.isNotBlank()) c.titol else c.nom, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body)
+                    if (c.descripcio.isNotBlank()) Text(c.descripcio, color = Muted, fontSize = GregalSize.small)
                 }
             }
         }
@@ -447,7 +447,7 @@ private fun ConeixementEditor(vm: GregalViewModel, lang: String, wind: Wind, exi
     GregalDialog(onDismissRequest = onClose) {
         Surface(shape = RoundedCornerShape(20.dp), color = Superficie, shadowElevation = 6.dp) {
             Column(Modifier.padding(20.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(if (existing == null) tr(lang, "app.vents.skillsNew") else existing.nom, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = Ink)
+                Text(if (existing == null) tr(lang, "app.vents.skillsNew") else existing.nom, fontWeight = FontWeight.Bold, fontSize = GregalSize.large, color = Ink)
                 if (loading) {
                     CircularProgressIndicator()
                 } else {
@@ -487,7 +487,7 @@ private fun WindCardsSection(vm: GregalViewModel, lang: String, wind: Wind) {
         Surface(shape = RoundedCornerShape(14.dp), color = Color(wind.argb).copy(alpha = .08f), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(card.optString("title"), color = Ink, fontWeight = FontWeight.SemiBold)
-                Text(card.optString("updated").ifBlank { if (ca) "Encara no actualitzada" else "Not updated yet" }, color = Muted, fontSize = 12.sp)
+                Text(card.optString("updated").ifBlank { if (ca) "Encara no actualitzada" else "Not updated yet" }, color = Muted, fontSize = GregalSize.caption)
                 SelectionContainer { Text(card.optString("content").ifBlank { if (ca) "Prem Actualitza per cercar informació." else "Press Refresh to research this topic." }, color = Tinta) }
                 OutlinedButton(enabled = !loading, onClick = { scope.launch { loading = true; error = ""; try { vm.windCardAction(wind.id, "refresh", id = card.optString("id")); load() } catch (e: Exception) { error = e.message.orEmpty() } finally { loading = false } } }) { Text(if (loading) { if (ca) "Actualitzant…" else "Refreshing…" } else { if (ca) "Actualitza" else "Refresh" }) }
             }
@@ -506,7 +506,7 @@ private fun followupsRow(lang: String, vm: GregalViewModel, wind: Wind) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(tr(lang, "act.followups"), color = Ink, fontWeight = FontWeight.SemiBold)
-            Text(tr(lang, "act.followupsHelp"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
+            Text(tr(lang, "act.followupsHelp"), color = Muted, fontSize = GregalSize.small, lineHeight = 18.sp)
         }
         Switch(checked = on, onCheckedChange = { vm.setWindFollowups(wind, it) })
     }
@@ -538,11 +538,11 @@ internal fun WindTradePanel(vm: GregalViewModel?, lang: String, wind: Wind, trad
             }
             when {
                 expert != null && expert.actiu -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(tr(lang, "app.vents.expertStudying"), color = Ink, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text(tr(lang, "app.vents.expertStudying"), color = Ink, fontSize = GregalSize.small, fontWeight = FontWeight.Medium)
                     LinearProgressIndicator(progress = { expert.progres }, modifier = Modifier.fillMaxWidth(),
                         color = accent, trackColor = accent.copy(alpha = 0.15f))
                 }
-                else -> Text(tr(lang, "app.trade.moreExpert"), color = accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                else -> Text(tr(lang, "app.trade.moreExpert"), color = accent, fontSize = GregalSize.small, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.clip(GregalShape.sm).clickable {
                         if (onExpert != null) onExpert() else vm?.startWindExpert(wind.id, trade.name(lang).ifBlank { wind.role })
                     }.padding(vertical = 4.dp).testTag("wind-trade-expert"))
@@ -558,7 +558,7 @@ private fun TradeStats(lang: String, trade: WindTrade, accent: Color) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(trade.name(lang), color = Ink, style = GregalType.heading, modifier = Modifier.weight(1f, fill = false))
-            Text(tr(lang, "app.trade.level", trade.level), color = accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(tr(lang, "app.trade.level", trade.level), color = accent, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold)
             Box(Modifier.weight(1f).height(4.dp).clip(GregalShape.pill).background(accent.copy(alpha = .16f))) {
                 Box(Modifier.fillMaxWidth(trade.level.coerceIn(1, 10) / 10f).fillMaxHeight().clip(GregalShape.pill).background(accent))
             }
@@ -567,7 +567,7 @@ private fun TradeStats(lang: String, trade: WindTrade, accent: Color) {
         if (trade.sources.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(tr(lang, "app.trade.sources"), color = Muted, style = GregalType.caption, modifier = Modifier.align(Alignment.CenterVertically))
             trade.sources.forEach { src ->
-                Text(src, color = Ink, fontSize = 12.sp, modifier = Modifier.clip(GregalShape.pill)
+                Text(src, color = Ink, fontSize = GregalSize.caption, modifier = Modifier.clip(GregalShape.pill)
                     .background(Superficie.copy(alpha = .7f)).padding(horizontal = 10.dp, vertical = 4.dp))
             }
         }
@@ -582,13 +582,13 @@ private fun TradeWatchRow(vm: GregalViewModel?, lang: String, wind: Wind, w: Win
     var busy by remember(wind.id, w) { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Column(Modifier.weight(1f)) {
-            Text(w.label(lang), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(w.label(lang), color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.Medium)
             Text(if (state == false) tr(lang, "app.trade.failed") else w.schedule(lang),
                 color = if (state == false) Red else Muted, style = GregalType.caption)
         }
         val on = state == true
         Text(tr(lang, if (on) "app.trade.on" else "app.trade.activate"),
-            color = if (on) accent else Superficie, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold,
+            color = if (on) accent else Superficie, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.clip(GregalShape.pill)
                 .background(if (on) accent.copy(alpha = .14f) else Ink)
                 .clickable(enabled = !on && !busy) {

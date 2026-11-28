@@ -295,7 +295,7 @@ export const sessions = {
       error.className = 'session-error';
       error.textContent = this._error;
       error.title = this._error;
-      error.style.cssText = 'align-self:center;color:var(--red);font-size:11px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+      error.style.cssText = 'align-self:center;color:var(--red);font-size:var(--t1);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
       bar.appendChild(error);
     }
     const plus = document.createElement('button');

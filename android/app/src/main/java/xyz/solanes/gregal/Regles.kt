@@ -116,15 +116,15 @@ internal fun RulesDialog(conn: Conn, lang: String, onDismiss: () -> Unit) {
         Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxWidth().fillMaxHeight(0.9f).padding(top = 16.dp).testTag("rules-dialog")) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(rulesCopy(lang, "title"), color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.weight(1f))
-                    IconButton(onClick = onDismiss, modifier = Modifier.semantics { contentDescription = rulesCopy(lang, "close") }) { Text("✕", color = Muted, fontSize = 16.sp) }
+                    Text(rulesCopy(lang, "title"), color = Ink, fontWeight = FontWeight.Bold, fontSize = GregalSize.large, modifier = Modifier.weight(1f))
+                    IconButton(onClick = onDismiss, modifier = Modifier.semantics { contentDescription = rulesCopy(lang, "close") }) { Text("✕", color = Muted, fontSize = GregalSize.large) }
                 }
                 Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(rulesCopy(lang, "help"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(horizontal = 4.dp))
+                    Text(rulesCopy(lang, "help"), color = Muted, fontSize = GregalSize.small, lineHeight = 18.sp, modifier = Modifier.padding(horizontal = 4.dp))
                     val r = rules
                     when {
                         r != null -> RulesContent(lang, r, save)
-                        error -> Text(rulesCopy(lang, "error"), color = Muted, fontSize = 14.sp)
+                        error -> Text(rulesCopy(lang, "error"), color = Muted, fontSize = GregalSize.body)
                         else -> CircularProgressIndicator(Modifier.size(24.dp))
                     }
                 }
@@ -146,25 +146,25 @@ internal fun RulesContent(lang: String, rules: WindRules, onChange: (WindRules) 
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(Modifier.size(9.dp).clip(CircleShape).background(ruleColor(kind)))
-                Text(rulesCopy(lang, kind), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Text(rulesCopy(lang, kind), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body)
             }
-            Text(rulesCopy(lang, "$kind.sub"), color = Muted, fontSize = 12.sp)
+            Text(rulesCopy(lang, "$kind.sub"), color = Muted, fontSize = GregalSize.caption)
             list.forEachIndexed { i, rule ->
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Ink.copy(alpha = 0.05f)).padding(start = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(rule, color = Ink, fontSize = 14.sp, modifier = Modifier.weight(1f).padding(vertical = 8.dp))
+                    Text(rule, color = Ink, fontSize = GregalSize.body, modifier = Modifier.weight(1f).padding(vertical = 8.dp))
                     Box(
                         Modifier.size(48.dp).semantics { role = Role.Button; contentDescription = rulesCopy(lang, "remove") + ": " + rule }
                             .clickable { onChange(rules.with(kind, list.filterIndexed { j, _ -> j != i })) }.testTag("rule-x-$kind-$i"),
                         contentAlignment = Alignment.Center,
-                    ) { Text("✕", color = Muted, fontSize = 14.sp) }
+                    ) { Text("✕", color = Muted, fontSize = GregalSize.body) }
                 }
             }
             OutlinedTextField(
                 value = draft, onValueChange = { draft = it.take(300) },
-                placeholder = { Text(rulesCopy(lang, "add"), fontSize = 14.sp) },
+                placeholder = { Text(rulesCopy(lang, "add"), fontSize = GregalSize.body) },
                 singleLine = true, modifier = Modifier.fillMaxWidth().testTag("rule-add-$kind"),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = {
@@ -174,9 +174,9 @@ internal fun RulesContent(lang: String, rules: WindRules, onChange: (WindRules) 
             )
             val left = ruleExamples(lang, kind).filter { ex -> list.none { it.equals(ex, ignoreCase = true) } }
             if (left.isNotEmpty() && list.size < 3) {
-                Text(rulesCopy(lang, "examples"), color = Muted, fontSize = 12.sp)
+                Text(rulesCopy(lang, "examples"), color = Muted, fontSize = GregalSize.caption)
                 for (ex in left) {
-                    Text("+ $ex", color = Ink, fontSize = 13.sp,
+                    Text("+ $ex", color = Ink, fontSize = GregalSize.small,
                         modifier = Modifier.clip(RoundedCornerShape(999.dp)).border(1.dp, Line, RoundedCornerShape(999.dp))
                             .clickable { onChange(rules.with(kind, list + ex)) }.padding(horizontal = 12.dp, vertical = 10.dp))
                 }

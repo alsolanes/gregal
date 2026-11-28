@@ -78,6 +78,7 @@ export const convs = {
   projects: [],
   _liveSessions: [],
   _liveSignature: '',
+  _liveReceived: false,
   _activeName: '',
   expandedProjects: new Set(),
   collapsedProjects: new Set(),
@@ -133,8 +134,10 @@ export const convs = {
   },
   updateLiveSessions(list) {
     this._liveSessions = Array.isArray(list) ? list : [];
-    const signature = this._liveSessions.map(s => s.id + ':' + (s.busy ? 1 : 0) + ':' + (window.gregalPendingInteractions?.has(s.id) ? 1 : 0)).join('|');
-    if (signature !== this._liveSignature) { this._liveSignature = signature; this.draw(); }
+    const first = !this._liveReceived;
+    this._liveReceived = true;
+    const signature = this._liveSessions.map(s => s.id + ':' + (s.conversation || '') + ':' + (s.busy ? 1 : 0) + ':' + (window.gregalPendingInteractions?.has(s.id) ? 1 : 0)).join('|');
+    if (first || signature !== this._liveSignature) { this._liveSignature = signature; this.draw(); }
   },
   // Un projecte desplegat recorda l'estat entre redibuixos (canvi d'idioma,
   // recàrrega de la llista, un torn que acaba...). La ruta es compara
@@ -213,11 +216,20 @@ export const convs = {
     const pinLabel = gregalT('conv.pin') || 'Pin', unpinLabel = gregalT('conv.unpin') || 'Unpin';
     const expLabel = gregalT('conv.export') || 'Export or share';
     const liveById = new Map(this._liveSessions.map(s => [s.id, s]));
+    // Una conversa pot estar oberta en una sessió viva que no és la que
+    // recordem (una pestanya nova, el mòbil): també la busquem pel nom.
+    const liveByConversation = new Map();
+    this._liveSessions.forEach(s => {
+      if (s && s.conversation && (!liveByConversation.has(s.conversation) || s.busy)) liveByConversation.set(s.conversation, s);
+    });
     const resumed = resumedSessions();
     const fila = (c, inProject = false) => {
       const sessionId = c.live_session || resumed[c.name] || (c.current ? window.gregalSession : '');
-      const live = sessionId ? liveById.get(sessionId) : null;
-      const busy = live ? !!live.busy : !!c.live_busy;
+      const live = (sessionId ? liveById.get(sessionId) : null) || liveByConversation.get(c.name) || null;
+      // `live_busy` és una foto de quan es va carregar la llista desada. Un
+      // cop tenim la llista viva (cada 5 s), mana ella: una sessió que ja no
+      // hi és (acabada, tancada, servidor reiniciat) no està treballant.
+      const busy = live ? !!live.busy : (this._liveReceived ? false : !!c.live_busy);
       const pending = !!(sessionId && window.gregalPendingInteractions?.has(sessionId));
       const status = pending ? '<span class="conv-live-state waiting">' + esc(gregalT('sessions.needsInputLabel') || 'Needs input') + '</span>'
         : busy ? '<span class="conv-live-state busy">' + esc(gregalT('sessions.workingLabel') || 'Working') + '</span>' : '';

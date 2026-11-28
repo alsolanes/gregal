@@ -16,7 +16,7 @@
   // cas que aquest fitxer es carregui sol.
   const sv = d => '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + d + '"/></svg>';
   const RESERVA = {
-    note: 'M6 3h9l4 4v14H6z M14 3v5h5 M9 12h7 M9 16h5', plus: 'M12 5v14 M5 12h14', close: 'M7 7l10 10 M17 7L7 17',
+    note: 'M5 4h14v10l-6 6H5z M13 20v-6h6', plus: 'M12 5v14 M5 12h14', close: 'M7 7l10 10 M17 7L7 17',
     star: 'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z', trash: 'M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13 M10 11v6 M14 11v6',
     task: 'M4 5h6v6H4z M5.5 8l1.5 1.5L9.5 6 M13 8h7 M4 15h6v6H4z M13 18h7', enter: 'M20 5v7a3 3 0 0 1-3 3H6 M10 11l-4 4 4 4',
     sparkles: 'M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z',

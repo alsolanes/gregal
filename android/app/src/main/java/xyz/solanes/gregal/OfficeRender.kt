@@ -108,7 +108,7 @@ fun OfficeRender(vm: GregalViewModel, doc: OfficeDoc, modifier: Modifier = Modif
 
     Card(modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = CodeDark)) {
         if (error.isNotBlank()) {
-            Text(error, color = Ink, fontSize = 13.sp, modifier = Modifier.padding(12.dp))
+            Text(error, color = Ink, fontSize = GregalSize.small, modifier = Modifier.padding(12.dp))
         }
         AndroidView(
             factory = { ctx ->

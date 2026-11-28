@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Llegendes: avatars de feltre per defecte (web, escriptori i Android).** Cada vent és un minairó, una dona d'aigua o un tió de pelfa renderitzats amb Blender ([felt.py](tools/characters/felt.py)), tenyits amb el color del vent; només els ulls es mouen (parpelleig i alguna mirada), i el mateix vent és el mateix personatge a tot arreu. Nou pack `folk`, el tema per defecte dels comptes que no n'han triat cap.
+- **Una sola escala tipogràfica.** Web: sis mides (`--t1`…`--t6`) en lloc de 96 mides soltes; Android: `GregalSize` en lloc d'uns 1.000 `fontSize` fixos.
+- **Capçalera de Codi endreçada.** Tres grups separats (eines de la sessió · Notes i Docs · vista), icones diferents per a Canvis, Notes i Docs, i el mateix ¶ per a Gregal Docs a la barra lateral i a dalt.
+- **Compositor i llista de converses.** La franja del compositor ja no té un color diferent del fil (només la caixa d'escriure), i «Avui», «Ahir», «Aquesta setmana» són etiquetes de secció i no semblen converses.
+- **«Treballant» només quan és veritat.** La barra lateral ja no deixa converses marcades com a «Treballant» després d'acabar, fallar o reiniciar el servidor.
+- **Fora l'extensió de VS Code.** Es retiren `vscode-gregal`, el seu instal·lador i els passos de CI i release; el bot de Telegram es manté.
+- **Tests d'Android en paral·lel.** Els tests unitaris es reparteixen en una JVM per cada 4 nuclis (de 7 min 36 s a uns 5 min).
+
 ## v1.103.4 - 2026-11-28 - Canvas visual de workflows, barra lateral neta i Android simplificat
 
 - **Constructor visual de *workflows* a Automatitzacions.** Nou canvas en 3 passos (`Trigger → Agent → Output`) a [vents-automations.js](internal/web/app/vents-automations.js) per triar periodicitat, estil de resposta, canal de notificació (*App*, *App + Telegram* o *Silenciós*) i provar-ho al moment; `/api/winds/rutina` accepta `notify`.

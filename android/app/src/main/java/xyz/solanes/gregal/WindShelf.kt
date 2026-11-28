@@ -52,7 +52,7 @@ fun WindShelfList(lang: String, items: List<WindOutput>, onOpen: (WindOutput) ->
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (items.isEmpty()) {
             Surface(color = Ink.copy(alpha = 0.04f), shape = MaterialTheme.shapes.medium) {
-                Text(tr(lang, "shelf.empty"), color = Tinta, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(16.dp))
+                Text(tr(lang, "shelf.empty"), color = Tinta, fontSize = GregalSize.body, lineHeight = 20.sp, modifier = Modifier.padding(16.dp))
             }
             return@Column
         }
@@ -66,10 +66,10 @@ fun WindShelfList(lang: String, items: List<WindOutput>, onOpen: (WindOutput) ->
                     Surface(color = Ink.copy(alpha = 0.04f), shape = MaterialTheme.shapes.medium,
                         modifier = Modifier.fillMaxWidth().clickable { onOpen(o) }) {
                         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(shelfIcon[o.kind] ?: "•", fontSize = 18.sp)
+                            Text(shelfIcon[o.kind] ?: "•", fontSize = GregalSize.large)
                             Column(Modifier.weight(1f)) {
-                                Text(o.title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                Text(runCatching { savedDay(lang, OffsetDateTime.parse(o.at).toEpochSecond()) + " " + windActivityTime(o.at) }.getOrDefault(""), color = Muted, fontSize = 12.sp, maxLines = 1)
+                                Text(o.title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text(runCatching { savedDay(lang, OffsetDateTime.parse(o.at).toEpochSecond()) + " " + windActivityTime(o.at) }.getOrDefault(""), color = Muted, fontSize = GregalSize.caption, maxLines = 1)
                             }
                             if (o.kind == "site" || o.kind == "link") TextButton(onClick = { onShare(o) }) { Text(tr(lang, "shelf.share")) }
                         }

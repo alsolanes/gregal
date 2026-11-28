@@ -28,10 +28,6 @@ additions.push('docs/github-release.md');
 additions.push('.github/ISSUE_TEMPLATE/bug-report.yml', 'docs/getting-started.md',
   'docs/getting-started.ca.md', 'internal/web/app/vendor/THIRD_PARTY_NOTICES.md',
   'scripts/verify-vendor.cjs');
-additions.push('vscode-gregal/package.nls.json', 'vscode-gregal/package.nls.ca.json',
-  'vscode-gregal/l10n/bundle.l10n.json', 'vscode-gregal/l10n/bundle.l10n.ca.json',
-  'vscode-gregal/test/l10n.test.ts');
-additions.push('vscode-gregal/LICENSE');
 additions.push('.gitattributes');
 additions.push('cli_i18n.go', 'cli_i18n_test.go', 'internal/web/app/office.i18n.test.cjs');
 additions.push('desktop/navigation.js', 'desktop/navigation.test.js');

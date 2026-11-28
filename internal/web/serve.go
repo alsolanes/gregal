@@ -340,7 +340,7 @@ func (h *Hub) Run(addr string) error {
 	if bg {
 		// Una colla que va quedar a mig fer en reiniciar-se el servidor ha
 		// de dir-ho al fil ara, no quedar en silenci amb el debat plegat.
-		s.crewRecoverInterrupted()
+		go s.crewRecoverInterrupted()
 		// Les apps gestionades que corrien tornen a arrencar (apps.go).
 		go appsMgr.autostart()
 	}
@@ -4575,10 +4575,15 @@ func (s *Server) queueHasActiveTurn() bool {
 
 // SetupMCP arrenca els servidors MCP del config (com el TUI/headless).
 func SetupMCP(cfg *config.Config) {
-	manager := mcp.Setup(mcp.FromConfig(cfg.MCP))
+	manager := mcp.NewManager(mcp.FromConfig(cfg.MCP), mcp.Options{})
 	mcpMu.Lock()
 	activeMCP = manager
 	mcpMu.Unlock()
+	// Connecta cada servidor MCP en segon pla perquè el servidor HTTP arrenqui
+	// a l'instant sense esperar els timeouts d'MCP.
+	for _, name := range manager.Connecting() {
+		go func(name string) { _ = manager.ConnectServer(name) }(name)
+	}
 }
 
 var (

@@ -95,9 +95,9 @@ internal fun GregalGuide(lang: String, accent: Color, onTry: (String) -> Unit, o
                     }
                 }
                 val (title, intro) = guideIntro(lang)
-                Text(title, color = Ink, fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.Bold,
+                Text(title, color = Ink, fontSize = GregalSize.display, lineHeight = 32.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.semantics { heading() })
-                Text(intro, color = Muted, fontSize = 16.sp, lineHeight = 23.sp)
+                Text(intro, color = Muted, fontSize = GregalSize.large, lineHeight = 23.sp)
                 Spacer(Modifier.height(4.dp))
                 // Com al web: tres targetes d'entrada perquè es llegeixi d'un cop d'ull; «Més» hi afegeix la resta.
                 val topics = guideTopics(lang)
@@ -119,13 +119,13 @@ private fun GuideCard(topic: GuideTopic, accent: Color, onTry: (String) -> Unit)
         .padding(16.dp).testTag("guide-card"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(accent.copy(alpha = .16f)), contentAlignment = Alignment.Center) {
-                Text(topic.icon, fontSize = 18.sp)
+                Text(topic.icon, fontSize = GregalSize.large)
             }
-            Text(topic.title, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(topic.title, color = Ink, fontSize = GregalSize.large, fontWeight = FontWeight.SemiBold)
         }
-        Text(topic.how, color = Muted, fontSize = 14.sp, lineHeight = 20.sp)
+        Text(topic.how, color = Muted, fontSize = GregalSize.body, lineHeight = 20.sp)
         for (ex in topic.examples) {
-            Text("“$ex”", color = Ink, fontSize = 14.sp, lineHeight = 20.sp,
+            Text("“$ex”", color = Ink, fontSize = GregalSize.body, lineHeight = 20.sp,
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).border(1.dp, accent.copy(alpha = .45f), RoundedCornerShape(14.dp))
                     .clickable(role = Role.Button) { onTry(ex) }.padding(horizontal = 14.dp, vertical = 10.dp).testTag("guide-example"))
         }

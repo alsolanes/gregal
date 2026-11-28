@@ -236,8 +236,8 @@ internal fun OrdinadorReplay(conn: Conn, lang: String, accent: Color, onClose: (
         val a = items.getOrNull(i)
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
-                list == null -> Text(accionsCopy(lang, "loading"), color = Muted, fontSize = 13.sp, modifier = Modifier.align(Alignment.Center))
-                a == null -> Text(accionsCopy(lang, if (error) "error" else "none"), color = Muted, fontSize = 13.sp,
+                list == null -> Text(accionsCopy(lang, "loading"), color = Muted, fontSize = GregalSize.small, modifier = Modifier.align(Alignment.Center))
+                a == null -> Text(accionsCopy(lang, if (error) "error" else "none"), color = Muted, fontSize = GregalSize.small,
                     modifier = Modifier.align(Alignment.Center).padding(24.dp).testTag("ordinador-replay-empty"))
                 else -> ReplayFrame(conn, a)
             }
@@ -254,9 +254,9 @@ internal fun OrdinadorReplay(conn: Conn, lang: String, accent: Color, onClose: (
             }
             Column(Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite }) {
                 if (a != null) {
-                    Text(describeComputerAction(lang, a), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                    Text(describeComputerAction(lang, a), color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold,
                         maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("ordinador-replay-text"))
-                    Text(replayCaption(lang, a, i, items.size), color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(replayCaption(lang, a, i, items.size), color = Muted, fontSize = GregalSize.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             ReplayButton(accionsCopy(lang, "close"), null, accent, onClose)
@@ -275,7 +275,7 @@ private fun ReplayButton(label: String, description: String?, accent: Color = Co
             }
             .clickable(onClick = onClick).padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center,
-    ) { Text(label, color = if (accent != Color.Unspecified) OnSea else Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
+    ) { Text(label, color = if (accent != Color.Unspecified) OnSea else Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold) }
 }
 
 @Composable

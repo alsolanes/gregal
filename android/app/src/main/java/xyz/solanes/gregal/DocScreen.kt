@@ -185,7 +185,7 @@ internal fun KindBadge(kind: String, size: Dp = 40.dp) {
 @Composable
 private fun NewDocRow(vm: GregalViewModel, lang: String) {
     var title by remember { mutableStateOf("") }
-    Text(tr(lang, "docs.create").uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp,
+    Text(tr(lang, "docs.create").uppercase(), color = Muted, fontSize = GregalSize.label, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp,
         modifier = Modifier.padding(top = 8.dp, bottom = 8.dp))
     OutlinedTextField(title, { title = it }, Modifier.fillMaxWidth().testTag("doc-new-title"), singleLine = true,
         shape = RoundedCornerShape(14.dp), placeholder = { Text(tr(lang, "docs.newTitle")) })
@@ -196,11 +196,11 @@ private fun NewDocRow(vm: GregalViewModel, lang: String) {
                 border = BorderStroke(1.dp, Line), modifier = Modifier.weight(1f).semantics { contentDescription = tr(lang, key) }.testTag(tag)) {
                 Column(Modifier.padding(horizontal = 12.dp, vertical = 14.dp)) {
                     KindBadge(kind, 36.dp)
-                    Text(kindLabel(lang, kind), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                    Text(kindLabel(lang, kind), color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold, maxLines = 1,
                         overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
                     Row(Modifier.padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Rounded.Add, null, tint = kindTint(kind), modifier = Modifier.size(14.dp))
-                        Text(tr(lang, "docs.createShort"), color = Muted, fontSize = 12.sp, modifier = Modifier.padding(start = 2.dp))
+                        Text(tr(lang, "docs.createShort"), color = Muted, fontSize = GregalSize.caption, modifier = Modifier.padding(start = 2.dp))
                     }
                 }
             }
@@ -217,10 +217,10 @@ private fun LazyListScope.deckView(vm: GregalViewModel, lang: String, d: LiveDoc
             // El número de la diapositiva i el seu layout, a sobre, com al panell de la web.
             Row(Modifier.padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(22.dp).background(kindTint("deck").copy(alpha = 0.18f), CircleShape), contentAlignment = Alignment.Center) {
-                    Text("${i + 1}", color = kindTint("deck"), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("${i + 1}", color = kindTint("deck"), fontSize = GregalSize.label, fontWeight = FontWeight.Bold)
                 }
                 val layout = slideText(b.slide, "layout")
-                Text(tr(lang, "docs.layout.$layout").takeIf { layout in slideLayouts } ?: layout, color = Muted, fontSize = 12.sp,
+                Text(tr(lang, "docs.layout.$layout").takeIf { layout in slideLayouts } ?: layout, color = Muted, fontSize = GregalSize.caption,
                     modifier = Modifier.padding(start = 8.dp))
             }
             if (e?.id == b.id) SlideForm(vm, e, lang)
@@ -242,7 +242,7 @@ private fun NewSlideRow(vm: GregalViewModel, lang: String) {
                 Surface(onClick = { menu = true }, shape = RoundedCornerShape(10.dp), color = SuperficieAlta,
                     modifier = Modifier.semantics { contentDescription = tr(lang, "docs.slideLayout") }) {
                     Row(Modifier.padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(tr(lang, "docs.layout.$layout"), color = Ink, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(tr(lang, "docs.layout.$layout"), color = Ink, fontSize = GregalSize.small, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Icon(Icons.Rounded.ArrowDropDown, null, tint = Muted)
                     }
                 }
@@ -276,36 +276,36 @@ private fun SlideCard(s: JsonObject?) {
         .clip(RoundedCornerShape(12.dp)).padding(horizontal = 22.dp, vertical = 16.dp).testTag("slide"),
         verticalArrangement = if (cover) Arrangement.Center else Arrangement.Top) {
         if (cover) {
-            Text(title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, lineHeight = 26.sp)
-            Text(slideText(s, "subtitle").ifEmpty { slideText(s, "body") }, color = ink, fontSize = 13.sp)
+            Text(title, color = Color.White, fontSize = GregalSize.title, fontWeight = FontWeight.SemiBold, lineHeight = 26.sp)
+            Text(slideText(s, "subtitle").ifEmpty { slideText(s, "body") }, color = ink, fontSize = GregalSize.small)
             return@Column
         }
         if (title.isNotEmpty()) {
-            Text(title, color = SlideHead, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(title, color = SlideHead, fontSize = GregalSize.large, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Box(Modifier.padding(top = 4.dp, bottom = 8.dp).fillMaxWidth().height(2.dp).background(SlideAccent))
         }
         when (layout) {
             "two_columns", "comparison" -> Row {
                 for ((h, x) in listOf("left_title" to "left", "right_title" to "right")) Column(Modifier.weight(1f).padding(end = 10.dp)) {
-                    if (slideText(s, h).isNotEmpty()) Text(slideText(s, h), color = SlideSub, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Text(slideText(s, x), color = ink, fontSize = 11.sp)
+                    if (slideText(s, h).isNotEmpty()) Text(slideText(s, h), color = SlideSub, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold)
+                    Text(slideText(s, x), color = ink, fontSize = GregalSize.label)
                 }
             }
             "big_number" -> {
                 Text(slideText(s, "number"), color = SlideAccent, fontSize = 40.sp, fontWeight = FontWeight.Bold)
-                Text(slideText(s, "caption"), color = ink, fontSize = 12.sp)
+                Text(slideText(s, "caption"), color = ink, fontSize = GregalSize.caption)
             }
             // Una adreça web es baixa com les imatges del xat; una ruta del projecte no es pot carregar aquí: se'n diu el nom.
             "image" -> Row {
                 Column(Modifier.weight(1f).padding(end = 10.dp)) { SlideBody(s) }
                 val bmp = slideImageUrl(s)?.let { rememberChatImage(it).first }
                 if (bmp != null) Image(bmp, slideText(s, "title"), Modifier.weight(1f), contentScale = ContentScale.Fit)
-                else Text(slideText(s, "image"), color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                else Text(slideText(s, "image"), color = Muted, fontSize = GregalSize.label, modifier = Modifier.weight(1f))
             }
             else -> SlideBody(s)
         }
         (s?.get("chart") as? JsonObject)?.let { c ->
-            Text(slideText(c, "title").ifEmpty { slideText(c, "type") }, color = Color(0xFF6B7280), fontSize = 11.sp, fontStyle = FontStyle.Italic)
+            Text(slideText(c, "title").ifEmpty { slideText(c, "type") }, color = Color(0xFF6B7280), fontSize = GregalSize.label, fontStyle = FontStyle.Italic)
         }
     }
 }
@@ -314,8 +314,8 @@ private fun SlideCard(s: JsonObject?) {
 @Composable
 private fun SlideBody(s: JsonObject?) {
     val body = slideText(s, "body")
-    if (body.isNotEmpty()) Text(body, color = SlideInk, fontSize = 12.sp)
-    for (b in slideBullets(s)) Text("• " + b.trim(), color = SlideInk, fontSize = 12.sp)
+    if (body.isNotEmpty()) Text(body, color = SlideInk, fontSize = GregalSize.caption)
+    for (b in slideBullets(s)) Text("• " + b.trim(), color = SlideInk, fontSize = GregalSize.caption)
 }
 
 /** El formulari del layout; després d'un 409, l'avís i la diapositiva d'ara a sobre, amb els camps de la persona. */
@@ -323,7 +323,7 @@ private fun SlideBody(s: JsonObject?) {
 private fun SlideForm(vm: GregalViewModel, e: DocEdit, lang: String) {
     Column(Modifier.fillMaxWidth().padding(vertical = 6.dp).testTag("slide-form")) {
         e.conflict?.let { b ->
-            Text(tr(lang, "docs.slideConflict"), color = Sea, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            Text(tr(lang, "docs.slideConflict"), color = Sea, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.small)
             Box(Modifier.padding(vertical = 6.dp)) { SlideCard(b.slide) }
         }
         val layout = e.layout.ifEmpty { slideText(e.slide, "layout") }
@@ -365,7 +365,7 @@ private fun LazyListScope.sheetView(vm: GregalViewModel, lang: String, d: LiveDo
                 val on = b.id == s?.id
                 Surface(onClick = { vm.showSheet(b.id) }, shape = RoundedCornerShape(50), color = if (on) tint.copy(alpha = 0.18f) else Color.Transparent,
                     modifier = Modifier.padding(end = 6.dp).testTag("sheet-tab")) {
-                    Text(b.name, color = if (on) tint else Muted, fontSize = 13.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
+                    Text(b.name, color = if (on) tint else Muted, fontSize = GregalSize.small, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp))
                 }
             }
@@ -373,7 +373,7 @@ private fun LazyListScope.sheetView(vm: GregalViewModel, lang: String, d: LiveDo
                 modifier = Modifier.testTag("sheet-add")) {
                 Row(Modifier.padding(start = 10.dp, end = 14.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.Add, null, tint = Muted, modifier = Modifier.size(16.dp))
-                    Text(tr(lang, "docs.addSheet"), color = Muted, fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp))
+                    Text(tr(lang, "docs.addSheet"), color = Muted, fontSize = GregalSize.small, modifier = Modifier.padding(start = 4.dp))
                 }
             }
         }
@@ -404,7 +404,7 @@ private fun LazyListScope.sheetView(vm: GregalViewModel, lang: String, d: LiveDo
                     val on = sel == name
                     val shown = s.values[name] ?: s.cells[name].orEmpty()
                     // Els números a la dreta, com a qualsevol full de càlcul.
-                    Text(shown, color = Ink, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    Text(shown, color = Ink, fontSize = GregalSize.small, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         textAlign = if (shown.toDoubleOrNull() != null) TextAlign.End else TextAlign.Start,
                         modifier = Modifier.size(CellWidth, CellHeight).background(if (on) tint.copy(alpha = 0.10f) else Color.Transparent)
                             .border(if (on) 2.dp else 0.5.dp, if (on) tint else Line)
@@ -421,7 +421,7 @@ private fun SheetHead(text: String, width: Dp, on: Boolean) {
     val tint = kindTint("sheet")
     Box(Modifier.size(width, CellHeight).background(if (on) tint.copy(alpha = 0.22f) else SuperficieAlta).border(0.5.dp, Line),
         contentAlignment = Alignment.Center) {
-        Text(text, color = if (on) tint else Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Text(text, color = if (on) tint else Muted, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -431,8 +431,8 @@ private fun CellEditor(vm: GregalViewModel, d: LiveDoc, e: DocEdit, lang: String
     val sheet = d.blocks.firstOrNull { it.id == e.id }?.name.orEmpty()
     Column(Modifier.fillMaxWidth().padding(vertical = 6.dp).testTag("doc-cell-editor")) {
         e.conflict?.let { b ->
-            Text(tr(lang, "docs.sheetConflict"), color = Sea, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-            b.cells[e.cell]?.let { Text(e.cell + " = " + it, color = Ink, fontSize = 13.sp) }
+            Text(tr(lang, "docs.sheetConflict"), color = Sea, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.small)
+            b.cells[e.cell]?.let { Text(e.cell + " = " + it, color = Ink, fontSize = GregalSize.small) }
         }
         val focus = remember { FocusRequester() }
         LaunchedEffect(e.id, e.cell) { focus.requestFocus() }
@@ -442,12 +442,12 @@ private fun CellEditor(vm: GregalViewModel, d: LiveDoc, e: DocEdit, lang: String
             Row(Modifier.padding(start = 8.dp, end = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.background(tint.copy(alpha = 0.16f), RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 5.dp)
                     .semantics { contentDescription = sheet + "!" + e.cell }) {
-                    Text(e.cell, color = tint, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                    Text(e.cell, color = tint, fontSize = GregalSize.small, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
                 }
-                Text("fx", color = Muted, fontSize = 15.sp, fontStyle = FontStyle.Italic, fontFamily = FontFamily.Serif,
+                Text("fx", color = Muted, fontSize = GregalSize.body, fontStyle = FontStyle.Italic, fontFamily = FontFamily.Serif,
                     modifier = Modifier.padding(start = 10.dp))
                 TextField(e.text, vm::typeDocBlock, Modifier.weight(1f).focusRequester(focus), enabled = !e.saving, singleLine = true,
-                    textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 15.sp, color = Ink),
+                    textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = GregalSize.body, color = Ink),
                     colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent,
                         disabledContainerColor = Color.Transparent, focusedIndicatorColor = Color.Transparent,
                         unfocusedIndicatorColor = Color.Transparent, disabledIndicatorColor = Color.Transparent))
@@ -461,9 +461,9 @@ private fun CellEditor(vm: GregalViewModel, d: LiveDoc, e: DocEdit, lang: String
 
 private fun LazyListScope.docSection(vm: GregalViewModel, lang: String, key: String, title: String, items: List<DocRef>, open: DocRef?) {
     item(key = "h:$key") {
-        Text(title.uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp,
+        Text(title.uppercase(), color = Muted, fontSize = GregalSize.label, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp,
             modifier = Modifier.padding(top = 24.dp, bottom = 8.dp))
-        if (items.isEmpty()) Text(tr(lang, "docs.none"), color = Muted, fontSize = 14.sp)
+        if (items.isEmpty()) Text(tr(lang, "docs.none"), color = Muted, fontSize = GregalSize.body)
     }
     items(items, key = { "$key:" + it.id }) { d ->
         val on = d.id == open?.id && d.scope == open.scope
@@ -472,8 +472,8 @@ private fun LazyListScope.docSection(vm: GregalViewModel, lang: String, key: Str
             Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 KindBadge(d.kind)
                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                    Text(d.title, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(kindLabel(lang, d.kind), color = Muted, fontSize = 12.sp)
+                    Text(d.title, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(kindLabel(lang, d.kind), color = Muted, fontSize = GregalSize.caption)
                 }
                 Icon(Icons.Rounded.ChevronRight, null, tint = Muted)
             }
@@ -534,8 +534,8 @@ fun DocCard(d: DocRef, lang: String, onOpen: () -> Unit) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             KindBadge(d.kind)
             Column(Modifier.padding(start = 12.dp)) {
-                Text(d.title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                Text(tr(lang, "docs.card"), color = Muted, fontSize = 12.sp)
+                Text(d.title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body)
+                Text(tr(lang, "docs.card"), color = Muted, fontSize = GregalSize.caption)
             }
         }
     }

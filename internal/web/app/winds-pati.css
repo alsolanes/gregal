@@ -3,17 +3,17 @@
    del dibuix: tot s'escala junt amb la pantalla. */
 .pati { position:relative; display:flex; flex-direction:column; gap:10px; min-height:0; }
 .pati-tools { display:flex; gap:8px; flex-wrap:wrap; }
-.pati-tool { font:inherit; font-size:12.5px; color:var(--text); background:var(--surface); border:1px solid var(--line-hi); border-radius:999px; padding:6px 12px; cursor:pointer; }
+.pati-tool { font:inherit; font-size:var(--t2); color:var(--text); background:var(--surface); border:1px solid var(--line-hi); border-radius:999px; padding:6px 12px; cursor:pointer; }
 .pati-tool:hover { background:var(--surface-hi); }
-.pati-tool[aria-label] { min-width:34px; font-size:15px; font-weight:700; padding:4px 10px; }
+.pati-tool[aria-label] { min-width:34px; font-size:var(--t3); font-weight:700; padding:4px 10px; }
 
 /* Barra de racons: d'un toc, el pati hi va. */
 .pati-bar { display:flex; gap:6px; overflow-x:auto; padding-bottom:2px; scrollbar-width:thin; }
-.pati-chip { flex:none; display:inline-flex; align-items:center; gap:6px; font:inherit; font-size:12.5px; color:var(--muted); background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:5px 11px; cursor:pointer; white-space:nowrap; }
+.pati-chip { flex:none; display:inline-flex; align-items:center; gap:6px; font:inherit; font-size:var(--t2); color:var(--muted); background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:5px 11px; cursor:pointer; white-space:nowrap; }
 .pati-chip:hover { color:var(--text); border-color:var(--line-hi); }
 .pati-chip[aria-current=true] { color:var(--text); border-color:var(--vw-accent); background:color-mix(in srgb,var(--vw-accent) 14%,var(--surface)); }
-.pati-chip-icon { font-size:14px; }
-.pati-chip-count { min-width:16px; font-size:11px; font-weight:700; color:var(--vw-ink); background:var(--vw-accent); border-radius:999px; padding:0 5px; text-align:center; }
+.pati-chip-icon { font-size:var(--t3); }
+.pati-chip-count { min-width:16px; font-size:var(--t1); font-weight:700; color:var(--vw-ink); background:var(--vw-accent); border-radius:999px; padding:0 5px; text-align:center; }
 .pati-chip-count:empty { display:none; }
 
 .pati-scene {
@@ -76,9 +76,9 @@
 .pati-wind.is-dragging { cursor:grabbing; z-index:9999 !important; }
 .pati-wind.is-dragging .winds-face { transform:scale(1.15) rotate(-6deg); }
 .pati-shadow { position:absolute; bottom:24px; left:50%; width:52px; height:9px; transform:translateX(-50%); border-radius:50%; background:rgba(70,50,25,.22); filter:blur(1px); }
-.pati-name { margin-top:-2px; font-size:13px; font-weight:650; color:#3E3020; background:rgba(255,250,240,.86); border-radius:999px; padding:1px 8px; white-space:nowrap; }
+.pati-name { margin-top:-2px; font-size:var(--t2); font-weight:650; color:#3E3020; background:rgba(255,250,240,.86); border-radius:999px; padding:1px 8px; white-space:nowrap; }
 .pati-scene.is-night .pati-name { background:rgba(30,34,52,.82); color:#EDE6FF; }
-.pati-doing { display:none; margin-top:3px; font-size:12px; color:#3E3020; background:rgba(255,250,240,.96); border:1px solid rgba(60,48,36,.25); border-radius:8px; padding:2px 8px; white-space:nowrap; }
+.pati-doing { display:none; margin-top:3px; font-size:var(--t2); color:#3E3020; background:rgba(255,250,240,.96); border:1px solid rgba(60,48,36,.25); border-radius:8px; padding:2px 8px; white-space:nowrap; }
 .pati-wind:hover .pati-doing, .pati-wind:focus-visible .pati-doing { display:block; }
 /* Caminar, córrer i pols. */
 .pati-wind.is-moving .winds-face { animation:pati-walk .45s ease-in-out infinite; }
@@ -112,24 +112,24 @@
 @keyframes pati-slide { 0% { transform:translate(-16px,-30px) rotate(-12deg); } 60% { transform:translate(12px,4px) rotate(18deg); } 75%,100% { transform:translate(12px,4px) rotate(0); } }
 @keyframes pati-sleep { 50% { transform:translateY(2px) scale(1.02,.97); } }
 /* Efecte i bombolla de diàleg. */
-.pati-fx { position:absolute; top:-4px; right:2px; font-size:19px; pointer-events:none; animation:pati-float 2.4s ease-in-out infinite; }
+.pati-fx { position:absolute; top:-4px; right:2px; font-size:var(--t5); pointer-events:none; animation:pati-float 2.4s ease-in-out infinite; }
 .pati-fx:empty { display:none; }
 .pati-wind.is-moving .pati-fx { display:none; }
 @keyframes pati-float { 0% { transform:translateY(4px); opacity:0; } 25% { opacity:1; } 100% { transform:translateY(-18px); opacity:0; } }
 .pati-bubble {
   position:absolute; bottom:100%; left:50%; transform:translateX(-50%); margin-bottom:2px; max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  font-size:14px; font-weight:600; color:#2D2418; background:#FFFDF7; border:1.5px solid #3B3024; border-radius:12px; padding:3px 10px; z-index:3;
+  font-size:var(--t3); font-weight:600; color:#2D2418; background:#FFFDF7; border:1.5px solid #3B3024; border-radius:12px; padding:3px 10px; z-index:3;
   animation:pati-pop .25s ease-out; pointer-events:none;
 }
 .pati-bubble::after { content:''; position:absolute; left:50%; bottom:-6px; transform:translateX(-50%) rotate(45deg); width:8px; height:8px; background:#FFFDF7; border-right:1.5px solid #3B3024; border-bottom:1.5px solid #3B3024; }
 @keyframes pati-pop { from { transform:translateX(-50%) scale(.6); opacity:0; } to { transform:translateX(-50%) scale(1); opacity:1; } }
-.pati-ball { position:absolute; font-size:24px; transform:translate(-50%,-50%); pointer-events:none; z-index:2000; }
-.pati-castle { position:absolute; font-size:20px; transform:translate(-50%,-50%); animation:pati-pop-in .4s ease-out; transition:opacity 2s; }
+.pati-ball { position:absolute; font-size:var(--t6); transform:translate(-50%,-50%); pointer-events:none; z-index:2000; }
+.pati-castle { position:absolute; font-size:var(--t5); transform:translate(-50%,-50%); animation:pati-pop-in .4s ease-out; transition:opacity 2s; }
 .pati-castle.fade { opacity:0; }
 @keyframes pati-pop-in { from { transform:translate(-50%,-50%) scale(0); } }
-.pati-balloon { position:absolute; font-size:28px; pointer-events:none; z-index:9500; animation:pati-up 3.6s ease-out forwards; }
+.pati-balloon { position:absolute; font-size:var(--t6); pointer-events:none; z-index:9500; animation:pati-up 3.6s ease-out forwards; }
 @keyframes pati-up { 0% { transform:translateY(0) scale(.6); opacity:0; } 15% { opacity:1; } 100% { transform:translateY(-200px) translateX(12px) scale(1); opacity:0; } }
-.pati-sign { position:absolute; width:250px; display:flex; flex-direction:column; gap:2px; text-align:left; font:inherit; font-size:14px; color:#2D2418; background:#FFF6DE; border:2px solid #8A6A45; border-radius:10px; padding:7px 11px; box-shadow:0 4px 10px rgba(60,40,20,.2); cursor:pointer; z-index:9200; pointer-events:auto; animation:pati-rise .3s ease-out; }
+.pati-sign { position:absolute; width:250px; display:flex; flex-direction:column; gap:2px; text-align:left; font:inherit; font-size:var(--t3); color:#2D2418; background:#FFF6DE; border:2px solid #8A6A45; border-radius:10px; padding:7px 11px; box-shadow:0 4px 10px rgba(60,40,20,.2); cursor:pointer; z-index:9200; pointer-events:auto; animation:pati-rise .3s ease-out; }
 .pati-sign strong { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .pati-sign span { color:#6B5A44; font-size:.9em; }
 .pati-sign:hover { background:#FFEFC2; }
@@ -138,23 +138,23 @@
 /* Panell de la rotllana i fitxa d'un vent (fixos sobre l'escena). */
 .pati-circle-panel, .pati-card {
   background:var(--surface); border:1px solid var(--line-hi); border-radius:14px; padding:12px 14px;
-  box-shadow:0 10px 26px color-mix(in srgb,var(--ombra) 25%,transparent); font-size:13px; color:var(--text);
+  box-shadow:0 10px 26px color-mix(in srgb,var(--ombra) 25%,transparent); font-size:var(--t2); color:var(--text);
 }
 .pati-circle-panel { position:absolute; left:12px; bottom:12px; z-index:20; width:min(440px,calc(100% - 24px)); display:flex; flex-direction:column; gap:10px; animation:pati-rise .25s ease-out; }
 @keyframes pati-rise { from { transform:translateY(8px); opacity:0; } }
 .pati-circle-actions, .pati-card-actions { display:flex; gap:8px; flex-wrap:wrap; }
-.pati-btn { font:inherit; font-size:12.5px; border-radius:999px; padding:6px 13px; border:1px solid var(--line-hi); background:transparent; color:var(--text); cursor:pointer; }
+.pati-btn { font:inherit; font-size:var(--t2); border-radius:999px; padding:6px 13px; border:1px solid var(--line-hi); background:transparent; color:var(--text); cursor:pointer; }
 .pati-btn:hover { background:var(--surface-hi); }
 .pati-btn.primary { background:var(--vw-accent); color:var(--vw-ink); border-color:transparent; }
 .pati-task { display:flex; gap:8px; align-items:flex-end; }
-.pati-task textarea { flex:1; resize:vertical; font:inherit; font-size:13px; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:10px; padding:7px 10px; }
+.pati-task textarea { flex:1; resize:vertical; font:inherit; font-size:var(--t2); background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:10px; padding:7px 10px; }
 .pati-card { position:absolute; top:12px; right:12px; width:min(330px,calc(100% - 24px)); z-index:21; display:flex; flex-direction:column; gap:8px; }
 .pati-card-head { display:flex; gap:10px; align-items:center; }
 .pati-card-head .winds-face { width:56px; height:56px; flex:none; }
 .pati-card-head div { display:flex; flex-direction:column; flex:1; min-width:0; }
-.pati-card-head strong { font-size:15px; }
-.pati-card-head span { color:var(--muted); font-size:12px; }
-.pati-close { background:transparent; border:0; color:var(--muted); font-size:15px; cursor:pointer; align-self:flex-start; }
+.pati-card-head strong { font-size:var(--t3); }
+.pati-card-head span { color:var(--muted); font-size:var(--t2); }
+.pati-close { background:transparent; border:0; color:var(--muted); font-size:var(--t3); cursor:pointer; align-self:flex-start; }
 .pati-now { margin:0; font-weight:600; }
 .pati-think, .pati-last { margin:0; color:var(--muted); line-height:1.45; }
 .pati-last:empty { display:none; }

@@ -70,10 +70,10 @@ internal fun VentsInboxFilters(lang: String, selected: String, unread: Int = 0, 
                 onClick = { onSelected(key) },
                 label = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(ventsCopy(lang, key), fontSize = 12.sp)
+                        Text(ventsCopy(lang, key), fontSize = GregalSize.caption)
                         if (badge.isNotEmpty()) Surface(shape = RoundedCornerShape(999.dp), color = Sea) {
                             Text(
-                                badge, color = OnSea, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                                badge, color = OnSea, fontSize = GregalSize.caption, fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
                             )
                         }
@@ -143,9 +143,9 @@ internal fun VentsExploreSheet(
     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 2.dp)) {
             Icon(Icons.Rounded.AutoAwesome, null, tint = Sea, modifier = Modifier.size(18.dp))
-            Text(ventsCopy(lang, "explore"), color = Ink, fontSize = 16.sp, modifier = Modifier.padding(start = 8.dp))
+            Text(ventsCopy(lang, "explore"), color = Ink, fontSize = GregalSize.large, modifier = Modifier.padding(start = 8.dp))
             Spacer(Modifier.weight(1f))
-            Text(ventsCopy(lang, "exploreHelp"), color = Muted, fontSize = 12.sp)
+            Text(ventsCopy(lang, "exploreHelp"), color = Muted, fontSize = GregalSize.caption)
         }
         if (onFes != null) ExploreRow(lang, if (en) "Do" else "Fes", if (en) "Templates: today list, email triage, compare prices…" else "Plantilles: llista del dia, triatge del correu, compara preus…", Icons.Rounded.Bolt, onFes)
         if (onActivity != null) ExploreRow(lang, tr(lang, "act.title"), tr(lang, "explore.activity"), Icons.Rounded.Schedule, onActivity)
@@ -166,14 +166,14 @@ internal fun VentsExploreSheet(
 @Composable
 internal fun EmptyInboxFilter(lang: String, filter: String, actionLabel: String? = null, onAction: (() -> Unit)? = null) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 44.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(ventsCopy(lang, filter), color = Ink, fontSize = 18.sp)
+        Text(ventsCopy(lang, filter), color = Ink, fontSize = GregalSize.large)
         Text(
             if (filter == "groups") {
                 if (lang == "en") "Group conversations will appear here." else "Les converses de grup apareixeran aquí."
             } else {
                 if (lang == "en") "You are caught up. New proactive updates will appear here." else "Estàs al dia. Els avisos nous apareixeran aquí."
             },
-            color = Muted, fontSize = 14.sp,
+            color = Muted, fontSize = GregalSize.body,
         )
         // Un filtre buit no és un carreró: sempre hi ha una sortida visible.
         if (actionLabel != null && onAction != null) {

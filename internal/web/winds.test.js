@@ -41,6 +41,8 @@ function fixture(apiOverride) {
     return {ok:true,status:200,json:async()=>(url==='/api/winds' ? {winds} : {})};
   }};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'app/winds.js'),'utf8'),{window:root,document:doc,console,URLSearchParams,setTimeout,clearTimeout});
+  // The default pack is Llegendes (folk); these tests check the Cares drawing.
+  root.gregalWinds.setAvatarTheme('cares');
   return {root,doc,requests,winds};
 }
 const settle=()=>new Promise(resolve=>setImmediate(resolve));
@@ -112,7 +114,7 @@ test('«Avatars» in Preferences offers every pack and Free, and a pack draws ev
   await f.root.gregalWinds.avatarPrefs(box);
   assert.deepEqual(packsOf(f,state),['cares','cares'],'Cares by default, even for a wind that chose another pack');
   assert.match(box.textContent,/Avatars/);
-  assert.deepEqual(box.querySelectorAll('button').map(b=>b.textContent),['Cares','Esperit de vent','Cap de vent','Rosa de rellotge','Mapa de vent','Minairons','Pelut','Lliure']);
+  assert.deepEqual(box.querySelectorAll('button').map(b=>b.textContent),['Llegendes','Cares','Esperit de vent','Cap de vent','Rosa de rellotge','Mapa de vent','Minairons','Pelut','Lliure']);
   assert.equal(byText(box,'button','Cares').getAttribute('aria-pressed'),'true');
   await byText(box,'button','Esperit de vent').click();
   assert.deepEqual(f.requests.find(r=>r.url==='/api/winds/avatar-theme').body,{theme:'esperit'});
@@ -120,7 +122,7 @@ test('«Avatars» in Preferences offers every pack and Free, and a pack draws ev
   assert.equal(byText(box,'button','Cares').getAttribute('aria-pressed'),'false');
   assert.deepEqual(packsOf(f,state),['esperit','esperit']);
   await byText(box,'button','Lliure').click();
-  assert.deepEqual(packsOf(f,state),['cares','esperit'],'Free: each wind with its own avatar');
+  assert.deepEqual(packsOf(f,state),['folk','esperit'],'Free: each wind with its own avatar (none chosen is Llegendes)');
 });
 
 test('Cap de vent and Rosa de rellotge are packs in Preferences and draw every face',async()=>{

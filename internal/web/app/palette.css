@@ -18,7 +18,7 @@
 #palList .pal-ico .ui-icon { width:16px; height:16px; }
 #palList .pal-label { flex:none; max-width:60%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 #palList .pal-hint { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--faint); font-size:var(--t2,12.5px); text-align:right; }
-#palList .pal-kbd { flex:none; font:500 11.5px var(--mono); color:var(--muted); background:var(--surface); border:1px solid var(--line-hi); border-radius:5px; padding:1px 6px; }
+#palList .pal-kbd { flex:none; font:500 var(--t1) var(--mono); color:var(--muted); background:var(--surface); border:1px solid var(--line-hi); border-radius:5px; padding:1px 6px; }
 #palList .pal-item:not(:has(.pal-hint)) .pal-kbd { margin-left:auto; }
 #palList .pal-empty { padding:22px 12px; text-align:center; color:var(--muted); }
 #palette .pal-foot { padding:8px 14px; border-top:1px solid var(--line); font-size:var(--t1,11.5px); color:var(--faint); }

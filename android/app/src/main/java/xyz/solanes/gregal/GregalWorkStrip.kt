@@ -96,9 +96,9 @@ private fun WorkRow(title: String, sub: String, action: String, accent: Color, o
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         lead()
         Column(Modifier.weight(1f)) {
-            Text(title, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (sub.isNotBlank()) Text(sub, color = Muted, fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(title, color = Ink, fontSize = GregalSize.small, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (sub.isNotBlank()) Text(sub, color = Muted, fontSize = GregalSize.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Text(action, color = accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(end = 6.dp))
+        Text(action, color = accent, fontSize = GregalSize.small, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(end = 6.dp))
     }
 }

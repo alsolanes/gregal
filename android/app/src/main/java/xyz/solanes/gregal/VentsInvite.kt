@@ -18,6 +18,6 @@ internal fun guestJoinsText(lang: String, name: String): String =
 
 @Composable
 internal fun GuestJoinsLine(lang: String, name: String) {
-    Text(guestJoinsText(lang, name), color = Muted, fontSize = 12.sp,
+    Text(guestJoinsText(lang, name), color = Muted, fontSize = GregalSize.caption,
         modifier = Modifier.padding(start = 46.dp, bottom = 2.dp).testTag("guest-joins"))
 }

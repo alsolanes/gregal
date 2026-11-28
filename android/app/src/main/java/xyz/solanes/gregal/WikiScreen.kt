@@ -46,7 +46,7 @@ internal fun WikiButton(lang: String, onClick: () -> Unit) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Rounded.AutoStories, null, tint = Sea, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(10.dp))
-            Text(tr(lang, "app.wiki.open"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            Text(tr(lang, "app.wiki.open"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body, modifier = Modifier.weight(1f))
             Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = Muted, modifier = Modifier.size(20.dp))
         }
     }
@@ -64,9 +64,9 @@ internal fun WikiDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Unit
         Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxWidth().fillMaxHeight(0.85f).padding(top = 16.dp)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(tr(lang, "app.wiki.title"), color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.weight(1f))
+                    Text(tr(lang, "app.wiki.title"), color = Ink, fontWeight = FontWeight.Bold, fontSize = GregalSize.large, modifier = Modifier.weight(1f))
                     if (busy) CircularProgressIndicator(Modifier.size(16.dp), color = Sea, strokeWidth = 2.dp)
-                    IconButton(onClick = onDismiss) { Text("✕", color = Muted, fontSize = 16.sp) }
+                    IconButton(onClick = onDismiss) { Text("✕", color = Muted, fontSize = GregalSize.large) }
                 }
                 when {
                     pages == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -76,7 +76,7 @@ internal fun WikiDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Unit
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(32.dp)) {
                             Text("📚", fontSize = 40.sp)
                             Text(tr(lang, "app.wiki.loadFail"), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
-                            Text(err ?: "", color = Muted, fontSize = 13.sp)
+                            Text(err ?: "", color = Muted, fontSize = GregalSize.small)
                             OutlinedButton(onClick = { vm.loadWiki() }) { Text(tr(lang, "app.jobs.retry")) }
                         }
                     }
@@ -84,7 +84,7 @@ internal fun WikiDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Unit
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(32.dp)) {
                             Text("📚", fontSize = 40.sp)
                             Text(tr(lang, "app.wiki.empty"), color = Ink, fontWeight = FontWeight.SemiBold)
-                            Text(tr(lang, "app.wiki.emptyHelp"), color = Muted, fontSize = 13.sp)
+                            Text(tr(lang, "app.wiki.emptyHelp"), color = Muted, fontSize = GregalSize.small)
                         }
                     }
                     else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -96,10 +96,10 @@ internal fun WikiDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Unit
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
-                                    Text(p.titol.ifBlank { p.nom }, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                                    if (p.descripcio.isNotBlank()) Text(p.descripcio, color = Muted, fontSize = 13.sp, maxLines = 2)
+                                    Text(p.titol.ifBlank { p.nom }, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body)
+                                    if (p.descripcio.isNotBlank()) Text(p.descripcio, color = Muted, fontSize = GregalSize.small, maxLines = 2)
                                     if (p.updated.isNotBlank()) {
-                                        Text(tr(lang, "app.wiki.updated") + " · " + programatHora(p.updated, lang = lang), color = Muted.copy(alpha = .8f), fontSize = 11.sp)
+                                        Text(tr(lang, "app.wiki.updated") + " · " + programatHora(p.updated, lang = lang), color = Muted.copy(alpha = .8f), fontSize = GregalSize.label)
                                     }
                                 }
                             }
@@ -124,7 +124,7 @@ internal fun WikiDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Unit
             Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.background) {
                 Column(Modifier.fillMaxWidth().fillMaxHeight(0.85f).padding(top = 16.dp)) {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text((full?.titol ?: p.titol).ifBlank { p.nom }, color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.weight(1f))
+                        Text((full?.titol ?: p.titol).ifBlank { p.nom }, color = Ink, fontWeight = FontWeight.Bold, fontSize = GregalSize.large, modifier = Modifier.weight(1f))
                         IconButton(onClick = { confirmDelete = p }) { Icon(Icons.Rounded.Delete, contentDescription = tr(lang, "app.wiki.delete"), tint = Muted, modifier = Modifier.size(18.dp)) }
                         IconButton(onClick = { open = null }) { Icon(Icons.Rounded.Close, contentDescription = tr(lang, "app.cap.close"), tint = Muted, modifier = Modifier.size(18.dp)) }
                     }
@@ -133,7 +133,7 @@ internal fun WikiDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Unit
                         // La lectura ha fallat: es diu com i es pot tornar a provar,
                         // en lloc d'un spinner que no acaba mai.
                         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                            Text(tr(lang, "app.wiki.loadFail"), color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
+                            Text(tr(lang, "app.wiki.loadFail"), color = MaterialTheme.colorScheme.error, fontSize = GregalSize.body)
                             OutlinedButton(onClick = { retry++ }, modifier = Modifier.padding(top = 10.dp)) {
                                 Text(tr(lang, "app.chat.retry"))
                             }
@@ -181,7 +181,7 @@ internal fun MdPageBody(src: String, lang: String, onLink: ((String) -> Unit)? =
                     val rich = remember(b, link, codeBg) { renderSegs(b.segs, codeBg, link = link) }
                     ClickableText(
                         rich,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp, lineHeight = 22.sp, color = Tinta),
+                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = GregalSize.body, lineHeight = 22.sp, color = Tinta),
                         onClick = { off ->
                             rich.getStringAnnotations("URL", off, off).firstOrNull()?.let { if (onLink != null) onLink(it.item) else uri.openUri(it.item) }
                         },
@@ -190,7 +190,7 @@ internal fun MdPageBody(src: String, lang: String, onLink: ((String) -> Unit)? =
                 is Rich.Code -> Row(Modifier.horizontalScroll(rememberScrollState())) {
                     Text(
                         b.code,
-                        fontSize = 12.sp,
+                        fontSize = GregalSize.caption,
                         fontFamily = FontFamily.Monospace,
                         softWrap = false,
                         color = Ink,

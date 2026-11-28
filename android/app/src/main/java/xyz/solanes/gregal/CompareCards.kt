@@ -112,17 +112,17 @@ internal fun CompareCard(spec: CompareSpec, link: Color, lang: String) {
     val motion = windMotionEnabled()
     CardFrame("gregal-compare", "", spec.title, lang) {
         CardTitle(spec.title)
-        if (spec.subtitle.isNotEmpty()) Text(spec.subtitle, color = Muted, fontSize = 13.sp)
+        if (spec.subtitle.isNotEmpty()) Text(spec.subtitle, color = Muted, fontSize = GregalSize.small)
         if (spec.paged) ComparePager(spec, link, lang, motion) else CompareRow(spec, link, lang, motion)
-        if (spec.verdict.isNotEmpty()) Text(spec.verdict, color = Ink, fontSize = 14.sp, lineHeight = 20.sp,
+        if (spec.verdict.isNotEmpty()) Text(spec.verdict, color = Ink, fontSize = GregalSize.body, lineHeight = 20.sp,
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(LocalPal.current.surfaceHi).padding(12.dp).testTag("compare-verdict"))
         if (spec.sources.isNotEmpty()) Sources(spec.sources, lang)
     }
     CardActions(spec.actions, link)
 }
 
-private val nameStyle = TextStyle(fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.SemiBold)
-private val valueStyle = TextStyle(fontSize = 14.sp, lineHeight = 19.sp)
+private val nameStyle = TextStyle(fontSize = GregalSize.body, lineHeight = 19.sp, fontWeight = FontWeight.SemiBold)
+private val valueStyle = TextStyle(fontSize = GregalSize.body, lineHeight = 19.sp)
 private val itemShape = RoundedCornerShape(16.dp)
 
 /** Fitxes en fila que s'aturen a l'inici de cada una; la següent treu el cap. */
@@ -153,7 +153,7 @@ private fun CompareRow(spec: CompareSpec, link: Color, lang: String, motion: Boo
                     }
                     Text(item.name, color = Ink, style = nameStyle, minLines = lines.second)
                     spec.keys.forEachIndexed { k, key ->
-                        Text(key, color = Muted, fontSize = 12.sp)
+                        Text(key, color = Muted, fontSize = GregalSize.caption)
                         Text(spec.value(item, key).ifEmpty { "—" }, color = Ink, style = valueStyle, minLines = lines.first[k])
                     }
                 }
@@ -181,23 +181,23 @@ private fun ComparePager(spec: CompareSpec, link: Color, lang: String, motion: B
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(item.name, color = Ink, fontSize = 19.sp, lineHeight = 23.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f, fill = false))
+                Text(item.name, color = Ink, fontSize = GregalSize.title, lineHeight = 23.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f, fill = false))
                 if (item.pick) PickBadge(link, lang)
             }
             item.points.forEach { p ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("•", color = link, fontSize = 15.sp, lineHeight = 21.sp, fontWeight = FontWeight.Bold)
-                    Text(p, color = Ink, fontSize = 15.sp, lineHeight = 21.sp)
+                    Text("•", color = link, fontSize = GregalSize.body, lineHeight = 21.sp, fontWeight = FontWeight.Bold)
+                    Text(p, color = Ink, fontSize = GregalSize.body, lineHeight = 21.sp)
                 }
             }
             spec.keys.forEach { key ->
                 val v = spec.value(item, key)
                 if (v.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(key, color = Muted, fontSize = 13.sp, lineHeight = 19.sp, modifier = Modifier.weight(.4f))
-                    Text(v, color = Ink, fontSize = 14.sp, lineHeight = 19.sp, modifier = Modifier.weight(.6f))
+                    Text(key, color = Muted, fontSize = GregalSize.small, lineHeight = 19.sp, modifier = Modifier.weight(.4f))
+                    Text(v, color = Ink, fontSize = GregalSize.body, lineHeight = 19.sp, modifier = Modifier.weight(.6f))
                 }
             }
-            if (item.url.isNotEmpty()) Text(item.url.substringAfter("//").substringBefore('/') + " ↗", color = link, fontSize = 13.sp,
+            if (item.url.isNotEmpty()) Text(item.url.substringAfter("//").substringBefore('/') + " ↗", color = link, fontSize = GregalSize.small,
                 fontWeight = FontWeight.SemiBold, modifier = Modifier.clip(RoundedCornerShape(8.dp))
                     .clickable(role = Role.Button) { uri.openUri(item.url) }.padding(vertical = 6.dp).testTag("compare-link"))
         }
@@ -224,7 +224,7 @@ internal fun PagerDots(pager: PagerState, color: Color, motion: Boolean, tag: St
 
 @Composable
 private fun PickBadge(link: Color, lang: String, modifier: Modifier = Modifier) =
-    Text(if (lang == "en") "The pick" else "La tria", color = link, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+    Text(if (lang == "en") "The pick" else "La tria", color = link, fontSize = GregalSize.label, fontWeight = FontWeight.SemiBold,
         modifier = modifier.clip(RoundedCornerShape(50)).background(LocalPal.current.surfaceHi).padding(horizontal = 8.dp, vertical = 2.dp).testTag("compare-pick"))
 
 /** La foto (retallada) o el logo (sencer, sobre blanc); si no n'hi ha o no baixa, la inicial. Un toc obre la foto gran. */
@@ -267,9 +267,9 @@ internal fun FactsCard(spec: FactsSpec, link: Color, lang: String) {
                 row.forEach { f ->
                     Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(LocalPal.current.surfaceHi).padding(horizontal = 14.dp, vertical = 12.dp)
                         .testTag("fact-tile"), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(f.value, color = link, fontSize = 24.sp, lineHeight = 27.sp, fontWeight = FontWeight.Bold)
-                        Text(f.label, color = Ink, fontSize = 13.sp, lineHeight = 17.sp)
-                        if (f.note.isNotEmpty()) Text(f.note, color = Muted, fontSize = 12.sp, lineHeight = 16.sp)
+                        Text(f.value, color = link, fontSize = GregalSize.display, lineHeight = 27.sp, fontWeight = FontWeight.Bold)
+                        Text(f.label, color = Ink, fontSize = GregalSize.small, lineHeight = 17.sp)
+                        if (f.note.isNotEmpty()) Text(f.note, color = Muted, fontSize = GregalSize.caption, lineHeight = 16.sp)
                     }
                 }
                 if (row.size == 1) Spacer(Modifier.weight(1f))

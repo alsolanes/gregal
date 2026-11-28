@@ -32,9 +32,9 @@ internal fun TransferConfirmDialog(vm: GregalViewModel, lang: String, kind: Stri
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 val same = namesake
                 if (same == null) {
-                    Text(tr(lang, "app.vents.transferConfirm", server), color = Tinta, fontSize = 14.sp, lineHeight = 20.sp)
+                    Text(tr(lang, "app.vents.transferConfirm", server), color = Tinta, fontSize = GregalSize.body, lineHeight = 20.sp)
                 } else {
-                    Text(tr(lang, "app.vents.transferNamesake", server, same.name), color = Tinta, fontSize = 14.sp, lineHeight = 20.sp)
+                    Text(tr(lang, "app.vents.transferNamesake", server, same.name), color = Tinta, fontSize = GregalSize.body, lineHeight = 20.sp)
                     TransferChoice(tr(lang, "app.vents.transferJoin", same.name), join, enabled = !busy) { join = true }
                     TransferChoice(tr(lang, "app.vents.transferNew"), !join, enabled = !busy) { join = false }
                 }
@@ -44,7 +44,7 @@ internal fun TransferConfirmDialog(vm: GregalViewModel, lang: String, kind: Stri
                 if (busy) Row(verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     CircularProgressIndicator(Modifier.size(16.dp), color = Sea, strokeWidth = 2.dp)
-                    Text(tr(lang, "app.vents.transferWorking"), color = Muted, fontSize = 13.sp)
+                    Text(tr(lang, "app.vents.transferWorking"), color = Muted, fontSize = GregalSize.small)
                 }
             }
         },
@@ -69,7 +69,7 @@ private fun TransferChoice(label: String, selected: Boolean, enabled: Boolean, o
     Row(Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onSelect),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         RadioButton(selected = selected, onClick = { if (enabled) onSelect() }, enabled = enabled)
-        Text(label, color = Ink, fontSize = 14.sp, modifier = Modifier.weight(1f))
+        Text(label, color = Ink, fontSize = GregalSize.body, modifier = Modifier.weight(1f))
     }
 }
 
@@ -78,6 +78,6 @@ private fun TransferTick(label: String, checked: Boolean, enabled: Boolean, onCh
     Row(Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = { onChange(!checked) }),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Checkbox(checked = checked, onCheckedChange = { if (enabled) onChange(it) }, enabled = enabled)
-        Text(label, color = Ink, fontSize = 14.sp, modifier = Modifier.weight(1f))
+        Text(label, color = Ink, fontSize = GregalSize.body, modifier = Modifier.weight(1f))
     }
 }

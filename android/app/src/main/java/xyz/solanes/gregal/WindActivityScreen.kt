@@ -83,9 +83,9 @@ fun WindActivityRow(lang: String, item: WindActivityItem, wind: Wind?, onOpen: (
             Box(Modifier.testTag("activity-face")) { WindFace(size = 36, accent = accent, style = wind?.faceStyle ?: WindStyle()) }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(item.title.ifBlank { tr(lang, "winds.activity.kind.${item.kind}") }, color = Ink, fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    fontSize = GregalSize.body, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(listOf(windActivityTime(item.at), wind?.name ?: item.wind, tr(lang, "winds.activity.kind.${item.kind}"))
-                    .filter { it.isNotBlank() }.joinToString(" · "), color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    .filter { it.isNotBlank() }.joinToString(" · "), color = Muted, fontSize = GregalSize.caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (item.status.isNotBlank()) ActivityStatusChip(lang, item.status)
         }
@@ -103,7 +103,7 @@ private fun ActivityStatusChip(lang: String, status: String) {
     // Un estat nou del servidor surt tal com ve.
     val label = tr(lang, "winds.activity.status.$status").takeIf { it != "winds.activity.status.$status" } ?: status
     Surface(color = color.copy(alpha = 0.18f), shape = RoundedCornerShape(50)) {
-        Text(label, color = color, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+        Text(label, color = color, fontSize = GregalSize.label, fontWeight = FontWeight.SemiBold, maxLines = 1,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
     }
 }

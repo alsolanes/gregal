@@ -237,6 +237,28 @@ object GregalType {
     val chatMeta = TextStyle(fontSize = 12.sp, lineHeight = 16.sp)
 }
 
+/**
+ * Les mides de [GregalType] soles, per als llocs que només canvien la mida
+ * (un `.copy(fontSize = …)`, un `Text` amb pes propi). Cap `fontSize = N.sp`
+ * fora d'aquí: set graons, els mateixos que la web (`--t1…--t6`) a l'escala del mòbil.
+ */
+object GregalSize {
+    /** Insígnies, comptadors i etiquetes minúscules. */
+    val label = 11.sp
+    /** Hores, peus i etiquetes ([GregalType.caption]). */
+    val caption = 12.sp
+    /** La segona línia d'una fila ([GregalType.bodySmall]). */
+    val small = 13.sp
+    /** Text de lectura i controls ([GregalType.body]). */
+    val body = 15.sp
+    /** Títols de targeta i text destacat ([GregalType.heading]). */
+    val large = 16.sp
+    /** Títols de pantalla ([GregalType.title]). */
+    val title = 20.sp
+    /** Xifres i portades grans. */
+    val display = 26.sp
+}
+
 /** Radis de cantonada: cinc graons i la pastilla. */
 object GregalShape {
     /** Codi, miniatures i etiquetes petites. */

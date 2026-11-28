@@ -42,7 +42,7 @@ internal fun ProgramatsButton(lang: String, onClick: () -> Unit) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Rounded.Schedule, null, tint = Sea, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(10.dp))
-            Text(tr(lang, "app.programats.open"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            Text(tr(lang, "app.programats.open"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body, modifier = Modifier.weight(1f))
             Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = Muted, modifier = Modifier.size(20.dp))
         }
     }
@@ -83,7 +83,7 @@ internal fun ProgramatsDialog(vm: GregalViewModel, lang: String, onDismiss: () -
             Column(Modifier.fillMaxWidth().fillMaxHeight(0.85f).padding(top = 16.dp)) {
                 // Capçalera: títol i tanca.
                 Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(tr(lang, "app.programats.title"), color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.weight(1f))
+                    Text(tr(lang, "app.programats.title"), color = Ink, fontWeight = FontWeight.Bold, fontSize = GregalSize.large, modifier = Modifier.weight(1f))
                     IconButton(onClick = { showNovaRutina = true }) { Icon(Icons.Rounded.Add, contentDescription = tr(lang, "app.rutines.new"), tint = Sea, modifier = Modifier.size(22.dp)) }
                     IconButton(onClick = onDismiss) { Icon(Icons.Rounded.Close, contentDescription = tr(lang, "app.cap.close"), tint = Muted, modifier = Modifier.size(18.dp)) }
                 }
@@ -97,7 +97,7 @@ internal fun ProgramatsDialog(vm: GregalViewModel, lang: String, onDismiss: () -
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(32.dp)) {
                             Text("🌤", fontSize = 40.sp)
                             Text(tr(lang, "app.programats.loadFail"), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
-                            Text(perr ?: "", color = Muted, fontSize = 13.sp)
+                            Text(perr ?: "", color = Muted, fontSize = GregalSize.small)
                             OutlinedButton(onClick = { vm.loadProgramats() }) { Text(tr(lang, "app.jobs.retry")) }
                         }
                     }
@@ -105,7 +105,7 @@ internal fun ProgramatsDialog(vm: GregalViewModel, lang: String, onDismiss: () -
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(32.dp)) {
                             Text("🌤", fontSize = 40.sp)
                             Text(tr(lang, "app.programats.empty"), color = Ink, fontWeight = FontWeight.SemiBold)
-                            Text(tr(lang, "app.programats.emptyHelp"), color = Muted, fontSize = 13.sp)
+                            Text(tr(lang, "app.programats.emptyHelp"), color = Muted, fontSize = GregalSize.small)
                         }
                     }
                     else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -185,17 +185,17 @@ internal fun NovaRutinaDialog(vm: GregalViewModel, lang: String, preselectedWind
     GregalDialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(tr(lang, "app.rutines.new"), color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text(tr(lang, "app.rutines.newHelp"), color = Muted, fontSize = 13.sp)
+                Text(tr(lang, "app.rutines.new"), color = Ink, fontWeight = FontWeight.Bold, fontSize = GregalSize.large)
+                Text(tr(lang, "app.rutines.newHelp"), color = Muted, fontSize = GregalSize.small)
                 // Vent
-                Text(tr(lang, "app.rutines.wind"), color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text(tr(lang, "app.rutines.wind"), color = Muted, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold)
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     winds.forEach { w ->
                         FilterChip(selected = w.id == windId, onClick = { windId = w.id }, label = { Text(w.name) })
                     }
                 }
                 // Quan
-                Text(tr(lang, "app.rutines.when"), color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text(tr(lang, "app.rutines.when"), color = Muted, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = kind == "daily", onClick = { kind = "daily" }, label = { Text(tr(lang, "app.rutines.daily")) })
                     FilterChip(selected = kind == "interval", onClick = { kind = "interval" }, label = { Text(tr(lang, "app.rutines.interval")) })
@@ -227,7 +227,7 @@ internal fun NovaRutinaDialog(vm: GregalViewModel, lang: String, preselectedWind
 
 @Composable
 private fun SectionTitle(text: String) {
-    Text(text, color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+    Text(text, color = Muted, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold,
         letterSpacing = 1.sp, modifier = Modifier.padding(top = 8.dp))
 }
 
@@ -238,8 +238,8 @@ private fun ProgramatRow(title: String, body: String, lang: String = "ca", onDel
             Icon(Icons.Rounded.Schedule, null, tint = Sea, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Text(title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                Text(body, color = Muted, fontSize = 13.sp)
+                Text(title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body)
+                Text(body, color = Muted, fontSize = GregalSize.small)
             }
             // Esborrar és per a les rutines pròpies; recordatoris i cors no es
             // toquen des d'aquí (el cor el governa el mateix vent).

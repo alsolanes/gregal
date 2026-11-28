@@ -1,6 +1,6 @@
 # Gregal
 
-Open-source coding agent (Go + Bubble Tea) with web (`internal/web`), desktop (Electron, `desktop/`), Android (`android/`, Kotlin), VS Code, Chrome and Telegram clients over one Go backend. The HTTP contract shared by the clients is `docs/api-contract.md`.
+Open-source coding agent (Go + Bubble Tea) with web (`internal/web`), desktop (Electron, `desktop/`), Android (`android/`, Kotlin), Chrome and Telegram clients over one Go backend. The HTTP contract shared by the clients is `docs/api-contract.md`.
 
 ## Commands
 

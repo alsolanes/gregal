@@ -146,7 +146,7 @@ private fun StartFaces(lang: String, winds: List<Wind>, news: Map<String, Int>, 
                             .testTag("start-wind-busy-" + w.id))
                     }
                 }
-                Text(w.name, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(w.name, color = Muted, fontSize = GregalSize.caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 WindRolePill(w)
             }
         }
@@ -188,7 +188,7 @@ internal fun BoxScope.FaceLanding(perch: WindPerch, from: Rect, accent: Color, s
 @Composable
 internal fun StartRecents(lang: String, rows: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxWidth().testTag("start-recents"), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(tr(lang, "app.vents.start.recent"), color = Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+        Text(tr(lang, "app.vents.start.recent"), color = Muted, fontSize = GregalSize.small, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
         rows()
     }
@@ -204,8 +204,8 @@ internal fun RecentRow(title: String, detail: String, onClick: () -> Unit, lead:
     ) {
         lead()
         Column(Modifier.weight(1f)) {
-            Text(title, color = Ink, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(detail, color = Muted, fontSize = 12.sp, maxLines = 1)
+            Text(title, color = Ink, fontSize = GregalSize.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(detail, color = Muted, fontSize = GregalSize.caption, maxLines = 1)
         }
     }
 }

@@ -2043,10 +2043,10 @@ test('El pati and its Racó speak Catalan too; with the Racó switched off there
 });
 
 // 175: a 375 px cada columna de la barra de baix deixa uns 54 px per a l'etiqueta
-// d'11 px (repeat(6,…), 6 px de vora i 2 px d'espai): hi caben unes 8 lletres;
+// de --t1, 11,5 px (repeat(6,…), 6 px de vora i 2 px d'espai): hi caben unes 8 lletres;
 // «Playground» (10) sortia «Playgro…».
 test('at 375 px no bottom-bar label is cut short, in English or Catalan', async () => {
-  assert.match(mediaBlocks(css(), 'max-width:760px'), /\.vw-mobile-nav button \{[^}]*font-size:11px/, 'the width estimate assumes 11 px labels');
+  assert.match(mediaBlocks(css(), 'max-width:760px'), /\.vw-mobile-nav button \{[^}]*font-size:var\(--t1\)/, 'the width estimate assumes --t1 (11.5 px) labels');
   for (const lang of ['en', 'ca']) {
     const f = await boot({ lang });
     const labels = f.page.querySelector('.vw-mobile-nav').querySelectorAll('button').map(b => b.textContent);

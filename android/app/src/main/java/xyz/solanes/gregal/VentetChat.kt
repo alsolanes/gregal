@@ -229,13 +229,13 @@ internal fun VentetThread(
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically) {
                 TypingDots(accent)
-                Text("  " + tr(lang, if (ui.going) "app.cap.going" else "app.cap.thinking"), fontSize = 13.sp, color = Muted)
+                Text("  " + tr(lang, if (ui.going) "app.cap.going" else "app.cap.thinking"), fontSize = GregalSize.small, color = Muted)
             }
         }
         if (ui.error && !ui.busy) item {
             Column(Modifier.fillMaxWidth().padding(vertical = 8.dp).testTag("cap-send-error"),
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(tr(lang, "app.cap.error"), color = Red, fontSize = 14.sp, textAlign = TextAlign.Center)
+                Text(tr(lang, "app.cap.error"), color = Red, fontSize = GregalSize.body, textAlign = TextAlign.Center)
                 TextButton(onClick = { vm.capRetry() }) { Text(tr(lang, "app.cap.retry"), color = Sea) }
             }
         }
@@ -250,7 +250,7 @@ internal fun VentetThread(
 private fun CapLoadError(lang: String, onRetry: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(32.dp).testTag("cap-load-error"),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(tr(lang, "app.cap.loadError"), color = Ink, fontSize = 15.sp, textAlign = TextAlign.Center)
+        Text(tr(lang, "app.cap.loadError"), color = Ink, fontSize = GregalSize.body, textAlign = TextAlign.Center)
         Button(onClick = onRetry, colors = ButtonDefaults.buttonColors(containerColor = Sea, contentColor = OnSea)) {
             Text(tr(lang, "app.cap.retry"))
         }
@@ -271,7 +271,7 @@ private fun CapDecisionDone(lang: String, m: CapMsg, winds: List<Wind>) {
             "crew" -> tr(lang, "app.cap.toCrew")
             "rotllana" -> tr(lang, "app.cap.toGroup", capRotllanaName(names, lang))
             else -> tr(lang, "app.cap.toWind", names.firstOrNull().orEmpty())
-        }, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }, color = Muted, fontSize = GregalSize.caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

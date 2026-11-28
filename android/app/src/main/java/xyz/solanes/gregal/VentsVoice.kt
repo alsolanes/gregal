@@ -256,7 +256,7 @@ internal fun VoiceConversationStrip(conv: VoiceConversation, lang: String, accen
             .testTag("voice-strip"),
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
     ) {
-        androidx.compose.material3.Text("🎙️ " + voiceTalkCopy(lang, conv.phase.ifEmpty { "listening" }), color = Ink, fontSize = 14.sp,
+        androidx.compose.material3.Text("🎙️ " + voiceTalkCopy(lang, conv.phase.ifEmpty { "listening" }), color = Ink, fontSize = GregalSize.body,
             modifier = Modifier.weight(1f))
         androidx.compose.material3.TextButton(onClick = { conv.toggle() }) { androidx.compose.material3.Text(voiceTalkCopy(lang, "stop"), color = Ink) }
     }

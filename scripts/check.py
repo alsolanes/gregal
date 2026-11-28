@@ -15,7 +15,6 @@ done in its own tasks. The full suites still run in CI (quality.yml).
   internal/web, scripts,   the node --test suites from quality.yml
   desktop (*.js, *.cjs, ...)
   python/                  the client's unittest suite
-  vscode-gregal/           typecheck and tests
   android/                 not run here (Gradle is too slow); CI runs it
   everything               the diff guard (scripts/diff_guard.py)
 
@@ -124,12 +123,6 @@ def other_steps(changed: list[str]) -> list[Step]:
         cmd = ["uv", "run", "--no-project", "--quiet", "--with", "./python"]
         cmd += ["python", "-m", "unittest", "discover", "-s", "python/tests"]
         steps.append(Step("python client tests", cmd, slow=True))
-    if any(name.startswith("vscode-gregal/") for name in changed):
-        vscode = ROOT / "vscode-gregal"
-        if not (vscode / "node_modules").exists():
-            steps.append(Step("vscode: install", ["npm", "ci", "--no-audit", "--no-fund"], vscode))
-        steps.append(Step("vscode: typecheck", ["npm", "run", "--silent", "typecheck"], vscode))
-        steps.append(Step("vscode: test", ["npm", "test", "--silent"], vscode, slow=True))
     if any(name.startswith("android/") for name in changed):
         print("NOTE  android changed: run `./gradlew testDebugUnitTest` in android/ (CI does).")
     return steps

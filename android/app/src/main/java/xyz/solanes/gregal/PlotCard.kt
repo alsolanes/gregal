@@ -53,7 +53,7 @@ private fun PlotContent(spec: PlotSpec, lang: String, view: PlotView, change: (P
     Card(Modifier.fillMaxWidth().padding(vertical = 6.dp), shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = pal.surfaceHi)) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(spec.title, color = pal.ink, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+            Text(spec.title, color = pal.ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.large)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = { change(view.zoom(n, true)) }, enabled = !geometry.radial && geometry.range.count() > 1) {
                     Text("+", modifier = Modifier.semantics { contentDescription = trPlotZoomIn(lang) })
@@ -64,8 +64,8 @@ private fun PlotContent(spec: PlotSpec, lang: String, view: PlotView, change: (P
                 TextButton(onClick = { change(view.reset()) }) { Text(tr(lang, "app.plot.reset")) }
                 TextButton(onClick = expandOrClose) { Text(tr(lang, if (enlarged) "btn.close" else "app.plot.expand")) }
             }
-            Text(tr(lang, "app.plot.help"), color = pal.muted, fontSize = 12.sp)
-            if (!geometry.radial && !geometry.horizontal) Text(geometry.yAxis.max.toString(), color = pal.muted, fontSize = 11.sp, maxLines = 1)
+            Text(tr(lang, "app.plot.help"), color = pal.muted, fontSize = GregalSize.caption)
+            if (!geometry.radial && !geometry.horizontal) Text(geometry.yAxis.max.toString(), color = pal.muted, fontSize = GregalSize.label, maxLines = 1)
             val description = "${spec.title} · ${spec.type} · ${geometry.range.first + 1}–${geometry.range.last + 1} / $n"
             Canvas(Modifier.fillMaxWidth().height(if (enlarged) 320.dp else 200.dp)
                 .semantics {
@@ -101,11 +101,11 @@ private fun PlotContent(spec: PlotSpec, lang: String, view: PlotView, change: (P
                 }) {
                 drawNativePlot(spec, view, geometry, colors, pal)
             }
-            if (!geometry.radial && !geometry.horizontal) Text(geometry.yAxis.min.toString(), color = pal.muted, fontSize = 11.sp, maxLines = 1)
+            if (!geometry.radial && !geometry.horizontal) Text(geometry.yAxis.min.toString(), color = pal.muted, fontSize = GregalSize.label, maxLines = 1)
             if (!geometry.radial) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(if (geometry.horizontal) geometry.yAxis.min.toString() else spec.labels[geometry.range.first], color = pal.muted, fontSize = 11.sp, maxLines = 1,
+                Text(if (geometry.horizontal) geometry.yAxis.min.toString() else spec.labels[geometry.range.first], color = pal.muted, fontSize = GregalSize.label, maxLines = 1,
                     overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                Text(if (geometry.horizontal) geometry.yAxis.max.toString() else spec.labels[geometry.range.last], color = pal.muted, fontSize = 11.sp, maxLines = 1,
+                Text(if (geometry.horizontal) geometry.yAxis.max.toString() else spec.labels[geometry.range.last], color = pal.muted, fontSize = GregalSize.label, maxLines = 1,
                     overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -116,7 +116,7 @@ private fun PlotContent(spec: PlotSpec, lang: String, view: PlotView, change: (P
                 Column(Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
                     Text("${spec.labels[index]} · ${index + 1}/$n", color = pal.ink, fontWeight = FontWeight.Medium)
                     geometry.visible.filter { !geometry.circular || index !in view.hidden }.forEach { series ->
-                        Text("${spec.series[series].label}: ${spec.series[series].values[index]}", color = pal.ink, fontSize = 13.sp)
+                        Text("${spec.series[series].label}: ${spec.series[series].values[index]}", color = pal.ink, fontSize = GregalSize.small)
                     }
                 }
             }
@@ -127,7 +127,7 @@ private fun PlotContent(spec: PlotSpec, lang: String, view: PlotView, change: (P
                     })
                 }
             }
-            if (if (geometry.circular) geometry.slices.isEmpty() else geometry.visible.isEmpty()) Text(tr(lang, "app.plot.hidden"), color = pal.muted, fontSize = 12.sp)
+            if (if (geometry.circular) geometry.slices.isEmpty() else geometry.visible.isEmpty()) Text(tr(lang, "app.plot.hidden"), color = pal.muted, fontSize = GregalSize.caption)
         }
     }
 }

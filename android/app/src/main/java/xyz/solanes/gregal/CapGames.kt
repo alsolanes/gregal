@@ -67,9 +67,9 @@ fun CapCloudGame(lang: String, st: CapState, onDone: (Int) -> Unit) {
                     WindFace(size = 40, accent = Color(st.argb), style = st.faceStyle, mood = if (over) WindMood.HAPPY else WindMood.TALKING)
                     Column(Modifier.weight(1f)) {
                         Text(tr(lang, "app.cap.game.nuvols"), color = Ink, fontWeight = FontWeight.Bold)
-                        Text(if (over) tr(lang, "app.cap.game.over", score) else tr(lang, "app.cap.game.nuvolsHelp"), color = Muted, fontSize = 12.sp)
+                        Text(if (over) tr(lang, "app.cap.game.over", score) else tr(lang, "app.cap.game.nuvolsHelp"), color = Muted, fontSize = GregalSize.caption)
                     }
-                    Text("$score", color = Sea, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.testTag("game-score"))
+                    Text("$score", color = Sea, fontSize = GregalSize.title, fontWeight = FontWeight.ExtraBold, modifier = Modifier.testTag("game-score"))
                 }
                 val left = ((total - (now - start)).coerceAtLeast(0) / 1000).toInt()
                 LinearProgressIndicator(progress = { if (start == 0L) 1f else (total - (now - start)).coerceAtLeast(0).toFloat() / total },
@@ -88,7 +88,7 @@ fun CapCloudGame(lang: String, st: CapState, onDone: (Int) -> Unit) {
                         }
                     }
                     if (over) Text("🏁", fontSize = 48.sp, modifier = Modifier.align(Alignment.Center))
-                    else Text("${left}s", color = Muted, fontSize = 12.sp, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp))
+                    else Text("${left}s", color = Muted, fontSize = GregalSize.caption, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (over) Button(onClick = { onDone(score) }, colors = ButtonDefaults.buttonColors(containerColor = Sea, contentColor = OnSea),
@@ -118,14 +118,14 @@ fun CapRpsGame(lang: String, st: CapState, onDone: (Int) -> Unit) {
         Surface(shape = RoundedCornerShape(24.dp), color = Superficie) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(tr(lang, "app.cap.game.ppt"), color = Ink, fontWeight = FontWeight.Bold)
-                Text(tr(lang, "app.cap.game.pptScore", you, her), color = Muted, fontSize = 13.sp, modifier = Modifier.testTag("rps-score"))
+                Text(tr(lang, "app.cap.game.pptScore", you, her), color = Muted, fontSize = GregalSize.small, modifier = Modifier.testTag("rps-score"))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                     Text(last?.let { hands[it.first] } ?: "❔", fontSize = 44.sp)
                     Text("vs", color = Muted)
                     Box(contentAlignment = Alignment.Center) {
                         WindFace(size = 54, accent = Color(st.argb), style = st.faceStyle,
                             mood = when { thinking -> WindMood.THINKING; last == null -> WindMood.IDLE; rpsWinner(last!!.first, last!!.second) < 0 -> WindMood.HAPPY; else -> WindMood.TALKING })
-                        if (!thinking) last?.let { Text(hands[it.second], fontSize = 26.sp, modifier = Modifier.align(Alignment.BottomEnd)) }
+                        if (!thinking) last?.let { Text(hands[it.second], fontSize = GregalSize.display, modifier = Modifier.align(Alignment.BottomEnd)) }
                     }
                 }
                 val result = last?.let { rpsWinner(it.first, it.second) }
@@ -139,7 +139,7 @@ fun CapRpsGame(lang: String, st: CapState, onDone: (Int) -> Unit) {
                         result == -1 -> tr(lang, "app.cap.game.roundHer")
                         result == 0 -> tr(lang, "app.cap.game.roundTie")
                         else -> tr(lang, "app.cap.game.pptHelp")
-                    }, color = Tinta, fontSize = 14.sp, textAlign = TextAlign.Center,
+                    }, color = Tinta, fontSize = GregalSize.body, textAlign = TextAlign.Center,
                 )
                 if (!over) Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     hands.forEachIndexed { i, h ->
@@ -175,12 +175,12 @@ fun CapWardrobe(lang: String, st: CapState, fresh: List<String>, onWear: (String
                     Box {
                         WindFace(size = 48, accent = Color(st.argb), style = st.faceStyle, mood = WindMood.HAPPY)
                         capOutfitCatalog.firstOrNull { it.id == pet.outfit }?.let {
-                            Text(it.emoji, fontSize = 20.sp, modifier = Modifier.align(if (it.spot == "top") Alignment.TopCenter else Alignment.BottomCenter))
+                            Text(it.emoji, fontSize = GregalSize.title, modifier = Modifier.align(if (it.spot == "top") Alignment.TopCenter else Alignment.BottomCenter))
                         }
                     }
                     Column(Modifier.weight(1f)) {
                         Text(tr(lang, "app.cap.wardrobe"), color = Ink, fontWeight = FontWeight.Bold)
-                        Text(tr(lang, "app.cap.wardrobeHelp", pet.level, pet.levelXp, pet.levelNeed), color = Muted, fontSize = 12.sp)
+                        Text(tr(lang, "app.cap.wardrobeHelp", pet.level, pet.levelXp, pet.levelNeed), color = Muted, fontSize = GregalSize.caption)
                     }
                 }
                 capOutfitCatalog.chunked(4).forEach { row ->
@@ -193,14 +193,14 @@ fun CapWardrobe(lang: String, st: CapState, fresh: List<String>, onWear: (String
                                 color = if (worn) SeaSoft(.3f) else SuperficieAlta.copy(alpha = if (owned) .8f else .35f),
                                 modifier = Modifier.size(64.dp).testTag("outfit-${o.id}")) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                                    Text(if (owned) o.emoji else "🔒", fontSize = 24.sp)
+                                    Text(if (owned) o.emoji else "🔒", fontSize = GregalSize.display)
                                     Text(
                                         when {
                                             o.id in fresh -> tr(lang, "app.cap.new")
                                             owned -> ""
                                             o.month > 0 -> java.time.Month.of(o.month).getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.forLanguageTag(if (lang == "en") "en" else "ca"))
                                             else -> tr(lang, "app.cap.level", o.level)
-                                        }, color = if (o.id in fresh) Sea else Muted, fontSize = 10.sp, maxLines = 1)
+                                        }, color = if (o.id in fresh) Sea else Muted, fontSize = GregalSize.label, maxLines = 1)
                                 }
                             }
                         }

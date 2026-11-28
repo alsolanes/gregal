@@ -132,7 +132,7 @@ class WindMapTest {
     @Test fun `WindFace draws the map when the theme or the wind's own avatar is mapa`() {
         val bit = style("bit", "Bit")
         assertEquals("mapa", windPack("free", bit))
-        assertEquals("cares", windPack("free", bit.copy(pack = "")))
+        assertEquals("folk", windPack("free", bit.copy(pack = "")))
         ui.setContent {
             CompositionLocalProvider(LocalWindMotion provides false) {
                 Row(Modifier.background(Color.Black)) {

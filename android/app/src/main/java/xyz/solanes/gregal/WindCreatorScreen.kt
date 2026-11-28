@@ -78,7 +78,7 @@ internal fun WindEditor(
     var kit by rememberSaveable(edit?.id) { mutableStateOf("") }
     var kitRole by rememberSaveable(edit?.id) { mutableStateOf("") }
     val theme = LocalAvatarTheme.current
-    var avatar by rememberSaveable(edit?.id) { mutableStateOf(edit?.avatar.takeIf { it in windPacks } ?: "cares") }
+    var avatar by rememberSaveable(edit?.id) { mutableStateOf(edit?.avatar.takeIf { it in windPacks } ?: "folk") }
     var gallery by rememberSaveable(edit?.id) { mutableStateOf(false) }
     var customize by rememberSaveable(edit?.id) { mutableStateOf(false) }
     var personalityOpen by rememberSaveable(edit?.id) { mutableStateOf(false) }
@@ -121,11 +121,11 @@ internal fun WindEditor(
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(if (gallery) galleryScroll else editorScroll)
             .padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (gallery) {
-            Text(tr(lang, "app.vents.galleryTitle"), color = Ink, fontSize = 21.sp, fontWeight = FontWeight.Bold)
-            Text(tr(lang, "app.vents.galleryHelp"), color = Muted, fontSize = 14.sp)
+            Text(tr(lang, "app.vents.galleryTitle"), color = Ink, fontSize = GregalSize.title, fontWeight = FontWeight.Bold)
+            Text(tr(lang, "app.vents.galleryHelp"), color = Muted, fontSize = GregalSize.body)
             // Plantilles per feina: rol+persona fets; només cal nom i carona.
-            Text(tr(lang, "app.vents.tplSection"), color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            Text(tr(lang, "app.vents.tplSectionHelp"), color = Muted, fontSize = 13.sp)
+            Text(tr(lang, "app.vents.tplSection"), color = Ink, fontSize = GregalSize.large, fontWeight = FontWeight.SemiBold)
+            Text(tr(lang, "app.vents.tplSectionHelp"), color = Muted, fontSize = GregalSize.small)
             WindTemplates.all.forEach { tpl ->
                 Surface(shape = RoundedCornerShape(18.dp), color = Color(Wind("", "", tpl.color, "").argb).copy(alpha = .10f),
                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
@@ -141,8 +141,8 @@ internal fun WindEditor(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         WindFace(size = 46, accent = Color(Wind("", "", tpl.color, "").argb), style = windStyleOf(tpl.style))
                         Column(Modifier.weight(1f)) {
-                            Text(tr(lang, "app.vents.tpl.${tpl.id}.title"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                            Text(tr(lang, "app.vents.tpl.${tpl.id}.desc"), color = Muted, fontSize = 13.sp)
+                            Text(tr(lang, "app.vents.tpl.${tpl.id}.title"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body)
+                            Text(tr(lang, "app.vents.tpl.${tpl.id}.desc"), color = Muted, fontSize = GregalSize.small)
                         }
                     }
                 }
@@ -166,8 +166,8 @@ internal fun WindEditor(
                                 }) {
                             Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 WindFace(size = 62, accent = Color(Wind("", "", preset.color, "").argb), style = windStyleOf(preset.style))
-                                Text(shown, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                                Text(tr(lang, "app.vents.preset.${preset.name}.role"), color = Muted, fontSize = 12.sp)
+                                Text(shown, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body)
+                                Text(tr(lang, "app.vents.preset.${preset.name}.role"), color = Muted, fontSize = GregalSize.caption)
                             }
                         }
                     }
@@ -205,12 +205,12 @@ internal fun WindEditor(
                 modifier = Modifier.fillMaxWidth().testTag("wind-editor-preview"),
             ) {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(if (lang == "en") "Identity preview" else "Previsualització de la identitat", color = Ink, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text(if (lang == "en") "Identity preview" else "Previsualització de la identitat", color = Ink, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold)
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         WindFace(size = 118, accent = Color(Wind("", "", color, "").argb), style = face, tappable = !saving)
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(name.ifBlank { tr(lang, "app.company.yourWind") }, color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                            Text(role.ifBlank { if (lang == "en") "A companion with a clear purpose" else "Un company amb un propòsit clar" }, color = Muted, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 3)
+                            Text(name.ifBlank { tr(lang, "app.company.yourWind") }, color = Ink, fontSize = GregalSize.title, fontWeight = FontWeight.Bold, maxLines = 1)
+                            Text(role.ifBlank { if (lang == "en") "A companion with a clear purpose" else "Un company amb un propòsit clar" }, color = Muted, fontSize = GregalSize.small, lineHeight = 18.sp, maxLines = 3)
                         }
                     }
                 }
@@ -225,7 +225,7 @@ internal fun WindEditor(
                 { style = face.copy(shape = WindShape.entries.first { e -> e.key == it }).encode() },
                 { "app.company.windShape_$it" }, { face.copy(shape = WindShape.entries.first { e -> e.key == it }) }, color, controlsEnabled)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(tr(lang, "app.company.windColor"), color = Muted, fontSize = 13.sp)
+                Text(tr(lang, "app.company.windColor"), color = Muted, fontSize = GregalSize.small)
                 // Two rows of five fixed columns: the palette plus a wind's own colour fits, and a short row lines up under the full one.
                 colorChoices.chunked(5).forEachIndexed { row, colors ->
                     Row(Modifier.fillMaxWidth()) {
@@ -247,7 +247,7 @@ internal fun WindEditor(
             }
             if (theme == "free") FaceOptions(lang, "winds.avatar", windPacks, avatar, { avatar = it },
                 ::avatarLabelKey, { face.copy(pack = it) }, color, controlsEnabled, clay = true)
-            else Text(tr(lang, "winds.avatarThemeInUse", tr(lang, avatarLabelKey(theme))), color = Muted, fontSize = 13.sp)
+            else Text(tr(lang, "winds.avatarThemeInUse", tr(lang, avatarLabelKey(theme))), color = Muted, fontSize = GregalSize.small)
             // A wind drawn as a minairó picks its barretina; the first choice leaves it to the wind.
             if (windPack(theme, face) == "minairo") FaceOptions(lang, "winds.barretina", listOf("") + minairoBarretines.map { it.first }, face.barretina,
                 { style = face.copy(barretina = it).encode() }, ::barretinaLabelKey, { face.copy(barretina = it) }, color, controlsEnabled)
@@ -300,7 +300,7 @@ private fun FaceOptions(lang: String, label: String, options: List<String>, sele
     /** The avatar packs show the clay ones as their 3D figure; a look's options stay drawn, where the eyes and mouth show. */
     clay: Boolean = false) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(tr(lang, label), color = Muted, fontSize = 13.sp)
+        Text(tr(lang, label), color = Muted, fontSize = GregalSize.small)
         // One card width and height for every option, so a long name does not make its card stand out.
         Row(Modifier.horizontalScroll(rememberScrollState()).height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             options.forEach { option ->
@@ -312,7 +312,7 @@ private fun FaceOptions(lang: String, label: String, options: List<String>, sele
                     Box(Modifier.size(42.dp), contentAlignment = Alignment.Center) {
                         WindFace(size = windPackSample(windPack(LocalAvatarTheme.current, face(option)), 42), accent = Color(Wind("", "", color, "").argb), style = face(option), clay = clay)
                     }
-                    Text(tr(lang, optionLabel(option)), fontSize = 12.sp, lineHeight = 15.sp, color = Ink, textAlign = TextAlign.Center, maxLines = 2)
+                    Text(tr(lang, optionLabel(option)), fontSize = GregalSize.caption, lineHeight = 15.sp, color = Ink, textAlign = TextAlign.Center, maxLines = 2)
                 }
             }
         }

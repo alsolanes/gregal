@@ -750,7 +750,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         selectedWindThreads.clear()
         rotllanaHistoryRequests.clear()
         _winds.value = emptyList()
-        _avatarTheme.value = "cares"
+        _avatarTheme.value = "folk"
         _me.value = MeInfo()
         _userName.value = ""
         _userColor.value = USER_DEFAULT_COLOR
@@ -3622,7 +3622,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     // ---- Vents: companions personals amb nom de vent ----
     private val _winds = MutableStateFlow<List<Wind>>(emptyList())
     val winds: StateFlow<List<Wind>> = _winds
-    private val _avatarTheme = MutableStateFlow("cares")
+    private val _avatarTheme = MutableStateFlow("folk")
     /** El tema d'avatars del compte (`avatarTheme` de GET /api/winds): un paquet per a tots els vents, o "free". */
     val avatarTheme: StateFlow<String> = _avatarTheme
 

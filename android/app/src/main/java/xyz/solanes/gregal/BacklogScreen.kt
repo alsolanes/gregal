@@ -198,30 +198,30 @@ private fun BacklogCard(vm: GregalViewModel, lang: String, it: BacklogItem, open
     ) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("#${it.id}", color = Faint, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                Text("#${it.id}", color = Faint, fontFamily = FontFamily.Monospace, fontSize = GregalSize.caption)
                 Spacer(Modifier.width(6.dp))
-                Text(typeLabel(lang, it.type), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(typeLabel(lang, it.type), color = Muted, fontSize = GregalSize.label, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
                 Surface(shape = RoundedCornerShape(8.dp), color = c.copy(alpha = 0.16f)) {
-                    Text(statusLabel(lang, it.status), color = c, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                    Text(statusLabel(lang, it.status), color = c, fontSize = GregalSize.label, fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
                 }
             }
-            Text(it.title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, modifier = Modifier.padding(top = 4.dp))
+            Text(it.title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.large, modifier = Modifier.padding(top = 4.dp))
             val meta = buildList {
                 add(prioLabel(lang, it.priority))
                 if (it.size.isNotBlank()) add(it.size)
                 if (it.criteria.isNotEmpty()) add("${it.doneCriteria}/${it.criteria.size} " + bx(lang, "criteris", "criteria"))
             }
-            Text(meta.joinToString(" · "), color = Muted, fontSize = 12.sp)
+            Text(meta.joinToString(" · "), color = Muted, fontSize = GregalSize.caption)
             if (it.reason.isNotBlank() && (it.status == "blocked" || it.status == "dropped")) {
-                Text(it.reason, color = Ink, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+                Text(it.reason, color = Ink, fontSize = GregalSize.small, modifier = Modifier.padding(top = 6.dp))
             }
             if (!open) return@Column
 
             if (it.why.isNotBlank()) {
                 Section(if (it.type == "bug") bx(lang, "Què passa", "What happens") else bx(lang, "Perquè", "Why"))
-                Text(it.why, color = Ink, fontSize = 14.sp)
+                Text(it.why, color = Ink, fontSize = GregalSize.body)
             }
             ReviewBlock(lang, it)
             if (it.criteria.isNotEmpty()) {
@@ -232,15 +232,15 @@ private fun BacklogCard(vm: GregalViewModel, lang: String, it: BacklogItem, open
                             if (on) ask(BacklogAsk.Evidence(it.id, i + 1)) else vm.backlogAct(BacklogJson.check(it.id, i + 1, false))
                         })
                         Column(Modifier.padding(top = 12.dp)) {
-                            Text(cr.text, color = if (cr.done) Muted else Ink, fontSize = 14.sp)
-                            if (cr.evidence.isNotBlank()) Text(bx(lang, "Prova: ", "Evidence: ") + cr.evidence, color = Faint, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                            Text(cr.text, color = if (cr.done) Muted else Ink, fontSize = GregalSize.body)
+                            if (cr.evidence.isNotBlank()) Text(bx(lang, "Prova: ", "Evidence: ") + cr.evidence, color = Faint, fontSize = GregalSize.caption, fontFamily = FontFamily.Monospace)
                         }
                     }
                 }
             }
             if (it.outOfScope.isNotBlank()) {
                 Section(bx(lang, "Fora d’abast", "Out of scope"))
-                Text(it.outOfScope, color = Ink, fontSize = 14.sp)
+                Text(it.outOfScope, color = Ink, fontSize = GregalSize.body)
             }
             Spacer(Modifier.height(10.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -277,8 +277,8 @@ private fun BacklogCard(vm: GregalViewModel, lang: String, it: BacklogItem, open
             if (it.log.isNotEmpty()) {
                 Section(bx(lang, "Registre", "Log"))
                 it.log.takeLast(6).reversed().forEach { l ->
-                    Text((l.at.take(16).replace('T', ' ')) + " · " + l.who.ifBlank { bx(lang, "tu", "you") }, color = Faint, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-                    Text(l.text, color = Ink, fontSize = 13.sp, modifier = Modifier.padding(bottom = 4.dp))
+                    Text((l.at.take(16).replace('T', ' ')) + " · " + l.who.ifBlank { bx(lang, "tu", "you") }, color = Faint, fontSize = GregalSize.label, fontFamily = FontFamily.Monospace)
+                    Text(l.text, color = Ink, fontSize = GregalSize.small, modifier = Modifier.padding(bottom = 4.dp))
                 }
             }
         }
@@ -298,9 +298,9 @@ private fun ReviewBlock(lang: String, it: BacklogItem) {
         r.status == "not_met" -> bx(lang, "No superada: ", "Not passed: ") + r.summary to Red
         else -> bx(lang, "El revisor ha fallat: ", "The reviewer failed: ") + r.summary to Red
     }
-    Text(text, color = color, fontSize = 14.sp)
+    Text(text, color = color, fontSize = GregalSize.body)
     r?.checks?.forEach { c ->
-        Text((if (c.passed) "✓ " else "✗ ") + c.command, color = if (c.passed) Green else Red, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+        Text((if (c.passed) "✓ " else "✗ ") + c.command, color = if (c.passed) Green else Red, fontSize = GregalSize.caption, fontFamily = FontFamily.Monospace)
     }
     r?.criteria?.forEachIndexed { n, c ->
         val (label, col) = when (c.status) {
@@ -308,14 +308,14 @@ private fun ReviewBlock(lang: String, it: BacklogItem) {
             "NOT MET" -> bx(lang, "No complert", "Not met") to Red
             else -> bx(lang, "Sense comprovar", "Unverified") to Sand
         }
-        Text("${n + 1}. $label · ${c.text}", color = col, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
-        if (c.evidence.isNotBlank()) Text(c.evidence, color = Faint, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+        Text("${n + 1}. $label · ${c.text}", color = col, fontSize = GregalSize.small, modifier = Modifier.padding(top = 4.dp))
+        if (c.evidence.isNotBlank()) Text(c.evidence, color = Faint, fontSize = GregalSize.caption, fontFamily = FontFamily.Monospace)
     }
 }
 
 @Composable
 private fun Section(title: String) {
-    Text(title.uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
+    Text(title.uppercase(), color = Muted, fontSize = GregalSize.label, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
 }
 
 @Composable

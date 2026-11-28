@@ -131,8 +131,8 @@
 @keyframes room-pulse-badge { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 35%, transparent); } 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 10%, transparent); } }
 .no-children { margin: 0; padding: 6px 2px 2px; color: var(--muted); font-size: var(--t2, 12.5px); }
 .workshop-empty-state { display: grid; justify-items: center; align-content: center; min-height: 270px; margin: auto; padding: 30px; text-align: center; }
-.empty-mark { display: grid; width: 54px; height: 54px; place-items: center; border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--line)); border-radius: 18px; color: var(--accent); background: var(--surface); font-size: 27px; box-shadow: 0 6px 14px var(--ombra); }
-.workshop-empty-state h2 { margin: 16px 0 5px; color: var(--ink); font-size: 18px; }
+.empty-mark { display: grid; width: 54px; height: 54px; place-items: center; border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--line)); border-radius: 18px; color: var(--accent); background: var(--surface); font-size: var(--t6); box-shadow: 0 6px 14px var(--ombra); }
+.workshop-empty-state h2 { margin: 16px 0 5px; color: var(--ink); font-size: var(--t4); }
 .workshop-empty-state p { max-width: 320px; margin: 0; color: var(--muted); font-size: var(--t2, 12.5px); line-height: 1.55; }
 
 .workshop-queue { grid-area: queue; position: sticky; top: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; max-height: min(78vh, 850px); overflow: auto; padding: 16px; border: 1px solid var(--line); border-radius: 18px; color: var(--text); background: var(--surface); box-shadow: 0 8px 24px var(--ombra); scrollbar-color: var(--line-hi) transparent; }
@@ -167,7 +167,7 @@
 .bay-graph svg { display: block; width: 100%; height: auto; }
 .bay-graph .team-flow-node { cursor: pointer; }
 .bay-graph .team-flow-node rect { fill: var(--surface); stroke: var(--line-hi); stroke-width: 1.5; }
-.bay-graph .team-flow-node text { fill: var(--ink); font-size: 15px; font-weight: 600; }
+.bay-graph .team-flow-node text { fill: var(--ink); font-size: var(--t3); font-weight: 600; }
 .bay-graph .team-flow-node:focus-visible { outline: 2px solid var(--accent-hi); outline-offset: 3px; }
 .bay-graph .team-flow-node.is-selected rect { stroke: var(--accent); stroke-width: 2.5; }
 .bay-graph .team-flow-node.is-working rect { stroke: #f3a64a; stroke-width: 2.5; }
@@ -226,7 +226,7 @@
 .room-detail-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; padding-right: 36px; }
 .room-detail-title { margin: 0; color: var(--ink); font-size: var(--t3, 14px); }
 .room-detail-facts { margin: 0; color: var(--muted); font-size: var(--t1, 11.5px); font-variant-numeric: tabular-nums; }
-.room-detail-close { position: absolute; top: 9px; right: 10px; width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: var(--surface); font-size: 16px; line-height: 1; cursor: pointer; }
+.room-detail-close { position: absolute; top: 9px; right: 10px; width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: var(--surface); font-size: var(--t4); line-height: 1; cursor: pointer; }
 .room-detail-empty { margin: 10px 0 0; color: var(--muted); font-size: var(--t2, 12.5px); }
 .room-section { margin: 12px 0 6px; color: var(--muted); font-size: var(--t1, 11.5px); font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
 .room-actions, .room-commands { display: flex; flex-direction: column; gap: 3px; margin: 0; padding: 0; list-style: none; }

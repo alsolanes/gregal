@@ -14,13 +14,13 @@
 }
 #teamPage[hidden] { display:none; }
 #teamPage .page-head { display:flex; align-items:center; gap:12px; margin:0 0 12px; }
-#teamPage h1 { color:var(--ink); font-size:24px; letter-spacing:0; margin:0; }
+#teamPage h1 { color:var(--ink); font-size:var(--t6); letter-spacing:0; margin:0; }
 #teamPage #teamStatus { margin-left:auto; padding:4px 8px; border:1px solid var(--line); border-radius:4px; }
-#teamPage h2 { color:var(--ink); font-size:15px; margin:12px 0; }
+#teamPage h2 { color:var(--ink); font-size:var(--t3); margin:12px 0; }
 #teamExamples { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 12px; }
 #teamExamples button {
   min-height:34px; padding:7px 12px; border:1px solid color-mix(in srgb, var(--team-terracotta) 32%, var(--line));
-  border-radius:4px; background:var(--surface); color:var(--text); cursor:pointer; font:inherit; font-size:12px;
+  border-radius:4px; background:var(--surface); color:var(--text); cursor:pointer; font:inherit; font-size:var(--t2);
   transition:transform .16s ease, border-color .16s ease, background-color .16s ease;
 }
 #teamExamples button:hover { border-color:var(--accent); background:var(--hover); }
@@ -28,13 +28,13 @@
 #teamExamples button:focus-visible, #teamForm button:focus-visible, #teamAgents button:focus-visible, #teamNeedsMe:focus-visible {
   outline:2px solid var(--accent-hi); outline-offset:3px;
 }
-#teamProgress { padding:10px 0; font-size:13px; color:var(--ink); min-height:20px; }
+#teamProgress { padding:10px 0; font-size:var(--t2); color:var(--ink); min-height:20px; }
 /* Fila de progrés + cua d'atenció: el botó «Qui em necessita?» salta al
    següent agent pendent de decisió (idea d'agent-office, estil propi). */
 .team-progress-row { display:flex; align-items:center; gap:10px; }
 .team-progress-row #teamProgress { flex:1; min-width:0; }
 #teamNeedsMe { flex:none; min-height:34px; padding:7px 12px; border:1px solid color-mix(in srgb, #b3542e 45%, var(--line));
-  border-radius:999px; background:var(--surface); color:var(--text); cursor:pointer; font:inherit; font-size:12px; }
+  border-radius:999px; background:var(--surface); color:var(--text); cursor:pointer; font:inherit; font-size:var(--t2); }
 #teamNeedsMe:hover:not(:disabled) { border-color:#b3542e; background:var(--team-plaster); transform:translateY(-1px); }
 #teamNeedsMe:disabled { opacity:.55; cursor:default; }
 /* Graf del pipeline: nodes clicables amb l'estat en viu i fletxes que
@@ -44,7 +44,7 @@
 #teamFlow { display:block; width:100%; height:auto; }
 .team-flow-node { cursor:pointer; }
 .team-flow-node rect { fill:var(--surface); stroke:var(--line-hi); stroke-width:1.5; }
-.team-flow-node text { fill:var(--ink); font-size:15px; font-weight:600; }
+.team-flow-node text { fill:var(--ink); font-size:var(--t3); font-weight:600; }
 .team-flow-node:focus-visible { outline:2px solid var(--accent-hi); outline-offset:3px; }
 .team-flow-node.is-selected rect { stroke:var(--accent); stroke-width:2.5; }
 .team-flow-node.is-working rect { stroke:#f3a64a; stroke-width:2.5; }
@@ -64,34 +64,34 @@
 #teamFlowEditor { margin:2px 0 12px; padding:14px 16px; border:1px solid color-mix(in srgb, var(--team-window) 40%, var(--line)); border-radius:20px; background:var(--team-plaster); box-shadow:0 12px 36px var(--ombra); }
 #teamFlowEditor[hidden] { display:none; }
 #teamFlowEditor h2 { margin:0 0 8px; }
-#teamFlowEditor h3 { margin:14px 0 6px; color:var(--muted); font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
-#teamFlowEditor input, #teamFlowEditor select, #teamFlowEditor textarea { min-height:33px; padding:6px 8px; color:var(--text); background:var(--surface); border:1px solid var(--line-hi); border-radius:6px; font:13px var(--mono,monospace); }
+#teamFlowEditor h3 { margin:14px 0 6px; color:var(--muted); font-size:var(--t2); font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+#teamFlowEditor input, #teamFlowEditor select, #teamFlowEditor textarea { min-height:33px; padding:6px 8px; color:var(--text); background:var(--surface); border:1px solid var(--line-hi); border-radius:6px; font:var(--t2) var(--mono,monospace); }
 #teamFlowEditor input:focus, #teamFlowEditor select:focus, #teamFlowEditor textarea:focus { outline:none; border-color:var(--accent); }
 #teamFlowEditor textarea { width:100%; resize:vertical; font-family:inherit; }
 .flow-row { display:flex; flex-wrap:wrap; align-items:flex-end; gap:8px; margin:8px 0; }
-.flow-field { display:grid; gap:3px; font-size:12px; color:var(--muted); }
+.flow-field { display:grid; gap:3px; font-size:var(--t2); color:var(--muted); }
 .flow-buttons { display:flex; flex-wrap:wrap; gap:8px; }
 #flowError { margin:8px 0; padding:9px 12px; border:1px solid color-mix(in srgb, var(--red) 35%, var(--line)); border-radius:10px; background:var(--red-soft); color:var(--red); line-height:1.45; }
 #flowError[hidden] { display:none; }
 .flow-saved-list { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:8px 0; }
-.flow-saved-head { color:var(--muted); font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+.flow-saved-head { color:var(--muted); font-size:var(--t2); font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
 #flowNodeList { display:grid; gap:8px; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); }
 .flow-node-card { padding:10px 12px; border:1px solid color-mix(in srgb, var(--team-window) 40%, var(--line)); border-radius:14px; background:var(--surface); }
 .flow-node-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; }
-.flow-node-head strong { color:var(--ink); font-family:var(--mono,monospace); font-size:13px; overflow-wrap:anywhere; }
+.flow-node-head strong { color:var(--ink); font-family:var(--mono,monospace); font-size:var(--t2); overflow-wrap:anywhere; }
 .flow-grid { display:grid; gap:6px; }
 #flowEdgeList { display:grid; gap:6px; }
 .flow-edge-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
 @media(max-width:760px) { #teamFlowEditor { border-radius:15px; padding:12px; } }
 #teamForm { display:grid; gap:6px; margin-bottom:8px; }
-#teamTaskLabel { font-size:12px; color:var(--muted); }
-#teamTask { width:100%; resize:vertical; min-height:64px; max-height:180px; box-sizing:border-box; background:var(--surface); color:var(--ink); border:1px solid var(--line-hi); border-radius:6px; padding:10px 12px; font:inherit; font-size:14px; line-height:1.5; }
+#teamTaskLabel { font-size:var(--t2); color:var(--muted); }
+#teamTask { width:100%; resize:vertical; min-height:64px; max-height:180px; box-sizing:border-box; background:var(--surface); color:var(--ink); border:1px solid var(--line-hi); border-radius:6px; padding:10px 12px; font:inherit; font-size:var(--t3); line-height:1.5; }
 #teamTask:focus { outline:2px solid var(--accent-hi); outline-offset:2px; }
 .team-actions { display:flex; align-items:center; gap:8px; }
-#teamForm button { min-height:32px; border:1px solid var(--line-hi); border-radius:4px; padding:6px 11px; background:var(--surface); color:var(--ink); font:inherit; font-size:12px; cursor:pointer; }
+#teamForm button { min-height:32px; border:1px solid var(--line-hi); border-radius:4px; padding:6px 11px; background:var(--surface); color:var(--ink); font:inherit; font-size:var(--t2); cursor:pointer; }
 #teamForm #teamStart { background:var(--accent); color:var(--bg); border-color:var(--accent); font-weight:600; }
 #teamForm button:disabled { opacity:.45; cursor:default; }
-#teamModel { margin-right:auto; color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
+#teamModel { margin-right:auto; color:var(--muted); font-size:var(--t2); overflow-wrap:anywhere; }
 .team-layout {
   display:grid; grid-template-columns:minmax(0,1fr) minmax(235px,min(27%,360px)); align-items:stretch; gap:0;
   overflow:hidden; border-top:1px solid var(--line); border-bottom:1px solid var(--line);
@@ -106,7 +106,7 @@
   border-left:1px solid color-mix(in srgb, var(--team-window) 30%, var(--line));
   background:var(--surface);
 }
-.team-detail > h2:first-child { margin-top:9px; color:var(--muted); text-transform:uppercase; font:600 10px/1.4 var(--mono,monospace); letter-spacing:.08em; }
+.team-detail > h2:first-child { margin-top:9px; color:var(--muted); text-transform:uppercase; font:600 var(--t1)/1.4 var(--mono,monospace); letter-spacing:.08em; }
 #teamAgents { display:grid; gap:3px; }
 #teamAgents button {
   display:grid; grid-template-columns:40px minmax(0,1fr); grid-template-rows:auto auto; align-items:center; column-gap:8px;
@@ -120,27 +120,27 @@
 #teamAgents button[data-state=working] small { color:var(--ink); font-weight:600; }
 #teamAgents button[data-state=working] .team-agent-avatar { animation:team-work .6s ease-in-out infinite alternate; }
 @keyframes team-work { from { transform:translateY(0) rotate(-3deg); } to { transform:translateY(-3px) rotate(3deg); } }
-#teamLive { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:10px 0 14px; font-size:12px; }
+#teamLive { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:10px 0 14px; font-size:var(--t2); }
 #teamLive strong { color:var(--muted); margin-right:6px; font-weight:600; }
 #teamLive[data-active=true] strong { color:var(--ink); }
 #teamLive button { color:var(--ink); background:var(--panel); border:1px solid var(--line-hi); border-left:4px solid var(--role-color); border-radius:4px; padding:7px 10px; font:inherit; cursor:pointer; }
 #teamLive button:hover { border-color:var(--role-color); }
-#teamCurrentTask { color:var(--ink); border-left:3px solid var(--accent); padding-left:10px; font-size:13px; line-height:1.5; overflow-wrap:anywhere; }
+#teamCurrentTask { color:var(--ink); border-left:3px solid var(--accent); padding-left:10px; font-size:var(--t2); line-height:1.5; overflow-wrap:anywhere; }
 /* L'agent pendent de decisió porta la vora de terracota i una balisa «!»,
    el reflex a la llista del rombe que llueix sobre el personatge. */
 #teamAgents button[data-needs-you] { border-color:color-mix(in srgb, #b3542e 55%, transparent); background:color-mix(in srgb, #b3542e 10%, var(--surface)); }
 #teamAgents button[data-needs-you]::after { content:'!'; flex:none; align-self:start; width:18px; height:18px; display:grid; place-items:center;
   grid-column:2; grid-row:1; justify-self:end; border-radius:4px; transform:rotate(45deg);
-  background:#b3542e; color:#fffaf0; font-size:11px; font-weight:700; }
+  background:#b3542e; color:#fffaf0; font-size:var(--t1); font-weight:700; }
 #teamAgents button[data-needs-you] .team-agent-copy { padding-right:24px; }
 .team-agent-avatar { grid-column:1; grid-row:1/3; justify-self:center; width:32px; height:42px; object-fit:contain; image-rendering:pixelated; }
-.team-agent-copy { grid-column:2; grid-row:1; padding-left:6px; border-left:2px solid var(--role-color); color:var(--ink); font-size:12px; font-weight:620; }
-#teamAgents small { grid-column:2; grid-row:2; color:var(--muted); font-size:10px; line-height:1.4; }
+.team-agent-copy { grid-column:2; grid-row:1; padding-left:6px; border-left:2px solid var(--role-color); color:var(--ink); font-size:var(--t2); font-weight:620; }
+#teamAgents small { grid-column:2; grid-row:2; color:var(--muted); font-size:var(--t1); line-height:1.4; }
 .team-agent-detail { border-top:1px solid var(--line); margin-top:10px; padding-top:3px; }
 .team-agent-detail h2 { color:var(--ink); }
-#teamOutput { white-space:pre-wrap; overflow-wrap:anywhere; font:13px/1.6 var(--sans,sans-serif); }
-#teamAgentStatus,#teamStatus { color:var(--muted); font-size:12px; }
-#teamActivity { margin:0; padding:0; list-style:none; font-size:12px; max-height:170px; overflow:auto; }
+#teamOutput { white-space:pre-wrap; overflow-wrap:anywhere; font:var(--t2)/1.6 var(--sans,sans-serif); }
+#teamAgentStatus,#teamStatus { color:var(--muted); font-size:var(--t2); }
+#teamActivity { margin:0; padding:0; list-style:none; font-size:var(--t2); max-height:170px; overflow:auto; }
 #teamActivity li { padding:7px 0; border-bottom:1px solid var(--line); color:var(--muted); }
 
 :root[data-theme="light"] #teamPage,
@@ -182,12 +182,12 @@
 #teamForm #teamStart { background:var(--accent); }
 
 /* Rols amb eines: interruptor, aprovacions dins de la pàgina i agents definits. */
-.team-tools-toggle { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-right:8px; }
+.team-tools-toggle { display:inline-flex; align-items:center; gap:6px; font-size:var(--t2); color:var(--muted); margin-right:8px; }
 #teamApprovals { display:flex; flex-direction:column; gap:8px; margin:8px 0; }
 #teamApprovals:empty { display:none; }
 .team-approval { border:1px solid var(--amber, #c98a2b); border-radius:8px; padding:10px 12px; background:var(--panel); }
-.team-approval pre { margin:6px 0; max-height:140px; overflow:auto; font-size:11px; white-space:pre-wrap; word-break:break-word; }
+.team-approval pre { margin:6px 0; max-height:140px; overflow:auto; font-size:var(--t1); white-space:pre-wrap; word-break:break-word; }
 .team-approval-row { display:flex; gap:8px; }
-.team-defined ul { list-style:none; margin:0; padding:0; font-size:12px; }
+.team-defined ul { list-style:none; margin:0; padding:0; font-size:var(--t2); }
 .team-defined li { padding:6px 0; border-bottom:1px solid var(--line, rgba(127,127,127,.2)); }
 .team-defined li small { color:var(--muted); }

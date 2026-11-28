@@ -17,7 +17,7 @@
 .folder-chip-main:focus-visible, .folder-chip-caret:focus-visible { outline:2px solid var(--accent-hi); outline-offset:-2px; }
 .folder-chip #project { cursor:inherit; }
 .folder-chip-caret { padding:0 7px; border:0; border-left:1px solid var(--line-hi); border-radius:0; background:none; color:var(--muted);
-  font-size:10px; cursor:pointer; }
+  font-size:var(--t1); cursor:pointer; }
 .folder-chip-caret:hover, .folder-chip-caret[aria-expanded="true"] { color:var(--ink); background:var(--hover); }
 .hdr-worktree { flex:0 1 auto; min-width:0; margin-left:6px; padding:0 7px; border:1px solid var(--amber); border-radius:6px; color:var(--amber);
   font-size:var(--t1); line-height:18px; white-space:nowrap; max-width:280px; overflow:hidden; text-overflow:ellipsis; }

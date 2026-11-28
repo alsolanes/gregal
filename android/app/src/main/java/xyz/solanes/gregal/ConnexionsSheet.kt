@@ -238,10 +238,10 @@ internal fun ConnexionsSheet(conn: Conn, lang: String, onClose: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Icon(Icons.Rounded.Link, null, tint = Sea, modifier = Modifier.size(22.dp))
-                Text(connexioCopy(lang, "title"), color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text(connexioCopy(lang, "title"), color = Ink, fontSize = GregalSize.large, fontWeight = FontWeight.SemiBold)
             }
-            Text(connexioCopy(lang, "help"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
-            if (state.loaded && state.items.isEmpty()) Text(connexioCopy(lang, "empty"), color = Muted, fontSize = 13.sp)
+            Text(connexioCopy(lang, "help"), color = Muted, fontSize = GregalSize.caption, lineHeight = 17.sp)
+            if (state.loaded && state.items.isEmpty()) Text(connexioCopy(lang, "empty"), color = Muted, fontSize = GregalSize.small)
             state.items.forEach { c ->
                 ConnexioRow(lang, c) { action ->
                     val id = JSONObject().put("id", c.id)
@@ -261,9 +261,9 @@ internal fun ConnexionsSheet(conn: Conn, lang: String, onClose: () -> Unit) {
                 }
             }
             state.catalogue.firstOrNull { it.service == "browser" }?.let { b ->
-                Text(connexioCopy(lang, if (b.available) "browserHelp" else "noBrowser"), color = Muted, fontSize = 12.sp, lineHeight = 16.sp)
+                Text(connexioCopy(lang, if (b.available) "browserHelp" else "noBrowser"), color = Muted, fontSize = GregalSize.caption, lineHeight = 16.sp)
             }
-            if (msg.isNotBlank()) Text(msg, color = Muted, fontSize = 12.5.sp, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }.testTag("connexions-msg"))
+            if (msg.isNotBlank()) Text(msg, color = Muted, fontSize = GregalSize.caption, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }.testTag("connexions-msg"))
             ConnButton(connexioCopy(lang, "close"), primary = false, modifier = Modifier.fillMaxWidth(), onClick = onClose)
         }
     }
@@ -278,12 +278,12 @@ private fun ConnexioRow(lang: String, c: ConnexioItem, onAction: (String) -> Uni
             .padding(12.dp).testTag("connexio-" + c.id),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(c.accountLabel.ifBlank { c.id }, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text(c.accountLabel.ifBlank { c.id }, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
         val checked = if (c.lastCheckedAt.isBlank()) connexioCopy(lang, "notChecked") else connexioCopy(lang, "checkedAt") + " " + c.lastCheckedAt.replace('T', ' ').removeSuffix("Z").take(16)
-        Text(connexioServiceText(lang, c) + " · " + connexioCopy(lang, c.status) + " · " + checked, color = Muted, fontSize = 12.sp,
+        Text(connexioServiceText(lang, c) + " · " + connexioCopy(lang, c.status) + " · " + checked, color = Muted, fontSize = GregalSize.caption,
             modifier = Modifier.testTag("connexio-status-" + c.id))
-        if (c.status != "disconnected") Text(connexioPermsText(lang, c), color = Muted, fontSize = 12.sp)
-        if (c.error.isNotBlank()) Text(c.error, color = Ink, fontSize = 12.sp)
+        if (c.status != "disconnected") Text(connexioPermsText(lang, c), color = Muted, fontSize = GregalSize.caption)
+        if (c.error.isNotBlank()) Text(c.error, color = Ink, fontSize = GregalSize.caption)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             connexioActions(c).forEach { a ->
                 ConnButton(connexioCopy(lang, a), primary = a == "reconnect", modifier = Modifier.testTag("connexio-$a-" + c.id)) { onAction(a) }
@@ -299,7 +299,7 @@ private fun ConnButton(label: String, primary: Boolean, modifier: Modifier = Mod
             .then(if (primary) Modifier else Modifier.border(1.dp, Line, GregalShape.sm))
             .semantics { role = Role.Button }.clickable(onClick = onClick).padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
-    ) { Text(label, color = if (primary) OnSea else Ink, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold) }
+    ) { Text(label, color = if (primary) OnSea else Ink, fontSize = GregalSize.small, fontWeight = FontWeight.SemiBold) }
 }
 
 /** Fila de Preferències que obre el full de comptes connectats. */
@@ -308,8 +308,8 @@ internal fun ConnexionsEntry(conn: Conn, lang: String) {
     var open by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().clip(GregalShape.lg).clickable { open = true }.padding(vertical = 8.dp).testTag("connexions-entry"),
         verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(connexioCopy(lang, "open"), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-        Text(connexioCopy(lang, "openHelp"), color = Muted, fontSize = 12.sp, lineHeight = 16.sp)
+        Text(connexioCopy(lang, "open"), color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
+        Text(connexioCopy(lang, "openHelp"), color = Muted, fontSize = GregalSize.caption, lineHeight = 16.sp)
     }
     if (open) ConnexionsSheet(conn, lang) { open = false }
 }
@@ -326,12 +326,12 @@ internal fun ConnexioWaitCard(conn: Conn, lang: String, a: GregalApi.WindAsk, ac
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Icon(Icons.Rounded.Link, null, tint = accent, modifier = Modifier.size(22.dp))
             Column {
-                Text(connexioCopy(lang, "waitTitle"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Text(connexioCopy(lang, "waitSub"), color = Muted, fontSize = 11.sp)
+                Text(connexioCopy(lang, "waitTitle"), color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
+                Text(connexioCopy(lang, "waitSub"), color = Muted, fontSize = GregalSize.label)
             }
         }
-        if (a.what.isNotBlank()) Text(a.what, color = Ink, fontSize = 14.sp, lineHeight = 20.sp)
-        if (a.reason.isNotBlank()) Text(a.reason, color = Muted, fontSize = 12.sp)
+        if (a.what.isNotBlank()) Text(a.what, color = Ink, fontSize = GregalSize.body, lineHeight = 20.sp)
+        if (a.reason.isNotBlank()) Text(a.reason, color = Muted, fontSize = GregalSize.caption)
         ConnButton(connexioCopy(lang, "waitOpen"), primary = true, modifier = Modifier.fillMaxWidth().testTag("connexio-wait-open")) { open = true }
         ConnButton(connexioCopy(lang, "cancel"), primary = false, modifier = Modifier.fillMaxWidth().testTag("connexio-wait-cancel"), onClick = onCancel)
     }

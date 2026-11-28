@@ -3,62 +3,79 @@
 .rail-brand { display:grid; place-items:center; width:40px; height:36px; border-radius:10px; }
 .rail-main { display:grid; gap:8px; width:100%; }
 #navRail .rail-item { display:flex; flex-direction:column; justify-content:center; align-items:center; width:100%; gap:5px; min-height:58px; margin:0; padding:8px 2px; font-size:9px; border-radius:10px; }
-#navRail .rail-item .nav-icon { width:20px; height:20px; font-size:19px; }
+#navRail .rail-item .nav-icon { width:20px; height:20px; font-size:var(--t5); }
 #navRail .rail-item > span:last-child { max-width:100%; overflow:hidden; text-overflow:ellipsis; }
 .rail-more { position:relative; width:100%; }
-.rail-more > summary { display:grid; place-items:center; width:100%; height:38px; list-style:none; cursor:pointer; border-radius:9px; color:var(--muted); font-size:23px; }
+.rail-more > summary { display:grid; place-items:center; width:100%; height:38px; list-style:none; cursor:pointer; border-radius:9px; color:var(--muted); font-size:var(--t5); }
 .rail-more > summary::-webkit-details-marker { display:none; }
 .rail-more[open] > summary, .rail-more > summary:hover { background:var(--hover); color:var(--ink); }
 .rail-more:has(.nav-item.active) > summary { background:var(--accent-soft); color:var(--ink); }
 .rail-more-menu { position:absolute; left:calc(100% + 10px); top:0; width:232px; max-height:calc(100dvh - 160px); overflow:auto; padding:7px; margin:0; border:1px solid var(--line-hi); border-radius:13px; background:var(--surface); box-shadow:0 16px 36px var(--ombra); }
-#navRail .rail-more-menu .nav-item { display:flex; width:100%; margin:0; padding:10px; font-size:12px; text-align:left; }
+#navRail .rail-more-menu .nav-item { display:flex; width:100%; margin:0; padding:10px; font-size:var(--t2); text-align:left; }
 .rail-footer { display:flex; flex-direction:column; gap:8px; align-items:center; margin-top:auto; }
 /* Codi · Vents · Jocs: dues o tres pestanyes damunt de «Nova sessió», amb
    el mateix tractament que la resta de controls segmentats de l'app. */
 #side .product-switch { display:flex; gap:2px; margin:2px 10px 8px; padding:3px; border:1px solid var(--line); border-radius:10px; background:var(--bg); }
 #side .product-switch[hidden] { display:none; }
-#side .product-switch button { flex:1; min-width:0; min-height:30px; padding:0 8px; border:0; border-radius:7px; background:transparent; color:var(--muted); font:inherit; font-size:12.5px; font-weight:500; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; transition:background-color .15s,color .15s; }
+#side .product-switch button { flex:1; min-width:0; min-height:30px; padding:0 8px; border:0; border-radius:7px; background:transparent; color:var(--muted); font:inherit; font-size:var(--t2); font-weight:500; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; transition:background-color .15s,color .15s; }
 #side .product-switch button:hover { background:var(--hover); color:var(--ink); }
 #side .product-switch button[aria-selected="true"] { background:var(--surface); color:var(--ink); }
 #side .product-switch button:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
 #side { width:248px; min-width:248px; transition:margin .16s ease,width .16s ease; }
-#side .brand { height:48px; min-height:48px; font-size:12px; }
+#side .brand { height:48px; min-height:48px; font-size:var(--t2); }
 #side.compact { width:0; min-width:0; overflow:hidden; border:0; visibility:hidden; }
 #side.compact.closed { margin-left:0; }
 #side .side-quick { display:grid; grid-template-columns:minmax(0,1fr); margin:12px; }
 #side .side-quick-btn { width:100%; justify-content:flex-start; }
 #side #newproject { background:transparent; border-color:transparent; color:var(--muted); }
-.shell-project { display:flex; align-items:center; gap:8px; width:calc(100% - 24px); margin:12px; padding:9px; border:1px solid var(--line); border-radius:9px; background:var(--surface); color:var(--ink); font:inherit; font-size:12px; cursor:pointer; }
+.shell-project { display:flex; align-items:center; gap:8px; width:calc(100% - 24px); margin:12px; padding:9px; border:1px solid var(--line); border-radius:9px; background:var(--surface); color:var(--ink); font:inherit; font-size:var(--t2); cursor:pointer; }
 .shell-project > span:nth-child(2) { flex:1; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 #conversationNav[hidden], #windContextNav[hidden] { display:none; }
 #windContextNav { padding:4px 10px 16px; }
 #windContextNav .winds-sidebar { border:0; padding:0; }
 #windContextNav .winds-row { padding:9px 5px; }
-#windContextNav .winds-sidebar h2 { font-size:11px; margin:16px 5px 8px; }
+#windContextNav .winds-sidebar h2 { font-size:var(--t1); margin:16px 5px 8px; }
 body.shell-winds .winds-layout { grid-template-columns:minmax(0,1fr); }
 #toolDock { display:flex; flex-direction:column; flex:none; width:clamp(320px,34vw,540px); min-height:0; border-left:1px solid var(--line); background:var(--bg); }
 #toolDock[hidden] { display:none; }
 .tool-dock-head { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:50px; padding:8px 16px; border-bottom:1px solid var(--line); }
-.tool-dock-head strong { font-size:13px; }
+.tool-dock-head strong { font-size:var(--t2); }
 .tool-dock-tabs { display:flex; flex-wrap:wrap; gap:4px; padding:8px 12px; border-bottom:1px solid var(--line); }
-.tool-dock-tabs button { padding:6px 9px; border:0; border-radius:7px; color:var(--muted); background:transparent; font:inherit; font-size:11px; cursor:pointer; }
+.tool-dock-tabs button { padding:6px 9px; border:0; border-radius:7px; color:var(--muted); background:transparent; font:inherit; font-size:var(--t1); cursor:pointer; }
 .tool-dock-tabs button.active { color:var(--ink); background:var(--accent-soft); }
 #toolDockBody { flex:1; min-height:0; overflow:auto; }
 #toolDock .workspace-page { padding:20px; min-height:100%; overflow:visible; }
 #toolDock .page-inner { width:100%; max-width:100%; }
-#toolDock .page-title { font-size:23px; }
+#toolDock .page-title { font-size:var(--t5); }
 #toolDock .files-grid { grid-template-columns:minmax(0,1fr); }
 #toolDock #treeBody { max-height:35vh; min-height:100px; overflow:auto; }
 #toolDock #fileView { min-height:180px; max-height:none; }
 #toolDock .page-head { flex-wrap:wrap; gap:8px; }
-#toolDock .page-head > h1 { font-size:22px; width:100%; }
-#toolDock .page-copy { font-size:12px; }
+#toolDock .page-head > h1 { font-size:var(--t5); width:100%; }
+#toolDock .page-copy { font-size:var(--t2); }
 #toolDock .frm { flex-wrap:wrap; }
 #toolDock #procCmd { min-width:0 !important; width:100%; }
 body.has-tool-dock #inspector { display:none; }
 #top .top-meta > [data-view] { position:relative; }
+/* Capçalera de Codi en tres grups fixos, passi el que passi amb l'ordre en
+   què cada mòdul hi afegeix el seu botó (notes-quick.js, docs-panel.js,
+   agent-browser.js): les eines de la sessió (Canvis, Terminal, Navegador),
+   els llocs on escrius (Notes, Docs) i la vista (Inspector, ⋯). Un filet
+   separa els grups. */
+#top .top-meta > [data-view="canvis"] { order:1; }
+#top .top-meta > [data-view="terminal"] { order:2; }
+#top .top-meta > #agentBrowserToggle { order:3; }
+#top .top-meta > .qn-launch { order:4; }
+#top .top-meta > #topDocsBtn { order:5; }
+#top .top-meta > #inspToggle { order:7; }
+#top .top-meta > #moreWrap { order:8; }
+#top .top-meta > :is(.qn-launch, #inspToggle) { position:relative; margin-left:9px; }
+#top .top-meta > :is(.qn-launch, #inspToggle)::before {
+  content:''; position:absolute; left:-7px; top:50%; width:1px; height:16px; margin-top:-8px;
+  background:var(--line-hi); pointer-events:none;
+}
 #top .nav-badge { position:absolute; top:-3px; right:-2px; font-size:9px; min-width:14px; padding:0 3px; }
-#composer #modelPill { max-width:min(220px,45vw); min-height:29px; padding:4px 8px; border:0; border-radius:7px; background:transparent; color:var(--muted); font-size:11px; }
+#composer #modelPill { max-width:min(220px,45vw); min-height:29px; padding:4px 8px; border:0; border-radius:7px; background:transparent; color:var(--muted); font-size:var(--t1); }
 #composer #modelPill:hover { color:var(--ink); background:var(--hover); }
 .composer-model-row { display:flex; align-items:center; padding-bottom:5px; }
 #navRail button, #navRail summary { -webkit-app-region:no-drag; }
@@ -77,7 +94,7 @@ body.has-tool-dock #inspector { display:none; }
   #navRail { gap:8px; padding-top:6px; padding-bottom:6px; }
   #navRail .rail-main { gap:4px; }
   #navRail .rail-item { min-height:44px; padding:4px 2px; gap:3px; }
-  #navRail .rail-item .nav-icon { height:16px; font-size:16px; }
+  #navRail .rail-item .nav-icon { height:16px; font-size:var(--t4); }
   #navRail .rail-brand, #navRail .rail-more > summary { height:30px; }
   #navRail .rail-footer { gap:3px; }
   #navRail .rail-footer .icon-btn { width:30px; height:30px; }
@@ -94,24 +111,24 @@ body.has-tool-dock #inspector { display:none; }
 #side .side-quick { margin:8px 12px 18px; }
 #side .side-quick-btn.primary { background:var(--surface); border:1px solid var(--line); box-shadow:none; border-radius:10px; }
 #shellProject { display:none; }
-.sidebar-section-head { display:flex; align-items:center; justify-content:space-between; padding:0 14px 4px; color:var(--muted); font-size:11px; font-weight:600; }
-.sidebar-section-head .icon-btn { width:26px; height:26px; font-size:19px; }
+.sidebar-section-head { display:flex; align-items:center; justify-content:space-between; padding:0 14px 4px; color:var(--muted); font-size:var(--t1); font-weight:600; }
+.sidebar-section-head .icon-btn { width:26px; height:26px; font-size:var(--t5); }
 #projectList { margin:0 8px 20px; }
 .sidebar-project { border-radius:9px; margin-bottom:3px; }
 .sidebar-project.selected { background:var(--surface); }
 .sidebar-project-row { display:flex; align-items:center; gap:2px; padding-right:4px; }
-.project-open { display:flex; align-items:center; gap:8px; min-width:0; flex:1; padding:9px 8px; border:0; border-radius:8px; background:transparent; color:var(--ink); font:inherit; font-size:12px; text-align:left; cursor:pointer; }
+.project-open { display:flex; align-items:center; gap:8px; min-width:0; flex:1; padding:9px 8px; border:0; border-radius:8px; background:transparent; color:var(--ink); font:inherit; font-size:var(--t2); text-align:left; cursor:pointer; }
 .project-open > span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .project-chevron { flex:none; width:9px; color:var(--faint); text-align:center; }
 .project-folder-ico { flex:none; width:15px; height:15px; color:var(--muted); }
 .sidebar-project.selected .project-folder-ico { color:var(--accent); }
 #windContextNav { color:var(--text); background:var(--panel); border-left:1px solid var(--line); }
 #windContextNav .winds-row { color:var(--text); }
-.project-new { flex:none; border:0; border-radius:6px; width:26px; height:26px; background:transparent; color:var(--muted); cursor:pointer; font-size:17px; }
+.project-new { flex:none; border:0; border-radius:6px; width:26px; height:26px; background:transparent; color:var(--muted); cursor:pointer; font-size:var(--t4); }
 .project-open:hover,.project-new:hover { background:var(--hover); }
 .project-conversations { padding:0 3px 5px 14px; }
-.project-folder { color:var(--faint); font-size:10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:0 8px 7px; }
-#side .conv-head { padding:0 14px 8px; font-size:11px; }
+.project-folder { color:var(--faint); font-size:var(--t1); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:0 8px 7px; }
+#side .conv-head { padding:0 14px 8px; font-size:var(--t1); }
 #projectList .conv { margin-left:0; margin-right:0; }
 #composer .composer-row { display:flex; flex-wrap:nowrap; gap:5px; align-items:center; min-width:0; }
 #composer #modelPill { min-width:0; max-width:240px; flex:0 1 auto; overflow:hidden; white-space:nowrap; display:flex; align-items:center; gap:5px; }
@@ -121,7 +138,7 @@ body.has-tool-dock #inspector { display:none; }
 /* Mode i permisos sempre a la vista: el commutador compacte al costat del
    model i el permís amb el seu nom, no una icona que calia endevinar. */
 #composer .mode-switch { display:flex; flex:none; padding:2px; gap:1px; border:1px solid var(--line); border-radius:8px; background:var(--bg); }
-#composer #permBtn { width:auto; height:29px; min-height:29px; padding:0 9px; gap:5px; justify-content:center; flex:none; border-radius:7px; font-size:12px; white-space:nowrap; }
+#composer #permBtn { width:auto; height:29px; min-height:29px; padding:0 9px; gap:5px; justify-content:center; flex:none; border-radius:7px; font-size:var(--t2); white-space:nowrap; }
 #permLabel { position:static; width:auto; height:auto; margin:0; overflow:visible; clip-path:none; }
 #composer #permBtn.obert { color:var(--amber); border-color:var(--amber); background:var(--amber-soft); }
 #composer #permBtn.inactiu { opacity:.55; }
@@ -130,7 +147,7 @@ body.has-tool-dock #inspector { display:none; }
 #composer .mode-chip { flex:none; max-width:90px; overflow:hidden; }
 @media(max-width:760px) { #side,#side.compact { left:56px; } #sideShade { left:56px; } .rail-more-menu { left:64px; } }
 @media(max-width:600px) {
-  #composer #modelPill { max-width:calc(100vw - 210px); font-size:10px; padding:4px; }
+  #composer #modelPill { max-width:calc(100vw - 210px); font-size:var(--t1); padding:4px; }
   #composer .mode-chip { display:none; }
   #composer .composer-row { flex-wrap:wrap; row-gap:8px; }
   #composer .mode-switch { order:-1; flex:1 0 100%; }
@@ -148,27 +165,27 @@ body.has-tool-dock #inspector { display:none; }
 :root[data-density="compacta"] { --gap:12px; --pad:16px; }
 :root[data-density="comoda"] { --gap:26px; --pad:30px; }
 @media (min-width:761px) {
-  body #side .conv { padding:5px 8px; font-size:13px; min-height:30px; }
-  body #side .conv-grup { padding:12px 8px 3px; font-size:11px; }
+  body #side .conv { padding:5px 8px; font-size:var(--t2); min-height:30px; }
+  body #side .conv-grup { padding:12px 8px 3px; font-size:var(--t1); }
   body #side .sidebar-project-row { min-height:30px; }
-  body #side .project-open { padding:5px 8px; font-size:13px; }
+  body #side .project-open { padding:5px 8px; font-size:var(--t2); }
   body #side .project-conversations .conv { padding-left:30px; }
   body #side .project-folder { display:none; }
-  body #side .conv-more { margin:2px 0 6px; padding:4px 8px 4px 30px; font-size:12px; text-align:left; }
+  body #side .conv-more { margin:2px 0 6px; padding:4px 8px 4px 30px; font-size:var(--t2); text-align:left; }
   body #side .sidebar-missing { margin-top:6px; }
   body #side .sidebar-missing > .conv-more { padding-left:8px; color:var(--faint); }
-  body #side .missing-help { margin:2px 8px 6px; color:var(--faint); font-size:11px; line-height:1.4; }
-  body #side .missing-clean { margin:0 8px 6px; padding:4px 10px; border:1px solid var(--line-hi); border-radius:6px; background:transparent; color:var(--red); font-size:12px; cursor:pointer; }
+  body #side .missing-help { margin:2px 8px 6px; color:var(--faint); font-size:var(--t1); line-height:1.4; }
+  body #side .missing-clean { margin:0 8px 6px; padding:4px 10px; border:1px solid var(--line-hi); border-radius:6px; background:transparent; color:var(--red); font-size:var(--t2); cursor:pointer; }
   body #side .conv.missing { color:var(--faint); }
-  body #side .conv.missing .conv-ws { flex:none; max-width:40%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; }
+  body #side .conv.missing .conv-ws { flex:none; max-width:40%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:var(--t1); }
   body #top { height:48px; min-height:48px; padding:0 16px; }
   body #composer { padding:8px 22px 14px; }
   body #composer #box { padding:12px 14px 9px; }
   body #in { min-height:24px; }
   body #composer .composer-row { margin-top:8px; }
-  body .hero-card { min-height:46px; padding:9px 34px 9px 13px; font-size:13px; }
+  body .hero-card { min-height:46px; padding:9px 34px 9px 13px; font-size:var(--t2); }
   body #hero h1 { font-size:clamp(24px,2.2vw,32px); margin-bottom:6px; }
-  body #side .project-parent { margin-left:4px; color:var(--faint); font-size:11px; font-weight:400; }
+  body #side .project-parent { margin-left:4px; color:var(--faint); font-size:var(--t1); font-weight:400; }
   /* Les accions de cada missatge (copiar, reintentar…) ocupaven una franja de
      40 px sota cada resposta; ara són petites i només surten en passar-hi. */
   body .msg-acts { margin-top:4px; gap:2px; }

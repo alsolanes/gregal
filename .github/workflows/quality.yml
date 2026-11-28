@@ -34,20 +34,6 @@ jobs:
       - run: npm ci
         working-directory: desktop
       - run: node --experimental-vm-modules --test internal/web/*.test.js internal/web/app/*.test.cjs desktop/*.test.js scripts/*.test.cjs
-  vscode:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: vscode-gregal
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm run compile
-      - run: npm test
       - run: npm audit --audit-level=high
   desktop:
     strategy:

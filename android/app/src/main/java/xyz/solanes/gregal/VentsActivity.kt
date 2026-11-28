@@ -179,7 +179,7 @@ fun filterAutomations(items: List<WindAutomation>, filter: String, today: LocalD
 private fun FilterChips(options: List<Pair<String, String>>, selected: String, onPick: (String) -> Unit) {
     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         for ((key, label) in options) {
-            FilterChip(selected = selected == key, onClick = { onPick(key) }, label = { Text(label, fontSize = 13.sp) })
+            FilterChip(selected = selected == key, onClick = { onPick(key) }, label = { Text(label, fontSize = GregalSize.small) })
         }
     }
 }
@@ -195,7 +195,7 @@ private fun KindBadge(lang: String, kind: String) {
         else -> Sand
     }
     Surface(color = color.copy(alpha = 0.18f), shape = RoundedCornerShape(50)) {
-        Text(tr(lang, "act.kind.$kind"), color = color, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+        Text(tr(lang, "act.kind.$kind"), color = color, fontSize = GregalSize.label, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
     }
 }
@@ -218,9 +218,9 @@ fun WindAutomationRow(lang: String, a: WindAutomation, showWind: Boolean, winds:
                     style = winds.firstOrNull { it.id == a.wind }?.faceStyle ?: windStyleOf(a.windStyle),
                     modifier = Modifier.testTag("automation-face"))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(a.title, color = if (a.enabled) Ink else Muted, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+                    Text(a.title, color = if (a.enabled) Ink else Muted, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body,
                         maxLines = if (open) 6 else 2, overflow = TextOverflow.Ellipsis)
-                    if (!open && a.detail.isNotBlank() && a.detail != a.title) Text(a.detail, color = Muted, fontSize = 12.sp,
+                    if (!open && a.detail.isNotBlank() && a.detail != a.title) Text(a.detail, color = Muted, fontSize = GregalSize.caption,
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                         KindBadge(lang, a.kind)
@@ -228,15 +228,15 @@ fun WindAutomationRow(lang: String, a: WindAutomation, showWind: Boolean, winds:
                         val whenText = if (!a.enabled) tr(lang, "act.paused")
                             else listOf(automationWhen(lang, a.nextAt), automationRelative(lang, a.nextAt)).filter { it.isNotBlank() }.joinToString(" · ")
                         Text(listOfNotNull(if (showWind) a.windName else null, whenText.ifBlank { null }, automationRepeat(lang, a).takeIf { a.repeat != "once" })
-                            .joinToString(" · "), color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            .joinToString(" · "), color = Muted, fontSize = GregalSize.caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 Icon(if (open) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown, tr(lang, "app.vents.more"),
                     tint = Muted, modifier = Modifier.size(22.dp))
             }
             if (open) {
-                if (a.detail.isNotBlank() && a.detail != a.title) Text(a.detail, color = Tinta, fontSize = 13.sp, lineHeight = 18.sp)
-                if (a.lastStatus == "error") Text(tr(lang, "act.lastError"), color = Red, fontSize = 12.sp)
+                if (a.detail.isNotBlank() && a.detail != a.title) Text(a.detail, color = Tinta, fontSize = GregalSize.small, lineHeight = 18.sp)
+                if (a.lastStatus == "error") Text(tr(lang, "act.lastError"), color = Red, fontSize = GregalSize.caption)
                 extra(a)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (a.enabled) AssistChip(onClick = { onAction(a, "run") }, label = { Text(tr(lang, "act.runNow")) },
@@ -268,8 +268,8 @@ fun WindAutomationSummary(lang: String, c: WindAutomationCounts) {
         for ((label, n) in listOf(tr(lang, "act.sumToday") to c.today, tr(lang, "act.sumWeek") to c.week, tr(lang, "act.sumPaused") to c.paused)) {
             Surface(color = Ink.copy(alpha = 0.04f), shape = MaterialTheme.shapes.medium, modifier = Modifier.weight(1f)) {
                 Column(Modifier.padding(vertical = 10.dp, horizontal = 12.dp)) {
-                    Text(n.toString(), color = Ink, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-                    Text(label, color = Muted, fontSize = 12.sp)
+                    Text(n.toString(), color = Ink, fontSize = GregalSize.title, fontWeight = FontWeight.SemiBold)
+                    Text(label, color = Muted, fontSize = GregalSize.caption)
                 }
             }
         }
@@ -293,7 +293,7 @@ fun WindAutomationList(vm: GregalViewModel, lang: String, wind: String = "", sho
             // Ha fallat la càrrega: no és el mateix que «no hi ha res programat».
             Surface(color = MaterialTheme.colorScheme.errorContainer, shape = MaterialTheme.shapes.medium) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                    Text(tr(lang, "act.loadError", got.error), color = MaterialTheme.colorScheme.onErrorContainer, fontSize = 14.sp)
+                    Text(tr(lang, "act.loadError", got.error), color = MaterialTheme.colorScheme.onErrorContainer, fontSize = GregalSize.body)
                     TextButton(onClick = { vm.loadAutomations(wind) }) { Text(tr(lang, "app.chat.retry")) }
                 }
             }
@@ -301,7 +301,7 @@ fun WindAutomationList(vm: GregalViewModel, lang: String, wind: String = "", sho
         }
         if (got.items.isEmpty()) {
             Surface(color = Ink.copy(alpha = 0.04f), shape = MaterialTheme.shapes.medium) {
-                Text(tr(lang, if (wind.isBlank()) "act.emptyAll" else "act.emptyWind"), color = Tinta, fontSize = 14.sp, lineHeight = 20.sp,
+                Text(tr(lang, if (wind.isBlank()) "act.emptyAll" else "act.emptyWind"), color = Tinta, fontSize = GregalSize.body, lineHeight = 20.sp,
                     modifier = Modifier.padding(16.dp))
             }
             return@Column
@@ -319,7 +319,7 @@ fun WindAutomationList(vm: GregalViewModel, lang: String, wind: String = "", sho
         }
         if (options.size > 2) FilterChips(options, filter) { filter = it }
         val shown = filterAutomations(got.items, filter)
-        if (shown.isEmpty()) Text(tr(lang, "act.noneHere"), color = Muted, fontSize = 13.sp)
+        if (shown.isEmpty()) Text(tr(lang, "act.noneHere"), color = Muted, fontSize = GregalSize.small)
         for (a in shown) {
             key(a.id) { WindAutomationRow(lang, a, showWind = wind.isBlank(), winds = winds, onAction = { item, action -> vm.automationAction(item, action, wind) },
                 extra = { AutomationB8Actions(vm, lang, it) }) }
@@ -346,7 +346,7 @@ fun WindSavedGallery(vm: GregalViewModel, lang: String, wind: String = "", onOpe
         val made = got.filter { it.kind != "link" }
         if (got.isEmpty()) {
             Surface(color = Ink.copy(alpha = 0.04f), shape = MaterialTheme.shapes.medium) {
-                Text(tr(lang, if (wind.isBlank()) "saved.emptyAll" else "saved.emptyWind"), color = Tinta, fontSize = 14.sp, lineHeight = 20.sp,
+                Text(tr(lang, if (wind.isBlank()) "saved.emptyAll" else "saved.emptyWind"), color = Tinta, fontSize = GregalSize.body, lineHeight = 20.sp,
                     modifier = Modifier.padding(16.dp))
             }
             return@Column
@@ -363,7 +363,7 @@ fun WindSavedGallery(vm: GregalViewModel, lang: String, wind: String = "", onOpe
         }
         val shown = (if (filter.isBlank()) made else got.filter { it.kind == filter })
             .filter { windFilter.isBlank() || it.wind == windFilter }
-        if (shown.isEmpty()) Text(tr(lang, "saved.noneHere"), color = Muted, fontSize = 13.sp)
+        if (shown.isEmpty()) Text(tr(lang, "saved.noneHere"), color = Muted, fontSize = GregalSize.small)
         // Vist: el que t'han enviat deixa de ser nou (winds_share.go).
         LaunchedEffect(got.count { it.unread }) {
             if (got.any { it.unread }) withContext(Dispatchers.IO) { ShareApi.markRead(vm.conn.value.api()) }
@@ -388,17 +388,17 @@ private fun SavedRow(lang: String, s: WindSaved, showWind: Boolean, onOpen: () -
         modifier = Modifier.fillMaxWidth().then(if (s.kind != "chart") Modifier.clickable(onClick = onOpen) else Modifier)) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(tr(lang, "saved.icon.${s.kind}"), fontSize = 18.sp)
+                Text(tr(lang, "saved.icon.${s.kind}"), fontSize = GregalSize.large)
                 Column(Modifier.weight(1f)) {
                     // El gràfic ja porta el títol a dins: aquí només qui i quan.
-                    if (chart == null) Text(s.title.ifBlank { tr(lang, "saved.kind.${s.kind}") }, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+                    if (chart == null) Text(s.title.ifBlank { tr(lang, "saved.kind.${s.kind}") }, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body,
                         maxLines = 2, overflow = TextOverflow.Ellipsis)
                     val meta = listOfNotNull(
                         if (showWind) s.windName else null,
                         s.where.ifBlank { null },
                         if (s.ts > 0) savedDay(lang, s.ts) else null,
                     ).joinToString(" · ")
-                    if (meta.isNotBlank()) Text(meta, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (meta.isNotBlank()) Text(meta, color = Muted, fontSize = GregalSize.caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             when {
@@ -428,12 +428,12 @@ fun TurnActionCard(lang: String, a: WindTurnAction, accent: Color, onUndo: () ->
         border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.35f))) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(if (a.kind == "followup") "🔁" else "🔔", fontSize = 18.sp)
+            Text(if (a.kind == "followup") "🔁" else "🔔", fontSize = GregalSize.large)
             Column(Modifier.weight(1f)) {
                 val whenText = automationWhen(lang, a.atIso)
                 Text(tr(lang, if (a.kind == "followup") "act.followupCard" else "act.reminderCard", whenText),
-                    color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                if (a.text.isNotBlank()) Text(a.text, color = Tinta, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.small)
+                if (a.text.isNotBlank()) Text(a.text, color = Tinta, fontSize = GregalSize.small, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             if (a.id.isNotBlank()) TextButton(onClick = { undoing = true; onUndo() }, enabled = !undoing) { Text(tr(lang, "act.undo")) }
         }
@@ -461,7 +461,7 @@ internal fun DesatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
             item(key = "notes") {
                 SavedNotes(lang, savedNotes, query, kind, onQuery = { query = it }, onKind = { kind = it }, onOpen = { vm.openSavedNote(it.id) })
             }
-            item(key = "help") { Text(tr(lang, "saved.help"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp) }
+            item(key = "help") { Text(tr(lang, "saved.help"), color = Muted, fontSize = GregalSize.small, lineHeight = 18.sp) }
             item(key = "gallery") { WindSavedGallery(vm, lang) }
         }
     }
@@ -486,15 +486,15 @@ internal fun SavedNotes(lang: String, page: NotesPage?, query: String, kind: Str
             kind, onKind)
         val shown = page.notes.sortedByDescending { it.pinned }
         if (shown.isEmpty()) Text(tr(lang, if (query.isBlank() && kind.isBlank()) "saved.notes.empty" else "saved.noneHere"),
-            color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
+            color = Muted, fontSize = GregalSize.small, lineHeight = 18.sp)
         for (n in shown) key(n.id) {
             Surface(color = Ink.copy(alpha = 0.04f), shape = MaterialTheme.shapes.medium,
                 modifier = Modifier.fillMaxWidth().clickable { onOpen(n) }.testTag("saved-note")) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text((if (n.pinned) "📌 " else "") + n.title.ifBlank { n.excerpt.ifBlank { tr(lang, "notes.untitled") } },
-                        color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(listOf(savedKindLabel(lang, n.kind), noteDay(lang, n.updated)).filter { it.isNotBlank() }.joinToString(" · "),
-                        color = Muted, fontSize = 12.sp, maxLines = 1)
+                        color = Muted, fontSize = GregalSize.caption, maxLines = 1)
                 }
             }
         }

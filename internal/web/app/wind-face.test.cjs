@@ -20,6 +20,8 @@ function load(extra = {}) {
   const frames = [];
   const window = { document:{ createElementNS:(_, tag) => new El(tag), createElement:tag => new El(tag) }, performance:{ now:() => now }, requestAnimationFrame:fn => frames.push(fn), ...extra };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'winds.js'), 'utf8'), { window });
+  // These tests draw the Cares face; the default pack is Llegendes (folk), tested on its own below.
+  if (!extra.folk) window.gregalWinds.setAvatarTheme('cares');
   return { winds:window.gregalWinds, tick:ms => { now += ms; }, frames };
 }
 const groups = svg => svg.all().map(n => n.attrs.class).filter(Boolean);
@@ -234,11 +236,11 @@ test('with a theme every face uses its pack; in free mode each wind uses its own
   assert.equal(pack(winds.face(plain, true)), 'esperit');
   winds.setAvatarTheme('free');
   assert.equal(pack(winds.face(xaloc)), 'esperit');
-  assert.equal(pack(winds.face(plain)), null, 'no avatar of its own: Cares');
+  assert.equal(pack(winds.face(plain)), 'folk', 'no avatar of its own: Llegendes');
   winds.setAvatarTheme('cares');
   assert.equal(pack(winds.face(xaloc)), null);
   winds.setAvatarTheme('bufador');
-  assert.equal(winds.avatarTheme(), 'cares', 'an unknown theme falls back to Cares');
+  assert.equal(winds.avatarTheme(), 'folk', 'an unknown theme falls back to Llegendes');
 });
 
 test('Esperit de vent points its tails to where the wind comes from and looks the other way', () => {
@@ -469,7 +471,7 @@ test('Mapa de vent is drawn on a canvas inside the face, with a theme or as a wi
   assert.equal(winds.face(ponent, false, 'working').getAttribute('data-mood'), 'working');
   winds.setAvatarTheme('free');
   assert.equal(winds.face({ ...ponent, avatar:'mapa' }).getAttribute('data-avatar'), 'mapa');
-  assert.equal(winds.face(ponent).getAttribute('data-avatar'), null);
+  assert.equal(winds.face(ponent).getAttribute('data-avatar'), 'folk');
 });
 
 test('the streaks blow away from where the wind comes from, faster while it works, and the same wind gets the same picture', () => {
@@ -838,4 +840,23 @@ test('below 28 px a small Cares face carries no trade badge: it would be a dot',
   winds.face(w, false, 'idle', 26);
   winds.face(w, false, 'idle', 28);
   assert.deepEqual(played.map(svg => svg.getAttribute('data-kit')), [null, 'books']);
+});
+
+test('Llegendes (folk) is the default pack: a felt character per wind, tinted, with its own eyes', () => {
+  const { winds } = load({ folk:true });
+  assert.equal(winds.avatarTheme(), 'folk');
+  const cast = new Set();
+  for (const id of ['gregal', 'xaloc', 'mestral', 'ponent', 'garbi', 'rierol']) {
+    const svg = winds.face({ id, name:id, color:'#EFC69A' });
+    assert.equal(svg.getAttribute('data-avatar'), 'folk');
+    const who = svg.getAttribute('data-folk');
+    assert.ok(['minairo', 'dona', 'tio'].includes(who), who);
+    cast.add(who);
+    const hrefs = svg.all().filter(n => n.tag === 'image').map(i => i.getAttribute('href'));
+    assert.deepEqual(hrefs.sort(), ['/app/characters/folk/' + who + '.eyes.webp', '/app/characters/folk/' + who + '.mask.webp', '/app/characters/folk/' + who + '.webp'].sort());
+    assert.equal(svg.all().find(n => n.tag === 'rect').getAttribute('fill'), '#EFC69A');
+    // The same wind is always the same character (Android picks it from the same hash).
+    assert.equal(winds.face({ id, name:id }).getAttribute('data-folk'), who);
+  }
+  assert.ok(cast.size > 1, 'more than one character among six winds');
 });

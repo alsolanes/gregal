@@ -135,6 +135,14 @@ android {
         // Robolectric llegeix el manifest i els recursos fusionats: sense
         // això createComposeRule() no troba cap activity llançable.
         unitTests.isIncludeAndroidResources = true
+        // Abans totes les classes (Robolectric, ~235) passaven una darrere
+        // l'altra en una sola JVM: ~4,5 min de tests en una màquina de 16
+        // nuclis. Ara es reparteixen en una JVM per cada 4 nuclis; cada una
+        // carrega Robolectric pel seu compte, per això no n'hi posem més.
+        unitTests.all {
+            it.maxParallelForks = (Runtime.getRuntime().availableProcessors() / 4).coerceAtLeast(1)
+            it.maxHeapSize = "1536m"
+        }
     }
     buildFeatures {
         compose = true

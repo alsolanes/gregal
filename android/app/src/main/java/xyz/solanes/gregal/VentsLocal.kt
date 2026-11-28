@@ -324,7 +324,7 @@ internal fun LocalInfoCard(
                     style = GregalType.caption, modifier = Modifier.testTag("local-summary"))
             }
             Text(tr(lang, if (open) "app.local.close" else if (base.enabled) "app.local.edit" else "app.local.setup"),
-                color = p.sea, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                color = p.sea, fontSize = GregalSize.small, fontWeight = FontWeight.SemiBold)
         }
         if (!open || info == null) {
             if (message != null) Text(message, color = Muted, style = GregalType.caption, modifier = Modifier.testTag("local-message"))
@@ -356,7 +356,7 @@ internal fun LocalInfoCard(
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             base.catalog.forEach { t ->
                 val on = t.id in draft.topics
-                Text(t.label, color = if (on) p.onSea else Ink, fontSize = 13.sp,
+                Text(t.label, color = if (on) p.onSea else Ink, fontSize = GregalSize.small,
                     modifier = Modifier.clip(GregalShape.pill).background(if (on) p.sea else Superficie.copy(alpha = .7f))
                         .border(1.dp, if (on) p.sea else Line, GregalShape.pill)
                         .clickable { draft = LocalLogic.toggleTopic(draft, t.id) }
@@ -424,7 +424,7 @@ internal fun LocalInfoCard(
 @Composable
 private fun LocalPill(label: String, on: Boolean, tag: String, onClick: () -> Unit) {
     val p = LocalPal.current
-    Text(label, color = if (on) p.onSea else Ink, fontSize = 13.sp,
+    Text(label, color = if (on) p.onSea else Ink, fontSize = GregalSize.small,
         modifier = Modifier.clip(GregalShape.pill).background(if (on) p.sea else Superficie.copy(alpha = .7f))
             .border(1.dp, if (on) p.sea else Line, GregalShape.pill).clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 6.dp).testTag(tag))
@@ -435,8 +435,8 @@ private fun LocalField(value: String, onChange: (String) -> Unit, hint: String, 
     val p = LocalPal.current
     OutlinedTextField(
         value, onChange, singleLine = true,
-        placeholder = { Text(hint, fontSize = 13.sp, color = Muted) },
-        textStyle = GregalType.bodySmall.copy(color = Ink, fontSize = 14.sp),
+        placeholder = { Text(hint, fontSize = GregalSize.small, color = Muted) },
+        textStyle = GregalType.bodySmall.copy(color = Ink, fontSize = GregalSize.body),
         shape = GregalShape.sm,
         colors = OutlinedTextFieldDefaults.colors(
             focusedContainerColor = Superficie.copy(alpha = .6f), unfocusedContainerColor = Superficie.copy(alpha = .6f),
@@ -471,7 +471,7 @@ private fun LocalTryPanel(lang: String, t: LocalTryResult) {
                     color = Muted, style = GregalType.caption)
                 Text(item.title, color = Ink, style = GregalType.bodySmall.copy(fontWeight = FontWeight.Medium))
                 if (item.detail.isNotBlank()) Text(item.detail, color = Muted, style = GregalType.caption)
-                Text(tr(lang, "app.local.trySource", item.host), color = p.sea, fontSize = 12.sp,
+                Text(tr(lang, "app.local.trySource", item.host), color = p.sea, fontSize = GregalSize.caption,
                     modifier = Modifier.clickable { try { uri.openUri(item.url) } catch (_: Exception) { } })
                 if (item.repeated) Text(tr(lang, "app.local.tryRepeated"), color = Muted, style = GregalType.caption)
             }

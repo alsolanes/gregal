@@ -142,7 +142,7 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         PrefsGroup(Modifier.fillMaxWidth()) { UserProfileFields(vm, idioma) }
                         Spacer(Modifier.height(12.dp))
                         PrefsGroup(Modifier.fillMaxWidth()) {
-                            Text(t("prefs.lang"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                            Text(t("prefs.lang"), color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
                             Spacer(Modifier.height(10.dp))
                             ChoicePills(listOf("system" to t("app.prefs.languageSystem"), "ca" to "Català", "en" to "English"), idiomaChoice, { vm.setIdioma(it) })
                         }
@@ -162,13 +162,13 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                     Icon(Icons.Rounded.SystemUpdate, null, tint = Lila, modifier = Modifier.size(24.dp))
                                 }
                                 Column(Modifier.weight(1f)) {
-                                    Text("Gregal Android", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                                    Text("${vm.versionNameInstalada()} · vc${vm.versionCodeInstalada()}", color = Muted, fontSize = 13.sp)
+                                    Text("Gregal Android", color = Ink, fontSize = GregalSize.large, fontWeight = FontWeight.SemiBold)
+                                    Text("${vm.versionNameInstalada()} · vc${vm.versionCodeInstalada()}", color = Muted, fontSize = GregalSize.small)
                                 }
                             }
                             if (updateMsg.isNotBlank()) {
                                 Spacer(Modifier.height(12.dp))
-                                Text(updateMsg, color = Tinta, fontSize = 13.5.sp, lineHeight = 19.sp, modifier = Modifier.fillMaxWidth())
+                                Text(updateMsg, color = Tinta, fontSize = GregalSize.small, lineHeight = 19.sp, modifier = Modifier.fillMaxWidth())
                             }
                             Spacer(Modifier.height(14.dp))
                             OutlinedButton(onClick = { vm.checkUpdate() }, modifier = Modifier.fillMaxWidth()) {
@@ -179,10 +179,10 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             Spacer(Modifier.height(12.dp))
                             GlassCard(Modifier.fillMaxWidth(), hi = true) {
                                 Column(Modifier.padding(16.dp)) {
-                                    Text(t("app.update.install", r.latestVersion), color = Sea, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                                    Text(t("app.update.install", r.latestVersion), color = Sea, fontSize = GregalSize.large, fontWeight = FontWeight.SemiBold)
                                     if (r.changelog.isNotEmpty()) {
                                         Spacer(Modifier.height(6.dp))
-                                        Text(r.changelog, color = Tinta, fontSize = 13.5.sp, lineHeight = 19.sp)
+                                        Text(r.changelog, color = Tinta, fontSize = GregalSize.small, lineHeight = 19.sp)
                                     }
                                     Spacer(Modifier.height(14.dp))
                                     if (prog >= 0) {
@@ -193,7 +193,7 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                             color = Sea, trackColor = Line,
                                         )
                                         Spacer(Modifier.height(6.dp))
-                                        Text(t("app.update.downloadProgress", prog), color = Muted, fontSize = 12.sp)
+                                        Text(t("app.update.downloadProgress", prog), color = Muted, fontSize = GregalSize.caption)
                                     } else {
                                         Button(onClick = { vm.baixaIInstalla() }, modifier = Modifier.fillMaxWidth()) {
                                             Text(t("app.update.downloadInstall"), maxLines = 1)
@@ -203,7 +203,7 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                         }
                                         Text(
                                             t("app.update.shaHelp"),
-                                            color = Faint, fontSize = 11.5.sp, lineHeight = 16.sp,
+                                            color = Faint, fontSize = GregalSize.label, lineHeight = 16.sp,
                                         )
                                     }
                                 }
@@ -220,22 +220,22 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         PreferenceSwitchRow(t("prefs.glass"), t("prefs.glassHelp"), glass) { vm.setGlass(it) }
                         PreferenceSwitchRow(t("prefs.motion"), t("prefs.motionHelp"), expressiveMotion) { vm.setExpressiveMotion(it) }
                         Spacer(Modifier.height(14.dp))
-                        Text(t("winds.avatars"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        Text(t("winds.avatarsHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+                        Text(t("winds.avatars"), color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
+                        Text(t("winds.avatarsHelp"), color = Muted, fontSize = GregalSize.caption, lineHeight = 17.sp)
                         Spacer(Modifier.height(10.dp))
                         AvatarPackChoices(avatarTheme, { t(avatarLabelKey(it)) }, { vm.setAvatarTheme(it) })
                     }
                     PrefsPage.Theme -> {
-                        Text(t("prefs.theme"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text(t("prefs.theme"), color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(10.dp))
                         ChoicePills(listOf("sistema" to t("prefs.theme.system"), "fosc" to t("prefs.theme.dark"), "clar" to t("prefs.theme.light")), tema, { vm.setTema(it) })
                         Spacer(Modifier.height(8.dp))
-                        Text(t("app.prefs.themeHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+                        Text(t("app.prefs.themeHelp"), color = Muted, fontSize = GregalSize.caption, lineHeight = 17.sp)
                     }
                     PrefsPage.Palette -> {
-                        Text(t("prefs.appTheme"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text(t("prefs.appTheme"), color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(8.dp))
-                        Text(t("prefs.appThemeHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+                        Text(t("prefs.appThemeHelp"), color = Muted, fontSize = GregalSize.caption, lineHeight = 17.sp)
                         Spacer(Modifier.height(10.dp))
                         // El mostrari ensenya la paleta de debò: dues bombolles i
                         // l'accent, amb el clar/fosc que tens triat ara mateix.
@@ -257,7 +257,7 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         PrefsSection(t("prefs.ventsName"))
                         PrefsGroup(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 10.dp)) {
                             Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(t("prefs.ventsNameHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+                                Text(t("prefs.ventsNameHelp"), color = Muted, fontSize = GregalSize.caption, lineHeight = 17.sp)
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                     androidx.compose.material3.OutlinedTextField(nomSing, { nomSing = it.take(20) }, singleLine = true,
                                         label = { Text(t("prefs.ventsNameSing")) }, modifier = Modifier.weight(1f))
@@ -266,7 +266,7 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                 }
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Button(onClick = { vm.desaNomsDelVent(nomSing, nomPlur); nomsDesats = true }) { Text(t("prefs.ventsNameSave")) }
-                                    if (nomsDesats) Text(t("prefs.ventsNameSaved"), color = Sea, fontSize = 12.5.sp)
+                                    if (nomsDesats) Text(t("prefs.ventsNameSaved"), color = Sea, fontSize = GregalSize.caption)
                                     Spacer(Modifier.weight(1f))
                                     TextButton(onClick = { nomSing = ""; nomPlur = ""; vm.desaNomsDelVent("", ""); nomsDesats = false }) {
                                         Text(t("prefs.ventsNameReset"))
@@ -296,7 +296,7 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                     Box(Modifier.size(36.dp).background(Green.copy(alpha = 0.14f), RoundedCornerShape(11.dp)), contentAlignment = Alignment.Center) {
                                         Icon(Icons.Rounded.Verified, null, tint = Green, modifier = Modifier.size(20.dp))
                                     }
-                                    Text(t("prefs.verify.help"), color = Tinta, fontSize = 14.sp, lineHeight = 19.sp, modifier = Modifier.weight(1f))
+                                    Text(t("prefs.verify.help"), color = Tinta, fontSize = GregalSize.body, lineHeight = 19.sp, modifier = Modifier.weight(1f))
                                     Switch(checked = st.verify == "auto", onCheckedChange = null,
                                         colors = SwitchDefaults.colors(checkedTrackColor = Sea, checkedThumbColor = OnSea))
                                 }
@@ -321,8 +321,8 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                     RadioButton(selected, onClick = null)
                                     Spacer(Modifier.width(12.dp))
                                     Column(Modifier.weight(1f)) {
-                                        Text(t("app.perm.$mode"), color = Ink, fontSize = 15.sp)
-                                        Text(t("app.perm.${mode}Help"), color = Muted, fontSize = 12.5.sp, lineHeight = 18.sp)
+                                        Text(t("app.perm.$mode"), color = Ink, fontSize = GregalSize.body)
+                                        Text(t("app.perm.${mode}Help"), color = Muted, fontSize = GregalSize.caption, lineHeight = 18.sp)
                                     }
                                 }
                             }
@@ -338,7 +338,7 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                 Box(Modifier.size(36.dp).background(Sand.copy(alpha = 0.14f), RoundedCornerShape(11.dp)), contentAlignment = Alignment.Center) {
                                     Icon(Icons.Rounded.Lock, null, tint = Sand, modifier = Modifier.size(20.dp))
                                 }
-                                Text(t("prefs.reviewer.help"), color = Tinta, fontSize = 14.sp, lineHeight = 19.sp, modifier = Modifier.weight(1f))
+                                Text(t("prefs.reviewer.help"), color = Tinta, fontSize = GregalSize.body, lineHeight = 19.sp, modifier = Modifier.weight(1f))
                                 Switch(checked = st.autoReview, onCheckedChange = null,
                                     colors = SwitchDefaults.colors(checkedTrackColor = Sea, checkedThumbColor = OnSea))
                             }
@@ -387,8 +387,8 @@ private fun PrefsLink(page: PrefsPage, lang: String, detail: String, open: (Pref
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Icon(icon, null, tint = Muted, modifier = Modifier.size(24.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(page.title(lang), color = Ink, fontSize = 15.sp)
-            Text(detail, color = Muted, fontSize = 12.5.sp, lineHeight = 18.sp)
+            Text(page.title(lang), color = Ink, fontSize = GregalSize.body)
+            Text(detail, color = Muted, fontSize = GregalSize.caption, lineHeight = 18.sp)
         }
         Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = Muted)
     }
@@ -397,7 +397,7 @@ private fun PrefsLink(page: PrefsPage, lang: String, detail: String, open: (Pref
 @Composable
 private fun PrefsSection(text: String) {
     Text(
-        text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Faint,
+        text, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold, color = Faint,
         modifier = Modifier.padding(start = 4.dp, top = 22.dp, bottom = 8.dp),
     )
 }
@@ -407,8 +407,8 @@ private fun PreferenceSwitchRow(title: String, help: String, checked: Boolean, o
     Row(Modifier.fillMaxWidth().toggleable(checked, role = Role.Switch, onValueChange = onChecked).padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(title, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            Text(help, color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+            Text(title, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
+            Text(help, color = Muted, fontSize = GregalSize.caption, lineHeight = 17.sp)
         }
         Switch(checked = checked, onCheckedChange = null, colors = SwitchDefaults.colors(checkedTrackColor = Sea, checkedThumbColor = OnSea))
     }
@@ -439,7 +439,7 @@ private fun TemaMostra(tem: GregalTema, fosc: Boolean, triat: Boolean, nom: Stri
         }
         Spacer(Modifier.height(7.dp))
         Text(
-            nom, color = if (triat) p.sea else p.text, fontSize = 12.sp, maxLines = 1,
+            nom, color = if (triat) p.sea else p.text, fontSize = GregalSize.caption, maxLines = 1,
             fontWeight = if (triat) FontWeight.SemiBold else FontWeight.Normal,
         )
     }
@@ -481,7 +481,7 @@ private fun AvatarPackChoices(selected: String, label: (String) -> String, onPic
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    label(choice), color = if (on) Ink else Muted, fontSize = 12.sp, lineHeight = 15.sp, textAlign = TextAlign.Center,
+                    label(choice), color = if (on) Ink else Muted, fontSize = GregalSize.caption, lineHeight = 15.sp, textAlign = TextAlign.Center,
                     maxLines = 2, overflow = TextOverflow.Ellipsis,
                     fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
                 )
@@ -497,13 +497,13 @@ private fun InviteCard(vm: GregalViewModel, lang: String, server: String) {
     var code by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     PrefsGroup(Modifier.fillMaxWidth()) {
-        Text(tr(lang, "app.invite.title"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Text(tr(lang, "app.invite.title"), color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(4.dp))
-        Text(tr(lang, "app.invite.help"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+        Text(tr(lang, "app.invite.help"), color = Muted, fontSize = GregalSize.caption, lineHeight = 17.sp)
         Spacer(Modifier.height(10.dp))
         if (code.isNotEmpty()) {
             androidx.compose.foundation.text.selection.SelectionContainer {
-                Text(code, color = Ink, fontSize = 15.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                Text(code, color = Ink, fontSize = GregalSize.body, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
             }
             Spacer(Modifier.height(8.dp))
             androidx.compose.material3.Button(onClick = {
@@ -534,15 +534,15 @@ private fun ServerPowersCard(vm: GregalViewModel, lang: String) {
     var saving by remember { mutableStateOf(false) }
     PrefsGroup(Modifier.fillMaxWidth()) {
         PreferenceSwitchRowPlain(tr(lang, "app.powers.title"), tr(lang, "app.powers.help"), p.enabled) { vm.setServerPowers(enabled = it) }
-        if (p.tools.isNotEmpty()) Text(tr(lang, "app.powers.machine", p.tools.joinToString(", ")), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
-        p.tunnels.forEach { (url, what) -> Text(url + "  →  " + what, color = Ink, fontSize = 12.5.sp) }
+        if (p.tools.isNotEmpty()) Text(tr(lang, "app.powers.machine", p.tools.joinToString(", ")), color = Muted, fontSize = GregalSize.caption, lineHeight = 17.sp)
+        p.tunnels.forEach { (url, what) -> Text(url + "  →  " + what, color = Ink, fontSize = GregalSize.caption) }
         if (p.enabled) {
             Spacer(Modifier.height(10.dp))
-            Text(tr(lang, "app.powers.notes"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            Text(tr(lang, "app.powers.notesHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+            Text(tr(lang, "app.powers.notes"), color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
+            Text(tr(lang, "app.powers.notesHelp"), color = Muted, fontSize = GregalSize.caption, lineHeight = 17.sp)
             Spacer(Modifier.height(6.dp))
             androidx.compose.material3.OutlinedTextField(notes, { notes = it }, modifier = Modifier.fillMaxWidth(), minLines = 4, maxLines = 12,
-                textStyle = androidx.compose.ui.text.TextStyle(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 13.sp))
+                textStyle = androidx.compose.ui.text.TextStyle(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = GregalSize.small))
             Spacer(Modifier.height(6.dp))
             androidx.compose.material3.OutlinedButton(onClick = { saving = true; vm.setServerPowers(notes = notes) { saving = false } },
                 enabled = !saving && notes != p.notes, shape = RoundedCornerShape(14.dp)) { Text(tr(lang, "app.powers.save")) }
@@ -555,8 +555,8 @@ private fun PreferenceSwitchRowPlain(title: String, help: String, checked: Boole
     Row(Modifier.fillMaxWidth().toggleable(checked, role = Role.Switch, onValueChange = onChecked).padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(title, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            Text(help, color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+            Text(title, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
+            Text(help, color = Muted, fontSize = GregalSize.caption, lineHeight = 17.sp)
         }
         Switch(checked = checked, onCheckedChange = null, colors = SwitchDefaults.colors(checkedTrackColor = Sea, checkedThumbColor = OnSea))
     }
@@ -587,15 +587,15 @@ private fun ConnectionsCard(vm: GregalViewModel, lang: String, page: PrefsPage) 
     var briefTime by remember(cs.briefingTime) { mutableStateOf(cs.briefingTime) }
     var briefWind by remember(cs.briefingWind, winds) { mutableStateOf(cs.briefingWind.ifBlank { (winds.firstOrNull { it.specialty == "organisation" } ?: winds.firstOrNull())?.id.orEmpty() }) }
     PrefsGroup(Modifier.fillMaxWidth()) {
-        Text(tr(lang, "app.conn.help"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+        Text(tr(lang, "app.conn.help"), color = Muted, fontSize = GregalSize.caption, lineHeight = 17.sp)
         Spacer(Modifier.height(12.dp))
         if (page == PrefsPage.Calendar) {
-            Text("Google Calendar", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            Text(tr(lang, "app.conn.calHelp"), color = Muted, fontSize = 12.sp, lineHeight = 16.sp,
+            Text("Google Calendar", color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
+            Text(tr(lang, "app.conn.calHelp"), color = Muted, fontSize = GregalSize.caption, lineHeight = 16.sp,
                 modifier = Modifier.clickable { uris.openUri("https://calendar.google.com/calendar/r/settings") })
             cs.calendars.forEach { (name, url) ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("$name · $url", color = Ink, fontSize = 12.5.sp, modifier = Modifier.weight(1f))
+                    Text("$name · $url", color = Ink, fontSize = GregalSize.caption, modifier = Modifier.weight(1f))
                     TextButton(onClick = { vm.saveConnections(org.json.JSONObject().put("remove_calendar", name), tr(lang, "app.conn.removed")) }) { Text(tr(lang, "app.conn.remove"), color = Sea) }
                 }
             }
@@ -609,8 +609,8 @@ private fun ConnectionsCard(vm: GregalViewModel, lang: String, page: PrefsPage) 
             Spacer(Modifier.height(12.dp))
         }
         if (page == PrefsPage.Mail) {
-            Text("Gmail", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            Text(tr(lang, "app.conn.mailHelp"), color = Muted, fontSize = 12.sp, lineHeight = 16.sp,
+            Text("Gmail", color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
+            Text(tr(lang, "app.conn.mailHelp"), color = Muted, fontSize = GregalSize.caption, lineHeight = 16.sp,
                 modifier = Modifier.clickable { uris.openUri("https://myaccount.google.com/apppasswords") })
             androidx.compose.material3.OutlinedTextField(mailUser, { mailUser = it.trim() }, label = { Text(tr(lang, "app.conn.mailUser")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
             androidx.compose.material3.OutlinedTextField(mailPass, { mailPass = it }, label = { Text(tr(lang, if (cs.mailConnected) "app.conn.mailPassSaved" else "app.conn.mailPass")) },
@@ -631,7 +631,7 @@ private fun ConnectionsCard(vm: GregalViewModel, lang: String, page: PrefsPage) 
             PreferenceSwitchRowPlain(tr(lang, "app.conn.brief"), tr(lang, "app.conn.briefHelp"), briefOn) { briefOn = it }
             if (briefOn) {
                 androidx.compose.material3.OutlinedTextField(briefTime, { briefTime = it.trim() }, label = { Text(tr(lang, "app.conn.briefTime")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Text(tr(lang, "app.conn.briefWind"), color = Muted, fontSize = 12.5.sp)
+                Text(tr(lang, "app.conn.briefWind"), color = Muted, fontSize = GregalSize.caption)
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     winds.forEach { w ->
                         androidx.compose.material3.FilterChip(selected = w.id == briefWind, onClick = { briefWind = w.id }, label = { Text(w.name) })
@@ -645,7 +645,7 @@ private fun ConnectionsCard(vm: GregalViewModel, lang: String, page: PrefsPage) 
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { vm.testConnections() }) { Text(tr(lang, "app.conn.test"), color = Sea) }
-            if (msg.isNotBlank()) Text(msg, color = Muted, fontSize = 12.5.sp, modifier = Modifier.weight(1f))
+            if (msg.isNotBlank()) Text(msg, color = Muted, fontSize = GregalSize.caption, modifier = Modifier.weight(1f))
         }
     }
 }

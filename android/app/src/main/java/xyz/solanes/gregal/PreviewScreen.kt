@@ -111,8 +111,8 @@ fun PreviewScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 if (url.isBlank()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text(t("app.preview.pick"), color = Muted, fontSize = 14.sp)
-                            if (error.isNotBlank()) Text(error, color = Muted, fontSize = 12.sp)
+                            Text(t("app.preview.pick"), color = Muted, fontSize = GregalSize.body)
+                            if (error.isNotBlank()) Text(error, color = Muted, fontSize = GregalSize.caption)
                             TextButton(onClick = { vm.go(Screen.Carpeta) }) {
                                 Text(t("app.carpeta.title"), color = Sea, fontWeight = FontWeight.SemiBold)
                             }
@@ -125,9 +125,9 @@ fun PreviewScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         GCard(Modifier.fillMaxWidth()) {
                             Text(
                                 (fallada.ifBlank { error }) + "\n\n" + url,
-                                color = Ink, fontSize = 13.sp,
+                                color = Ink, fontSize = GregalSize.small,
                             )
-                            Text(t("app.preview.hint"), color = Muted, fontSize = 12.sp)
+                            Text(t("app.preview.hint"), color = Muted, fontSize = GregalSize.caption)
                         }
                     }
                 }

@@ -5,9 +5,6 @@ config.yaml
 dist/
 /gregal
 local.properties
-vscode-gregal/node_modules/
-vscode-gregal/dist/
-vscode-gregal/*.vsix
 desktop/node_modules/
 desktop/dist/
 desktop/backend/

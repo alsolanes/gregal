@@ -63,8 +63,6 @@ jobs:
       - name: Verify update metadata
         run: node desktop/verify-release.js output/release
         working-directory: desktop
-      - name: Build standalone VS Code installer
-        run: go build -trimpath -buildvcs=false -o output/release/Gregal-VSCode-Setup-x64.exe ./cmd/vscode-installer
       - uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -89,28 +87,8 @@ jobs:
           name: cli
           path: dist/gregal-*
 
-  vscode:
-    needs: verify
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: vscode-gregal
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run package
-      - uses: actions/upload-artifact@v4
-        with:
-          name: vscode
-          path: vscode-gregal/*.vsix
-
   release:
-    needs: [verify, windows, cli, vscode]
+    needs: [verify, windows, cli]
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -285,23 +285,23 @@
   const CSS = `
 #asideStack{position:fixed;right:16px;top:96px;z-index:60;display:flex;flex-direction:column;gap:8px;max-width:min(400px,calc(100vw - 32px));max-height:60vh;overflow:auto}
 #asideStack:empty{display:none}
-.aside-card{background:var(--panel);border:1px solid var(--line,rgba(127,127,127,.25));border-left:3px solid var(--accent,#8193FF);border-radius:8px;padding:8px 10px;box-shadow:0 6px 20px rgba(0,0,0,.18);font-size:13px}
+.aside-card{background:var(--panel);border:1px solid var(--line,rgba(127,127,127,.25));border-left:3px solid var(--accent,#8193FF);border-radius:8px;padding:8px 10px;box-shadow:0 6px 20px rgba(0,0,0,.18);font-size:var(--t2)}
 .aside-card header{display:flex;align-items:center;gap:8px;justify-content:space-between}
-.aside-card header b{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.aside-x{background:none;border:0;color:var(--muted);cursor:pointer;font-size:16px;line-height:1}
+.aside-card header b{font-size:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aside-x{background:none;border:0;color:var(--muted);cursor:pointer;font-size:var(--t4);line-height:1}
 .aside-body{margin-top:4px;max-height:40vh;overflow:auto}
 .aside-actions{display:flex;gap:6px;margin-top:6px}
 .aside-actions:empty{display:none}
 .aside-mem{border-left-color:var(--amber,#c98a2b)}
-.mem-chip{display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--line,rgba(127,127,127,.25));border-left:3px solid var(--amber,#c98a2b);border-radius:8px;background:var(--panel);font-size:12px}
+.mem-chip{display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--line,rgba(127,127,127,.25));border-left:3px solid var(--amber,#c98a2b);border-radius:8px;background:var(--panel);font-size:var(--t2)}
 .mem-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mem-chip button{padding:0 4px;font-size:12px}
+.mem-chip button{padding:0 4px;font-size:var(--t2)}
 .aside-bad{color:var(--red,#c0392b)}
-.recap-chip{display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--line,rgba(127,127,127,.25));border-radius:999px;background:var(--panel);font-size:12px;margin:6px auto;width:max-content;max-width:100%}
+.recap-chip{display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--line,rgba(127,127,127,.25));border-radius:999px;background:var(--panel);font-size:var(--t2);margin:6px auto;width:max-content;max-width:100%}
 .recap-chip.in-pane{flex:none;margin:10px auto 2px;max-width:calc(100% - 32px);box-shadow:0 4px 14px rgba(0,0,0,.18)}
-.mem-section .mem-notes{list-style:none;padding:0;margin:6px 0;font-size:12px;max-height:180px;overflow:auto}
+.mem-section .mem-notes{list-style:none;padding:0;margin:6px 0;font-size:var(--t2);max-height:180px;overflow:auto}
 .mem-section .mem-notes li{padding:3px 0;border-bottom:1px solid var(--line,rgba(127,127,127,.15))}
-.mem-diff pre{font-size:11px;white-space:pre-wrap;max-height:220px;overflow:auto}
+.mem-diff pre{font-size:var(--t1);white-space:pre-wrap;max-height:220px;overflow:auto}
 .mem-diff .add{color:var(--green,#6EDB95)}
 .mem-diff .del{color:var(--red,#c0392b);text-decoration:line-through}
 `;

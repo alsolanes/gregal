@@ -73,7 +73,7 @@ fun LoadingBoard(lang: String) {
     Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator(color = Sea)
-            Text(tr(lang, "app.ui.loading"), color = Muted, fontSize = 13.sp,
+            Text(tr(lang, "app.ui.loading"), color = Muted, fontSize = GregalSize.small,
                 modifier = Modifier.padding(top = 12.dp))
         }
     }

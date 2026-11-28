@@ -142,7 +142,7 @@ fun JobsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     BackgroundJobsCard(lang)
                 }
                 if (jobs.isNotEmpty()) item {
-                    Text(tr(lang, "app.jobs.scheduled"), color = Muted, fontSize = 13.sp,
+                    Text(tr(lang, "app.jobs.scheduled"), color = Muted, fontSize = GregalSize.small,
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp))
                 }
                 items(jobs) { j -> JobCard(j, vm, onEdit = { editing = it }, lang = lang) }
@@ -187,7 +187,7 @@ fun JobCard(j: JobItem, vm: GregalViewModel, onEdit: (JobItem) -> Unit, lang: St
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(stripMdForTitle(j.name.ifEmpty { tr(lang, "app.jobs.unnamed") }),
-                    fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Ink)
+                    fontWeight = FontWeight.SemiBold, fontSize = GregalSize.large, color = Ink)
                 Text(kindLabel(j.kind, j.time, j.intervalH, lang) +
                     (if (j.nextDue.isNotEmpty()) " · ${tr(lang, "app.jobs.next", j.nextDue)}" else "") +
                     (if (j.lastStatus.isNotEmpty()) " · ${tr(lang, "app.jobs.last", j.lastStatus)}" else ""),
@@ -224,7 +224,7 @@ fun JobCard(j: JobItem, vm: GregalViewModel, onEdit: (JobItem) -> Unit, lang: St
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Switch(checked = j.enabled, onCheckedChange = { vm.toggleJob(j) })
-                Text(tr(lang, if (j.enabled) "app.jobs.active" else "app.jobs.paused"), color = Muted, fontSize = 10.sp)
+                Text(tr(lang, if (j.enabled) "app.jobs.active" else "app.jobs.paused"), color = Muted, fontSize = GregalSize.label)
             }
         }
     }
@@ -240,16 +240,16 @@ fun RunCard(r: RunItem, onOpen: () -> Unit, lang: String = "ca") {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(stripMdForTitle(r.jobName.ifEmpty { tr(lang, "app.jobs.emptyJobName") }),
-                    fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Ink)
+                    fontWeight = FontWeight.SemiBold, fontSize = GregalSize.large, color = Ink)
                 Text(shortStamp(r.startedAt),
                     style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = Muted)
                 if (r.status == "ok" && r.output.isNotBlank()) {
                     Text(stripMdForTitle(r.output).take(120),
-                        color = Muted, fontSize = 13.sp,
+                        color = Muted, fontSize = GregalSize.small,
                         modifier = Modifier.padding(top = 4.dp))
                 }
                 if (r.status != "ok" && r.error.isNotBlank()) {
-                    Text(r.error.take(120), color = Muted, fontSize = 13.sp,
+                    Text(r.error.take(120), color = Muted, fontSize = GregalSize.small,
                         modifier = Modifier.padding(top = 4.dp))
                 }
             }
@@ -258,7 +258,7 @@ fun RunCard(r: RunItem, onOpen: () -> Unit, lang: String = "ca") {
                 Text(
                     tr(lang, if (r.status == "ok") "app.jobs.done" else "app.jobs.error"),
                     color = if (r.status == "ok") Green else Red,
-                    fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                    fontSize = GregalSize.label, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                 )
             }
@@ -307,7 +307,7 @@ fun JobEditor(base: JobItem, onDismiss: () -> Unit, onSave: (JobItem) -> Unit, l
                             onClick = { kind = k },
                             modifier = Modifier.weight(1f),
                             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp),
-                        ) { Text(label, color = if (kind == k) Sea else Muted, fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        ) { Text(label, color = if (kind == k) Sea else Muted, fontSize = GregalSize.caption, maxLines = 1, softWrap = false) }
                     }
                 }
                 if (kind == "daily") {
@@ -330,7 +330,7 @@ fun JobEditor(base: JobItem, onDismiss: () -> Unit, onSave: (JobItem) -> Unit, l
                 }
                 Spacer(Modifier.height(4.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(tr(lang, "app.jobs.telegram"), color = Ink, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    Text(tr(lang, "app.jobs.telegram"), color = Ink, fontSize = GregalSize.body, modifier = Modifier.weight(1f))
                     Switch(checked = notify, onCheckedChange = { notify = it })
                 }
             }
@@ -366,12 +366,12 @@ fun fmtHm(h: Int, m: Int): String = "%02d:%02d".format(h, m)
 @Composable
 fun TemplatePicker(lang: String, onPick: (JobItem) -> Unit) {
     Column(Modifier.fillMaxWidth()) {
-        Text(tr(lang, "app.jobs.templates"), color = Muted, fontSize = 13.sp,
+        Text(tr(lang, "app.jobs.templates"), color = Muted, fontSize = GregalSize.small,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             jobTemplates(lang).forEach { t ->
                 SuggestionChip(onClick = { onPick(t) }, label = {
-                    Text("${t.name} · ${kindLabel(t.kind, t.time, t.intervalH, lang)}", fontSize = 12.sp)
+                    Text("${t.name} · ${kindLabel(t.kind, t.time, t.intervalH, lang)}", fontSize = GregalSize.caption)
                 })
             }
         }
@@ -403,7 +403,7 @@ fun BackgroundJobsCard(lang: String) {
     @Composable
     fun line(text: String, button: String?, onClick: () -> Unit = {}) {
         Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(text, color = if (button != null) Ink else Muted, fontSize = 13.sp, modifier = Modifier.weight(1f))
+            Text(text, color = if (button != null) Ink else Muted, fontSize = GregalSize.small, modifier = Modifier.weight(1f))
             if (button != null) TextButton(onClick = onClick) { Text(button, color = Sea) }
         }
     }
@@ -443,10 +443,10 @@ fun RunDetail(r: RunItem, vm: GregalViewModel, onDismiss: () -> Unit, lang: Stri
             // Altura màxima: sense ella, un butlletí llarg empeny els botons fora de pantalla.
             Column(Modifier.fillMaxHeight().padding(18.dp)) {
                 Text(stripMdForTitle(r.jobName.ifEmpty { tr(lang, "app.jobs.emptyJobName") }),
-                    fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Ink)
+                    fontWeight = FontWeight.Bold, fontSize = GregalSize.title, color = Ink)
                 Text(shortStamp(r.startedAt) +
                     (if (r.status == "ok") " · ${tr(lang, "app.jobs.doneWord")}" else " · ${tr(lang, "app.jobs.errorWord")}"),
-                    color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
+                    color = Muted, fontSize = GregalSize.small, modifier = Modifier.padding(top = 2.dp))
                 Spacer(Modifier.height(8.dp))
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                     if (r.status == "ok" && r.output.isNotBlank()) {
@@ -454,18 +454,18 @@ fun RunDetail(r: RunItem, vm: GregalViewModel, onDismiss: () -> Unit, lang: Stri
                     } else {
                         // Error de connexió traduït a humà; runs vells conserven el
                         // text cru si no encaixa amb cap patró conegut.
-                        Text(r.errorAmic.ifEmpty { tr(lang, "app.jobs.noDetail") }, color = Muted, fontSize = 14.sp)
+                        Text(r.errorAmic.ifEmpty { tr(lang, "app.jobs.noDetail") }, color = Muted, fontSize = GregalSize.body)
                     }
                 }
                 Spacer(Modifier.height(12.dp))
                 if (r.status != "ok" && r.jobId.isNotBlank()) {
                     when {
                         reintentant -> Text(tr(lang, "app.jobs.retryQueued"),
-                            color = Muted, fontSize = 13.sp,
+                            color = Muted, fontSize = GregalSize.small,
                             modifier = Modifier.padding(bottom = 8.dp))
                         errorReintent != null -> {
                             Text(tr(lang, "app.jobs.retryFailed"),
-                                color = Muted, fontSize = 13.sp,
+                                color = Muted, fontSize = GregalSize.small,
                                 modifier = Modifier.padding(bottom = 8.dp))
                             Button(
                                 onClick = {

@@ -84,14 +84,14 @@ const CSS = `
 #agentBrowser .ab-tab-list{display:flex;gap:3px;overflow:auto;scrollbar-width:thin}
 #agentBrowser .ab-tab{display:flex;align-items:center;flex:none;max-width:170px;border:1px solid transparent;border-radius:8px;color:var(--muted)}
 #agentBrowser .ab-tab:has([aria-pressed="true"]){background:var(--surface-hi);border-color:var(--line);color:var(--ink)}
-#agentBrowser .ab-tab-label{min-width:0;padding:5px 8px;border:0;border-radius:7px;background:none;color:inherit;font:inherit;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+#agentBrowser .ab-tab-label{min-width:0;padding:5px 8px;border:0;border-radius:7px;background:none;color:inherit;font:inherit;font-size:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 #agentBrowser .ab-tab .ab-btn{width:23px;height:24px}
 #agentBrowser .ab-tab .ab-btn svg{width:12px;height:12px}
 #agentBrowser svg{width:16px;height:16px;display:block}
 #agentBrowser .ab-head{display:flex;gap:8px;align-items:center;padding:8px 10px 6px;user-select:none}
 #agentBrowser .ab-head .ab-logo{display:grid;place-items:center;width:28px;height:28px;flex:none;border-radius:8px;background:var(--surface-hi);color:var(--ink)}
 #agentBrowser .ab-head strong{font-size:var(--t3,14px);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#agentBrowser .ab-state{display:inline-flex;align-items:center;gap:6px;min-width:0;margin-right:auto;font:500 11px/1.5 var(--sans,system-ui);color:var(--muted);padding:3px 8px;border-radius:99px;background:var(--surface);white-space:nowrap}
+#agentBrowser .ab-state{display:inline-flex;align-items:center;gap:6px;min-width:0;margin-right:auto;font:500 var(--t1)/1.5 var(--sans,system-ui);color:var(--muted);padding:3px 8px;border-radius:99px;background:var(--surface);white-space:nowrap}
 #agentBrowser .ab-state span{overflow:hidden;text-overflow:ellipsis}
 #agentBrowser .ab-state i{width:7px;height:7px;flex:none;border-radius:50%;background:var(--faint)}
 #agentBrowser .ab-state.active{color:var(--green);background:var(--ok-soft)}
@@ -111,11 +111,11 @@ const CSS = `
 #agentBrowser .ab-address:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 #agentBrowser .ab-address svg{width:13px;height:13px;color:var(--faint);flex:none}
 #agentBrowser .ab-address.secure svg{color:var(--green)}
-#agentBrowser .ab-address input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--ink);font:13px var(--sans,system-ui);padding:0;text-overflow:ellipsis}
+#agentBrowser .ab-address input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--ink);font:var(--t2) var(--sans,system-ui);padding:0;text-overflow:ellipsis}
 #agentBrowser .ab-address input:focus{text-overflow:clip}
 #agentBrowser .ab-zoom{display:flex;align-items:center;flex:none;border-left:1px solid var(--line);padding-left:2px}
-#agentBrowser .ab-zoom .ab-btn{width:24px;height:26px;font:13px var(--mono)}
-#agentBrowser .ab-zoom .ab-pct{width:auto;padding:0 4px;font:11px var(--mono);min-width:40px}
+#agentBrowser .ab-zoom .ab-btn{width:24px;height:26px;font:var(--t2) var(--mono)}
+#agentBrowser .ab-zoom .ab-pct{width:auto;padding:0 4px;font:var(--t1) var(--mono);min-width:40px}
 #agentBrowser .ab-progress{flex:none;height:2px;margin:4px 12px 0;position:relative;overflow:hidden;border-radius:2px}
 #agentBrowser .ab-progress.loading::after{content:"";position:absolute;top:0;bottom:0;width:40%;background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:abLoad 1.1s ease-in-out infinite}
 @keyframes abLoad{from{left:-40%}to{left:100%}}
@@ -125,9 +125,9 @@ const CSS = `
 #agentBrowser .ab-handoff-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;font-size:var(--t2,12.5px);line-height:1.4}
 #agentBrowser .ab-handoff-text b{color:var(--ink);font-weight:620}
 #agentBrowser .ab-handoff-text span{color:var(--text);overflow-wrap:anywhere}
-#agentBrowser .ab-handoff-text small{padding:0;color:var(--muted);font-size:11px}
+#agentBrowser .ab-handoff-text small{padding:0;color:var(--muted);font-size:var(--t1)}
 #agentBrowser .ab-handoff-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
-#agentBrowser .ab-handoff button{font-weight:600;font-size:12px;font-family:inherit;border-radius:8px;padding:7px 12px;cursor:pointer;white-space:nowrap;transition:filter .12s,background .12s}
+#agentBrowser .ab-handoff button{font-weight:600;font-size:var(--t2);font-family:inherit;border-radius:8px;padding:7px 12px;cursor:pointer;white-space:nowrap;transition:filter .12s,background .12s}
 #agentBrowser .ab-done{border:1px solid var(--accent);background:var(--accent);color:var(--bg)}
 #agentBrowser .ab-done:hover{filter:brightness(1.1)}
 #agentBrowser .ab-cancel{border:1px solid var(--line-hi);background:transparent;color:var(--ink)}
@@ -135,7 +135,7 @@ const CSS = `
 #agentBrowser .ab-view{flex:1;min-height:0;margin:4px 10px 8px;border:1px solid var(--line-hi);border-radius:12px;overflow:hidden;background:var(--bg);position:relative}
 #agentBrowser.handoff .ab-view{border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-soft)}
 .agent-browser-view{position:absolute;inset:0;width:100%;height:100%;border:0}
-#agentBrowser .ab-note{padding:0 12px 8px;color:var(--faint);font-size:11px;line-height:1.4}
+#agentBrowser .ab-note{padding:0 12px 8px;color:var(--faint);font-size:var(--t1);line-height:1.4}
 #agentBrowser .ab-mini{display:none}
 #agentBrowserGrip{position:absolute;left:-3px;top:0;bottom:0;width:9px;cursor:col-resize;z-index:3}
 #agentBrowserGrip::after{content:"";position:absolute;left:3px;top:0;bottom:0;width:3px;background:transparent;transition:background .12s}
@@ -151,7 +151,7 @@ body.ab-resizing{cursor:col-resize;user-select:none}body.ab-resizing .agent-brow
 #agentBrowser.min .ab-mini{display:flex;align-items:center;gap:9px;padding:7px 14px 7px 9px;border:0;background:transparent;color:var(--ink);cursor:pointer;font:inherit;max-width:360px}
 #agentBrowser .ab-mini img,#agentBrowser .ab-mini .ab-logo{width:22px;height:22px;flex:none;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-soft)}
 #agentBrowser .ab-mini b{font-size:var(--t2,12.5px);font-weight:600;white-space:nowrap}
-#agentBrowser .ab-mini .ab-mini-page{font:11px var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+#agentBrowser .ab-mini .ab-mini-page{font:var(--t1) var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
 #agentBrowser .ab-mini i{width:8px;height:8px;border-radius:50%;background:var(--faint);flex:none}
 #agentBrowser.min.active .ab-mini i{background:var(--accent);animation:abPulse 1.4s ease-in-out infinite}
 #agentBrowser.min.handoff .ab-mini i{background:var(--amber);animation:abPulse .9s ease-in-out infinite}

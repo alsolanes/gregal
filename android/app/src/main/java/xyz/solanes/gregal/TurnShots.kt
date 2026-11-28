@@ -74,8 +74,8 @@ internal fun TurnShotsStrip(conn: Conn, lang: String, accent: Color, shots: List
     var open by remember(shots) { mutableStateOf(-1) }
     Column(Modifier.padding(start = 46.dp, top = 6.dp).testTag("turn-shots"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
-            Text(turnShotsCopy(lang, "title"), color = Ink, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            Text(turnShotsCopy(lang, "count", shots.size), color = Muted, fontSize = 12.sp)
+            Text(turnShotsCopy(lang, "title"), color = Ink, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold)
+            Text(turnShotsCopy(lang, "count", shots.size), color = Muted, fontSize = GregalSize.caption)
         }
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             shots.forEachIndexed { i, sh ->
@@ -90,7 +90,7 @@ internal fun TurnShotsStrip(conn: Conn, lang: String, accent: Color, shots: List
                     Box(Modifier.fillMaxWidth().height(76.dp).clip(GregalShape.sm).background(SuperficieAlta).border(1.dp, Line, GregalShape.sm)) {
                         bmp?.let { Image(it, null, contentScale = ContentScale.Crop, alignment = Alignment.TopCenter, modifier = Modifier.fillMaxSize()) }
                     }
-                    Text(shotHost(sh.url).ifBlank { sh.title }, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(shotHost(sh.url).ifBlank { sh.title }, color = Muted, fontSize = GregalSize.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -109,8 +109,8 @@ internal fun TurnShotsViewer(conn: Conn, lang: String, accent: Color, shots: Lis
             val sh = shots[i]
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(turnShotsCopy(lang, "title"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                    Text(sh.title.ifBlank { sh.url }, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(turnShotsCopy(lang, "title"), color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
+                    Text(sh.title.ifBlank { sh.url }, color = Muted, fontSize = GregalSize.caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 ShotNavButton("✕", turnShotsCopy(lang, "close"), enabled = true, onClick = onClose)
             }
@@ -120,7 +120,7 @@ internal fun TurnShotsViewer(conn: Conn, lang: String, accent: Color, shots: Lis
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                 ShotNavButton("‹", turnShotsCopy(lang, "prev"), enabled = i > 0) { i -= 1 }
-                Text("${i + 1} / ${shots.size}", color = Muted, fontSize = 13.sp,
+                Text("${i + 1} / ${shots.size}", color = Muted, fontSize = GregalSize.small,
                     modifier = Modifier.padding(horizontal = 18.dp).testTag("turn-shots-pos"))
                 ShotNavButton("›", turnShotsCopy(lang, "next"), enabled = i < shots.lastIndex) { i += 1 }
             }
@@ -136,6 +136,6 @@ private fun ShotNavButton(label: String, description: String, enabled: Boolean, 
             .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = if (enabled) Ink else Muted.copy(alpha = .4f), fontSize = 18.sp)
+        Text(label, color = if (enabled) Ink else Muted.copy(alpha = .4f), fontSize = GregalSize.large)
     }
 }

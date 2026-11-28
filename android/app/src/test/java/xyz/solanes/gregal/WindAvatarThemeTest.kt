@@ -39,7 +39,7 @@ class WindAvatarThemeTest {
             }
             val lang = vm.idioma.value
             ui.onNodeWithText(tr(lang, "winds.avatars")).performScrollTo().assertIsDisplayed()
-            ui.onNodeWithText(tr(lang, "winds.avatarCares")).assertIsSelected()
+            ui.onNodeWithText(tr(lang, "winds.avatarFolk")).assertIsSelected()
             ui.onNodeWithText(tr(lang, "winds.avatarFree")).assertIsNotSelected()
             ui.onNodeWithText(tr(lang, "winds.avatarEsperit")).performScrollTo().performClick()
             repeat(150) { if (vm.avatarTheme.value != "esperit") { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(20)); Thread.sleep(5) } }
@@ -71,7 +71,7 @@ class WindAvatarThemeTest {
                 assertTrue("the $pack face sits above «$label»", face.bottom <= name.top)
             }
         }
-        ui.onNodeWithText(tr(lang, "winds.avatarCares")).assertIsSelected()
+        ui.onNodeWithText(tr(lang, "winds.avatarFolk")).assertIsSelected()
     }
 
     @Test fun `a server older than the client's packs says to update it instead of a raw 400`() {
@@ -82,7 +82,7 @@ class WindAvatarThemeTest {
             val wait = { repeat(150) { if (vm.notice.value.isEmpty()) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(20)); Thread.sleep(5) } } }
             vm.setAvatarTheme("mapa"); wait()
             assertEquals(tr(vm.idioma.value, "winds.avatarServerOld"), vm.notice.value)
-            assertEquals("cares", vm.avatarTheme.value)
+            assertEquals("folk", vm.avatarTheme.value)
             vm.clearNotice()
             vm.createWind("Ratxa", "#5B8DEF", "", avatar = "cap"); wait()
             assertEquals(tr(vm.idioma.value, "winds.avatarServerOld"), vm.notice.value)
@@ -97,7 +97,7 @@ class WindAvatarThemeTest {
             val wait = { repeat(150) { if (vm.notice.value.isEmpty()) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(20)); Thread.sleep(5) } } }
             vm.setAvatarTheme("esperit"); wait()
             assertEquals(tr(vm.idioma.value, "winds.avatarServerOld"), vm.notice.value)
-            assertEquals("cares", vm.avatarTheme.value)
+            assertEquals("folk", vm.avatarTheme.value)
         }
         FakeGregal(400) { "invalid request" }.use { server ->
             val vm = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
@@ -121,7 +121,7 @@ class WindAvatarThemeTest {
     @Test fun `in Free mode the editor offers the pack and saves it with the wind`() {
         var saved: WindDraft? = null
         editor("free", Wind("bit", "Bit", "#29ADFF", "lectura")) { saved = it }
-        ui.onNodeWithText(tr("ca", "winds.avatarCares")).performScrollTo().assertIsSelected()
+        ui.onNodeWithText(tr("ca", "winds.avatarFolk")).performScrollTo().assertIsSelected()
         ui.onNodeWithText(tr("ca", "winds.avatarEsperit")).performScrollTo().performClick()
         ui.onNodeWithText(tr("ca", "app.vents.saveChanges")).performClick()
         ui.runOnIdle { assertEquals("esperit", saved?.avatar) }

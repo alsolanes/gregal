@@ -168,15 +168,15 @@ internal fun AutomatitzacionsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
         LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item(key = "ajuda") {
-                Text(tr(lang, "act.help"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
+                Text(tr(lang, "act.help"), color = Muted, fontSize = GregalSize.small, lineHeight = 18.sp)
             }
             item(key = "local") { LocalInfoSection(vm, lang, startOpen = localOpen) }
             item(key = "vents") { WindAutomationList(vm, lang) }
             for (grup in altres) {
                 item(key = "cap-" + grup.clau) {
                     Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(grup.titol, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                        Text(grup.items.size.toString(), color = Muted, fontSize = 13.sp)
+                        Text(grup.titol, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body)
+                        Text(grup.items.size.toString(), color = Muted, fontSize = GregalSize.small)
                     }
                 }
                 itemsIndexedCompat(grup) { index, a -> AutomatitzacioRow(lang, a, grup.clau + index) }
@@ -200,13 +200,13 @@ private fun AutomatitzacioRow(lang: String, a: Automatitzacio, key: String) {
     Surface(color = Ink.copy(alpha = 0.03f), shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(a.titol, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+                Text(a.titol, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body,
                     modifier = Modifier.padding(end = 8.dp))
                 Text(tr(lang, if (a.activa) "auto.on" else "auto.off"),
-                    color = if (a.activa) Sea else Muted, fontSize = 12.sp)
+                    color = if (a.activa) Sea else Muted, fontSize = GregalSize.caption)
             }
-            if (a.detall.isNotBlank()) Text(a.detall, color = Tinta, fontSize = 13.sp, lineHeight = 18.sp)
-            if (a.quan.isNotBlank()) Text(tr(lang, "auto.next", a.quan), color = Muted, fontSize = 12.sp)
+            if (a.detall.isNotBlank()) Text(a.detall, color = Tinta, fontSize = GregalSize.small, lineHeight = 18.sp)
+            if (a.quan.isNotBlank()) Text(tr(lang, "auto.next", a.quan), color = Muted, fontSize = GregalSize.caption)
         }
     }
 }

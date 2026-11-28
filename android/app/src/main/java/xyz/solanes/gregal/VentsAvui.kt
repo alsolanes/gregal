@@ -148,7 +148,7 @@ internal fun AvuiTray(
     ) {
         Text(
             AvuiLogic.dateLabel(lang, view?.date.orEmpty()), color = Ink,
-            style = GregalType.title.copy(fontSize = 26.sp, lineHeight = 32.sp, letterSpacing = (-0.5).sp),
+            style = GregalType.title.copy(fontSize = GregalSize.display, lineHeight = 32.sp, letterSpacing = (-0.5).sp),
             modifier = Modifier.padding(start = 4.dp, top = 8.dp).testTag("avui-date"),
         )
         if (view == null) {
@@ -241,16 +241,16 @@ private fun AvuiCardView(
                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     if (c.held) Icon(Icons.Rounded.Bedtime, tr(lang, "app.avui.heldMark"), tint = Muted.copy(alpha = .8f), modifier = Modifier.size(12.dp))
                     val age = AvuiLogic.ageLabel(lang, c.days)
-                    if (age.isNotEmpty()) Text(age, color = if (LocalPal.current.dark) accent else Ink.copy(alpha = .78f), fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1,
+                    if (age.isNotEmpty()) Text(age, color = if (LocalPal.current.dark) accent else Ink.copy(alpha = .78f), fontSize = GregalSize.label, fontWeight = FontWeight.Medium, maxLines = 1,
                         modifier = Modifier.clip(GregalShape.pill).background(accent.copy(alpha = .14f))
                             .padding(horizontal = 8.dp, vertical = 2.dp).testTag("avui-age"))
                 }
-                Text(c.title, color = Ink, style = GregalType.heading.copy(fontSize = 15.5.sp, lineHeight = 21.sp))
+                Text(c.title, color = Ink, style = GregalType.heading.copy(fontSize = GregalSize.body, lineHeight = 21.sp))
                 if (c.why.isNotBlank()) Text(c.why, color = Muted, style = GregalType.bodySmall)
             }
         }
         if (expanded && c.body.isNotBlank()) {
-            Text(renderMd(c.body, SuperficieAlta), color = Tinta, style = GregalType.bodySmall.copy(fontSize = 14.sp, lineHeight = 20.sp),
+            Text(renderMd(c.body, SuperficieAlta), color = Tinta, style = GregalType.bodySmall.copy(fontSize = GregalSize.body, lineHeight = 20.sp),
                 modifier = Modifier.padding(start = 48.dp))
         }
         // Una vigilància pausada sola (task 146) es reprèn amb l'acció resume: el xat del vent no la pot reprendre.
@@ -265,7 +265,7 @@ private fun AvuiCardView(
                         .clickable { onRun(c, a) }.padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Text(a.label, color = Ink, fontSize = 12.5.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(a.label, color = Ink, fontSize = GregalSize.caption, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = accent, modifier = Modifier.size(13.dp))
                 }
             }
@@ -295,7 +295,7 @@ private fun AvuiButton(label: String, icon: ImageVector?, filled: Boolean = fals
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         if (icon != null) Icon(icon, null, tint = if (filled) Superficie else Muted, modifier = Modifier.size(15.dp))
-        Text(label, color = if (filled) Superficie else Muted, fontSize = 12.5.sp, fontWeight = if (filled) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
+        Text(label, color = if (filled) Superficie else Muted, fontSize = GregalSize.caption, fontWeight = if (filled) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
     }
 }
 
@@ -338,8 +338,8 @@ private fun AvuiSettingsCard(lang: String, s: AvuiSettings, onSettings: (AvuiSet
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 tune, { tune = it; savedTune = false }, maxLines = 3,
-                placeholder = { Text(tr(lang, "app.avui.tuneHint"), fontSize = 13.sp, color = Muted) },
-                textStyle = GregalType.bodySmall.copy(color = Ink, fontSize = 14.sp),
+                placeholder = { Text(tr(lang, "app.avui.tuneHint"), fontSize = GregalSize.small, color = Muted) },
+                textStyle = GregalType.bodySmall.copy(color = Ink, fontSize = GregalSize.body),
                 shape = GregalShape.sm,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedContainerColor = Superficie.copy(alpha = .6f), unfocusedContainerColor = Superficie.copy(alpha = .6f),
@@ -364,7 +364,7 @@ private fun AvuiSettingsCard(lang: String, s: AvuiSettings, onSettings: (AvuiSet
                 Text(tr(lang, "app.avui.quiet"), color = Ink, style = GregalType.bodySmall.copy(fontWeight = FontWeight.Medium))
                 Text(tr(lang, "app.avui.quietHelp", s.quietFrom, s.quietTo), color = Muted, style = GregalType.caption)
             }
-            Text("${s.quietFrom} – ${s.quietTo}", color = Ink, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+            Text("${s.quietFrom} – ${s.quietTo}", color = Ink, fontSize = GregalSize.small, fontWeight = FontWeight.Medium,
                 modifier = Modifier.clip(GregalShape.pill).background(Superficie.copy(alpha = .7f)).padding(horizontal = 10.dp, vertical = 4.dp))
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {

@@ -13,6 +13,6 @@ go vet ./...
 node --experimental-vm-modules --test internal/web/*.test.js internal/web/app/*.test.cjs desktop/*.test.js
 ```
 
-Android and VS Code changes also need their platform builds and relevant tests. Keep changes focused, include regression coverage for behavior changes, and describe the checks you ran in the pull request.
+Android changes also need their platform builds and relevant tests. Keep changes focused, include regression coverage for behavior changes, and describe the checks you ran in the pull request.
 
 English is the default interface language; Catalan is also supported. Keep translations consistent where both are available. Use synthetic examples and environment variables for credentials. Do not submit session history, screenshots of private workspaces, personal hostnames, user identifiers, or local configuration. Contributions are distributed under the repository's MIT license; preserve third-party notices.

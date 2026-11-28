@@ -80,11 +80,11 @@ internal fun FeinesButton(lang: String, running: Int, onClick: () -> Unit) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Rounded.Construction, null, tint = Sea, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(10.dp))
-            Text(tr(lang, "app.feines.title"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            Text(tr(lang, "app.feines.title"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body, modifier = Modifier.weight(1f))
             if (running > 0) {
                 CircularProgressIndicator(Modifier.size(14.dp), color = Sea, strokeWidth = 2.dp)
                 Spacer(Modifier.width(8.dp))
-                Text(tr(lang, "app.feines.running", running), color = Sea, fontSize = 13.sp)
+                Text(tr(lang, "app.feines.running", running), color = Sea, fontSize = GregalSize.small)
                 Spacer(Modifier.width(8.dp))
             }
             Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = Muted, modifier = Modifier.size(20.dp))
@@ -112,8 +112,8 @@ internal fun FeinesDialog(vm: GregalViewModel, lang: String, onOpenThread: (Stri
         Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxWidth().fillMaxHeight(0.85f).padding(top = 16.dp)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(tr(lang, "app.feines.title"), color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.weight(1f))
-                    IconButton(onClick = onDismiss) { Text("✕", color = Muted, fontSize = 16.sp) }
+                    Text(tr(lang, "app.feines.title"), color = Ink, fontWeight = FontWeight.Bold, fontSize = GregalSize.large, modifier = Modifier.weight(1f))
+                    IconButton(onClick = onDismiss) { Text("✕", color = Muted, fontSize = GregalSize.large) }
                 }
                 val list = tasks
                 val programat = autos[""]?.items.orEmpty()
@@ -127,7 +127,7 @@ internal fun FeinesDialog(vm: GregalViewModel, lang: String, onOpenThread: (Stri
                         Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center) {
                             Text(tr(lang, "app.feines.loadFailed"), color = Ink, fontWeight = FontWeight.SemiBold)
                             Spacer(Modifier.height(6.dp))
-                            Text(tasksError, color = Muted, fontSize = 13.sp)
+                            Text(tasksError, color = Muted, fontSize = GregalSize.small)
                             Spacer(Modifier.height(12.dp))
                             androidx.compose.material3.OutlinedButton(onClick = { vm.loadWindTasks() }) { Text(tr(lang, "app.chat.retry")) }
                         }
@@ -135,7 +135,7 @@ internal fun FeinesDialog(vm: GregalViewModel, lang: String, onOpenThread: (Stri
                         Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center) {
                             Text(tr(lang, "app.feines.empty"), color = Ink, fontWeight = FontWeight.SemiBold)
                             Spacer(Modifier.height(6.dp))
-                            Text(tr(lang, "app.feines.emptyHelp"), color = Muted, fontSize = 14.sp)
+                            Text(tr(lang, "app.feines.emptyHelp"), color = Muted, fontSize = GregalSize.body)
                         }
                     else -> LazyColumn(Modifier.fillMaxSize().testTag("feines-list"), contentPadding = PaddingValues(bottom = 20.dp)) {
                         if (asks.isNotEmpty()) {
@@ -159,7 +159,7 @@ internal fun FeinesDialog(vm: GregalViewModel, lang: String, onOpenThread: (Stri
                         }
                         item(key = "h-done") { FeinesSection(tr(lang, "app.feines.sec.done"), done.size) }
                         if (done.isEmpty()) item(key = "done-empty") {
-                            Text(tr(lang, "app.feines.doneEmpty"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp,
+                            Text(tr(lang, "app.feines.doneEmpty"), color = Muted, fontSize = GregalSize.small, lineHeight = 18.sp,
                                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
                         }
                         items(done, key = { "d-" + it.id }) { t ->
@@ -176,11 +176,11 @@ internal fun FeinesDialog(vm: GregalViewModel, lang: String, onOpenThread: (Stri
 @Composable
 private fun FeinesSection(title: String, count: Int) {
     Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, color = Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Text(title, color = Muted, fontSize = GregalSize.small, fontWeight = FontWeight.SemiBold)
         if (count > 0) {
             Spacer(Modifier.width(8.dp))
             Box(Modifier.clip(RoundedCornerShape(50)).background(Sea).padding(horizontal = 7.dp, vertical = 1.dp)) {
-                Text(count.toString(), color = OnSea, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(count.toString(), color = OnSea, fontSize = GregalSize.label, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -200,17 +200,17 @@ private fun FeinaCard(lang: String, t: WindTask, owner: Wind?, onFile: (String) 
         Row(Modifier.fillMaxWidth().clickable { open = !open }.padding(12.dp).testTag("feina-card-head"),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             WindFace(size = 36, mood = WindMood.WORKING, accent = color, style = owner?.faceStyle ?: WindStyle())
-            Text(t.task, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            Text(t.task, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f))
-            Text(tr(lang, "app.feines.st.running"), color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(tr(lang, "app.feines.st.running"), color = Muted, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold)
             Icon(Icons.Rounded.ExpandMore, null, tint = Muted, modifier = Modifier.rotate(if (open) 180f else 0f))
         }
         if (open) Row(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp).horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             t.files.take(4).forEach { f ->
-                AssistChip(onClick = { onFile(f) }, label = { Text(f.substringAfterLast('/'), fontSize = 12.sp, maxLines = 1) })
+                AssistChip(onClick = { onFile(f) }, label = { Text(f.substringAfterLast('/'), fontSize = GregalSize.caption, maxLines = 1) })
             }
-            if (t.thread.isNotBlank()) AssistChip(onClick = onThread, label = { Text(tr(lang, "app.feines.thread"), fontSize = 12.sp) })
+            if (t.thread.isNotBlank()) AssistChip(onClick = onThread, label = { Text(tr(lang, "app.feines.thread"), fontSize = GregalSize.caption) })
         }
     }
 }
@@ -231,30 +231,30 @@ private fun FeinaRow(lang: String, t: WindTask, onFile: (String) -> Unit, onThre
                 CircularProgressIndicator(Modifier.size(12.dp), color = color, strokeWidth = 2.dp)
                 Spacer(Modifier.width(6.dp))
             }
-            Text(label, color = color, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(label, color = color, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.width(8.dp))
             Text(programatHora(java.time.Instant.ofEpochMilli(t.updated).toString(), lang = lang),
-                color = Muted, fontSize = 12.sp, maxLines = 1)
+                color = Muted, fontSize = GregalSize.caption, maxLines = 1)
         }
         Spacer(Modifier.height(3.dp))
-        Text(t.task, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        Text(t.task, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold, maxLines = 3, overflow = TextOverflow.Ellipsis)
         if (t.agents.isNotEmpty()) {
-            Text(t.agents.joinToString(" · "), color = Muted, fontSize = 12.sp, maxLines = 1)
+            Text(t.agents.joinToString(" · "), color = Muted, fontSize = GregalSize.caption, maxLines = 1)
         }
         val text = t.error.ifBlank { t.result }
         if (text.isNotBlank()) {
             Spacer(Modifier.height(4.dp))
-            Text(stripMdInline(text).replace(Regex("\\s+"), " ").trim(), color = Muted, fontSize = 13.sp,
+            Text(stripMdInline(text).replace(Regex("\\s+"), " ").trim(), color = Muted, fontSize = GregalSize.small,
                 maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 18.sp)
         }
         if (t.files.isNotEmpty() || t.thread.isNotBlank()) {
             Spacer(Modifier.height(6.dp))
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 t.files.take(8).forEach { f ->
-                    AssistChip(onClick = { onFile(f) }, label = { Text(f.substringAfterLast('/'), fontSize = 12.sp, maxLines = 1) })
+                    AssistChip(onClick = { onFile(f) }, label = { Text(f.substringAfterLast('/'), fontSize = GregalSize.caption, maxLines = 1) })
                 }
                 if (t.thread.isNotBlank()) {
-                    AssistChip(onClick = onThread, label = { Text(tr(lang, "app.feines.thread"), fontSize = 12.sp) })
+                    AssistChip(onClick = onThread, label = { Text(tr(lang, "app.feines.thread"), fontSize = GregalSize.caption) })
                 }
             }
         }
@@ -279,9 +279,9 @@ private fun FeinaFileDialog(vm: GregalViewModel, lang: String, t: WindTask, file
         Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxWidth().fillMaxHeight(0.92f).padding(top = 12.dp)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(file.substringAfterLast('/'), color = Ink, fontWeight = FontWeight.Bold, fontSize = 16.sp,
+                    Text(file.substringAfterLast('/'), color = Ink, fontWeight = FontWeight.Bold, fontSize = GregalSize.large,
                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    IconButton(onClick = onDismiss) { Text("✕", color = Muted, fontSize = 16.sp) }
+                    IconButton(onClick = onDismiss) { Text("✕", color = Muted, fontSize = GregalSize.large) }
                 }
                 val c = content
                 when {
@@ -302,7 +302,7 @@ private fun FeinaFileDialog(vm: GregalViewModel, lang: String, t: WindTask, file
                             }
                         },
                     )
-                    else -> Text(c, color = Ink, fontFamily = FontFamily.Monospace, fontSize = 12.sp,
+                    else -> Text(c, color = Ink, fontFamily = FontFamily.Monospace, fontSize = GregalSize.caption,
                         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
                             .horizontalScroll(rememberScrollState()).padding(16.dp))
                 }

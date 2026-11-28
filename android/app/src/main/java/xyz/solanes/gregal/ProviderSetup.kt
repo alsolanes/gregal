@@ -130,7 +130,7 @@ fun ProviderSetup(
     }
     GlassCard(modifier.fillMaxWidth(), hi = true) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(tr(lang, if (change) "app.setup.changeTitle" else "app.setup.title"), color = Ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            Text(tr(lang, if (change) "app.setup.changeTitle" else "app.setup.title"), color = Ink, fontSize = GregalSize.large, fontWeight = FontWeight.SemiBold)
             Text(tr(lang, if (change) "app.prefs.modelHelp" else "app.setup.help"), color = Muted, style = GregalType.bodySmall)
             Box {
                 TextButton(onClick = { expanded = true }) {
@@ -169,17 +169,17 @@ fun ProviderSetup(
                 }
             } else {
                 HorizontalDivider(color = Line)
-                Text(tr(lang, "app.setup.newProviderHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+                Text(tr(lang, "app.setup.newProviderHelp"), color = Muted, fontSize = GregalSize.caption, lineHeight = 17.sp)
                 OutlinedTextField(
                     value = nomNou, onValueChange = { nomNou = it }, singleLine = true,
                     label = { Text(tr(lang, "app.setup.name")) },
-                    supportingText = { Text(tr(lang, "app.setup.nameHelp"), fontSize = 11.sp) },
+                    supportingText = { Text(tr(lang, "app.setup.nameHelp"), fontSize = GregalSize.label) },
                     shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = urlNou, onValueChange = { urlNou = it }, singleLine = true,
                     label = { Text(tr(lang, "app.setup.url")) },
-                    placeholder = { Text("https://api.exemple.com/v1", fontSize = 12.sp) },
+                    placeholder = { Text("https://api.exemple.com/v1", fontSize = GregalSize.caption) },
                     shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth(),
                 )
                 ProviderKeyField(lang, keyNou) { keyNou = it.trim() }
@@ -197,7 +197,7 @@ fun ProviderSetup(
                 ) { Text(tr(lang, "app.setup.add")) }
                 val ensenyat = nomNou.isNotBlank() || urlNou.isNotBlank()
                 if (problema != null && ensenyat) {
-                    Text(tr(lang, problema), color = Red, fontSize = 11.5.sp)
+                    Text(tr(lang, problema), color = Red, fontSize = GregalSize.label)
                 }
                 TextButton(onClick = { nou = false }) { Text(tr(lang, "app.setup.cancel"), color = Muted) }
             }

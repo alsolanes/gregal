@@ -214,7 +214,7 @@ type avatarThemeSetting struct {
 func validAvatarTheme(theme string) bool { return theme == "free" || companion.ValidAvatar(theme) }
 
 // avatarTheme torna el tema desat; sense triar (o il·legible), els minairons
-// es dibuixen com a minairons i la resta amb les cares.
+// es dibuixen com a minairons i la resta amb les Llegendes de feltre (folk).
 func (s *Server) avatarTheme() string {
 	var saved avatarThemeSetting
 	raw, err := os.ReadFile(filepath.Join(s.windStateDir(), avatarThemeFile))
@@ -224,7 +224,7 @@ func (s *Server) avatarTheme() string {
 	if presetAliases[normCollective(s.loadCollective().Plural)] == "minairons" {
 		return "minairo"
 	}
-	return "cares"
+	return "folk"
 }
 
 // handleWindsAvatarTheme: POST {theme} desa el tema d'avatars del compte.

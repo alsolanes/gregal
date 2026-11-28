@@ -5,7 +5,6 @@
 | TUI | Implemented | `POST /api/v2/runs` + `/api/v2/events` (SSE when `event_stream` is available) | Runs the local engine if it cannot discover the shared service |
 | Desktop/web | Implemented | Runs, durable events, streaming and interactive payloads | `/api/agent` SSE |
 | Android | Implemented | Uses v2 only with `runs`, `durable_events`, `events` or `event_stream`, and `interactive_events`; sends an explicit `mobil` session | `/api/agent` SSE, including approvals and questions |
-| VS Code | Implemented | Runs plus polling durable events and interactive payloads | `/api/agent` SSE |
 | Telegram | Implemented | Local engine with `runs.Queue`, session `tg:<chatID>` and run/context cancellation | Does not use local HTTP |
 
 ## Required Negotiation

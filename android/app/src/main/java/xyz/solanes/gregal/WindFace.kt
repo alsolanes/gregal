@@ -149,7 +149,7 @@ fun windStyleOf(code: String?): WindStyle {
 fun WindStyle.encode(): String = eyes.key + mouth.key + shape.key + barretina
 
 /** The packs a wind can be drawn with; the account theme is one of them or "free" (task 045). */
-internal val windPacks = listOf("cares", "esperit", "cap", "rosa", "mapa", "minairo", "pelut")
+internal val windPacks = listOf("folk", "cares", "esperit", "cap", "rosa", "mapa", "minairo", "pelut")
 
 /** A pack's sample in a picker at [size]: a dial or a map fills its whole square, so it is drawn smaller to weigh as much as a figure. */
 internal fun windPackSample(pack: String, size: Int): Int = if (pack == "rosa" || pack == "mapa") size * 5 / 6 else size
@@ -158,10 +158,10 @@ internal fun windPackSample(pack: String, size: Int): Int = if (pack == "rosa" |
 val LocalAvatarTheme = compositionLocalOf { "cares" }
 
 internal fun avatarThemeOf(raw: String): String =
-    org.json.JSONObject(raw).optString("avatarTheme").takeIf { it == "free" || it in windPacks } ?: "cares"
+    org.json.JSONObject(raw).optString("avatarTheme").takeIf { it == "free" || it in windPacks } ?: "folk"
 
 internal fun windPack(theme: String, style: WindStyle): String =
-    if (theme != "free") theme else style.pack.takeIf { it in windPacks } ?: "cares"
+    if (theme != "free") theme else style.pack.takeIf { it in windPacks } ?: "folk"
 
 /** "winds.avatarCares", "winds.avatarEsperit", "winds.avatarCap", "winds.avatarRosa", "winds.avatarMinairo", "winds.avatarPelut", "winds.avatarFree". */
 internal fun avatarLabelKey(pack: String) = "winds.avatar" + pack.replaceFirstChar { it.uppercase() }
@@ -461,6 +461,8 @@ fun WindFace(
     val cued = modifier.semantics { set(WindFaceKey, accent) }.then(windTurnCue(mood, accent, shrugs))
     val packCued = if (onClick != null) cued.clickable(onClick = onClick) else cued
     val pack = windPack(LocalAvatarTheme.current, style)
+    // Llegendes: a felt character (FolkFace.kt); without its files in the APK, the Cares face below.
+    if (pack == "folk" && FolkFace(size, mood, accent, style.windId, motionAllowed, packCued)) return
     when (pack) {
         "esperit" -> return EsperitFace(size, mood, accent, style.bearing, motion, packCued)
         "cap" -> return CapFace(size, mood, accent, style.bearing, motion, packCued)

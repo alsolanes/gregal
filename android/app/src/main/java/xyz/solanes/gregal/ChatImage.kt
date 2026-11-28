@@ -65,7 +65,7 @@ internal fun ChatImageFrame(bmp: ImageBitmap, url: String, alt: String, lang: St
         }
         val caption = chatImageCaption(alt, url)
         if (caption.isNotEmpty()) {
-            Text(caption, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            Text(caption, fontSize = GregalSize.label, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
         }
     }
@@ -107,12 +107,12 @@ internal fun ChatImageViewer(bmp: ImageBitmap, url: String, alt: String, lang: S
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 val caption = chatImageCaption(alt, url)
-                if (caption.isNotEmpty()) Text(caption, color = Color.White, fontSize = 13.sp)
+                if (caption.isNotEmpty()) Text(caption, color = Color.White, fontSize = GregalSize.small)
                 // Les imatges dels vents viuen al teu servidor (amb clau): no
                 // tenen cap «lloc d'origen» que el navegador pugui obrir.
                 if (url.startsWith("http://") || url.startsWith("https://")) {
                     TextButton(onClick = { try { uri.openUri(url) } catch (_: Exception) { } }, contentPadding = PaddingValues(0.dp)) {
-                        Text(tr(lang, "app.vents.imageSource"), color = Color.White, fontSize = 13.sp)
+                        Text(tr(lang, "app.vents.imageSource"), color = Color.White, fontSize = GregalSize.small)
                     }
                 }
             }

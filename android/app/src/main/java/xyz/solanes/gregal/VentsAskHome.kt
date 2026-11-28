@@ -165,10 +165,10 @@ internal fun AskTabs(lang: String, tab: String, unread: Int, today: Int = 0, onT
                     .padding(horizontal = 15.dp).testTag("ask-tab-$key"),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Text(askCopy(lang, key), color = if (on) Superficie else Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text(askCopy(lang, key), color = if (on) Superficie else Muted, fontSize = GregalSize.small, fontWeight = FontWeight.SemiBold)
                 val badge = when (key) { "chats" -> unread; "today" -> today; else -> 0 }
                 if (badge > 0) Surface(shape = RoundedCornerShape(999.dp), color = Sea) {
-                    Text(unreadBadge(badge), color = OnSea, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                    Text(unreadBadge(badge), color = OnSea, fontSize = GregalSize.label, fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
                 }
             }
@@ -403,8 +403,8 @@ internal fun HomeThreadHeader(lang: String, name: String, accent: Color, style: 
     ) {
         WindHalo(accent, style, size = 30, mood = if (working) WindMood.THINKING else WindMood.IDLE, online = false)
         Column {
-            Text(name, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            Text(tr(lang, if (working) "app.cap.thinking" else "app.cap.role"), color = Muted, fontSize = 12.sp)
+            Text(name, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold)
+            Text(tr(lang, if (working) "app.cap.thinking" else "app.cap.role"), color = Muted, fontSize = GregalSize.caption)
         }
     }
 }
@@ -452,14 +452,14 @@ internal fun AskComposer(lang: String, text: String, onText: (String) -> Unit, b
         }
         Box(Modifier.weight(1f).padding(top = 0.dp, bottom = 12.dp)) {
             BasicTextField(
-                text, onText, textStyle = TextStyle(color = Ink, fontSize = 16.sp, lineHeight = 22.sp),
+                text, onText, textStyle = TextStyle(color = Ink, fontSize = GregalSize.large, lineHeight = 22.sp),
                 cursorBrush = SolidColor(Sea), maxLines = 5,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
                 modifier = Modifier.fillMaxWidth().testTag("ask-input")
                     .onFocusChanged { focused = it.isFocused; onFocus(it.isFocused) },
                 decorationBox = { inner ->
                     Box(contentAlignment = Alignment.CenterStart) {
-                        if (text.isEmpty()) Text(askCopy(lang, "hint"), color = Muted, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (text.isEmpty()) Text(askCopy(lang, "hint"), color = Muted, fontSize = GregalSize.large, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         inner()
                     }
                 },
@@ -508,13 +508,13 @@ private fun TodayBriefView(lang: String, b: GregalViewModel.TodayBrief, wind: Wi
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (wind != null) WindHalo(accent, wind.faceStyle, size = 26, mood = WindMood.HAPPY, online = false, showKit = false)
-            else Text("☀", fontSize = 18.sp)
+            else Text("☀", fontSize = GregalSize.large)
             Column {
-                Text(askCopy(lang, "briefAt").format(b.at), color = Muted, fontSize = 11.sp)
-                if (b.windName.isNotBlank()) Text(b.windName, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text(askCopy(lang, "briefAt").format(b.at), color = Muted, fontSize = GregalSize.label)
+                if (b.windName.isNotBlank()) Text(b.windName, color = Ink, fontSize = GregalSize.small, fontWeight = FontWeight.SemiBold)
             }
         }
-        Text(speakableText(b.text), color = Ink, fontSize = 14.5.sp, lineHeight = 20.sp, maxLines = 6, overflow = TextOverflow.Ellipsis)
+        Text(speakableText(b.text), color = Ink, fontSize = GregalSize.body, lineHeight = 20.sp, maxLines = 6, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -530,12 +530,12 @@ private fun TodayCardView(c: TodayCard) {
     ) {
         Box(Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(Superficie), contentAlignment = Alignment.Center) {
             if (c.wind != null) WindHalo(Color(c.wind.argb), c.wind.faceStyle, size = 34, mood = WindMood.IDLE, online = false, showKit = false)
-            else Text(c.glyph, fontSize = 18.sp, color = Ink)
+            else Text(c.glyph, fontSize = GregalSize.large, color = Ink)
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text(c.kicker, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(c.title, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp)
-            if (c.sub.isNotBlank()) Text(c.sub, color = Muted, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(c.kicker, color = Muted, fontSize = GregalSize.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(c.title, color = Ink, fontSize = GregalSize.body, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp)
+            if (c.sub.isNotBlank()) Text(c.sub, color = Muted, fontSize = GregalSize.caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = Muted.copy(alpha = .7f), modifier = Modifier.size(18.dp))
     }

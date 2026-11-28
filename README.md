@@ -2,7 +2,7 @@
 
 [English](README.md) | [Catala](README.ca.md)
 
-Gregal is an open-source coding agent with terminal, desktop and web interfaces, plus Android, Telegram and VS Code clients. It connects to OpenAI-compatible model endpoints and includes project tools, approvals, checkpoints, MCP and persistent sessions.
+Gregal is an open-source coding agent with terminal, desktop and web interfaces, plus Android and Telegram clients. It connects to OpenAI-compatible model endpoints and includes project tools, approvals, checkpoints, MCP and persistent sessions.
 
 English is the default interface and agent-response language. Catalan is available with `lang: ca` in clients that support it.
 
@@ -34,15 +34,6 @@ go run . init
 Configure a working endpoint and model IDs before the first request, then launch the terminal interface with `go run .`. The generated endpoints and model IDs are examples. See the [Getting Started guide](docs/getting-started.md) for provider setup, local web access and data-handling details. Catalan: [Primers passos](docs/getting-started.ca.md).
 
 To run the web interface locally, use `go run . --serve` and open the URL printed in the terminal. For other clients and the HTTP API, see the [API contract](docs/api-contract.md) and [compatibility notes](docs/compatibility.md).
-
-### VS Code
-
-The one-click `Gregal-VSCode-Setup-x64.exe` and the `install-vscode.ps1` command
-need a release with the `.vsix` package and the standalone backend, and current
-releases do not attach them (the last one was v1.13.1). Until they return, build
-the extension from source as described in the
-[VS Code guide](vscode-gregal/README.md) and point it at the desktop app's
-backend (`http://127.0.0.1:8097`) or at `go run . --serve`.
 
 ## Contributing
 

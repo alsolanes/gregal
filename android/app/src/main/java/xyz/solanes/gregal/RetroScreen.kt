@@ -176,10 +176,10 @@ fun RetroScreen(vm: GregalViewModel, onMenu: () -> Unit, onBack: () -> Unit) {
                 }
                 else -> LazyColumn(Modifier.fillMaxSize(), state = list) {
                     item {
-                        Text(tr(lang, "app.retro.lead"), color = Faint, fontSize = 12.5.sp, lineHeight = 18.sp,
+                        Text(tr(lang, "app.retro.lead"), color = Faint, fontSize = GregalSize.caption, lineHeight = 18.sp,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                         if (ch!!.degraded) {
-                            Text(tr(lang, "app.retro.degraded"), color = Sand, fontSize = 12.5.sp,
+                            Text(tr(lang, "app.retro.degraded"), color = Sand, fontSize = GregalSize.caption,
                                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
                         }
                         if (counts.isNotEmpty()) ReviewBar(counts, filter, lang) { filter = if (filter == it) "" else it }
@@ -193,7 +193,7 @@ fun RetroScreen(vm: GregalViewModel, onMenu: () -> Unit, onBack: () -> Unit) {
                     }
                     if (replying || state == "rewriting") item { Typing(lang) }
                     if (state.isNotBlank() && state !in setOf("loading", "starting", "replying", "rewriting")) item {
-                        Text(state, color = Red, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+                        Text(state, color = Red, fontSize = GregalSize.small, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                     }
                     chatReserve(follow)
                 }
@@ -218,7 +218,7 @@ private fun ReviewBar(counts: Map<String, Int>, filter: String, lang: String, on
         modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
     ) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-            Text(tr(lang, "app.retro.review").uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
+            Text(tr(lang, "app.retro.review").uppercase(), color = Muted, fontSize = GregalSize.label, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
             Row(
                 Modifier.padding(top = 8.dp).horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -241,9 +241,9 @@ private fun MoodBar(current: String, busy: Boolean, lang: String, onPick: (Strin
         modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
     ) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-            Text(tr(lang, "app.retro.mood").uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
+            Text(tr(lang, "app.retro.mood").uppercase(), color = Muted, fontSize = GregalSize.label, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
             if (busy) {
-                Text(tr(lang, "app.retro.rewriting"), color = Sea, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                Text(tr(lang, "app.retro.rewriting"), color = Sea, fontSize = GregalSize.caption, modifier = Modifier.padding(top = 4.dp))
             }
             Row(
                 Modifier.padding(top = 8.dp).horizontalScroll(rememberScrollState()),
@@ -264,7 +264,7 @@ private fun MoodChip(label: String, on: Boolean, enabled: Boolean, onClick: () -
         border = BorderStroke(1.dp, if (on) Sea.copy(alpha = 0.6f) else Line),
         modifier = Modifier.clip(RoundedCornerShape(50)).clickable(onClick = onClick, enabled = enabled),
     ) {
-        Text(label, color = if (on) Sea else Muted, fontSize = 12.5.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
+        Text(label, color = if (on) Sea else Muted, fontSize = GregalSize.caption, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
     }
 }
@@ -281,9 +281,9 @@ private fun SevChip(label: String, n: Int, color: Color?, on: Boolean, onClick: 
                 Box(Modifier.size(8.dp).background(color, CircleShape))
                 Spacer(Modifier.width(6.dp))
             }
-            Text(label, color = if (on) Ink else Tinta, fontSize = 13.sp)
+            Text(label, color = if (on) Ink else Tinta, fontSize = GregalSize.small)
             Spacer(Modifier.width(6.dp))
-            Text(n.toString(), color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(n.toString(), color = Muted, fontSize = GregalSize.caption, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -311,22 +311,22 @@ private fun RetroMessageRow(
             Column(Modifier.weight(1f)) {
                 if (!grouped) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(w.name, color = Ink, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(w.name, color = Ink, fontWeight = FontWeight.Bold, fontSize = GregalSize.body)
                         if (m.concede) {
                             Spacer(Modifier.width(6.dp))
-                            Text(tr(lang, "app.retro.conceded"), color = Sand, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            Text(tr(lang, "app.retro.conceded"), color = Sand, fontSize = GregalSize.label, fontWeight = FontWeight.SemiBold)
                         }
                         Spacer(Modifier.width(6.dp))
-                        Text(retroClock(m.at), color = Faint, fontSize = 11.5.sp)
+                        Text(retroClock(m.at), color = Faint, fontSize = GregalSize.label)
                     }
                 }
                 if (m.isFinding) FindingCard(m, lang, onFix)
-                else Text(renderMd(m.text, CodeDark), color = if (m.kind == "verdict") Muted else Tinta, fontSize = 15.sp, lineHeight = 22.sp,
+                else Text(renderMd(m.text, CodeDark), color = if (m.kind == "verdict") Muted else Tinta, fontSize = GregalSize.body, lineHeight = 22.sp,
                     fontStyle = if (m.kind == "verdict") FontStyle.Italic else FontStyle.Normal,
                     modifier = Modifier.padding(top = 2.dp))
                 if (m.fix.isNotBlank() && !m.isFinding) {
                     Surface(shape = RoundedCornerShape(10.dp), color = Green.copy(alpha = 0.10f), modifier = Modifier.padding(top = 6.dp)) {
-                        Text("💡 " + m.fix, color = Tinta, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp))
+                        Text("💡 " + m.fix, color = Tinta, fontSize = GregalSize.small, modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp))
                     }
                 }
                 // Rebuts (les proves: events reals del torn), reaccions i el
@@ -337,7 +337,7 @@ private fun RetroMessageRow(
                 ) {
                     m.receipts.forEach { r ->
                         Surface(shape = RoundedCornerShape(6.dp), color = CodeDark) {
-                            Text(r, color = Muted, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                            Text(r, color = Muted, fontSize = GregalSize.label, fontFamily = FontFamily.Monospace,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                         }
                     }
@@ -347,7 +347,7 @@ private fun RetroMessageRow(
                             border = BorderStroke(1.dp, if (r.mine) Sea.copy(alpha = 0.5f) else Color.Transparent),
                             modifier = Modifier.clip(RoundedCornerShape(50)).clickable { onReact(r.emoji) },
                         ) {
-                            Text("${r.emoji} ${r.by.size}", fontSize = 12.5.sp, color = if (r.mine) Sea else Muted,
+                            Text("${r.emoji} ${r.by.size}", fontSize = GregalSize.caption, color = if (r.mine) Sea else Muted,
                                 modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp))
                         }
                     }
@@ -358,7 +358,7 @@ private fun RetroMessageRow(
                         DropdownMenu(expanded = picker, onDismissRequest = { picker = false }) {
                             Row(Modifier.padding(horizontal = 8.dp)) {
                                 emojis.forEach { e ->
-                                    Text(e, fontSize = 22.sp, textAlign = TextAlign.Center,
+                                    Text(e, fontSize = GregalSize.title, textAlign = TextAlign.Center,
                                         modifier = Modifier.clip(CircleShape).clickable { picker = false; onReact(e) }.padding(8.dp))
                                 }
                             }
@@ -383,26 +383,26 @@ private fun FindingCard(m: RetroMsg, lang: String, onFix: () -> Unit) {
             Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(shape = RoundedCornerShape(50), color = c.copy(alpha = 0.16f)) {
-                        Text(tr(lang, "app.retro.sev.${m.sev}").uppercase(), color = c, fontSize = 10.5.sp, fontWeight = FontWeight.Bold,
+                        Text(tr(lang, "app.retro.sev.${m.sev}").uppercase(), color = c, fontSize = GregalSize.label, fontWeight = FontWeight.Bold,
                             letterSpacing = 0.5.sp, modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp))
                     }
                     if (m.title.isNotBlank()) {
                         Spacer(Modifier.width(8.dp))
-                        Text(m.title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.5.sp)
+                        Text(m.title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = GregalSize.body)
                     }
                 }
-                if (m.text.isNotBlank()) Text(renderMd(m.text, CodeDark), color = Tinta, fontSize = 14.5.sp, lineHeight = 21.sp,
+                if (m.text.isNotBlank()) Text(renderMd(m.text, CodeDark), color = Tinta, fontSize = GregalSize.body, lineHeight = 21.sp,
                     modifier = Modifier.padding(top = 6.dp))
                 if (m.fix.isNotBlank()) {
                     Box(Modifier.padding(top = 8.dp).fillMaxWidth().height(1.dp).background(Line))
                     Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text(tr(lang, "app.retro.fix").uppercase(), color = c, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
-                            Text(m.fix, color = Tinta, fontSize = 13.sp, lineHeight = 18.sp)
+                            Text(tr(lang, "app.retro.fix").uppercase(), color = c, fontSize = GregalSize.label, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                            Text(m.fix, color = Tinta, fontSize = GregalSize.small, lineHeight = 18.sp)
                         }
                         Spacer(Modifier.width(8.dp))
-                        if (m.fixRun > 0) Text("#${m.fixRun}", color = Muted, fontSize = 12.sp)
-                        else androidx.compose.material3.FilledTonalButton(onClick = onFix) { Text(tr(lang, "app.retro.fixIt"), fontSize = 13.sp) }
+                        if (m.fixRun > 0) Text("#${m.fixRun}", color = Muted, fontSize = GregalSize.caption)
+                        else androidx.compose.material3.FilledTonalButton(onClick = onFix) { Text(tr(lang, "app.retro.fixIt"), fontSize = GregalSize.small) }
                     }
                 }
             }
@@ -420,7 +420,7 @@ private fun Typing(lang: String) {
             Box(Modifier.padding(end = 4.dp).size(7.dp).background(Muted.copy(alpha = a), CircleShape))
         }
         Spacer(Modifier.width(6.dp))
-        Text(tr(lang, "app.retro.typing"), color = Faint, fontSize = 12.5.sp)
+        Text(tr(lang, "app.retro.typing"), color = Faint, fontSize = GregalSize.caption)
     }
 }
 
@@ -429,6 +429,6 @@ private fun RetroWaiting(text: String) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         GregalMark(56.dp, alive = true)
         Spacer(Modifier.height(16.dp))
-        Text(text, color = Muted, fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 32.dp))
+        Text(text, color = Muted, fontSize = GregalSize.body, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 32.dp))
     }
 }

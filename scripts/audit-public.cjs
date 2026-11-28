@@ -46,7 +46,7 @@ function walk(dir) {
       if (bytes.includes(0)) continue;
       const text = bytes.toString('utf8');
       for (const [name, pattern] of rules) {
-        if (['LICENSE', 'vscode-gregal/LICENSE', 'internal/web/app/vendor/THIRD_PARTY_NOTICES.md'].includes(relative)
+        if (['LICENSE', 'internal/web/app/vendor/THIRD_PARTY_NOTICES.md'].includes(relative)
           && name.startsWith('personal ')) continue;
         if (pattern.test(text)) findings.push(`${relative}: ${name}`);
       }

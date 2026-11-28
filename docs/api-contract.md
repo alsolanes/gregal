@@ -1,6 +1,6 @@
 # HTTP Backend Contract
 
-All clients (web, desktop, Android and VS Code) use `gregal serve`. Responses
+All clients (web, desktop and Android) use `gregal serve`. Responses
 are JSON unless marked **SSE** (`event:` plus `data:` containing JSON). When a
 server token is configured, API routes require
 `Authorization: Bearer <token>`, except `/api/login`; `/` and `/app/*` (the UI)
